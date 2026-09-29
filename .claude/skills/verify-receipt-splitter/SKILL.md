@@ -30,15 +30,17 @@ Each lane picks its own port. The helper derives everything else from it, so lan
 .claude/skills/verify-receipt-splitter/verify.mjs launch --port 8811
 ```
 
-Launch runs `npm run build`, starts `wrangler dev` in its own process group, and records that group in `.verify/<port>/pgid`. It then waits up to 90 seconds until the listener on the port belongs to that group and `GET /` returns 200. Each request in that wait times out after 5 seconds, and the build gets 3 minutes. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pgid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
+Launch runs `npm run build`, starts `wrangler dev` in its own process group, and records that group in `.verify/<port>/pgid`. It then waits up to 90 seconds until every listener on the port belongs to that group and `GET /` returns 200. Each request in that wait times out after 5 seconds, and the build gets 3 minutes. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pgid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
 
 Launch returns only when the site is ready, so you do not need to poll doctor after it. Launch fails without starting anything in these cases:
 
 - The port or the inspector port already has a listener.
-- The process group recorded by an earlier launch on this port is still running. Run cleanup first. Launch never overwrites a live record.
+- `.verify/<port>/` already exists. An earlier launch on this port created it, and no cleanup has removed it since. That launch failed or is still starting. Run cleanup first. Launch creates the folder in one atomic step, so when two launches on one port start together, exactly one proceeds.
 - The build fails or runs past 3 minutes.
 
-Launch also fails when the 90 seconds pass without a ready server. If another process holds the port, the failure line names its pid. Otherwise it points to `wrangler.log`. Run cleanup after any failed launch.
+Launch also fails when the 90 seconds pass without a ready server. If another process listens on the port, even beside wrangler, the failure line names its pid. Otherwise it points to `wrangler.log`.
+
+Every failure after the port check leaves `.verify/<port>/`, and the next launch on that port fails until cleanup removes it. Run cleanup after any failed launch.
 
 ## Doctor
 
@@ -49,7 +51,7 @@ Launch also fails when the 90 seconds pass without a ready server. If another pr
 Doctor is a single read-only check. It does not wait for the site to come up. Run it once after launch and again whenever anything looks off. Each request it makes times out after 5 seconds. It passes only when all four checks are true.
 
 - `running`. The process group this helper started still has a live process, and every live process in it is this worktree's wrangler, workerd, esbuild, or node.
-- `portOwned`. The listener on the port belongs to that process group, not to someone else's server.
+- `portOwned`. Every listener on the port belongs to that process group, so no other server shares the port.
 - `servesBuild`. The served `/` is byte-identical to `dist/index.html`, so the server shows the current build.
 - `spaFallback`. A navigation to `/s/doctor` returns 200.
 

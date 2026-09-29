@@ -41,17 +41,19 @@ if (!commands[command]) fail(`unknown command ${command}`);
 await commands[command]();
 
 async function launch() {
-  const record = recordedGroup();
-  if (record?.members.length) {
-    fail(`process group ${record.pgid} from an earlier launch is still running; run cleanup --port ${port} first`);
-  }
   for (const p of [port, inspectorPort]) {
     if (listenerPids(p).length) fail(`port ${p} is already in use; pick another port or run cleanup`);
+  }
+  mkdirSync(dirname(runDir), { recursive: true });
+  try {
+    mkdirSync(runDir);
+  } catch (error) {
+    if (error.code === "EEXIST") fail(`an earlier launch on port ${port} left ${runDir}; run cleanup --port ${port} first`);
+    throw error;
   }
   if (!values["no-build"]) {
     execFileSync("npm", ["run", "build"], { cwd: root, stdio: ["ignore", 2, 2], timeout: 180_000 });
   }
-  mkdirSync(runDir, { recursive: true });
   const log = openSync(logFile, "a");
   const child = spawn(
     join(root, "node_modules/.bin/wrangler"),
@@ -68,12 +70,11 @@ async function launch() {
   child.unref();
   const pgid = child.pid;
   writeFileSync(pgidFile, String(pgid));
-  const inGroup = (pid) => processGroup(pid) === pgid;
-  if (await waitFor(async () => listenerPids(port).some(inGroup) && (await status("/")) === 200, 90_000)) {
+  if (await waitFor(async () => ownsPort(pgid) && (await status("/")) === 200, 90_000)) {
     print({ ok: true, port, pgid, url: `${baseUrl}/`, log: logFile });
     return;
   }
-  const strangers = listenerPids(port).filter((pid) => !inGroup(pid));
+  const strangers = listenerPids(port).filter((pid) => processGroup(pid) !== pgid);
   fail(
     strangers.length
       ? `port ${port} is held by pid ${strangers.join(", ")}, outside wrangler's process group ${pgid}; run cleanup`
@@ -91,7 +92,7 @@ async function checks() {
   const record = recordedGroup();
   const pgid = record?.pgid ?? null;
   const running = Boolean(record?.members.length) && record.members.every(ownedByWorktree);
-  const portOwned = running && listenerPids(port).some((p) => processGroup(p) === pgid);
+  const portOwned = running && ownsPort(pgid);
   const builtHtml = join(root, "dist/index.html");
   const servesBuild = existsSync(builtHtml) && (await text("/")) === readFileSync(builtHtml, "utf8");
   const spaFallback = (await status("/s/doctor", { "Sec-Fetch-Mode": "navigate" })) === 200;
@@ -160,7 +161,7 @@ async function cleanup() {
   if (record) {
     const strangers = record.members.filter((m) => !ownedByWorktree(m));
     if (record.pgid === null || strangers.length) {
-      rmSync(pgidFile);
+      rmSync(pgidFile, { force: true });
       fail(
         record.pgid === null
           ? `${pgidFile} holds ${JSON.stringify(record.raw)}, not a process group id above 1; removed it and stopped nothing`
@@ -202,6 +203,11 @@ function signalGroup(pgid, signal) {
   } catch (error) {
     if (groupMembers(pgid).length) throw error;
   }
+}
+
+function ownsPort(pgid) {
+  const listeners = listenerPids(port);
+  return listeners.length > 0 && listeners.every((pid) => processGroup(pid) === pgid);
 }
 
 function listenerPids(p) {
