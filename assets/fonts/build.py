@@ -1,8 +1,3 @@
-"""Rebuild the self-hosted Archivo subsets from the pinned Google Fonts source.
-
-Run with `python3 assets/fonts/build.py`. Needs fontTools.
-"""
-
 import io
 import os
 import urllib.request
