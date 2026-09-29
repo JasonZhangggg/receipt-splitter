@@ -7,7 +7,7 @@ description: Launch, check, drive, and tear down the Receipt Splitter website (E
 
 The app is an Expo Router website. `npm run build` exports it to `dist/`. `wrangler dev` serves `dist/` as Workers static assets with the SPA fallback, and routes `/api/*` and `/parties/*` to `worker/index.ts`. A user touches the site in a phone browser, so every drive runs Playwright's Chromium with the Pixel 7 profile.
 
-All commands go through one helper. Run it from the repo root of the worktree you are verifying. Every command prints one JSON line on stdout and exits 0 on success and 1 on failure. A failure line is `{"ok":false,"error":"..."}`. Build output from `launch` goes to stderr.
+All commands go through one helper. Run it from the repo root of the worktree you are verifying. Every command prints one JSON line on stdout and exits 0 on success and 1 on failure. A failure line is `{"ok":false,"error":"..."}`. This also holds when the command hits an error, such as a refused connection, a failed build, a missing wrangler or Chromium, or an unknown option. The error message is in `error`, and no stack trace goes to stdout. Build output from `launch` goes to stderr.
 
 ```sh
 .claude/skills/verify-receipt-splitter/verify.mjs <command> --port <port> [options]
@@ -20,7 +20,7 @@ Before the first launch in a fresh worktree, run `npm ci` and `npx playwright in
 Each lane picks its own port. The helper derives everything else from it, so lanes in different worktrees never share state.
 
 - The site listens on `http://localhost:<port>`.
-- The wrangler inspector listens on `<port> + 10000`. Pick ports below 55000.
+- The wrangler inspector listens on `<port> + 10000`. The port must be below 55000, so the inspector stays below 65535. Every command rejects any other port with a usage failure.
 - Run state (the process group id, `wrangler.log`, Durable Object storage) lives in `.verify/<port>/` in the worktree.
 - Two lanes in the same worktree share `dist/`. Do not rebuild while another lane in that worktree is driving.
 
@@ -30,7 +30,15 @@ Each lane picks its own port. The helper derives everything else from it, so lan
 .claude/skills/verify-receipt-splitter/verify.mjs launch --port 8811
 ```
 
-Launch refuses a port that is already in use. It runs `npm run build`, starts `wrangler dev` in its own process group, and waits up to 90 seconds for `GET /` to return 200. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pgid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
+Launch runs `npm run build`, starts `wrangler dev` in its own process group, and records that group in `.verify/<port>/pgid`. It then waits up to 90 seconds until the listener on the port belongs to that group and `GET /` returns 200. Each request in that wait times out after 5 seconds, and the build gets 3 minutes. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pgid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
+
+Launch returns only when the site is ready, so you do not need to poll doctor after it. Launch fails without starting anything in these cases:
+
+- The port or the inspector port already has a listener.
+- The process group recorded by an earlier launch on this port is still running. Run cleanup first. Launch never overwrites a live record.
+- The build fails or runs past 3 minutes.
+
+Launch also fails when the 90 seconds pass without a ready server. If another process holds the port, the failure line names its pid. Otherwise it points to `wrangler.log`. Run cleanup after any failed launch.
 
 ## Doctor
 
@@ -38,9 +46,9 @@ Launch refuses a port that is already in use. It runs `npm run build`, starts `w
 .claude/skills/verify-receipt-splitter/verify.mjs doctor --port 8811
 ```
 
-Read-only. Run it after launch and whenever anything looks off. It passes only when all four checks are true.
+Doctor is a single read-only check. It does not wait for the site to come up. Run it once after launch and again whenever anything looks off. Each request it makes times out after 5 seconds. It passes only when all four checks are true.
 
-- `running`. The process group this helper started still has a live process.
+- `running`. The process group this helper started still has a live process, and every live process in it is this worktree's wrangler, workerd, esbuild, or node.
 - `portOwned`. The listener on the port belongs to that process group, not to someone else's server.
 - `servesBuild`. The served `/` is byte-identical to `dist/index.html`, so the server shows the current build.
 - `spaFallback`. A navigation to `/s/doctor` returns 200.
@@ -51,8 +59,10 @@ One call loads one route in a fresh mobile browser, checks it, and saves proof.
 
 ```sh
 .claude/skills/verify-receipt-splitter/verify.mjs drive --port 8811 --path /s/abc \
-  --expect-text abc --shot /tmp/swarm-RS-1/worker-1/split-abc.png --aria /tmp/swarm-RS-1/worker-1/split-abc.aria.txt
+  --expect-text abc --shot /tmp/swarm-<pr-id>/worker-<n>/split-abc.png --aria /tmp/swarm-<pr-id>/worker-<n>/split-abc.aria.txt
 ```
+
+Drive saves files only where `--shot` and `--aria` point, and creates their folders. Point both into the lane's output folder, the one you later pass to `evidence --out`. If the lane names no folder, use `/tmp/verify-receipt-splitter/<port>/`, which is where `evidence` writes by default.
 
 - `--path` is the route to open. The default is `/`.
 - `--expect-heading <name>` requires a visible heading with that accessible name.
@@ -60,17 +70,17 @@ One call loads one route in a fresh mobile browser, checks it, and saves proof.
 - `--shot <file>` saves a full-page screenshot.
 - `--aria <file>` saves the ARIA snapshot of the page body.
 
-A drive fails on a non-200 response, a missing heading or text, or any console error or uncaught page error. The failures are listed in the JSON line.
+A drive fails on a non-200 response, a missing heading or text, or any console error or uncaught page error. The failures are listed in the JSON line. If the page cannot load at all, for example because nothing listens on the port, the failure line carries the browser's error in `error`.
 
 For multi-step interactions that one navigation cannot express, write a Playwright spec under `e2e/` and run it with `PORT=<port> npm run e2e`. The spec config runs `npm run build` and starts its own `wrangler dev` on that port with the inspector on `port + 10000`, so do not run it against a port where `launch` is already serving.
 
 ## Evidence
 
 ```sh
-.claude/skills/verify-receipt-splitter/verify.mjs evidence --port 8811 --out /tmp/swarm-RS-1/worker-1
+.claude/skills/verify-receipt-splitter/verify.mjs evidence --port 8811 --out /tmp/swarm-<pr-id>/worker-<n>
 ```
 
-Evidence copies `wrangler.log` into the output folder and writes `manifest.json` with the head SHA, whether the tree is dirty, a fresh doctor report, and every file in the folder with its size. Run it after the drives and before cleanup. The default folder is `/tmp/verify-receipt-splitter/<port>/`.
+Evidence copies `wrangler.log` into the output folder and writes `manifest.json` with the head SHA, whether the tree is dirty, a fresh doctor report, and every file in the folder with its size. The manifest lists every file already in the folder, including files from earlier runs, so start each lane with an empty folder. Run it after the drives and before cleanup. The default folder is `/tmp/verify-receipt-splitter/<port>/`.
 
 Proof standards.
 
@@ -85,7 +95,14 @@ Proof standards.
 .claude/skills/verify-receipt-splitter/verify.mjs cleanup --port 8811
 ```
 
-Cleanup stops only the process group that `launch` recorded, and never kills by process name. It sends SIGTERM, then SIGKILL after five seconds, checks that no process in the group remains and that nothing listens on the port, and deletes `.verify/<port>/`. It never touches the evidence folder. It exits 1 if the port is held by a process this helper did not start. Run it after every lane, including failed ones.
+Cleanup stops only the process group that `launch` recorded, and never kills by process name. Before it sends any signal, it checks the record in `.verify/<port>/pgid`:
+
+- The recorded id must be an integer above 1. An empty file or `1` fails.
+- Every live process in the group must be this worktree's wrangler, workerd, esbuild, or node, which means its command runs from this worktree's `node_modules/`.
+
+If either check fails, cleanup deletes the record, signals nothing, and exits 1. The failure line names the bad value or the pids it refused. Run cleanup again to remove the rest of `.verify/<port>/`.
+
+When the record passes, cleanup sends SIGTERM, then SIGKILL after five seconds. It checks that no process in the group remains and that nothing listens on the port or the inspector port, then deletes `.verify/<port>/`. A group that exits before cleanup signals it counts as stopped. Cleanup never touches the evidence folder. It exits 1 if either port is held by a process this helper did not start. Run it after every lane, including failed ones.
 
 ## Feature map
 

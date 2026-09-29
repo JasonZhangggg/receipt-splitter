@@ -18,6 +18,7 @@ The site has two routes. `/` is the home screen. `/s/<id>` opens a Split by its 
 Preconditions:
 
 - `verify.mjs doctor --port 8811` reports `"ok":true`.
+- `<out>` is the lane's output folder, as defined in [README.md](./README.md). Without one, it is `/tmp/verify-receipt-splitter/8811/`.
 
 - **Home.** Open `/`. Run `verify.mjs drive --port 8811 --path / --expect-heading "Receipt Splitter" --shot <out>/routes-home.png`. The JSON line has `"ok":true` and the screenshot shows the `Receipt Splitter` heading.
 - **Split link.** Open `/s/abc` as the first page. Run `verify.mjs drive --port 8811 --path /s/abc --expect-text abc --shot <out>/routes-split.png --aria <out>/routes-split.aria.txt`. The JSON line has `"ok":true`, and the ARIA snapshot reads `text: abc`.

@@ -6,13 +6,14 @@ This folder is the maintained source for verifying what a user can do on the Rec
 
 - The worktree has run `npm ci` and `npx playwright install chromium`.
 - The lane has its own port. Examples below use `8811`.
-- `verify.mjs launch --port 8811` reported `"ok":true`.
-- `verify.mjs doctor --port 8811` reports `"ok":true`.
+- `verify.mjs launch --port 8811` reported `"ok":true`. Launch returns only when the site is ready.
+- `verify.mjs doctor --port 8811` reports `"ok":true`. Doctor is one check, not a wait, so run it once.
 - Never drive an instance that this lane did not launch.
 
 ## Driving conventions
 
 - Run every command from the worktree root. `verify.mjs` means `.claude/skills/verify-receipt-splitter/verify.mjs`.
+- `<out>` in a command is the lane's output folder. Use the folder the lane names, such as `/tmp/swarm-<pr-id>/worker-<n>/`. If the lane names none, use `/tmp/verify-receipt-splitter/<port>/`, the folder `evidence` writes to by default. Drive creates the folder if it does not exist.
 - Every drive opens a fresh Pixel 7 browser, so no state carries between drives.
 - Prefer accessible names and route paths. The only test id is `split-id` on the Split screen.
 - Use the terms in `CONTEXT.md`: Split, Host, Participant, Item, Claim, Share.
@@ -20,7 +21,7 @@ This folder is the maintained source for verifying what a user can do on the Rec
 ## Proof and skip reporting
 
 - Each drive saves a screenshot, and an ARIA snapshot where the feature file asks for one.
-- Run `verify.mjs evidence` into the lane's output folder before cleanup.
+- Run `verify.mjs evidence --port 8811 --out <out>` before cleanup. The manifest lists every file already in `<out>`, so start each lane with an empty folder.
 - Record the feature ID and the route with every artifact.
 - Report an unreachable route with the command you ran and the failure line.
 - Do not report a skipped entry point as verified through a different path.
