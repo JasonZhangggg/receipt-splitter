@@ -4,8 +4,6 @@
     "slug": "receipt-splitter",
     "version": "0.1.0",
     "scheme": "receiptsplitter",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "web": {
       "output": "single",

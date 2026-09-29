@@ -9,8 +9,9 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${port}` },
   projects: [{ name: "mobile-chrome", use: { ...devices["Pixel 7"] } }],
   webServer: {
-    command: `npx wrangler dev --port ${port}`,
+    command: `npm run build && npx wrangler dev --port ${port} --inspector-port ${port + 10000}`,
     url: `http://localhost:${port}/`,
     reuseExistingServer: false,
+    timeout: 180_000,
   },
 });
