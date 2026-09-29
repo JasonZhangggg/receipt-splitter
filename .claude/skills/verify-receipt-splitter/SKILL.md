@@ -7,7 +7,7 @@ description: Launch, check, drive, and tear down the Receipt Splitter website (E
 
 The app is an Expo Router website. `npm run build` exports it to `dist/`. `wrangler dev` serves `dist/` as Workers static assets with the SPA fallback, and routes `/api/*` and `/parties/*` to `worker/index.ts`. A user touches the site in a phone browser, so every drive runs Playwright's Chromium with the Pixel 7 profile.
 
-All commands go through one helper. Run it from the repo root of the worktree you are verifying. Every command prints one JSON line and exits 0 on success and 1 on failure.
+All commands go through one helper. Run it from the repo root of the worktree you are verifying. Every command prints one JSON line on stdout and exits 0 on success and 1 on failure. A failure line is `{"ok":false,"error":"..."}`. Build output from `launch` goes to stderr.
 
 ```sh
 .claude/skills/verify-receipt-splitter/verify.mjs <command> --port <port> [options]
@@ -21,7 +21,7 @@ Each lane picks its own port. The helper derives everything else from it, so lan
 
 - The site listens on `http://localhost:<port>`.
 - The wrangler inspector listens on `<port> + 10000`. Pick ports below 55000.
-- Run state (pid file, `wrangler.log`, Durable Object storage) lives in `.verify/<port>/` in the worktree.
+- Run state (the process group id, `wrangler.log`, Durable Object storage) lives in `.verify/<port>/` in the worktree.
 - Two lanes in the same worktree share `dist/`. Do not rebuild while another lane in that worktree is driving.
 
 ## Launch
@@ -30,7 +30,7 @@ Each lane picks its own port. The helper derives everything else from it, so lan
 .claude/skills/verify-receipt-splitter/verify.mjs launch --port 8811
 ```
 
-Launch refuses a port that is already in use. It runs `npm run build`, starts `wrangler dev` in its own process group, and waits up to 90 seconds for `GET /` to return 200. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
+Launch refuses a port that is already in use. It runs `npm run build`, starts `wrangler dev` in its own process group, and waits up to 90 seconds for `GET /` to return 200. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pgid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
 
 ## Doctor
 
@@ -40,9 +40,9 @@ Launch refuses a port that is already in use. It runs `npm run build`, starts `w
 
 Read-only. Run it after launch and whenever anything looks off. It passes only when all four checks are true.
 
-- `process`. The wrangler process this helper started is alive.
+- `running`. The process group this helper started still has a live process.
 - `portOwned`. The listener on the port belongs to that process group, not to someone else's server.
-- `servesBuild`. `/` references the same `entry-*.js` bundle that is in `dist/`, so the server shows the current build.
+- `servesBuild`. The served `/` is byte-identical to `dist/index.html`, so the server shows the current build.
 - `spaFallback`. A navigation to `/s/doctor` returns 200.
 
 ## Drive
@@ -56,13 +56,13 @@ One call loads one route in a fresh mobile browser, checks it, and saves proof.
 
 - `--path` is the route to open. The default is `/`.
 - `--expect-heading <name>` requires a visible heading with that accessible name.
-- `--expect-text <text>` requires visible text with that exact content. Repeat it for several strings.
+- `--expect-text <text>` requires visible text with that exact content. Repeat it for several strings. Each expectation waits up to 5 seconds.
 - `--shot <file>` saves a full-page screenshot.
 - `--aria <file>` saves the ARIA snapshot of the page body.
 
 A drive fails on a non-200 response, a missing heading or text, or any console error or uncaught page error. The failures are listed in the JSON line.
 
-For multi-step interactions that one navigation cannot express, write a Playwright spec under `e2e/` and run it with `PORT=<port> npm run e2e`. The spec config starts its own `wrangler dev` on that port, so do not run it against a port where `launch` is already serving.
+For multi-step interactions that one navigation cannot express, write a Playwright spec under `e2e/` and run it with `PORT=<port> npm run e2e`. The spec config runs `npm run build` and starts its own `wrangler dev` on that port with the inspector on `port + 10000`, so do not run it against a port where `launch` is already serving.
 
 ## Evidence
 

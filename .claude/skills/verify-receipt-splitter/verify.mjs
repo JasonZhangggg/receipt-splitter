@@ -5,7 +5,6 @@ import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-const entryDir = join(root, "dist/_expo/static/js/web");
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -28,7 +27,7 @@ if (!command || !Number.isInteger(port) || port <= 0) {
 }
 
 const runDir = join(root, ".verify", String(port));
-const pidFile = join(runDir, "pid");
+const pgidFile = join(runDir, "pgid");
 const logFile = join(runDir, "wrangler.log");
 const baseUrl = `http://localhost:${port}`;
 
@@ -38,7 +37,7 @@ await commands[command]();
 
 async function launch() {
   if (listenerPids().length) fail(`port ${port} is already in use; pick another port or run cleanup`);
-  if (!values["no-build"]) execFileSync("npm", ["run", "build"], { cwd: root, stdio: "inherit" });
+  if (!values["no-build"]) execFileSync("npm", ["run", "build"], { cwd: root, stdio: ["ignore", 2, 2] });
   mkdirSync(runDir, { recursive: true });
   const log = openSync(logFile, "a");
   const child = spawn(
@@ -53,13 +52,10 @@ async function launch() {
     { cwd: root, detached: true, stdio: ["ignore", log, log] },
   );
   child.unref();
-  writeFileSync(pidFile, String(child.pid));
-  for (let i = 0; i < 90; i++) {
-    if (await status("/") === 200) {
-      print({ ok: true, port, pid: child.pid, url: `${baseUrl}/`, log: logFile });
-      return;
-    }
-    await sleep(1000);
+  writeFileSync(pgidFile, String(child.pid));
+  if (await waitFor(async () => (await status("/")) === 200, 90_000)) {
+    print({ ok: true, port, pgid: child.pid, url: `${baseUrl}/`, log: logFile });
+    return;
   }
   fail(`wrangler did not answer on ${baseUrl}/ within 90s; see ${logFile}`);
 }
@@ -71,15 +67,14 @@ async function doctor() {
 }
 
 async function checks() {
-  const pid = ownPid();
-  const alive = pid !== null && isAlive(pid);
-  const owned = alive && listenerPids().some((p) => processGroup(p) === pid);
-  const entry = builtEntry();
-  const html = await text("/");
-  const servesBuild = entry !== null && html.includes(`/_expo/static/js/web/${entry}`);
+  const pgid = recordedGroup();
+  const running = pgid !== null && groupMembers(pgid).length > 0;
+  const portOwned = running && listenerPids().some((p) => processGroup(p) === pgid);
+  const builtHtml = join(root, "dist/index.html");
+  const servesBuild = existsSync(builtHtml) && (await text("/")) === readFileSync(builtHtml, "utf8");
   const spaFallback = (await status("/s/doctor", { "Sec-Fetch-Mode": "navigate" })) === 200;
-  const result = { process: alive, portOwned: owned, servesBuild, spaFallback };
-  return { ok: Object.values(result).every(Boolean), port, pid, entry, ...result };
+  const result = { running, portOwned, servesBuild, spaFallback };
+  return { ok: Object.values(result).every(Boolean), port, pgid, ...result };
 }
 
 async function drive() {
@@ -95,10 +90,10 @@ async function drive() {
     if (response?.status() !== 200) failures.push(`status ${response?.status()}`);
     if (values["expect-heading"]) {
       const heading = page.getByRole("heading", { name: values["expect-heading"] });
-      if (!(await heading.isVisible())) failures.push(`heading "${values["expect-heading"]}" not visible`);
+      if (!(await becomesVisible(heading))) failures.push(`heading "${values["expect-heading"]}" not visible`);
     }
     for (const expected of values["expect-text"]) {
-      if (!(await page.getByText(expected, { exact: true }).first().isVisible())) {
+      if (!(await becomesVisible(page.getByText(expected, { exact: true }).first()))) {
         failures.push(`text "${expected}" not visible`);
       }
     }
@@ -118,6 +113,10 @@ async function drive() {
   if (failures.length) process.exit(1);
 }
 
+async function becomesVisible(locator) {
+  return locator.waitFor({ state: "visible", timeout: 5000 }).then(() => true, () => false);
+}
+
 async function evidence() {
   const out = resolve(values.out ?? `/tmp/verify-receipt-splitter/${port}`);
   mkdirSync(out, { recursive: true });
@@ -135,62 +134,56 @@ async function evidence() {
 }
 
 async function cleanup() {
-  const pid = ownPid();
-  if (pid !== null && groupMembers(pid).length) {
-    process.kill(-pid, "SIGTERM");
-    for (let i = 0; i < 20 && groupMembers(pid).length; i++) await sleep(250);
-    if (groupMembers(pid).length) process.kill(-pid, "SIGKILL");
-    for (let i = 0; i < 20 && groupMembers(pid).length; i++) await sleep(250);
+  const pgid = recordedGroup();
+  if (pgid !== null && groupMembers(pgid).length) {
+    process.kill(-pgid, "SIGTERM");
+    if (!(await waitFor(() => groupMembers(pgid).length === 0, 5000))) process.kill(-pgid, "SIGKILL");
+    if (!(await waitFor(() => groupMembers(pgid).length === 0, 5000))) {
+      fail(`process group ${pgid} still has pids ${groupMembers(pgid).join(", ")}`);
+    }
   }
-  const strays = pid === null ? [] : groupMembers(pid);
-  if (strays.length) fail(`process group ${pid} still has pids ${strays.join(", ")}`);
-  for (let i = 0; i < 20 && listenerPids().length; i++) await sleep(250);
-  const leftover = listenerPids();
-  if (leftover.length) {
-    fail(`port ${port} is still held by pid ${leftover.join(", ")}, which this run did not start`);
+  if (!(await waitFor(() => listenerPids().length === 0, 5000))) {
+    fail(`port ${port} is still held by pid ${listenerPids().join(", ")}, which this run did not start`);
   }
   rmSync(runDir, { recursive: true, force: true });
-  print({ ok: true, port, stoppedGroup: pid, portFree: true });
+  print({ ok: true, port, stoppedGroup: pgid, portFree: true });
 }
 
-function groupMembers(pgid) {
-  try {
-    return execFileSync("pgrep", ["-g", String(pgid)], { encoding: "utf8" }).split("\n").filter(Boolean).map(Number);
-  } catch {
-    return [];
-  }
-}
-
-function ownPid() {
-  return existsSync(pidFile) ? Number(readFileSync(pidFile, "utf8")) : null;
-}
-
-function isAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+function recordedGroup() {
+  return existsSync(pgidFile) ? Number(readFileSync(pgidFile, "utf8")) : null;
 }
 
 function listenerPids() {
+  return pids("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"]);
+}
+
+function groupMembers(pgid) {
+  return pids("pgrep", ["-g", String(pgid)]);
+}
+
+function pids(cmd, args) {
   try {
-    return execFileSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" })
-      .split("\n").filter(Boolean).map(Number);
+    return execFileSync(cmd, args, { encoding: "utf8" }).split("\n").filter(Boolean).map(Number);
   } catch {
     return [];
   }
 }
 
 function processGroup(pid) {
-  return Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
+  try {
+    return Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
+  } catch {
+    return null;
+  }
 }
 
-function builtEntry() {
-  if (!existsSync(entryDir)) return null;
-  const entries = readdirSync(entryDir).filter((f) => /^entry-.*\.js$/.test(f));
-  return entries.length === 1 ? entries[0] : null;
+async function waitFor(predicate, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return predicate();
 }
 
 async function status(path, headers = {}) {
@@ -209,15 +202,11 @@ async function text(path) {
   }
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 function print(value) {
   console.log(JSON.stringify(value));
 }
 
-function fail(message) {
-  console.error(message);
+function fail(error) {
+  print({ ok: false, error });
   process.exit(1);
 }
