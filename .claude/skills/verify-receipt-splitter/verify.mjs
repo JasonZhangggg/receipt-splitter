@@ -19,6 +19,10 @@ const { positionals, values } = parseArgs({
     "expect-heading": { type: "string" },
     shot: { type: "string" },
     aria: { type: "string" },
+    width: { type: "string" },
+    height: { type: "string" },
+    "color-scheme": { type: "string" },
+    "reduced-motion": { type: "string" },
     out: { type: "string" },
   },
 });
@@ -118,15 +122,26 @@ async function checks() {
 
 async function drive() {
   const { chromium, devices } = await import("@playwright/test");
+  const pixel7 = devices["Pixel 7"];
+  const viewport = { width: pixels("width", pixel7.viewport.width), height: pixels("height", pixel7.viewport.height) };
+  const colorScheme = choice("color-scheme", ["light", "dark"]);
+  const reducedMotion = choice("reduced-motion", ["reduce", "no-preference"]);
   const browser = await chromium.launch();
-  const page = await browser.newPage({ ...devices["Pixel 7"] });
+  const page = await browser.newPage({ ...pixel7, viewport, colorScheme, reducedMotion });
   const consoleErrors = [];
   page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
   page.on("pageerror", (e) => consoleErrors.push(e.message));
   const failures = [];
+  let media;
   try {
     const response = await page.goto(`${baseUrl}${values.path}`, { waitUntil: "networkidle" });
     if (response?.status() !== 200) failures.push(`status ${response?.status()}`);
+    media = await page.evaluate(() => ({
+      width: innerWidth,
+      height: innerHeight,
+      colorScheme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches ? "reduce" : "no-preference",
+    }));
     if (values["expect-heading"]) {
       const heading = page.getByRole("heading", { name: values["expect-heading"] });
       if (!(await becomesVisible(heading))) failures.push(`heading "${values["expect-heading"]}" not visible`);
@@ -151,12 +166,26 @@ async function drive() {
   print({
     ok: failures.length === 0,
     url: `${baseUrl}${values.path}`,
+    media,
     shot: values.shot,
     aria: values.aria,
     failures,
     error: failures.length ? failures.join("; ") : undefined,
   });
   if (failures.length) process.exit(1);
+}
+
+function pixels(flag, fallback) {
+  const raw = values[flag];
+  if (raw === undefined) return fallback;
+  if (!/^[1-9]\d*$/.test(raw)) fail(`--${flag} must be a whole number of pixels above 0, not ${JSON.stringify(raw)}`);
+  return Number(raw);
+}
+
+function choice(flag, allowed) {
+  const raw = values[flag];
+  if (raw !== undefined && !allowed.includes(raw)) fail(`--${flag} must be ${allowed.join(" or ")}, not ${JSON.stringify(raw)}`);
+  return raw;
 }
 
 async function becomesVisible(locator) {
