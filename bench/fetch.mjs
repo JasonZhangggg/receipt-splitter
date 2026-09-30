@@ -1,8 +1,8 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
 import { runTotalCheck } from "../src/core/total-check.ts";
 
@@ -36,8 +36,8 @@ const SOURCES = {
 
 const SELECTED = {
   srd: {
-    "1002": [], "1005": [], "1008": [], "1012": [], "1015": ["blur"], "1016": [], "1017": [], "1019": [], "1022": [],
-    "1030": [], "1033": [], "1039": [], "1040": [], "1043": ["blur"], "1046": [], "1047": ["blur"], "1049": [],
+    "1002": [], "1005": [], "1008": [], "1012": [], "1015": ["blur"], "1016": [], "1017": [], "1019": ["skew"], "1022": [],
+    "1030": ["skew"], "1033": [], "1039": [], "1040": [], "1043": ["blur"], "1046": [], "1047": ["blur"], "1049": [],
     "1050": [], "1057": [], "1058": ["blur"], "1065": [], "1072": ["blur"], "1073": [], "1075": ["blur"], "1077": [],
     "1092": [], "1094": [], "1096": ["blur"], "1098": [], "1099": [], "1102": [], "1105": [], "1106": [], "1107": [],
     "1116": [], "1119": [], "1121": [], "1124": [], "1125": ["blur"], "1127": [], "1133": [], "1137": [],
@@ -48,8 +48,9 @@ const SELECTED = {
     "046": [], "047": [], "053": [], "061": [], "070": [], "074": [], "075": [], "085": [], "094": [], "098": [],
   },
   docjay131: {
-    "003": [], "004": [], "005": [], "065": [], "084": [], "111": [], "115": [], "122": [], "147": [], "159": [],
-    "168": [], "170": [],
+    "003": ["skew"], "004": ["signatureSlip"], "005": ["blur"], "015": ["handwritten"], "065": ["modifiers"],
+    "078": ["tipBlock", "modifiers"], "084": ["handwritten"], "111": ["skew"], "122": [], "147": ["blur"],
+    "168": ["skew"], "170": ["modifiers", "skew"],
   },
 };
 
@@ -76,16 +77,18 @@ function withoutMetadata(jpeg) {
   return Buffer.concat([...kept, jpeg.subarray(at)]);
 }
 
+async function get(url) {
+  const response = await fetch(url, { headers: HEADERS });
+  if (!response.ok) throw new Error(`GET ${url} returned ${response.status}; delete bench/.cache to refresh signed URLs`);
+  return response;
+}
+
 async function download(name, { url, md5 }) {
   const path = join(CACHE, name);
-  if (!existsSync(path)) {
-    const response = await fetch(url, { headers: HEADERS });
-    if (!response.ok) throw new Error(`GET ${url} returned ${response.status}`);
-    writeFileSync(path, Buffer.from(await response.arrayBuffer()));
-  }
+  if (!existsSync(path)) writeFileSync(path, Buffer.from(await (await get(url)).arrayBuffer()));
   const bytes = readFileSync(path);
   const digest = createHash("md5").update(bytes).digest("hex");
-  if (md5 && digest !== md5) throw new Error(`${name} has md5 ${digest}, expected ${md5}`);
+  if (digest !== md5) throw new Error(`${name} has md5 ${digest}, expected ${md5}`);
   return path;
 }
 
@@ -100,9 +103,8 @@ async function datasetRows(name, { url, rows }) {
   if (!existsSync(path)) {
     const pages = [];
     for (let offset = 0; offset < rows; offset += 100) {
-      const response = await fetch(`${url}&offset=${offset}&length=100`, { headers: HEADERS });
-      if (!response.ok) throw new Error(`GET ${url} returned ${response.status}`);
-      pages.push(...(await response.json()).rows.map(({ row }) => row));
+      const { rows: page } = await (await get(`${url}&offset=${offset}&length=100`)).json();
+      pages.push(...page.map(({ row }) => row));
     }
     writeFileSync(path, JSON.stringify(pages));
   }
@@ -110,14 +112,11 @@ async function datasetRows(name, { url, rows }) {
 }
 
 async function fetchImage(url) {
-  const response = await fetch(url, { headers: HEADERS });
-  if (!response.ok) throw new Error(`GET image returned ${response.status}; delete bench/.cache/*.json to refresh signed URLs`);
-  return Buffer.from(await response.arrayBuffer());
+  return Buffer.from(await (await get(url)).arrayBuffer());
 }
 
-async function srdCandidates() {
+async function srdCandidates(zenodo) {
   const images = await unzipped("srd", SOURCES.srd);
-  const zenodo = await unzipped("zenodo", SOURCES.zenodo);
   const transcriptions = join(zenodo, "Labels");
   const skewed = skewedImages(readFileSync(join(zenodo, "homography.csv"), "utf8"));
   return readdirSync(transcriptions)
@@ -154,9 +153,9 @@ async function cordCandidates() {
   });
 }
 
-async function docjayCandidates() {
+async function docjayCandidates(zenodo) {
   const rows = await datasetRows("docjay131", SOURCES.docjay131);
-  const srdTexts = readdirSync(join(CACHE, "zenodo", "Labels")).map((file) => readFileSync(join(CACHE, "zenodo", "Labels", file), "utf8"));
+  const srdTexts = readdirSync(join(zenodo, "Labels")).map((file) => readFileSync(join(zenodo, "Labels", file), "utf8"));
   return rows.flatMap((row, index) => {
     const parsed = JSON.parse(row.text);
     const inSrd = srdTexts.some((text) => [parsed.subtotal, parsed.total].every((amount) => typeof amount === "number" && text.includes(amount.toFixed(2))));
@@ -182,7 +181,7 @@ const TOTAL = /^\s*(grand\s+)?total\b|amount\s+due|balance\s+due|total\s+due/i;
 const NOT_THE_TOTAL = /tax|before|sales|tip\s+total|qty|items?\b/i;
 const STOP = /\bcash\b|change|tender|visa|master|amex|discover|card|suggest|guide|helper|recommend|^\s*\(?\d+(\.\d+)?\s*%\s*(of\b|[:=($\d])/i;
 const DISCOUNT = /discount|coupon|promo|\boff\b|\bcomp\b|reward/i;
-const ADJUSTMENT_KINDS = [
+const ADJUSTMENT_PATTERNS = [
   ["serviceCharge", /service|srv|svc|auto\s*grat/i],
   ["tip", /\btip\b|gratuity/i],
   ["tax", /tax|hst|gst|vat/i],
@@ -251,7 +250,7 @@ function draftFromTranscription(text) {
   const adjustments = [...discounts];
   for (const row of charges) {
     if (TOTAL.test(row.name) && !(/tax/i.test(row.name) && taxLines.length === 0)) continue;
-    const kind = ADJUSTMENT_KINDS.find(([, pattern]) => pattern.test(row.name))?.[0] ?? (row.amount < 0 ? "discount" : null);
+    const kind = ADJUSTMENT_PATTERNS.find(([, pattern]) => pattern.test(row.name))?.[0] ?? (row.amount < 0 ? "discount" : null);
     if (kind) adjustments.push({ kind, name: rowName(row.name, kind), amount: row.amount });
   }
   if (items.length === 0) return null;
@@ -338,7 +337,8 @@ async function main() {
   const { values: flags } = parseArgs({ options: { survey: { type: "boolean" }, redraft: { type: "boolean" } } });
 
   mkdirSync(CACHE, { recursive: true });
-  const candidates = [...(await srdCandidates()), ...(await cordCandidates()), ...(await docjayCandidates())];
+  const zenodo = await unzipped("zenodo", SOURCES.zenodo);
+  const candidates = [...(await srdCandidates(zenodo)), ...(await cordCandidates()), ...(await docjayCandidates(zenodo))];
 
   if (flags.survey) {
     for (const { name, region, draft, features } of candidates) {
@@ -348,25 +348,27 @@ async function main() {
   } else {
     mkdirSync(DATA, { recursive: true });
     mkdirSync(LABELS, { recursive: true });
-    for (const candidate of candidates) {
-      const tags = SELECTED[candidate.source][candidate.sourceId];
-      if (!tags) continue;
+    const selected = candidates.filter((candidate) => SELECTED[candidate.source][candidate.sourceId]);
+    const names = new Set(selected.map(({ name }) => name));
+    for (const file of [...readdirSync(DATA).map((file) => join(DATA, file)), ...readdirSync(LABELS).map((file) => join(LABELS, file))]) {
+      if (/\.(jpg|json)$/.test(file) && !names.has(basename(file).replace(/\.(jpg|json)$/, ""))) rmSync(file);
+    }
+    for (const candidate of selected) {
       const image = `${candidate.name}.jpg`;
       const imagePath = join(DATA, image);
-      if (!existsSync(imagePath)) {
-        writeFileSync(imagePath, shrunk(await candidate.image()));
-      }
+      if (!existsSync(imagePath)) writeFileSync(imagePath, shrunk(await candidate.image()));
       const labelPath = join(LABELS, `${candidate.name}.json`);
-      if (existsSync(labelPath) && !flags.redraft) continue;
+      const reviewed = existsSync(labelPath) && !flags.redraft ? JSON.parse(readFileSync(labelPath, "utf8")) : {};
       const label = {
-      image,
-      source: candidate.source,
-      sourceId: candidate.sourceId,
-      region: candidate.region,
-      tags: [...candidate.features, ...tags],
-      checked: false,
-      receipt: candidate.draft,
-    };
+        image,
+        source: candidate.source,
+        sourceId: candidate.sourceId,
+        region: candidate.region,
+        tags: [...new Set([...candidate.features, ...SELECTED[candidate.source][candidate.sourceId]])],
+        checked: reviewed.checked ?? false,
+        ...(reviewed.note ? { note: reviewed.note } : {}),
+        receipt: reviewed.receipt ?? candidate.draft,
+      };
       writeFileSync(labelPath, `${JSON.stringify(label, null, 2)}\n`);
     }
     const counts = Object.fromEntries(Object.entries(SELECTED).map(([source, ids]) => [source, Object.keys(ids).length]));

@@ -16,10 +16,12 @@ Changes to every image: `bench/fetch.mjs` scales images longer than 1280 px down
 - Download: https://expressexpense.com/large-receipt-image-dataset-SRD.zip (MD5 `c8eb0f2d286da5ab742e7a5b59f15147`)
 - License: MIT. The page states that the dataset "is free for use under The MIT License (MIT)" and asks users to cite ExpressExpense.com as the source.
 
-Source: ExpressExpense.com.
+The page gives no copyright line, so the notice below names the publisher it asks users to cite.
 
 ```text
 The MIT License (MIT)
+
+Copyright (c) ExpressExpense.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -64,6 +66,30 @@ A CORD file name keeps the row index in the test split, so `cord-017.jpg` is tes
 - License: MIT, as the dataset card declares.
 - The dataset card says Gemini extracted its labels. The benchmark uses them only as drafts.
 
-A docjay131 file name keeps the row index in the train split. `bench/fetch.mjs` skips a row when a Zenodo transcription contains both its subtotal and its total, because the dataset reuses SRD photos.
+A docjay131 file name keeps the row index in the train split. `bench/fetch.mjs` skips a row when a Zenodo transcription contains both its subtotal and its total, because the dataset reuses SRD photos. The selection also leaves out rows that repeat another row's photo and a row that joins two photos side by side.
 
-Source: docjay131 on Hugging Face. The MIT License text above applies.
+The dataset card gives no copyright line, so the notice names the publisher:
+
+```text
+The MIT License (MIT)
+
+Copyright (c) docjay131
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

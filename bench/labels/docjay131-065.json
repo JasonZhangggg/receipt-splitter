@@ -3,7 +3,9 @@
   "source": "docjay131",
   "sourceId": "065",
   "region": "US",
-  "tags": [],
+  "tags": [
+    "modifiers"
+  ],
   "checked": false,
   "receipt": {
     "items": [

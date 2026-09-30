@@ -3,7 +3,9 @@
   "source": "srd",
   "sourceId": "1030",
   "region": "US",
-  "tags": [],
+  "tags": [
+    "skew"
+  ],
   "checked": false,
   "note": "Zenodo transcription reads Coffee as Coffe.",
   "receipt": {
