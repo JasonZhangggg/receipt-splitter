@@ -1,25 +1,25 @@
 import { Platform } from "react-native";
 
 import type { colors } from "./colors";
+import { fallbackMetrics } from "./fallback-metrics.generated";
 
 const faces: [family: string, weight: number, url: string][] = [
   ["Archivo", 500, require("../../assets/fonts/Archivo-Medium.ttf")],
   ["ArchivoCondensed", 800, require("../../assets/fonts/Archivo-CondensedBlack.ttf")],
 ];
 
-// Metrics from assets/fonts/fallback-metrics.mjs: Arial sized to Archivo's widths and vertical metrics.
 const fallbacks = [
   {
     family: "Archivo Fallback",
     weight: 500,
     local: ["Arial", "ArialMT", "Liberation Sans", "LiberationSans", "Roboto", "Roboto-Regular"],
-    metrics: "size-adjust: 100.31%; ascent-override: 87.53%; descent-override: 20.94%; line-gap-override: 0%;",
+    metrics: fallbackMetrics[500],
   },
   {
     family: "ArchivoCondensed Fallback",
     weight: 800,
     local: ["Arial Bold", "Arial-BoldMT", "Liberation Sans Bold", "LiberationSans-Bold", "Roboto Bold", "Roboto-Bold"],
-    metrics: "size-adjust: 82.87%; ascent-override: 105.94%; descent-override: 25.34%; line-gap-override: 0%;",
+    metrics: fallbackMetrics[800],
   },
 ];
 

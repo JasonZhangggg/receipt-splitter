@@ -17,6 +17,7 @@ const display = "ArchivoCondensed, 'ArchivoCondensed Fallback', sans-serif";
 const body = "Archivo, 'Archivo Fallback', system-ui, -apple-system, sans-serif";
 
 const archivoDescent = 0.2;
+const widestHeadlineEm = 4.6;
 
 const headlineSizes = {
   narrow: { fontSize: 64, lineHeight: 62, letterSpacing: -0.5 },
@@ -25,8 +26,7 @@ const headlineSizes = {
 
 export function headlineType(width: number) {
   const max = width >= breakpoints.twoColumnsFrom ? headlineSizes.wide : headlineSizes.narrow;
-  // "at the table." is about 4.6 em wide, so 18% of the window keeps each line whole down to 250 px.
-  const fontSize = Math.min(max.fontSize, Math.floor(width * 0.18));
+  const fontSize = Math.min(max.fontSize, Math.floor((width - 2 * space.xl) / widestHeadlineEm));
   const lineHeight = Math.round((max.lineHeight * fontSize) / max.fontSize);
   const text: TextStyle = { fontFamily: display, fontWeight: "800", fontSize, lineHeight, letterSpacing: max.letterSpacing };
   return { text, descender: Math.ceil(fontSize * archivoDescent) };

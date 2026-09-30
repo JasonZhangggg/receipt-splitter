@@ -6,7 +6,7 @@ The home screen at `/` is where a Host starts a Split. An orange field holds the
 
 - `home-scan` shows **Scan or upload a receipt**, visible and reachable with Tab at every width, with a 2 px focus ring. A press scales it on touch-down. Under reduced motion a press dims it with no scale.
 - `home-bar` holds the action in a solid bar under the scrolling page below 768 px. The bar never covers the last line, and it grows by the bottom safe-area inset.
-- `home-headline` shows "Split the bill" and "at the table." on one line each from 320 px. The headline shrinks below 356 px, and its mask never cuts a descender.
+- `home-headline` shows "Split the bill" and "at the table." on one line each from 320 px. The headline shrinks below 343 px, and its mask never cuts a descender.
 - `home-layout` keeps the content clear of the side safe-area insets. From 900 px the two columns start at the same height.
 - `home-example` shows the example scan with the flagged Tiramisu row and the line that the Items are $1.00 short of the subtotal. Row hairlines span the same width as the heavy rules.
 - `home-theme` follows the system light or dark setting. Under reduced motion the page skips its entrance animation. Size-matched local fallbacks stand in for Archivo until it loads, so the layout does not move when it arrives.

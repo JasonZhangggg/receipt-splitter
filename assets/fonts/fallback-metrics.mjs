@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
 
 const faces = [
@@ -32,6 +32,7 @@ const faces = [
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
+const metrics = {};
 
 for (const face of faces) {
   const bytes = readFileSync(new URL(face.file, import.meta.url)).toString("base64");
@@ -73,6 +74,16 @@ for (const face of faces) {
     { bytes, weight: face.weight, local: face.local, sample: face.sample },
   );
   console.log(JSON.stringify({ face: face.file, local: face.local, ...result }));
+  const d = result.descriptors;
+  metrics[face.weight] =
+    `size-adjust: ${d.sizeAdjust}; ascent-override: ${d.ascentOverride}; ` +
+    `descent-override: ${d.descentOverride}; line-gap-override: ${d.lineGapOverride};`;
 }
 
 await browser.close();
+
+const entries = Object.entries(metrics).map(([weight, css]) => `  ${weight}: "${css}",`);
+writeFileSync(
+  new URL("../../src/ui/fallback-metrics.generated.ts", import.meta.url),
+  `export const fallbackMetrics = {\n${entries.join("\n")}\n};\n`,
+);
