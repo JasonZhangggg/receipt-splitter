@@ -140,8 +140,11 @@ for (const width of headlineWidths) {
   });
 }
 
-for (const width of [phone.width, 960]) {
-  test(`the headline paints its first frame at its final size at ${width} px`, async ({ page }) => {
+for (const [width, finalSize] of [
+  [phone.width, 64],
+  [960, 83.5],
+]) {
+  test(`the headline paints its first frame at ${finalSize} px at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.addInitScript((line) => {
       const sizes: string[] = [];
@@ -156,8 +159,7 @@ for (const width of [phone.width, 960]) {
     await page.goto("/");
     await settle(page);
     const sizes = await page.evaluate(() => (window as unknown as { headlineSizes: string[] }).headlineSizes);
-    expect(sizes.length).toBeGreaterThan(0);
-    expect(new Set(sizes).size, `sizes seen: ${[...new Set(sizes)].join(", ")}`).toBe(1);
+    expect([...new Set(sizes.map((size) => Number(parseFloat(size).toFixed(1))))]).toEqual([finalSize]);
   });
 }
 
