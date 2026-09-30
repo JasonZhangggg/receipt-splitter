@@ -2,16 +2,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { chromium } from "@playwright/test";
 
-// src/ui imports modules without an extension, which Metro resolves and Node does not.
-registerHooks({
-  resolve: (specifier, context, next) => {
-    try {
-      return next(specifier, context);
-    } catch {
-      return next(`${specifier}.ts`, context);
-    }
-  },
-});
+function resolveExtensionlessTs(specifier, context, next) {
+  try {
+    return next(specifier, context);
+  } catch {
+    return next(`${specifier}.ts`, context);
+  }
+}
+
+registerHooks({ resolve: resolveExtensionlessTs });
 const { fallbackSamples } = await import("../../src/ui/home-copy.ts");
 
 const faces = [
