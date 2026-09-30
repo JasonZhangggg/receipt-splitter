@@ -396,7 +396,7 @@ test("the inline scan action takes keyboard focus with a visible ring at 1280 px
   await context.close();
 });
 
-const matrix = [320, phone.width, 1280].flatMap((width) =>
+const matrix = [320, phone.width, 900, 960, 1024, 1280].flatMap((width) =>
   (["light", "dark"] as const).flatMap((colorScheme) =>
     (["no-preference", "reduce"] as const).map((reducedMotion) => ({ width, colorScheme, reducedMotion })),
   ),
