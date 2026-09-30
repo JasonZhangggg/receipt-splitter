@@ -66,7 +66,7 @@ function classify(row: Row, anchor: Row | null): Line {
   }
   const indented = anchor !== null && hasWords(label) && row.left > anchor.left + row.lineHeight;
   if (labelled === "discount" || amount < 0) {
-    const appliesTo = hasWords(label) && !/coupon/i.test(label) ? "item" : "receipt";
+    const appliesTo = anchor && (indented || echoes(label, anchor.text)) && !/coupon/i.test(label) ? "item" : "receipt";
     const markedBy = labelled === "discount" ? "label" : "minusSign";
     return { kind: "discount", name: label, amount: cents(-Math.abs(amount)), appliesTo, markedBy };
   }
@@ -86,6 +86,12 @@ function classify(row: Row, anchor: Row | null): Line {
     return { kind: "modifier", name, price: price(amount) };
   }
   return { kind: "item", name, price: price(amount), quantity: null };
+}
+
+function echoes(label: string, itemRow: string): boolean {
+  const tokens = (text: string) => (text.toLowerCase().match(/[a-z]{4,}|\d+\.\d{2}/g) ?? []).filter((token) => !LABELS.some(([kind, pattern]) => kind === "discount" && pattern.test(token)));
+  const item = new Set(tokens(itemRow));
+  return tokens(label).some((token) => item.has(token));
 }
 
 function amountsIn(text: string): Amount[] {

@@ -50,6 +50,24 @@ describe("classifyLines", () => {
     ]);
   });
 
+  test("reads an unindented discount that names the Item's price as Item-level and one that does not as Receipt-level", () => {
+    const lines = linesOf(
+      receiptRows([
+        ["5 Dinner $29.88", "149.40"],
+        ["29.88 50%OFF BIRTHDAY", "-14.94"],
+        ["Burger", "12.00"],
+        ["Happy Hour Discount", "-2.00"],
+      ]),
+    );
+
+    expect(lines.map((line) => (line.kind === "discount" ? [line.name, line.appliesTo] : line.kind))).toEqual([
+      "item",
+      ["29.88 50%OFF BIRTHDAY", "item"],
+      "item",
+      ["Happy Hour Discount", "receipt"],
+    ]);
+  });
+
   test("reads subtotal, tax, service charge, tip, and total rows by their labels", () => {
     const lines = linesOf(
       receiptRows([
