@@ -3,11 +3,12 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { pressStyle, useReducedMotion } from "../motion";
 import { type, useColors } from "../theme";
 
-const webProps = { dataSet: { pressable: "" }, delayPressIn: 0 };
+type Props = { label: string; onPress: () => void; outsideScroll?: boolean };
 
-export function Button({ label, onPress }: { label: string; onPress: () => void }) {
+export function Button({ label, onPress, outsideScroll = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
+  const webProps = { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : undefined };
   return (
     <Pressable
       role="button"

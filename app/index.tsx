@@ -48,7 +48,9 @@ export default function Home() {
     paddingRight: gutter + insets.right,
   };
 
-  const scan = <Button label="Scan or upload a receipt" onPress={() => router.push("/new")} />;
+  const scan = (outsideScroll: boolean) => (
+    <Button label="Scan or upload a receipt" onPress={() => router.push("/new")} outsideScroll={outsideScroll} />
+  );
 
   return (
     <View style={[styles.screen, { backgroundColor: c.paper }]}>
@@ -76,7 +78,7 @@ export default function Home() {
             <Text style={[type.body, wide && type.bodyWide, { color: c.onField }]}>
               Take a photo of the receipt and send the link. Everyone taps what they ordered and pays you back.
             </Text>
-            {showBar ? null : <View style={styles.inlineAction}>{scan}</View>}
+            {showBar ? null : <View style={styles.inlineAction}>{scan(false)}</View>}
             <Text style={[type.small, { color: c.fieldMuted }]}>The photo stays on your phone.</Text>
           </View>
         </View>
@@ -126,7 +128,7 @@ export default function Home() {
             },
           ]}
         >
-          {scan}
+          {scan(true)}
         </View>
       ) : null}
     </View>

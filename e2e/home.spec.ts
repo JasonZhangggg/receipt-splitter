@@ -265,6 +265,64 @@ test("a press shows on touch-down without waiting on a timer", async ({ page }) 
     .toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
 });
 
+test("the bar action shows its press within 50 ms of touch-down", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const pressedAfter = page.evaluate(
+    (name) =>
+      new Promise<number>((resolve) => {
+        const button = [...document.querySelectorAll('[role="button"]')].find((el) => el.textContent === name)!;
+        addEventListener(
+          "touchstart",
+          (event) => {
+            const pressed = () =>
+              getComputedStyle(button).transform !== "none" ||
+              button.getAnimations().some((a) => (a as CSSTransition).transitionProperty === "transform");
+            const poll = () => (pressed() ? resolve(performance.now() - event.timeStamp) : requestAnimationFrame(poll));
+            poll();
+          },
+          { capture: true, once: true },
+        );
+      }),
+    "Scan or upload a receipt",
+  );
+  await pressAndHold(page, "Scan or upload a receipt");
+  expect(await pressedAfter).toBeLessThan(50);
+});
+
+test("a scroll that starts on the inline action at 820 px never shows the press", async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 600 });
+  await page.clock.install();
+  await page.goto("/");
+  await settle(page);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  const scan = page.getByRole("button", { name: "Scan or upload a receipt" });
+  const box = (await scan.boundingBox())!;
+  const at = (dy: number) => [{ x: box.x + box.width / 2, y: box.y + box.height / 2 + dy }];
+  const cdp = await page.context().newCDPSession(page);
+  const seen = [];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(0) });
+  seen.push(await pressLook(page));
+  for (const dy of [-12, -24, -48, -96]) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(dy) });
+    seen.push(await pressLook(page));
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.clock.runFor(200);
+  seen.push(await pressLook(page));
+  expect(seen.filter((look) => look.transform !== "none" || look.transitions.length > 0)).toEqual([]);
+});
+
+test("the inline action at 820 px still presses on a held touch", async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 600 });
+  await page.goto("/");
+  await settle(page);
+  await pressAndHold(page, "Scan or upload a receipt");
+  await expect
+    .poll(() => pressLook(page))
+    .toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
+});
+
 test("under reduced motion a press dims the action at once and never scales it", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
