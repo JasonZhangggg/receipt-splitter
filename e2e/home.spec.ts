@@ -456,7 +456,7 @@ test("a mouse press on the inline action shows within 50 ms on a touch-first dev
   expect(shows, "first pressed frame").toBeLessThan(50);
 });
 
-type PressLog = { start: number; scrollTop: number; scrolled: number; frames: { at: number; pressed: boolean }[] };
+type PressLog = { start: number; end: number; clicks: number; scrollTop: number; scrolled: number; frames: { at: number; pressed: boolean }[] };
 
 async function watchScanPress(page: Page) {
   await page.goto("/");
@@ -467,9 +467,17 @@ async function watchScanPress(page: Page) {
     while (scroller.scrollHeight <= scroller.clientHeight || !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
       scroller = scroller.parentElement!;
     }
-    addEventListener("click", (event) => event.stopPropagation(), { capture: true });
-    const log: PressLog = { start: 0, scrollTop: scroller.scrollTop, scrolled: 0, frames: [] };
+    const log: PressLog = { start: 0, end: 0, clicks: 0, scrollTop: scroller.scrollTop, scrolled: 0, frames: [] };
+    addEventListener(
+      "click",
+      (event) => {
+        if (button.contains(event.target as Node)) log.clicks++;
+        event.stopPropagation();
+      },
+      { capture: true },
+    );
     addEventListener("pointerdown", (event) => (log.start ||= event.timeStamp), { capture: true });
+    addEventListener("pointerup", (event) => (log.end = event.timeStamp), { capture: true });
     const sample = () => {
       const style = getComputedStyle(button);
       const pressed = style.transform !== "none" || style.opacity !== "1" || button.getAnimations().length > 0;
@@ -494,7 +502,7 @@ async function touchScan(page: Page, { moves = [] as number[], gap = 8, hold = 4
   const cdp = await page.context().newCDPSession(page);
   await page.evaluate(() => {
     const log = (window as unknown as { pressLog: PressLog }).pressLog;
-    Object.assign(log, { start: 0, frames: [], scrollTop: log.scrollTop + log.scrolled, scrolled: 0 });
+    Object.assign(log, { start: 0, end: 0, frames: [], scrollTop: log.scrollTop + log.scrolled, scrolled: 0 });
   });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(0) });
   for (const dy of moves) {
@@ -550,15 +558,18 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     expect(pressedAt.at(-1), "still pressed 700 ms after touch-down").toBeGreaterThan(650);
   });
 
-  test(`quick taps on the inline action each show the press, motion ${reducedMotion}`, async ({ page }) => {
+  test(`a quick tap on the inline action holds its press for the tap look after release, motion ${reducedMotion}`, async ({ page }) => {
     await watchInlineScanPress(page, reducedMotion);
-    const taps: Record<number, { shown: boolean; restAfter500ms: boolean }> = {};
+    const pressOut = reducedMotion === "reduce" ? 0 : 200;
+    const taps: Record<number, { heldAfterRelease: boolean; restsInTime: boolean }> = {};
     for (const hold of [60, 100, 140]) {
-      const shown = (await touchScan(page, { hold })).pressedAt.length > 0;
-      await page.waitForTimeout(200);
-      taps[hold] = { shown, restAfter500ms: isRest(await pressLook(page)) };
+      await touchScan(page, { hold });
+      await page.waitForTimeout(400);
+      const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+      const lastPressed = (log.frames.filter((frame) => frame.pressed).at(-1)?.at ?? log.end) - log.end;
+      taps[hold] = { heldAfterRelease: lastPressed >= pressOut + 70, restsInTime: lastPressed < pressOut + 250 && isRest(await pressLook(page)) };
     }
-    const both = { shown: true, restAfter500ms: true };
+    const both = { heldAfterRelease: true, restsInTime: true };
     expect(taps).toEqual({ 60: both, 100: both, 140: both });
   });
 }
