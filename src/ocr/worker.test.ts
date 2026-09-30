@@ -30,6 +30,7 @@ function fakeCaches() {
 
 type Serve = (path: string) => Response;
 const asset: Serve = (path) => new Response(`bytes of ${path.split("/").at(-1)}`, { headers: { "content-type": "application/octet-stream" } });
+const spaFallback: Serve = () => new Response("<!DOCTYPE html><html><body></body></html>", { headers: { "content-type": "text/html; charset=utf-8" } });
 
 let serve: Serve;
 let caches: ReturnType<typeof fakeCaches>;
@@ -106,6 +107,20 @@ describe("model downloads", () => {
     await worker.prefetch();
 
     expect((await caches.stored("ocr-ort-1.30.0")).map(([path]) => path).sort()).toEqual([...ASSETS].sort());
+  });
+
+  test("read refuses a model that the server answers with the app's HTML page, and does not cache it", async () => {
+    serve = (path) => (path.endsWith(".dict.txt") ? spaFallback(path) : asset(path));
+
+    await expect(worker.read(DICT)).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
+    expect(await caches.stored("ocr-ort-1.30.0")).toEqual([]);
+  });
+
+  test("read refuses the HTML page without Cache Storage too", async () => {
+    vi.stubGlobal("caches", undefined);
+    serve = spaFallback;
+
+    await expect(worker.read(DICT)).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
   });
 
   test("read returns the cached asset", async () => {

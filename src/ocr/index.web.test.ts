@@ -49,17 +49,21 @@ test("a worker that crashes rejects every pending scan, and the next scan starts
   expect(FakeWorker.started).toHaveLength(2);
 });
 
-test("a scan rejects with the worker's error for that scan", async () => {
+test("a scan rejects with the worker's error for that scan, and the next scan downloads the models again", async () => {
   const workerScope = globalThis as unknown as { onmessage(event: { data: unknown }): void };
   FakeWorker.connect = (fake) => {
     fake.postMessage = (data) => workerScope.onmessage({ data });
     vi.stubGlobal("postMessage", (data: unknown) => fake.onmessage?.({ data }));
   };
+  let dict = new Response("", { status: 404 });
   vi.stubGlobal("caches", undefined);
   vi.stubGlobal("fetch", async (url: string) =>
-    url.endsWith(".dict.txt") ? new Response("", { status: 404 }) : new Response("bytes", { headers: { "content-type": "application/octet-stream" } }),
+    url.endsWith(".dict.txt") ? dict : new Response("bytes", { headers: { "content-type": "application/octet-stream" } }),
   );
   await import("../../public/ocr-worker.mjs");
 
   await expect(client.recognize(new Blob())).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned 404$/);
+
+  dict = new Response("<!DOCTYPE html>", { headers: { "content-type": "text/html" } });
+  await expect(client.recognize(new Blob())).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
 });

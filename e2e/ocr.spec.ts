@@ -33,3 +33,24 @@ test("recognizes SRD receipt 1040 on the device", async ({ page }) => {
   expect(Math.abs(middle(labelTop, labelBottom) - middle(amountTop, amountBottom))).toBeLessThan((labelBottom.y - labelTop.y) / 2);
   expect(amountTop.x).toBeGreaterThan(labelRight.x);
 });
+
+test("a model answered with the app's HTML page fails the scan, and the next scan reads once the model is back", async ({ page }) => {
+  test.setTimeout(120_000);
+  const dict = "**/models/en_PP-OCRv5_rec_mobile.dict.txt";
+  await page.context().route(dict, (route) =>
+    route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: "<!DOCTYPE html><html><body></body></html>" }),
+  );
+  await page.goto("/debug/ocr");
+  const status = page.getByTestId("ocr-status");
+
+  await page.getByLabel("Receipt photo").setInputFiles("bench/data/srd-1040.jpg");
+  await expect(status).toHaveText(/^Could not read it\. Error: OCR download \S+\/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/, {
+    timeout: 90_000,
+  });
+
+  await page.context().unroute(dict);
+  await page.getByLabel("Receipt photo").setInputFiles("bench/data/srd-1040.jpg");
+  await expect(status).toHaveText(/^Read \d+ boxes in \d+ ms\.$/, { timeout: 90_000 });
+  const { boxes }: { boxes: TextBox[] } = JSON.parse((await page.getByTestId("ocr-json").textContent()) ?? "");
+  expect(boxes.map((box) => box.text)).toContain("$22.98");
+});
