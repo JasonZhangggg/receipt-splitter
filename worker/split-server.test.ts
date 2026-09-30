@@ -2,6 +2,7 @@ import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "c
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
+import type { Split } from "../src/core/split";
 import { connect, createSplit, stubSiteverify, type Client } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -268,9 +269,11 @@ describe("refusals leave the stored Split unchanged", () => {
     const { id } = await createSplit();
     const a = await open(id);
     const longName = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}".repeat(20);
-    let revision = 0;
+    let accepted: Split | null = null;
     let rejection: unknown = null;
+    let refusedItem = "";
     for (let index = 0; rejection === null; index += 1) {
+      refusedItem = `extra${index}`;
       a.client.send({
         ref: `add${index}`,
         op: JSON.parse(
@@ -282,15 +285,20 @@ describe("refusals leave the stored Split unchanged", () => {
         ),
       });
       const reply = await a.client.next();
-      if (reply.type === "state") revision = reply.split.revision;
+      if (reply.type === "state") accepted = reply.split;
       else if (reply.type === "rejected") rejection = reply.rejection;
     }
     expect(rejection).toEqual({ reason: "tooLarge" });
-    const before = await storedRow(id);
+    expect(accepted?.receipt.items.map(({ id: itemId }) => itemId)).toContain("extra0");
+    expect(accepted?.receipt.items.map(({ id: itemId }) => itemId)).not.toContain(refusedItem);
+    const [row] = await runInDurableObject(env.SplitServer.getByName(id), (_, state) =>
+      state.storage.sql.exec<{ json: string }>("SELECT json FROM split").toArray(),
+    );
+    expect(JSON.parse(row.json)).toEqual(accepted);
 
+    await evictDurableObject(env.SplitServer.getByName(id));
     const late = await open(id);
-    expect(late.hello).toMatchObject({ type: "state", split: { revision } });
-    expect(await storedRow(id)).toEqual(before);
+    expect(late.hello).toEqual({ type: "state", ref: null, split: accepted });
   });
 
   it("answers bad JSON and a bad envelope with malformed and keeps serving", async () => {

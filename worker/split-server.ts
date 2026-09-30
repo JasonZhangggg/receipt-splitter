@@ -8,8 +8,6 @@ const MAX_MESSAGE_BYTES = 40 * 1024;
 const SPLIT_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 const HEARTBEAT = { ping: "ping", pong: "pong" } as const;
 
-const CLOSE_NOT_FOUND = 4404;
-const CLOSE_UNREADABLE = 4500;
 const SECRET_BYTES = 32;
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const REF_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -90,7 +88,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
     if (!result.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: result.rejection });
     if (!result.changed) return send(connection, { type: "unchanged", ref: frame.ref, revision: stored.split.revision });
     const json = JSON.stringify(result.split);
-    if (utf8Bytes(json, SPLIT_BYTE_BUDGET) > SPLIT_BYTE_BUDGET) {
+    if (exceedsBytes(json, SPLIT_BYTE_BUDGET)) {
       return send(connection, { type: "rejected", ref: frame.ref, rejection: { reason: "tooLarge" } });
     }
     this.ctx.storage.sql.exec("UPDATE split SET json = ?, changed_at = ?", json, now);
@@ -138,8 +136,8 @@ export class SplitServer extends Server<Cloudflare.Env> {
 }
 
 function readFrame(message: string | ArrayBuffer): Frame {
-  const bytes = typeof message === "string" ? utf8Bytes(message, MAX_MESSAGE_BYTES) : message.byteLength;
-  if (bytes > MAX_MESSAGE_BYTES) return { ok: false, ref: null, rejection: { reason: "messageTooLarge" } };
+  const oversized = typeof message === "string" ? exceedsBytes(message, MAX_MESSAGE_BYTES) : message.byteLength > MAX_MESSAGE_BYTES;
+  if (oversized) return { ok: false, ref: null, rejection: { reason: "messageTooLarge" } };
   const envelope = typeof message === "string" ? parseJson(message) : undefined;
   if (typeof envelope !== "object" || envelope === null || Array.isArray(envelope)) return malformed(null, "");
   const fields = new Map<string, unknown>(Object.entries(envelope));
@@ -167,10 +165,15 @@ function isCreator(presented: string | undefined, secret: Uint8Array): boolean {
   return bytes.byteLength === secret.byteLength && crypto.subtle.timingSafeEqual(bytes, secret);
 }
 
+const ENDINGS = {
+  missing: { reason: "notFound", code: 4404 },
+  unreadable: { reason: "unreadable", code: 4500 },
+} as const;
+
 function endConnection(connection: Connection, stored: Exclude<Stored, { kind: "live" }>): void {
-  const reason = stored.kind === "missing" ? "notFound" : "unreadable";
+  const { reason, code } = ENDINGS[stored.kind];
   send(connection, { type: "unavailable", reason });
-  connection.close(stored.kind === "missing" ? CLOSE_NOT_FOUND : CLOSE_UNREADABLE, reason);
+  connection.close(code, reason);
 }
 
 function send(connection: Connection, message: ServerMessage): void {
@@ -189,8 +192,8 @@ function parseJson(text: string): unknown {
   }
 }
 
-function utf8Bytes(text: string, cap: number): number {
-  return text.length > cap ? text.length : new TextEncoder().encode(text).byteLength;
+function exceedsBytes(text: string, cap: number): boolean {
+  return text.length > cap || new TextEncoder().encode(text).byteLength > cap;
 }
 
 function toBase64Url(bytes: Uint8Array): string {
