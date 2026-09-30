@@ -13,8 +13,8 @@ export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24, xxl: 32, xxxl: 48, hug
 
 export const breakpoints = { bottomBarBelow: 768, twoColumnsFrom: 900 } as const;
 
-const display = "ArchivoCondensed, Impact, 'Arial Narrow', sans-serif";
-const body = "Archivo, system-ui, -apple-system, sans-serif";
+const display = "ArchivoCondensed, 'ArchivoCondensed Fallback', sans-serif";
+const body = "Archivo, 'Archivo Fallback', system-ui, -apple-system, sans-serif";
 
 const archivoDescent = 0.2;
 
