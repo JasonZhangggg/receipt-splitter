@@ -252,7 +252,7 @@ function invertRow<RowId, Fields, Editable extends keyof Fields>(
 function claimsStillHeld(split: Split, write: Extract<Write, { kind: "claims" }>): Write[] {
   const itemsById = new Map(split.receipt.items.map((item) => [item.id, item]));
   const present = new Set<ParticipantId>(split.participants.map(({ id }) => id));
-  const groups = new Map<string, { itemIds: [ItemId, ...ItemId[]]; participantIds: NonEmpty<ParticipantId> }>();
+  const byClaimers = new Map<string, { itemIds: [ItemId, ...ItemId[]]; participantIds: NonEmpty<ParticipantId> }>();
   for (const itemId of write.itemIds) {
     const item = itemsById.get(itemId);
     if (!item) continue;
@@ -261,11 +261,11 @@ function claimsStillHeld(split: Split, write: Extract<Write, { kind: "claims" }>
     );
     if (first === undefined) continue;
     const key = [first, ...rest].join(",");
-    const group = groups.get(key);
-    if (group) group.itemIds.push(itemId);
-    else groups.set(key, { itemIds: [itemId], participantIds: [first, ...rest] });
+    const claims = byClaimers.get(key);
+    if (claims) claims.itemIds.push(itemId);
+    else byClaimers.set(key, { itemIds: [itemId], participantIds: [first, ...rest] });
   }
-  return [...groups.values()].map(({ itemIds, participantIds }) => ({
+  return [...byClaimers.values()].map(({ itemIds, participantIds }) => ({
     kind: "claims",
     itemIds,
     participantIds,

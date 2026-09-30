@@ -4,6 +4,8 @@ import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
 import { parseNewSplit, parseOperation, parseSplit } from "./parse";
 import { adjustmentId, isMintedSplitId, itemId, participantId, type MintedSplitId, type Split } from "./split";
 
+const badName = { ok: false, rejection: { reason: "badName" } };
+
 function mintedId(value: string): MintedSplitId {
   if (!isMintedSplitId(value)) throw new RangeError(`${value} is not a minted Split id`);
   return value;
@@ -141,7 +143,6 @@ describe("parseSplit", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
     const [host, bob] = stored.participants;
     const named = (hostName: string, bobName: string) => parseSplit({ ...stored, participants: [{ ...host, name: hostName }, { ...bob, name: bobName }] });
-    const badName = { ok: false, rejection: { reason: "badName" } };
 
     expect(named("\u202E", "Bob")).toEqual(badName);
     expect(named("", "Bob")).toEqual(badName);
@@ -288,8 +289,8 @@ describe("parseNewSplit", () => {
     ).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].claimedBy" } });
   });
 
-  test("reads a Receipt of 100 Items and 20 Adjustments, and refuses one more of either before reading them", () => {
-    const created = (itemCount: number, adjustmentCount: number) =>
+  test("reads a Receipt of 100 Items and 20 Adjustments, and refuses one more of either at the array's path", () => {
+    const withRows = (itemCount: number, adjustmentCount: number) =>
       parseNewSplit(
         {
           ...body,
@@ -303,14 +304,13 @@ describe("parseNewSplit", () => {
         minted,
       );
 
-    expect(created(100, 20)).toMatchObject({ ok: true, split: { receipt: { items: { length: 100 }, adjustments: { length: 20 }, total: 10_020 } } });
-    expect(created(101, 0)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items" } });
-    expect(created(1, 21)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments" } });
+    expect(withRows(100, 20)).toMatchObject({ ok: true, split: { receipt: { items: { length: 100 }, adjustments: { length: 20 }, total: 10_020 } } });
+    expect(withRows(101, 0)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items" } });
+    expect(withRows(1, 21)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments" } });
   });
 
   test("refuses a Host named with a bidi override or left blank", () => {
     const hosted = (name: string) => parseNewSplit({ ...body, host: { id: "ann", name } }, minted);
-    const badName = { ok: false, rejection: { reason: "badName" } };
 
     expect(hosted("\u202E")).toEqual(badName);
     expect(hosted("")).toEqual(badName);

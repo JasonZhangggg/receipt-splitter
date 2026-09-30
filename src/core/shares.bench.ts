@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { cents, price } from "./money";
-import { applyOperation, type Operation } from "./operations";
+import { applyOperation, type Auth, type Operation } from "./operations";
 import { parseSplit } from "./parse";
 import { computeShares } from "./shares";
 import { adjustmentId, itemId, participantId, type Participant, type Split, type SplitItem } from "./split";
@@ -85,13 +85,14 @@ test("applyOperation claims an Unclaimed Item on the same 60-Item, 12-Participan
     recentChanges: [],
   });
   if (!stored.ok) throw new Error(JSON.stringify(stored.rejection));
+  const anyone: Auth = { creator: false };
   const claim: Operation = { by: host.id, type: "claim", itemId: itemId("i12"), participantId: host.id };
-  const claimed = applyOperation(stored.split, claim, { creator: false });
+  const claimed = applyOperation(stored.split, claim, anyone);
   if (!claimed.ok) throw new Error(JSON.stringify(claimed.rejection));
   expect([claimed.split.revision, computeShares(claimed.split).unclaimed.itemIds]).toEqual([1, ["i13", "i14", "i15"]]);
 
   const result = await bench("applyOperation claim", () => {
-    applyOperation(stored.split, claim, { creator: false });
+    applyOperation(stored.split, claim, anyone);
   }).run();
 
   console.log(JSON.stringify({ bench: "applyOperation claim", medianMs: result.latency.p50, samples: result.latency.samplesCount }));
