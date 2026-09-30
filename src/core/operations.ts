@@ -29,7 +29,7 @@ export const MAX_ITEMS = 100;
 export const MAX_ADJUSTMENTS = 20;
 export const MAX_PARTICIPANTS = 30;
 export const MAX_PARTICIPANT_NAME_LENGTH = 40;
-export const MAX_RECEIPT_NAME_LENGTH = 80;
+export const MAX_ROW_NAME_LENGTH = 80;
 export const RECENT_CHANGES_LIMIT = 50;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
 export const HISTORY_RESERVE_BYTES = 6 * 1024;
@@ -546,7 +546,7 @@ function checkState(split: Split): Rejection | null {
   if (payments.some(({ amount }) => amount < 1)) return { reason: "amountOutOfRange" };
   if (total < 0) return { reason: "negativeTotal" };
 
-  const receiptNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_RECEIPT_NAME_LENGTH));
+  const receiptNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH));
   const participantsNamed = participants.every(({ name }) => !BLANK.test(name) && isName(name, MAX_PARTICIPANT_NAME_LENGTH));
   if (!receiptNamed || !participantsNamed) return { reason: "badName" };
 
@@ -573,13 +573,13 @@ function checkState(split: Split): Rejection | null {
 
 const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u2028-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;
 const BLANK = /^[\s\p{Default_Ignorable_Code_Point}\u2800]*$/u;
-const MAX_GRAPHEME_UNITS = 32;
+const MAX_UNITS_PER_GRAPHEME = 32;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
 function isName(name: string, maxLength: number): boolean {
-  if (HIDDEN_CHARACTERS.test(name)) return false;
+  if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name)) return false;
   const characters = [...graphemes.segment(name)];
-  return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_GRAPHEME_UNITS);
+  return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_UNITS_PER_GRAPHEME);
 }
 
 function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {

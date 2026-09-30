@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
   MAX_PARTICIPANT_NAME_LENGTH,
-  MAX_RECEIPT_NAME_LENGTH,
+  MAX_ROW_NAME_LENGTH,
   applyOperation,
   checkSplit,
   createSplit,
@@ -646,11 +646,13 @@ describe("names", () => {
     expect(join("👨\u200D👩\u200D👧\u200D👦".repeat(41))).toBe("badName");
   });
 
-  test("refuses one character stacked with 40 accents, and keeps the longest skin-toned emoji sequences", () => {
+  test("refuses one character stacked past 31 accents, and keeps the longest skin-toned emoji sequences", () => {
     const kiss = "👩🏽\u200D❤\uFE0F\u200D💋\u200D👨🏿";
     const family = "👨🏻\u200D👩🏻\u200D👧🏻\u200D👦🏻";
     expect([kiss, family, family.repeat(40)].map(join)).toEqual(["accepted", "accepted", "accepted"]);
-    expect(join(`Z${"\u0301".repeat(40)}`)).toBe("badName");
+    const stacked = (accents: number) => `Z${"\u0301".repeat(accents)}`;
+    expect([stacked(31), stacked(31).repeat(40)].map(join)).toEqual(["accepted", "accepted"]);
+    expect([stacked(32), `${stacked(31).repeat(40)}d`].map(join)).toEqual(["badName", "badName"]);
   });
 
   test("refuses a lone bidi override, a null, a newline, a zero-width space, a lone surrogate, and a name made only of joiners", () => {
@@ -702,7 +704,7 @@ describe("names", () => {
 describe("the 32 KB budget", () => {
   const longId = (prefix: string, index: number) => `${prefix}${String(index).padStart(24 - prefix.length, "0")}`;
   const longName = (index: number) => `${index} `.padEnd(MAX_PARTICIPANT_NAME_LENGTH, "x");
-  const longItemName = (index: number) => `${index} `.padEnd(MAX_RECEIPT_NAME_LENGTH, "x");
+  const longItemName = (index: number) => `${index} `.padEnd(MAX_ROW_NAME_LENGTH, "x");
 
   function atTheCaps(): Split {
     const [first, ...rest] = Array.from({ length: 100 }, (_, index): Item => ({
