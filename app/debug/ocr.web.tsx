@@ -1,11 +1,14 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
+import type { Receipt } from "../../src/core/split";
+import { runTotalCheck } from "../../src/core/total-check";
 import { recognize, type TextBox } from "../../src/ocr";
+import { parseReceipt } from "../../src/parse";
 
 type Scan =
   | { state: "idle" }
   | { state: "reading"; photo: string }
-  | { state: "read"; photo: string; boxes: TextBox[]; ms: number }
+  | { state: "read"; photo: string; boxes: TextBox[]; ms: number; receipt: Receipt | null }
   | { state: "failed"; photo: string; message: string };
 
 export default function OcrDebug() {
@@ -27,7 +30,8 @@ export default function OcrDebug() {
     const started = performance.now();
     try {
       const boxes = await recognize(file);
-      setScan({ state: "read", photo: url, boxes, ms: Math.round(performance.now() - started) });
+      const ms = Math.round(performance.now() - started);
+      setScan({ state: "read", photo: url, boxes, ms, receipt: parseReceipt(boxes) });
     } catch (error) {
       setScan({ state: "failed", photo: url, message: String(error) });
     }
@@ -76,6 +80,7 @@ export default function OcrDebug() {
       )}
       {scan.state === "read" && (
         <>
+          <ParsedReceipt receipt={scan.receipt} />
           <ol aria-label="Text boxes" style={{ ...systemFont, lineHeight: 1.4, margin: 0, paddingLeft: 24 }}>
             {scan.boxes.map((box, i) => (
               <li key={i}>{box.text}</li>
@@ -93,7 +98,59 @@ export default function OcrDebug() {
   );
 }
 
+function ParsedReceipt({ receipt }: { receipt: Receipt | null }) {
+  if (!receipt) {
+    return (
+      <p data-testid="parse" style={{ ...systemFont, margin: 0 }}>
+        No Items found.
+      </p>
+    );
+  }
+  const check = runTotalCheck(receipt);
+  return (
+    <section data-testid="parse" aria-label="Parsed Receipt" style={{ ...systemFont, fontVariantNumeric: "tabular-nums", lineHeight: 1.4, maxWidth: 560 }}>
+      <h2 id="parse-items" style={heading}>
+        Items
+      </h2>
+      <ul aria-labelledby="parse-items" data-testid="parse-items" style={list}>
+        {receipt.items.map((item) => (
+          <li key={item.id}>
+            {item.name} {dollars(item.price)}
+          </li>
+        ))}
+      </ul>
+      {receipt.adjustments.length > 0 && (
+        <>
+          <h2 id="parse-adjustments" style={heading}>
+            Adjustments
+          </h2>
+          <ul aria-labelledby="parse-adjustments" style={list}>
+            {receipt.adjustments.map((adjustment) => (
+              <li key={adjustment.id}>
+                {adjustment.name} {dollars(adjustment.amount)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p style={{ margin: "12px 0 0" }}>Subtotal {dollars(receipt.subtotal)}</p>
+      <p style={{ margin: 0, fontWeight: 600 }}>Total {dollars(receipt.total)}</p>
+      <p data-testid="parse-check" style={{ margin: "12px 0 0" }}>
+        {check.ok
+          ? "Total check passed."
+          : `Total check failed. Items are off by ${dollars(check.subtotalGap)} and the total by ${dollars(check.totalGap)}.`}
+      </p>
+    </section>
+  );
+}
+
+function dollars(cents: number): string {
+  return `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toFixed(2)}`;
+}
+
 const systemFont = { fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 16 };
+const heading = { fontSize: 17, fontWeight: 600, margin: "16px 0 4px" };
+const list = { listStyle: "none", margin: 0, padding: 0 };
 
 const styles = StyleSheet.create({
   screen: { padding: 24, gap: 16 },

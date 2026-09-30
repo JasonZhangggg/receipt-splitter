@@ -1,3 +1,5 @@
+import "./register-ts.mjs";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -14,7 +16,7 @@ const { values: flags } = parseArgs({
 if (!flags.parser) {
   console.error(
     [
-      "usage: npm run bench -- --parser=<labels | path to a parser module> [--labels=<dir>] [--json]",
+      "usage: npm run bench -- --parser=<labels | a name in bench/parsers | path to a parser module> [--labels=<dir>] [--json]",
       "A parser module's default export takes { name, imagePath } and returns a Receipt, a Promise of one, or null.",
     ].join("\n"),
   );
@@ -22,23 +24,27 @@ if (!flags.parser) {
 }
 
 const labels = readLabels(flags.labels);
+const named = join(import.meta.dirname, "parsers", `${flags.parser}.mjs`);
 const parse =
   flags.parser === "labels"
     ? ({ name }) => labels.find((label) => label.name === name).receipt
-    : (await import(pathToFileURL(resolve(flags.parser)).href)).default;
+    : (await import(pathToFileURL(existsSync(named) ? named : resolve(flags.parser)).href)).default;
 
 const exact = { receipts: 0, items: [0, 0], adjustments: [0, 0], totalCheck: [0, 0] };
 const structure = { receipts: 0, items: [0, 0], adjustments: [0, 0] };
 const misses = [];
+const parseMs = [];
 
 for (const label of labels) {
   const imagePath = join(flags.labels, "..", "data", label.image);
+  const started = performance.now();
   const output = await Promise.resolve()
     .then(() => parse({ name: label.name, imagePath }))
     .catch((error) => {
       console.error(`${label.name}: the parser threw ${error}`);
       return null;
     });
+  parseMs.push(performance.now() - started);
   const predicted = isReceiptShaped(output) ? output : null;
   if (output !== null && predicted === null) console.error(`${label.name}: the parser returned something that is not a Receipt`);
   const byStructure = label.source === "cord";
@@ -73,7 +79,14 @@ if (flags.json) {
   const rate = ([hit, all]) => `${hit}/${all} ${all === 0 ? "n/a" : `${((100 * hit) / all).toFixed(1)}%`}`;
   console.log(`exact, ${exact.receipts} receipts: Item prices ${rate(exact.items)}, Adjustments ${rate(exact.adjustments)}, Total check ${rate(exact.totalCheck)}`);
   console.log(`structure, ${structure.receipts} receipts: Items ${rate(structure.items)}, Adjustments ${rate(structure.adjustments)}`);
+  console.log(`parse: median ${median(parseMs).toFixed(1)} ms over ${parseMs.length} receipts`);
   console.log(misses.length === 0 ? "misses: none" : `misses: ${misses.join(" ")}`);
+}
+
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 function matched(expected, actual = []) {
