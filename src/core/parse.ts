@@ -17,14 +17,10 @@ import {
   ADJUSTMENT_KINDS,
   PAYMENT_SERVICES,
   isId,
-  type AdjustmentId,
   type Change,
-  type ItemId,
   type MintedSplitId,
   type NonEmpty,
-  type ParticipantId,
   type Split,
-  type SplitId,
   type Write,
 } from "./split";
 
@@ -152,10 +148,10 @@ const flag = check((input): input is boolean => typeof input === "boolean");
 const count = check((input): input is number => typeof input === "number" && Number.isSafeInteger(input) && input >= 0);
 const cents = check(isCents);
 const price = check(isPrice);
-const splitId = check(isId<SplitId>);
-const itemId = check(isId<ItemId>);
-const adjustmentId = check(isId<AdjustmentId>);
-const participantId = check(isId<ParticipantId>);
+const splitId = check(isId<"SplitId">);
+const itemId = check(isId<"ItemId">);
+const adjustmentId = check(isId<"AdjustmentId">);
+const participantId = check(isId<"ParticipantId">);
 const adjustmentKind = oneOf(ADJUSTMENT_KINDS);
 
 function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {

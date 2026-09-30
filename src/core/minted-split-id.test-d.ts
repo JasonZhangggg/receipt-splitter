@@ -1,7 +1,7 @@
 import { expectTypeOf, test } from "vitest";
 import { createSplit } from "./operations";
 import { parseNewSplit } from "./parse";
-import type { MintedSplitId, SplitId } from "./split";
+import { isId, type MintedSplitId, type SplitId } from "./split";
 
 test("parseNewSplit takes a Split id the server minted, and not a plain Split id", () => {
   expectTypeOf<MintedSplitId>().toExtend<Parameters<typeof parseNewSplit>[1]>();
@@ -11,4 +11,8 @@ test("parseNewSplit takes a Split id the server minted, and not a plain Split id
 test("createSplit takes a Split id the server minted, and not a plain Split id", () => {
   expectTypeOf<MintedSplitId>().toExtend<Parameters<typeof createSplit>[0]["id"]>();
   expectTypeOf<SplitId>().not.toExtend<Parameters<typeof createSplit>[0]["id"]>();
+});
+
+test("isId checks only the plain id shape, so it cannot narrow to a minted Split id", () => {
+  expectTypeOf(isId).not.toExtend<<Minted extends MintedSplitId>(value: unknown) => value is Minted>();
 });

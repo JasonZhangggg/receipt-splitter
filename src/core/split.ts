@@ -1,7 +1,8 @@
 import type { Cents, Price } from "./money";
 
 declare const idBrand: unique symbol;
-type Id<Name extends string> = string & { readonly [idBrand]: Name };
+type IdKind = "SplitId" | "ParticipantId" | "ItemId" | "AdjustmentId";
+type Id<Kind extends IdKind> = string & { readonly [idBrand]: Kind };
 
 export type SplitId = Id<"SplitId">;
 export type ParticipantId = Id<"ParticipantId">;
@@ -10,7 +11,7 @@ export type AdjustmentId = Id<"AdjustmentId">;
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,24}$/;
 
-export function isId<T extends Id<string>>(value: unknown): value is T {
+export function isId<Kind extends IdKind>(value: unknown): value is Id<Kind> {
   return typeof value === "string" && ID_PATTERN.test(value) && value !== "__proto__";
 }
 
@@ -20,17 +21,17 @@ export type MintedSplitId = SplitId & { readonly [mintedBrand]: true };
 const MIN_MINTED_ID_LENGTH = 16;
 
 export function isMintedSplitId(value: string): value is MintedSplitId {
-  return value.length >= MIN_MINTED_ID_LENGTH && isId<SplitId>(value);
+  return value.length >= MIN_MINTED_ID_LENGTH && isId<"SplitId">(value);
 }
 
-function id<T extends Id<string>>(value: string): T {
-  if (!isId<T>(value)) throw new RangeError(`${JSON.stringify(value)} is not 1 to 24 letters, digits, "_", or "-", or is "__proto__"`);
+function id<Kind extends IdKind>(value: string): Id<Kind> {
+  if (!isId<Kind>(value)) throw new RangeError(`${JSON.stringify(value)} is not 1 to 24 letters, digits, "_", or "-", or is "__proto__"`);
   return value;
 }
 
-export const participantId = (value: string) => id<ParticipantId>(value);
-export const itemId = (value: string) => id<ItemId>(value);
-export const adjustmentId = (value: string) => id<AdjustmentId>(value);
+export const participantId = (value: string) => id<"ParticipantId">(value);
+export const itemId = (value: string) => id<"ItemId">(value);
+export const adjustmentId = (value: string) => id<"AdjustmentId">(value);
 
 export type NonEmpty<T> = readonly [T, ...T[]];
 
