@@ -16,7 +16,8 @@ function css({ light, dark }: { light: Colors; dark: Colors }) {
 :root { color-scheme: light dark; --focus: ${light.focus}; }
 @media (prefers-color-scheme: dark) { :root { --focus: ${dark.focus}; } }
 html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
-body { background-color: ${light.field}; }
+body { background-color: ${light.field}; text-wrap: pretty; }
+[role="heading"] { text-wrap: balance; }
 @media (prefers-color-scheme: dark) { body { background-color: ${dark.field}; } }
 [data-pressable] { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 [data-pressable]:focus { outline: none; }
