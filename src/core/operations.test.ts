@@ -600,6 +600,16 @@ describe("limits", () => {
   });
 });
 
+describe("totals", () => {
+  test("a discount that drives the total below zero is rejected even when the Total check balances", () => {
+    const discount = { id: adjustmentId("promo"), kind: "discount" as const, name: "Promo", amount: cents(-6000) };
+
+    expect(
+      reasonFor(created(), { by: null, type: "editReceipt", adjustments: [{ type: "add", adjustment: discount, index: 0 }], totalDelta: cents(-6000) }),
+    ).toBe("negativeTotal");
+  });
+});
+
 describe("the 32 KB budget", () => {
   const longId = (prefix: string, index: number) => `${prefix}${String(index).padStart(24 - prefix.length, "0")}`;
   const longName = (index: number) => `${index} `.padEnd(80, "x");

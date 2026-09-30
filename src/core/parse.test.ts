@@ -76,4 +76,16 @@ describe("parseSplit", () => {
     expect(parseSplit({ ...stored, participants: [stored.participants[0]] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });
+
+  test("refuses a stored Split whose claimers are out of order or repeated", () => {
+    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const withPitcherClaimers = (claimedBy: string[]) => ({
+      ...stored,
+      receipt: { ...stored.receipt, items: [stored.receipt.items[0], { ...stored.receipt.items[1], claimedBy }] },
+    });
+
+    expect(stored.receipt.items[1].claimedBy).toEqual(["ann", "bob"]);
+    expect(parseSplit(withPitcherClaimers(["bob", "ann"]))).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
+    expect(parseSplit(withPitcherClaimers(["ann", "ann", "bob"]))).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
+  });
 });
