@@ -5,11 +5,12 @@
   "region": "US",
   "tags": [],
   "checked": false,
+  "note": "Zenodo transcription reads Coffee as Coffe.",
   "receipt": {
     "items": [
       {
         "id": "i1",
-        "name": "Coffe",
+        "name": "Coffee",
         "price": 350
       },
       {

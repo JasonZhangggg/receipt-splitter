@@ -7,16 +7,17 @@
     "discount"
   ],
   "checked": false,
+  "note": "Zenodo transcription starts each Item with its SKU. The names PARIS and LE CLASSIQUE print on the next line.",
   "receipt": {
     "items": [
       {
         "id": "i1",
-        "name": "1 5.25",
+        "name": "PARIS",
         "price": 525
       },
       {
         "id": "i2",
-        "name": "1 4.95",
+        "name": "LE CLASSIQUE",
         "price": 495
       }
     ],

@@ -7,6 +7,7 @@
     "skew"
   ],
   "checked": false,
+  "note": "Zenodo transcription reads the quantity 1 of Hunan Beef as the letter I.",
   "receipt": {
     "items": [
       {
@@ -26,7 +27,7 @@
       },
       {
         "id": "i4",
-        "name": "I Hunan Beef (L)",
+        "name": "Hunan Beef (L)",
         "price": 875
       }
     ],

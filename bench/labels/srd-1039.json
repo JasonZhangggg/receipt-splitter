@@ -7,17 +7,13 @@
     "discount"
   ],
   "checked": false,
+  "note": "E Green Chile 0.70 is an add-on printed under Santa Fe Ckn, so it folds into that Item.",
   "receipt": {
     "items": [
       {
         "id": "i1",
         "name": "Santa Fe Ckn",
-        "price": 1138
-      },
-      {
-        "id": "i2",
-        "name": "E Green Chile",
-        "price": 70
+        "price": 1208
       }
     ],
     "adjustments": [

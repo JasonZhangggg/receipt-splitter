@@ -8,6 +8,7 @@
     "blur"
   ],
   "checked": false,
+  "note": "The -6.00 discount prints under BBQ & Blue Chz chips, so it folds into that Item and the subtotal is the printed 47.00.",
   "receipt": {
     "items": [
       {
@@ -22,8 +23,8 @@
       },
       {
         "id": "i3",
-        "name": "BBG & Blue Chz chips",
-        "price": 600
+        "name": "BBQ & Blue Chz chips",
+        "price": 0
       },
       {
         "id": "i4",
@@ -39,18 +40,12 @@
     "adjustments": [
       {
         "id": "a1",
-        "kind": "discount",
-        "name": "Discount :BBQ & Blue Chz",
-        "amount": -600
-      },
-      {
-        "id": "a2",
         "kind": "tax",
         "name": "State Tax",
         "amount": 329
       }
     ],
-    "subtotal": 5300,
+    "subtotal": 4700,
     "total": 5029
   }
 }
