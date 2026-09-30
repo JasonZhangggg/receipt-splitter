@@ -259,6 +259,25 @@ describe("expiry", () => {
     expect(await runInDurableObject(stub, (_, state) => state.storage.getAlarm())).toBe(T0 + 61 * DAY);
     expect(await storedRow(id)).toEqual([expect.objectContaining({ changed_at: T0 })]);
   });
+
+  it("keeps a retry alarm when deleteAll fails twice on a warm instance, then expires after a wake", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    await runInDurableObject(stub, (_, state) => {
+      const storage: { deleteAll: () => Promise<void> } = state.storage;
+      storage.deleteAll = () => Promise.reject(new Error("storage unavailable"));
+    });
+    vi.setSystemTime(T0 + 60 * DAY);
+    await expect(runDurableObjectAlarm(stub)).rejects.toThrow("storage unavailable");
+    vi.setSystemTime(T0 + 61 * DAY);
+    await expect(runDurableObjectAlarm(stub)).rejects.toThrow("storage unavailable");
+    expect(await runInDurableObject(stub, (_, state) => state.storage.getAlarm())).toBe(T0 + 62 * DAY);
+
+    await evictDurableObject(stub);
+    vi.setSystemTime(T0 + 62 * DAY);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
+  });
 });
 
 describe("refusals leave the stored Split unchanged", () => {

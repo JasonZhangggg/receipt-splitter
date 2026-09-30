@@ -111,17 +111,15 @@ export class SplitServer extends Server<Cloudflare.Env> {
 
   async onAlarm(): Promise<void> {
     const stored = this.#stored;
-    if (stored.kind === "missing") {
-      await this.ctx.storage.deleteAll();
-      return;
+    if (stored.kind !== "missing") {
+      const due = stored.changedAt + SPLIT_TTL_MS;
+      if (Date.now() < due) {
+        await this.ctx.storage.setAlarm(due);
+        return;
+      }
+      this.#stored = { kind: "missing" };
+      for (const connection of this.getConnections()) endConnection(connection, this.#stored);
     }
-    const due = stored.changedAt + SPLIT_TTL_MS;
-    if (Date.now() < due) {
-      await this.ctx.storage.setAlarm(due);
-      return;
-    }
-    this.#stored = { kind: "missing" };
-    for (const connection of this.getConnections()) endConnection(connection, this.#stored);
     await this.ctx.storage.setAlarm(Date.now() + EXPIRY_RETRY_MS);
     await this.ctx.storage.deleteAll();
   }
