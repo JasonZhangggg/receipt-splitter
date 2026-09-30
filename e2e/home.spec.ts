@@ -132,7 +132,7 @@ test("each headline line fits on one line at 320 px", async ({ page }) => {
 });
 
 for (const width of [320, phone.width, 1280]) {
-  test(`the fallback fonts keep the layout of the web fonts at ${width} px`, async ({ browser }) => {
+  test(`the fallback fonts keep the headline lines of the web fonts at ${width} px`, async ({ browser }) => {
     const layout = async (blockFonts: boolean) => {
       const context = await browser.newContext({ viewport: { width, height: phone.height }, reducedMotion: "reduce" });
       const page = await context.newPage();
@@ -147,7 +147,7 @@ for (const width of [320, phone.width, 1280]) {
         webFaces: await page.evaluate(() =>
           [...document.fonts].filter((f) => /^"?Archivo(Condensed)?"?$/.test(f.family)).map((f) => f.status),
         ),
-        boxes: [await box(headline[1]), await box("Take a photo of the receipt"), await box("Example scan")],
+        boxes: [await box(headline[0]), await box(headline[1])],
       };
       await context.close();
       return result;

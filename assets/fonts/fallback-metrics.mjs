@@ -47,14 +47,14 @@ for (const face of faces) {
         const widths = sample.map((text) => ctx.measureText(text).width);
         const metrics = ctx.measureText("Hg");
         return {
-          width: widths.reduce((a, b) => a + b, 0),
+          widths,
           ascent: metrics.fontBoundingBoxAscent / 1000,
           descent: metrics.fontBoundingBoxDescent / 1000,
         };
       };
       const web = await measure(`web-${weight}`, data);
       const fallback = await measure(`fallback-${weight}`, `local("${local}")`);
-      const sizeAdjust = web.width / fallback.width;
+      const sizeAdjust = Math.min(...web.widths.map((width, i) => width / fallback.widths[i]));
       const descriptors = {
         sizeAdjust: `${(sizeAdjust * 100).toFixed(2)}%`,
         ascentOverride: `${((web.ascent / sizeAdjust) * 100).toFixed(2)}%`,
@@ -65,7 +65,7 @@ for (const face of faces) {
       return {
         descriptors,
         check: {
-          widthRatio: +(check.width / web.width).toFixed(4),
+          widestRatio: +Math.max(...check.widths.map((width, i) => width / web.widths[i])).toFixed(4),
           ascent: [+web.ascent.toFixed(3), +check.ascent.toFixed(3)],
           descent: [+web.descent.toFixed(3), +check.descent.toFixed(3)],
         },
