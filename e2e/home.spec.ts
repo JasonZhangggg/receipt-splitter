@@ -433,6 +433,87 @@ test("a held mouse press on the inline action lets go when the pointer leaves it
   await context.close();
 });
 
+for (const pointerType of ["mouse", "pen"] as const) {
+  test(`a ${pointerType} press shows and activates the inline action only when it starts on it`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 500 }, hasTouch: false, isMobile: false });
+    const page = await context.newPage();
+    await watchScanPress(page);
+    const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
+    const on = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const off = { x: on.x, y: box.y - 80 };
+    const cdp = await context.newCDPSession(page);
+    const send = (type: "mouseMoved" | "mousePressed" | "mouseReleased", at: { x: number; y: number }, buttons: number) =>
+      cdp.send("Input.dispatchMouseEvent", { type, ...at, button: "left", buttons, clickCount: 1, pointerType });
+    const gesture = async (path: { x: number; y: number }[], pressed: boolean) => {
+      await page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { start: 0, clicks: 0, frames: [] }));
+      const buttons = pressed ? 1 : 0;
+      await send("mouseMoved", path[0], 0);
+      if (pressed) await send("mousePressed", path[0], 1);
+      for (const [from, to] of path.slice(0, -1).map((at, i) => [at, path[i + 1]])) {
+        for (let step = 1; step <= 6; step++) {
+          await send("mouseMoved", { x: from.x + ((to.x - from.x) * step) / 6, y: from.y + ((to.y - from.y) * step) / 6 }, buttons);
+          await page.waitForTimeout(16);
+        }
+        await page.waitForTimeout(250);
+      }
+      if (pressed) await send("mouseReleased", path.at(-1)!, 0);
+      await page.waitForTimeout(400);
+      const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+      return { shown: log.frames.some((frame) => frame.pressed), activated: log.clicks };
+    };
+    expect({
+      onToOffRelease: await gesture([on, off], true),
+      thenHoverBack: await gesture([off, on, off], false),
+      offToOnRelease: await gesture([off, on], true),
+      onToOffToOnRelease: await gesture([on, off, on], true),
+    }).toEqual({
+      onToOffRelease: { shown: true, activated: 0 },
+      thenHoverBack: { shown: false, activated: 0 },
+      offToOnRelease: { shown: false, activated: 0 },
+      onToOffToOnRelease: { shown: true, activated: 1 },
+    });
+    await context.close();
+  });
+}
+
+test("a right-button press during a held mouse press lets the press go", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
+  const page = await context.newPage();
+  await loadAndHoldMouseOnScan(page);
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  const menus = page.evaluate(() => new Promise((resolve) => addEventListener("contextmenu", () => resolve("contextmenu"), { once: true })));
+  await page.mouse.down({ button: "right" });
+  expect(await menus).toBe("contextmenu");
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  await page.mouse.up({ button: "right" });
+  await page.mouse.up();
+  await context.close();
+});
+
+test("a second finger or a passing mouse on the inline action leaves a held touch pressed", async ({ page }) => {
+  await watchInlineScanPress(page, "no-preference");
+  const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
+  const first = { x: box.x + box.width / 2, y: box.y + box.height / 2, id: 1 };
+  const second = { x: first.x + 40, y: first.y, id: 2 };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [first] });
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { frames: [] }));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [first, second] });
+  await page.waitForTimeout(100);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [second] });
+  await page.waitForTimeout(300);
+  await page.mouse.move(first.x - 40, box.y - 60);
+  await page.mouse.move(first.x - 40, first.y, { steps: 4 });
+  await page.mouse.move(first.x - 40, box.y - 60, { steps: 4 });
+  await page.waitForTimeout(300);
+  const frames = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog.frames.map((frame) => frame.pressed));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [first] });
+  expect(frames.length, "frames sampled while the first finger held").toBeGreaterThan(30);
+  expect(frames.filter((pressed) => !pressed)).toEqual([]);
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+});
+
 test("a right-click on the inline action draws no press", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
   const page = await context.newPage();

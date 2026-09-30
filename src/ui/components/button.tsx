@@ -6,7 +6,7 @@ import { motion, type, useColors } from "../theme";
 
 type Props = { label: string; onPress: () => void; outsideScroll?: boolean };
 
-type Look = "rest" | "waiting" | "pressed" | "tapped";
+type Look = "rest" | "waiting" | "pressed" | "away" | "tapped";
 
 const scrollViewTouchDelay = 150;
 const tapLook = motion.pressIn;
@@ -23,6 +23,7 @@ const primaryPress = ({ nativeEvent }: PointerEvent) => nativeEvent.isPrimary &&
 function usePressLook(outsideScroll: boolean) {
   const [look, setLook] = useState<Look>("rest");
   const tapUntil = useRef(0);
+  const pointer = useRef<number>(undefined);
   useEffect(() => {
     const timed = timedLooks[look];
     if (!timed) return;
@@ -30,24 +31,30 @@ function usePressLook(outsideScroll: boolean) {
     return () => clearTimeout(timer);
   }, [look]);
   const rest = () => setLook("rest");
+  const move = (from: Look, to: Look) => setLook((current) => (current === from ? to : current));
+  const ours = (event: PointerEvent) => event.nativeEvent.pointerId === pointer.current;
   return {
     pressed: look === "pressed" || look === "tapped",
     pressProps: {
       onPointerDown: (event: PointerEvent) => {
         if (!primaryPress(event)) return;
+        pointer.current = event.nativeEvent.pointerId;
         const waits = event.nativeEvent.pointerType === "touch" && !outsideScroll;
         tapUntil.current = waits ? performance.now() + scrollViewTouchDelay + tapLook : 0;
         setLook(waits ? "waiting" : "pressed");
       },
-      onPointerUp: () => {
+      onPointerUp: (event: PointerEvent) => {
+        if (!ours(event)) return;
         const tap = performance.now() < tapUntil.current;
         setLook((current) => (current !== "rest" && tap ? "tapped" : "rest"));
       },
       onPointerCancel: rest,
-      onPointerLeave: () => setLook((current) => (current === "pressed" ? "rest" : current)),
-      onPointerEnter: (event: PointerEvent) => {
-        if (event.nativeEvent.pointerType !== "touch" && event.nativeEvent.buttons === 1) setLook("pressed");
+      onPointerLeave: (event: PointerEvent) => {
+        if (ours(event)) move("pressed", "away");
       },
+      onPointerEnter: () => move("away", "pressed"),
+      onPressOut: () => move("away", "rest"),
+      onContextMenu: rest,
       onBlur: rest,
       onKeyDown: (event: { key: string }) => {
         if (pressKeys.has(event.key)) setLook("pressed");
