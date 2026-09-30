@@ -14,16 +14,25 @@ type Draft = {
   readonly subtotals: Cents[];
   readonly discountBeforeSubtotal: number;
   readonly total: Cents | null;
+  readonly laterTotals: Cents[];
 };
 
 type Section = "items" | "adjustments" | "closed";
 
 export function parseReceipt(boxes: readonly TextBox[]): Receipt | null {
-  const draft = assemble(classifyLines(groupRows(boxes)));
-  if (draft.items.length === 0 || draft.total === null) return null;
-  const receipt = toReceipt(draft.items, draft.adjustments, subtotalOf(draft), draft.total);
-  const check = runTotalCheck(receipt);
-  return check.ok ? receipt : (repairs(receipt, draft, check).find((fixed) => runTotalCheck(fixed).ok) ?? receipt);
+  const lines = classifyLines(groupRows(boxes));
+  const readings = [lines, lines.map(strayMinusAsItem)].map(assemble).flatMap((draft) => {
+    if (draft.items.length === 0 || draft.total === null) return [];
+    const receipt = toReceipt(draft.items, draft.adjustments, subtotalOf(draft), draft.total);
+    const check = runTotalCheck(receipt);
+    return check.ok ? [receipt] : [receipt, ...repairs(receipt, draft, check)];
+  });
+  return readings.find((receipt) => runTotalCheck(receipt).ok) ?? readings[0] ?? null;
+}
+
+function strayMinusAsItem(line: Line): Line {
+  if (line.kind !== "discount" || line.readFrom !== "minus" || !/[a-z]{2}/i.test(line.name)) return line;
+  return { kind: "item", name: line.name, price: price(-line.amount), quantity: null };
 }
 
 function assemble(lines: readonly Line[]): Draft {
@@ -31,6 +40,7 @@ function assemble(lines: readonly Line[]): Draft {
   const adjustments: DraftAdjustment[] = [];
   const subtotals: Cents[] = [];
   const pending: DraftAdjustment[] = [];
+  const laterTotals: Cents[] = [];
   let discountBeforeSubtotal = 0;
   let total: Cents | null = null;
   let section: Section = "items";
@@ -39,9 +49,12 @@ function assemble(lines: readonly Line[]): Draft {
   for (const line of lines) {
     if (section === "closed") {
       if (line.kind === "tax" || line.kind === "tip" || line.kind === "serviceCharge") pending.push(line);
-      if (line.kind === "total" && pending.length > 0 && total !== null && line.amount === total + sum(amounts(pending))) {
+      if (line.kind !== "total" || total === null) continue;
+      if (pending.length > 0 && line.amount === total + sum(amounts(pending))) {
         adjustments.push(...pending.splice(0));
         total = line.amount;
+      } else if (line.amount !== total) {
+        laterTotals.push(line.amount);
       }
       continue;
     }
@@ -89,7 +102,7 @@ function assemble(lines: readonly Line[]): Draft {
     }
     previous = line;
   }
-  return { items, adjustments, subtotals, discountBeforeSubtotal, total };
+  return { items, adjustments, subtotals, discountBeforeSubtotal, total, laterTotals };
 }
 
 function foldInto(items: DraftItem[], name: string, amount: number): void {
@@ -127,15 +140,15 @@ function repairs(receipt: Receipt, draft: Draft, check: FailedTotalCheck): Recei
       subtotal,
       total,
     );
-  const fixes: Receipt[] = [];
+  const fixes: Receipt[] = draft.laterTotals.map((later) => ({ ...receipt, total: later }));
   draft.items.forEach((item, index) => {
     if (item.quantity?.count === 7) fixes.push(priceAt(index, item.quantity.unitPrice));
   });
   items.forEach((item, index) => {
-    if (check.itemIds.includes(item.id)) fixes.push(priceAt(index, item.price + check.subtotalGap));
+    if (check.itemIds.includes(item.id) && item.price + check.subtotalGap !== 0) fixes.push(priceAt(index, item.price + check.subtotalGap));
   });
   adjustments.forEach((adjustment, index) => {
-    if (check.adjustmentIds.includes(adjustment.id)) {
+    if (check.adjustmentIds.includes(adjustment.id) && adjustment.amount + check.totalGap !== 0) {
       fixes.push(
         toReceipt(
           draft.items,

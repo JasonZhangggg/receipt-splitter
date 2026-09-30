@@ -24,7 +24,7 @@ type Cluster = { y: number; readonly boxes: Placed[] };
 const PRICE_ONLY = /^[-(]?\s*\$?\s*\d{1,3}(?:,\d{3})*[.,]\s?\d{2}\s*[-)]?\s*[A-Z]{0,2}$/;
 const JOIN_WITHIN = 0.5;
 const SLOPE_REACH = 4;
-const PAIR_WITHIN = 0.8;
+const PAIR_WITHIN = 1;
 
 export function groupRows(textBoxes: readonly TextBox[]): Row[] {
   const boxes = textBoxes.map(measure).filter((box) => box.text.length > 0);
@@ -51,10 +51,11 @@ export function groupRows(textBoxes: readonly TextBox[]): Row[] {
     ...prices.filter((_, j) => !paired.has(j)),
   ]
     .sort((a, b) => a.y - b.y)
-    .map(({ boxes: row }) => {
-      const named = row.find((box) => /[a-z]/i.test(box.text)) ?? row[0];
-      return { text: row.map((box) => box.text).join(" "), left: named.left, lineHeight };
-    });
+    .map(({ boxes: row }) => ({ text: row.map((box) => box.text).join(" "), left: wordsStart(row), lineHeight }));
+}
+
+function wordsStart(row: readonly Box[]): number {
+  return (row.find((box) => /[a-z]{3}/i.test(box.text)) ?? row[0]).left;
 }
 
 function measure({ text, corners: [tl, tr, br, bl] }: TextBox): Box {
@@ -127,7 +128,7 @@ function align(labels: readonly Cluster[], prices: readonly Cluster[], lineHeigh
 function residual(label: Cluster, price: Cluster, lineHeight: number): number | null {
   const first = price.boxes[0];
   const end = label.boxes.filter((box) => box.right < first.left + lineHeight).at(-1);
-  if (!end || !label.boxes.some((box) => /[a-z]{2}/i.test(box.text))) return null;
+  if (!end || !label.boxes.some((box) => /[a-z]{2}|\d\s*@\s*\$?\d/i.test(box.text))) return null;
   const endY = end.cy + end.localSlope * (end.right - end.cx);
   const miss = Math.abs(first.cy - (endY + first.localSlope * (first.cx - end.right)));
   return miss <= PAIR_WITHIN * lineHeight ? miss : null;
