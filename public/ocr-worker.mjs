@@ -111,6 +111,16 @@ function fitRect(pixels, width, mx, my, angle) {
   return { angle, cos, sin, u0, u1, v0, v1, w: u1 - u0 + 1, h: v1 - v0 + 1 };
 }
 
+export function detectionSize(width, height) {
+  const scale = Math.min(1, DET_MAX_SIDE / Math.max(width, height));
+  return {
+    width: Math.max(32, Math.round((width * scale) / 32) * 32),
+    height: Math.max(32, Math.round((height * scale) / 32) * 32),
+  };
+}
+
+export const threadCount = (isolated) => (isolated ? 4 : 1);
+
 function scaleBox(box, sx, sy) {
   return { cx: box.cx * sx, cy: box.cy * sy, w: box.w * sx, h: box.h * sy, angle: box.angle };
 }
@@ -149,7 +159,7 @@ async function store(url, priority) {
   await cache.put(url, response);
 }
 
-async function read(url) {
+export async function read(url) {
   await download(url, "high").catch(() => {});
   const cached = await globalThis.caches?.open(CACHE).then((cache) => cache.match(url)).catch(() => undefined);
   const response = cached || (await fetch(url));
@@ -157,7 +167,7 @@ async function read(url) {
   return response;
 }
 
-async function prefetch() {
+export async function prefetch() {
   await Promise.all(DOWNLOADS.map((url) => download(url, "low")));
   for (const key of await caches.keys()) {
     if (key.startsWith("ocr-") && key !== CACHE) await caches.delete(key);
@@ -184,7 +194,7 @@ async function createEngine() {
   ]);
   ort.env.wasm.wasmPaths = ORT_DIR;
   ort.env.wasm.wasmBinary = wasm;
-  ort.env.wasm.numThreads = self.crossOriginIsolated ? 4 : 1;
+  ort.env.wasm.numThreads = threadCount(self.crossOriginIsolated);
   const options = { executionProviders: ["wasm"], graphOptimizationLevel: "all" };
   const lines = dict.split("\n");
   if (lines.at(-1) === "") lines.pop();
@@ -197,9 +207,7 @@ async function createEngine() {
 }
 
 function detectionInput({ ort }, image) {
-  const scale = Math.min(1, DET_MAX_SIDE / Math.max(image.width, image.height));
-  const width = Math.max(32, Math.round((image.width * scale) / 32) * 32);
-  const height = Math.max(32, Math.round((image.height * scale) / 32) * 32);
+  const { width, height } = detectionSize(image.width, image.height);
   const context = new OffscreenCanvas(width, height).getContext("2d");
   context.drawImage(image, 0, 0, width, height);
   const rgba = context.getImageData(0, 0, width, height).data;
