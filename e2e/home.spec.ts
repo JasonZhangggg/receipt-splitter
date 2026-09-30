@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { build } from "esbuild";
 
 const phone = { width: 390, height: 844 };
 
@@ -398,3 +399,50 @@ for (const { width, colorScheme, reducedMotion } of matrix) {
     await context.close();
   });
 }
+
+async function mountToast(page: Page) {
+  const harness = `
+    import { useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import { SafeAreaProvider } from "react-native-safe-area-context";
+    import { Toast } from "./src/ui/components/toast";
+    function Harness() {
+      const [message, setMessage] = useState("Copied the link");
+      return <Toast message={message} onHide={() => { window.hiddenAt.push(Date.now()); setMessage(null); }} />;
+    }
+    window.hiddenAt = [];
+    createRoot(document.getElementById("root")).render(<SafeAreaProvider><Harness /></SafeAreaProvider>);
+  `;
+  const bundle = await build({
+    stdin: { contents: harness, loader: "tsx", resolveDir: process.cwd() },
+    bundle: true,
+    write: false,
+    jsx: "automatic",
+    alias: { "react-native": "react-native-web" },
+    resolveExtensions: [".web.tsx", ".web.ts", ".web.js", ".tsx", ".ts", ".js"],
+    loader: { ".ttf": "dataurl", ".js": "jsx" },
+    define: { "process.env.NODE_ENV": '"production"', __DEV__: "false" },
+  });
+  await page.setContent('<div id="root"></div>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await expect(page.getByText("Copied the link")).toBeVisible();
+}
+
+test("the toast hides 4 s after it shows even when reduced motion changes on the way", async ({ page }) => {
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1000);
+  const setReducedMotion = async (reducedMotion: "reduce" | "no-preference") => {
+    const changed = page.evaluate(
+      () => new Promise((done) => matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", done, { once: true })),
+    );
+    await page.emulateMedia({ reducedMotion });
+    await changed;
+  };
+  await mountToast(page);
+  await page.clock.runFor(2000);
+  await setReducedMotion("reduce");
+  await page.clock.runFor(1000);
+  await setReducedMotion("no-preference");
+  await page.clock.runFor(5000);
+  expect(await page.evaluate(() => (window as unknown as { hiddenAt: number[] }).hiddenAt)).toEqual([5000]);
+});

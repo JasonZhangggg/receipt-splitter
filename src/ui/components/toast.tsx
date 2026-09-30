@@ -33,13 +33,12 @@ export function Toast({ message, onHide, action }: Props) {
     animation.start(({ finished }) => {
       if (finished && !message) setShown(null);
     });
-    if (!message) return () => animation.stop();
-    const cancel = hideAfter(visibleFor, () => hide());
-    return () => {
-      animation.stop();
-      cancel();
-    };
+    return () => animation.stop();
   }, [message, reduce, progress]);
+
+  useEffect(() => {
+    if (message) return hideAfter(visibleFor, () => hide());
+  }, [message]);
 
   const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
