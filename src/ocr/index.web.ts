@@ -36,6 +36,10 @@ export const recognize: typeof Ocr.recognize = (image) =>
 
 export const prefetchModel: typeof Ocr.prefetchModel = () => {
   const start = () => ocrWorker().postMessage({ type: "prefetch" });
-  if (document.readyState === "complete") start();
-  else addEventListener("load", start, { once: true });
+  const afterLoad = () => (document.readyState === "complete" ? start() : addEventListener("load", start, { once: true }));
+  new PerformanceObserver((paints, observer) => {
+    if (paints.getEntriesByName("first-contentful-paint").length === 0) return;
+    observer.disconnect();
+    afterLoad();
+  }).observe({ type: "paint", buffered: true });
 };
