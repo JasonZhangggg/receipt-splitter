@@ -67,3 +67,29 @@ test("a scan rejects with the worker's error for that scan, and the next scan do
   dict = new Response("<!DOCTYPE html>", { headers: { "content-type": "text/html" } });
   await expect(client.recognize(new Blob())).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
 });
+
+test("the model prefetch starts only after the first contentful paint and the load event", () => {
+  let reportPaints: (names: string[]) => void = () => {};
+  class FakePaintObserver {
+    constructor(callback: (list: { getEntriesByName(name: string): string[] }, observer: FakePaintObserver) => void) {
+      reportPaints = (names) => callback({ getEntriesByName: (name) => names.filter((entry) => entry === name) }, this);
+    }
+    observe() {}
+    disconnect() {}
+  }
+  const onLoad: (() => void)[] = [];
+  vi.stubGlobal("PerformanceObserver", FakePaintObserver);
+  vi.stubGlobal("document", { readyState: "interactive" });
+  vi.stubGlobal("addEventListener", (type: string, listener: () => void) => type === "load" && onLoad.push(listener));
+
+  client.prefetchModel();
+  const started = [FakeWorker.started.length];
+  reportPaints(["first-paint"]);
+  started.push(FakeWorker.started.length);
+  reportPaints(["first-contentful-paint"]);
+  started.push(FakeWorker.started.length);
+  onLoad.forEach((listener) => listener());
+  started.push(FakeWorker.started.length);
+
+  expect(started).toEqual([0, 0, 0, 1]);
+});
