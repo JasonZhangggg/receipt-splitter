@@ -13,6 +13,12 @@ test("createSplit takes a Split id the server minted, and not a plain Split id",
   expectTypeOf<SplitId>().not.toExtend<Parameters<typeof createSplit>[0]["id"]>();
 });
 
-test("isId checks only the plain id shape, so it cannot narrow to a minted Split id", () => {
-  expectTypeOf(isId).not.toExtend<<Minted extends MintedSplitId>(value: unknown) => value is Minted>();
+test("isId narrows to a plain Split id, never a minted one, and refuses a brand as its kind", () => {
+  const raw: unknown = "a";
+  if (isId<"SplitId">(raw)) {
+    expectTypeOf(raw).toEqualTypeOf<SplitId>();
+    expectTypeOf(raw).not.toExtend<MintedSplitId>();
+  }
+  // @ts-expect-error
+  isId<MintedSplitId>(raw);
 });
