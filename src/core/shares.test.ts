@@ -57,15 +57,15 @@ function seededReceipts(count: number) {
   return Array.from({ length: count }, () => {
     const [host, ...others] = Array.from({ length: int(2, 12) }, (_, index) => `${int(0, 46_655).toString(36)}_${index}`);
     const people = [host, ...others];
-    const groups: string[][] = [];
+    const claimerSets: string[][] = [];
     for (let start = 0; start < people.length; ) {
       const size = int(1, 4);
-      groups.push(people.slice(start, start + size));
+      claimerSets.push(people.slice(start, start + size));
       start += size;
     }
     const rows = Array.from({ length: int(1, 20) }, (_, index): Row => {
-      const claimers = groups.filter(() => next() < 0.45).flat();
-      const fallback = next() < 0.8 ? groups[int(0, groups.length - 1)] : [];
+      const claimers = claimerSets.filter(() => next() < 0.45).flat();
+      const fallback = next() < 0.8 ? claimerSets[int(0, claimerSets.length - 1)] : [];
       const amount = next() < 0.5 ? MENU_PRICES[int(0, MENU_PRICES.length - 1)] : int(1, 5000);
       return [`i${index}`, amount, claimers.length > 0 ? claimers : fallback];
     });
@@ -78,7 +78,7 @@ function seededReceipts(count: number) {
     const [first, ...rest] = rows;
     return {
       split: splitWith({ items: [first, ...rest], adjustments, participants: [host, ...others] }),
-      twins: groups.filter((group) => group.length > 1),
+      twins: claimerSets.filter((set) => set.length > 1),
     };
   });
 }
@@ -307,8 +307,8 @@ describe("computeShares", () => {
       worst = Math.max(worst, ...misses.map(Math.abs));
       expect(shares.reduce((sum, { share }) => sum + share, 0) + unclaimed.total).toBe(split.receipt.total);
       const byId = new Map<string, number>(shares.map(({ participantId, share }) => [participantId, share]));
-      for (const group of twins) {
-        const paid = group.map((id) => byId.get(id) ?? 0);
+      for (const set of twins) {
+        const paid = set.map((id) => byId.get(id) ?? 0);
         widestTwinGap = Math.max(widestTwinGap, Math.max(...paid) - Math.min(...paid));
       }
     }

@@ -877,11 +877,11 @@ describe("random operations", () => {
         const { items: rows, total } = split.receipt;
         const weights = rows.some(({ price }) => price > 0) ? rows.map(({ price }) => price) : rows.map(() => 1);
         const load = (total * weights[rows.findIndex(({ id }) => id === op.itemId)]) / weights.reduce((sum, weight) => sum + weight, 0);
-        const portion = (claimedBy: readonly ParticipantId[] = [], id: ParticipantId) =>
+        const exactShareOf = (claimedBy: readonly ParticipantId[] = [], id: ParticipantId) =>
           claimedBy.includes(id) ? load / claimedBy.length : 0;
         const was = new Map(computeShares(previous).shares.map(({ participantId, share }) => [participantId, share]));
         for (const { participantId: id, share } of shares) {
-          const exactMove = portion(item?.claimedBy, id) - portion(earlier?.claimedBy, id);
+          const exactMove = exactShareOf(item?.claimedBy, id) - exactShareOf(earlier?.claimedBy, id);
           const drift = Math.abs(share - (was.get(id) ?? 0) - exactMove);
           const claimer = item?.claimedBy.includes(id) || earlier?.claimedBy.includes(id);
           if (claimer) worstDrift.claimer = Math.max(worstDrift.claimer, drift);
