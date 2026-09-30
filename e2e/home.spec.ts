@@ -77,7 +77,9 @@ async function settle(page: Page) {
 
 const headline = ["Split the bill", "at the table."];
 
-for (const width of [320, phone.width, 1280]) {
+const headlineWidths = [320, phone.width, 900, 960, 1010, 1024, 1280];
+
+for (const width of headlineWidths) {
   test(`the headline mask hides no glyph ink at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: phone.height });
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -95,43 +97,69 @@ for (const width of [320, phone.width, 1280]) {
   });
 }
 
-test("the headline rises from fully hidden behind its mask", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByText(headline[0], { exact: true })).toBeAttached();
-  await page.evaluate(() => document.fonts.ready);
-  await page.evaluate(() =>
-    document.getAnimations().forEach((a) => {
-      a.pause();
-      a.currentTime = 0;
-    }),
-  );
-  for (const line of headline) {
-    const text = page.getByText(line, { exact: true });
-    const box = (await text.locator("..").boundingBox())!;
-    const atStart = await page.screenshot({ clip: box });
-    await text.evaluate((el) => (el.style.visibility = "hidden"));
-    expect(Buffer.compare(atStart, await page.screenshot({ clip: box })), `"${line}" peeks out at the start`).toBe(0);
-  }
-});
-
-test("each headline line fits on one line at 320 px", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 640 });
-  await page.goto("/");
-  await settle(page);
-  const lineCounts = await page.evaluate(
-    (lines) =>
-      lines.map((line) => {
-        const el = [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent === line)!;
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+for (const width of [phone.width, 960]) {
+  test(`the headline rises from fully hidden behind its mask at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: phone.height });
+    await page.goto("/");
+    await expect(page.getByText(headline[0], { exact: true })).toBeAttached();
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() =>
+      document.getAnimations().forEach((a) => {
+        a.pause();
+        a.currentTime = 0;
       }),
-    headline,
-  );
-  expect(lineCounts).toEqual([1, 1]);
-});
+    );
+    for (const line of headline) {
+      const text = page.getByText(line, { exact: true });
+      const box = (await text.locator("..").boundingBox())!;
+      const atStart = await page.screenshot({ clip: box });
+      await text.evaluate((el) => (el.style.visibility = "hidden"));
+      expect(Buffer.compare(atStart, await page.screenshot({ clip: box })), `"${line}" peeks out at the start`).toBe(0);
+    }
+  });
+}
 
-for (const width of [320, phone.width, 1280]) {
+for (const width of headlineWidths) {
+  test(`each headline line fits on one line at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+    await settle(page);
+    const lineCounts = await page.evaluate(
+      (lines) =>
+        lines.map((line) => {
+          const el = [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent === line)!;
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+        }),
+      headline,
+    );
+    expect(lineCounts).toEqual([1, 1]);
+  });
+}
+
+for (const width of [phone.width, 960]) {
+  test(`the headline paints its first frame at its final size at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.addInitScript((line) => {
+      const sizes: string[] = [];
+      Object.assign(window, { headlineSizes: sizes });
+      const sample = () => {
+        const el = [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent === line);
+        if (el) sizes.push(getComputedStyle(el).fontSize);
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    }, headline[0]);
+    await page.goto("/");
+    await settle(page);
+    const sizes = await page.evaluate(() => (window as unknown as { headlineSizes: string[] }).headlineSizes);
+    expect(sizes.length).toBeGreaterThan(0);
+    expect(new Set(sizes).size, `sizes seen: ${[...new Set(sizes)].join(", ")}`).toBe(1);
+  });
+}
+
+for (const width of [320, phone.width, 960, 1280]) {
   test(`the fallback fonts keep the headline lines of the web fonts at ${width} px`, async ({ browser }) => {
     const layout = async (blockFonts: boolean) => {
       const context = await browser.newContext({ viewport: { width, height: phone.height }, reducedMotion: "reduce" });

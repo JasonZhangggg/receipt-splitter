@@ -38,7 +38,7 @@ export default function Home() {
   const { width } = useWindowDimensions();
   const showBar = width < breakpoints.bottomBarBelow;
   const wide = width >= breakpoints.twoColumnsFrom;
-  const headlineStyle = headlineType(width);
+  const headlineStyle = headlineType(wide, width);
   const top = (wide ? space.huge : space.xxl) + insets.top;
   const gutter = wide ? space.huge : space.xl;
   const fieldPadding = { paddingTop: top, paddingLeft: gutter + insets.left, paddingRight: gutter + (wide ? 0 : insets.right) };
@@ -57,13 +57,13 @@ export default function Home() {
           <Text role="heading" aria-level={1} style={[type.kicker, styles.wordmark, { color: c.onField }]}>
             Receipt Splitter
           </Text>
-          <View style={styles.headline}>
+          <View style={[styles.headline, headlineStyle.column]}>
             {headline.map((line, i) => (
-              <View key={line} style={[styles.mask, { marginBottom: -headlineStyle.descender }]}>
+              <View key={line} style={[styles.mask, headlineStyle.mask]}>
                 <Text
                   style={[
                     headlineStyle.text,
-                    { color: c.onField, paddingBottom: headlineStyle.descender },
+                    { color: c.onField },
                     enter(reduce, { delay: 60 + i * 70, duration: motion.headline, from: "unmask" }),
                   ]}
                 >

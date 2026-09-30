@@ -1,4 +1,4 @@
-import { Easing, StyleSheet, useColorScheme, type TextStyle } from "react-native";
+import { Easing, Platform, StyleSheet, useColorScheme, type TextStyle, type ViewStyle } from "react-native";
 
 import { colors, type Colors } from "./colors";
 import { installDocument } from "./document";
@@ -24,12 +24,30 @@ const headlineSizes = {
   wide: { fontSize: 92, lineHeight: 88, letterSpacing: -1 },
 };
 
-export function headlineType(width: number) {
-  const max = width >= breakpoints.twoColumnsFrom ? headlineSizes.wide : headlineSizes.narrow;
-  const fontSize = Math.min(max.fontSize, Math.floor((width - 2 * space.xl) / widestHeadlineEm));
-  const lineHeight = Math.round((max.lineHeight * fontSize) / max.fontSize);
-  const text: TextStyle = { fontFamily: display, fontWeight: "800", fontSize, lineHeight, letterSpacing: max.letterSpacing };
-  return { text, descender: Math.ceil(fontSize * archivoDescent) };
+type WebLength = Record<"fontSize" | "lineHeight" | "paddingBottom" | "marginBottom" | "containerType", string>;
+const webLength = (style: Partial<WebLength>) => style as ViewStyle & TextStyle;
+
+export function headlineType(wide: boolean, windowWidth: number) {
+  const max = wide ? headlineSizes.wide : headlineSizes.narrow;
+  const text: TextStyle = { fontFamily: display, fontWeight: "800", letterSpacing: max.letterSpacing };
+  if (Platform.OS === "web") {
+    const fontSize = `min(${max.fontSize}px, ${(100 / widestHeadlineEm).toFixed(3)}cqi)`;
+    return {
+      column: webLength({ containerType: "inline-size" }),
+      mask: webLength({ marginBottom: `calc(${fontSize} * -${archivoDescent})` }),
+      text: [
+        text,
+        webLength({ fontSize, lineHeight: `${(max.lineHeight / max.fontSize).toFixed(4)}em`, paddingBottom: `${archivoDescent}em` }),
+      ],
+    };
+  }
+  const fontSize = Math.min(max.fontSize, Math.floor((windowWidth - 2 * space.xl) / widestHeadlineEm));
+  const descender = Math.ceil(fontSize * archivoDescent);
+  return {
+    column: {},
+    mask: { marginBottom: -descender },
+    text: [text, { fontSize, lineHeight: Math.round((max.lineHeight * fontSize) / max.fontSize), paddingBottom: descender }],
+  };
 }
 
 export const type = StyleSheet.create({
