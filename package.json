@@ -3,24 +3,29 @@
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
+  "workspaces": [
+    "tools/worker-vitest"
+  ],
   "scripts": {
     "dev": "expo start --web",
     "build": "expo export -p web",
     "serve": "wrangler dev",
     "test": "vitest run",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
     "e2e": "playwright test",
     "size": "node scripts/size.mjs",
     "bench": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/score.mjs",
     "bench:report": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/report.mjs",
-    "bench:fetch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/fetch.mjs"
+    "bench:fetch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/fetch.mjs",
+    "test:worker": "npm test --workspace worker-vitest"
   },
   "dependencies": {
     "expo": "~57.0.26",
     "expo-constants": "~57.0.20",
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.24",
+    "partyserver": "^0.5.10",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -29,12 +34,13 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260930.2",
     "@playwright/test": "^1.63.0",
     "@types/react": "~19.2.4",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3",
     "vitest": "^5.0.2",
-    "wrangler": "^4.143.1"
+    "wrangler": "^4.145.0"
   }
 }
