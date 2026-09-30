@@ -1,3 +1,5 @@
+import "./register-ts.mjs";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -14,7 +16,7 @@ const { values: flags } = parseArgs({
 if (!flags.parser) {
   console.error(
     [
-      "usage: npm run bench -- --parser=<labels | path to a parser module> [--labels=<dir>] [--json]",
+      "usage: npm run bench -- --parser=<labels | a name in bench/parsers | path to a parser module> [--labels=<dir>] [--json]",
       "A parser module's default export takes { name, imagePath } and returns a Receipt, a Promise of one, or null.",
     ].join("\n"),
   );
@@ -22,10 +24,11 @@ if (!flags.parser) {
 }
 
 const labels = readLabels(flags.labels);
+const named = join(import.meta.dirname, "parsers", `${flags.parser}.mjs`);
 const parse =
   flags.parser === "labels"
     ? ({ name }) => labels.find((label) => label.name === name).receipt
-    : (await import(pathToFileURL(resolve(flags.parser)).href)).default;
+    : (await import(pathToFileURL(existsSync(named) ? named : resolve(flags.parser)).href)).default;
 
 const exact = { receipts: 0, items: [0, 0], adjustments: [0, 0], totalCheck: [0, 0] };
 const structure = { receipts: 0, items: [0, 0], adjustments: [0, 0] };
