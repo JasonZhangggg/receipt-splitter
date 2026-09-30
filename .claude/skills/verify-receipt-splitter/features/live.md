@@ -34,7 +34,7 @@ Preconditions:
 
 ## Gotchas
 
-- Each Split allows a burst of 60 operations and then 20 a second. Unpaced scripts get `rateLimited` rejections, so keep `--pace-ms` at 50 or more for long runs.
+- Each Split allows a burst of 60 operations and then 20 a second. Unpaced scripts get `rateLimited` rejections, so keep `--pace-ms` at 50 or more for long runs. A socket that gets 100 `rateLimited` replies in a row is closed with code 1008.
 - Each IP may create 10 Splits a minute. A lane that runs more than 10 commands without `--id` in a minute gets 429 from `POST /api/splits`. Pass `--id` from an earlier `create` to reuse a Split.
 - `drop` closes the socket cleanly. It proves that a reconnect gets the missed state, not how a phone's client library notices a lost network.
 - `cleanup` deletes `.verify/<port>/`, including the Durable Object storage, so Splits do not survive a relaunch.

@@ -246,6 +246,19 @@ describe("expiry", () => {
     expect(await a.client.closed).toMatchObject({ code: 4404 });
   });
 
+  it("keeps the Split and a retry alarm when deleting it fails", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    await runInDurableObject(stub, (_, state) => {
+      const storage: { deleteAll: () => Promise<void> } = state.storage;
+      storage.deleteAll = () => Promise.reject(new Error("storage unavailable"));
+    });
+    vi.setSystemTime(T0 + 60 * DAY);
+    await expect(runDurableObjectAlarm(stub)).rejects.toThrow("storage unavailable");
+
+    expect(await runInDurableObject(stub, (_, state) => state.storage.getAlarm())).toBe(T0 + 61 * DAY);
+    expect(await storedRow(id)).toEqual([expect.objectContaining({ changed_at: T0 })]);
+  });
 });
 
 describe("refusals leave the stored Split unchanged", () => {
@@ -367,6 +380,24 @@ describe("refusals leave the stored Split unchanged", () => {
     expect(await burst(21)).toBe(20);
   });
 
+  it("closes a socket after 100 rate-limited frames in a row and keeps serving others", async () => {
+    const { id } = await createSplit();
+    const flooder = await open(id);
+    const neighbour = await open(id);
+    for (let index = 0; index < 160; index += 1) flooder.client.send(claim(`f${index}`, "fries"));
+    const limited: ServerMessage[] = [];
+    for (let index = 0; index < 160; index += 1) {
+      const reply = await flooder.client.next();
+      if (reply.type === "rejected") limited.push(reply);
+    }
+    expect(limited).toHaveLength(100);
+    expect(await flooder.client.closed).toMatchObject({ code: 1008 });
+
+    vi.setSystemTime(T0 + 1000);
+    await neighbour.client.next();
+    neighbour.client.send(claim("n1", "pitcher"));
+    expect(await neighbour.client.next()).toMatchObject({ type: "state", ref: "n1" });
+  });
 });
 
 describe("connecting", () => {

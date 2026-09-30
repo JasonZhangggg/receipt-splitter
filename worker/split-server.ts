@@ -5,7 +5,10 @@ import { SPLIT_BYTE_BUDGET, type Split } from "../src/core/split";
 import { OPERATION_LIMIT, takeToken, type Bucket } from "./rate-limit";
 
 const MAX_MESSAGE_BYTES = 40 * 1024;
-const SPLIT_TTL_MS = 60 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SPLIT_TTL_MS = 60 * DAY_MS;
+const EXPIRY_RETRY_MS = DAY_MS;
+const MAX_RATE_LIMITED_IN_A_ROW = 100;
 const HEARTBEAT = { ping: "ping", pong: "pong" } as const;
 
 const SECRET_BYTES = 32;
@@ -35,6 +38,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
 
   #stored: Stored = { kind: "missing" };
   #bucket: Bucket | null = null;
+  #rateLimitedInARow = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -80,21 +84,29 @@ export class SplitServer extends Server<Cloudflare.Env> {
     const admission = takeToken(this.#bucket, now, OPERATION_LIMIT);
     this.#bucket = admission.state;
     if (!admission.ok) {
-      return send(connection, { type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs: admission.retryAfterMs } });
+      const refusals = (this.#rateLimitedInARow.get(connection.id) ?? 0) + 1;
+      this.#rateLimitedInARow.set(connection.id, refusals);
+      send(connection, { type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs: admission.retryAfterMs } });
+      if (refusals < MAX_RATE_LIMITED_IN_A_ROW) return;
+      this.#rateLimitedInARow.delete(connection.id);
+      connection.close(1008, "rateLimited");
+      return;
     }
+    this.#rateLimitedInARow.delete(connection.id);
     const frame = readFrame(message);
     if (!frame.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: frame.rejection });
     const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) });
     if (!result.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: result.rejection });
     if (!result.changed) return send(connection, { type: "unchanged", ref: frame.ref, revision: stored.split.revision });
     const json = JSON.stringify(result.split);
-    if (exceedsBytes(json, SPLIT_BYTE_BUDGET)) {
-      return send(connection, { type: "rejected", ref: frame.ref, rejection: { reason: "tooLarge" } });
-    }
     this.ctx.storage.sql.exec("UPDATE split SET json = ?, changed_at = ?", json, now);
     this.#stored = { ...stored, split: result.split, json, changedAt: now };
     this.broadcast(stateMessage(null, json), [connection.id]);
     connection.send(stateMessage(frame.ref, json));
+  }
+
+  onClose(connection: Connection): void {
+    this.#rateLimitedInARow.delete(connection.id);
   }
 
   async onAlarm(): Promise<void> {
@@ -110,7 +122,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
     }
     this.#stored = { kind: "missing" };
     for (const connection of this.getConnections()) endConnection(connection, this.#stored);
-    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.setAlarm(Date.now() + EXPIRY_RETRY_MS);
     await this.ctx.storage.deleteAll();
   }
 
