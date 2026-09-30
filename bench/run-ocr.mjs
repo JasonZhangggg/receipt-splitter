@@ -163,7 +163,10 @@ for (const image of images) {
   results.push({ image, ms, cer });
   if (results.length + 1 === SESSION_SCANS) peakSessionKb = peakRendererKb;
   writeFileSync(join(args.out, image.replace(/\.jpg$/, ".json")), boxesFile(image, ms, boxes));
-  if (args.shots) await page.getByTestId("ocr-photo").screenshot({ path: join(args.shots, image.replace(/\.jpg$/, ".png")) });
+  if (args.shots) {
+    await page.getByTestId("ocr-photo").screenshot({ path: join(args.shots, image.replace(/\.jpg$/, ".png")) });
+    await page.getByTestId("parse").screenshot({ path: join(args.shots, image.replace(/\.jpg$/, ".parse.png")) });
+  }
   console.log(`${image.padEnd(22)} cer ${cer === undefined ? "  -  " : cer.toFixed(3)}  ${String(ms).padStart(5)} ms  ${boxes.length} boxes`);
 }
 
