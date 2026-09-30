@@ -21,6 +21,7 @@ import {
   type Receipt,
   type RowWrite,
   type Split,
+  type SplitId,
   type Write,
 } from "./split";
 import { runTotalCheck, type FailedTotalCheck } from "./total-check";
@@ -504,6 +505,34 @@ export type NewSplit = {
   readonly host: Participant;
   readonly paymentHandles: NonEmpty<PaymentHandle>;
 };
+
+export type CreateSplitRequest = {
+  readonly turnstileToken: string;
+  readonly split: Omit<NewSplit, "id">;
+};
+
+export type CreateSplitResponse = { readonly id: SplitId; readonly creatorSecret: string };
+
+export type CreateSplitRefusal =
+  | { readonly refused: "bodyTooLarge" | "turnstileFailed" | "turnstileUnavailable" | "rateLimited" }
+  | { readonly refused: "rejected"; readonly rejection: Rejection };
+
+export type ClientMessage = {
+  readonly ref: string;
+  readonly op: Operation;
+  readonly creatorSecret?: string;
+};
+
+export type WireRejection =
+  | Rejection
+  | { readonly reason: "rateLimited"; readonly retryAfterMs: number }
+  | { readonly reason: "messageTooLarge" };
+
+export type ServerMessage =
+  | { readonly type: "state"; readonly ref: string | null; readonly split: Split }
+  | { readonly type: "unchanged"; readonly ref: string; readonly revision: number }
+  | { readonly type: "rejected"; readonly ref: string | null; readonly rejection: WireRejection }
+  | { readonly type: "unavailable"; readonly reason: "notFound" | "unreadable" };
 
 export function createSplit(input: NewSplit): { readonly ok: true; readonly split: Split } | Rejected {
   const { items, adjustments, subtotal, total } = input.receipt;
