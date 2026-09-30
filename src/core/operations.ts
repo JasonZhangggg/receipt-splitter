@@ -546,7 +546,7 @@ function checkState(split: Split): Rejection | null {
   if (total < 0) return { reason: "negativeTotal" };
 
   const names = [...items, ...adjustments, ...participants].map(({ name }) => name);
-  const blankParticipant = participants.some(({ name }) => name.trim() === "");
+  const blankParticipant = participants.some(({ name }) => BLANK.test(name));
   if (blankParticipant || !names.every(isName)) return { reason: "badName" };
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
@@ -570,10 +570,12 @@ function checkState(split: Split): Rejection | null {
   return null;
 }
 
-const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;
+const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;
+const BLANK = /^[\s\u200C\u200D\uFE0E\uFE0F]*$/u;
+const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
 function isName(name: string): boolean {
-  return [...name].length <= MAX_NAME_LENGTH && !HIDDEN_CHARACTERS.test(name);
+  return !HIDDEN_CHARACTERS.test(name) && [...graphemes.segment(name)].length <= MAX_NAME_LENGTH;
 }
 
 function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {

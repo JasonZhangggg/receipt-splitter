@@ -624,6 +624,25 @@ describe("names", () => {
     expect(join("d".repeat(41))).toBe("badName");
   });
 
+  test("allows joined emoji, flags, and a Persian name with a zero-width non-joiner", () => {
+    const mahrokh = "ماه‌رخ";
+    expect(["👩‍🍳", "👨‍👩‍👧‍👦", "Zoë", "José", "李明", mahrokh, "🇺🇸", "❤️", "✈︎"].map(join)).toEqual(
+      Array.from({ length: 9 }, () => "accepted"),
+    );
+  });
+
+  test("counts a joined emoji as one character toward the 40", () => {
+    expect(join("👨‍👩‍👧‍👦".repeat(40))).toBe("accepted");
+    expect(join("🇺🇸".repeat(40))).toBe("accepted");
+    expect(join("👨‍👩‍👧‍👦".repeat(41))).toBe("badName");
+  });
+
+  test("refuses a lone bidi override, a null, a newline, a zero-width space, a lone surrogate, and a name made only of joiners", () => {
+    expect(["‮", "a\u0000b", "a\nb", "​", "\uD800", "‍", "‌️"].map(join)).toEqual(
+      Array.from({ length: 7 }, () => "badName"),
+    );
+  });
+
   test("an Item renamed with a bidi override is refused", () => {
     expect(reasonFor(created(), { by: null, type: "editReceipt", items: [{ type: "edit", itemId: fries, name: "Fries\u202E" }] })).toBe("badName");
   });
