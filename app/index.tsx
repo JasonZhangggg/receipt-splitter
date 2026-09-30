@@ -39,6 +39,7 @@ export default function Home() {
   const showBar = width < breakpoints.bottomBarBelow;
   const wide = width >= breakpoints.twoColumnsFrom;
   const title = headlineType(width);
+  const top = (wide ? space.huge : space.xxl) + insets.top;
 
   const scan = <Button label="Scan or upload a receipt" onPress={() => router.push("/new")} />;
 
@@ -49,7 +50,7 @@ export default function Home() {
           style={[
             styles.field,
             wide && styles.fieldWide,
-            { backgroundColor: c.field, paddingTop: space.xxl + insets.top },
+            { backgroundColor: c.field, paddingTop: top },
           ]}
         >
           <Text role="heading" aria-level={1} style={[type.kicker, styles.wordmark, { color: c.onField }]}>
@@ -79,7 +80,7 @@ export default function Home() {
           </View>
         </View>
 
-        <View style={[styles.paper, wide && styles.paperWide]}>
+        <View style={[styles.paper, wide && [styles.paperWide, { paddingTop: top }]]}>
           <Text style={[type.kicker, { color: c.muted }]}>Example scan</Text>
           <Text style={[type.title, styles.merchant, { color: c.ink }]}>{example.merchant}</Text>
           <Text style={[type.small, { color: c.muted }]}>{example.detail}</Text>
@@ -124,14 +125,14 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   columns: { flexDirection: "row", minHeight: "100%" },
   field: { paddingHorizontal: space.xl, paddingBottom: space.xxl + space.xs },
-  fieldWide: { flex: 1.2, paddingHorizontal: space.huge, paddingTop: space.huge },
+  fieldWide: { flex: 1.2, paddingHorizontal: space.huge },
   wordmark: { fontSize: 13, letterSpacing: 2.4, marginBottom: space.xl + space.xs },
   headline: { marginBottom: space.l + space.xs },
   mask: { overflow: "hidden" },
   pitch: { gap: space.xl, maxWidth: 480 },
   inlineAction: { alignSelf: "flex-start" },
   paper: { paddingHorizontal: space.xl, paddingTop: space.xxl, paddingBottom: space.xxxl },
-  paperWide: { flex: 1, maxWidth: 640, paddingHorizontal: space.huge, paddingTop: space.huge },
+  paperWide: { flex: 1, maxWidth: 640, paddingHorizontal: space.huge },
   merchant: { marginTop: space.s },
   rule: { height: 3, marginTop: space.l },
   summaryRow: { flexDirection: "row", alignItems: "baseline", paddingTop: space.m },
