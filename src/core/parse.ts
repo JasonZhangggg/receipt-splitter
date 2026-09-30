@@ -1,5 +1,17 @@
 import { isCents, isPrice } from "./money";
-import { MAX_ADJUSTMENTS, MAX_ITEMS, checkSplit, createSplit, type AdjustmentPatch, type ItemPatch, type NewSplit, type Operation, type Rejected } from "./operations";
+import {
+  MAX_ADJUSTMENTS,
+  MAX_ITEMS,
+  MAX_PARTICIPANTS,
+  RECENT_CHANGES_LIMIT,
+  checkSplit,
+  createSplit,
+  type AdjustmentPatch,
+  type ItemPatch,
+  type NewSplit,
+  type Operation,
+  type Rejected,
+} from "./operations";
 import {
   ADJUSTMENT_KINDS,
   PAYMENT_SERVICES,
@@ -81,14 +93,14 @@ function nullable<T>(parser: Parser<T>): Parser<T | null> {
   return (input, path) => (input === null ? null : parser(input, path));
 }
 
-function array<T>(parser: Parser<T>, max = Infinity): Parser<T[]> {
+function array<T>(parser: Parser<T>, max: number): Parser<T[]> {
   return (input, path) => {
     if (!Array.isArray(input) || input.length > max) throw new Malformed(path);
     return input.map((element, index) => parser(element, at(path, index)));
   };
 }
 
-function nonEmpty<T>(parser: Parser<T>, max = Infinity): Parser<NonEmpty<T>> {
+function nonEmpty<T>(parser: Parser<T>, max: number): Parser<NonEmpty<T>> {
   return (input, path) => {
     const values = array(parser, max)(input, path);
     if (values.length === 0) throw new Malformed(path);
@@ -146,16 +158,17 @@ const adjustmentKind = oneOf(ADJUSTMENT_KINDS);
 
 function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
   return (input, path) => {
-    const values = array(parser)(input, path);
-    if (values.length !== 2) throw new Malformed(path);
-    return [values[0], values[1]];
+    if (!Array.isArray(input) || input.length !== 2) throw new Malformed(path);
+    return [parser(input[0], at(path, 0)), parser(input[1], at(path, 1))];
   };
 }
+
+const MAX_WRITES = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
 
 const itemFields = ({ read }: Fields) => ({
   name: read("name", text),
   price: read("price", price),
-  claimedBy: read("claimedBy", array(participantId)),
+  claimedBy: read("claimedBy", array(participantId, MAX_PARTICIPANTS)),
 });
 const itemEdit = ({ maybe }: Fields) => ({ ...maybe("name", pair(text)), ...maybe("price", pair(price)) });
 const adjustmentFields = ({ read }: Fields) => ({
@@ -209,8 +222,8 @@ const writeVariants: { readonly [Kind in Write["kind"]]: Parser<Extract<Write, {
   })),
   claims: strict(({ read }) => ({
     kind: read("kind", literal("claims")),
-    itemIds: read("itemIds", nonEmpty(itemId)),
-    participantIds: read("participantIds", nonEmpty(participantId)),
+    itemIds: read("itemIds", nonEmpty(itemId, MAX_ITEMS)),
+    participantIds: read("participantIds", nonEmpty(participantId, MAX_PARTICIPANTS)),
     claimed: read("claimed", flag),
   })),
 };
@@ -220,7 +233,7 @@ const change: Parser<Change> = strict(({ read }) => ({
   by: read("by", nullable(participantId)),
   undoes: read("undoes", nullable(count)),
   undoneBy: read("undoneBy", nullable(count)),
-  writes: read("writes", nonEmpty(tagged<Write>("kind", writeVariants))),
+  writes: read("writes", nonEmpty(tagged<Write>("kind", writeVariants), MAX_WRITES)),
 }));
 
 const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));
@@ -250,14 +263,17 @@ const split: Parser<Split> = strict(({ read }) => ({
   id: read("id", splitId),
   currency: read("currency", literal("USD")),
   receipt: read("receipt", receipt(item)),
-  participants: read("participants", nonEmpty(participant)),
+  participants: read("participants", nonEmpty(participant, MAX_PARTICIPANTS)),
   payments: read(
     "payments",
-    array(strict((fields) => ({ participantId: fields.read("participantId", participantId), amount: fields.read("amount", cents) }))),
+    array(
+      strict((fields) => ({ participantId: fields.read("participantId", participantId), amount: fields.read("amount", cents) })),
+      MAX_PARTICIPANTS,
+    ),
   ),
   paymentHandles: read("paymentHandles", paymentHandles),
   revision: read("revision", count),
-  recentChanges: read("recentChanges", array(change)),
+  recentChanges: read("recentChanges", array(change, RECENT_CHANGES_LIMIT)),
 }));
 
 const itemPatch = tagged<ItemPatch>("type", {

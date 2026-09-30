@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { cents, price } from "./money";
-import { applyOperation, createSplit } from "./operations";
+import { MAX_PARTICIPANTS, RECENT_CHANGES_LIMIT, applyOperation, createSplit } from "./operations";
 import { parseNewSplit, parseOperation, parseSplit } from "./parse";
 import { adjustmentId, itemId, participantId, splitId, type Split } from "./split";
 
@@ -128,6 +128,57 @@ describe("parseSplit", () => {
     const malformed = { ok: false, rejection: { reason: "malformed", path: "receipt.items[1].claimedBy" } };
     expect(parseSplit(withPitcherClaimers(["bob", "ann"]))).toEqual(malformed);
     expect(parseSplit(withPitcherClaimers(["ann", "ann", "bob"]))).toEqual(malformed);
+  });
+});
+
+describe("parseSplit bounds", () => {
+  const unreadable = Array.from({ length: 10_000 }, () => null);
+  const refusedAt = (path: string) => ({ ok: false, rejection: { reason: "malformed", path } });
+
+  test("refuses each oversized array of a stored Split by its count, before reading the first element", () => {
+    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const [addBob, priceEdit, splitUnclaimed] = stored.recentChanges;
+    const withChange = (index: number, change: object) => ({
+      ...stored,
+      recentChanges: stored.recentChanges.map((original: object, at: number) => (at === index ? change : original)),
+    });
+    const withPriceEdit = (price: unknown) => withChange(1, { ...priceEdit, writes: [{ ...priceEdit.writes[0], edit: { price } }, priceEdit.writes[1]] });
+    const withClaims = (fields: object) => withChange(2, { ...splitUnclaimed, writes: [{ ...splitUnclaimed.writes[0], ...fields }] });
+    const [fries, pitcher] = stored.receipt.items;
+
+    expect(priceEdit.writes[0]).toEqual({ kind: "item", id: "fries", edit: { price: [800, 600] } });
+    expect(splitUnclaimed.writes[0]).toMatchObject({ kind: "claims", itemIds: ["pitcher"] });
+    expect.soft(parseSplit({ ...stored, participants: unreadable })).toEqual(refusedAt("participants"));
+    expect.soft(parseSplit({ ...stored, payments: unreadable })).toEqual(refusedAt("payments"));
+    expect.soft(parseSplit({ ...stored, recentChanges: unreadable })).toEqual(refusedAt("recentChanges"));
+    expect.soft(parseSplit({ ...stored, receipt: { ...stored.receipt, items: [{ ...fries, claimedBy: unreadable }, pitcher] } })).toEqual(
+      refusedAt("receipt.items[0].claimedBy"),
+    );
+    expect.soft(parseSplit(withChange(0, { ...addBob, writes: unreadable }))).toEqual(refusedAt("recentChanges[0].writes"));
+    expect.soft(parseSplit(withPriceEdit(unreadable))).toEqual(refusedAt("recentChanges[1].writes[0].edit.price"));
+    expect.soft(parseSplit(withPriceEdit([800, 600, null]))).toEqual(refusedAt("recentChanges[1].writes[0].edit.price"));
+    expect.soft(parseSplit(withClaims({ itemIds: unreadable }))).toEqual(refusedAt("recentChanges[2].writes[0].itemIds"));
+    expect.soft(parseSplit(withClaims({ participantIds: unreadable }))).toEqual(refusedAt("recentChanges[2].writes[0].participantIds"));
+  });
+
+  test("reads a stored Split with the most Participants, Payments, and recent changes a Split can hold", () => {
+    const joiners = Array.from({ length: MAX_PARTICIPANTS - 2 }, (_, index) => `p${index}`);
+    const ops: unknown[] = [
+      ...joiners.map((id) => ({ type: "addParticipant", by: null, participant: { id, name: id } })),
+      ...joiners.map((id) => ({ type: "claim", by: null, itemId: "pitcher", participantId: id })),
+      ...joiners.map((id) => ({ type: "recordPayment", by: null, participantId: id, amount: 100 })),
+    ];
+    const split = ops.reduce<Split>((current, input) => {
+      const parsed = parseOperation(input);
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.rejection));
+      const result = applyOperation(current, parsed.op, { creator: false });
+      if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+      return result.split;
+    }, storedSplit());
+
+    expect([split.participants.length, split.payments.length, split.recentChanges.length]).toEqual([30, 29, RECENT_CHANGES_LIMIT]);
+    expect(split.receipt.items[1].claimedBy).toHaveLength(30);
+    expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
 });
 
