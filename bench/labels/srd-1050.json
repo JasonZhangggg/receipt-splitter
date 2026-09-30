@@ -7,6 +7,7 @@
     "modifiers"
   ],
   "checked": false,
+  "note": "Zenodo transcription reads +AMERICAN CHS as 0.75. The receipt prints 1.00. Both modifiers fold into CHEESE STEAK.",
   "receipt": {
     "items": [
       {
@@ -17,7 +18,7 @@
       {
         "id": "i2",
         "name": "CHEESE STEAK",
-        "price": 1199
+        "price": 1224
       },
       {
         "id": "i3",

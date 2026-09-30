@@ -9,15 +9,21 @@
     "blur"
   ],
   "checked": false,
+  "note": "Zenodo transcription reads the Manhattan price as 48600. The receipt prints 48.00. (3)Makers Mark has no price of its own.",
   "receipt": {
     "items": [
       {
         "id": "i1",
+        "name": "Manhattan (3 @16.00)",
+        "price": 4800
+      },
+      {
+        "id": "i2",
         "name": "Grey Goose (3 @9.50)",
         "price": 2850
       },
       {
-        "id": "i2",
+        "id": "i3",
         "name": "Rocks (3 @1.00)",
         "price": 300
       }

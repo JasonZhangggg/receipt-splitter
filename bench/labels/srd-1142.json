@@ -7,6 +7,7 @@
     "blur"
   ],
   "checked": false,
+  "note": "Zenodo transcription puts the Philly Pa Sales Tax amount, 1.84, on its own line.",
   "receipt": {
     "items": [
       {
@@ -46,6 +47,12 @@
         "kind": "tax",
         "name": "Philly Liquor Tax",
         "amount": 60
+      },
+      {
+        "id": "a2",
+        "kind": "tax",
+        "name": "Philly Pa Sales Tax",
+        "amount": 184
       }
     ],
     "subtotal": 8100,
