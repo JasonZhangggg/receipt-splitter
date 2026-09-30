@@ -1,5 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import type { TextBox } from "../src/ocr";
+
+async function readBoxes(page: Page): Promise<TextBox[]> {
+  return JSON.parse((await page.getByTestId("ocr-json").textContent()) ?? "").boxes;
+}
 
 test("home paints before the model download starts, then prefetches the models", async ({ page }) => {
   const firstModelRequest = page.context().waitForEvent("request", (request) => new URL(request.url()).pathname.startsWith("/models/"));
@@ -22,7 +26,7 @@ test("recognizes SRD receipt 1040 on the device", async ({ page }) => {
   await page.getByLabel("Receipt photo").setInputFiles("bench/data/srd-1040.jpg");
 
   await expect(page.getByTestId("ocr-status")).toHaveText(/^Read \d+ boxes in \d+ ms\.$/, { timeout: 90_000 });
-  const { boxes }: { boxes: TextBox[] } = JSON.parse((await page.getByTestId("ocr-json").textContent()) ?? "");
+  const boxes = await readBoxes(page);
   const label = boxes.find((box) => box.text === "Subtotal");
   const amount = boxes.find((box) => box.text === "$22.98");
   if (!label || !amount) throw new Error("boxes Subtotal and $22.98 not found");
@@ -51,6 +55,6 @@ test("a model answered with the app's HTML page fails the scan, and the next sca
   await page.context().unroute(dict);
   await page.getByLabel("Receipt photo").setInputFiles("bench/data/srd-1040.jpg");
   await expect(status).toHaveText(/^Read \d+ boxes in \d+ ms\.$/, { timeout: 90_000 });
-  const { boxes }: { boxes: TextBox[] } = JSON.parse((await page.getByTestId("ocr-json").textContent()) ?? "");
+  const boxes = await readBoxes(page);
   expect(boxes.map((box) => box.text)).toContain("$22.98");
 });

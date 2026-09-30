@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-type Worker = typeof import("../../public/ocr-worker.mjs");
+type OcrWorker = typeof import("../../public/ocr-worker.mjs");
+
+const publicPath = (url: string) => new URL(url).pathname.replace(/.*\/public/, "");
 
 const DICT = new URL("../../public/models/en_PP-OCRv5_rec_mobile.dict.txt", import.meta.url).href;
 const ASSETS = [
@@ -24,23 +26,23 @@ function fakeCaches() {
     keys: async () => [...stores.keys()],
     delete: async (name: string) => stores.delete(name),
     stored: async (name: string) =>
-      Promise.all([...(stores.get(name) ?? [])].map(async ([url, response]) => [new URL(url).pathname.replace(/.*\/public/, ""), await response.clone().text()])),
+      Promise.all([...(stores.get(name) ?? [])].map(async ([url, response]) => [publicPath(url), await response.clone().text()])),
   };
 }
 
 type Serve = (path: string) => Response;
-const asset: Serve = (path) => new Response(`bytes of ${path.split("/").at(-1)}`, { headers: { "content-type": "application/octet-stream" } });
+const assetBytes: Serve = (path) => new Response(`bytes of ${path.split("/").at(-1)}`, { headers: { "content-type": "application/octet-stream" } });
 const spaFallback: Serve = () => new Response("<!DOCTYPE html><html><body></body></html>", { headers: { "content-type": "text/html; charset=utf-8" } });
 
 let serve: Serve;
 let caches: ReturnType<typeof fakeCaches>;
-let worker: Worker;
+let worker: OcrWorker;
 
 beforeEach(async () => {
-  serve = asset;
+  serve = assetBytes;
   caches = fakeCaches();
   vi.stubGlobal("caches", caches);
-  vi.stubGlobal("fetch", async (url: string) => serve(new URL(url).pathname.replace(/.*\/public/, "")));
+  vi.stubGlobal("fetch", async (url: string) => serve(publicPath(url)));
   vi.resetModules();
   worker = await import("../../public/ocr-worker.mjs");
 });
@@ -100,17 +102,17 @@ describe("model downloads", () => {
   });
 
   test("a download that failed is fetched again on the next prefetch", async () => {
-    serve = (path) => (path.endsWith(".dict.txt") ? new Response("", { status: 503 }) : asset(path));
+    serve = (path) => (path.endsWith(".dict.txt") ? new Response("", { status: 503 }) : assetBytes(path));
     await expect(worker.prefetch()).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned 503$/);
 
-    serve = asset;
+    serve = assetBytes;
     await worker.prefetch();
 
     expect((await caches.stored("ocr-ort-1.30.0")).map(([path]) => path).sort()).toEqual([...ASSETS].sort());
   });
 
   test("read refuses a model that the server answers with the app's HTML page, and does not cache it", async () => {
-    serve = (path) => (path.endsWith(".dict.txt") ? spaFallback(path) : asset(path));
+    serve = (path) => (path.endsWith(".dict.txt") ? spaFallback(path) : assetBytes(path));
 
     await expect(worker.read(DICT)).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
     expect(await caches.stored("ocr-ort-1.30.0")).toEqual([]);
