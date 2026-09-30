@@ -69,7 +69,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
   - [ ] `~/.claude/skills/animate/SKILL.md` and `~/.claude/skills/review-animations/SKILL.md` for every UI PR
   - [ ] `~/.claude/skills/principle-model-the-domain/SKILL.md` and `~/.claude/skills/principle-type-system-discipline/SKILL.md` for RS-2 and RS-8
 - [ ] Arm the 30-minute audit tick as a real `/loop` in dynamic mode. Never leave the cadence to memory.
-- [ ] Use this tick prompt, verbatim. "Re-read the execution playbook and the standing objective. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a status message to the operator in chat, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, and blockers."
+- [ ] Use this tick prompt, verbatim. "Re-read the execution playbook and the standing objective. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a status message to the operator in chat, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, open notes and their fixers, and blockers."
 - [ ] On the operator's hold or stand-down, send every owner a zero-writes order at once.
 
 ### Spawn owners
@@ -110,7 +110,9 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 ### Verdict and merge, for every PR
 
 - [ ] At the merge-ready head SHA, run the swarm per `~/.claude/skills/swarm/SKILL.md`. One gates lane. The live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. One audit lane that reads the diff and the receipts and distrusts the PR body.
-- [ ] Clean only when every lane is `PASS`. Findings go back to the owner. A new head gets a fresh swarm and a fresh verdict.
+- [ ] Lanes return `PASS`, `PASS+NOTES`, or `FAIL`. `FAIL` is a blocking issue, a defect, or new code without a test that fails for it. Clean when no lane fails. `FAIL` findings go back to the owner.
+- [ ] Each note names its fixer, the next PR touching those files or the cleanup PR, and goes in `~/.claude/orchestrate/receipt-splitter/notes.md`. A PR sent back fixes its own notes too.
+- [ ] The first verdict runs every lane. A fix round reruns gates, an audit of the new commits, and the lanes whose surface changed. Perf reuses deterministic trunk values (build bytes) at the same trunk SHA and keeps timings interleaved.
 - [ ] Append each clean PR to the stack on `main` in order. After any restack, compare `git patch-id` of each PR's base-to-head diff against its value at the verdict SHA, per `~/.claude/skills/poteto-mode/playbooks/shipping.md`. An unchanged patch-id keeps the verdict. A changed one gets a fresh swarm. The operator lands the stack bottom-up.
 
 ### Boot recipe, for every live lane
@@ -800,6 +802,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 ## Close the program
 
 - [ ] Every box above is checked with its evidence.
+- [ ] A cleanup PR at the tip closes every open note in `notes.md`. One gates lane and one audit.
 - [ ] Reply to the operator with the report the execution playbook names.
 
 ## Appendix A. Prototype evidence
