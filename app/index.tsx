@@ -40,17 +40,13 @@ export default function Home() {
   const { width } = useWindowDimensions();
   const barred = width < breakpoints.bottomBarBelow;
   const wide = width >= breakpoints.twoColumnsFrom;
-  const [barHeight, setBarHeight] = useState(0);
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const scan = <Button label="Scan a receipt" onPress={() => router.push("/new")} />;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.paper }]}>
-      <ScrollView
-        contentContainerStyle={[wide && styles.columns, barred && { paddingBottom: barHeight }]}
-        style={styles.screen}
-      >
+      <ScrollView contentContainerStyle={wide && styles.columns} style={styles.screen}>
         <View
           style={[
             styles.field,
@@ -126,10 +122,7 @@ export default function Home() {
       </ScrollView>
 
       {barred ? (
-        <View
-          onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
-          style={[styles.bar, { backgroundColor: c.bar, borderTopColor: c.hairline, paddingBottom: space.m + insets.bottom }]}
-        >
+        <View style={[styles.bar, { backgroundColor: c.bar, borderTopColor: c.hairline, paddingBottom: space.m + insets.bottom }]}>
           {scan}
         </View>
       ) : null}
@@ -163,13 +156,5 @@ const styles = StyleSheet.create({
   adjustmentName: { flex: 1, fontSize: 16 },
   total: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: space.m },
   status: { marginTop: space.m },
-  bar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: space.xl,
-    paddingTop: space.m,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
+  bar: { paddingHorizontal: space.xl, paddingTop: space.m, borderTopWidth: StyleSheet.hairlineWidth },
 });

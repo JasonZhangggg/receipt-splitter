@@ -5,7 +5,7 @@ The home screen at `/` is where a Host starts a Split. An orange field holds the
 ## Sub-features
 
 - `home-scan` shows **Scan a receipt**, visible and reachable with Tab at every width.
-- `home-bar` pins the action to the bottom below 768 px and pads the page so the bar never covers the last line.
+- `home-bar` holds the action in a solid bar under the scrolling page below 768 px. The page scrolls above the bar, so the bar never covers the last line. The bar grows by the bottom safe-area inset.
 - `home-privacy` opens the "Your photo stays on your phone" sheet from the link under the pitch. **Got it**, Escape, or a tap on the dimmed backdrop closes it.
 - `home-example` shows the example scan with the flagged Tiramisu row and the line that the Items are $1.00 short of the subtotal.
 - `home-theme` follows the system light or dark setting and drops movement under reduced motion, keeping only fades.
@@ -24,7 +24,7 @@ Preconditions:
 
 - **Home, phone.** Run `verify.mjs drive --port 8811 --path / --expect-heading "Receipt Splitter" --expect-text "Scan a receipt" --expect-text "Split the bill" --shot <out>/home.png --aria <out>/home.aria.txt`. The JSON line has `"ok":true`. The screenshot shows the orange field and the bottom bar. The ARIA snapshot lists `button "Scan a receipt"`.
 - **Width, color scheme, and reduced motion.** `drive` always opens a light Pixel 7 page with motion on, so it cannot cover this matrix yet. Run the matrix spec on a port with no launched server: `PORT=8812 SHOTS=<out> npx playwright test e2e/home.spec.ts -g "home matrix"`. It loads `/` at 390 px and 1280 px, in light and dark, with reduced motion on and off. It fails on clipped text, horizontal page overflow, a missing Archivo face, or a console error. `SHOTS` saves one screenshot per case as `home-<width>-<scheme>-<motion>.png`.
-- **Keyboard focus and the bar.** `PORT=8812 npx playwright test e2e/home.spec.ts` also checks that the scan action takes Tab focus at 390 px, that the bar never covers the last line, and that reduced motion leaves no moving animation.
+- **Keyboard focus and the bar.** `PORT=8812 npx playwright test e2e/home.spec.ts` also checks that the scan action takes Tab focus at 390 px, that a 34 px bottom safe-area inset lifts it by 34 px, that the bar never covers the last line, and that reduced motion leaves no moving animation.
 
 ## Gotchas
 

@@ -22,6 +22,20 @@ test("the scan action sits in the bottom bar and takes keyboard focus at 390 px"
   await expect(await tabTo(page, "Scan a receipt")).toBeFocused();
 });
 
+test("the bottom bar lifts the scan action by the bottom safe-area inset", async ({ page }) => {
+  const gapBelowScan = async () => {
+    const box = (await page.getByRole("button", { name: "Scan a receipt" }).boundingBox())!;
+    return phone.height - (box.y + box.height);
+  };
+  await page.goto("/");
+  const flush = await gapBelowScan();
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
+  await page.reload();
+  await expect.poll(gapBelowScan).toBe(flush + 34);
+});
+
 test("the bottom bar does not cover the end of the page", async ({ page }) => {
   await page.goto("/");
   const last = page.getByText("short of the subtotal", { exact: false });
