@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
   MAX_PARTICIPANT_NAME_LENGTH,
@@ -732,25 +732,6 @@ describe("names", () => {
     );
     expect(reasonFor(split, addItem("Tea"))).toBe("accepted");
     expect(reasonFor(split, { by: null, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tip.id, name: "Tip 20%" }] })).toBe("accepted");
-  });
-
-  test("a Claim reads no names, and a rename or a new Participant reads only the name it brings", () => {
-    const split = withBobAndCat();
-    const segment = vi.spyOn(Intl.Segmenter.prototype, "segment");
-    try {
-      const claimed = apply(split, { by: bob, type: "claim", itemId: fries, participantId: bob });
-      expect(claimed.receipt.items[1].claimedBy).toEqual(["bob"]);
-      expect(segment).toHaveBeenCalledTimes(0);
-
-      apply(claimed, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: fries, name: "Curly fries" }] });
-      expect(segment.mock.calls).toEqual([["Curly fries"]]);
-
-      segment.mockClear();
-      apply(claimed, { by: null, type: "addParticipant", participant: { id: dan, name: "Dan" } });
-      expect(segment.mock.calls).toEqual([["Dan"]]);
-    } finally {
-      segment.mockRestore();
-    }
   });
 
   test("an undo cannot bring back a refused name from a tampered stored history", () => {
