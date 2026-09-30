@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
   MAX_PARTICIPANT_NAME_LENGTH,
@@ -724,6 +724,39 @@ describe("names", () => {
     );
     expect(reasonFor(split, addItem("Tea"))).toBe("accepted");
     expect(reasonFor(split, { by: null, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tip.id, name: "Tip 20%" }] })).toBe("accepted");
+  });
+
+  test("a Claim reads no names, and a rename or a new Participant reads only the name it brings", () => {
+    const split = withBobAndCat();
+    const segment = vi.spyOn(Intl.Segmenter.prototype, "segment");
+    try {
+      const claimed = apply(split, { by: bob, type: "claim", itemId: fries, participantId: bob });
+      expect(claimed.receipt.items[1].claimedBy).toEqual(["bob"]);
+      expect(segment).toHaveBeenCalledTimes(0);
+
+      apply(claimed, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: fries, name: "Curly fries" }] });
+      expect(segment.mock.calls).toEqual([["Curly fries"]]);
+
+      segment.mockClear();
+      apply(claimed, { by: null, type: "addParticipant", participant: { id: dan, name: "Dan" } });
+      expect(segment.mock.calls).toEqual([["Dan"]]);
+    } finally {
+      segment.mockRestore();
+    }
+  });
+
+  test("an undo cannot bring back a refused name from a tampered stored history", () => {
+    const deleted = apply(created(), { by: null, type: "editReceipt", items: [{ type: "delete", itemId: fries }], subtotalDelta: cents(-800), totalDelta: cents(-800) });
+    const stored = JSON.parse(JSON.stringify(deleted));
+    const [change] = stored.recentChanges;
+    const tampered = parseSplit({
+      ...stored,
+      recentChanges: [{ ...change, writes: [{ ...change.writes[0], removed: { ...change.writes[0].removed, name: "\u3164" } }, change.writes[1]] }],
+    });
+    const split = accepted(tampered);
+
+    expect(reasonFor(split, { by: null, type: "undo", revision: change.revision })).toBe("badName");
+    expect(reasonFor(deleted, { by: null, type: "undo", revision: change.revision })).toBe("accepted");
   });
 
   test("an Item renamed with a bidi override is refused", () => {

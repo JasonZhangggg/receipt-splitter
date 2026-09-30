@@ -345,6 +345,7 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
   const receipt = split.receipt;
   switch (write.kind) {
     case "item": {
+      if (!keepsNameValid(write, MAX_ROW_NAME_LENGTH)) return "badName";
       if ("added" in write && !write.added.claimedBy.every((id) => findParticipant(split, id))) return "conflict";
       const rows = putRow(receipt.items, write, 0, ({ name, price, claimedBy }) => ({ id: write.id, name, price, claimedBy }));
       if (typeof rows === "string") return rows;
@@ -353,12 +354,14 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       return { ...split, receipt: { ...receipt, items: [first, ...rest] } };
     }
     case "adjustment": {
+      if (!keepsNameValid(write, MAX_ROW_NAME_LENGTH)) return "badName";
       const rows = putRow(receipt.adjustments, write, 0, ({ kind, name, amount }) => ({ id: write.id, kind, name, amount }));
       return typeof rows === "string" ? rows : { ...split, receipt: { ...receipt, adjustments: rows } };
     }
     case "participant": {
       const [host, ...others] = split.participants;
       if (write.id === host.id) return "host";
+      if (!keepsNameValid(write, MAX_PARTICIPANT_NAME_LENGTH)) return "badName";
       if ("removed" in write) {
         const claimed = split.receipt.items.some(({ claimedBy }) => claimedBy.includes(write.id));
         if (claimed || paymentOf(split, write.id) !== null) return "participantInUse";
@@ -396,6 +399,15 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       return { ...split, receipt: { ...receipt, items: [first, ...rest] } };
     }
   }
+}
+
+function keepsNameValid(
+  write: { readonly added: { readonly name: string } } | { readonly removed: object } | { readonly edit: { readonly name?: readonly [string, string] } },
+  maxLength: number,
+): boolean {
+  if ("added" in write) return isName(write.added.name, maxLength);
+  if ("edit" in write && write.edit.name) return isName(write.edit.name[1], maxLength);
+  return true;
 }
 
 function putRow<RowId, Fields, Editable extends keyof Fields, Row extends { readonly id: RowId }>(
@@ -517,6 +529,10 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
 export function checkSplit(split: Split): Rejection | null {
   const rejection = checkState({ ...split, recentChanges: [] });
   if (rejection) return rejection;
+  const { items, adjustments } = split.receipt;
+  const rowsNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH));
+  const participantsNamed = split.participants.every(({ name }) => isName(name, MAX_PARTICIPANT_NAME_LENGTH));
+  if (!rowsNamed || !participantsNamed) return { reason: "badName" };
   const revisions = split.recentChanges.map(({ revision }) => revision);
   if (!isStrictlySorted(revisions) || revisions.some((revision) => revision > split.revision)) {
     return { reason: "malformed", path: "recentChanges" };
@@ -545,10 +561,6 @@ function checkState(split: Split): Rejection | null {
   if (magnitudes.some((amount) => amount < 0 || amount > MAX_CENTS)) return { reason: "amountOutOfRange" };
   if (payments.some(({ amount }) => amount < 1)) return { reason: "amountOutOfRange" };
   if (total < 0) return { reason: "negativeTotal" };
-
-  const rowsNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH));
-  const participantsNamed = participants.every(({ name }) => isName(name, MAX_PARTICIPANT_NAME_LENGTH));
-  if (!rowsNamed || !participantsNamed) return { reason: "badName" };
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
   const [host] = participants;
