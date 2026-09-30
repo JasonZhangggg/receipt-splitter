@@ -285,6 +285,26 @@ describe("parseNewSplit", () => {
     ).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].claimedBy" } });
   });
 
+  test("reads a Receipt of 100 Items and 20 Adjustments, and refuses one more of either before reading them", () => {
+    const created = (itemCount: number, adjustmentCount: number) =>
+      parseNewSplit(
+        {
+          ...body,
+          receipt: {
+            items: Array.from({ length: itemCount }, (_, index) => ({ id: `tea${index}`, name: "Tea", price: 100 })),
+            adjustments: Array.from({ length: adjustmentCount }, (_, index) => ({ id: `tip${index}`, kind: "tip", name: "Tip", amount: 1 })),
+            subtotal: itemCount * 100,
+            total: itemCount * 100 + adjustmentCount,
+          },
+        },
+        minted,
+      );
+
+    expect(created(100, 20)).toMatchObject({ ok: true, split: { receipt: { items: { length: 100 }, adjustments: { length: 20 }, total: 10_020 } } });
+    expect(created(101, 0)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items" } });
+    expect(created(1, 21)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments" } });
+  });
+
   test("refuses a Host named with a bidi override or left blank", () => {
     const hosted = (name: string) => parseNewSplit({ ...body, host: { id: "ann", name } }, minted);
     const badName = { ok: false, rejection: { reason: "badName" } };
