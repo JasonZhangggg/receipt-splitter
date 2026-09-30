@@ -1,5 +1,5 @@
 import { isCents, isPrice } from "./money";
-import { checkSplit, type AdjustmentPatch, type ItemPatch, type Operation, type Rejected } from "./operations";
+import { checkSplit, createSplit, type AdjustmentPatch, type ItemPatch, type NewSplit, type Operation, type Rejected } from "./operations";
 import {
   ADJUSTMENT_KINDS,
   PAYMENT_SERVICES,
@@ -24,6 +24,11 @@ export function parseSplit(input: unknown): { readonly ok: true; readonly split:
   if (!parsed.ok) return parsed;
   const rejection = checkSplit(parsed.value);
   return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
+}
+
+export function parseNewSplit(input: unknown): { readonly ok: true; readonly split: Split } | Rejected {
+  const parsed = parse(newSplit, input);
+  return parsed.ok ? createSplit(parsed.value) : parsed;
 }
 
 class Malformed extends Error {
@@ -219,23 +224,32 @@ const change: Parser<Change> = strict(({ read }) => ({
 }));
 
 const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));
+const receiptItem = strict(({ read }) => ({ id: read("id", itemId), name: read("name", text), price: read("price", price) }));
 const adjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...adjustmentFields(fields) }));
 const participant = strict((fields) => ({ id: fields.read("id", participantId), ...participantFields(fields) }));
 const paymentHandle = strict(({ read }) => ({ service: read("service", oneOf(PAYMENT_SERVICES)), handle: read("handle", text) }));
+
+function receipt<I>(itemParser: Parser<I>) {
+  return strict((fields) => ({
+    items: fields.read("items", nonEmpty(itemParser)),
+    adjustments: fields.read("adjustments", array(adjustment)),
+    subtotal: fields.read("subtotal", cents),
+    total: fields.read("total", cents),
+  }));
+}
+
+const newSplit: Parser<NewSplit> = strict(({ read }) => ({
+  id: read("id", splitId),
+  receipt: read("receipt", receipt(receiptItem)),
+  host: read("host", participant),
+  paymentHandles: read("paymentHandles", nonEmpty(paymentHandle)),
+}));
 
 const split: Parser<Split> = strict(({ read }) => ({
   schemaVersion: read("schemaVersion", literal(1)),
   id: read("id", splitId),
   currency: read("currency", literal("USD")),
-  receipt: read(
-    "receipt",
-    strict((fields) => ({
-      items: fields.read("items", nonEmpty(item)),
-      adjustments: fields.read("adjustments", array(adjustment)),
-      subtotal: fields.read("subtotal", cents),
-      total: fields.read("total", cents),
-    })),
-  ),
+  receipt: read("receipt", receipt(item)),
   participants: read("participants", nonEmpty(participant)),
   payments: read(
     "payments",
@@ -249,7 +263,7 @@ const split: Parser<Split> = strict(({ read }) => ({
 const itemPatch = tagged<ItemPatch>("type", {
   add: strict(({ read }) => ({
     type: read("type", literal("add")),
-    item: read("item", strict((fields) => ({ id: fields.read("id", itemId), name: fields.read("name", text), price: fields.read("price", price) }))),
+    item: read("item", receiptItem),
     index: read("index", count),
   })),
   edit: strict(({ read, maybe }) => ({

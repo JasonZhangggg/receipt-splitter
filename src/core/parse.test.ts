@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { cents, price } from "./money";
 import { applyOperation, createSplit } from "./operations";
-import { parseOperation, parseSplit } from "./parse";
+import { parseNewSplit, parseOperation, parseSplit } from "./parse";
 import { adjustmentId, itemId, participantId, splitId, type Split } from "./split";
 
 function storedSplit(): Split {
@@ -45,12 +45,16 @@ describe("parseOperation", () => {
     });
   });
 
-  test("rejects an unknown type, an id longer than 24 characters, and a __proto__ key", () => {
+  test("rejects an unknown type, an id longer than 24 characters, a __proto__ id, and a __proto__ key", () => {
     const claim = (extra: string) => JSON.parse(`{"type":"claim","by":null,"itemId":"fries","participantId":"bob"${extra}}`);
 
     expect(parseOperation({ type: "deleteEverything", by: null })).toEqual({ ok: false, rejection: { reason: "malformed", path: "type" } });
     expect(parseOperation({ ...claim(""), itemId: "x".repeat(25) })).toEqual({ ok: false, rejection: { reason: "malformed", path: "itemId" } });
     expect(parseOperation(claim(',"__proto__":{"creator":true}'))).toEqual({ ok: false, rejection: { reason: "malformed", path: "__proto__" } });
+    expect(parseOperation({ type: "addParticipant", by: null, participant: { id: "__proto__", name: "Proto" } })).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "participant.id" },
+    });
     expect(parseOperation(claim(""))).toEqual({ ok: true, op: { type: "claim", by: null, itemId: "fries", participantId: "bob" } });
   });
 });
@@ -87,5 +91,84 @@ describe("parseSplit", () => {
     expect(stored.receipt.items[1].claimedBy).toEqual(["ann", "bob"]);
     expect(parseSplit(withPitcherClaimers(["bob", "ann"]))).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
     expect(parseSplit(withPitcherClaimers(["ann", "ann", "bob"]))).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
+  });
+});
+
+describe("parseNewSplit", () => {
+  const body = {
+    id: "s1",
+    receipt: {
+      items: [
+        { id: "fries", name: "Fries", price: 800 },
+        { id: "pitcher", name: "Pitcher", price: 3000 },
+      ],
+      adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 337 }],
+      subtotal: 3800,
+      total: 4137,
+    },
+    host: { id: "ann", name: "Ann" },
+    paymentHandles: [{ service: "venmo", handle: "@ann-host" }],
+  };
+
+  test("turns a create body into a Split at revision 0 with only the Host, no Payments, and no history", () => {
+    expect(parseNewSplit(JSON.parse(JSON.stringify(body)))).toEqual({
+      ok: true,
+      split: {
+        schemaVersion: 1,
+        id: "s1",
+        currency: "USD",
+        receipt: {
+          items: [
+            { id: "fries", name: "Fries", price: 800, claimedBy: [] },
+            { id: "pitcher", name: "Pitcher", price: 3000, claimedBy: [] },
+          ],
+          adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 337 }],
+          subtotal: 3800,
+          total: 4137,
+        },
+        participants: [{ id: "ann", name: "Ann" }],
+        payments: [],
+        paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+        revision: 0,
+        recentChanges: [],
+      },
+    });
+  });
+
+  test("refuses a bad id, a __proto__ id, a fractional price, and a name that is not text", () => {
+    const withItem = (item: object) => ({ ...body, receipt: { ...body.receipt, items: [item, body.receipt.items[1]] } });
+
+    expect(parseNewSplit({ ...body, id: "s 1!" })).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
+    expect(parseNewSplit(withItem({ id: "__proto__", name: "Fries", price: 800 }))).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "receipt.items[0].id" },
+    });
+    expect(parseNewSplit(withItem({ id: "fries", name: "Fries", price: 0.5 }))).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "receipt.items[0].price" },
+    });
+    expect(parseNewSplit(withItem({ id: "fries", name: 42, price: 800 }))).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "receipt.items[0].name" },
+    });
+  });
+
+  test("refuses a body that brings its own revision, history, Payments, Participants, or Claims", () => {
+    const refused = (extra: object) => parseNewSplit({ ...body, ...extra });
+
+    expect(refused({ revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "revision" } });
+    expect(refused({ recentChanges: [] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
+    expect(refused({ payments: [{ participantId: "bob", amount: 100 }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "payments" } });
+    expect(refused({ participants: [{ id: "bob", name: "Bob" }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
+    expect(
+      parseNewSplit({ ...body, receipt: { ...body.receipt, items: [{ ...body.receipt.items[0], claimedBy: ["ann"] }, body.receipt.items[1]] } }),
+    ).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].claimedBy" } });
+  });
+
+  test("refuses a Receipt that fails the Total check, as parseSplit does", () => {
+    expect(parseNewSplit({ ...body, receipt: { ...body.receipt, total: 4000 } })).toMatchObject({
+      ok: false,
+      rejection: { reason: "totalCheckFailed" },
+    });
   });
 });

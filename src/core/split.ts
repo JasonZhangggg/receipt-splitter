@@ -11,11 +11,11 @@ export type AdjustmentId = Id<"AdjustmentId">;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,24}$/;
 
 export function isId<T extends Id<string>>(value: unknown): value is T {
-  return typeof value === "string" && ID_PATTERN.test(value);
+  return typeof value === "string" && ID_PATTERN.test(value) && value !== "__proto__";
 }
 
 function id<T extends Id<string>>(value: string): T {
-  if (!isId<T>(value)) throw new RangeError(`${JSON.stringify(value)} is not 1 to 24 letters, digits, "_", or "-"`);
+  if (!isId<T>(value)) throw new RangeError(`${JSON.stringify(value)} is not 1 to 24 letters, digits, "_", or "-", or is "__proto__"`);
   return value;
 }
 
