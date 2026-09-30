@@ -546,9 +546,9 @@ function checkState(split: Split): Rejection | null {
   if (payments.some(({ amount }) => amount < 1)) return { reason: "amountOutOfRange" };
   if (total < 0) return { reason: "negativeTotal" };
 
-  const receiptNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH));
+  const rowsNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH));
   const participantsNamed = participants.every(({ name }) => !BLANK.test(name) && isName(name, MAX_PARTICIPANT_NAME_LENGTH));
-  if (!receiptNamed || !participantsNamed) return { reason: "badName" };
+  if (!rowsNamed || !participantsNamed) return { reason: "badName" };
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
   const [host] = participants;
