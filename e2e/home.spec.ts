@@ -80,6 +80,7 @@ const headline = ["Split the bill", "at the table."];
 for (const width of [320, phone.width, 1280]) {
   test(`the headline mask hides no glyph ink at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: phone.height });
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await settle(page);
     for (const line of headline) {
