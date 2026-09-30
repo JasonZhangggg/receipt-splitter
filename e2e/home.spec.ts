@@ -213,6 +213,34 @@ for (const width of [phone.width, 1280]) {
   });
 }
 
+test("no sample line is wider in the shipped fallback face than in Archivo", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const widest = await page.evaluate(async (samples) => {
+    const families = { 500: "Archivo", 800: "ArchivoCondensed" };
+    const result: Record<string, { ratio: number; line: string; faces: string[] }> = {};
+    for (const [weight, family] of Object.entries(families)) {
+      const fallback = `${family} Fallback`;
+      const faces = await Promise.all(
+        [family, fallback].map(async (face) => (await document.fonts.load(`${weight} 100px "${face}"`))[0]?.status ?? "missing"),
+      );
+      const width = (face: string, line: string) => {
+        const ctx = document.createElement("canvas").getContext("2d")!;
+        ctx.font = `${weight} 1000px "${face}"`;
+        return ctx.measureText(line).width;
+      };
+      const ratios = samples[weight as "500" | "800"].map((line) => ({ ratio: width(fallback, line) / width(family, line), line }));
+      const top = ratios.reduce((a, b) => (b.ratio > a.ratio ? b : a));
+      result[weight] = { ...top, faces };
+    }
+    return result;
+  }, fallbackSamples);
+  for (const weight of ["500", "800"]) {
+    expect(widest[weight].faces, `${weight} Archivo and fallback faces`).toEqual(["loaded", "loaded"]);
+    expect(widest[weight].ratio, `"${widest[weight].line}" in the ${weight} fallback against Archivo`).toBeLessThanOrEqual(1);
+  }
+});
+
 test("the two columns start level at 1280 px", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
