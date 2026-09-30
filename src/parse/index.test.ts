@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { runTotalCheck } from "../core/total-check";
 import { parseReceipt } from ".";
+import { receiptRows } from "./fixtures/boxes";
 import receipt1019 from "./fixtures/srd-1019.json";
 import receipt1040 from "./fixtures/srd-1040.json";
 
@@ -46,6 +47,54 @@ describe("parseReceipt", () => {
     expect(receipt?.adjustments).toEqual([{ id: "a1", kind: "tax", name: "Tax 1", amount: 258 }]);
     expect([receipt?.subtotal, receipt?.total]).toEqual([4300, 4558]);
     expect(runTotalCheck(receipt!)).toEqual({ ok: true });
+  });
+
+  test("reads a quantity 7 as 1 when only that makes the Total check pass", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Burger (7 @ 12.00)", ""],
+        ["Fries", "4.00"],
+        ["Subtotal", "16.00"],
+        ["Total", "16.00"],
+      ]),
+    );
+
+    expect(receipt?.items.map(({ name, price }) => [name, price])).toEqual([
+      ["Burger", 1200],
+      ["Fries", 400],
+    ]);
+  });
+
+  test("keeps a quantity 7 when the Total check passes as read", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Wings (7 @ 1.00)", ""],
+        ["Subtotal", "7.00"],
+        ["Total", "7.00"],
+      ]),
+    );
+
+    expect(receipt?.items.map(({ price }) => price)).toEqual([700]);
+  });
+
+  test("adds a tip and the total paid printed after the first total", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Coffee", "3.25"],
+        ["Subtotal", "3.25"],
+        ["Tax", "0.35"],
+        ["Total", "3.60"],
+        ["Gratuity 18.00%", "0.65"],
+        ["Total", "4.25"],
+        ["18% = $0.65", ""],
+      ]),
+    );
+
+    expect(receipt?.adjustments.map(({ kind, amount }) => [kind, amount])).toEqual([
+      ["tax", 35],
+      ["tip", 65],
+    ]);
+    expect(receipt?.total).toBe(425);
   });
 
   test("returns null when the boxes hold no priced Item", () => {

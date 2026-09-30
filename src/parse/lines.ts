@@ -12,7 +12,7 @@ export type Line =
       readonly name: string;
       readonly amount: Cents;
       readonly appliesTo: "item" | "receipt";
-      readonly readFrom: "label" | "minus";
+      readonly markedBy: "label" | "minusSign";
     }
   | { readonly kind: "subtotal"; readonly amount: Cents }
   | { readonly kind: "tax" | "tip" | "serviceCharge"; readonly name: string; readonly amount: Cents }
@@ -39,6 +39,10 @@ const MODIFIER_MARK = /^(\+|add\b|make\s+it\b|extra\b|sub\b|no\b|w\/|with\b)/i;
 
 type Amount = { readonly cents: number; readonly start: number; readonly bracketed: boolean };
 
+export function hasWords(text: string): boolean {
+  return /[a-z]{2}/i.test(text);
+}
+
 export function classifyLines(rows: readonly Row[]): Line[] {
   let anchor: Row | null = null;
   return rows.map((row) => {
@@ -60,11 +64,11 @@ function classify(row: Row, anchor: Row | null): Line {
   if (labelled === "tax" || labelled === "tip" || labelled === "serviceCharge") {
     return { kind: labelled, name: label, amount: cents(Math.abs(amount)) };
   }
-  const indented = anchor !== null && /[a-z]{2}/i.test(label) && row.left > anchor.left + row.lineHeight;
+  const indented = anchor !== null && hasWords(label) && row.left > anchor.left + row.lineHeight;
   if (labelled === "discount" || amount < 0) {
-    const appliesTo = /[a-z]{2}/i.test(label) && !/coupon/i.test(label) ? "item" : "receipt";
-    const readFrom = labelled === "discount" ? "label" : "minus";
-    return { kind: "discount", name: label, amount: cents(-Math.abs(amount)), appliesTo, readFrom };
+    const appliesTo = hasWords(label) && !/coupon/i.test(label) ? "item" : "receipt";
+    const markedBy = labelled === "discount" ? "label" : "minusSign";
+    return { kind: "discount", name: label, amount: cents(-Math.abs(amount)), appliesTo, markedBy };
   }
   if (last.bracketed) return { kind: "noise", text: row.text };
   const at = AT.exec(row.text);
@@ -73,10 +77,10 @@ function classify(row: Row, anchor: Row | null): Line {
   const name = label.slice(0, at && at.index < label.length ? at.index : undefined).replace(LEADING_COUNT, "").replace(/[\s(]+$/, "").trim();
   if (quantity) {
     const total = extended ?? price(quantity.count * quantity.unitPrice);
-    if (!/[a-z]{2}/i.test(name)) return { kind: "quantity", price: total, quantity };
+    if (!hasWords(name)) return { kind: "quantity", price: total, quantity };
     return { kind: "item", name, price: total, quantity: extended === null ? quantity : null };
   }
-  if (!/[a-z]{2}/i.test(label)) return { kind: "noise", text: row.text };
+  if (!hasWords(label)) return { kind: "noise", text: row.text };
   const counted = LEADING_COUNT.test(label);
   if (counted ? name.startsWith("+") : indented || MODIFIER_MARK.test(name)) {
     return { kind: "modifier", name, price: price(amount) };

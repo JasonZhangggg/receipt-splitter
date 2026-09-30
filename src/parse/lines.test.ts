@@ -1,22 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { TextBox } from "../ocr/types";
+import { box, receiptRows } from "./fixtures/boxes";
 import { classifyLines } from "./lines";
 import { groupRows } from "./rows";
-
-const LINE = 30;
-
-function box(text: string, x: number, row: number): TextBox {
-  const [left, top, right, bottom] = [x, row * LINE, x + 12 * text.length, row * LINE + 20];
-  return {
-    text,
-    corners: [
-      { x: left, y: top },
-      { x: right, y: top },
-      { x: right, y: bottom },
-      { x: left, y: bottom },
-    ],
-  };
-}
 
 const linesOf = (boxes: TextBox[]) => classifyLines(groupRows(boxes));
 
@@ -59,14 +45,21 @@ describe("classifyLines", () => {
 
     expect(lines).toEqual([
       { kind: "item", name: "BBQ Chips", price: 600, quantity: null },
-      { kind: "discount", name: "Discount:BBQ Chips", amount: -600, appliesTo: "item", readFrom: "label" },
-      { kind: "discount", name: "COUPON (F6)", amount: -1018, appliesTo: "receipt", readFrom: "label" },
+      { kind: "discount", name: "Discount:BBQ Chips", amount: -600, appliesTo: "item", markedBy: "label" },
+      { kind: "discount", name: "COUPON (F6)", amount: -1018, appliesTo: "receipt", markedBy: "label" },
     ]);
   });
 
   test("reads subtotal, tax, service charge, tip, and total rows by their labels", () => {
-    const labels = ["Subtotal", "Sales Tax", "Service Charge 18%", "Gratuity", "Total"];
-    const lines = linesOf(labels.flatMap((label, row) => [box(label, 20, row), box(`${row + 1}.00`, 400, row)]));
+    const lines = linesOf(
+      receiptRows([
+        ["Subtotal", "1.00"],
+        ["Sales Tax", "2.00"],
+        ["Service Charge 18%", "3.00"],
+        ["Gratuity", "4.00"],
+        ["Total", "5.00"],
+      ]),
+    );
 
     expect(lines).toEqual([
       { kind: "subtotal", amount: 100 },
