@@ -32,7 +32,9 @@ const fallbacks = [
   },
 ];
 
-function css({ light, dark }: typeof colors) {
+type Headline = { fontSize: number; descent: number };
+
+function css({ light, dark }: typeof colors, headline: Headline) {
   const fontFaces = faces.map(
     ([family, weight, url]) =>
       `@font-face { font-family: "${family}"; font-weight: ${weight}; font-display: swap; src: url("${url}") format("truetype"); }`,
@@ -51,6 +53,8 @@ body { background-color: ${light.field}; text-wrap: pretty; }
 [data-pressable] { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 [data-pressable]:focus { outline: none; }
 [data-pressable]:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+[data-headline] { font-size: ${headline.fontSize}px; margin-bottom: -${headline.descent}em; }
+[data-headline] > * { font-size: inherit; }
 `;
 }
 
@@ -62,11 +66,11 @@ function meta(name: string, content: string, media?: string) {
   document.head.appendChild(tag);
 }
 
-export function installDocument(themes: typeof colors) {
+export function installDocument(themes: typeof colors, headline: Headline) {
   if (Platform.OS !== "web" || document.getElementById("rs-theme")) return;
   const style = document.createElement("style");
   style.id = "rs-theme";
-  style.textContent = css(themes);
+  style.textContent = css(themes, headline);
   document.head.appendChild(style);
 
   const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');

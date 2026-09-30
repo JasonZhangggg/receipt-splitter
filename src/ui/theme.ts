@@ -3,8 +3,6 @@ import { Easing, Platform, StyleSheet, useColorScheme, type TextStyle, type View
 import { colors, type Colors } from "./colors";
 import { installDocument } from "./document";
 
-installDocument(colors);
-
 export function useColors(): Colors {
   return colors[useColorScheme() === "dark" ? "dark" : "light"];
 }
@@ -18,6 +16,9 @@ const body = "Archivo, 'Archivo Fallback', system-ui, -apple-system, sans-serif"
 
 const archivoDescent = 0.2;
 const widestHeadlineEm = 4.6;
+const headlineWithoutContainerUnits = 56;
+
+installDocument(colors, { fontSize: headlineWithoutContainerUnits, descent: archivoDescent });
 
 const headlineSizes = {
   narrow: { fontSize: 64, lineHeight: 62, letterSpacing: -0.5 },

@@ -37,7 +37,7 @@ export default function Home() {
           </Text>
           <View style={[styles.headline, headlineStyle.column]}>
             {copy.headline.map((line, i) => (
-              <View key={line} style={[styles.mask, headlineStyle.mask]}>
+              <View key={line} {...headlineMask} style={[styles.mask, headlineStyle.mask]}>
                 <Text
                   style={[
                     headlineStyle.text,
@@ -108,6 +108,8 @@ export default function Home() {
     </View>
   );
 }
+
+const headlineMask = { dataSet: { headline: "" } };
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

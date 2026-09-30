@@ -140,6 +140,37 @@ for (const width of headlineWidths) {
   });
 }
 
+for (const width of [320, phone.width]) {
+  test(`without container query units the headline keeps one line per row above body size at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await settle(page);
+    const layout = await page.evaluate((lines) => {
+      for (const el of document.querySelectorAll<HTMLElement>("[style]")) {
+        for (const property of [...el.style]) {
+          if (property === "container-type" || el.style.getPropertyValue(property).includes("cqi")) el.style.removeProperty(property);
+        }
+      }
+      const leaf = (text: string) =>
+        [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent?.startsWith(text))!;
+      const rows = lines.map((line) => {
+        const range = document.createRange();
+        range.selectNodeContents(leaf(line));
+        const tops = [...range.getClientRects()].map((r) => Math.round(r.top));
+        return { lines: new Set(tops).size, top: leaf(line).getBoundingClientRect().top };
+      });
+      return {
+        headline: getComputedStyle(leaf(lines[0])).fontSize,
+        body: getComputedStyle(leaf("Take a photo of the receipt")).fontSize,
+        lines: rows.map((row) => row.lines),
+        pitch: Math.round((rows[1].top - rows[0].top) * 10) / 10,
+      };
+    }, headline);
+    expect(layout).toEqual({ headline: "56px", body: "18px", lines: [1, 1], pitch: 54.3 });
+  });
+}
+
 for (const [width, finalSize] of [
   [phone.width, 64],
   [960, 83.5],
