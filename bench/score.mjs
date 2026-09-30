@@ -1,8 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { runTotalCheck } from "../src/core/total-check.ts";
+import { readLabels } from "./read-labels.mjs";
 
 const { values: flags } = parseArgs({
   options: {
@@ -21,10 +21,7 @@ if (!flags.parser) {
   process.exit(2);
 }
 
-const labels = readdirSync(flags.labels)
-  .filter((file) => file.endsWith(".json"))
-  .sort()
-  .map((file) => ({ name: file.replace(/\.json$/, ""), ...JSON.parse(readFileSync(join(flags.labels, file), "utf8")) }));
+const labels = readLabels(flags.labels);
 const parse =
   flags.parser === "labels"
     ? ({ name }) => labels.find((label) => label.name === name).receipt
@@ -42,15 +39,13 @@ for (const label of labels) {
       console.error(`${label.name}: the parser threw ${error}`);
       return null;
     });
-  const byStructure = label.region !== "US";
+  const byStructure = label.source === "cord";
   const tally = byStructure ? structure : exact;
   const items = byStructure
     ? Math.min(predicted?.items.length ?? 0, label.receipt.items.length)
     : matched(label.receipt.items.map(({ price }) => price), predicted?.items.map(({ price }) => price));
-  const adjustments = matched(
-    label.receipt.adjustments.map(({ kind, amount }) => (byStructure ? kind : `${kind} ${amount}`)),
-    predicted?.adjustments.map(({ kind, amount }) => (byStructure ? kind : `${kind} ${amount}`)),
-  );
+  const adjustmentKey = ({ kind, amount }) => (byStructure ? kind : `${kind} ${amount}`);
+  const adjustments = matched(label.receipt.adjustments.map(adjustmentKey), predicted?.adjustments.map(adjustmentKey));
   let perfect =
     predicted?.items.length === label.receipt.items.length &&
     predicted?.adjustments.length === label.receipt.adjustments.length &&

@@ -1,17 +1,12 @@
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runTotalCheck } from "../src/core/total-check.ts";
+import { readLabels } from "./read-labels.mjs";
 
 const BENCH = import.meta.dirname;
 const OUT = join(BENCH, "out");
 
-const receipts = readdirSync(join(BENCH, "labels"))
-  .filter((file) => file.endsWith(".json"))
-  .sort()
-  .map((file) => {
-    const label = JSON.parse(readFileSync(join(BENCH, "labels", file), "utf8"));
-    return { name: file.replace(/\.json$/, ""), ...label, totalCheck: runTotalCheck(label.receipt).ok };
-  });
+const receipts = readLabels(join(BENCH, "labels")).map((label) => ({ ...label, totalCheck: runTotalCheck(label.receipt).ok }));
 
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "report.html"), page(receipts));
@@ -65,7 +60,7 @@ function page(data) {
 </main>
 <script>
 const receipts = ${json};
-const at = (name) => Math.max(0, receipts.findIndex((receipt) => receipt.name === name));
+const indexOfReceipt = (name) => Math.max(0, receipts.findIndex((receipt) => receipt.name === name));
 const escape = (text) => String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const money = (amount, region) => {
   const sign = amount < 0 ? "-" : "";
@@ -80,7 +75,7 @@ function show(index) {
   const { items, adjustments, subtotal, total } = receipt.receipt;
   const row = (name, amount, className = "", kind = "") =>
     '<tr class="' + className + '"><td class="kind">' + escape(kind) + "</td><td>" + escape(name) + '</td><td class="amount">' + money(amount, receipt.region) + "</td></tr>";
-  document.getElementById("position").textContent = at(receipt.name) + 1 + " / " + receipts.length + "  " + receipt.name;
+  document.getElementById("position").textContent = indexOfReceipt(receipt.name) + 1 + " / " + receipts.length + "  " + receipt.name;
   document.getElementById("image").src = "../data/" + receipt.image;
   document.getElementById("image").alt = "Receipt photo " + receipt.image;
   document.getElementById("full").href = "../data/" + receipt.image;
@@ -102,10 +97,10 @@ function show(index) {
   if (location.hash.slice(1) !== receipt.name) history.replaceState(null, "", "#" + receipt.name);
 }
 
-const current = () => at(location.hash.slice(1));
+const current = () => indexOfReceipt(location.hash.slice(1));
 document.getElementById("previous").onclick = () => show(current() - 1);
 document.getElementById("next").onclick = () => show(current() + 1);
-jump.onchange = () => show(at(jump.value));
+jump.onchange = () => show(indexOfReceipt(jump.value));
 document.addEventListener("keydown", (event) => {
   if (event.target === jump) return;
   if (event.key === "ArrowRight" || event.key === "j") show(current() + 1);

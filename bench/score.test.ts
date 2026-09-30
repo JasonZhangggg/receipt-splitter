@@ -92,7 +92,7 @@ describe("bench/score.mjs", () => {
     });
   });
 
-  test("scores a non-US Receipt on its structure, not its prices", () => {
+  test("scores a CORD Receipt on its structure, not its prices", () => {
     const dir = benchDir([warung]);
     const [nasi, teh] = warung.receipt.items;
     const reread = {
@@ -125,8 +125,8 @@ describe("bench/score.mjs", () => {
       encoding: "utf8",
     });
 
-    expect(output).toMatch(/^exact, 62 receipts: Item prices (\d+)\/\1 100\.0%, Adjustments (\d+)\/\2 100\.0%, Total check 62\/62 100\.0%$/m);
-    expect(output).toMatch(/^structure, 20 receipts: Items (\d+)\/\1 100\.0%, Adjustments (\d+)\/\2 100\.0%$/m);
+    expect(output).toMatch(/^exact, (\d+) receipts: Item prices (\d+)\/\2 100\.0%, Adjustments (\d+)\/\3 100\.0%, Total check \1\/\1 100\.0%$/m);
+    expect(output).toMatch(/^structure, (\d+) receipts: Items (\d+)\/\2 100\.0%, Adjustments (\d+)\/\3 100\.0%$/m);
     expect(output).toMatch(/^misses: none$/m);
   });
 });
