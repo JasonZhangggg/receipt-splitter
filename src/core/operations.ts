@@ -28,7 +28,8 @@ import { runTotalCheck, type FailedTotalCheck } from "./total-check";
 export const MAX_ITEMS = 100;
 export const MAX_ADJUSTMENTS = 20;
 export const MAX_PARTICIPANTS = 30;
-export const MAX_NAME_LENGTH = 40;
+export const MAX_PARTICIPANT_NAME_LENGTH = 40;
+export const MAX_RECEIPT_NAME_LENGTH = 80;
 export const RECENT_CHANGES_LIMIT = 50;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
 export const HISTORY_RESERVE_BYTES = 6 * 1024;
@@ -545,9 +546,9 @@ function checkState(split: Split): Rejection | null {
   if (payments.some(({ amount }) => amount < 1)) return { reason: "amountOutOfRange" };
   if (total < 0) return { reason: "negativeTotal" };
 
-  const names = [...items, ...adjustments, ...participants].map(({ name }) => name);
-  const blankParticipant = participants.some(({ name }) => BLANK.test(name));
-  if (blankParticipant || !names.every(isName)) return { reason: "badName" };
+  const receiptNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_RECEIPT_NAME_LENGTH));
+  const participantsNamed = participants.every(({ name }) => !BLANK.test(name) && isName(name, MAX_PARTICIPANT_NAME_LENGTH));
+  if (!receiptNamed || !participantsNamed) return { reason: "badName" };
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
   const [host] = participants;
@@ -574,8 +575,8 @@ const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u
 const BLANK = /^[\s\u200C\u200D\uFE0E\uFE0F]*$/u;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
-function isName(name: string): boolean {
-  return !HIDDEN_CHARACTERS.test(name) && [...graphemes.segment(name)].length <= MAX_NAME_LENGTH;
+function isName(name: string, maxLength: number): boolean {
+  return !HIDDEN_CHARACTERS.test(name) && [...graphemes.segment(name)].length <= maxLength;
 }
 
 function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {

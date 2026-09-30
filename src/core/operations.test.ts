@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
-import { MAX_NAME_LENGTH, applyOperation, checkSplit, createSplit, type Auth, type Operation, type Rejected } from "./operations";
+import { MAX_PARTICIPANT_NAME_LENGTH, MAX_RECEIPT_NAME_LENGTH, applyOperation, checkSplit, createSplit, type Auth, type Operation, type Rejected } from "./operations";
 import { parseOperation, parseSplit } from "./parse";
 import { computeShares } from "./shares";
 import {
@@ -643,6 +643,28 @@ describe("names", () => {
     );
   });
 
+  test("an Item from a long OCR line keeps up to 80 characters, and an Adjustment too", () => {
+    const line = (length: number) => "Grilled chicken sandwich, extra pickles, no onion, sub fries ".padEnd(length, "x");
+    const tip = { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(500) };
+    const receipt = (itemName: string, tipName = "Tip"): Receipt => ({
+      items: [{ id: pasta, name: itemName, price: price(1400) }],
+      adjustments: [{ ...tip, name: tipName }],
+      subtotal: cents(1400),
+      total: cents(1900),
+    });
+    const create = (itemName: string, tipName?: string) => {
+      const result = createSplit({ id: splitId("s1"), receipt: receipt(itemName, tipName), host: { id: ann, name: "Ann" }, paymentHandles: [{ service: "venmo", handle: "ann-host" }] });
+      return result.ok ? "accepted" : result.rejection.reason;
+    };
+
+    expect([line(60), line(80), "🍔".repeat(80)].map((name) => create(name))).toEqual(["accepted", "accepted", "accepted"]);
+    expect(create(line(81))).toBe("badName");
+    expect(create("Tip", line(80))).toBe("accepted");
+    expect(create("Tip", line(81))).toBe("badName");
+    expect(reasonFor(created(), { by: null, type: "editReceipt", items: [{ type: "edit", itemId: fries, name: line(81) }] })).toBe("badName");
+    expect(join("d".repeat(41))).toBe("badName");
+  });
+
   test("an Item renamed with a bidi override is refused", () => {
     expect(reasonFor(created(), { by: null, type: "editReceipt", items: [{ type: "edit", itemId: fries, name: "Fries\u202E" }] })).toBe("badName");
   });
@@ -650,12 +672,13 @@ describe("names", () => {
 
 describe("the 32 KB budget", () => {
   const longId = (prefix: string, index: number) => `${prefix}${String(index).padStart(24 - prefix.length, "0")}`;
-  const longName = (index: number) => `${index} `.padEnd(MAX_NAME_LENGTH, "x");
+  const longName = (index: number) => `${index} `.padEnd(MAX_PARTICIPANT_NAME_LENGTH, "x");
+  const longItemName = (index: number) => `${index} `.padEnd(MAX_RECEIPT_NAME_LENGTH, "x");
 
   function atTheCaps(): Split {
     const [first, ...rest] = Array.from({ length: 100 }, (_, index): Item => ({
       id: itemId(longId("item", index)),
-      name: longName(index),
+      name: longItemName(index),
       price: price(100_000),
     }));
     const result = createSplit({
@@ -702,7 +725,7 @@ describe("the 32 KB budget", () => {
     const renamed = apply(split, {
       by: null,
       type: "editReceipt",
-      items: split.receipt.items.slice(0, 25).map(({ id }, index) => ({ type: "edit", itemId: id, name: longName(1000 + index) })),
+      items: split.receipt.items.slice(0, 25).map(({ id }, index) => ({ type: "edit", itemId: id, name: longItemName(1000 + index) })),
     });
     expect(serializedBytes(renamed)).toBeLessThanOrEqual(SPLIT_BYTE_BUDGET);
     expect(renamed.recentChanges.at(-1)?.revision).toBe(renamed.revision);
