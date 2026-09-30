@@ -192,6 +192,25 @@ describe("computeShares", () => {
     expect(shares.unclaimed).toEqual({ itemIds: ["salad"], subtotal: 1000, total: 1289 });
   });
 
+  test("the Unclaimed items total loses a tie for the last cent to a Participant", () => {
+    const shares = computeShares(
+      splitWith({
+        items: [
+          ["steak", 100, ["ann"]],
+          ["wine", 100, []],
+        ],
+        adjustments: [["tip", 1]],
+      }),
+    );
+
+    expect(shareCents(shares)).toEqual([
+      ["ann", 101],
+      ["bob", 0],
+      ["cat", 0],
+    ]);
+    expect(shares.unclaimed).toEqual({ itemIds: ["wine"], subtotal: 100, total: 100 });
+  });
+
   test("Shares sum exactly to the Receipt total", () => {
     const shares = computeShares(
       splitWith({
