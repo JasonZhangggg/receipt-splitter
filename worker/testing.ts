@@ -1,4 +1,5 @@
-import { exports } from "cloudflare:workers";
+import { runInDurableObject } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { vi } from "vitest";
 import type { ClientMessage, CreateSplitRequest, CreateSplitResponse, ServerMessage } from "../src/core/operations";
 
@@ -92,4 +93,14 @@ export async function connect(id: string): Promise<Client> {
     next: async () => JSON.parse(await nextRaw()),
     closed,
   };
+}
+
+export async function leftovers(id: string): Promise<{ tables: unknown[]; keys: string[]; alarm: number | null }> {
+  return runInDurableObject(env.SplitServer.getByName(id), async (_, state) => ({
+    tables: state.storage.sql
+      .exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'")
+      .toArray(),
+    keys: [...(await state.storage.list()).keys()],
+    alarm: await state.storage.getAlarm(),
+  }));
 }

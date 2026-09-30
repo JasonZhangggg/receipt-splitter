@@ -1,6 +1,6 @@
 import { exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { createSplit, stubSiteverify } from "./testing";
+import { createSplit, leftovers, stubSiteverify } from "./testing";
 
 beforeEach(() => {
   stubSiteverify();
@@ -28,6 +28,13 @@ describe("routing", () => {
     expect(plain.status).toBe(404);
     const socket = await exports.default.fetch("http://localhost/parties/split-server/abcdefghijklmnopqrstuv", upgrade);
     expect(socket.status).toBe(101);
+  });
+
+  it("answers a plain GET on a minted-format id without waking the Split's storage", async () => {
+    const id = "getWithoutUpgrade0000A";
+    const response = await exports.default.fetch(`http://localhost/parties/split-server/${id}`);
+    expect(response.status).toBe(404);
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
   });
 
   it("drops client-supplied partyserver inputs before the Split socket", async () => {

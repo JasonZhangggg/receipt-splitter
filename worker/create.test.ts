@@ -100,6 +100,35 @@ describe("POST /api/splits", () => {
     expect(await response.json()).toMatchObject({ refused: "rejected", rejection: { reason: "totalCheckFailed" } });
   });
 
+  it("refuses a streamed body over the byte cap that declares no length", async () => {
+    const bytes = new TextEncoder().encode(
+      JSON.stringify({ turnstileToken: PASSING_TOKEN, split: { ...newSplit, pad: "x".repeat(40 * 1024) } }),
+    );
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let offset = 0; offset < bytes.length; offset += 4096) controller.enqueue(bytes.slice(offset, offset + 4096));
+        controller.close();
+      },
+    });
+    const request = new Request("http://localhost/api/splits", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.250" }, body });
+    expect(request.headers.get("content-length")).toBe(null);
+    const response = await exports.default.fetch(request);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ refused: "bodyTooLarge" });
+  });
+
+  it("refuses an unknown top-level key and a Turnstile token over 2048 characters", async () => {
+    const extra = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit, note: "hi" });
+    expect(extra.status).toBe(400);
+    expect(await extra.json()).toEqual({ refused: "rejected", rejection: { reason: "malformed", path: "note" } });
+    const longToken = await postSplit({ turnstileToken: "t".repeat(2049), split: newSplit });
+    expect(longToken.status).toBe(400);
+    expect(await longToken.json()).toEqual({ refused: "rejected", rejection: { reason: "malformed", path: "turnstileToken" } });
+    const longest = await postSplit({ turnstileToken: "t".repeat(2048), split: newSplit });
+    expect(longest.status).toBe(403);
+    expect(siteverify.map(({ response }) => response?.length)).toEqual([2048]);
+  });
+
   it("refuses a body over the byte cap before parsing it", async () => {
     const parse = vi.spyOn(JSON, "parse");
     const body = `{"turnstileToken":"${PASSING_TOKEN}","split":${"[".repeat(37 * 1024)}`;

@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
 import type { Split } from "../src/core/split";
-import { connect, createSplit, stubSiteverify, type Client } from "./testing";
+import { connect, createSplit, leftovers, stubSiteverify, type Client } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
 const T0 = Date.parse("2026-10-01T12:00:00Z");
@@ -19,16 +19,6 @@ const claim = (ref: string, itemId: string, participantId = "ann"): ClientMessag
 async function open(id: string): Promise<{ client: Client; hello: ServerMessage }> {
   const client = await connect(id);
   return { client, hello: await client.next() };
-}
-
-async function leftovers(id: string): Promise<{ tables: unknown[]; keys: string[]; alarm: number | null }> {
-  return runInDurableObject(env.SplitServer.getByName(id), async (_, state) => ({
-    tables: state.storage.sql
-      .exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'")
-      .toArray(),
-    keys: [...(await state.storage.list()).keys()],
-    alarm: await state.storage.getAlarm(),
-  }));
 }
 
 async function storedRow(id: string): Promise<unknown> {
@@ -183,6 +173,24 @@ describe("loading a stored Split", () => {
     expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
   });
 
+  it("refuses a stored row over 32 KB after a wake without parsing it", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    const oversized = JSON.stringify({ pad: "x".repeat(33 * 1024) });
+    await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", oversized));
+    await evictDurableObject(stub);
+    const parse = vi.spyOn(JSON, "parse");
+
+    const client = await connect(id);
+    const reply = await client.next();
+    const parsedRow = parse.mock.calls.some(([text]) => text === oversized);
+    parse.mockRestore();
+
+    expect(reply).toEqual({ type: "unavailable", reason: "unreadable" });
+    expect(await client.closed).toMatchObject({ code: 4500 });
+    expect(parsedRow).toBe(false);
+  });
+
   it("accepts the creator secret after the Durable Object wakes from storage", async () => {
     const { id, creatorSecret } = await createSplit();
     await evictDurableObject(env.SplitServer.getByName(id));
@@ -224,6 +232,7 @@ describe("expiry", () => {
     const a = await open(id);
     a.client.send(claim("a1", "fries"));
     await a.client.next();
+    await evictDurableObject(stub);
 
     vi.setSystemTime(T0 + 60 * DAY);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
@@ -236,6 +245,7 @@ describe("expiry", () => {
     expect(await a.client.next()).toEqual({ type: "unavailable", reason: "notFound" });
     expect(await a.client.closed).toMatchObject({ code: 4404 });
   });
+
 });
 
 describe("refusals leave the stored Split unchanged", () => {
@@ -314,6 +324,20 @@ describe("refusals leave the stored Split unchanged", () => {
     expect(await a.client.next()).toMatchObject({ type: "state", ref: "ok", split: { revision: 1 } });
   });
 
+  it("refuses a creator secret that is not a string and a ref outside the pattern", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    const op = { type: "splitUnclaimed", by: null };
+    a.client.send(JSON.stringify({ ref: "n", creatorSecret: 5, op }));
+    expect(await a.client.next()).toEqual({ type: "rejected", ref: "n", rejection: { reason: "malformed", path: "creatorSecret" } });
+    for (const ref of ["has space", "x".repeat(65), ""]) {
+      a.client.send(JSON.stringify({ ref, op }));
+      expect(await a.client.next()).toEqual({ type: "rejected", ref: null, rejection: { reason: "malformed", path: "ref" } });
+    }
+    a.client.send(JSON.stringify({ ref: "x".repeat(64), op }));
+    expect(await a.client.next()).toMatchObject({ type: "state", ref: "x".repeat(64), split: { revision: 1 } });
+  });
+
   it("rate limits a burst of operations on one Split", async () => {
     const { id } = await createSplit();
     const a = await open(id);
@@ -326,6 +350,23 @@ describe("refusals leave the stored Split unchanged", () => {
     expect(replies.filter(({ type }) => type === "unchanged")).toHaveLength(58);
     expect(replies[60]).toEqual({ type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs: 50 } });
   });
+
+  it("refills the bucket at 20 operations a second", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    const burst = async (count: number) => {
+      for (let index = 0; index < count; index += 1) a.client.send(claim(`r${index}`, "fries"));
+      const kinds: string[] = [];
+      for (let index = 0; index < count; index += 1) kinds.push((await a.client.next()).type);
+      return kinds.filter((kind) => kind !== "rejected").length;
+    };
+    expect(await burst(61)).toBe(60);
+    vi.setSystemTime(T0 + 50);
+    expect(await burst(2)).toBe(1);
+    vi.setSystemTime(T0 + 1050);
+    expect(await burst(21)).toBe(20);
+  });
+
 });
 
 describe("connecting", () => {
