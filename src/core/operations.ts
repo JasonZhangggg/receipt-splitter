@@ -571,8 +571,8 @@ function checkState(split: Split): Rejection | null {
   return null;
 }
 
-const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;
-const BLANK = /^[\s\u200C\u200D\uFE0E\uFE0F]*$/u;
+const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u2028-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;
+const BLANK = /^[\s\p{Default_Ignorable_Code_Point}\u2800]*$/u;
 const MAX_GRAPHEME_UNITS = 32;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 

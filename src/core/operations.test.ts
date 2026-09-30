@@ -659,6 +659,14 @@ describe("names", () => {
     );
   });
 
+  test("refuses the line and paragraph separators, and a name made only of characters that draw nothing", () => {
+    expect(["a\u2028b", "a\u2029b"].map(join)).toEqual(["badName", "badName"]);
+    expect(["\u3164", "\u2800", "\u00AD", "\u034F", "\u180E", " \u3164\u200D "].map(join)).toEqual(
+      Array.from({ length: 6 }, () => "badName"),
+    );
+    expect(["Jo\u00ADsé", "\u3131\u3164"].map(join)).toEqual(["accepted", "accepted"]);
+  });
+
   test("an Item from a long OCR line keeps up to 80 characters, and an Adjustment too", () => {
     const line = (length: number) => "Grilled chicken sandwich, extra pickles, no onion, sub fries ".padEnd(length, "x");
     const tip = { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(500) };
