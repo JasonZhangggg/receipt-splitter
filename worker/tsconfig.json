@@ -9,5 +9,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["**/*.ts", "../tools/worker-vitest/node_modules/@cloudflare/vitest-plugin/types/cloudflare-test.d.ts"]
+  "include": ["**/*.ts", "../tools/worker-vitest/cloudflare-test.d.ts"]
 }
