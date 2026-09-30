@@ -1,4 +1,4 @@
-import { StyleSheet, useColorScheme } from "react-native";
+import { Easing, StyleSheet, useColorScheme } from "react-native";
 
 import { colors, type Colors } from "./colors";
 import { installDocument } from "./document";
@@ -31,9 +31,13 @@ export const type = StyleSheet.create({
   moneyBody: { fontFamily: body, fontWeight: "500", fontSize: 16, fontVariant: ["tabular-nums"] },
 });
 
+const easeOut = [0.23, 1, 0.32, 1] as const;
+const drawer = [0.32, 0.72, 0, 1] as const;
+
+export const easing = { easeOut: Easing.bezier(...easeOut), drawer: Easing.bezier(...drawer) };
+
 export const motion = {
-  easeOut: "cubic-bezier(0.23, 1, 0.32, 1)",
-  drawer: "cubic-bezier(0.32, 0.72, 0, 1)",
+  easeOut: `cubic-bezier(${easeOut.join(", ")})`,
   pressIn: 100,
   pressOut: 200,
   enter: 240,

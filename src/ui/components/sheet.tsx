@@ -1,12 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useReducedMotion } from "../motion";
-import { motion, space, type, useColors } from "../theme";
-
-const drawer = Easing.bezier(0.32, 0.72, 0, 1);
-const easeOut = Easing.bezier(0.23, 1, 0.32, 1);
+import { easing, motion, space, type, useColors } from "../theme";
 
 type Props = { open: boolean; onClose: () => void; title: string; children: ReactNode };
 
@@ -22,7 +19,7 @@ export function Sheet({ open, onClose, title, children }: Props) {
     const animation = Animated.timing(progress, {
       toValue: open ? 1 : 0,
       duration: reduce ? motion.reducedFade : open ? motion.sheetIn : motion.sheetOut,
-      easing: open ? drawer : easeOut,
+      easing: open ? easing.drawer : easing.easeOut,
       useNativeDriver: false,
     });
     animation.start(({ finished }) => {

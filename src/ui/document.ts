@@ -1,13 +1,13 @@
 import { Platform } from "react-native";
 
-import type { Colors } from "./colors";
+import type { colors } from "./colors";
 
 const faces: [family: string, weight: number, url: string][] = [
   ["Archivo", 500, require("../../assets/fonts/Archivo-Medium.ttf")],
   ["ArchivoCondensed", 800, require("../../assets/fonts/Archivo-CondensedBlack.ttf")],
 ];
 
-function css({ light, dark }: { light: Colors; dark: Colors }) {
+function css({ light, dark }: typeof colors) {
   const fontFaces = faces.map(
     ([family, weight, url]) =>
       `@font-face { font-family: "${family}"; font-weight: ${weight}; font-display: swap; src: url("${url}") format("truetype"); }`,
@@ -33,7 +33,7 @@ function meta(name: string, content: string, media?: string) {
   document.head.appendChild(tag);
 }
 
-export function installDocument(themes: { light: Colors; dark: Colors }) {
+export function installDocument(themes: typeof colors) {
   if (Platform.OS !== "web" || document.getElementById("rs-theme")) return;
   const style = document.createElement("style");
   style.id = "rs-theme";

@@ -1,21 +1,19 @@
 import { useEffect, useState } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useReducedMotion } from "../motion";
-import { motion, space, type, useColors } from "../theme";
+import { easing, motion, space, type, useColors } from "../theme";
 
-const easeOut = Easing.bezier(0.23, 1, 0.32, 1);
 const visibleFor = 4000;
 
 type Props = {
   message: string | null;
   onHide: () => void;
   action?: { label: string; onPress: () => void };
-  bottom?: number;
 };
 
-export function Toast({ message, onHide, action, bottom = 0 }: Props) {
+export function Toast({ message, onHide, action }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -27,7 +25,7 @@ export function Toast({ message, onHide, action, bottom = 0 }: Props) {
     const animation = Animated.timing(progress, {
       toValue: message ? 1 : 0,
       duration: reduce ? motion.reducedFade : message ? motion.toastIn : motion.toastOut,
-      easing: easeOut,
+      easing: easing.easeOut,
       useNativeDriver: false,
     });
     animation.start(({ finished }) => {
@@ -45,7 +43,7 @@ export function Toast({ message, onHide, action, bottom = 0 }: Props) {
   const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   return (
-    <View pointerEvents="box-none" style={[styles.anchor, { bottom: bottom + space.l + insets.bottom }]}>
+    <View pointerEvents="box-none" style={[styles.anchor, { bottom: space.l + insets.bottom }]}>
       <Animated.View
         role="status"
         aria-live="polite"
