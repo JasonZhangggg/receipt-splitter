@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { pressStyle, useReducedMotion } from "../motion";
 import { type, useColors } from "../theme";
 
-const pressable = { dataSet: { pressable: "" } };
+const webOnly = { dataSet: { pressable: "" }, delayPressIn: 0 };
 
 export function Button({ label, onPress }: { label: string; onPress: () => void }) {
   const c = useColors();
@@ -12,7 +12,7 @@ export function Button({ label, onPress }: { label: string; onPress: () => void 
     <Pressable
       role="button"
       onPress={onPress}
-      {...pressable}
+      {...webOnly}
       style={({ pressed }) => [styles.solid, { backgroundColor: c.action }, pressStyle(pressed, reduce)]}
     >
       <Text style={[type.button, { color: c.onAction }]}>{label}</Text>
