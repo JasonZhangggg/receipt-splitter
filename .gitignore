@@ -33,3 +33,5 @@ yarn-error.*
 test-results/
 playwright-report/
 .verify/
+
+bench/data/own/
