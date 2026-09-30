@@ -1,0 +1,60 @@
+{
+  "image": "srd-1089.jpg",
+  "source": "srd",
+  "sourceId": "1089",
+  "region": "US",
+  "tags": [
+    "skew",
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Makers Mark (2 @11.50)",
+        "price": 2300
+      },
+      {
+        "id": "i2",
+        "name": "Side Caesar",
+        "price": 600
+      },
+      {
+        "id": "i3",
+        "name": "Chicken & Rib Combo",
+        "price": 2900
+      },
+      {
+        "id": "i4",
+        "name": "Woodford Reserve (2 @12.00)",
+        "price": 2400
+      },
+      {
+        "id": "i5",
+        "name": "Frisee Salad",
+        "price": 1000
+      },
+      {
+        "id": "i6",
+        "name": "Poached Shrimp Cocktail",
+        "price": 1750
+      },
+      {
+        "id": "i7",
+        "name": "NY Stip 8oz",
+        "price": 2800
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Total Tax",
+        "amount": 543
+      }
+    ],
+    "subtotal": 13750,
+    "total": 14293
+  }
+}

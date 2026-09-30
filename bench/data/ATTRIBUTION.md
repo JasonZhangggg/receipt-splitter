@@ -1,6 +1,6 @@
 # Benchmark data attribution
 
-`bench/fetch.mjs` downloads every source below, selects 82 receipts, and writes the images in this folder and the labels in `bench/labels/`. Run it with `npm run bench:fetch`.
+`bench/fetch.mjs` downloads every source below, selects 82 receipts, and writes the images in this folder and the labels in `bench/labels/`. Run it with `npm run bench:fetch` on macOS, because it resizes images with `sips` and unpacks archives with `unzip`.
 
 Changes to every image: `bench/fetch.mjs` scales images longer than 1280 px down to 1280 px, re-encodes an image as JPEG quality 70 when that makes it smaller, and removes EXIF metadata. Changes to every label: `bench/fetch.mjs` drafts each label as a `Receipt` from the source's transcription or annotation, and a person corrects the draft against the image. A label's `note` records each correction.
 

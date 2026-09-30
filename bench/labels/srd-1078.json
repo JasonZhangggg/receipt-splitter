@@ -1,0 +1,29 @@
+{
+  "image": "srd-1078.jpg",
+  "source": "srd",
+  "sourceId": "1078",
+  "region": "US",
+  "tags": [
+    "tipBlock"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "#19-D.B.B.V. - Special Combo Pho",
+        "price": 1295
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Total Tax",
+        "amount": 123
+      }
+    ],
+    "subtotal": 1295,
+    "total": 1418
+  }
+}

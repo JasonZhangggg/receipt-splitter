@@ -1,0 +1,22 @@
+{
+  "image": "cord-078.jpg",
+  "source": "cord",
+  "sourceId": "078",
+  "region": "ID",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Lemon Tea (L)",
+        "price": 30000
+      }
+    ],
+    "adjustments": [],
+    "subtotal": 30000,
+    "total": 30000
+  }
+}

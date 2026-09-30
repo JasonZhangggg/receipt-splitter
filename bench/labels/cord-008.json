@@ -1,0 +1,31 @@
+{
+  "image": "cord-008.jpg",
+  "source": "cord",
+  "sourceId": "008",
+  "region": "ID",
+  "tags": [
+    "tax",
+    "modifiers",
+    "blur"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "[REG] BLACK SAKURA",
+        "price": 45455
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 4545
+      }
+    ],
+    "subtotal": 45455,
+    "total": 50000
+  }
+}

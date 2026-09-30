@@ -1,0 +1,27 @@
+{
+  "image": "cord-063.jpg",
+  "source": "cord",
+  "sourceId": "063",
+  "region": "ID",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Kopi Susu Kampung",
+        "price": 19000
+      },
+      {
+        "id": "i2",
+        "name": "Kopi Susu Kampung",
+        "price": 38000
+      }
+    ],
+    "adjustments": [],
+    "subtotal": 57000,
+    "total": 57000
+  }
+}
