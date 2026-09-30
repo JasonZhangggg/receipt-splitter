@@ -1,7 +1,7 @@
 # Dev flow
 
 - Plans live in `docs/plans/<slug>.md`. Each plan is the spec for its PRs.
-- Verification skill: `verify-receipt-splitter`, created by the first PR of the first plan. That PR builds a runnable skeleton and runs `/create-verification-skill`. Every later PR depends on it.
+- Verification skill: `verify-receipt-splitter` in `.claude/skills/verify-receipt-splitter/`. Its helper launches the site on a port you choose, checks it, drives it with Playwright, saves evidence, and cleans up. Its `features/` map lists the routes to prove. Every PR proves its change with it.
 - Domain terms live in `CONTEXT.md`, decisions in `docs/adr/`. `/grill-with-docs` creates both on first use.
 - Product brief: `description.md`.
 

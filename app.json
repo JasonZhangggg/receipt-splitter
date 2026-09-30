@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Receipt Splitter",
+    "slug": "receipt-splitter",
+    "version": "0.1.0",
+    "scheme": "receiptsplitter",
+    "userInterfaceStyle": "automatic",
+    "web": {
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
