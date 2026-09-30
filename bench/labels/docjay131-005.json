@@ -1,0 +1,80 @@
+{
+  "image": "docjay131-005.jpg",
+  "source": "docjay131",
+  "sourceId": "005",
+  "region": "US",
+  "sourceSha256": "eb915fd0140ea2d91a0ea5ad1e591dfe49ea1284e25a4c4397ae458761e377f4",
+  "tags": [
+    "blur"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "TAXABLE T1",
+        "price": 2149
+      },
+      {
+        "id": "i2",
+        "name": "TAXABLE T1",
+        "price": 50
+      },
+      {
+        "id": "i3",
+        "name": "TAXABLE T1",
+        "price": 50
+      },
+      {
+        "id": "i4",
+        "name": "TAXABLE T1",
+        "price": 50
+      },
+      {
+        "id": "i5",
+        "name": "TAXABLE T1",
+        "price": 50
+      },
+      {
+        "id": "i6",
+        "name": "TAXABLE T1",
+        "price": 789
+      },
+      {
+        "id": "i7",
+        "name": "TAXABLE T1",
+        "price": 309
+      },
+      {
+        "id": "i8",
+        "name": "TAXABLE T1",
+        "price": 549
+      },
+      {
+        "id": "i9",
+        "name": "TAXABLE T1",
+        "price": 549
+      },
+      {
+        "id": "i10",
+        "name": "TAXABLE T1",
+        "price": 99
+      },
+      {
+        "id": "i11",
+        "name": "TAXABLE T1",
+        "price": 99
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 439
+      }
+    ],
+    "subtotal": 4743,
+    "total": 5182
+  }
+}

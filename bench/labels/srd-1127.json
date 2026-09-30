@@ -1,0 +1,54 @@
+{
+  "image": "srd-1127.jpg",
+  "source": "srd",
+  "sourceId": "1127",
+  "region": "US",
+  "sourceSha256": "69aa9b52499d59bc65d416714851d14dce46b935f7e100f0e19b14ba81763342",
+  "tags": [
+    "serviceCharge",
+    "discount"
+  ],
+  "checked": true,
+  "note": "The receipt prints COUPON (F6) as 10.18 with no minus sign. The printed subtotal, 23.50, is after the coupon; the label subtotal is the Items sum, 33.68, and the coupon is a discount Adjustment.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "$FiveLU",
+        "price": 1249
+      },
+      {
+        "id": "i2",
+        "name": "$FiveLU",
+        "price": 769
+      },
+      {
+        "id": "i3",
+        "name": "PiTcher",
+        "price": 1350
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "discount",
+        "name": "COUPON (F6)",
+        "amount": -1018
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service Fee",
+        "amount": 94
+      },
+      {
+        "id": "a3",
+        "kind": "tax",
+        "name": "SALES TAX",
+        "amount": 232
+      }
+    ],
+    "subtotal": 3368,
+    "total": 2676
+  }
+}

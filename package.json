@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
-    "size": "node scripts/size.mjs"
+    "size": "node scripts/size.mjs",
+    "bench": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/score.mjs",
+    "bench:report": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/report.mjs",
+    "bench:fetch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/fetch.mjs"
   },
   "dependencies": {
     "expo": "~57.0.26",

@@ -1,0 +1,47 @@
+{
+  "image": "cord-028.jpg",
+  "source": "cord",
+  "sourceId": "028",
+  "region": "ID",
+  "sourceSha256": "8efb14c4db22648bc784a1ff0176524d58eba89051dfc0743a1a4f9e20222495",
+  "tags": [
+    "serviceCharge",
+    "tax"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "SAMGYOPSAL",
+        "price": 194000
+      },
+      {
+        "id": "i2",
+        "name": "SUL LUNG TANG",
+        "price": 75000
+      },
+      {
+        "id": "i3",
+        "name": "MAKOLI",
+        "price": 100000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 38745
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 18450
+      }
+    ],
+    "subtotal": 369000,
+    "total": 426195
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "image": "srd-1016.jpg",
+  "source": "srd",
+  "sourceId": "1016",
+  "region": "US",
+  "sourceSha256": "0e84ea0dcec6331956977e3109cc517d1e66d139336e55e7ebf9ffde1a496565",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "note": "Zenodo transcription reads the quantity 1 of Hunan Beef as the letter I.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Scallion Pancake",
+        "price": 525
+      },
+      {
+        "id": "i2",
+        "name": "Little Juicy Pork Buns",
+        "price": 995
+      },
+      {
+        "id": "i3",
+        "name": "Beef w Bak Choy (L)",
+        "price": 875
+      },
+      {
+        "id": "i4",
+        "name": "Hunan Beef (L)",
+        "price": 875
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Sales Tax",
+        "amount": 282
+      }
+    ],
+    "subtotal": 3270,
+    "total": 3552
+  }
+}

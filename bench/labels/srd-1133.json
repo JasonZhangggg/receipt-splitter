@@ -1,0 +1,32 @@
+{
+  "image": "srd-1133.jpg",
+  "source": "srd",
+  "sourceId": "1133",
+  "region": "US",
+  "sourceSha256": "e17a736ec40e0039ea479ef1d6e409f2e58bee7024d10f87440c221a3800d0e5",
+  "tags": [
+    "tipBlock",
+    "discount"
+  ],
+  "checked": true,
+  "note": "The 50%OFF BIRTHDAY line, -14.94, prints under the dinner it discounts, so it folds into that Item and the subtotal is the printed 134.46.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "FRI-SUN DINNER $29.88",
+        "price": 13446
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax(9%)",
+        "amount": 1211
+      }
+    ],
+    "subtotal": 13446,
+    "total": 14657
+  }
+}

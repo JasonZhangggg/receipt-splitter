@@ -1,0 +1,36 @@
+{
+  "image": "srd-1033.jpg",
+  "source": "srd",
+  "sourceId": "1033",
+  "region": "US",
+  "sourceSha256": "e7d50ce43c2facc3ed5b58c597720c318ad86e66586e4e1c42885a2cd7642d2e",
+  "tags": [
+    "modifiers",
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Taco Salad",
+        "price": 2448
+      },
+      {
+        "id": "i2",
+        "name": "Pechuga de Pollo",
+        "price": 1899
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 326
+      }
+    ],
+    "subtotal": 4347,
+    "total": 4673
+  }
+}

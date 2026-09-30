@@ -1,0 +1,80 @@
+{
+  "image": "docjay131-065.jpg",
+  "source": "docjay131",
+  "sourceId": "065",
+  "region": "US",
+  "sourceSha256": "e4a0ca3b99ce4eb37685c1aea2f38ca098affbfdb5b2daad38dcb17933396406",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Pimm's Cup",
+        "price": 1400
+      },
+      {
+        "id": "i2",
+        "name": "The Drifter",
+        "price": 2800
+      },
+      {
+        "id": "i3",
+        "name": "Kobe Beef Slider",
+        "price": 1800
+      },
+      {
+        "id": "i4",
+        "name": "New York",
+        "price": 6300
+      },
+      {
+        "id": "i5",
+        "name": "Amer Kobe Filet",
+        "price": 7900
+      },
+      {
+        "id": "i6",
+        "name": "Lobster Tail",
+        "price": 3800
+      },
+      {
+        "id": "i7",
+        "name": "Potato Puree",
+        "price": 1200
+      },
+      {
+        "id": "i8",
+        "name": "Grlld Asparagus",
+        "price": 1300
+      },
+      {
+        "id": "i9",
+        "name": "Peppercorn",
+        "price": 600
+      },
+      {
+        "id": "i10",
+        "name": "Pepsi",
+        "price": 600
+      },
+      {
+        "id": "i11",
+        "name": "Choc Pot De Crem",
+        "price": 1300
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 2349
+      }
+    ],
+    "subtotal": 29000,
+    "total": 31349
+  }
+}

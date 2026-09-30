@@ -1,0 +1,51 @@
+{
+  "image": "srd-1058.jpg",
+  "source": "srd",
+  "sourceId": "1058",
+  "region": "US",
+  "sourceSha256": "b83fd5df95bd60d833504a31fa4edaac8b3de9fd359e380afe2f820ce657b58f",
+  "tags": [
+    "skew",
+    "blur"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Glass Imp Stout",
+        "price": 500
+      },
+      {
+        "id": "i2",
+        "name": "Ashland Amber",
+        "price": 475
+      },
+      {
+        "id": "i3",
+        "name": "Butter Noodles",
+        "price": 700
+      },
+      {
+        "id": "i4",
+        "name": "Oatmeal Stout",
+        "price": 475
+      },
+      {
+        "id": "i5",
+        "name": "Mahi Mahi Taco",
+        "price": 1500
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 110
+      }
+    ],
+    "subtotal": 3650,
+    "total": 3760
+  }
+}

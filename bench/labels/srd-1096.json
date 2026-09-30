@@ -1,0 +1,40 @@
+{
+  "image": "srd-1096.jpg",
+  "source": "srd",
+  "sourceId": "1096",
+  "region": "US",
+  "sourceSha256": "d79e25710a07267f742b414f24fff54c3f1dabfcb4718d8bd17815b3edbcbff0",
+  "tags": [
+    "blur"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Bohemia",
+        "price": 1600
+      },
+      {
+        "id": "i2",
+        "name": "Albondigas",
+        "price": 995
+      },
+      {
+        "id": "i3",
+        "name": "Mole",
+        "price": 1695
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 408
+      }
+    ],
+    "subtotal": 4290,
+    "total": 4698
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "image": "srd-1125.jpg",
+  "source": "srd",
+  "sourceId": "1125",
+  "region": "US",
+  "sourceSha256": "ad1546d9362f0fb069a787055730568b1f2a313034b4fc531b2bdd7e0ed2ab3e",
+  "tags": [
+    "blur"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "6.5 Chicken Korma",
+        "price": 1195
+      },
+      {
+        "id": "i2",
+        "name": "10.1 Naan (Plain Naan",
+        "price": 195
+      },
+      {
+        "id": "i3",
+        "name": "13.1 Kheer",
+        "price": 395
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 125
+      }
+    ],
+    "subtotal": 1785,
+    "total": 1910
+  }
+}

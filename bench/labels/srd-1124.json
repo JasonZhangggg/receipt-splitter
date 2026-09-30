@@ -1,0 +1,65 @@
+{
+  "image": "srd-1124.jpg",
+  "source": "srd",
+  "sourceId": "1124",
+  "region": "US",
+  "sourceSha256": "c7599efb228f69f3acb52d1f0bc29c6b520161ff91cdf4293b62badac3460325",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Malbec Trivento",
+        "price": 800
+      },
+      {
+        "id": "i2",
+        "name": "Blood Orange Marg",
+        "price": 900
+      },
+      {
+        "id": "i3",
+        "name": "Cup Italian Wedding Soup",
+        "price": 295
+      },
+      {
+        "id": "i4",
+        "name": "Spaghetti Marinara",
+        "price": 1795
+      },
+      {
+        "id": "i5",
+        "name": "Fettuccine Alfredo",
+        "price": 2395
+      },
+      {
+        "id": "i6",
+        "name": "Small Wedge Salad (Dinner)",
+        "price": 495
+      },
+      {
+        "id": "i7",
+        "name": "Creme Brulee",
+        "price": 400
+      },
+      {
+        "id": "i8",
+        "name": "Baileys",
+        "price": 700
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 584
+      }
+    ],
+    "subtotal": 7780,
+    "total": 8364
+  }
+}

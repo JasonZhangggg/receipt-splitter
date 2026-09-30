@@ -1,0 +1,51 @@
+{
+  "image": "srd-1169.jpg",
+  "source": "srd",
+  "sourceId": "1169",
+  "region": "US",
+  "sourceSha256": "b8d0242baf10c7e80a0e45b701f671c910a331234b07aa86b010ff19e03abce7",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": true,
+  "note": "Asparagus 2.99 prints indented under Delmonico Steak, so it folds into that Item, although the POS prints 6 Items. Zenodo transcription reads Asparagus and Decaf Coffee as Asparragus and Decaf Coffe.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "No Bev (2 #0.00)",
+        "price": 0
+      },
+      {
+        "id": "i2",
+        "name": "Mozzarella Fritta",
+        "price": 799
+      },
+      {
+        "id": "i3",
+        "name": "Delmonico Steak",
+        "price": 2798
+      },
+      {
+        "id": "i4",
+        "name": "Baked Potato",
+        "price": 399
+      },
+      {
+        "id": "i5",
+        "name": "Decaf Coffee - Unlimited",
+        "price": 299
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 344
+      }
+    ],
+    "subtotal": 4295,
+    "total": 4639
+  }
+}

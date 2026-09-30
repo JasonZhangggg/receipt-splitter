@@ -1,0 +1,47 @@
+{
+  "image": "cord-053.jpg",
+  "source": "cord",
+  "sourceId": "053",
+  "region": "ID",
+  "sourceSha256": "d0436fa901235ca08907c08be178f3a88cad20fee2e9a7356046c6c2e7c4e73d",
+  "tags": [
+    "serviceCharge",
+    "tax"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Pecel Komplit + Nasi",
+        "price": 42000
+      },
+      {
+        "id": "i2",
+        "name": "SOTO KUDUS",
+        "price": 47000
+      },
+      {
+        "id": "i3",
+        "name": "Mineral Water",
+        "price": 18000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 11235
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 5350
+      }
+    ],
+    "subtotal": 107000,
+    "total": 123585
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "image": "srd-1012.jpg",
+  "source": "srd",
+  "sourceId": "1012",
+  "region": "US",
+  "sourceSha256": "f8357018094ede75e8d9061b08f849f989c84562df8450619461d27f9f6a71d6",
+  "tags": [
+    "tipBlock",
+    "serviceCharge"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Pho Ga (Small)",
+        "price": 800
+      },
+      {
+        "id": "i2",
+        "name": "Pho Ga (Large)",
+        "price": 900
+      },
+      {
+        "id": "i3",
+        "name": "Goi Cuon",
+        "price": 525
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "TAX",
+        "amount": 211
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "S. Service Charge 40%",
+        "amount": 890
+      }
+    ],
+    "subtotal": 2225,
+    "total": 3326
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "image": "cord-036.jpg",
+  "source": "cord",
+  "sourceId": "036",
+  "region": "ID",
+  "sourceSha256": "43cb08512efb5f1bff7aa45f8073c278b48f041e19ca115367299bd0a5f40c8b",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "XXL Crispy Chicken",
+        "price": 40000
+      }
+    ],
+    "adjustments": [],
+    "subtotal": 40000,
+    "total": 40000
+  }
+}

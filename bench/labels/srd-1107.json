@@ -1,0 +1,70 @@
+{
+  "image": "srd-1107.jpg",
+  "source": "srd",
+  "sourceId": "1107",
+  "region": "US",
+  "sourceSha256": "9df2e8d64694f34f378524daa36e487a72f8f0a33f929ecdc0f41397759a318c",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Mojito Pitcher Original w/",
+        "price": 1800
+      },
+      {
+        "id": "i2",
+        "name": "Brussel Sprouts",
+        "price": 650
+      },
+      {
+        "id": "i3",
+        "name": "Pepperfin",
+        "price": 1450
+      },
+      {
+        "id": "i4",
+        "name": "Spicy Drm 1 Red",
+        "price": 1450
+      },
+      {
+        "id": "i5",
+        "name": "Aerojet",
+        "price": 1495
+      },
+      {
+        "id": "i6",
+        "name": "Tommy",
+        "price": 1795
+      },
+      {
+        "id": "i7",
+        "name": "Chu Toro",
+        "price": 1900
+      },
+      {
+        "id": "i8",
+        "name": "Daikon Hamachi",
+        "price": 1450
+      },
+      {
+        "id": "i9",
+        "name": "Garlic Salmon",
+        "price": 1400
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 1038
+      }
+    ],
+    "subtotal": 13390,
+    "total": 14428
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "image": "cord-070.jpg",
+  "source": "cord",
+  "sourceId": "070",
+  "region": "ID",
+  "sourceSha256": "1de57c8f4995b822b9ba3ca091dbd16cc1a2496533160b4d6e2fb314d9c461bf",
+  "tags": [
+    "serviceCharge",
+    "tax",
+    "modifiers"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "UDANG RE",
+        "price": 432000
+      },
+      {
+        "id": "i2",
+        "name": "AYM GR JUN NJAN",
+        "price": 108000
+      },
+      {
+        "id": "i3",
+        "name": "SAPO TH SEAFOOD",
+        "price": 172000
+      },
+      {
+        "id": "i4",
+        "name": "POCAI 3",
+        "price": 222000
+      },
+      {
+        "id": "i5",
+        "name": "GURAME FILLET M",
+        "price": 163000
+      },
+      {
+        "id": "i6",
+        "name": "BIHUN GORENG JJ",
+        "price": 116000
+      },
+      {
+        "id": "i7",
+        "name": "ICED TEA",
+        "price": 60000
+      },
+      {
+        "id": "i8",
+        "name": "NASI PUTIH",
+        "price": 70000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 142358
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 80580
+      }
+    ],
+    "subtotal": 1343000,
+    "total": 1565938
+  }
+}

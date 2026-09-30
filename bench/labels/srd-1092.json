@@ -1,0 +1,46 @@
+{
+  "image": "srd-1092.jpg",
+  "source": "srd",
+  "sourceId": "1092",
+  "region": "US",
+  "sourceSha256": "8faeab1e69ce54d75be000653ebbfe82983f5dddd77eb5c11b10b1411622ffd2",
+  "tags": [
+    "tipBlock",
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Sushi Dinner",
+        "price": 1895
+      },
+      {
+        "id": "i2",
+        "name": "Lady Gaga",
+        "price": 1395
+      },
+      {
+        "id": "i3",
+        "name": "Ginger Ale",
+        "price": 200
+      },
+      {
+        "id": "i4",
+        "name": "Fried Cheese Cake",
+        "price": 495
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 345
+      }
+    ],
+    "subtotal": 3985,
+    "total": 4330
+  }
+}

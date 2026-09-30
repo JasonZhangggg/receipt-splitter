@@ -1,0 +1,37 @@
+{
+  "image": "srd-1047.jpg",
+  "source": "srd",
+  "sourceId": "1047",
+  "region": "US",
+  "sourceSha256": "16c08e2de8d3309541e1fd962c626be4e10a66cc1dbe8476455419888b3bbf10",
+  "tags": [
+    "tipBlock",
+    "blur"
+  ],
+  "checked": true,
+  "note": "Zenodo transcription reads the Manhattan price as 48600. The receipt prints 48.00. (3)Makers Mark has no price of its own. Rocks (3 @1.00) 3.00 prints indented under Grey Goose, so it folds into Grey Goose.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Manhattan (3 @16.00)",
+        "price": 4800
+      },
+      {
+        "id": "i2",
+        "name": "Grey Goose (3 @9.50)",
+        "price": 3150
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 557
+      }
+    ],
+    "subtotal": 7950,
+    "total": 8507
+  }
+}

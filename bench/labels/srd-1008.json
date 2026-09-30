@@ -1,0 +1,50 @@
+{
+  "image": "srd-1008.jpg",
+  "source": "srd",
+  "sourceId": "1008",
+  "region": "US",
+  "sourceSha256": "8f04177091a9664989f5eb7905b6c65fae34288bf4af97e0ff180105e4618030",
+  "tags": [
+    "tipBlock"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "CHicharon",
+        "price": 225
+      },
+      {
+        "id": "i2",
+        "name": "Pupusa Queso",
+        "price": 675
+      },
+      {
+        "id": "i3",
+        "name": "Platanos Orden",
+        "price": 775
+      },
+      {
+        "id": "i4",
+        "name": "Diet coke",
+        "price": 150
+      },
+      {
+        "id": "i5",
+        "name": "Quesadilla salvadorena",
+        "price": 400
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "TAX",
+        "amount": 222
+      }
+    ],
+    "subtotal": 2225,
+    "total": 2447
+  }
+}

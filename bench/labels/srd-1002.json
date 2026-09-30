@@ -1,0 +1,36 @@
+{
+  "image": "srd-1002.jpg",
+  "source": "srd",
+  "sourceId": "1002",
+  "region": "US",
+  "sourceSha256": "7d84106e1b46f24b8802becd1f0ee83b34f1cab6bc331bf5caf734b6b1c5142a",
+  "tags": [
+    "modifiers",
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Power Veg Bowl",
+        "price": 499
+      },
+      {
+        "id": "i2",
+        "name": "Rg Orange Crsh Fz",
+        "price": 199
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 63
+      }
+    ],
+    "subtotal": 698,
+    "total": 761
+  }
+}

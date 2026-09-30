@@ -1,0 +1,41 @@
+{
+  "image": "srd-1050.jpg",
+  "source": "srd",
+  "sourceId": "1050",
+  "region": "US",
+  "sourceSha256": "048045ee6247664373788085c332ffa40e81d672314f7a000dfad900ea7fa493",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": true,
+  "note": "Zenodo transcription reads +AMERICAN CHS as 0.75. The receipt prints 1.00. Both modifiers fold into CHEESE STEAK.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "SODA",
+        "price": 249
+      },
+      {
+        "id": "i2",
+        "name": "CHEESE STEAK",
+        "price": 1224
+      },
+      {
+        "id": "i3",
+        "name": "Chix Cheesesteak",
+        "price": 1049
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Food Tax",
+        "amount": 174
+      }
+    ],
+    "subtotal": 2522,
+    "total": 2696
+  }
+}

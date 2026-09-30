@@ -1,0 +1,56 @@
+{
+  "image": "srd-1030.jpg",
+  "source": "srd",
+  "sourceId": "1030",
+  "region": "US",
+  "sourceSha256": "7213aa5b4c3279bc4a2116ca49f88b16a193c70514aec699794a9244b4283642",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "note": "Zenodo transcription reads Coffee as Coffe.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Coffee",
+        "price": 350
+      },
+      {
+        "id": "i2",
+        "name": "Glass House Wine",
+        "price": 995
+      },
+      {
+        "id": "i3",
+        "name": "Jumbo Coctail Shrimp",
+        "price": 1295
+      },
+      {
+        "id": "i4",
+        "name": "Escargot Bourguigonne",
+        "price": 1095
+      },
+      {
+        "id": "i5",
+        "name": "Veal Zingaria",
+        "price": 2395
+      },
+      {
+        "id": "i6",
+        "name": "Duckling ala Arancio",
+        "price": 2595
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax1",
+        "amount": 753
+      }
+    ],
+    "subtotal": 8725,
+    "total": 9478
+  }
+}

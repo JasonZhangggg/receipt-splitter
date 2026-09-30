@@ -1,0 +1,52 @@
+{
+  "image": "srd-1005.jpg",
+  "source": "srd",
+  "sourceId": "1005",
+  "region": "US",
+  "sourceSha256": "2f0faf58ecf84e53801e08119059d83c6df705c3759e21c7a2cf691c8e758d1a",
+  "tags": [
+    "tipBlock",
+    "modifiers"
+  ],
+  "checked": true,
+  "note": "Make It Blue 5.00 and Add Lobster 21.00 print indented under the Ribeye, and Make It Blue 5.00 under the Sirloin, so each folds into the Item above it. Zenodo transcription reads CK Manhattan as CK Manhayyam.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Draft Blackhouse",
+        "price": 700
+      },
+      {
+        "id": "i2",
+        "name": "“Cowboy” 16oz Ribeye",
+        "price": 7100
+      },
+      {
+        "id": "i3",
+        "name": "CK Manhattan (2 @5.00)",
+        "price": 1000
+      },
+      {
+        "id": "i4",
+        "name": "Whistle Pig Rye 10yr (2 @20.00)",
+        "price": 4000
+      },
+      {
+        "id": "i5",
+        "name": "“Duke” 16oz Top Sirloin",
+        "price": 3900
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 1294
+      }
+    ],
+    "subtotal": 16700,
+    "total": 17994
+  }
+}

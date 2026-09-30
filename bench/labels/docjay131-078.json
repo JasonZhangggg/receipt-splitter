@@ -1,0 +1,47 @@
+{
+  "image": "docjay131-078.jpg",
+  "source": "docjay131",
+  "sourceId": "078",
+  "region": "US",
+  "sourceSha256": "8c8e1971ca572c7e7f7515bba9e39e6bc34018c50c33d600c1802d89fe2f3b0d",
+  "tags": [
+    "tipBlock",
+    "modifiers"
+  ],
+  "checked": true,
+  "note": "The receipt prints the subtotal as Amount and the total as Sub-Total. The TIP GUIDE lines are suggestions, not a tip.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Fopcom Chicken",
+        "price": 439
+      },
+      {
+        "id": "i2",
+        "name": "Eraisec Beef flee/Noodle",
+        "price": 675
+      },
+      {
+        "id": "i3",
+        "name": "Cold Noodle With Chicken",
+        "price": 625
+      },
+      {
+        "id": "i4",
+        "name": "Beef Noodles",
+        "price": 795
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 228
+      }
+    ],
+    "subtotal": 2534,
+    "total": 2762
+  }
+}

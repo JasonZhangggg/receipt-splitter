@@ -1,0 +1,70 @@
+{
+  "image": "docjay131-003.jpg",
+  "source": "docjay131",
+  "sourceId": "003",
+  "region": "US",
+  "sourceSha256": "c9e27f5a9ad88e1c39f9a835ee8b1174edaea292413744b6d0211a3c6c39f2a1",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "FF BS BREAST",
+        "price": 2399
+      },
+      {
+        "id": "i2",
+        "name": "KS DICED TOM",
+        "price": 649
+      },
+      {
+        "id": "i3",
+        "name": "JACKORGSALSA",
+        "price": 297
+      },
+      {
+        "id": "i4",
+        "name": "18CT EGGS",
+        "price": 1287
+      },
+      {
+        "id": "i5",
+        "name": "GRAPE TOMATO",
+        "price": 629
+      },
+      {
+        "id": "i6",
+        "name": "ECO HALF PAN",
+        "price": 649
+      },
+      {
+        "id": "i7",
+        "name": "GRND TURKEY",
+        "price": 1847
+      },
+      {
+        "id": "i8",
+        "name": "CHPD ONION",
+        "price": 359
+      },
+      {
+        "id": "i9",
+        "name": "MONT JACK 2#",
+        "price": 445
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 352
+      }
+    ],
+    "subtotal": 8561,
+    "total": 8913
+  }
+}

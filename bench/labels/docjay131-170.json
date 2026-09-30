@@ -1,0 +1,51 @@
+{
+  "image": "docjay131-170.jpg",
+  "source": "docjay131",
+  "sourceId": "170",
+  "region": "US",
+  "sourceSha256": "c69051b8730c6ef3ff819d9da7ebe275e95e583fa32eb8963b2ac38b276187c1",
+  "tags": [
+    "modifiers",
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "#7 2PC R&B MEAL",
+        "price": 599
+      },
+      {
+        "id": "i2",
+        "name": "#3 3WING MEAL",
+        "price": 699
+      },
+      {
+        "id": "i3",
+        "name": "#3 3WING MEAL",
+        "price": 699
+      },
+      {
+        "id": "i4",
+        "name": "#3 3WING MEAL",
+        "price": 699
+      },
+      {
+        "id": "i5",
+        "name": "COLL GRN - SMALL",
+        "price": 119
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 243
+      }
+    ],
+    "subtotal": 2815,
+    "total": 3058
+  }
+}

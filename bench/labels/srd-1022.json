@@ -1,0 +1,37 @@
+{
+  "image": "srd-1022.jpg",
+  "source": "srd",
+  "sourceId": "1022",
+  "region": "US",
+  "sourceSha256": "a58086293a115683a9b8c493bc8c69c38f33123095e2342730825cd37e2c2d7a",
+  "tags": [
+    "serviceCharge"
+  ],
+  "checked": true,
+  "note": "Zenodo transcription reads the WEEKDAY DINNER price as 29.98. The receipt prints 29.88.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "WEEKDAY DINNER",
+        "price": 2988
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "serviceCharge",
+        "name": "15% SERVICE CHARGE",
+        "amount": 448
+      },
+      {
+        "id": "a2",
+        "kind": "tax",
+        "name": "Tax(8.75%)",
+        "amount": 301
+      }
+    ],
+    "subtotal": 2988,
+    "total": 3737
+  }
+}

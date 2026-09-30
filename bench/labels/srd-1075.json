@@ -1,0 +1,36 @@
+{
+  "image": "srd-1075.jpg",
+  "source": "srd",
+  "sourceId": "1075",
+  "region": "US",
+  "sourceSha256": "a1bdd7253ebf3b1a0df4ad42c7038454cecb7f372a70e00f160b994c35294074",
+  "tags": [
+    "skew",
+    "blur"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "FXN DIET BIRCH",
+        "price": 150
+      },
+      {
+        "id": "i2",
+        "name": "FULL BOX",
+        "price": 1200
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "TAX",
+        "amount": 86
+      }
+    ],
+    "subtotal": 1350,
+    "total": 1436
+  }
+}

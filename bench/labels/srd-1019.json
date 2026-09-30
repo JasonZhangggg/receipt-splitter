@@ -1,0 +1,65 @@
+{
+  "image": "srd-1019.jpg",
+  "source": "srd",
+  "sourceId": "1019",
+  "region": "US",
+  "sourceSha256": "f03c793e0839c4c51f5c425441c5e1665ed044603b06263da6db4431ee8a28f6",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Ultra",
+        "price": 250
+      },
+      {
+        "id": "i2",
+        "name": "Bells Draft",
+        "price": 500
+      },
+      {
+        "id": "i3",
+        "name": "Cheese Bread",
+        "price": 600
+      },
+      {
+        "id": "i4",
+        "name": "APPS OUT FIRST",
+        "price": 0
+      },
+      {
+        "id": "i5",
+        "name": "Caprese",
+        "price": 700
+      },
+      {
+        "id": "i6",
+        "name": "SALAD OUT FIRST",
+        "price": 0
+      },
+      {
+        "id": "i7",
+        "name": "Reg Carnivore (s)",
+        "price": 1250
+      },
+      {
+        "id": "i8",
+        "name": "Reg Marguerita (s)",
+        "price": 1000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax 1",
+        "amount": 258
+      }
+    ],
+    "subtotal": 4300,
+    "total": 4558
+  }
+}

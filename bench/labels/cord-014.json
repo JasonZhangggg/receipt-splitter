@@ -1,0 +1,62 @@
+{
+  "image": "cord-014.jpg",
+  "source": "cord",
+  "sourceId": "014",
+  "region": "ID",
+  "sourceSha256": "ea8f1c932350e1e2d5182a9dad4ed0fdadf2fe4d88703ee1d4ce20ecf9933067",
+  "tags": [
+    "serviceCharge",
+    "tax"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "RedVelvet Cheese Slc",
+        "price": 38000
+      },
+      {
+        "id": "i2",
+        "name": "Chicken Baked Rice",
+        "price": 55000
+      },
+      {
+        "id": "i3",
+        "name": "Fish n Chips",
+        "price": 65000
+      },
+      {
+        "id": "i4",
+        "name": "Mushroom Soup",
+        "price": 35000
+      },
+      {
+        "id": "i5",
+        "name": "Chamomile",
+        "price": 25000
+      },
+      {
+        "id": "i6",
+        "name": "Iced Tea",
+        "price": 20000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 25585
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 17850
+      }
+    ],
+    "subtotal": 238000,
+    "total": 281435
+  }
+}

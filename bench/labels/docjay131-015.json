@@ -1,0 +1,41 @@
+{
+  "image": "docjay131-015.jpg",
+  "source": "docjay131",
+  "sourceId": "015",
+  "region": "US",
+  "sourceSha256": "98d9bb043d11de8baac507322710c14f8e896f5c2285393f00db79061b87ef93",
+  "tags": [
+    "handwritten"
+  ],
+  "checked": true,
+  "note": "The receipt prints a Bar Subtotal of 14.00 and a Food Subtotal of 37.90, so the label subtotal is their sum, 51.90. The printed total is $56.38, circled by hand.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Red Sangria Glass",
+        "price": 1400
+      },
+      {
+        "id": "i2",
+        "name": "#4-COMBO FAJITAS",
+        "price": 2295
+      },
+      {
+        "id": "i3",
+        "name": "#34-BURRITO SUPREME w/ Beef",
+        "price": 1495
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 448
+      }
+    ],
+    "subtotal": 5190,
+    "total": 5638
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "image": "srd-1137.jpg",
+  "source": "srd",
+  "sourceId": "1137",
+  "region": "US",
+  "sourceSha256": "4b2a38da0f77615356046ab1679ca8e7ebfb6fdf4bcfc38de12e9156a2851933",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Salmon Plate",
+        "price": 1149
+      },
+      {
+        "id": "i2",
+        "name": "Extra Shrimp",
+        "price": 145
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax 1",
+        "amount": 123
+      }
+    ],
+    "subtotal": 1294,
+    "total": 1417
+  }
+}

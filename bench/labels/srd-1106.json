@@ -1,0 +1,56 @@
+{
+  "image": "srd-1106.jpg",
+  "source": "srd",
+  "sourceId": "1106",
+  "region": "US",
+  "sourceSha256": "47551480a03734efaadd816feebb145a51d7443501e24b5ecf0c84e08fc6eb44",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "note": "The receipt wraps two Item names onto a second line. The label joins them.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Spicy Chicken w. Spicy Garlic Soy V.",
+        "price": 795
+      },
+      {
+        "id": "i2",
+        "name": "Hf- Peking Duck",
+        "price": 1895
+      },
+      {
+        "id": "i3",
+        "name": "Stir Beef Fillet w. Tofu",
+        "price": 1595
+      },
+      {
+        "id": "i4",
+        "name": "Pork w. Spicy Capsicum",
+        "price": 1295
+      },
+      {
+        "id": "i5",
+        "name": "White Rice (S)",
+        "price": 150
+      },
+      {
+        "id": "i6",
+        "name": "Pork w. Spicy Tofu & Cayenne Chili",
+        "price": 1295
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Sales Tax",
+        "amount": 490
+      }
+    ],
+    "subtotal": 7025,
+    "total": 7515
+  }
+}

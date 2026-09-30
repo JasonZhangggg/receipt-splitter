@@ -1,0 +1,60 @@
+{
+  "image": "docjay131-168.jpg",
+  "source": "docjay131",
+  "sourceId": "168",
+  "region": "US",
+  "sourceSha256": "bafbf3fb541502a2368a609bcf1471ccef0fff2470a0e7232b9f8dc54e7a1769",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Arthur's Burger *ChsBleu",
+        "price": 1395
+      },
+      {
+        "id": "i2",
+        "name": "\"Our\" Burger **Avocado",
+        "price": 1595
+      },
+      {
+        "id": "i3",
+        "name": "Loaded Nachos",
+        "price": 1295
+      },
+      {
+        "id": "i4",
+        "name": "Pint Boston Lager",
+        "price": 600
+      },
+      {
+        "id": "i5",
+        "name": "Pint Yeungling",
+        "price": 1200
+      },
+      {
+        "id": "i6",
+        "name": "Kona Longboard",
+        "price": 600
+      },
+      {
+        "id": "i7",
+        "name": "Quesadilla",
+        "price": 1395
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 398
+      }
+    ],
+    "subtotal": 8080,
+    "total": 8478
+  }
+}

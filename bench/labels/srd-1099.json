@@ -1,0 +1,57 @@
+{
+  "image": "srd-1099.jpg",
+  "source": "srd",
+  "sourceId": "1099",
+  "region": "US",
+  "sourceSha256": "36b005aa17a425ea8a990626856fb39ff77675f46de3392edc9dfc5c62706e82",
+  "tags": [
+    "tip",
+    "modifiers"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Coffee",
+        "price": 325
+      },
+      {
+        "id": "i2",
+        "name": "Enmoladas with Meat",
+        "price": 1495
+      },
+      {
+        "id": "i3",
+        "name": "Chicken Tenders",
+        "price": 595
+      },
+      {
+        "id": "i4",
+        "name": "Flautas Chicken",
+        "price": 995
+      },
+      {
+        "id": "i5",
+        "name": "Coloradito",
+        "price": 1595
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 546
+      },
+      {
+        "id": "a2",
+        "kind": "tip",
+        "name": "Gratuity 18.00%",
+        "amount": 901
+      }
+    ],
+    "subtotal": 5005,
+    "total": 6452
+  }
+}

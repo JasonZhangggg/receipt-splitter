@@ -1,0 +1,47 @@
+{
+  "image": "cord-098.jpg",
+  "source": "cord",
+  "sourceId": "098",
+  "region": "ID",
+  "sourceSha256": "1eb00d07f5ebccc6ebe509fc7192401111af6de86c144ab3dfb631905b97847b",
+  "tags": [
+    "serviceCharge",
+    "tax"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "BLACK PAPPER MEATBALL PAS",
+        "price": 79000
+      },
+      {
+        "id": "i2",
+        "name": "TRUFFLE CREAM",
+        "price": 77000
+      },
+      {
+        "id": "i3",
+        "name": "EARL GREY MILK TEA",
+        "price": 59000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 22790
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 12900
+      }
+    ],
+    "subtotal": 215000,
+    "total": 250690
+  }
+}

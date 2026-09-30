@@ -1,0 +1,31 @@
+{
+  "image": "docjay131-148.jpg",
+  "source": "docjay131",
+  "sourceId": "148",
+  "region": "US",
+  "sourceSha256": "e35d6784c43aad5565dc3d2df2f4186c50fb092cb8013510c66f7a8003c9192f",
+  "tags": [
+    "modifiers",
+    "signatureSlip"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Dbl Qtr Cheese",
+        "price": 664
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 63
+      }
+    ],
+    "subtotal": 664,
+    "total": 727
+  }
+}

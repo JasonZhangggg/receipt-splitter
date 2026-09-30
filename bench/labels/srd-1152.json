@@ -1,0 +1,46 @@
+{
+  "image": "srd-1152.jpg",
+  "source": "srd",
+  "sourceId": "1152",
+  "region": "US",
+  "sourceSha256": "2a2d9b4a31c01832d10e19e2de1794fba9c18beb2d376f8916cae366d6bcde9d",
+  "tags": [
+    "serviceCharge"
+  ],
+  "checked": true,
+  "note": "Zenodo transcription puts each unit price inside the Item name. The label drops it.",
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Chicken Fingers",
+        "price": 800
+      },
+      {
+        "id": "i2",
+        "name": "Spicy Shrimp",
+        "price": 2000
+      },
+      {
+        "id": "i3",
+        "name": "Steamed Fish Lg",
+        "price": 2500
+      },
+      {
+        "id": "i4",
+        "name": "Bottled Water",
+        "price": 400
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "serviceCharge",
+        "name": "Service Charge 10%",
+        "amount": 570
+      }
+    ],
+    "subtotal": 5700,
+    "total": 6270
+  }
+}

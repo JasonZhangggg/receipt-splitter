@@ -1,0 +1,55 @@
+{
+  "image": "docjay131-111.jpg",
+  "source": "docjay131",
+  "sourceId": "111",
+  "region": "US",
+  "sourceSha256": "880b5b325efcf7ed38f8a9b82ef1b7aae2a8436eddc9c39a3aba7a3ab3fef711",
+  "tags": [
+    "skew"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "EQUATE LINER",
+        "price": 388
+      },
+      {
+        "id": "i2",
+        "name": "VFUS ENG POM",
+        "price": 748
+      },
+      {
+        "id": "i3",
+        "name": "DAWN ORIG",
+        "price": 597
+      },
+      {
+        "id": "i4",
+        "name": "50YD PKGTAPE",
+        "price": 112
+      },
+      {
+        "id": "i5",
+        "name": "50YD PKGTAPE",
+        "price": 112
+      },
+      {
+        "id": "i6",
+        "name": "LINT ROLLER2",
+        "price": 578
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 125
+      }
+    ],
+    "subtotal": 2535,
+    "total": 2660
+  }
+}

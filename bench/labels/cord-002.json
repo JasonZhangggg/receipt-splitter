@@ -1,0 +1,23 @@
+{
+  "image": "cord-002.jpg",
+  "source": "cord",
+  "sourceId": "002",
+  "region": "ID",
+  "sourceSha256": "bcf0c175181bfc6b2352ab8f452704b8f18e27fa51f2278bc5c41f6765179edb",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "JASMINE MT ( L )",
+        "price": 28000
+      }
+    ],
+    "adjustments": [],
+    "subtotal": 28000,
+    "total": 28000
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "image": "docjay131-147.jpg",
+  "source": "docjay131",
+  "sourceId": "147",
+  "region": "US",
+  "sourceSha256": "ed5a1c4371e85c111e816afb650a655448ff733957b4e8bf9c94118e6b611f69",
+  "tags": [
+    "blur"
+  ],
+  "checked": true,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "BANANAS",
+        "price": 95
+      },
+      {
+        "id": "i2",
+        "name": "BEVERAGE",
+        "price": 200
+      },
+      {
+        "id": "i3",
+        "name": "OS CRAN POM",
+        "price": 200
+      },
+      {
+        "id": "i4",
+        "name": "STRWBRY CC",
+        "price": 96
+      },
+      {
+        "id": "i5",
+        "name": "CAMPARI TOM",
+        "price": 298
+      },
+      {
+        "id": "i6",
+        "name": "KFT SINGLES",
+        "price": 378
+      },
+      {
+        "id": "i7",
+        "name": "44500982114",
+        "price": 398
+      },
+      {
+        "id": "i8",
+        "name": "HARD SALAMI",
+        "price": 343
+      },
+      {
+        "id": "i9",
+        "name": "AVOCADO",
+        "price": 176
+      },
+      {
+        "id": "i10",
+        "name": "PILLS WHITE",
+        "price": 100
+      },
+      {
+        "id": "i11",
+        "name": "SH NYLON COL",
+        "price": 297
+      },
+      {
+        "id": "i12",
+        "name": "HAND CLEANER",
+        "price": 167
+      },
+      {
+        "id": "i13",
+        "name": "INJECTR CLNR",
+        "price": 887
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 233
+      }
+    ],
+    "subtotal": 3635,
+    "total": 3868
+  }
+}
