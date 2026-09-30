@@ -1,7 +1,9 @@
 import { router } from "expo-router";
+import { useEffect } from "react";
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { prefetchModel } from "../src/ocr";
 import { Button } from "../src/ui/components/button";
 import { ListRow } from "../src/ui/components/list-row";
 import { MoneyText } from "../src/ui/components/money-text";
@@ -14,6 +16,7 @@ export default function Home() {
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  useEffect(prefetchModel, []);
   const showBar = width < breakpoints.bottomBarBelow;
   const wide = width >= breakpoints.twoColumnsFrom;
   const headlineStyle = headlineType(wide, width);
