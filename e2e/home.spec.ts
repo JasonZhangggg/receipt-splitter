@@ -330,6 +330,7 @@ async function pressAndHold(page: Page, name: string) {
     type: "touchStart",
     touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
   });
+  return cdp;
 }
 
 const pressLook = (page: Page) =>
@@ -367,7 +368,7 @@ test("a press shows on touch-down without waiting on a timer", async ({ page }) 
 
 type PressTiming = { shows: number; pressIn: number; delay: number };
 
-async function timePress(page: Page, startEvent: "touchstart" | "mousedown" | "pointerdown", press: () => Promise<void>) {
+async function timePress(page: Page, startEvent: "touchstart" | "mousedown" | "pointerdown", press: () => Promise<unknown>) {
   await page.evaluate(
     ([name, type]) => {
       const button = [...document.querySelectorAll('[role="button"]')].find((el) => el.textContent === name)!;
@@ -488,6 +489,131 @@ test("a right-button press during a held mouse press lets the press go", async (
   await page.mouse.up({ button: "right" });
   await page.mouse.up();
   await context.close();
+});
+
+type At = { x: number; y: number };
+type MouseInput = { button?: "left" | "middle" | "right"; buttons: number; modifiers?: number };
+
+const glide = (from: At, to: At) => [1, 2, 3, 4, 5, 6].map((step) => ({ x: from.x + ((to.x - from.x) * step) / 6, y: from.y + ((to.y - from.y) * step) / 6 }));
+
+async function desktopScanPress(browser: Browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 500 }, hasTouch: false, isMobile: false });
+  const page = await context.newPage();
+  await watchScanPress(page);
+  const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
+  const on = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const cdp = await context.newCDPSession(page);
+  const mouse = (type: "mouseMoved" | "mousePressed" | "mouseReleased", at: At, { button, buttons, modifiers = 0 }: MouseInput) =>
+    cdp.send("Input.dispatchMouseEvent", { type, ...at, button: button ?? "none", buttons, modifiers, clickCount: 1 });
+  const move = async (from: At, to: At, input: MouseInput) => {
+    for (const at of glide(from, to)) {
+      await mouse("mouseMoved", at, input);
+      await page.waitForTimeout(16);
+    }
+  };
+  const clearLog = () => page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { clicks: 0, frames: [] }));
+  const readLog = () => page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+  const pressedFrames = async () => (await readLog()).frames.filter((frame) => frame.pressed).length;
+  return { context, page, cdp, on, off: { x: on.x, y: box.y - 80 }, mouse, move, clearLog, readLog, pressedFrames };
+}
+
+const refusedPresses = [
+  { press: "an Alt-held left press", button: "left", buttons: 1, modifiers: 1 },
+  { press: "a Control-held left press", button: "left", buttons: 1, modifiers: 2 },
+  { press: "a middle-button press", button: "middle", buttons: 4, modifiers: 0 },
+] as const;
+
+for (const { press, button, buttons, modifiers } of refusedPresses) {
+  test(`${press} dragged off the inline action draws no press, then or on a hover back`, async ({ browser }) => {
+    const { context, page, on, off, mouse, move, clearLog, pressedFrames } = await desktopScanPress(browser);
+    await mouse("mouseMoved", on, { buttons: 0 });
+    await clearLog();
+    await mouse("mousePressed", on, { button, buttons, modifiers });
+    await page.waitForTimeout(100);
+    await move(on, off, { buttons, modifiers });
+    await mouse("mouseReleased", off, { button, buttons: 0, modifiers });
+    await move(off, on, { buttons: 0 });
+    await page.waitForTimeout(300);
+    expect(await pressedFrames(), "pressed frames from the press through the hover back").toBe(0);
+    await context.close();
+  });
+}
+
+test("a left press while the right button is held shows the press and activates the inline action once", async ({ browser }) => {
+  const { context, page, on, mouse, clearLog, readLog } = await desktopScanPress(browser);
+  await mouse("mouseMoved", on, { buttons: 0 });
+  await mouse("mousePressed", on, { button: "right", buttons: 2 });
+  await clearLog();
+  await mouse("mousePressed", on, { button: "left", buttons: 3 });
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await mouse("mouseReleased", on, { button: "left", buttons: 2 });
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  await mouse("mouseReleased", on, { button: "right", buttons: 0 });
+  expect((await readLog()).clicks).toBe(1);
+  await context.close();
+});
+
+test("a wheel scroll during a held mouse press lets the press go, and a drag off and back draws nothing", async ({ browser }) => {
+  const { context, page, cdp, on, off, mouse, move, clearLog, readLog, pressedFrames } = await desktopScanPress(browser);
+  await mouse("mouseMoved", on, { buttons: 0 });
+  await mouse("mousePressed", on, { button: "left", buttons: 1 });
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...on, deltaX: 0, deltaY: 20, buttons: 1 });
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  expect((await readLog()).scrolled, "the page scrolled under the held press").toBeGreaterThan(0);
+  await clearLog();
+  await move(on, off, { buttons: 1 });
+  await mouse("mouseReleased", off, { button: "left", buttons: 0 });
+  await move(off, on, { buttons: 0 });
+  await page.waitForTimeout(300);
+  expect(await pressedFrames(), "pressed frames after the scroll").toBe(0);
+  await context.close();
+});
+
+test("selecting the page text during a held mouse press lets the press go", async ({ browser }) => {
+  const { context, page, on, mouse, clearLog, pressedFrames } = await desktopScanPress(browser);
+  await mouse("mouseMoved", on, { buttons: 0 });
+  await mouse("mousePressed", on, { button: "left", buttons: 1 });
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await page.keyboard.press("ControlOrMeta+a");
+  expect(await page.evaluate(() => getSelection()!.toString().length), "selected text").toBeGreaterThan(0);
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  await clearLog();
+  await page.waitForTimeout(200);
+  await mouse("mouseReleased", on, { button: "left", buttons: 0 });
+  await page.waitForTimeout(300);
+  expect(await pressedFrames(), "pressed frames after the selection").toBe(0);
+  await context.close();
+});
+
+test("a mouse passing over the inline action leaves a held Space press pressed", async ({ browser }) => {
+  const { context, page, on, off, mouse, move, clearLog, readLog } = await desktopScanPress(browser);
+  await mouse("mouseMoved", on, { buttons: 0 });
+  await mouse("mousePressed", on, { button: "left", buttons: 1 });
+  await mouse("mouseReleased", on, { button: "left", buttons: 0 });
+  await move(on, off, { buttons: 0 });
+  await page.getByRole("button", { name: "Scan or upload a receipt" }).focus();
+  await page.keyboard.down(" ");
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await clearLog();
+  await move(off, on, { buttons: 0 });
+  await move(on, off, { buttons: 0 });
+  await page.waitForTimeout(300);
+  const frames = (await readLog()).frames.map((frame) => frame.pressed);
+  await page.keyboard.up(" ");
+  expect(frames.length, "frames sampled while Space was held").toBeGreaterThan(20);
+  expect(frames.filter((pressed) => !pressed)).toEqual([]);
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  await context.close();
+});
+
+test("a cancelled touch lets the bar action's press go", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const cdp = await pressAndHold(page, "Scan or upload a receipt");
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
 });
 
 test("a second finger or a passing mouse on the inline action leaves a held touch pressed", async ({ page }) => {
@@ -648,7 +774,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
       await page.waitForTimeout(400);
       const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
       const lastPressed = (log.frames.filter((frame) => frame.pressed).at(-1)?.at ?? log.end) - log.end;
-      taps[hold] = { heldAfterRelease: lastPressed >= pressOut + 70, restsInTime: lastPressed < pressOut + 250 && isRest(await pressLook(page)) };
+      taps[hold] = { heldAfterRelease: lastPressed >= pressOut + 70, restsInTime: lastPressed < pressOut + 180 && isRest(await pressLook(page)) };
     }
     const both = { heldAfterRelease: true, restsInTime: true };
     expect(taps).toEqual({ 60: both, 100: both, 140: both });
@@ -674,6 +800,11 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await scan.blur();
     await expect.poll(() => pressLook(page)).toEqual(restLook);
     await page.keyboard.up(" ");
+    await scan.focus();
+    await page.keyboard.down(" ");
+    await expect.poll(() => pressLook(page), "a Space press after the blurred one").toEqual(pressedLook(reducedMotion));
+    await page.keyboard.up(" ");
+    await expect.poll(() => pressLook(page)).toEqual(restLook);
     expect(seen, "navigation stays stopped").toEqual({ " ": "/", Enter: "/" });
   });
 
