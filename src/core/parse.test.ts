@@ -129,6 +129,19 @@ describe("parseSplit", () => {
     expect(parseSplit(withPitcherClaimers(["bob", "ann"]))).toEqual(malformed);
     expect(parseSplit(withPitcherClaimers(["ann", "ann", "bob"]))).toEqual(malformed);
   });
+
+  test("refuses a stored Split whose Host or another Participant has a name the Names rules refuse", () => {
+    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const [host, bob] = stored.participants;
+    const named = (hostName: string, bobName: string) => parseSplit({ ...stored, participants: [{ ...host, name: hostName }, { ...bob, name: bobName }] });
+    const badName = { ok: false, rejection: { reason: "badName" } };
+
+    expect(named("\u202E", "Bob")).toEqual(badName);
+    expect(named("", "Bob")).toEqual(badName);
+    expect(named("Ann", "\u202E")).toEqual(badName);
+    expect(named("Ann", "   ")).toEqual(badName);
+    expect(named("Ann", "b".repeat(41))).toEqual(badName);
+  });
 });
 
 describe("parseSplit bounds", () => {
@@ -270,6 +283,15 @@ describe("parseNewSplit", () => {
     expect(
       parseNewSplit({ ...body, receipt: { ...body.receipt, items: [{ ...body.receipt.items[0], claimedBy: ["ann"] }, body.receipt.items[1]] } }, minted),
     ).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].claimedBy" } });
+  });
+
+  test("refuses a Host named with a bidi override or left blank", () => {
+    const hosted = (name: string) => parseNewSplit({ ...body, host: { id: "ann", name } }, minted);
+    const badName = { ok: false, rejection: { reason: "badName" } };
+
+    expect(hosted("\u202E")).toEqual(badName);
+    expect(hosted("")).toEqual(badName);
+    expect(hosted("   ")).toEqual(badName);
   });
 
   test("refuses a Receipt that fails the Total check, as parseSplit does", () => {
