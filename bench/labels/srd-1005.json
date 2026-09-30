@@ -9,6 +9,7 @@
     "modifiers"
   ],
   "checked": false,
+  "note": "Make It Blue 5.00 and Add Lobster 21.00 print indented under the Ribeye, and Make It Blue 5.00 under the Sirloin, so each folds into the Item above it. Zenodo transcription reads CK Manhattan as CK Manhayyam.",
   "receipt": {
     "items": [
       {
@@ -18,33 +19,23 @@
       },
       {
         "id": "i2",
-        "name": "\u201cCowboy\u201d 16oz Ribeye",
-        "price": 4500
+        "name": "“Cowboy” 16oz Ribeye",
+        "price": 7100
       },
       {
         "id": "i3",
-        "name": "Make It Blue",
-        "price": 2600
-      },
-      {
-        "id": "i4",
-        "name": "CK Manhayyam (2 @5.00)",
+        "name": "CK Manhattan (2 @5.00)",
         "price": 1000
       },
       {
-        "id": "i5",
+        "id": "i4",
         "name": "Whistle Pig Rye 10yr (2 @20.00)",
         "price": 4000
       },
       {
-        "id": "i6",
-        "name": "\u201cDuke\u201d 16oz Top Sirloin",
-        "price": 3400
-      },
-      {
-        "id": "i7",
-        "name": "Make It Blue",
-        "price": 500
+        "id": "i5",
+        "name": "“Duke” 16oz Top Sirloin",
+        "price": 3900
       }
     ],
     "adjustments": [

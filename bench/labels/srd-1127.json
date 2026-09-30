@@ -9,21 +9,22 @@
     "discount"
   ],
   "checked": false,
+  "note": "The receipt prints COUPON (F6) as 10.18 with no minus sign. The printed subtotal, 23.50, is after the coupon; the label subtotal is the Items sum, 33.68, and the coupon is a discount Adjustment.",
   "receipt": {
     "items": [
       {
         "id": "i1",
-        "name": "1 $FiveLU",
+        "name": "$FiveLU",
         "price": 1249
       },
       {
         "id": "i2",
-        "name": "1 $FiveLU",
+        "name": "$FiveLU",
         "price": 769
       },
       {
         "id": "i3",
-        "name": "1 PiTcher",
+        "name": "PiTcher",
         "price": 1350
       }
     ],

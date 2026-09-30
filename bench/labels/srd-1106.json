@@ -8,11 +8,12 @@
     "skew"
   ],
   "checked": false,
+  "note": "The receipt wraps two Item names onto a second line. The label joins them.",
   "receipt": {
     "items": [
       {
         "id": "i1",
-        "name": "Spicy Chicken w. Spicy Garli",
+        "name": "Spicy Chicken w. Spicy Garlic Soy V.",
         "price": 795
       },
       {
@@ -37,7 +38,7 @@
       },
       {
         "id": "i6",
-        "name": "Pork w. Spicy Tofu & Cayen",
+        "name": "Pork w. Spicy Tofu & Cayenne Chili",
         "price": 1295
       }
     ],

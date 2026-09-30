@@ -8,26 +8,27 @@
     "serviceCharge"
   ],
   "checked": false,
+  "note": "Zenodo transcription puts each unit price inside the Item name. The label drops it.",
   "receipt": {
     "items": [
       {
         "id": "i1",
-        "name": "Chicken Fingers 8.00",
+        "name": "Chicken Fingers",
         "price": 800
       },
       {
         "id": "i2",
-        "name": "Spicy Shrimp 20.00",
+        "name": "Spicy Shrimp",
         "price": 2000
       },
       {
         "id": "i3",
-        "name": "Steamed Fish Lg 25.00",
+        "name": "Steamed Fish Lg",
         "price": 2500
       },
       {
         "id": "i4",
-        "name": "Bottled Water 2.00",
+        "name": "Bottled Water",
         "price": 400
       }
     ],
