@@ -8,7 +8,7 @@ const MAX_MESSAGE_BYTES = 40 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPLIT_TTL_MS = 60 * DAY_MS;
 const EXPIRY_RETRY_MS = DAY_MS;
-const MAX_RATE_LIMITED_IN_A_ROW = 100;
+const MAX_EARLY_FRAMES = 100;
 const HEARTBEAT = { ping: "ping", pong: "pong" } as const;
 
 const SECRET_BYTES = 32;
@@ -31,6 +31,8 @@ type Frame =
   | { readonly ok: true; readonly ref: string; readonly op: Operation; readonly creatorSecret: string | undefined }
   | { readonly ok: false; readonly ref: string | null; readonly rejection: WireRejection };
 
+type Pacing = { readonly retryAt: number; readonly early: number };
+
 type Row = { json: string; changed_at: number; creator_secret: ArrayBuffer; bytes: number };
 
 export class SplitServer extends Server<Cloudflare.Env> {
@@ -38,7 +40,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
 
   #stored: Stored = { kind: "missing" };
   #bucket: Bucket | null = null;
-  #rateLimitedInARow = new Map<string, number>();
+  #pacing = new Map<string, Pacing>();
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -78,21 +80,14 @@ export class SplitServer extends Server<Cloudflare.Env> {
   }
 
   onMessage(connection: Connection, message: string | ArrayBuffer): void {
+    if (connection.readyState !== WebSocket.READY_STATE_OPEN) return;
     const stored = this.#stored;
     if (stored.kind !== "live") return endConnection(connection, stored);
     const now = Date.now();
     const admission = takeToken(this.#bucket, now, OPERATION_LIMIT);
     this.#bucket = admission.state;
-    if (!admission.ok) {
-      const refusals = (this.#rateLimitedInARow.get(connection.id) ?? 0) + 1;
-      this.#rateLimitedInARow.set(connection.id, refusals);
-      send(connection, { type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs: admission.retryAfterMs } });
-      if (refusals < MAX_RATE_LIMITED_IN_A_ROW) return;
-      this.#rateLimitedInARow.delete(connection.id);
-      connection.close(1008, "rateLimited");
-      return;
-    }
-    this.#rateLimitedInARow.delete(connection.id);
+    if (!admission.ok) return this.#refuse(connection, now, admission.retryAfterMs);
+    this.#pacing.delete(connection.id);
     const frame = readFrame(message);
     if (!frame.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: frame.rejection });
     const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) });
@@ -106,7 +101,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
   }
 
   onClose(connection: Connection): void {
-    this.#rateLimitedInARow.delete(connection.id);
+    this.#pacing.delete(connection.id);
   }
 
   async onAlarm(): Promise<void> {
@@ -122,6 +117,18 @@ export class SplitServer extends Server<Cloudflare.Env> {
     }
     await this.ctx.storage.setAlarm(Date.now() + EXPIRY_RETRY_MS);
     await this.ctx.storage.deleteAll();
+  }
+
+  #refuse(connection: Connection, now: number, retryAfterMs: number): void {
+    send(connection, { type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs } });
+    const pacing = this.#pacing.get(connection.id);
+    const early = pacing === undefined ? 0 : pacing.early + (now < pacing.retryAt ? 1 : 0);
+    if (early < MAX_EARLY_FRAMES) {
+      this.#pacing.set(connection.id, { retryAt: now + retryAfterMs, early });
+      return;
+    }
+    this.#pacing.delete(connection.id);
+    connection.close(1008, "rateLimited");
   }
 
   #load(): Stored {

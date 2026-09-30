@@ -398,24 +398,105 @@ describe("refusals leave the stored Split unchanged", () => {
     vi.setSystemTime(T0 + 1050);
     expect(await burst(21)).toBe(20);
   });
+});
 
-  it("closes a socket after 100 rate-limited frames in a row and keeps serving others", async () => {
+describe("closing flooding sockets", () => {
+  const toggle = (ref: string, claimed: boolean): ClientMessage =>
+    JSON.parse(JSON.stringify({ ref, op: { type: claimed ? "claim" : "unclaim", by: "ann", itemId: "fries", participantId: "ann" } }));
+
+  it("keeps a socket open past 100 early frames in total when admitted frames split them", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    let limited = 0;
+    for (let round = 0; round < 3; round += 1) {
+      vi.setSystemTime(T0 + round * 1000);
+      for (let index = 0; index < 80; index += 1) a.client.send(claim(`q${round}-${index}`, "fries"));
+      for (let index = 0; index < 80; index += 1) {
+        const reply = await a.client.next();
+        if (reply.type === "rejected" && reply.rejection.reason === "rateLimited") limited += 1;
+      }
+    }
+    expect(limited).toBe(140);
+    a.client.send("ping");
+    expect(await a.client.nextRaw()).toBe("pong");
+  });
+
+  it("closes a flooder with 1008 and never closes a client beside it that waits retryAfterMs", async () => {
+    const { id } = await createSplit();
+    const taker = await open(id);
+    const honest = await open(id);
+    const flooder = await open(id);
+    for (let index = 0; index < 60; index += 1) taker.client.send(claim(`t${index}`, "fries"));
+    for (let index = 0; index < 60; index += 1) await taker.client.next();
+    await honest.client.next();
+    await flooder.client.next();
+
+    let now = T0;
+    let flooderRefusals = 0;
+    for (let round = 0; round < 150; round += 1) {
+      honest.client.send(claim(`h${round}`, "fries"));
+      const reply = await honest.client.next();
+      if (reply.type !== "rejected" || reply.rejection.reason !== "rateLimited") throw new Error(JSON.stringify(reply));
+      if (round < 25) {
+        for (let index = 0; index < 5; index += 1) flooder.client.send(claim(`f${round}-${index}`, "fries"));
+        for (let index = 0; index < 5; index += 1) if ((await flooder.client.next()).type === "rejected") flooderRefusals += 1;
+      }
+      now += reply.rejection.retryAfterMs;
+      vi.setSystemTime(now);
+      taker.client.send(claim(`x${round}`, "fries"));
+      expect(await taker.client.next()).toMatchObject({ type: "unchanged" });
+    }
+
+    expect(flooderRefusals).toBe(125);
+    expect(await flooder.client.closed).toEqual({ code: 1008, reason: "rateLimited" });
+    honest.client.send("ping");
+    expect(await honest.client.nextRaw()).toBe("pong");
+  });
+
+  it("closes a socket after 100 frames sent before its retryAfterMs and keeps serving others", async () => {
     const { id } = await createSplit();
     const flooder = await open(id);
     const neighbour = await open(id);
-    for (let index = 0; index < 160; index += 1) flooder.client.send(claim(`f${index}`, "fries"));
+    for (let index = 0; index < 161; index += 1) flooder.client.send(claim(`f${index}`, "fries"));
     const limited: ServerMessage[] = [];
-    for (let index = 0; index < 160; index += 1) {
+    for (let index = 0; index < 161; index += 1) {
       const reply = await flooder.client.next();
       if (reply.type === "rejected") limited.push(reply);
     }
-    expect(limited).toHaveLength(100);
-    expect(await flooder.client.closed).toMatchObject({ code: 1008 });
+    expect(limited).toHaveLength(101);
+    expect(await flooder.client.closed).toEqual({ code: 1008, reason: "rateLimited" });
 
     vi.setSystemTime(T0 + 1000);
     await neighbour.client.next();
     neighbour.client.send(claim("n1", "pitcher"));
     expect(await neighbour.client.next()).toMatchObject({ type: "state", ref: "n1" });
+  });
+
+  it("ignores frames that arrive after the flood close and logs no errors", async () => {
+    const errors = vi.spyOn(console, "error");
+    const { id } = await createSplit();
+    const flooder = await open(id);
+    const neighbour = await open(id);
+    for (let index = 0; index < 400; index += 1) flooder.client.send(toggle(`f${index}`, index % 2 === 0));
+    const replies: ServerMessage[] = [];
+    for (let index = 0; index < 161; index += 1) replies.push(await flooder.client.next());
+    expect(await flooder.client.closed).toMatchObject({ code: 1008 });
+
+    vi.setSystemTime(T0 + 60_000);
+    neighbour.client.send(claim("n1", "pitcher"));
+    const revisions: number[] = [];
+    for (let done = false; !done; ) {
+      const reply = await neighbour.client.next();
+      if (reply.type !== "state") throw new Error(JSON.stringify(reply));
+      revisions.push(reply.split.revision);
+      done = reply.ref === "n1";
+    }
+    const errorLines = errors.mock.calls.length;
+    errors.mockRestore();
+
+    expect(replies.filter(({ type }) => type === "rejected")).toHaveLength(101);
+    expect(revisions).toEqual(Array.from({ length: 61 }, (_, index) => index + 1));
+    expect(errorLines).toBe(0);
   });
 });
 
