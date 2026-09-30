@@ -51,11 +51,20 @@ export function enter(reduce: boolean, { delay = 0, duration = motion.enter, fro
   ];
 }
 
-export function pressTransition(pressed: boolean) {
-  if (!web) return {};
-  return webStyle({
-    transitionProperty: "transform",
-    transitionDuration: `${pressed ? motion.pressIn : motion.pressOut}ms`,
-    transitionTimingFunction: motion.easeOut,
-  });
+const press = StyleSheet.create({
+  scaled: { transform: [{ scale: 0.96 }] },
+  dimmed: { opacity: 0.7 },
+});
+
+export function pressStyle(pressed: boolean, reduce: boolean) {
+  if (reduce) return pressed && press.dimmed;
+  return [
+    pressed && press.scaled,
+    web &&
+      webStyle({
+        transitionProperty: "transform",
+        transitionDuration: `${pressed ? motion.pressIn : motion.pressOut}ms`,
+        transitionTimingFunction: motion.easeOut,
+      }),
+  ];
 }
