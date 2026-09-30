@@ -1,5 +1,4 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { build } from "esbuild";
 
 import { fallbackSamples } from "../src/ui/home-copy";
 
@@ -100,7 +99,7 @@ for (const width of headlineWidths) {
   });
 }
 
-for (const width of [phone.width, 960]) {
+for (const width of headlineWidths) {
   test(`the headline rises from fully hidden behind its mask at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: phone.height });
     await page.goto("/");
@@ -396,7 +395,7 @@ test("the inline scan action takes keyboard focus with a visible ring at 1280 px
   await context.close();
 });
 
-const matrix = [320, phone.width, 900, 960, 1024, 1280].flatMap((width) =>
+const matrix = [320, phone.width, 900, 960, 1010, 1024, 1280].flatMap((width) =>
   (["light", "dark"] as const).flatMap((colorScheme) =>
     (["no-preference", "reduce"] as const).map((reducedMotion) => ({ width, colorScheme, reducedMotion })),
   ),
@@ -456,6 +455,7 @@ async function mountToast(page: Page) {
     window.hiddenAt = [];
     createRoot(document.getElementById("root")).render(<SafeAreaProvider><Harness /></SafeAreaProvider>);
   `;
+  const { build } = await import("esbuild");
   const bundle = await build({
     stdin: { contents: harness, loader: "tsx", resolveDir: process.cwd() },
     bundle: true,

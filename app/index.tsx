@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../src/ui/components/button";
 import { ListRow } from "../src/ui/components/list-row";
 import { MoneyText } from "../src/ui/components/money-text";
-import { copy, example, shortfall, summary, total } from "../src/ui/home-copy";
+import { copy, example, shortfallLine, summaryRows, totalCents } from "../src/ui/home-copy";
 import { enter, useReducedMotion } from "../src/ui/motion";
 import { breakpoints, headlineType, motion, space, type, useColors } from "../src/ui/theme";
 
@@ -26,9 +26,7 @@ export default function Home() {
     paddingRight: gutter + insets.right,
   };
 
-  const scan = (outsideScroll: boolean) => (
-    <Button label={copy.action} onPress={() => router.push("/new")} outsideScroll={outsideScroll} />
-  );
+  const startScan = () => router.push("/new");
 
   return (
     <View style={[styles.screen, { backgroundColor: c.paper }]}>
@@ -56,7 +54,7 @@ export default function Home() {
             <Text style={[type.body, wide && type.bodyWide, { color: c.onField }]}>
               {copy.pitch}
             </Text>
-            {showBar ? null : <View style={styles.inlineAction}>{scan(false)}</View>}
+            {showBar ? null : <View style={styles.inlineAction}><Button label={copy.action} onPress={startScan} /></View>}
             <Text style={[type.small, { color: c.fieldMuted }]}>{copy.privacy}</Text>
           </View>
         </View>
@@ -76,7 +74,7 @@ export default function Home() {
               style={enter(reduce, { delay: 280 + i * motion.stagger })}
             />
           ))}
-          {summary.map((row) => (
+          {summaryRows.map((row) => (
             <View key={row.name} style={styles.summaryRow}>
               <Text style={[type.body, styles.summaryName, { color: c.muted }]}>{row.name}</Text>
               <MoneyText cents={row.cents} size="body" color={c.muted} />
@@ -85,9 +83,9 @@ export default function Home() {
           <View style={[styles.rule, { backgroundColor: c.rule }]} />
           <View style={styles.total}>
             <Text style={[type.heading, { color: c.ink }]}>{copy.total}</Text>
-            <MoneyText cents={total} size="total" color={c.ink} />
+            <MoneyText cents={totalCents} size="total" color={c.ink} />
           </View>
-          <Text style={[type.small, styles.status, { color: c.flag }]}>{shortfall}</Text>
+          <Text style={[type.small, styles.status, { color: c.flag }]}>{shortfallLine}</Text>
         </View>
       </ScrollView>
 
@@ -104,7 +102,7 @@ export default function Home() {
             },
           ]}
         >
-          {scan(true)}
+          <Button label={copy.action} onPress={startScan} outsideScroll />
         </View>
       ) : null}
     </View>

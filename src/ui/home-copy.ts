@@ -31,12 +31,12 @@ export const example = {
 const sum = (rows: { cents: number }[]) => rows.reduce((total, row) => total + row.cents, 0);
 const itemsSum = sum(example.items);
 
-export const summary = [{ name: "Subtotal", cents: example.subtotal }, ...example.adjustments];
-export const total = example.subtotal + sum(example.adjustments);
-export const shortfall = `Items add up to ${formatCents(itemsSum)}, ${formatCents(example.subtotal - itemsSum)} short of the subtotal.`;
+export const summaryRows = [{ name: "Subtotal", cents: example.subtotal }, ...example.adjustments];
+export const totalCents = example.subtotal + sum(example.adjustments);
+export const shortfallLine = `Items add up to ${formatCents(itemsSum)}, ${formatCents(example.subtotal - itemsSum)} short of the subtotal.`;
 
 export const fallbackSamples = {
-  800: [...copy.headline, example.merchant, copy.total, ...example.items.map((item) => formatCents(item.cents)), formatCents(total)],
+  800: [...copy.headline, example.merchant, copy.total, ...example.items.map((item) => formatCents(item.cents)), formatCents(totalCents)],
   500: [
     copy.wordmark.toUpperCase(),
     copy.pitch,
@@ -46,7 +46,7 @@ export const fallbackSamples = {
     example.detail,
     ...example.items.map((item) => item.name),
     copy.flagNote,
-    ...summary.flatMap((row) => [row.name, formatCents(row.cents)]),
-    shortfall,
+    ...summaryRows.flatMap((row) => [row.name, formatCents(row.cents)]),
+    shortfallLine,
   ],
 };
