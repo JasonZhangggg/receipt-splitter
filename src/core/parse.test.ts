@@ -74,12 +74,15 @@ describe("parseOperation bounds", () => {
     });
   });
 
-  test("refuses 10,000 Item patches in under 5 ms", () => {
-    const flood = { type: "editReceipt", by: null, items: Array.from({ length: 10_000 }, (_, index) => addTea(index)) };
-    const started = performance.now();
-
-    expect(parseOperation(flood)).toEqual({ ok: false, rejection: { reason: "malformed", path: "items" } });
-    expect(performance.now() - started).toBeLessThan(5);
+  test("refuses 10,000 unreadable Item patches by their count, before reading the first", () => {
+    expect(parseOperation({ type: "editReceipt", by: null, items: Array.from({ length: 10_000 }, () => null) })).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "items" },
+    });
+    expect(parseOperation({ type: "editReceipt", by: null, items: [null] })).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "items[0].type" },
+    });
   });
 
   test("refuses more Payment handles than there are services", () => {
@@ -122,8 +125,9 @@ describe("parseSplit", () => {
     });
 
     expect(stored.receipt.items[1].claimedBy).toEqual(["ann", "bob"]);
-    expect(parseSplit(withPitcherClaimers(["bob", "ann"]))).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
-    expect(parseSplit(withPitcherClaimers(["ann", "ann", "bob"]))).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
+    const malformed = { ok: false, rejection: { reason: "malformed", path: "receipt.items[1].claimedBy" } };
+    expect(parseSplit(withPitcherClaimers(["bob", "ann"]))).toEqual(malformed);
+    expect(parseSplit(withPitcherClaimers(["ann", "ann", "bob"]))).toEqual(malformed);
   });
 });
 

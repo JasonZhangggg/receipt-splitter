@@ -551,7 +551,9 @@ function checkState(split: Split): Rejection | null {
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
   const [host] = participants;
-  const claimsValid = items.every(({ claimedBy }) => isStrictlySorted(claimedBy) && claimedBy.every((id) => ids.has(id)));
+  const unsorted = items.findIndex(({ claimedBy }) => !isStrictlySorted(claimedBy));
+  if (unsorted !== -1) return { reason: "malformed", path: `receipt.items[${unsorted}].claimedBy` };
+  const claimsValid = items.every(({ claimedBy }) => claimedBy.every((id) => ids.has(id)));
   const paidBy = payments.map(({ participantId }) => participantId);
   const paymentsValid = isStrictlySorted(paidBy) && paidBy.every((id) => ids.has(id) && id !== host.id);
   if (!claimsValid || !paymentsValid) return { reason: "unknownParticipant" };
