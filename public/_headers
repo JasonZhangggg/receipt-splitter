@@ -1,0 +1,13 @@
+/
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+/debug/ocr
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+/ocr-worker.mjs
+  Cross-Origin-Embedder-Policy: require-corp
+
+/ort/*
+  Cross-Origin-Embedder-Policy: require-corp

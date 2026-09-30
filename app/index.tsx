@@ -1,6 +1,10 @@
+import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { prefetchModel } from "../src/ocr";
 
 export default function Home() {
+  useEffect(prefetchModel, []);
+
   return (
     <View style={styles.screen}>
       <Text style={styles.title} role="heading" aria-level={1}>
