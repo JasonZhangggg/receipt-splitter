@@ -40,19 +40,20 @@ export default function Home() {
   const wide = width >= breakpoints.twoColumnsFrom;
   const title = headlineType(width);
   const top = (wide ? space.huge : space.xxl) + insets.top;
+  const gutter = wide ? space.huge : space.xl;
+  const fieldPadding = { paddingTop: top, paddingLeft: gutter + insets.left, paddingRight: gutter + (wide ? 0 : insets.right) };
+  const paperPadding = {
+    paddingTop: wide ? top : space.xxl,
+    paddingLeft: gutter + (wide ? 0 : insets.left),
+    paddingRight: gutter + insets.right,
+  };
 
   const scan = <Button label="Scan or upload a receipt" onPress={() => router.push("/new")} />;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.paper }]}>
       <ScrollView contentContainerStyle={wide && styles.columns} style={styles.screen}>
-        <View
-          style={[
-            styles.field,
-            wide && styles.fieldWide,
-            { backgroundColor: c.field, paddingTop: top },
-          ]}
-        >
+        <View style={[styles.field, wide && styles.fieldWide, fieldPadding, { backgroundColor: c.field }]}>
           <Text role="heading" aria-level={1} style={[type.kicker, styles.wordmark, { color: c.onField }]}>
             Receipt Splitter
           </Text>
@@ -80,7 +81,7 @@ export default function Home() {
           </View>
         </View>
 
-        <View style={[styles.paper, wide && [styles.paperWide, { paddingTop: top }]]}>
+        <View style={[styles.paper, wide && styles.paperWide, paperPadding]}>
           <Text style={[type.kicker, { color: c.muted }]}>Example scan</Text>
           <Text style={[type.title, styles.merchant, { color: c.ink }]}>{example.merchant}</Text>
           <Text style={[type.small, { color: c.muted }]}>{example.detail}</Text>
@@ -113,7 +114,18 @@ export default function Home() {
       </ScrollView>
 
       {showBar ? (
-        <View style={[styles.bar, { backgroundColor: c.bar, borderTopColor: c.hairline, paddingBottom: space.m + insets.bottom }]}>
+        <View
+          style={[
+            styles.bar,
+            {
+              backgroundColor: c.bar,
+              borderTopColor: c.hairline,
+              paddingBottom: space.m + insets.bottom,
+              paddingLeft: space.xl + insets.left,
+              paddingRight: space.xl + insets.right,
+            },
+          ]}
+        >
           {scan}
         </View>
       ) : null}
@@ -124,20 +136,20 @@ export default function Home() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   columns: { flexDirection: "row", minHeight: "100%" },
-  field: { paddingHorizontal: space.xl, paddingBottom: space.xxl + space.xs },
-  fieldWide: { flex: 1.2, paddingHorizontal: space.huge },
+  field: { paddingBottom: space.xxl + space.xs },
+  fieldWide: { flex: 1.2 },
   wordmark: { fontSize: 13, letterSpacing: 2.4, marginBottom: space.xl + space.xs },
   headline: { marginBottom: space.l + space.xs },
   mask: { overflow: "hidden" },
   pitch: { gap: space.xl, maxWidth: 480 },
   inlineAction: { alignSelf: "flex-start" },
-  paper: { paddingHorizontal: space.xl, paddingTop: space.xxl, paddingBottom: space.xxxl },
-  paperWide: { flex: 1, maxWidth: 640, paddingHorizontal: space.huge },
+  paper: { paddingBottom: space.xxxl },
+  paperWide: { flex: 1, maxWidth: 640 },
   merchant: { marginTop: space.s },
   rule: { height: 3, marginTop: space.l },
   summaryRow: { flexDirection: "row", alignItems: "baseline", paddingTop: space.m },
   summaryName: { flex: 1, fontSize: 16 },
   total: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: space.m },
   status: { marginTop: space.m },
-  bar: { paddingHorizontal: space.xl, paddingTop: space.m, borderTopWidth: StyleSheet.hairlineWidth },
+  bar: { paddingTop: space.m, borderTopWidth: StyleSheet.hairlineWidth },
 });
