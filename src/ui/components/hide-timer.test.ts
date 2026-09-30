@@ -5,19 +5,19 @@ import { hideAfter } from "./hide-timer";
 beforeEach(() => vi.useFakeTimers({ now: 0 }));
 afterEach(() => vi.useRealTimers());
 
-function tab() {
-  const page = Object.assign(new EventTarget(), { hidden: false });
+function fakeTab() {
+  const tab = Object.assign(new EventTarget(), { hidden: false });
   const show = (visible: boolean) => {
-    page.hidden = !visible;
-    page.dispatchEvent(new Event("visibilitychange"));
+    tab.hidden = !visible;
+    tab.dispatchEvent(new Event("visibilitychange"));
   };
-  return { page, show };
+  return { tab, show };
 }
 
 test("hides after 4 s of visible time and holds while the tab is hidden", () => {
-  const { page, show } = tab();
+  const { tab, show } = fakeTab();
   const hiddenAt: number[] = [];
-  hideAfter(4000, () => hiddenAt.push(Date.now()), page);
+  hideAfter(4000, () => hiddenAt.push(Date.now()), tab);
 
   vi.advanceTimersByTime(1000);
   show(false);
@@ -31,10 +31,10 @@ test("hides after 4 s of visible time and holds while the tab is hidden", () => 
 });
 
 test("a toast shown in a hidden tab starts counting when the tab shows", () => {
-  const { page, show } = tab();
-  page.hidden = true;
+  const { tab, show } = fakeTab();
+  tab.hidden = true;
   const hiddenAt: number[] = [];
-  hideAfter(4000, () => hiddenAt.push(Date.now()), page);
+  hideAfter(4000, () => hiddenAt.push(Date.now()), tab);
 
   vi.advanceTimersByTime(60_000);
   show(true);
@@ -43,10 +43,10 @@ test("a toast shown in a hidden tab starts counting when the tab shows", () => {
 });
 
 test("cancel stops the timer and the visibility listener", () => {
-  const { page, show } = tab();
+  const { tab, show } = fakeTab();
   const hidden: string[] = [];
-  const cancel = hideAfter(4000, () => hidden.push("cancelled"), page);
-  hideAfter(4000, () => hidden.push("kept"), page);
+  const cancel = hideAfter(4000, () => hidden.push("cancelled"), tab);
+  hideAfter(4000, () => hidden.push("kept"), tab);
 
   vi.advanceTimersByTime(1000);
   cancel();

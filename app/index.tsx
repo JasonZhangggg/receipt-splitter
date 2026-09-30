@@ -38,7 +38,7 @@ export default function Home() {
   const { width } = useWindowDimensions();
   const showBar = width < breakpoints.bottomBarBelow;
   const wide = width >= breakpoints.twoColumnsFrom;
-  const title = headlineType(width);
+  const headlineStyle = headlineType(width);
   const top = (wide ? space.huge : space.xxl) + insets.top;
   const gutter = wide ? space.huge : space.xl;
   const fieldPadding = { paddingTop: top, paddingLeft: gutter + insets.left, paddingRight: gutter + (wide ? 0 : insets.right) };
@@ -59,11 +59,11 @@ export default function Home() {
           </Text>
           <View style={styles.headline}>
             {headline.map((line, i) => (
-              <View key={line} style={[styles.mask, { marginBottom: -title.descender }]}>
+              <View key={line} style={[styles.mask, { marginBottom: -headlineStyle.descender }]}>
                 <Text
                   style={[
-                    title.text,
-                    { color: c.onField, paddingBottom: title.descender },
+                    headlineStyle.text,
+                    { color: c.onField, paddingBottom: headlineStyle.descender },
                     enter(reduce, { delay: 60 + i * 70, duration: motion.headline, from: "unmask" }),
                   ]}
                 >
