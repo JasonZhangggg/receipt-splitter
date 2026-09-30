@@ -56,6 +56,7 @@ async function launch() {
         : `port ${p} is held by pid ${pids.join(", ")}, which is outside this worktree's recorded launch group for port ${port}, so cleanup will not stop it; pick another port`,
     );
   }
+  const launcher = `${process.pid}\n${startTime(process.pid)}`;
   mkdirSync(dirname(runDir), { recursive: true });
   try {
     mkdirSync(runDir);
@@ -67,7 +68,7 @@ async function launch() {
     }
     throw error;
   }
-  writeFileSync(launcherFile, `${process.pid}\n${startTime(process.pid)}`);
+  writeFileSync(launcherFile, launcher);
   if (!values["no-build"]) {
     execFileSync("npm", ["run", "build"], { cwd: root, stdio: ["ignore", 2, 2], timeout: 180_000 });
   }
