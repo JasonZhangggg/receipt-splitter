@@ -14,6 +14,12 @@ export function isId<T extends Id<string>>(value: unknown): value is T {
   return typeof value === "string" && ID_PATTERN.test(value) && value !== "__proto__";
 }
 
+const MIN_MINTED_ID_LENGTH = 16;
+
+export function isMintedSplitId(value: string): value is SplitId {
+  return value.length >= MIN_MINTED_ID_LENGTH && isId<SplitId>(value);
+}
+
 function id<T extends Id<string>>(value: string): T {
   if (!isId<T>(value)) throw new RangeError(`${JSON.stringify(value)} is not 1 to 24 letters, digits, "_", or "-", or is "__proto__"`);
   return value;

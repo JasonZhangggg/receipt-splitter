@@ -132,8 +132,8 @@ describe("parseSplit", () => {
 });
 
 describe("parseNewSplit", () => {
+  const minted = splitId("q7Xv0Lr9_aZ-3mKp");
   const body = {
-    id: "s1",
     receipt: {
       items: [
         { id: "fries", name: "Fries", price: 800 },
@@ -147,12 +147,12 @@ describe("parseNewSplit", () => {
     paymentHandles: [{ service: "venmo", handle: "@ann-host" }],
   };
 
-  test("turns a create body into a Split at revision 0 with only the Host, no Payments, and no history", () => {
-    expect(parseNewSplit(JSON.parse(JSON.stringify(body)))).toEqual({
+  test("turns a create body into a Split under the minted id, at revision 0 with only the Host, no Payments, and no history", () => {
+    expect(parseNewSplit(JSON.parse(JSON.stringify(body)), minted)).toEqual({
       ok: true,
       split: {
         schemaVersion: 1,
-        id: "s1",
+        id: "q7Xv0Lr9_aZ-3mKp",
         currency: "USD",
         receipt: {
           items: [
@@ -172,38 +172,43 @@ describe("parseNewSplit", () => {
     });
   });
 
-  test("refuses a bad id, a __proto__ id, a fractional price, and a name that is not text", () => {
+  test("refuses a body that picks its own Split id, valid or not", () => {
+    expect(parseNewSplit({ ...body, id: "a" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
+    expect(parseNewSplit({ ...body, id: "q7Xv0Lr9_aZ-3mKp" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
+    expect(parseNewSplit({ ...body, id: "s 1!" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
+  });
+
+  test("refuses a __proto__ Item id, a fractional price, and a name that is not text", () => {
     const withItem = (item: object) => ({ ...body, receipt: { ...body.receipt, items: [item, body.receipt.items[1]] } });
 
-    expect(parseNewSplit({ ...body, id: "s 1!" })).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
-    expect(parseNewSplit(withItem({ id: "__proto__", name: "Fries", price: 800 }))).toEqual({
+    expect(parseNewSplit(withItem({ id: "__proto__", name: "Fries", price: 800 }), minted)).toEqual({
       ok: false,
       rejection: { reason: "malformed", path: "receipt.items[0].id" },
     });
-    expect(parseNewSplit(withItem({ id: "fries", name: "Fries", price: 0.5 }))).toEqual({
+    expect(parseNewSplit(withItem({ id: "fries", name: "Fries", price: 0.5 }), minted)).toEqual({
       ok: false,
       rejection: { reason: "malformed", path: "receipt.items[0].price" },
     });
-    expect(parseNewSplit(withItem({ id: "fries", name: 42, price: 800 }))).toEqual({
+    expect(parseNewSplit(withItem({ id: "fries", name: 42, price: 800 }), minted)).toEqual({
       ok: false,
       rejection: { reason: "malformed", path: "receipt.items[0].name" },
     });
   });
 
   test("refuses a body that brings its own revision, history, Payments, Participants, or Claims", () => {
-    const refused = (extra: object) => parseNewSplit({ ...body, ...extra });
+    const refused = (extra: object) => parseNewSplit({ ...body, ...extra }, minted);
 
     expect(refused({ revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "revision" } });
     expect(refused({ recentChanges: [] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
     expect(refused({ payments: [{ participantId: "bob", amount: 100 }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "payments" } });
     expect(refused({ participants: [{ id: "bob", name: "Bob" }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
     expect(
-      parseNewSplit({ ...body, receipt: { ...body.receipt, items: [{ ...body.receipt.items[0], claimedBy: ["ann"] }, body.receipt.items[1]] } }),
+      parseNewSplit({ ...body, receipt: { ...body.receipt, items: [{ ...body.receipt.items[0], claimedBy: ["ann"] }, body.receipt.items[1]] } }, minted),
     ).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].claimedBy" } });
   });
 
   test("refuses a Receipt that fails the Total check, as parseSplit does", () => {
-    expect(parseNewSplit({ ...body, receipt: { ...body.receipt, total: 4000 } })).toMatchObject({
+    expect(parseNewSplit({ ...body, receipt: { ...body.receipt, total: 4000 } }, minted)).toMatchObject({
       ok: false,
       rejection: { reason: "totalCheckFailed" },
     });

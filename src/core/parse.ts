@@ -26,9 +26,9 @@ export function parseSplit(input: unknown): { readonly ok: true; readonly split:
   return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
 }
 
-export function parseNewSplit(input: unknown): { readonly ok: true; readonly split: Split } | Rejected {
+export function parseNewSplit(input: unknown, id: SplitId): { readonly ok: true; readonly split: Split } | Rejected {
   const parsed = parse(newSplit, input);
-  return parsed.ok ? createSplit(parsed.value) : parsed;
+  return parsed.ok ? createSplit({ ...parsed.value, id }) : parsed;
 }
 
 class Malformed extends Error {
@@ -239,8 +239,7 @@ function receipt<I>(itemParser: Parser<I>) {
   }));
 }
 
-const newSplit: Parser<NewSplit> = strict(({ read }) => ({
-  id: read("id", splitId),
+const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read }) => ({
   receipt: read("receipt", receipt(receiptItem)),
   host: read("host", participant),
   paymentHandles: read("paymentHandles", paymentHandles),
