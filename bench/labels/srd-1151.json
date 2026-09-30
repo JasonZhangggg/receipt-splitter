@@ -8,7 +8,7 @@
     "tipBlock",
     "serviceCharge"
   ],
-  "checked": false,
+  "checked": true,
   "note": "The receipt prints the 6% service fee as --0.70 but adds it: 11.69 + 0.70 + 1.14 = 13.53.",
   "receipt": {
     "items": [

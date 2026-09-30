@@ -9,7 +9,7 @@
     "tax",
     "discount"
   ],
-  "checked": false,
+  "checked": true,
   "receipt": {
     "items": [
       {

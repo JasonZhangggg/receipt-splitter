@@ -7,7 +7,7 @@
   "tags": [
     "serviceCharge"
   ],
-  "checked": false,
+  "checked": true,
   "note": "Zenodo transcription puts each unit price inside the Item name. The label drops it.",
   "receipt": {
     "items": [

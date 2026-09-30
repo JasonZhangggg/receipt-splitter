@@ -8,7 +8,7 @@
     "discount",
     "blur"
   ],
-  "checked": false,
+  "checked": true,
   "note": "The -6.00 discount prints under BBQ & Blue Chz chips, so it folds into that Item and the subtotal is the printed 47.00.",
   "receipt": {
     "items": [

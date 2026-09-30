@@ -7,7 +7,7 @@
   "tags": [
     "serviceCharge"
   ],
-  "checked": false,
+  "checked": true,
   "note": "Zenodo transcription reads the WEEKDAY DINNER price as 29.98. The receipt prints 29.88.",
   "receipt": {
     "items": [

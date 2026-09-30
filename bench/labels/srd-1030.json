@@ -7,7 +7,7 @@
   "tags": [
     "skew"
   ],
-  "checked": false,
+  "checked": true,
   "note": "Zenodo transcription reads Coffee as Coffe.",
   "receipt": {
     "items": [

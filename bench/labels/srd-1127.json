@@ -8,7 +8,7 @@
     "serviceCharge",
     "discount"
   ],
-  "checked": false,
+  "checked": true,
   "note": "The receipt prints COUPON (F6) as 10.18 with no minus sign. The printed subtotal, 23.50, is after the coupon; the label subtotal is the Items sum, 33.68, and the coupon is a discount Adjustment.",
   "receipt": {
     "items": [

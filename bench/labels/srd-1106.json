@@ -7,7 +7,7 @@
   "tags": [
     "skew"
   ],
-  "checked": false,
+  "checked": true,
   "note": "The receipt wraps two Item names onto a second line. The label joins them.",
   "receipt": {
     "items": [

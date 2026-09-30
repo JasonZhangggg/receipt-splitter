@@ -8,7 +8,7 @@
     "tipBlock",
     "modifiers"
   ],
-  "checked": false,
+  "checked": true,
   "note": "The receipt prints the subtotal as Amount and the total as Sub-Total. The TIP GUIDE lines are suggestions, not a tip.",
   "receipt": {
     "items": [

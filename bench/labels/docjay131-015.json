@@ -7,7 +7,7 @@
   "tags": [
     "handwritten"
   ],
-  "checked": false,
+  "checked": true,
   "note": "The receipt prints a Bar Subtotal of 14.00 and a Food Subtotal of 37.90, so the label subtotal is their sum, 51.90. The printed total is $56.38, circled by hand.",
   "receipt": {
     "items": [

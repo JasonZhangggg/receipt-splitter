@@ -8,7 +8,7 @@
     "serviceCharge",
     "discount"
   ],
-  "checked": false,
+  "checked": true,
   "note": "The 10% discount prints above the subtotal for the whole order, so it is a discount Adjustment. The printed subtotal, 30.60, is after it; the label subtotal is the Items sum, 34.00.",
   "receipt": {
     "items": [

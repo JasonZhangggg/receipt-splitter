@@ -7,7 +7,7 @@
   "tags": [
     "blur"
   ],
-  "checked": false,
+  "checked": true,
   "note": "Zenodo transcription puts the Philly Pa Sales Tax amount, 1.84, on its own line.",
   "receipt": {
     "items": [

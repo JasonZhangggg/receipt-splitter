@@ -7,7 +7,7 @@
   "tags": [
     "modifiers"
   ],
-  "checked": false,
+  "checked": true,
   "note": "Asparagus 2.99 prints indented under Delmonico Steak, so it folds into that Item, although the POS prints 6 Items. Zenodo transcription reads Asparagus and Decaf Coffee as Asparragus and Decaf Coffe.",
   "receipt": {
     "items": [

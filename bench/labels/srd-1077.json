@@ -7,7 +7,7 @@
   "tags": [
     "serviceCharge"
   ],
-  "checked": false,
+  "checked": true,
   "note": "Zenodo transcription reads the tax as 3.70. The receipt prints $3.71.",
   "receipt": {
     "items": [
