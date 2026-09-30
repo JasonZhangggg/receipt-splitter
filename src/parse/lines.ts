@@ -22,12 +22,12 @@ export type Line =
 type Label = "subtotal" | "tax" | "tip" | "serviceCharge" | "discount" | "total" | "noise";
 
 const LABELS: readonly (readonly [Label, RegExp])[] = [
-  ["noise", /suggest|tip\s*guide|\d\s*%\s*[=:+]|\d+\s*%\s*(tip|gratuity)|w\/\s*tax|\btel|\b(phone|fax|change|cash|visa|mastercard|amex|discover|credit|debit|tender(ed)?|payment|paid|auth\w*|approval|purchase)\b/i],
-  ["subtotal", /\bsub\s*-?\s*to\s*ta\s*l?\b|\bsub\s*ttl\b|\bsubtota\w*|\bnet\s+total\b/i],
+  ["noise", /suggest|tip\s*guide|\btel|\b(phone|fax|change|cash|visa|mastercard|amex|discover|credit|debit|tender(ed)?|payment|paid|auth\w*|approval|purchase)\b/i],
+  ["subtotal", /\bsub\s*-?\s*to\s*ta\s*l?\b|\bsubtota\w*/i],
   ["tax", /\b(tax(?!able)\w*|txtl|hst|gst|vat)\b|^([a-z]{2}\s+)?state$/i],
-  ["tip", /\b(tip|gratuity|grat)\b/i],
-  ["serviceCharge", /\b(service|svc|fees?)\b/i],
-  ["discount", /\b(discount|disc|coupon|promo|comp|savings?)\b/i],
+  ["tip", /\b(tip|gratuity)\b/i],
+  ["serviceCharge", /\b(service|svc)\b/i],
+  ["discount", /\b(discount|disc|coupon|promo)\b/i],
   ["total", /\b(total|totl|ttl|amount\s+due|balance\s+due|amt\s+due)\b/i],
 ];
 

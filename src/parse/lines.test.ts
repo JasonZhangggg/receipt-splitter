@@ -88,6 +88,24 @@ describe("classifyLines", () => {
     ]);
   });
 
+  test("reads the subtotal and tax spellings of bench receipts 1019, docjay131-078, docjay131-170 and docjay131-005", () => {
+    const lines = linesOf(
+      receiptRows([
+        ["SUB TOTAL:", "43.00"],
+        ["Sub-Total:", "$27.62"],
+        ["TXTL", "2.43"],
+        ["TAXABLE T1", "21.49"],
+      ]),
+    );
+
+    expect(lines).toEqual([
+      { kind: "subtotal", amount: 4300 },
+      { kind: "subtotal", amount: 2762 },
+      { kind: "tax", name: "TXTL", amount: 243 },
+      { kind: "item", name: "TAXABLE T1", price: 2149, quantity: null },
+    ]);
+  });
+
   test("keeps Items whose names hold a label word, and reads a bare state name as tax", () => {
     const lines = linesOf(
       receiptRows([
@@ -172,5 +190,16 @@ describe("groupRows", () => {
     const rows = groupRows([box("Burger", 20, 0), tilted, box("Fries", 20, 1), box("4.00", 400, 1), box("Soda", 20, 2), box("2.50", 400, 2)]);
 
     expect(rows.map(({ text }) => text)).toEqual(["Burger 12.00", "Fries 4.00", "Soda 2.50"]);
+  });
+
+  test("joins a sagging word to its own line when the next line's first box levels above it", () => {
+    const at = (text: string, left: number, top: number) => {
+      const right = left + 12 * text.length;
+      return { text, corners: [{ x: left, y: top }, { x: right, y: top }, { x: right, y: top + 20 }, { x: left, y: top + 20 }] as const };
+    };
+
+    const rows = groupRows([at("Chicken", 20, 0), at("Seasoned French Fries", 20, 7), at("Sandwich", 120, 9)]);
+
+    expect(rows.map(({ text }) => text)).toEqual(["Chicken Sandwich", "Seasoned French Fries"]);
   });
 });
