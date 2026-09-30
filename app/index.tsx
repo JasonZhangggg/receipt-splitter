@@ -6,7 +6,7 @@ import { Button } from "../src/ui/components/button";
 import { ListRow } from "../src/ui/components/list-row";
 import { formatCents, MoneyText } from "../src/ui/components/money-text";
 import { enter, useReducedMotion } from "../src/ui/motion";
-import { breakpoints, motion, space, type, useColors } from "../src/ui/theme";
+import { breakpoints, headlineType, motion, space, type, useColors } from "../src/ui/theme";
 
 const headline = ["Split the bill", "at the table."];
 
@@ -38,6 +38,7 @@ export default function Home() {
   const { width } = useWindowDimensions();
   const showBar = width < breakpoints.bottomBarBelow;
   const wide = width >= breakpoints.twoColumnsFrom;
+  const title = headlineType(width);
 
   const scan = <Button label="Scan or upload a receipt" onPress={() => router.push("/new")} />;
 
@@ -56,12 +57,11 @@ export default function Home() {
           </Text>
           <View style={styles.headline}>
             {headline.map((line, i) => (
-              <View key={line} style={styles.mask}>
+              <View key={line} style={[styles.mask, { marginBottom: -title.descender }]}>
                 <Text
                   style={[
-                    type.display,
-                    wide && type.displayWide,
-                    { color: c.onField },
+                    title.text,
+                    { color: c.onField, paddingBottom: title.descender },
                     enter(reduce, { delay: 60 + i * 70, duration: motion.headline, from: "unmask" }),
                   ]}
                 >

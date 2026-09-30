@@ -1,4 +1,4 @@
-import { Easing, StyleSheet, useColorScheme } from "react-native";
+import { Easing, StyleSheet, useColorScheme, type TextStyle } from "react-native";
 
 import { colors, type Colors } from "./colors";
 import { installDocument } from "./document";
@@ -16,9 +16,20 @@ export const breakpoints = { bottomBarBelow: 768, twoColumnsFrom: 900 } as const
 const display = "ArchivoCondensed, Impact, 'Arial Narrow', sans-serif";
 const body = "Archivo, system-ui, -apple-system, sans-serif";
 
+const archivoDescent = 0.2;
+
+const headlineSizes = {
+  narrow: { fontSize: 64, lineHeight: 62, letterSpacing: -0.5 },
+  wide: { fontSize: 92, lineHeight: 88, letterSpacing: -1 },
+};
+
+export function headlineType(width: number) {
+  const size = width >= breakpoints.twoColumnsFrom ? headlineSizes.wide : headlineSizes.narrow;
+  const text: TextStyle = { fontFamily: display, fontWeight: "800", ...size };
+  return { text, descender: Math.ceil(size.fontSize * archivoDescent) };
+}
+
 export const type = StyleSheet.create({
-  display: { fontFamily: display, fontWeight: "800", fontSize: 64, lineHeight: 62, letterSpacing: -0.5 },
-  displayWide: { fontSize: 92, lineHeight: 88, letterSpacing: -1 },
   title: { fontFamily: display, fontWeight: "800", fontSize: 40, lineHeight: 42 },
   heading: { fontFamily: display, fontWeight: "800", fontSize: 32, lineHeight: 34 },
   body: { fontFamily: body, fontWeight: "500", fontSize: 18, lineHeight: 26 },
