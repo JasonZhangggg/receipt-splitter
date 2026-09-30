@@ -24,17 +24,16 @@ type Label = "subtotal" | "tax" | "tip" | "serviceCharge" | "discount" | "total"
 const LABELS: readonly (readonly [Label, RegExp])[] = [
   ["noise", /suggest|tip\s*guide|\d\s*%\s*[=:+]|\d+\s*%\s*(tip|gratuity)|w\/\s*tax|\btel|\b(phone|fax|change|cash|visa|mastercard|amex|discover|credit|debit|tender(ed)?|payment|paid|auth\w*|approval|purchase)\b/i],
   ["subtotal", /\bsub\s*-?\s*to\s*ta\s*l?\b|\bsub\s*ttl\b|\bsubtota\w*|\bnet\s+total\b/i],
-  ["tax", /\b(tax(?!able)\w*|txtl|hst|gst|vat|state)\b/i],
+  ["tax", /\b(tax(?!able)\w*|txtl|hst|gst|vat)\b|^([a-z]{2}\s+)?state$/i],
   ["tip", /\b(tip|gratuity|grat)\b/i],
   ["serviceCharge", /\b(service|svc|fees?)\b/i],
   ["discount", /\b(discount|disc|coupon|promo|off|comp|savings?)\b/i],
   ["total", /\b(total|totl|ttl|amount\s+due|balance\s+due|amt\s+due)\b/i],
-  ["noise", /\b(guests?|table|server|check|order|ticket|thank|date|items?\s+sold|\d+\s+items)\b/i],
 ];
 
 const MONEY = /(-{1,2})?\s?\$?\s?(\d{1,3}(?:,\d{3})+|\d{1,6})(?:\.\s?|,)(\d{2})(?!\d)(-(?!\d))?/g;
 const AT = /(\d{1,2})\s*@\s*\$?\s?(\d{1,6}[.,]\d{2})/;
-const LEADING_COUNT = /^\s*\d{1,2}\s+(?=\S)/;
+const LEADING_COUNT = /^\s*(0\d\s+)?\d{1,2}\s+(?=\S)/;
 const MODIFIER_MARK = /^(\+|add\b|make\s+it\b|extra\b|sub\b|no\b|w\/|with\b)/i;
 
 type Amount = { readonly cents: number; readonly start: number; readonly bracketed: boolean };

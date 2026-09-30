@@ -46,7 +46,9 @@ export function groupRows(textBoxes: readonly TextBox[]): Row[] {
   return [
     ...labels.map((row, i) => {
       const price = pairs.get(i);
-      return { y: row.y, boxes: price === undefined ? row.boxes : [...row.boxes, ...prices[price].boxes] };
+      if (price === undefined) return row;
+      const [first] = prices[price].boxes;
+      return { y: row.y, boxes: [...row.boxes.filter((box) => box.left < first.left), ...prices[price].boxes] };
     }),
     ...prices.filter((_, j) => !paired.has(j)),
   ]
@@ -128,7 +130,7 @@ function align(labels: readonly Cluster[], prices: readonly Cluster[], lineHeigh
 function residual(label: Cluster, price: Cluster, lineHeight: number): number | null {
   const first = price.boxes[0];
   const end = label.boxes.filter((box) => box.right < first.left + lineHeight).at(-1);
-  if (!end || !label.boxes.some((box) => /[a-z]{2}|\d\s*@\s*\$?\d/i.test(box.text))) return null;
+  if (!end || !label.boxes.some((box) => /[a-z]{2}|\d%|\d\s*@\s*\$?\d/i.test(box.text))) return null;
   const endY = end.cy + end.localSlope * (end.right - end.cx);
   const miss = Math.abs(first.cy - (endY + first.localSlope * (first.cx - end.right)));
   return miss <= PAIR_WITHIN * lineHeight ? miss : null;
