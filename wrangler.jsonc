@@ -3,6 +3,13 @@
   "name": "receipt-splitter",
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
+  "durable_objects": {
+    "bindings": [
+      { "name": "SplitServer", "class_name": "SplitServer" },
+      { "name": "CreateLimiter", "class_name": "CreateLimiter" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SplitServer", "CreateLimiter"] }],
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",

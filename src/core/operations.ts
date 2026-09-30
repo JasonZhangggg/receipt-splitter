@@ -21,6 +21,7 @@ import {
   type Receipt,
   type RowWrite,
   type Split,
+  type SplitId,
   type Write,
 } from "./split";
 import { runTotalCheck, type FailedTotalCheck } from "./total-check";
@@ -504,6 +505,35 @@ export type NewSplit = {
   readonly host: Participant;
   readonly paymentHandles: NonEmpty<PaymentHandle>;
 };
+
+export type CreateSplitRequest = {
+  readonly turnstileToken: string;
+  readonly split: Omit<NewSplit, "id">;
+};
+
+export type CreateSplitResponse = { readonly id: SplitId; readonly creatorSecret: string };
+
+export type CreateSplitRefusal =
+  | { readonly refused: "bodyTooLarge" | "turnstileFailed" | "turnstileUnavailable" | "rateLimited" }
+  | { readonly refused: "rejected"; readonly rejection: Rejection };
+
+export type ClientMessage = {
+  readonly ref: string;
+  readonly op: Operation;
+  readonly creatorSecret?: string;
+};
+
+export type WireRejection =
+  | Rejection
+  | { readonly reason: "rateLimited"; readonly retryAfterMs: number }
+  | { readonly reason: "messageTooLarge" };
+
+/** While the Split is live, each ClientMessage gets exactly one answer, in the order sent: a `state` or `unchanged` carrying its ref, or a `rejected` whose ref is null when the frame was refused before its ref was read. A `state` with a null ref is the snapshot on connect or someone else's change. `unavailable` ends the socket. A frame sent before the `retryAfterMs` of the socket's preceding `rateLimited` refusal has elapsed is early. The 100th early frame since the socket's last admitted frame gets its `rejected`, and then the socket is closed with code 1008 and reason `rateLimited`. A frame that waits out `retryAfterMs` neither counts nor resets the count. No frame after a close gets an answer. */
+export type ServerMessage =
+  | { readonly type: "state"; readonly ref: string | null; readonly split: Split }
+  | { readonly type: "unchanged"; readonly ref: string; readonly revision: number }
+  | { readonly type: "rejected"; readonly ref: string | null; readonly rejection: WireRejection }
+  | { readonly type: "unavailable"; readonly reason: "notFound" | "unreadable" };
 
 export function createSplit(input: NewSplit): { readonly ok: true; readonly split: Split } | Rejected {
   const { items, adjustments, subtotal, total } = input.receipt;

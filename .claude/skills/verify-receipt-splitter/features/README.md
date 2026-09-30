@@ -57,3 +57,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [Routes](./routes.md) covers the home screen and opening a Split link, including the SPA fallback for deep links.
+- [Live Splits](./live.md) covers creating a Split through `POST /api/splits` and driving several WebSocket clients on one Split: Claims between clients, hibernation, reconnect, the 32 KB cap, and the Claim round trip.
