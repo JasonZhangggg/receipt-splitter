@@ -3,6 +3,7 @@ import {
   MAX_ADJUSTMENTS,
   MAX_ITEMS,
   MAX_PARTICIPANTS,
+  MAX_WRITES_PER_CHANGE,
   RECENT_CHANGES_LIMIT,
   checkSplit,
   createSplit,
@@ -19,6 +20,7 @@ import {
   type AdjustmentId,
   type Change,
   type ItemId,
+  type MintedSplitId,
   type NonEmpty,
   type ParticipantId,
   type Split,
@@ -38,7 +40,7 @@ export function parseSplit(input: unknown): { readonly ok: true; readonly split:
   return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
 }
 
-export function parseNewSplit(input: unknown, id: SplitId): { readonly ok: true; readonly split: Split } | Rejected {
+export function parseNewSplit(input: unknown, id: MintedSplitId): { readonly ok: true; readonly split: Split } | Rejected {
   const parsed = parse(newSplit, input);
   return parsed.ok ? createSplit({ ...parsed.value, id }) : parsed;
 }
@@ -163,8 +165,6 @@ function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
   };
 }
 
-const MAX_WRITES = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
-
 const itemFields = ({ read }: Fields) => ({
   name: read("name", text),
   price: read("price", price),
@@ -233,7 +233,7 @@ const change: Parser<Change> = strict(({ read }) => ({
   by: read("by", nullable(participantId)),
   undoes: read("undoes", nullable(count)),
   undoneBy: read("undoneBy", nullable(count)),
-  writes: read("writes", nonEmpty(tagged<Write>("kind", writeVariants), MAX_WRITES)),
+  writes: read("writes", nonEmpty(tagged<Write>("kind", writeVariants), MAX_WRITES_PER_CHANGE)),
 }));
 
 const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { cents, price } from "./money";
-import { MAX_PARTICIPANTS, RECENT_CHANGES_LIMIT, applyOperation, createSplit } from "./operations";
+import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
 import { parseNewSplit, parseOperation, parseSplit } from "./parse";
-import { adjustmentId, itemId, participantId, splitId, type Split } from "./split";
+import { adjustmentId, isMintedSplitId, itemId, participantId, splitId, type Split } from "./split";
 
 function storedSplit(): Split {
   const created = createSplit({
@@ -161,6 +161,17 @@ describe("parseSplit bounds", () => {
     expect.soft(parseSplit(withClaims({ participantIds: unreadable }))).toEqual(refusedAt("recentChanges[2].writes[0].participantIds"));
   });
 
+  test("reads a stored Change of 121 writes, one per Item patch, one per Adjustment patch, and the totals, and refuses 122", () => {
+    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const withWrites = (count: number) => {
+      const writes = Array.from({ length: count }, () => ({ kind: "totals", subtotalDelta: 0, totalDelta: 0 }));
+      return { ...stored, recentChanges: [{ ...stored.recentChanges[0], writes }, ...stored.recentChanges.slice(1)] };
+    };
+
+    expect(parseSplit(withWrites(121))).toMatchObject({ ok: true, split: { recentChanges: [{ writes: { length: 121 } }, {}, {}, {}, {}] } });
+    expect(parseSplit(withWrites(122))).toEqual(refusedAt("recentChanges[0].writes"));
+  });
+
   test("reads a stored Split with the most Participants, Payments, and recent changes a Split can hold", () => {
     const joiners = Array.from({ length: MAX_PARTICIPANTS - 2 }, (_, index) => `p${index}`);
     const ops: unknown[] = [
@@ -176,14 +187,15 @@ describe("parseSplit bounds", () => {
       return result.split;
     }, storedSplit());
 
-    expect([split.participants.length, split.payments.length, split.recentChanges.length]).toEqual([30, 29, RECENT_CHANGES_LIMIT]);
+    expect([split.participants.length, split.payments.length, split.recentChanges.length]).toEqual([30, 29, 50]);
     expect(split.receipt.items[1].claimedBy).toHaveLength(30);
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
 });
 
 describe("parseNewSplit", () => {
-  const minted = splitId("q7Xv0Lr9_aZ-3mKp");
+  const minted = "q7Xv0Lr9_aZ-3mKp";
+  if (!isMintedSplitId(minted)) throw new Error(`${minted} is not a minted Split id`);
   const body = {
     receipt: {
       items: [
@@ -227,6 +239,8 @@ describe("parseNewSplit", () => {
     expect(parseNewSplit({ ...body, id: "a" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
     expect(parseNewSplit({ ...body, id: "q7Xv0Lr9_aZ-3mKp" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
     expect(parseNewSplit({ ...body, id: "s 1!" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
+    // @ts-expect-error an id the server did not mint
+    parseNewSplit(body, splitId("s1"));
   });
 
   test("refuses a __proto__ Item id, a fractional price, and a name that is not text", () => {

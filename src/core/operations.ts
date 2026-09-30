@@ -31,6 +31,7 @@ export const MAX_PARTICIPANTS = 30;
 export const MAX_PARTICIPANT_NAME_LENGTH = 40;
 export const MAX_ROW_NAME_LENGTH = 80;
 export const RECENT_CHANGES_LIMIT = 50;
+export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
 export const HISTORY_RESERVE_BYTES = 6 * 1024;
 
@@ -401,10 +402,7 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
   }
 }
 
-function keepsNameValid(
-  write: { readonly added: { readonly name: string } } | { readonly removed: object } | { readonly edit: { readonly name?: readonly [string, string] } },
-  maxLength: number,
-): boolean {
+function keepsNameValid(write: Extract<Write, { kind: "item" | "adjustment" | "participant" }>, maxLength: number): boolean {
   if ("added" in write) return isName(write.added.name, maxLength);
   if ("edit" in write && write.edit.name) return isName(write.edit.name[1], maxLength);
   return true;

@@ -14,9 +14,12 @@ export function isId<T extends Id<string>>(value: unknown): value is T {
   return typeof value === "string" && ID_PATTERN.test(value) && value !== "__proto__";
 }
 
+declare const mintedBrand: unique symbol;
+export type MintedSplitId = SplitId & { readonly [mintedBrand]: true };
+
 const MIN_MINTED_ID_LENGTH = 16;
 
-export function isMintedSplitId(value: string): value is SplitId {
+export function isMintedSplitId(value: string): value is MintedSplitId {
   return value.length >= MIN_MINTED_ID_LENGTH && isId<SplitId>(value);
 }
 
