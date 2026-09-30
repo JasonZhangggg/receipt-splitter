@@ -13,6 +13,7 @@
     "e2e": "playwright test",
     "size": "node scripts/size.mjs",
     "bench": "node --import ./bench/register-ts.mjs bench/score.mjs",
+    "bench:report": "node --import ./bench/register-ts.mjs bench/report.mjs",
     "bench:fetch": "node --import ./bench/register-ts.mjs bench/fetch.mjs"
   },
   "dependencies": {
