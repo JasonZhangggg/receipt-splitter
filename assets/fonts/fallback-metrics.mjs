@@ -1,16 +1,25 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { registerHooks } from "node:module";
+import nodeModule from "node:module";
+import { extname } from "node:path";
 import { chromium } from "@playwright/test";
+
+const [major, minor] = process.versions.node.split(".").map(Number);
+if (major < 22 || (major === 22 && minor < 18)) {
+  console.error(`fallback-metrics.mjs needs Node 22.18 or later to import home-copy.ts. This is Node ${process.versions.node}.`);
+  process.exit(1);
+}
 
 function resolveExtensionlessTs(specifier, context, next) {
   try {
     return next(specifier, context);
-  } catch {
+  } catch (error) {
+    const extensionlessRelative = /^\.\.?\//.test(specifier) && !extname(specifier);
+    if (error.code !== "ERR_MODULE_NOT_FOUND" || !extensionlessRelative) throw error;
     return next(`${specifier}.ts`, context);
   }
 }
 
-registerHooks({ resolve: resolveExtensionlessTs });
+nodeModule.registerHooks({ resolve: resolveExtensionlessTs });
 const { fallbackSamples } = await import("../../src/ui/home-copy.ts");
 
 const faces = [

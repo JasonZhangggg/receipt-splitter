@@ -29,7 +29,7 @@ Preconditions:
 - **Press.** The same spec checks that the bar action shows its press on touch-down with the page timers frozen, and within 50 ms in real time. At 820 px it checks that a scroll that starts on the inline action never shows the press, and that a held touch still presses. Under reduced motion a press dims with no scale or transition.
 - **Layout and fonts.** The same spec checks that 47 px side insets move the content by 47 px, that the columns start level at 1280 px, and that row hairlines match the rules. It checks that blocking the `.ttf` requests leaves both headline lines where they were at 320, 390, 960, and 1280 px. It checks that the fallback metrics sample exactly the lines the page renders in each weight.
 - **Toast.** The same spec bundles `src/ui/components/toast.tsx` with esbuild into a blank page and checks that a reduced-motion change does not restart its 4 s timer.
-- **Fallback metrics.** After a copy change, run `node assets/fonts/fallback-metrics.mjs`. It measures Archivo against local Arial for every line in `fallbackSamples` from `src/ui/home-copy.ts` and rewrites `src/ui/fallback-metrics.generated.ts`. It exits 1 and writes nothing when any line would be wider in the fallback.
+- **Fallback metrics.** After a copy change, run `node assets/fonts/fallback-metrics.mjs` with Node 22.18 or later, which imports `home-copy.ts` without a build step. On an older Node it exits 1 and says so. It measures Archivo against local Arial for every line in `fallbackSamples` from `src/ui/home-copy.ts` and rewrites `src/ui/fallback-metrics.generated.ts`. It exits 1 and writes nothing when any line would be wider in the fallback.
 
 ## Gotchas
 
