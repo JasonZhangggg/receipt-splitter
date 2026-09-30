@@ -123,6 +123,8 @@ describe("bench/score.mjs", () => {
     ["no adjustments array", { items: [] }],
     ["a null Item", { items: [null], adjustments: [], subtotal: 0, total: 0 }],
     ["a text price", { items: [{ id: "i1", name: "Burger", price: "14.50" }], adjustments: [], subtotal: 1450, total: 1450 }],
+    ["no total", { ...diner.receipt, total: undefined }],
+    ["an Adjustment with no kind", { ...diner.receipt, adjustments: diner.receipt.adjustments.map(({ amount }) => ({ amount })) }],
   ])("counts a parser result with %s as a miss and keeps scoring the rest", (_, malformed) => {
     const dir = benchDir([diner, warung]);
     const parser = parserModule(dir, { "srd-diner": malformed, "cord-warung": warung.receipt });
@@ -130,6 +132,51 @@ describe("bench/score.mjs", () => {
     expect(score(dir, parser)).toEqual({
       exact: { receipts: 1, items: [0, 3], adjustments: [0, 2], totalCheck: [0, 1] },
       structure: { receipts: 1, items: [2, 2], adjustments: [1, 1] },
+      misses: ["srd-diner"],
+    });
+  });
+
+  test("counts a parser that throws as a miss and keeps scoring the rest", () => {
+    const dir = benchDir([diner, warung]);
+    const parser = join(dir, "throws.mjs");
+    writeFileSync(parser, `export default ({ name }) => { if (name === "srd-diner") throw new Error("unreadable"); return ${JSON.stringify(warung.receipt)}; };\n`);
+
+    expect(score(dir, parser)).toEqual({
+      exact: { receipts: 1, items: [0, 3], adjustments: [0, 2], totalCheck: [0, 1] },
+      structure: { receipts: 1, items: [2, 2], adjustments: [1, 1] },
+      misses: ["srd-diner"],
+    });
+  });
+
+  test("fails the Total check when a consistent Receipt has a total other than the label's", () => {
+    const dir = benchDir([diner]);
+    const withoutTip = { ...diner.receipt, adjustments: [diner.receipt.adjustments[0]], total: 2557 };
+
+    expect(score(dir, parserModule(dir, { "srd-diner": withoutTip }))).toEqual({
+      exact: { receipts: 1, items: [3, 3], adjustments: [1, 2], totalCheck: [0, 1] },
+      structure: { receipts: 0, items: [0, 0], adjustments: [0, 0] },
+      misses: ["srd-diner"],
+    });
+  });
+
+  test("misses an Item price that is one cent off", () => {
+    const dir = benchDir([diner]);
+    const [burger, fries, soda] = diner.receipt.items;
+    const oneCentOff = { ...diner.receipt, items: [{ ...burger, price: 1451 }, fries, soda], subtotal: 2350, total: 2958 };
+
+    expect(score(dir, parserModule(dir, { "srd-diner": oneCentOff }))).toEqual({
+      exact: { receipts: 1, items: [2, 3], adjustments: [2, 2], totalCheck: [0, 1] },
+      structure: { receipts: 0, items: [0, 0], adjustments: [0, 0] },
+      misses: ["srd-diner"],
+    });
+  });
+
+  test("lists a receipt whose rows all match but whose Total check fails as a miss", () => {
+    const dir = benchDir([diner]);
+
+    expect(score(dir, parserModule(dir, { "srd-diner": { ...diner.receipt, total: 2958 } }))).toEqual({
+      exact: { receipts: 1, items: [3, 3], adjustments: [2, 2], totalCheck: [0, 1] },
+      structure: { receipts: 0, items: [0, 0], adjustments: [0, 0] },
       misses: ["srd-diner"],
     });
   });
