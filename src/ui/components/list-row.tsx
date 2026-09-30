@@ -15,7 +15,8 @@ export function ListRow({ title, note, trailing, flagged = false, style }: Props
   const c = useColors();
   const tone = flagged ? c.flag : c.ink;
   return (
-    <View style={[styles.row, { borderBottomColor: c.hairline }, flagged && { backgroundColor: c.flagWash }, style]}>
+    <View style={[styles.row, { borderBottomColor: c.hairline }, style]}>
+      {flagged ? <View style={[styles.wash, { backgroundColor: c.flagWash }]} /> : null}
       <View style={styles.text}>
         <Text style={[type.body, { color: tone }]}>{title}</Text>
         {note ? <Text style={[type.small, { color: tone }]}>{note}</Text> : null}
@@ -32,9 +33,8 @@ const styles = StyleSheet.create({
     gap: space.m,
     minHeight: 56,
     paddingVertical: space.m,
-    paddingHorizontal: space.s,
-    marginHorizontal: -space.s,
     borderBottomWidth: 1,
   },
+  wash: { position: "absolute", top: 0, bottom: 0, left: -space.s, right: -space.s },
   text: { flex: 1 },
 });
