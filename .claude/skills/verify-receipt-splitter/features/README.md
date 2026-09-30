@@ -14,9 +14,28 @@ This folder is the maintained source for verifying what a user can do on the Rec
 
 - Run every command from the worktree root. `verify.mjs` means `.claude/skills/verify-receipt-splitter/verify.mjs`.
 - `<out>` in a command is the lane's output folder. Use the folder the lane names, such as `/tmp/swarm-<pr-id>/worker-<n>/`. If the lane names none, use `/tmp/verify-receipt-splitter/<port>/`, the folder `evidence` writes to by default. Drive creates the folder if it does not exist.
-- Every drive opens a fresh Pixel 7 browser, so no state carries between drives.
+- Every drive opens a fresh browser, so no state carries between drives. `--width`, `--height`, `--color-scheme`, and `--reduced-motion` change the viewport and media preferences for one drive. A width of 1024 or more drives a desktop browser instead of the Pixel 7.
 - Prefer accessible names and route paths. The only test id is `split-id` on the Split screen.
 - Use the terms in `CONTEXT.md`: Split, Host, Participant, Item, Claim, Share.
+
+## Viewport and media matrix
+
+A UI change is proven at phone and desktop widths, in light and dark mode, with reduced motion on and off. This loop drives `/` in all eight combinations and names each screenshot after its combination:
+
+```sh
+for width in 390 1280; do
+  for scheme in light dark; do
+    for motion in no-preference reduce; do
+      verify.mjs drive --port 8811 --path / --width "$width" --color-scheme "$scheme" \
+        --reduced-motion "$motion" --shot "<out>/home-$width-$scheme-$motion.png"
+    done
+  done
+done
+```
+
+The loop prints eight JSON lines. Before you cite a screenshot, check that its line has `"ok":true` and that `media` shows the same width, `colorScheme`, and `reducedMotion` as the file name. The 390 lines report `"pointer":"coarse"` from the Pixel 7 profile, and the 1280 lines report `"pointer":"fine"` from the Desktop Chrome profile. Swap `--path` and the file prefix to run the matrix on another route.
+
+A screenshot shows one frame, so it cannot prove that motion stops under reduced motion. Prove that with a spec under `e2e/`.
 
 ## Proof and skip reporting
 

@@ -19,6 +19,10 @@ const { positionals, values } = parseArgs({
     "expect-heading": { type: "string" },
     shot: { type: "string" },
     aria: { type: "string" },
+    width: { type: "string" },
+    height: { type: "string" },
+    "color-scheme": { type: "string" },
+    "reduced-motion": { type: "string" },
     out: { type: "string" },
   },
 });
@@ -32,6 +36,7 @@ if (!command || !Number.isInteger(port) || port <= 0 || port >= 55000) {
 const inspectorPort = port + 10000;
 const runDir = join(root, ".verify", String(port));
 const pgidFile = join(runDir, "pgid");
+const launcherFile = join(runDir, "launcher");
 const logFile = join(runDir, "wrangler.log");
 const baseUrl = `http://localhost:${port}`;
 const ownPrograms = new Set(["node", "wrangler", "workerd", "esbuild"]);
@@ -42,15 +47,28 @@ await commands[command]();
 
 async function launch() {
   for (const p of [port, inspectorPort]) {
-    if (listenerPids(p).length) fail(`port ${p} is already in use; pick another port or run cleanup`);
+    const pids = listenerPids(p);
+    if (!pids.length) continue;
+    const record = recordedGroup();
+    fail(
+      record?.pgid && pids.every((pid) => processGroup(pid) === record.pgid)
+        ? `port ${p} is held by pid ${pids.join(", ")} from this worktree's launch on port ${port}; if your lane started it, run cleanup --port ${port} first, otherwise pick another port`
+        : `port ${p} is held by pid ${pids.join(", ")}, which is outside this worktree's recorded launch group for port ${port}, so cleanup will not stop it; pick another port`,
+    );
   }
+  const launcher = `${process.pid}\n${startTime(process.pid)}`;
   mkdirSync(dirname(runDir), { recursive: true });
   try {
     mkdirSync(runDir);
   } catch (error) {
-    if (error.code === "EEXIST") fail(`an earlier launch on port ${port} left ${runDir}; run cleanup --port ${port} first`);
+    if (error.code === "EEXIST") {
+      fail(
+        `port ${port} may be held by a live launch from this worktree, because ${runDir} exists; run doctor --port ${port}, and run cleanup --port ${port} only if doctor reports launching null and running false, otherwise pick another port`,
+      );
+    }
     throw error;
   }
+  writeFileSync(launcherFile, launcher);
   if (!values["no-build"]) {
     execFileSync("npm", ["run", "build"], { cwd: root, stdio: ["ignore", 2, 2], timeout: 180_000 });
   }
@@ -77,7 +95,7 @@ async function launch() {
   const strangers = listenerPids(port).filter((pid) => processGroup(pid) !== pgid);
   fail(
     strangers.length
-      ? `port ${port} is held by pid ${strangers.join(", ")}, outside wrangler's process group ${pgid}; run cleanup`
+      ? `port ${port} is held by pid ${strangers.join(", ")}, outside wrangler's process group ${pgid}, so cleanup will not stop it; run cleanup --port ${port} to stop wrangler, then pick another port`
       : `wrangler did not answer on ${baseUrl}/ within 90s; see ${logFile}`,
   );
 }
@@ -91,26 +109,42 @@ async function doctor() {
 async function checks() {
   const record = recordedGroup();
   const pgid = record?.pgid ?? null;
+  const launching = liveLauncher();
   const running = Boolean(record?.members.length) && record.members.every(ownedByWorktree);
   const portOwned = running && ownsPort(pgid);
   const builtHtml = join(root, "dist/index.html");
   const servesBuild = existsSync(builtHtml) && (await text("/")) === readFileSync(builtHtml, "utf8");
   const spaFallback = (await status("/s/doctor", { "Sec-Fetch-Mode": "navigate" })) === 200;
   const result = { running, portOwned, servesBuild, spaFallback };
-  return { ok: Object.values(result).every(Boolean), port, pgid, ...result };
+  const failed = Object.keys(result).filter((check) => !result[check]);
+  const error = failed.length ? `failed checks: ${failed.join(", ")}` : undefined;
+  return { ok: !failed.length, port, pgid, launching, ...result, error };
 }
 
 async function drive() {
   const { chromium, devices } = await import("@playwright/test");
+  const width = pixels("width");
+  const device = devices[width >= 1024 ? "Desktop Chrome" : "Pixel 7"];
+  const viewport = { width: width ?? device.viewport.width, height: pixels("height") ?? device.viewport.height };
+  const colorScheme = choice("color-scheme", ["light", "dark"]);
+  const reducedMotion = choice("reduced-motion", ["reduce", "no-preference"]);
   const browser = await chromium.launch();
-  const page = await browser.newPage({ ...devices["Pixel 7"] });
+  const page = await browser.newPage({ ...device, viewport, colorScheme, reducedMotion });
   const consoleErrors = [];
   page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
   page.on("pageerror", (e) => consoleErrors.push(e.message));
   const failures = [];
+  let media;
   try {
     const response = await page.goto(`${baseUrl}${values.path}`, { waitUntil: "networkidle" });
     if (response?.status() !== 200) failures.push(`status ${response?.status()}`);
+    media = await page.evaluate(() => ({
+      width: innerWidth,
+      height: innerHeight,
+      colorScheme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches ? "reduce" : "no-preference",
+      pointer: matchMedia("(pointer: coarse)").matches ? "coarse" : "fine",
+    }));
     if (values["expect-heading"]) {
       const heading = page.getByRole("heading", { name: values["expect-heading"] });
       if (!(await becomesVisible(heading))) failures.push(`heading "${values["expect-heading"]}" not visible`);
@@ -132,8 +166,29 @@ async function drive() {
     await browser.close();
   }
   failures.push(...consoleErrors.map((e) => `console error: ${e}`));
-  print({ ok: failures.length === 0, url: `${baseUrl}${values.path}`, shot: values.shot, aria: values.aria, failures });
+  print({
+    ok: failures.length === 0,
+    url: `${baseUrl}${values.path}`,
+    media,
+    shot: values.shot,
+    aria: values.aria,
+    failures,
+    error: failures.length ? failures.join("; ") : undefined,
+  });
   if (failures.length) process.exit(1);
+}
+
+function pixels(flag) {
+  const raw = values[flag];
+  if (raw === undefined) return undefined;
+  if (!/^[1-9]\d*$/.test(raw)) fail(`--${flag} must be a whole number of pixels above 0, not ${JSON.stringify(raw)}`);
+  return Number(raw);
+}
+
+function choice(flag, allowed) {
+  const raw = values[flag];
+  if (raw !== undefined && !allowed.includes(raw)) fail(`--${flag} must be ${allowed.join(" or ")}, not ${JSON.stringify(raw)}`);
+  return raw;
 }
 
 async function becomesVisible(locator) {
@@ -152,11 +207,22 @@ async function evidence() {
     .map((f) => ({ file: f, bytes: statSync(join(out, f)).size }));
   const manifest = { head, dirty, port, capturedAt: new Date().toISOString(), doctor: doctorReport, files };
   writeFileSync(join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
-  print({ ok: doctorReport.ok, manifest: join(out, "manifest.json"), files: files.length });
+  print({
+    ok: doctorReport.ok,
+    manifest: join(out, "manifest.json"),
+    files: files.length,
+    error: doctorReport.ok ? undefined : `doctor ${doctorReport.error}`,
+  });
   if (!doctorReport.ok) process.exit(1);
 }
 
 async function cleanup() {
+  const launcher = liveLauncher();
+  if (launcher) {
+    fail(
+      `launch pid ${launcher} on port ${port} is still starting; if your lane started it, wait for it to return, then run cleanup, otherwise pick another port`,
+    );
+  }
   const record = recordedGroup();
   if (record) {
     const strangers = record.members.filter((m) => !ownedByWorktree(m));
@@ -177,9 +243,11 @@ async function cleanup() {
       }
     }
   }
-  const held = () => [port, inspectorPort].flatMap((p) => listenerPids(p));
+  const held = () => [...new Set([port, inspectorPort].flatMap((p) => listenerPids(p)))];
   if (!(await waitFor(() => held().length === 0, 5000))) {
-    fail(`port ${port} or ${inspectorPort} is still held by pid ${held().join(", ")}, which this run did not start`);
+    fail(
+      `port ${port} or ${inspectorPort} is still held by pid ${held().join(", ")}, which this run did not start, so cleanup left ${runDir}; if that pid is this worktree's wrangler and its record is lost, follow "Recover a lost record" in SKILL.md, otherwise pick another port`,
+    );
   }
   rmSync(runDir, { recursive: true, force: true });
   print({ ok: true, port, stoppedGroup: record?.pgid ?? null, portFree: true });
@@ -191,6 +259,17 @@ function recordedGroup() {
   const pgid = Number(raw);
   if (!Number.isInteger(pgid) || pgid <= 1) return { raw, pgid: null, members: [] };
   return { raw, pgid, members: groupMembers(pgid) };
+}
+
+function liveLauncher() {
+  if (!existsSync(launcherFile)) return null;
+  const [pid, started] = readFileSync(launcherFile, "utf8").split("\n");
+  return started && startTime(pid) === started ? Number(pid) : null;
+}
+
+function startTime(pid) {
+  const [started = ""] = lines("ps", ["-o", "lstart=", "-p", String(pid)]);
+  return started.trim();
 }
 
 function ownedByWorktree({ command }) {
