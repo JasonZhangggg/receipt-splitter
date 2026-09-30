@@ -33,12 +33,14 @@ const misses = [];
 
 for (const label of labels) {
   const imagePath = join(flags.labels, "..", "data", label.image);
-  const predicted = await Promise.resolve()
+  const output = await Promise.resolve()
     .then(() => parse({ name: label.name, imagePath }))
     .catch((error) => {
       console.error(`${label.name}: the parser threw ${error}`);
       return null;
     });
+  const predicted = Array.isArray(output?.items) && Array.isArray(output?.adjustments) ? output : null;
+  if (output !== null && predicted === null) console.error(`${label.name}: the parser returned no items and adjustments arrays`);
   const byStructure = label.source === "cord";
   const tally = byStructure ? structure : exact;
   const items = byStructure

@@ -119,6 +119,17 @@ describe("bench/score.mjs", () => {
     });
   });
 
+  test("counts a malformed parser result as a miss and keeps scoring the rest", () => {
+    const dir = benchDir([diner, warung]);
+    const parser = parserModule(dir, { "srd-diner": { items: [] }, "cord-warung": warung.receipt });
+
+    expect(score(dir, parser)).toEqual({
+      exact: { receipts: 1, items: [0, 3], adjustments: [0, 2], totalCheck: [0, 1] },
+      structure: { receipts: 1, items: [2, 2], adjustments: [1, 1] },
+      misses: ["srd-diner"],
+    });
+  });
+
   test("scores every committed label against itself at 100 percent", () => {
     const output = execFileSync(process.execPath, ["--import", "./bench/register-ts.mjs", "bench/score.mjs", "--parser=labels"], {
       cwd: ROOT,
