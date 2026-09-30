@@ -24,6 +24,7 @@ if (!args.url || !["1", "4"].includes(args.threads)) {
   process.exit(1);
 }
 
+const SESSION_SCANS = 6;
 const DATA = "bench/data";
 const TRANSCRIPTS = "bench/ocr/transcripts";
 const route = new URL("/debug/ocr", args.url).href;
@@ -92,7 +93,7 @@ const mb = (bytes) => (bytes / 1e6).toFixed(2);
 
 const profile = mkdtempSync(join(tmpdir(), "run-ocr-"));
 let peakRendererKb = 0;
-let peakFirstSixKb;
+let peakSessionKb;
 const memoryPoll = setInterval(() => {
   execFile("ps", ["-axww", "-o", "pid=,ppid=,rss=,command="], (error, stdout) => {
     if (error) return;
@@ -160,7 +161,7 @@ for (const image of images) {
   const { ms, boxes } = await read(image);
   const cer = characterErrorRate(image, boxes);
   results.push({ image, ms, cer });
-  if (results.length === 5) peakFirstSixKb = peakRendererKb;
+  if (results.length + 1 === SESSION_SCANS) peakSessionKb = peakRendererKb;
   writeFileSync(join(args.out, image.replace(/\.jpg$/, ".json")), boxesFile(image, ms, boxes));
   if (args.shots) await page.getByTestId("ocr-photo").screenshot({ path: join(args.shots, image.replace(/\.jpg$/, ".png")) });
   console.log(`${image.padEnd(22)} cer ${cer === undefined ? "  -  " : cer.toFixed(3)}  ${String(ms).padStart(5)} ms  ${boxes.length} boxes`);
@@ -181,6 +182,6 @@ console.log(
     `first scan ${firstScan.ms} ms`,
     `threads ${args.threads} (crossOriginIsolated ${isolated})`,
     `first-scan download ${mb(downloadBrotli)} MB brotli, ${mb(downloadRaw)} MB raw`,
-    `peak renderer ${Math.round((peakFirstSixKb ?? peakRendererKb) / 1024)} MB over the first 6 scans, ${Math.round(peakRendererKb / 1024)} MB over all ${results.length + 1}`,
+    `peak renderer ${Math.round((peakSessionKb ?? peakRendererKb) / 1024)} MB over the first ${SESSION_SCANS} scans, ${Math.round(peakRendererKb / 1024)} MB over all ${results.length + 1}`,
   ].join(" | "),
 );

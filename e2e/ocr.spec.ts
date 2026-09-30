@@ -5,6 +5,7 @@ test("home paints before the model download starts, then prefetches the models",
   const firstModelRequest = page.context().waitForEvent("request", (request) => new URL(request.url()).pathname.startsWith("/models/"));
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
+  expect(await page.evaluate(() => self.crossOriginIsolated)).toBe(true);
 
   const request = await firstModelRequest;
   await request.response();
@@ -24,10 +25,10 @@ test("recognizes SRD receipt 1040 on the device", async ({ page }) => {
   const { boxes }: { boxes: TextBox[] } = JSON.parse((await page.getByTestId("ocr-json").textContent()) ?? "");
   const label = boxes.find((box) => box.text === "Subtotal");
   const amount = boxes.find((box) => box.text === "$22.98");
-  expect(label && amount, "boxes Subtotal and $22.98").toBeTruthy();
+  if (!label || !amount) throw new Error("boxes Subtotal and $22.98 not found");
 
-  const [labelTop, labelRight, , labelBottom] = label!.corners;
-  const [amountTop, , , amountBottom] = amount!.corners;
+  const [labelTop, labelRight, , labelBottom] = label.corners;
+  const [amountTop, , , amountBottom] = amount.corners;
   const middle = (top: { y: number }, bottom: { y: number }) => (top.y + bottom.y) / 2;
   expect(Math.abs(middle(labelTop, labelBottom) - middle(amountTop, amountBottom))).toBeLessThan((labelBottom.y - labelTop.y) / 2);
   expect(amountTop.x).toBeGreaterThan(labelRight.x);

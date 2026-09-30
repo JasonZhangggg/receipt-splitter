@@ -6,7 +6,6 @@ const DET_MODEL = asset("./models/ch_PP-OCRv5_det_mobile.onnx");
 const REC_MODEL = asset("./models/en_PP-OCRv5_rec_mobile.onnx");
 const REC_DICT = asset("./models/en_PP-OCRv5_rec_mobile.dict.txt");
 const DOWNLOADS = [ORT_WASM, DET_MODEL, REC_MODEL, REC_DICT];
-// Bump when any file in DOWNLOADS changes content without changing its URL.
 const CACHE = "ocr-ort-1.30.0";
 
 const DET_MAX_SIDE = 960;
