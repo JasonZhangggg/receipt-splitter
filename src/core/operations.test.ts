@@ -637,6 +637,13 @@ describe("names", () => {
     expect(join("👨‍👩‍👧‍👦".repeat(41))).toBe("badName");
   });
 
+  test("refuses one character stacked with 40 accents, and keeps the longest skin-toned emoji sequences", () => {
+    const kiss = "👩🏽\u200D❤\uFE0F\u200D💋\u200D👨🏿";
+    const family = "👨🏻\u200D👩🏻\u200D👧🏻\u200D👦🏻";
+    expect([kiss, family, family.repeat(40)].map(join)).toEqual(["accepted", "accepted", "accepted"]);
+    expect(join(`Z${"\u0301".repeat(40)}`)).toBe("badName");
+  });
+
   test("refuses a lone bidi override, a null, a newline, a zero-width space, a lone surrogate, and a name made only of joiners", () => {
     expect(["‮", "a\u0000b", "a\nb", "​", "\uD800", "‍", "‌️"].map(join)).toEqual(
       Array.from({ length: 7 }, () => "badName"),

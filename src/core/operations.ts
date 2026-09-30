@@ -573,10 +573,13 @@ function checkState(split: Split): Rejection | null {
 
 const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;
 const BLANK = /^[\s\u200C\u200D\uFE0E\uFE0F]*$/u;
+const MAX_GRAPHEME_UNITS = 32;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
 function isName(name: string, maxLength: number): boolean {
-  return !HIDDEN_CHARACTERS.test(name) && [...graphemes.segment(name)].length <= maxLength;
+  if (HIDDEN_CHARACTERS.test(name)) return false;
+  const characters = [...graphemes.segment(name)];
+  return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_GRAPHEME_UNITS);
 }
 
 function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {
