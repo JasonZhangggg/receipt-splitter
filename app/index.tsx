@@ -1,12 +1,10 @@
 import { router } from "expo-router";
-import { useState } from "react";
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Button, TextButton } from "../src/ui/components/button";
+import { Button } from "../src/ui/components/button";
 import { ListRow } from "../src/ui/components/list-row";
 import { formatCents, MoneyText } from "../src/ui/components/money-text";
-import { Sheet } from "../src/ui/components/sheet";
 import { enter, useReducedMotion } from "../src/ui/motion";
 import { breakpoints, motion, space, type, useColors } from "../src/ui/theme";
 
@@ -20,29 +18,28 @@ const example = {
     { name: "Caesar salad", cents: 1250 },
     { name: "Spicy rigatoni", cents: 2100 },
     { name: "Lemonade pitcher", cents: 1400 },
-    { name: "Tiramisu", cents: 850 },
+    { name: "Tiramisu", cents: 850, flagged: true },
   ],
-  misread: "Tiramisu",
+  subtotal: 7500,
   adjustments: [
-    { name: "Subtotal", cents: 7500 },
     { name: "Tax", cents: 666 },
     { name: "Tip 20%", cents: 1500 },
   ],
-  subtotal: 7500,
-  total: 9666,
 };
-const itemsSum = example.items.reduce((sum, item) => sum + item.cents, 0);
+const sum = (rows: { cents: number }[]) => rows.reduce((total, row) => total + row.cents, 0);
+const itemsSum = sum(example.items);
+const summary = [{ name: "Subtotal", cents: example.subtotal }, ...example.adjustments];
+const total = example.subtotal + sum(example.adjustments);
 
 export default function Home() {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const barred = width < breakpoints.bottomBarBelow;
+  const showBar = width < breakpoints.bottomBarBelow;
   const wide = width >= breakpoints.twoColumnsFrom;
-  const [aboutOpen, setAboutOpen] = useState(false);
 
-  const scan = <Button label="Scan a receipt" onPress={() => router.push("/new")} />;
+  const scan = <Button label="Scan or upload a receipt" onPress={() => router.push("/new")} />;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.paper }]}>
@@ -77,12 +74,8 @@ export default function Home() {
             <Text style={[type.body, wide && type.bodyWide, { color: c.onField }]}>
               Take a photo of the receipt and send the link. Everyone taps what they ordered and pays you back.
             </Text>
-            {barred ? null : <View style={styles.inlineAction}>{scan}</View>}
-            <TextButton
-              label="The photo stays on your phone."
-              color={c.fieldMuted}
-              onPress={() => setAboutOpen(true)}
-            />
+            {showBar ? null : <View style={styles.inlineAction}>{scan}</View>}
+            <Text style={[type.small, { color: c.fieldMuted }]}>The photo stays on your phone.</Text>
           </View>
         </View>
 
@@ -91,29 +84,26 @@ export default function Home() {
           <Text style={[type.title, styles.merchant, { color: c.ink }]}>{example.merchant}</Text>
           <Text style={[type.small, { color: c.muted }]}>{example.detail}</Text>
           <View style={[styles.rule, { backgroundColor: c.rule }]} />
-          {example.items.map((item, i) => {
-            const flagged = item.name === example.misread;
-            return (
-              <ListRow
-                key={item.name}
-                title={item.name}
-                note={flagged ? "Check this price." : undefined}
-                flagged={flagged}
-                trailing={<MoneyText cents={item.cents} color={flagged ? c.flag : c.ink} />}
-                style={enter(reduce, { delay: 280 + i * motion.stagger })}
-              />
-            );
-          })}
-          {example.adjustments.map((row) => (
-            <View key={row.name} style={styles.adjustment}>
-              <Text style={[type.body, styles.adjustmentName, { color: c.muted }]}>{row.name}</Text>
+          {example.items.map((item, i) => (
+            <ListRow
+              key={item.name}
+              title={item.name}
+              note={item.flagged ? "Check this price." : undefined}
+              flagged={item.flagged}
+              trailing={<MoneyText cents={item.cents} color={item.flagged ? c.flag : c.ink} />}
+              style={enter(reduce, { delay: 280 + i * motion.stagger })}
+            />
+          ))}
+          {summary.map((row) => (
+            <View key={row.name} style={styles.summaryRow}>
+              <Text style={[type.body, styles.summaryName, { color: c.muted }]}>{row.name}</Text>
               <MoneyText cents={row.cents} size="body" color={c.muted} />
             </View>
           ))}
           <View style={[styles.rule, { backgroundColor: c.rule }]} />
           <View style={styles.total}>
             <Text style={[type.heading, { color: c.ink }]}>Total</Text>
-            <MoneyText cents={example.total} size="total" color={c.ink} />
+            <MoneyText cents={total} size="total" color={c.ink} />
           </View>
           <Text style={[type.small, styles.status, { color: c.flag }]}>
             {`Items add up to ${formatCents(itemsSum)}, ${formatCents(example.subtotal - itemsSum)} short of the subtotal.`}
@@ -121,19 +111,11 @@ export default function Home() {
         </View>
       </ScrollView>
 
-      {barred ? (
+      {showBar ? (
         <View style={[styles.bar, { backgroundColor: c.bar, borderTopColor: c.hairline, paddingBottom: space.m + insets.bottom }]}>
           {scan}
         </View>
       ) : null}
-
-      <Sheet open={aboutOpen} onClose={() => setAboutOpen(false)} title="Your photo stays on your phone">
-        <Text style={[type.body, { color: c.ink }]}>
-          Receipt Splitter reads the receipt on this device and never uploads the photo. The Split you share holds
-          only the items and prices.
-        </Text>
-        <Button label="Got it" onPress={() => setAboutOpen(false)} />
-      </Sheet>
     </View>
   );
 }
@@ -152,8 +134,8 @@ const styles = StyleSheet.create({
   paperWide: { flex: 1, maxWidth: 640, paddingHorizontal: space.huge, paddingTop: space.huge },
   merchant: { marginTop: space.s },
   rule: { height: 3, marginTop: space.l },
-  adjustment: { flexDirection: "row", alignItems: "baseline", paddingTop: space.m },
-  adjustmentName: { flex: 1, fontSize: 16 },
+  summaryRow: { flexDirection: "row", alignItems: "baseline", paddingTop: space.m },
+  summaryName: { flex: 1, fontSize: 16 },
   total: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: space.m },
   status: { marginTop: space.m },
   bar: { paddingHorizontal: space.xl, paddingTop: space.m, borderTopWidth: StyleSheet.hairlineWidth },

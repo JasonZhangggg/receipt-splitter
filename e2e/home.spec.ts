@@ -15,16 +15,16 @@ async function tabTo(page: Page, name: string) {
 
 test("the scan action sits in the bottom bar and takes keyboard focus at 390 px", async ({ page }) => {
   await page.goto("/");
-  const scan = page.getByRole("button", { name: "Scan a receipt" });
+  const scan = page.getByRole("button", { name: "Scan or upload a receipt" });
   await expect(scan).toBeInViewport();
   const box = await scan.boundingBox();
   expect(box!.y + box!.height).toBeGreaterThan(phone.height - 120);
-  await expect(await tabTo(page, "Scan a receipt")).toBeFocused();
+  await expect(await tabTo(page, "Scan or upload a receipt")).toBeFocused();
 });
 
 test("the bottom bar lifts the scan action by the bottom safe-area inset", async ({ page }) => {
   const gapBelowScan = async () => {
-    const box = (await page.getByRole("button", { name: "Scan a receipt" }).boundingBox())!;
+    const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
     return phone.height - (box.y + box.height);
   };
   await page.goto("/");
@@ -64,7 +64,7 @@ test("reduced motion skips the entrance animation", async ({ page }) => {
   expect(await animations()).toBe(0);
 });
 
-const matrix = [390, 1280].flatMap((width) =>
+const matrix = [phone.width, 1280].flatMap((width) =>
   (["light", "dark"] as const).flatMap((colorScheme) =>
     (["no-preference", "reduce"] as const).map((reducedMotion) => ({ width, colorScheme, reducedMotion })),
   ),
@@ -72,10 +72,11 @@ const matrix = [390, 1280].flatMap((width) =>
 
 for (const { width, colorScheme, reducedMotion } of matrix) {
   test(`home matrix ${width} px ${colorScheme} motion ${reducedMotion} has no clipped text or errors`, async ({ browser }) => {
+    const isPhone = width === phone.width;
     const context = await browser.newContext({
-      viewport: { width, height: width === 390 ? 844 : 800 },
-      isMobile: width === 390,
-      hasTouch: width === 390,
+      viewport: { width, height: isPhone ? phone.height : 800 },
+      isMobile: isPhone,
+      hasTouch: isPhone,
       colorScheme,
       reducedMotion,
     });

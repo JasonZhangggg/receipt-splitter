@@ -59,4 +59,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Routes](./routes.md) covers the home screen and opening a Split link, including the SPA fallback for deep links.
 - [Live Splits](./live.md) covers creating a Split through `POST /api/splits` and driving several WebSocket clients on one Split: Claims between clients, hibernation, reconnect, the 32 KB cap, and the Claim round trip.
 - [OCR](./ocr.md) covers the model prefetch on `/`, reading a photo on the debug route `/debug/ocr`, and the OCR benchmark command.
-- [Home](./home.md) covers the scan action and its bottom bar on phones, the photo sheet, the example scan, and the light, dark, and reduced-motion modes.
+- [Home](./home.md) covers the scan action and its bottom bar on phones, the example scan, and the light, dark, and reduced-motion modes.
