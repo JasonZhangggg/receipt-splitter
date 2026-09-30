@@ -149,22 +149,23 @@ function download(url, priority) {
   return pending;
 }
 
+async function fetchAsset(url, priority) {
+  const response = await fetch(url, { priority });
+  if (!response.ok) throw new Error(`OCR download ${url} returned ${response.status}`);
+  if (response.headers.get("content-type")?.startsWith("text/html")) throw new Error(`OCR download ${url} returned an HTML page`);
+  return response;
+}
+
 async function store(url, priority) {
   const cache = await caches.open(CACHE);
   if (await cache.match(url)) return;
-  const response = await fetch(url, { priority });
-  if (!response.ok || response.headers.get("content-type")?.startsWith("text/html")) {
-    throw new Error(`OCR download ${url} returned ${response.status}`);
-  }
-  await cache.put(url, response);
+  await cache.put(url, await fetchAsset(url, priority));
 }
 
 export async function read(url) {
   await download(url, "high").catch(() => {});
   const cached = await globalThis.caches?.open(CACHE).then((cache) => cache.match(url)).catch(() => undefined);
-  const response = cached || (await fetch(url));
-  if (!response.ok) throw new Error(`OCR download ${url} returned ${response.status}`);
-  return response;
+  return cached ?? (await fetchAsset(url, "high"));
 }
 
 export async function prefetch() {
