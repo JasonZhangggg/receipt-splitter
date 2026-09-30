@@ -7,12 +7,20 @@ import { groupRows } from "./rows";
 const linesOf = (boxes: TextBox[]) => classifyLines(groupRows(boxes));
 
 describe("classifyLines", () => {
-  test("reads a quantity line as its count, unit price, and extended price", () => {
-    const lines = linesOf([box("Iced Tea", 20, 0), box("2 @ 1.50", 40, 1), box("3.00", 400, 1)]);
+  test("reads a quantity line as its extended price, and keeps its count and unit price only when no printed price agrees", () => {
+    const lines = linesOf([
+      box("Iced Tea", 20, 0),
+      box("2 @ 1.50", 40, 1),
+      box("3.00", 400, 1),
+      box("Burger", 20, 2),
+      box("7 @ 12.00", 40, 3),
+    ]);
 
     expect(lines).toEqual([
       { kind: "noise", text: "Iced Tea" },
-      { kind: "quantity", price: 300, quantity: { count: 2, unitPrice: 150 } },
+      { kind: "quantity", price: 300, quantity: null },
+      { kind: "noise", text: "Burger" },
+      { kind: "quantity", price: 8400, quantity: { count: 7, unitPrice: 1200 } },
     ]);
   });
 
@@ -113,6 +121,8 @@ describe("classifyLines", () => {
         ["Side Order Fries", "4.00"],
         ["Kick Off Wings", "9.00"],
         ["Empire State Burger", "12.00"],
+        ["State Fair Corn Dog", "6.00"],
+        ["Empire State", "6.00"],
         ["NY State:", "1.92"],
       ]),
     );
@@ -122,8 +132,33 @@ describe("classifyLines", () => {
       { kind: "item", name: "Side Order Fries", price: 400, quantity: null },
       { kind: "item", name: "Kick Off Wings", price: 900, quantity: null },
       { kind: "item", name: "Empire State Burger", price: 1200, quantity: null },
+      { kind: "item", name: "State Fair Corn Dog", price: 600, quantity: null },
+      { kind: "item", name: "Empire State", price: 600, quantity: null },
       { kind: "tax", name: "NY State", amount: 192 },
     ]);
+  });
+
+  test("strips one zero-padded line number and one count from the front of an Item name, and no more", () => {
+    const lines = linesOf(
+      receiptRows([
+        ["16 12 oz Steak", "24.00"],
+        ["01 02 03 Steak", "30.00"],
+      ]),
+    );
+
+    expect(lines).toEqual([
+      { kind: "item", name: "12 oz Steak", price: 2400, quantity: null },
+      { kind: "item", name: "03 Steak", price: 3000, quantity: null },
+    ]);
+  });
+
+  test.each([
+    ["SRD receipt 1094 prints its tip as", "Tip $1.48", { kind: "tip", name: "Tip", amount: 148 }],
+    ["SRD receipt 1072 prints its total as", "AMoUNT DuE: $21.69", { kind: "total", amount: 2169 }],
+    ["docjay131-170 prints its total as", "TOTL 30.58", { kind: "total", amount: 3058 }],
+    ["SRD receipt 1106 prints a phone number row as", "Tel93.773710 X 97.73.101", { kind: "noise", text: "Tel93.773710 X 97.73.101" }],
+  ])("reads the row %s %s", (_receipt, text, expected) => {
+    expect(linesOf([box(text, 20, 0)])).toEqual([expected]);
   });
 
   test("reads a suggested gratuity and a payment as noise", () => {
@@ -174,7 +209,9 @@ describe("classifyLines", () => {
   });
 
   test("takes the printed extended price over count times unit price", () => {
-    expect(linesOf(receiptRows([["Bagels 3 @ 1.67", "5.00"]]))).toEqual([{ kind: "item", name: "Bagels", price: 500, quantity: null }]);
+    expect(linesOf(receiptRows([["Bagels 3 @ 1.67", "5.00"]]))).toEqual([
+      { kind: "item", name: "Bagels", price: 500, quantity: { count: 3, unitPrice: 167 } },
+    ]);
   });
 });
 

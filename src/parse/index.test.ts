@@ -291,6 +291,102 @@ describe("parseReceipt when the Total check fails as read", () => {
     });
   });
 
+  test("returns the Receipt as read when a quantity other than 7 would close the check", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Wings (3 @ 1.00)", ""],
+        ["Beer", "5.00"],
+        ["Subtotal", "6.00"],
+        ["Total", "6.00"],
+      ]),
+    );
+
+    expect(receipt).toEqual({
+      items: [
+        { id: "i1", name: "Wings", price: 300 },
+        { id: "i2", name: "Beer", price: 500 },
+      ],
+      adjustments: [],
+      subtotal: 600,
+      total: 600,
+    });
+    expect(runTotalCheck(receipt!).ok).toBe(false);
+  });
+
+  test("keeps a quantity 7 when its printed extended price is 7 times the unit price", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Burger", ""],
+        ["7 @ 2.00", "14.00"],
+        ["Fries", "4.00"],
+        ["Subtotal", "6.00"],
+        ["Total", "6.00"],
+      ]),
+    );
+
+    expect(receipt?.items.map(({ name, price }) => [name, price])).toEqual([
+      ["Burger", 1400],
+      ["Fries", 400],
+    ]);
+    expect(runTotalCheck(receipt!).ok).toBe(false);
+  });
+
+  test("reads a quantity 7 on its own line as 1 when no extended price is printed and only that makes the check pass", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Burger", ""],
+        ["7 @ 12.00", ""],
+        ["Fries", "4.00"],
+        ["Subtotal", "16.00"],
+        ["Total", "16.00"],
+      ]),
+    );
+
+    expect(receipt?.items.map(({ name, price }) => [name, price])).toEqual([
+      ["Burger", 1200],
+      ["Fries", 400],
+    ]);
+  });
+
+  test("keeps a labelled discount as a discount when only reading it as an Item would close the check", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Beer", "5.00"],
+        ["Happy Hour Discount", "2.00"],
+        ["Subtotal", "7.00"],
+        ["Total", "7.00"],
+      ]),
+    );
+
+    expect(receipt).toEqual({
+      items: [{ id: "i1", name: "Beer", price: 500 }],
+      adjustments: [{ id: "a1", kind: "discount", name: "Happy Hour Discount", amount: -200 }],
+      subtotal: 900,
+      total: 700,
+    });
+    expect(runTotalCheck(receipt!).ok).toBe(false);
+  });
+
+  test("does not turn a minus row with no name into an Item", () => {
+    const receipt = parseReceipt([
+      box("Beer", 20, 0),
+      box("5.00", 400, 0),
+      box("-2.00", 400, 1),
+      box("Subtotal", 20, 2),
+      box("7.00", 400, 2),
+      box("Total", 20, 3),
+      box("7.00", 400, 3),
+    ]);
+
+    expect(receipt).toEqual({
+      items: [{ id: "i1", name: "Beer", price: 500 }],
+      adjustments: [{ id: "a1", kind: "discount", name: "", amount: -200 }],
+      subtotal: 900,
+      total: 700,
+    });
+    expect(runTotalCheck(receipt!).ok).toBe(false);
+  });
+
   test("reads a minus sign on an unlabelled row as a stray mark when only that makes the check pass", () => {
     expect(
       parseReceipt(

@@ -5,7 +5,7 @@ export type Quantity = { readonly count: number; readonly unitPrice: Price };
 
 export type Line =
   | { readonly kind: "item"; readonly name: string; readonly price: Price; readonly quantity: Quantity | null }
-  | { readonly kind: "quantity"; readonly price: Price; readonly quantity: Quantity }
+  | { readonly kind: "quantity"; readonly price: Price; readonly quantity: Quantity | null }
   | { readonly kind: "modifier"; readonly name: string; readonly price: Price }
   | {
       readonly kind: "discount";
@@ -22,13 +22,13 @@ export type Line =
 type Label = "subtotal" | "tax" | "tip" | "serviceCharge" | "discount" | "total" | "noise";
 
 const LABELS: readonly (readonly [Label, RegExp])[] = [
-  ["noise", /suggest|tip\s*guide|\btel|\b(phone|fax|change|cash|visa|mastercard|amex|discover|credit|debit|tender(ed)?|payment|paid|auth\w*|approval|purchase)\b/i],
-  ["subtotal", /\bsub\s*-?\s*to\s*ta\s*l?\b|\bsubtota\w*/i],
-  ["tax", /\b(tax(?!able)\w*|txtl|hst|gst|vat)\b|^([a-z]{2}\s+)?state$/i],
+  ["noise", /suggest|\btel|\bvisa\b/i],
+  ["subtotal", /\bsub\s*-?\s*to\s*ta\s*l?\b/i],
+  ["tax", /\b(tax(?!able)\w*|txtl)\b|^([a-z]{2}\s+)?state$/i],
   ["tip", /\b(tip|gratuity)\b/i],
-  ["serviceCharge", /\b(service|svc)\b/i],
-  ["discount", /\b(discount|disc|coupon|promo)\b/i],
-  ["total", /\b(total|totl|ttl|amount\s+due|balance\s+due|amt\s+due)\b/i],
+  ["serviceCharge", /\bservice\b/i],
+  ["discount", /\b(discount|coupon)\b/i],
+  ["total", /\b(total|totl|amount\s+due|balance\s+due)\b/i],
 ];
 
 const MONEY = /(-{1,2})?\s?\$?\s?(\d{1,3}(?:,\d{3})+|\d{1,6})(?:\.\s?|,)(\d{2})(?!\d)(-(?!\d))?/g;
@@ -76,8 +76,9 @@ function classify(row: Row, anchor: Row | null): Line {
   const name = label.slice(0, at && at.index < label.length ? at.index : undefined).replace(LEADING_COUNT, "").replace(/[\s(]+$/, "").trim();
   if (quantity) {
     const total = extended ?? price(quantity.count * quantity.unitPrice);
-    if (!hasWords(name)) return { kind: "quantity", price: total, quantity };
-    return { kind: "item", name, price: total, quantity: extended === null ? quantity : null };
+    const uncorroborated = extended !== quantity.count * quantity.unitPrice ? quantity : null;
+    if (!hasWords(name)) return { kind: "quantity", price: total, quantity: uncorroborated };
+    return { kind: "item", name, price: total, quantity: uncorroborated };
   }
   if (!hasWords(label)) return { kind: "noise", text: row.text };
   const counted = LEADING_COUNT.test(label);
