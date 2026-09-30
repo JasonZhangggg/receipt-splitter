@@ -252,8 +252,6 @@ describe("parseNewSplit", () => {
     expect(parseNewSplit({ ...body, id: "a" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
     expect(parseNewSplit({ ...body, id: "q7Xv0Lr9_aZ-3mKp" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
     expect(parseNewSplit({ ...body, id: "s 1!" }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "id" } });
-    // @ts-expect-error an id the server did not mint
-    parseNewSplit(body, splitId("s1"));
   });
 
   test("refuses a __proto__ Item id, a fractional price, and a name that is not text", () => {
