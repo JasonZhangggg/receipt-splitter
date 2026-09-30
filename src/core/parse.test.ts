@@ -59,6 +59,39 @@ describe("parseOperation", () => {
   });
 });
 
+describe("parseOperation bounds", () => {
+  const addTea = (index: number) => ({ type: "add", item: { id: `tea${index}`, name: "Tea", price: 100 }, index: 0 });
+  const addTip = (index: number) => ({ type: "add", adjustment: { id: `tip${index}`, kind: "tip", name: "Tip", amount: 100 }, index: 0 });
+
+  test("reads up to 100 Item patches and 20 Adjustment patches, and refuses one more of either before reading them", () => {
+    const edit = (items: object[], adjustments: object[]) => parseOperation({ type: "editReceipt", by: null, items, adjustments });
+
+    expect(edit(Array.from({ length: 100 }, (_, index) => addTea(index)), Array.from({ length: 20 }, (_, index) => addTip(index))).ok).toBe(true);
+    expect(edit(Array.from({ length: 101 }, (_, index) => addTea(index)), [])).toEqual({ ok: false, rejection: { reason: "malformed", path: "items" } });
+    expect(edit([], Array.from({ length: 21 }, (_, index) => addTip(index)))).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "adjustments" },
+    });
+  });
+
+  test("refuses 10,000 Item patches in under 5 ms", () => {
+    const flood = { type: "editReceipt", by: null, items: Array.from({ length: 10_000 }, (_, index) => addTea(index)) };
+    const started = performance.now();
+
+    expect(parseOperation(flood)).toEqual({ ok: false, rejection: { reason: "malformed", path: "items" } });
+    expect(performance.now() - started).toBeLessThan(5);
+  });
+
+  test("refuses more Payment handles than there are services", () => {
+    const handles = Array.from({ length: 5 }, () => ({ service: "venmo", handle: "ann-host" }));
+
+    expect(parseOperation({ type: "setPaymentHandles", by: null, handles })).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "handles" },
+    });
+  });
+});
+
 describe("parseSplit", () => {
   test("reads a stored Split back unchanged, recent changes included", () => {
     const split = storedSplit();

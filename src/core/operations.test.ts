@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
-import { applyOperation, checkSplit, createSplit, type Auth, type Operation, type Rejected } from "./operations";
+import { MAX_NAME_LENGTH, applyOperation, checkSplit, createSplit, type Auth, type Operation, type Rejected } from "./operations";
 import { parseOperation, parseSplit } from "./parse";
 import { computeShares } from "./shares";
 import {
@@ -610,9 +610,28 @@ describe("totals", () => {
   });
 });
 
+describe("names", () => {
+  const join = (name: string) => reasonFor(withBobAndCat(), { by: null, type: "addParticipant", participant: { id: dan, name } });
+
+  test("refuses control characters, bidi overrides, zero-width characters, and lone surrogates", () => {
+    expect(["Dan\u0000", "Dan\nSmith", "Dan\u007F", "\u202Enad", "Dan\u2066", "Da\u200Bn", "Dan\uFEFF", "Dan\uD800", "\uDC00Dan"].map(join)).toEqual(
+      Array.from({ length: 9 }, () => "badName"),
+    );
+  });
+
+  test("allows accents, other scripts, and emoji up to 40 characters, and refuses a 41st", () => {
+    expect(["José", "Đặng", "王小明", "Dan 🍕", "🍕".repeat(40), "d".repeat(40)].map(join)).toEqual(Array.from({ length: 6 }, () => "accepted"));
+    expect(join("d".repeat(41))).toBe("badName");
+  });
+
+  test("an Item renamed with a bidi override is refused", () => {
+    expect(reasonFor(created(), { by: null, type: "editReceipt", items: [{ type: "edit", itemId: fries, name: "Fries\u202E" }] })).toBe("badName");
+  });
+});
+
 describe("the 32 KB budget", () => {
   const longId = (prefix: string, index: number) => `${prefix}${String(index).padStart(24 - prefix.length, "0")}`;
-  const longName = (index: number) => `${index} `.padEnd(80, "x");
+  const longName = (index: number) => `${index} `.padEnd(MAX_NAME_LENGTH, "x");
 
   function atTheCaps(): Split {
     const [first, ...rest] = Array.from({ length: 100 }, (_, index): Item => ({

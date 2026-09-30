@@ -1,5 +1,5 @@
 import { isCents, isPrice } from "./money";
-import { checkSplit, createSplit, type AdjustmentPatch, type ItemPatch, type NewSplit, type Operation, type Rejected } from "./operations";
+import { MAX_ADJUSTMENTS, MAX_ITEMS, checkSplit, createSplit, type AdjustmentPatch, type ItemPatch, type NewSplit, type Operation, type Rejected } from "./operations";
 import {
   ADJUSTMENT_KINDS,
   PAYMENT_SERVICES,
@@ -81,16 +81,16 @@ function nullable<T>(parser: Parser<T>): Parser<T | null> {
   return (input, path) => (input === null ? null : parser(input, path));
 }
 
-function array<T>(parser: Parser<T>): Parser<T[]> {
+function array<T>(parser: Parser<T>, max = Infinity): Parser<T[]> {
   return (input, path) => {
-    if (!Array.isArray(input)) throw new Malformed(path);
+    if (!Array.isArray(input) || input.length > max) throw new Malformed(path);
     return input.map((element, index) => parser(element, at(path, index)));
   };
 }
 
-function nonEmpty<T>(parser: Parser<T>): Parser<NonEmpty<T>> {
+function nonEmpty<T>(parser: Parser<T>, max = Infinity): Parser<NonEmpty<T>> {
   return (input, path) => {
-    const values = array(parser)(input, path);
+    const values = array(parser, max)(input, path);
     if (values.length === 0) throw new Malformed(path);
     const [first, ...rest] = values;
     return [first, ...rest];
@@ -228,11 +228,12 @@ const receiptItem = strict(({ read }) => ({ id: read("id", itemId), name: read("
 const adjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...adjustmentFields(fields) }));
 const participant = strict((fields) => ({ id: fields.read("id", participantId), ...participantFields(fields) }));
 const paymentHandle = strict(({ read }) => ({ service: read("service", oneOf(PAYMENT_SERVICES)), handle: read("handle", text) }));
+const paymentHandles = nonEmpty(paymentHandle, PAYMENT_SERVICES.length);
 
 function receipt<I>(itemParser: Parser<I>) {
   return strict((fields) => ({
-    items: fields.read("items", nonEmpty(itemParser)),
-    adjustments: fields.read("adjustments", array(adjustment)),
+    items: fields.read("items", nonEmpty(itemParser, MAX_ITEMS)),
+    adjustments: fields.read("adjustments", array(adjustment, MAX_ADJUSTMENTS)),
     subtotal: fields.read("subtotal", cents),
     total: fields.read("total", cents),
   }));
@@ -242,7 +243,7 @@ const newSplit: Parser<NewSplit> = strict(({ read }) => ({
   id: read("id", splitId),
   receipt: read("receipt", receipt(receiptItem)),
   host: read("host", participant),
-  paymentHandles: read("paymentHandles", nonEmpty(paymentHandle)),
+  paymentHandles: read("paymentHandles", paymentHandles),
 }));
 
 const split: Parser<Split> = strict(({ read }) => ({
@@ -255,7 +256,7 @@ const split: Parser<Split> = strict(({ read }) => ({
     "payments",
     array(strict((fields) => ({ participantId: fields.read("participantId", participantId), amount: fields.read("amount", cents) }))),
   ),
-  paymentHandles: read("paymentHandles", nonEmpty(paymentHandle)),
+  paymentHandles: read("paymentHandles", paymentHandles),
   revision: read("revision", count),
   recentChanges: read("recentChanges", array(change)),
 }));
@@ -303,8 +304,8 @@ const claimFields = ({ read }: Fields) => ({ itemId: read("itemId", itemId), par
 
 const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<Operation, { type: Type }>> } = {
   editReceipt: op("editReceipt", ({ maybe }) => ({
-    ...maybe("items", array(itemPatch)),
-    ...maybe("adjustments", array(adjustmentPatch)),
+    ...maybe("items", array(itemPatch, MAX_ITEMS)),
+    ...maybe("adjustments", array(adjustmentPatch, MAX_ADJUSTMENTS)),
     ...maybe("subtotalDelta", cents),
     ...maybe("totalDelta", cents),
   })),
@@ -318,7 +319,7 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
     amount: read("amount", cents),
   })),
   clearPayment: op("clearPayment", ({ read }) => ({ participantId: read("participantId", participantId) })),
-  setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", nonEmpty(paymentHandle)) })),
+  setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", paymentHandles) })),
   undo: op("undo", ({ read }) => ({ revision: read("revision", count) })),
 };
 
