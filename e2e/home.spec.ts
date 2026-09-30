@@ -140,7 +140,11 @@ for (const width of headlineWidths) {
   });
 }
 
-for (const width of [320, phone.width]) {
+for (const [width, body, pitch] of [
+  [320, "18px", 54.3],
+  [phone.width, "18px", 54.3],
+  [900, "21px", 53.6],
+] as const) {
   test(`without container query units the headline keeps one line per row above body size at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -167,7 +171,7 @@ for (const width of [320, phone.width]) {
         pitch: Math.round((rows[1].top - rows[0].top) * 10) / 10,
       };
     }, headline);
-    expect(layout).toEqual({ headline: "56px", body: "18px", lines: [1, 1], pitch: 54.3 });
+    expect(layout).toEqual({ headline: "56px", body, lines: [1, 1], pitch });
   });
 }
 
