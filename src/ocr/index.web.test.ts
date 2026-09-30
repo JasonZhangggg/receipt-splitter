@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 type Client = typeof import("./index.web");
 
@@ -68,28 +68,87 @@ test("a scan rejects with the worker's error for that scan, and the next scan do
   await expect(client.recognize(new Blob())).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
 });
 
-test("the model prefetch starts only after the first contentful paint and the load event", () => {
-  let reportPaints: (names: string[]) => void = () => {};
-  class FakePaintObserver {
-    constructor(callback: (list: { getEntriesByName(name: string): string[] }, observer: FakePaintObserver) => void) {
-      reportPaints = (names) => callback({ getEntriesByName: (name) => names.filter((entry) => entry === name) }, this);
-    }
-    observe() {}
-    disconnect() {}
+class FakePaintObserver {
+  static instances: FakePaintObserver[] = [];
+  observed: unknown[] = [];
+  disconnected = false;
+
+  constructor(private callback: (list: { getEntriesByName(name: string): string[] }, observer: FakePaintObserver) => void) {
+    FakePaintObserver.instances.push(this);
   }
+
+  observe(options: unknown) {
+    this.observed.push(options);
+  }
+
+  disconnect() {
+    this.disconnected = true;
+  }
+
+  report(...names: string[]) {
+    this.callback({ getEntriesByName: (name) => names.filter((entry) => entry === name) }, this);
+  }
+}
+
+describe("model prefetch", () => {
   const onLoad: (() => void)[] = [];
-  vi.stubGlobal("PerformanceObserver", FakePaintObserver);
-  vi.stubGlobal("document", { readyState: "interactive" });
-  vi.stubGlobal("addEventListener", (type: string, listener: () => void) => type === "load" && onLoad.push(listener));
 
-  client.prefetchModel();
-  const started = [FakeWorker.started.length];
-  reportPaints(["first-paint"]);
-  started.push(FakeWorker.started.length);
-  reportPaints(["first-contentful-paint"]);
-  started.push(FakeWorker.started.length);
-  onLoad.forEach((listener) => listener());
-  started.push(FakeWorker.started.length);
+  beforeEach(() => {
+    FakePaintObserver.instances = [];
+    onLoad.length = 0;
+    vi.stubGlobal("PerformanceObserver", FakePaintObserver);
+    vi.stubGlobal("addEventListener", (type: string, listener: () => void) => type === "load" && onLoad.push(listener));
+  });
 
-  expect(started).toEqual([0, 0, 0, 1]);
+  test("starts only after the first contentful paint and the load event", () => {
+    vi.stubGlobal("document", { readyState: "interactive" });
+
+    client.prefetchModel();
+    const [observer] = FakePaintObserver.instances;
+    const started = [FakeWorker.started.length];
+    observer.report("first-paint");
+    started.push(FakeWorker.started.length);
+    observer.report("first-contentful-paint");
+    started.push(FakeWorker.started.length);
+    onLoad.forEach((listener) => listener());
+    started.push(FakeWorker.started.length);
+
+    expect(started).toEqual([0, 0, 0, 1]);
+  });
+
+  test("on a page that already finished loading, waits for the first contentful paint and starts once", () => {
+    vi.stubGlobal("document", { readyState: "complete" });
+
+    client.prefetchModel();
+    const [observer] = FakePaintObserver.instances;
+    const started = [FakeWorker.started.length];
+    observer.report("first-paint");
+    started.push(FakeWorker.started.length);
+    observer.report("first-paint", "first-contentful-paint");
+    started.push(FakeWorker.started.length);
+
+    expect(started).toEqual([0, 0, 1]);
+    expect(onLoad).toHaveLength(0);
+  });
+
+  test("observes paint entries recorded before the page subscribed, and stops observing once it fires", () => {
+    vi.stubGlobal("document", { readyState: "complete" });
+
+    client.prefetchModel();
+    const [observer] = FakePaintObserver.instances;
+    const before = observer.disconnected;
+    observer.report("first-paint");
+    const afterFirstPaint = observer.disconnected;
+    observer.report("first-contentful-paint");
+
+    expect(observer.observed).toEqual([{ type: "paint", buffered: true }]);
+    expect([before, afterFirstPaint, observer.disconnected]).toEqual([false, false, true]);
+  });
+
+  test("is skipped without error where PerformanceObserver does not exist", () => {
+    vi.stubGlobal("PerformanceObserver", undefined);
+
+    expect(() => client.prefetchModel()).not.toThrow();
+    expect(FakeWorker.started).toHaveLength(0);
+  });
 });

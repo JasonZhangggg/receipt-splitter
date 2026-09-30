@@ -111,6 +111,24 @@ describe("model downloads", () => {
     expect((await caches.stored("ocr-ort-1.30.0")).map(([path]) => path).sort()).toEqual([...ASSETS].sort());
   });
 
+  test("prefetch downloads at low priority and a scan's own download at high priority", async () => {
+    const priorities: Record<string, unknown[]> = { prefetch: [], scan: [] };
+    let phase = "prefetch";
+    vi.stubGlobal("fetch", async (url: string, init?: { priority?: string }) => {
+      priorities[phase].push(init?.priority);
+      return serve(publicPath(url));
+    });
+
+    await worker.prefetch();
+    phase = "scan";
+    await caches.delete("ocr-ort-1.30.0");
+    vi.resetModules();
+    worker = await import("../../public/ocr-worker.mjs");
+    await worker.read(DICT);
+
+    expect(priorities).toEqual({ prefetch: ["low", "low", "low", "low"], scan: ["high"] });
+  });
+
   test("read refuses a model that the server answers with the app's HTML page, and does not cache it", async () => {
     serve = (path) => (path.endsWith(".dict.txt") ? spaFallback(path) : assetBytes(path));
 

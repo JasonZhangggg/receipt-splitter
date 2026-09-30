@@ -40,6 +40,7 @@ export const prefetchModel: typeof Ocr.prefetchModel = () => {
     if (document.readyState === "complete") start();
     else addEventListener("load", start, { once: true });
   };
+  if (typeof PerformanceObserver === "undefined") return;
   new PerformanceObserver((paints, observer) => {
     if (paints.getEntriesByName("first-contentful-paint").length === 0) return;
     observer.disconnect();
