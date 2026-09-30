@@ -342,6 +342,18 @@ const pressLook = (page: Page) =>
     };
   });
 
+const restLook = { transform: "none", opacity: "1", transitions: [] };
+const isRest = (look: Awaited<ReturnType<typeof pressLook>>) => JSON.stringify(look) === JSON.stringify(restLook);
+const pressedLook = (reducedMotion: "no-preference" | "reduce") =>
+  reducedMotion === "reduce"
+    ? { transform: "none", opacity: "0.7", transitions: [] }
+    : { transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] };
+
+const expectScrollViewDelay = (pressedAt: number[]) => {
+  expect(pressedAt[0], "first pressed frame after touch-down").toBeGreaterThanOrEqual(150);
+  expect(pressedAt[0], "first pressed frame after touch-down").toBeLessThan(260);
+};
+
 test("a press shows on touch-down without waiting on a timer", async ({ page }) => {
   await page.clock.install();
   await page.goto("/");
@@ -353,9 +365,9 @@ test("a press shows on touch-down without waiting on a timer", async ({ page }) 
     .toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
 });
 
-type PressTiming = { shows: number; pressIn: number };
+type PressTiming = { shows: number; pressIn: number; delay: number };
 
-async function timePress(page: Page, startEvent: "touchstart" | "mousedown", press: () => Promise<void>) {
+async function timePress(page: Page, startEvent: "touchstart" | "mousedown" | "pointerdown", press: () => Promise<void>) {
   await page.evaluate(
     ([name, type]) => {
       const button = [...document.querySelectorAll('[role="button"]')].find((el) => el.textContent === name)!;
@@ -369,6 +381,7 @@ async function timePress(page: Page, startEvent: "touchstart" | "mousedown", pre
             const timing: PressTiming = {
               shows: performance.now() - event.timeStamp,
               pressIn: Number(pressIn?.effect?.getComputedTiming().duration ?? 0),
+              delay: pressIn?.effect?.getComputedTiming().delay ?? 0,
             };
             Object.assign(window, { pressTiming: timing });
           };
@@ -387,9 +400,9 @@ async function timePress(page: Page, startEvent: "touchstart" | "mousedown", pre
 test("the bar action shows its press within 50 ms of touch-down and scales to 0.96 over 100 ms", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  const { shows, pressIn } = await timePress(page, "touchstart", () => pressAndHold(page, "Scan or upload a receipt"));
+  const { shows, pressIn, delay } = await timePress(page, "touchstart", () => pressAndHold(page, "Scan or upload a receipt"));
   expect(shows, "first pressed frame").toBeLessThan(50);
-  expect(pressIn, "press-in transition").toBe(100);
+  expect({ pressIn, delay }, "press-in transition").toEqual({ pressIn: 100, delay: 0 });
   await expect.poll(() => pressLook(page)).toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
 });
 
@@ -517,20 +530,14 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await touchScan(page, { moves: [-40, -80, -120], hold: 50 });
     await page.getByRole("button", { name: "Scan or upload a receipt" }).focus();
     await page.keyboard.down(" ");
-    await expect
-      .poll(() => pressLook(page))
-      .toEqual(
-        reducedMotion === "reduce"
-          ? { transform: "none", opacity: "0.7", transitions: [] }
-          : { transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] },
-      );
+    await expect.poll(() => pressLook(page)).toEqual(pressedLook(reducedMotion));
   });
 
   test(`the inline action presses on a held touch after the scroll-view delay, motion ${reducedMotion}`, async ({ page }) => {
     await watchInlineScanPress(page, reducedMotion);
     const { scrolled, pressedAt } = await touchScan(page, { release: false });
     expect(scrolled).toBe(0);
-    expect(pressedAt[0], "first pressed frame after touch-down").toBeGreaterThanOrEqual(150);
+    expectScrollViewDelay(pressedAt);
     expect(pressedAt.at(-1), "still pressed 700 ms after touch-down").toBeGreaterThan(650);
   });
 
@@ -539,17 +546,77 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     expect((await touchScan(page, { moves: [-40, -80, -120], hold: 50 })).pressedAt).toEqual([]);
     await page.getByRole("button", { name: "Scan or upload a receipt" }).scrollIntoViewIfNeeded();
     const { pressedAt } = await touchScan(page, { release: false });
-    expect(pressedAt[0], "first pressed frame after touch-down").toBeGreaterThanOrEqual(150);
+    expectScrollViewDelay(pressedAt);
     expect(pressedAt.at(-1), "still pressed 700 ms after touch-down").toBeGreaterThan(650);
   });
 
   test(`quick taps on the inline action each show the press, motion ${reducedMotion}`, async ({ page }) => {
     await watchInlineScanPress(page, reducedMotion);
-    const shown: Record<number, boolean> = {};
-    for (const hold of [60, 100, 140]) shown[hold] = (await touchScan(page, { hold })).pressedAt.length > 0;
-    expect(shown).toEqual({ 60: true, 100: true, 140: true });
+    const taps: Record<number, { shown: boolean; restAfter500ms: boolean }> = {};
+    for (const hold of [60, 100, 140]) {
+      const shown = (await touchScan(page, { hold })).pressedAt.length > 0;
+      await page.waitForTimeout(200);
+      taps[hold] = { shown, restAfter500ms: isRest(await pressLook(page)) };
+    }
+    const both = { shown: true, restAfter500ms: true };
+    expect(taps).toEqual({ 60: both, 100: both, 140: both });
   });
 }
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`Space and Enter press the inline action until key-up, and blur lets a held key go, motion ${reducedMotion}`, async ({ page }) => {
+    await watchInlineScanPress(page, reducedMotion);
+    const scan = page.getByRole("button", { name: "Scan or upload a receipt" });
+    const seen: Record<string, unknown> = {};
+    for (const key of [" ", "Enter"]) {
+      await scan.focus();
+      await page.keyboard.down(key);
+      await expect.poll(() => pressLook(page)).toEqual(pressedLook(reducedMotion));
+      await page.keyboard.up(key);
+      await expect.poll(() => pressLook(page)).toEqual(restLook);
+      seen[key] = new URL(page.url()).pathname;
+    }
+    await scan.focus();
+    await page.keyboard.down(" ");
+    await expect.poll(() => pressLook(page)).toEqual(pressedLook(reducedMotion));
+    await scan.blur();
+    await expect.poll(() => pressLook(page)).toEqual(restLook);
+    await page.keyboard.up(" ");
+    expect(seen, "navigation stays stopped").toEqual({ " ": "/", Enter: "/" });
+  });
+
+  test(`a second finger on the inline action draws no press, motion ${reducedMotion}`, async ({ page }) => {
+    await watchInlineScanPress(page, reducedMotion);
+    const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
+    const resting = { x: 30, y: 30, id: 1 };
+    const onScan = { x: box.x + box.width / 2, y: box.y + box.height / 2, id: 2 };
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [resting] });
+    await page.waitForTimeout(100);
+    await page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { start: 0, frames: [] }));
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [resting, onScan] });
+    await page.waitForTimeout(400);
+    const frames = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog.frames.filter((f) => f.pressed).length);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    expect(frames).toBe(0);
+  });
+}
+
+test("a pen press on the inline action shows within 50 ms", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
+  const page = await context.newPage();
+  await page.goto("/");
+  await settle(page);
+  const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, pointerType: "pen" });
+  const { shows } = await timePress(page, "pointerdown", async () => {
+    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", buttons: 1, clickCount: 1, pointerType: "pen" });
+  });
+  expect(shows, "first pressed frame of a pen press").toBeLessThan(50);
+  await context.close();
+});
 
 async function mouseFirstPageWithTouch(browser: Browser, reducedMotion: "no-preference" | "reduce") {
   const context = await browser.newContext({ viewport: { width: 1280, height: 500 }, hasTouch: false, isMobile: false, reducedMotion });
@@ -579,7 +646,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     const { context, page, reloadWithTouch } = await mouseFirstPageWithTouch(browser, reducedMotion);
     await reloadWithTouch();
     const { pressedAt } = await touchScan(page, { release: false });
-    expect(pressedAt[0], "first pressed frame of a held touch").toBeGreaterThanOrEqual(150);
+    expectScrollViewDelay(pressedAt);
     await reloadWithTouch();
     const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
