@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useReducedMotion } from "../motion";
 import { easing, motion, space, type, useColors } from "../theme";
+import { hideAfter } from "./hide-timer";
 
 const visibleFor = 4000;
 
@@ -20,6 +21,7 @@ export function Toast({ message, onHide, action }: Props) {
   const [progress] = useState(() => new Animated.Value(0));
   const [shown, setShown] = useState(message);
   if (message && message !== shown) setShown(message);
+  const hide = useEffectEvent(onHide);
 
   useEffect(() => {
     const animation = Animated.timing(progress, {
@@ -32,30 +34,27 @@ export function Toast({ message, onHide, action }: Props) {
       if (finished && !message) setShown(null);
     });
     if (!message) return () => animation.stop();
-    const timer = setTimeout(onHide, visibleFor);
+    const cancel = hideAfter(visibleFor, () => hide());
     return () => {
       animation.stop();
-      clearTimeout(timer);
+      cancel();
     };
-  }, [message, reduce, progress, onHide]);
+  }, [message, reduce, progress]);
 
-  if (!shown) return null;
   const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   return (
-    <View pointerEvents="box-none" style={[styles.anchor, { bottom: space.l + insets.bottom }]}>
-      <Animated.View
-        role="status"
-        aria-live="polite"
-        style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }] }]}
-      >
-        <Text style={[type.small, styles.message, { color: c.paper }]}>{shown}</Text>
-        {action ? (
-          <Pressable role="button" onPress={action.onPress} hitSlop={8}>
-            <Text style={[type.small, styles.action, { color: c.paper }]}>{action.label}</Text>
-          </Pressable>
-        ) : null}
-      </Animated.View>
+    <View role="status" aria-live="polite" pointerEvents="box-none" style={[styles.anchor, { bottom: space.l + insets.bottom }]}>
+      {shown ? (
+        <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }] }]}>
+          <Text style={[type.small, styles.message, { color: c.paper }]}>{shown}</Text>
+          {action ? (
+            <Pressable role="button" onPress={action.onPress} style={styles.action}>
+              <Text style={[type.small, styles.actionLabel, { color: c.paper }]}>{action.label}</Text>
+            </Pressable>
+          ) : null}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -73,5 +72,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   message: { flexShrink: 1 },
-  action: { textDecorationLine: "underline" },
+  action: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: space.m,
+    margin: -space.m,
+  },
+  actionLabel: { textDecorationLine: "underline" },
 });
