@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, type PointerEvent } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, type GestureResponderEvent, type PointerEvent } from "react-native";
 
 import { pressStyle, useReducedMotion } from "../motion";
 import { motion, type, useColors } from "../theme";
@@ -18,12 +18,13 @@ const timedLooks: Partial<Record<Look, { after: number; next: Look }>> = {
 
 const pressKeys = new Set([" ", "Enter"]);
 
-const primaryPress = ({ nativeEvent }: PointerEvent) => nativeEvent.isPrimary && nativeEvent.button === 0;
+const primaryHeld = ({ nativeEvent }: PointerEvent) => (nativeEvent.buttons & 1) === 1;
+
+const inputOf = ({ nativeEvent }: GestureResponderEvent) => ("type" in nativeEvent ? nativeEvent.type : undefined);
 
 function usePressLook(outsideScroll: boolean) {
   const [look, setLook] = useState<Look>("rest");
   const tapUntil = useRef(0);
-  const pointer = useRef<number>(undefined);
   useEffect(() => {
     const timed = timedLooks[look];
     if (!timed) return;
@@ -32,35 +33,29 @@ function usePressLook(outsideScroll: boolean) {
   }, [look]);
   const rest = () => setLook("rest");
   const move = (from: Look, to: Look) => setLook((current) => (current === from ? to : current));
-  const ours = (event: PointerEvent) => event.nativeEvent.pointerId === pointer.current;
   return {
     pressed: look === "pressed" || look === "tapped",
     pressProps: {
-      onPointerDown: (event: PointerEvent) => {
-        if (!primaryPress(event)) return;
-        pointer.current = event.nativeEvent.pointerId;
-        const waits = event.nativeEvent.pointerType === "touch" && !outsideScroll;
+      delayPressIn: 0,
+      onPressIn: (event: GestureResponderEvent) => {
+        const touch = inputOf(event) === "touchstart";
+        if (touch && event.nativeEvent.touches.length > 1) return;
+        const waits = touch && !outsideScroll;
         tapUntil.current = waits ? performance.now() + scrollViewTouchDelay + tapLook : 0;
         setLook(waits ? "waiting" : "pressed");
       },
-      onPointerUp: (event: PointerEvent) => {
-        if (!ours(event)) return;
+      onPressOut: () => {
         const tap = performance.now() < tapUntil.current;
         setLook((current) => (current !== "rest" && tap ? "tapped" : "rest"));
       },
-      onPointerCancel: rest,
       onPointerLeave: (event: PointerEvent) => {
-        if (ours(event)) move("pressed", "away");
+        if (primaryHeld(event)) move("pressed", "away");
       },
       onPointerEnter: () => move("away", "pressed"),
-      onPressOut: () => move("away", "rest"),
-      onContextMenu: rest,
+      onPointerCancel: rest,
       onBlur: rest,
       onKeyDown: (event: { key: string }) => {
         if (pressKeys.has(event.key)) setLook("pressed");
-      },
-      onKeyUp: (event: { key: string }) => {
-        if (pressKeys.has(event.key)) rest();
       },
     },
   };
