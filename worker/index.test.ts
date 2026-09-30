@@ -1,5 +1,10 @@
 import { exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createSplit, stubSiteverify } from "./testing";
+
+beforeEach(() => {
+  stubSiteverify();
+});
 
 describe("routing", () => {
   it("answers an unknown API path with 404", async () => {
@@ -12,15 +17,28 @@ describe("routing", () => {
     const statuses = await Promise.all(
       [
         "http://localhost/parties/split-server/short",
+        "http://localhost/parties/split-server/sixteen-chars-00",
         "http://localhost/parties/split-server/has.a.dot.in.it.000000",
         "http://localhost/parties/create-limiter/203.0.113.5",
-        "http://localhost/parties/split-server/abcdefghijklmnop/extra",
+        "http://localhost/parties/split-server/abcdefghijklmnopqrstuv/extra",
       ].map(async (url) => (await exports.default.fetch(url, upgrade)).status),
     );
-    expect(statuses).toEqual([404, 404, 404, 404]);
-    const plain = await exports.default.fetch("http://localhost/parties/split-server/abcdefghijklmnop");
+    expect(statuses).toEqual([404, 404, 404, 404, 404]);
+    const plain = await exports.default.fetch("http://localhost/parties/split-server/abcdefghijklmnopqrstuv");
     expect(plain.status).toBe(404);
-    const socket = await exports.default.fetch("http://localhost/parties/split-server/abcdefghijklmnop", upgrade);
+    const socket = await exports.default.fetch("http://localhost/parties/split-server/abcdefghijklmnopqrstuv", upgrade);
     expect(socket.status).toBe(101);
+  });
+
+  it("drops client-supplied partyserver inputs before the Split socket", async () => {
+    const { id } = await createSplit();
+    const response = await exports.default.fetch(`http://localhost/parties/split-server/${id}?_pk=${"k".repeat(300)}`, {
+      headers: { upgrade: "websocket", "x-partykit-props": "not base64 json" },
+    });
+    expect(response.status).toBe(101);
+    const socket = response.webSocket!;
+    const first = new Promise<string>((resolve) => socket.addEventListener("message", ({ data }) => resolve(String(data))));
+    socket.accept();
+    expect(JSON.parse(await first)).toMatchObject({ type: "state", ref: null, split: { id } });
   });
 });

@@ -43,7 +43,8 @@ export class SplitServer extends Server<Cloudflare.Env> {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(HEARTBEAT.ping, HEARTBEAT.pong));
   }
 
-  create(split: Split): { readonly created: true; readonly creatorSecret: string } | { readonly created: false } {
+  async create(split: Split): Promise<{ readonly created: true; readonly creatorSecret: string } | { readonly created: false }> {
+    if (split.id !== this.name) throw new Error(`SplitServer ${this.name} cannot hold Split ${split.id}`);
     const sql = this.ctx.storage.sql;
     sql.exec(
       "CREATE TABLE IF NOT EXISTS split (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), json TEXT NOT NULL, changed_at INTEGER NOT NULL, creator_secret BLOB NOT NULL)",
@@ -53,18 +54,15 @@ export class SplitServer extends Server<Cloudflare.Env> {
     const json = JSON.stringify(split);
     const now = Date.now();
     sql.exec("INSERT INTO split (singleton, json, changed_at, creator_secret) VALUES (1, ?, ?, ?)", json, now, secret);
-    void this.ctx.storage.setAlarm(now + SPLIT_TTL_MS);
     this.#stored = { kind: "live", split, json, changedAt: now, secret };
+    await this.ctx.storage.setAlarm(now + SPLIT_TTL_MS);
     return { created: true, creatorSecret: toBase64Url(secret) };
   }
 
-  async onStart(): Promise<void> {
+  onStart(): void {
     this.#stored = this.#load();
     const sockets = this.ctx.getWebSockets().length;
     if (sockets > 0) console.log(`SplitServer ${this.name} woke from hibernation with ${sockets} open sockets`);
-    if (this.#stored.kind !== "missing" && (await this.ctx.storage.getAlarm()) === null) {
-      await this.ctx.storage.setAlarm(this.#stored.changedAt + SPLIT_TTL_MS);
-    }
   }
 
   async onConnect(connection: Connection): Promise<void> {
@@ -97,8 +95,8 @@ export class SplitServer extends Server<Cloudflare.Env> {
     }
     this.ctx.storage.sql.exec("UPDATE split SET json = ?, changed_at = ?", json, now);
     this.#stored = { ...stored, split: result.split, json, changedAt: now };
-    connection.send(stateMessage(frame.ref, json));
     this.broadcast(stateMessage(null, json), [connection.id]);
+    connection.send(stateMessage(frame.ref, json));
   }
 
   async onAlarm(): Promise<void> {

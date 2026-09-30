@@ -528,6 +528,7 @@ export type WireRejection =
   | { readonly reason: "rateLimited"; readonly retryAfterMs: number }
   | { readonly reason: "messageTooLarge" };
 
+/** Each ClientMessage gets exactly one answer, in the order sent: a `state` or `unchanged` carrying its ref, or a `rejected` whose ref is null when the frame was refused before its ref was read. A `state` with a null ref is someone else's change. */
 export type ServerMessage =
   | { readonly type: "state"; readonly ref: string | null; readonly split: Split }
   | { readonly type: "unchanged"; readonly ref: string; readonly revision: number }

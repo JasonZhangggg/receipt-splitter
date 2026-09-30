@@ -29,6 +29,8 @@ export function admitToWindow(times: readonly number[], now: number, limit: Wind
 }
 
 export function limiterKey(ip: string): string {
+  const mappedIpv4 = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip)?.[1];
+  if (mappedIpv4 !== undefined) return mappedIpv4;
   if (!ip.includes(":")) return ip;
   const [head, tail = ""] = ip.toLowerCase().split("::");
   const left = head === "" ? [] : head.split(":");

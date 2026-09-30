@@ -10,7 +10,6 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SplitServer", "CreateLimiter"] }],
-  "vars": { "TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA" },
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",

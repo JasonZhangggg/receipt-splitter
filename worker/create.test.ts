@@ -1,5 +1,6 @@
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSplit } from "./create";
 import { connect, newSplit, PASSING_TOKEN, postSplit, stubSiteverify, type Siteverify } from "./testing";
 
 let siteverify: Siteverify[];
@@ -13,6 +14,7 @@ describe("POST /api/splits", () => {
   it("creates a Split under a server-minted id and returns the creator secret once", async () => {
     const response = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "203.0.113.5" });
     expect(response.status).toBe(201);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const { id, creatorSecret } = await response.json<{ id: string; creatorSecret: string }>();
     expect(id).toMatch(/^[A-Za-z0-9_-]{22}$/);
     expect(creatorSecret).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -60,6 +62,26 @@ describe("POST /api/splits", () => {
       statuses.push(response.status);
     }
     expect(statuses.at(-1)).toBe(429);
+  });
+
+  it("counts an IPv4-mapped IPv6 address as its IPv4 address", async () => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.77" });
+    }
+    const mapped = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "::ffff:192.0.2.77" });
+    expect(mapped.status).toBe(429);
+  });
+
+  it("refuses to create when the Turnstile secret is not configured", async () => {
+    const request = new Request("http://localhost/api/splits", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "198.51.100.200" },
+      body: JSON.stringify({ turnstileToken: PASSING_TOKEN, split: newSplit }),
+    });
+    const response = await createSplit(request, { ...env, TURNSTILE_SECRET_KEY: undefined });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ refused: "turnstileUnavailable" });
+    expect(siteverify).toEqual([]);
   });
 
   it("refuses an id in the body, because the server mints it", async () => {

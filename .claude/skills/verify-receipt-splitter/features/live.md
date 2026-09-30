@@ -20,7 +20,7 @@ A Split lives in one Durable Object that `wrangler dev` runs beside the site. `P
 
 Preconditions:
 
-- `verify.mjs doctor --port 8811` reports `"ok":true`. `wrangler.jsonc` carries the Turnstile test secret `1x0000000000000000000000000000000AA`, so the test token `XXXX.DUMMY.TOKEN.XXXX` passes siteverify. The machine needs network access to `challenges.cloudflare.com`.
+- `verify.mjs doctor --port 8811` reports `"ok":true`. `.dev.vars` gives `wrangler dev` the Turnstile test secret `1x0000000000000000000000000000000AA`, so the test token `XXXX.DUMMY.TOKEN.XXXX` passes siteverify. The machine needs network access to `challenges.cloudflare.com`.
 - `<out>` is the lane's output folder, as defined in [README.md](./README.md).
 - `live-clients` means `node tools/live-clients.mjs`. Every command prints one JSON line with `"ok"` on stdout and exits 0 on success, and writes its transcript to stderr. `--log <file>` saves the report and the transcript. Without `--id`, each command creates a fresh Split first.
 
@@ -38,4 +38,4 @@ Preconditions:
 - Each IP may create 10 Splits a minute. A lane that runs more than 10 commands without `--id` in a minute gets 429 from `POST /api/splits`. Pass `--id` from an earlier `create` to reuse a Split.
 - `drop` closes the socket cleanly. It proves that a reconnect gets the missed state, not how a phone's client library notices a lost network.
 - `cleanup` deletes `.verify/<port>/`, including the Durable Object storage, so Splits do not survive a relaunch.
-- The socket path answers 404 without an upgrade header and for any id that is not 16 to 24 characters of letters, digits, `_`, and `-`. A curl on the path is not a proof.
+- The socket path answers 404 without an upgrade header and for any id that is not 22 characters of letters, digits, `_`, and `-`. A curl on the path is not a proof.

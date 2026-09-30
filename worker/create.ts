@@ -1,4 +1,3 @@
-import { getServerByName } from "partyserver";
 import type { CreateSplitRefusal, CreateSplitResponse, Rejection } from "../src/core/operations";
 import { parseNewSplit } from "../src/core/parse";
 import { SPLIT_BYTE_BUDGET, isMintedSplitId, type MintedSplitId } from "../src/core/split";
@@ -30,11 +29,10 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
   if (verdict === "failed") return refuse(403, { refused: "turnstileFailed" });
   if (verdict === "unavailable") return refuse(503, { refused: "turnstileUnavailable" });
 
-  const server = await getServerByName(env.SplitServer, id);
-  const created = await server.create(parsed.split);
+  const created = await env.SplitServer.getByName(id).create(parsed.split);
   if (!created.created) throw new Error(`minted Split id ${id} already exists`);
   const response: CreateSplitResponse = { id, creatorSecret: created.creatorSecret };
-  return Response.json(response, { status: 201 });
+  return Response.json(response, { status: 201, headers: { "cache-control": "no-store" } });
 }
 
 type Body =
@@ -92,11 +90,19 @@ async function readCapped(request: Request, cap: number): Promise<string | null>
 
 function mintSplitId(): MintedSplitId {
   const id = Array.from(crypto.getRandomValues(new Uint8Array(ID_LENGTH)), (byte) => ID_ALPHABET[byte & 63]).join("");
-  if (!isMintedSplitId(id)) throw new Error(`minted ${id}, which is not a Split id`);
+  if (!isRoutableSplitId(id)) throw new Error(`minted ${id}, which is not a Split id`);
   return id;
 }
 
-async function verifyTurnstile(token: string, ip: string | null, secret: string): Promise<"passed" | "failed" | "unavailable"> {
+export function isRoutableSplitId(id: string): id is MintedSplitId {
+  return id.length === ID_LENGTH && isMintedSplitId(id);
+}
+
+async function verifyTurnstile(token: string, ip: string | null, secret: string | undefined): Promise<"passed" | "failed" | "unavailable"> {
+  if (!secret) {
+    console.error("TURNSTILE_SECRET_KEY is not set, so no Split can be created");
+    return "unavailable";
+  }
   if (token === "") return "failed";
   const form = new FormData();
   form.append("secret", secret);

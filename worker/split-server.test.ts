@@ -20,6 +20,16 @@ async function open(id: string): Promise<{ client: Client; hello: ServerMessage 
   return { client, hello: await client.next() };
 }
 
+async function leftovers(id: string): Promise<{ tables: unknown[]; keys: string[]; alarm: number | null }> {
+  return runInDurableObject(env.SplitServer.getByName(id), async (_, state) => ({
+    tables: state.storage.sql
+      .exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'")
+      .toArray(),
+    keys: [...(await state.storage.list()).keys()],
+    alarm: await state.storage.getAlarm(),
+  }));
+}
+
 async function storedRow(id: string): Promise<unknown> {
   return runInDurableObject(env.SplitServer.getByName(id), (_, state) =>
     state.storage.sql.exec("SELECT json, changed_at FROM split").toArray(),
@@ -145,17 +155,65 @@ describe("Payment handles", () => {
   });
 });
 
+describe("loading a stored Split", () => {
+  const corruptions: [string, (json: string) => string][] = [
+    ["JSON that does not parse", (json) => json.slice(0, -1)],
+    ["JSON over 32 KB", () => JSON.stringify("x".repeat(33 * 1024))],
+    ["a Split under another id", (json) => json.replace(/"id":"[^"]+"/, '"id":"anotherSplit0000000000"')],
+  ];
+
+  it.each(corruptions)("refuses %s after a wake, keeps the row, and still expires it", async (_, corrupt) => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    await runInDurableObject(stub, (_, state) => {
+      const [{ json }] = state.storage.sql.exec<{ json: string }>("SELECT json FROM split").toArray();
+      state.storage.sql.exec("UPDATE split SET json = ?", corrupt(json));
+    });
+    await evictDurableObject(stub);
+    const before = await storedRow(id);
+
+    const client = await connect(id);
+    expect(await client.next()).toEqual({ type: "unavailable", reason: "unreadable" });
+    expect(await client.closed).toMatchObject({ code: 4500 });
+    expect(await storedRow(id)).toEqual(before);
+
+    vi.setSystemTime(T0 + 60 * DAY);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
+  });
+
+  it("accepts the creator secret after the Durable Object wakes from storage", async () => {
+    const { id, creatorSecret } = await createSplit();
+    await evictDurableObject(env.SplitServer.getByName(id));
+    const a = await open(id);
+    a.client.send({
+      ref: "h1",
+      creatorSecret,
+      op: JSON.parse(JSON.stringify({ type: "setPaymentHandles", by: "ann", handles: [{ service: "zelle", handle: "ann@example.com" }] })),
+    });
+    expect(await a.client.next()).toMatchObject({
+      type: "state",
+      ref: "h1",
+      split: { paymentHandles: [{ service: "zelle", handle: "ann@example.com" }] },
+    });
+  });
+});
+
 describe("expiry", () => {
   it("deletes a Split when its alarm fires 60 days after the last change", async () => {
     const { id } = await createSplit();
     const stub = env.SplitServer.getByName(id);
-    vi.setSystemTime(T0 + 60 * DAY);
+    vi.setSystemTime(T0 + 60 * DAY - 1);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect((await leftovers(id)).alarm).toBe(T0 + 60 * DAY);
 
+    vi.setSystemTime(T0 + 60 * DAY);
+    await evictDurableObject(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
     const late = await connect(id);
     expect(await late.next()).toEqual({ type: "unavailable", reason: "notFound" });
     expect(await late.closed).toMatchObject({ code: 4404 });
-    expect(await runInDurableObject(stub, (_, state) => state.storage.list())).toEqual(new Map());
   });
 
   it("reschedules a Split changed since the alarm was set, then deletes it 60 days after that change", async () => {
@@ -268,7 +326,7 @@ describe("connecting", () => {
     const client = await connect(id);
     expect(await client.next()).toEqual({ type: "unavailable", reason: "notFound" });
     expect(await client.closed).toMatchObject({ code: 4404 });
-    expect(await runInDurableObject(env.SplitServer.getByName(id), (_, state) => state.storage.list())).toEqual(new Map());
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
   });
 
   it("answers the heartbeat without the Split", async () => {

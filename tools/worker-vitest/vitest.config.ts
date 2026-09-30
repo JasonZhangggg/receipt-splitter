@@ -5,6 +5,11 @@ import { defineConfig } from "vitest/config";
 const repo = fileURLToPath(new URL("../..", import.meta.url));
 
 export default defineConfig({
-  plugins: [cloudflareTest({ wrangler: { configPath: `${repo}/wrangler.jsonc` } })],
+  plugins: [
+    cloudflareTest({
+      wrangler: { configPath: `${repo}/wrangler.jsonc` },
+      miniflare: { bindings: { TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA" } },
+    }),
+  ],
   test: { dir: `${repo}/worker`, include: ["**/*.test.ts"] },
 });
