@@ -3,6 +3,7 @@
   "source": "srd",
   "sourceId": "1046",
   "region": "US",
+  "sourceSha256": "068265f07d9f6f4702f440d3bcf17277e050dc9ec5cac0410f2502139e2303fc",
   "tags": [
     "serviceCharge",
     "discount"

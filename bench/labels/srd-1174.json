@@ -3,6 +3,7 @@
   "source": "srd",
   "sourceId": "1174",
   "region": "US",
+  "sourceSha256": "6e96567e151dd684f8efb92d9ac6fc70d8626daf429387233fafb1de17e6bfe9",
   "tags": [
     "tipBlock",
     "tip"

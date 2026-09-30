@@ -3,6 +3,7 @@
   "source": "cord",
   "sourceId": "038",
   "region": "ID",
+  "sourceSha256": "f41b9c794ae42e5303e5c8c0aa9cba01b36d5acd4dc58799f256803399c45a66",
   "tags": [
     "serviceCharge",
     "tax"

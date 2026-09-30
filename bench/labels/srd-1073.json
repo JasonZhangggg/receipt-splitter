@@ -3,6 +3,7 @@
   "source": "srd",
   "sourceId": "1073",
   "region": "US",
+  "sourceSha256": "594d44f77af3cea4db44bd1223e0e3abe688cfbc506f05dd100073a16068689a",
   "tags": [
     "signatureSlip"
   ],

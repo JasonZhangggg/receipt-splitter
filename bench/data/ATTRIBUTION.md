@@ -2,7 +2,7 @@
 
 `bench/fetch.mjs` downloads every source below, selects 82 receipts, and writes the images in this folder and the labels in `bench/labels/`. Run it with `npm run bench:fetch` on macOS, because it resizes images with `sips` and unpacks archives with `unzip`.
 
-Changes to every image: `bench/fetch.mjs` scales images longer than 1280 px down to 1280 px, re-encodes an image as JPEG quality 70 when that makes it smaller, and removes EXIF metadata. Changes to every label: `bench/fetch.mjs` drafts each label as a `Receipt` from the source's transcription or annotation, and a person corrects the draft against the image. A label's `note` records each correction.
+Changes to every image: `bench/fetch.mjs` scales images longer than 1280 px down to 1280 px, re-encodes an image as JPEG quality 70 when that makes it smaller, and removes its EXIF (APP1), IPTC (APP13), and comment segments. Changes to every label: `bench/fetch.mjs` drafts each label as a `Receipt` from the source's transcription or annotation, and a person corrects the draft against the image. A label's `note` records each correction. A label's `sourceSha256` pins the source image bytes, and `bench/fetch.mjs` stops when a download does not match it.
 
 | Images | Source | License | Labels drafted from |
 |---|---|---|---|
@@ -58,7 +58,7 @@ The SRD labels use the record's `Labels/*.txt` transcriptions and its `homograph
 - License: Creative Commons Attribution 4.0 International, https://creativecommons.org/licenses/by/4.0/
 - Citation: Seunghyun Park, Seung Shin, Bado Lee, Junyeop Lee, Jaeheung Surh, Minjoon Seo, and Hwalsuk Lee. "CORD: A Consolidated Receipt Dataset for Post-OCR Parsing." Document Intelligence Workshop at NeurIPS, 2019.
 
-A CORD file name keeps the row index in the test split, so `cord-017.jpg` is test row 17. CORD amounts are Indonesian rupiah, stored as whole rupiah in the `cents` fields.
+A CORD file name keeps the row index in the test split, so `cord-070.jpg` is test row 70. `bench/fetch.mjs` pins the dataset at revision `7f0115a4b758a71d6473b8d085751692da2fef98` and stops when the rows API serves another revision. CORD amounts are Indonesian rupiah, stored as whole rupiah in the `cents` fields.
 
 ## docjay131 receipts-ocr-dataset
 
@@ -66,7 +66,7 @@ A CORD file name keeps the row index in the test split, so `cord-017.jpg` is tes
 - License: MIT, as the dataset card declares.
 - The dataset card says Gemini extracted its labels. The benchmark uses them only as drafts.
 
-A docjay131 file name keeps the row index in the train split. `bench/fetch.mjs` skips a row when a Zenodo transcription contains both its subtotal and its total, because the dataset reuses SRD photos. The selection also leaves out rows that repeat another row's photo and a row that joins two photos side by side.
+A docjay131 file name keeps the row index in the train split. `bench/fetch.mjs` skips a row when a Zenodo transcription contains both its subtotal and its total, because the dataset reuses SRD photos. The selection also leaves out rows that repeat another row's photo, a row that joins two photos side by side, and a row whose photo cuts off the grand total. `bench/fetch.mjs` pins the dataset at revision `ffb6088ef715689558289378fd26259f02f9910e`.
 
 The dataset card gives no copyright line, so the notice names the publisher:
 

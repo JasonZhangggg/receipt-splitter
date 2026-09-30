@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { parseNewSplit } from "../src/core/parse";
@@ -22,6 +22,23 @@ describe("bench labels", () => {
 
     expect(labels.map(({ image }) => image).sort()).toEqual(images.sort());
     expect(labels.filter(({ name, image }) => image !== `${name}.jpg`).map(({ name }) => name)).toEqual([]);
+  });
+
+  test("pin every source image by sha256", () => {
+    expect(labels.filter(({ sourceSha256 }) => !/^[0-9a-f]{64}$/.test(sourceSha256)).map(({ name }) => name)).toEqual([]);
+  });
+
+  test("keep no EXIF, IPTC, or comment segment in any image", () => {
+    const withMetadata = labels.filter(({ image }) => {
+      const jpeg = readFileSync(join(BENCH, "data", image));
+      const markers = [];
+      for (let at = 2; at < jpeg.length && jpeg[at] === 0xff && jpeg[at + 1] !== 0xda; at += 2 + jpeg.readUInt16BE(at + 2)) {
+        markers.push(jpeg[at + 1]);
+      }
+      return markers.some((marker) => [0xe1, 0xed, 0xfe].includes(marker));
+    });
+
+    expect(withMetadata.map(({ name }) => name)).toEqual([]);
   });
 
   test.each(labels.map((label) => [label.name, label] as const))("%s parses as a Receipt", (_, label) => {

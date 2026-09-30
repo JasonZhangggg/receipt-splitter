@@ -27,10 +27,12 @@ const SOURCES = {
   cord: {
     url: "https://datasets-server.huggingface.co/rows?dataset=naver-clova-ix/cord-v2&config=default&split=test",
     rows: 100,
+    revision: "7f0115a4b758a71d6473b8d085751692da2fef98",
   },
   docjay131: {
     url: "https://datasets-server.huggingface.co/rows?dataset=docjay131/receipts-ocr-dataset&config=default&split=train",
     rows: 230,
+    revision: "ffb6088ef715689558289378fd26259f02f9910e",
   },
 };
 
@@ -49,9 +51,9 @@ const SELECTED = {
     "036": [], "038": [], "046": [], "053": [], "063": [], "070": [], "074": [], "078": [], "094": [], "098": [],
   },
   docjay131: {
-    "003": ["skew"], "004": ["signatureSlip"], "005": ["blur"], "015": ["handwritten"], "065": ["modifiers"],
+    "003": ["skew"], "005": ["blur"], "015": ["handwritten"], "065": ["modifiers"],
     "078": ["tipBlock", "modifiers"], "084": ["handwritten"], "111": ["skew"], "122": [], "147": ["blur"],
-    "168": ["skew"], "170": ["modifiers", "skew"],
+    "148": ["signatureSlip"], "168": ["skew"], "170": ["modifiers", "skew"],
   },
 };
 
@@ -72,7 +74,7 @@ function withoutMetadata(jpeg) {
   let at = 2;
   while (at < jpeg.length && jpeg[at] === 0xff && jpeg[at + 1] !== 0xda) {
     const end = at + 2 + jpeg.readUInt16BE(at + 2);
-    if (jpeg[at + 1] !== 0xe1) kept.push(jpeg.subarray(at, end));
+    if (![0xe1, 0xed, 0xfe].includes(jpeg[at + 1])) kept.push(jpeg.subarray(at, end));
     at = end;
   }
   return Buffer.concat([...kept, jpeg.subarray(at)]);
@@ -99,7 +101,7 @@ async function unzipped(name, source) {
   return dir;
 }
 
-async function datasetRows(name, { url, rows }) {
+async function datasetRows(name, { url, rows, revision }) {
   const path = join(CACHE, `${name}.json`);
   if (!existsSync(path)) {
     const pages = [];
@@ -109,7 +111,10 @@ async function datasetRows(name, { url, rows }) {
     }
     writeFileSync(path, JSON.stringify(pages));
   }
-  return JSON.parse(readFileSync(path, "utf8"));
+  const pages = JSON.parse(readFileSync(path, "utf8"));
+  const moved = pages.find((row) => !row.image.src.includes(`/--/${revision}/--/`));
+  if (moved) throw new Error(`${name} rows are not at pinned revision ${revision}: ${moved.image.src.split("?")[0]}`);
+  return pages;
 }
 
 async function fetchImage(url) {
@@ -125,13 +130,14 @@ async function srdCandidates(zenodo) {
     .map((file) => {
       const sourceId = file.replace("-receipt.txt", "");
       const text = readFileSync(join(transcriptions, file), "utf8");
+      const draft = draftFromTranscription(text);
       return {
         source: "srd",
         sourceId,
         name: `srd-${sourceId}`,
         region: "US",
-        features: [...textFeatures(text), ...(skewed.has(sourceId) ? ["skew"] : [])],
-        draft: draftFromTranscription(text),
+        features: [...textFeatures(text), ...(skewed.has(sourceId) ? ["skew"] : []), ...discountFeature(draft)],
+        draft,
         image: () => readFileSync(join(images, `${sourceId}-receipt.jpg`)),
       };
     });
@@ -168,7 +174,7 @@ async function docjayCandidates(zenodo) {
         sourceId,
         name: `docjay131-${sourceId}`,
         region: "US",
-        features: [parsed.tip ? "tip" : null, parsed.items?.some(({ name }) => /^\s*[+]/.test(name)) ? "modifiers" : null].filter(Boolean),
+        features: [parsed.tip ? "tip" : null, parsed.items?.some(({ name }) => DOCJAY_MODIFIER.test(name)) ? "modifiers" : null].filter(Boolean),
         draft: draftFromDocjay(parsed),
         image: () => fetchImage(row.image.src),
       },
@@ -182,6 +188,7 @@ const TOTAL = /^\s*(grand\s+)?total\b|amount\s+due|balance\s+due|total\s+due/i;
 const NOT_THE_TOTAL = /tax|before|sales|tip\s+total|qty|items?\b/i;
 const STOP = /\bcash\b|change|tender|visa|master|amex|discover|card|suggest|guide|helper|recommend|^\s*\(?\d+(\.\d+)?\s*%\s*(of\b|[:=($\d])/i;
 const DISCOUNT = /discount|coupon|promo|\boff\b|\bcomp\b|reward/i;
+const DOCJAY_MODIFIER = /^\s*[+]|^\s*add\s/i;
 const ADJUSTMENT_PATTERNS = [
   ["serviceCharge", /service|srv|svc|auto\s*grat/i],
   ["tip", /\btip\b|gratuity/i],
@@ -207,8 +214,11 @@ function textFeatures(text) {
   if (/service charge|service fee|srv chg|auto\s*grat/i.test(text)) features.add("serviceCharge");
   if (/^\s*[+]|^\s*(add|no|extra|with)\s/im.test(text)) features.add("modifiers");
   if (/^\s*(tip|gratuity)\b.*\d[.,]\d{2}/im.test(text)) features.add("tip");
-  if (/discount|coupon|-\$?\d+\.\d{2}/i.test(text)) features.add("discount");
   return [...features];
+}
+
+function discountFeature(draft) {
+  return draft?.adjustments.some(({ kind }) => kind === "discount") ? ["discount"] : [];
 }
 
 function priceOf(line) {
@@ -287,7 +297,7 @@ function cordFeatures(parsed) {
   return [
     sub.service_price ? "serviceCharge" : null,
     sub.tax_price ? "tax" : null,
-    sub.discount_price || list(parsed.menu).some((menu) => menu.discountprice) ? "discount" : null,
+    [sub.discount_price, ...list(parsed.menu).map((menu) => menu.discountprice)].some((value) => rupiah(value)) ? "discount" : null,
     list(parsed.menu).some((menu) => menu.sub) ? "modifiers" : null,
   ].filter(Boolean);
 }
@@ -322,7 +332,7 @@ function draftFromDocjay(parsed) {
   const items = [];
   for (const { name, totalPrice } of parsed.items ?? []) {
     if (typeof totalPrice !== "number") continue;
-    if (/^\s*[+]/.test(name) && items.length > 0) items[items.length - 1].price += cents(totalPrice);
+    if (DOCJAY_MODIFIER.test(name) && items.length > 0) items[items.length - 1].price += cents(totalPrice);
     else if (totalPrice >= 0) items.push({ name: rowName(name, "Item"), price: cents(totalPrice) });
   }
   if (items.length === 0 || typeof parsed.total !== "number") return null;
@@ -357,14 +367,24 @@ async function main() {
     for (const candidate of selected) {
       const image = `${candidate.name}.jpg`;
       const imagePath = join(DATA, image);
-      if (!existsSync(imagePath)) writeFileSync(imagePath, shrunk(await candidate.image()));
       const labelPath = join(LABELS, `${candidate.name}.json`);
-      const reviewed = existsSync(labelPath) && !flags.redraft ? JSON.parse(readFileSync(labelPath, "utf8")) : {};
+      const existing = existsSync(labelPath) ? JSON.parse(readFileSync(labelPath, "utf8")) : {};
+      const reviewed = flags.redraft ? {} : existing;
+      let { sourceSha256 } = existing;
+      if (!existsSync(imagePath)) {
+        const original = await candidate.image();
+        const digest = createHash("sha256").update(original).digest("hex");
+        if (sourceSha256 && digest !== sourceSha256) throw new Error(`${candidate.name} source image has sha256 ${digest}, pinned ${sourceSha256}`);
+        sourceSha256 = digest;
+        writeFileSync(imagePath, shrunk(original));
+      }
+      if (!sourceSha256) throw new Error(`${candidate.name} has no pinned source sha256; delete ${imagePath} to fetch and pin it`);
       const label = {
         image,
         source: candidate.source,
         sourceId: candidate.sourceId,
         region: candidate.region,
+        sourceSha256,
         tags: [...new Set([...candidate.features, ...SELECTED[candidate.source][candidate.sourceId]])],
         checked: reviewed.checked ?? false,
         ...(reviewed.note ? { note: reviewed.note } : {}),

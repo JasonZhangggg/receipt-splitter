@@ -3,6 +3,7 @@
   "source": "srd",
   "sourceId": "1040",
   "region": "US",
+  "sourceSha256": "1c878488eec0ecff57353e5dadd1f56b7f81aee67fa5d8fee96bc46ec02cbc82",
   "tags": [
     "serviceCharge",
     "skew"

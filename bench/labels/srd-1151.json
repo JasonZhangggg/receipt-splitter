@@ -3,10 +3,10 @@
   "source": "srd",
   "sourceId": "1151",
   "region": "US",
+  "sourceSha256": "2a69fb0a2fe315c06c44e2d74448c5bc97247ecb84857bffc2ca060d97e8b6dd",
   "tags": [
     "tipBlock",
-    "serviceCharge",
-    "discount"
+    "serviceCharge"
   ],
   "checked": false,
   "note": "The receipt prints the 6% service fee as --0.70 but adds it: 11.69 + 0.70 + 1.14 = 13.53.",

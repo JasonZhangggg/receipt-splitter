@@ -3,6 +3,7 @@
   "source": "srd",
   "sourceId": "1169",
   "region": "US",
+  "sourceSha256": "b8d0242baf10c7e80a0e45b701f671c910a331234b07aa86b010ff19e03abce7",
   "tags": [
     "modifiers"
   ],

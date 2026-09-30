@@ -3,10 +3,10 @@
   "source": "srd",
   "sourceId": "1005",
   "region": "US",
+  "sourceSha256": "2f0faf58ecf84e53801e08119059d83c6df705c3759e21c7a2cf691c8e758d1a",
   "tags": [
     "tipBlock",
-    "modifiers",
-    "discount"
+    "modifiers"
   ],
   "checked": false,
   "receipt": {
@@ -18,7 +18,7 @@
       },
       {
         "id": "i2",
-        "name": "“Cowboy” 16oz Ribeye",
+        "name": "\u201cCowboy\u201d 16oz Ribeye",
         "price": 4500
       },
       {
@@ -38,7 +38,7 @@
       },
       {
         "id": "i6",
-        "name": "“Duke” 16oz Top Sirloin",
+        "name": "\u201cDuke\u201d 16oz Top Sirloin",
         "price": 3400
       },
       {

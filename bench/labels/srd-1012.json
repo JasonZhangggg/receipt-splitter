@@ -3,6 +3,7 @@
   "source": "srd",
   "sourceId": "1012",
   "region": "US",
+  "sourceSha256": "f8357018094ede75e8d9061b08f849f989c84562df8450619461d27f9f6a71d6",
   "tags": [
     "tipBlock",
     "serviceCharge"
