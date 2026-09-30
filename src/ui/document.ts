@@ -18,7 +18,16 @@ const fallbacks = [
   {
     family: "ArchivoCondensed Fallback",
     weight: 800,
-    local: ["Arial Bold", "Arial-BoldMT", "Liberation Sans Bold", "LiberationSans-Bold", "Roboto Bold", "Roboto-Bold"],
+    local: [
+      "Arial Bold",
+      "Arial-BoldMT",
+      "Liberation Sans Bold",
+      "LiberationSans-Bold",
+      "Roboto Bold",
+      "Roboto-Bold",
+      "Roboto",
+      "Roboto-Regular",
+    ],
     metrics: fallbackMetrics[800],
   },
 ];

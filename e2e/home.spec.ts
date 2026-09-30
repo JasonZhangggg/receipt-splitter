@@ -214,6 +214,26 @@ for (const width of [phone.width, 1280]) {
   });
 }
 
+test("both fallback faces fall back to Roboto, including the single variable Roboto of Android 12 and later", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const sources = await page.evaluate(() =>
+    Object.fromEntries(
+      [...document.styleSheets]
+        .flatMap((sheet) => [...sheet.cssRules])
+        .filter((rule): rule is CSSFontFaceRule => rule instanceof CSSFontFaceRule)
+        .filter((rule) => rule.style.getPropertyValue("font-family").includes("Fallback"))
+        .map((rule) => [rule.style.getPropertyValue("font-family"), rule.style.getPropertyValue("src")]),
+    ),
+  );
+  expect(sources).toEqual({
+    '"Archivo Fallback"':
+      'local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"), local("Roboto"), local("Roboto-Regular")',
+    '"ArchivoCondensed Fallback"':
+      'local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold"), local("Roboto Bold"), local("Roboto-Bold"), local("Roboto"), local("Roboto-Regular")',
+  });
+});
+
 test("the two columns start level at 1280 px", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
