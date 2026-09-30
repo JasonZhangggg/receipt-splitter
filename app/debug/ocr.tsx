@@ -38,8 +38,8 @@ export default function OcrDebug() {
       <Text style={styles.title} role="heading" aria-level={1}>
         Read a receipt
       </Text>
-      <label style={{ fontSize: 16 }}>
-        Receipt photo <input type="file" accept="image/*" onChange={choose} style={{ fontSize: 16 }} />
+      <label style={systemFont}>
+        Receipt photo <input type="file" accept="image/*" onChange={choose} style={systemFont} />
       </label>
       <Text style={styles.status} testID="ocr-status" aria-live="polite">
         {scan.state === "idle" && "Choose a photo to read."}
@@ -48,7 +48,7 @@ export default function OcrDebug() {
         {scan.state === "failed" && `Could not read it. ${scan.message}`}
       </Text>
       {photo && (
-        <div style={{ position: "relative", maxWidth: 560 }}>
+        <div data-testid="ocr-photo" style={{ position: "relative", maxWidth: 560 }}>
           <img
             src={photo}
             alt="Receipt"
@@ -76,12 +76,12 @@ export default function OcrDebug() {
       )}
       {scan.state === "read" && (
         <>
-          <ol aria-label="Text boxes" style={{ fontSize: 15, lineHeight: 1.4, margin: 0, paddingLeft: 24 }}>
+          <ol aria-label="Text boxes" style={{ ...systemFont, lineHeight: 1.4, margin: 0, paddingLeft: 24 }}>
             {scan.boxes.map((box, i) => (
               <li key={i}>{box.text}</li>
             ))}
           </ol>
-          <details>
+          <details style={systemFont}>
             <summary>TextBox JSON</summary>
             <pre data-testid="ocr-json" style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>
               {JSON.stringify({ ms: scan.ms, boxes: scan.boxes })}
@@ -92,6 +92,8 @@ export default function OcrDebug() {
     </ScrollView>
   );
 }
+
+const systemFont = { fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 16 };
 
 const styles = StyleSheet.create({
   screen: { padding: 24, gap: 16 },
