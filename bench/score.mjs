@@ -39,8 +39,8 @@ for (const label of labels) {
       console.error(`${label.name}: the parser threw ${error}`);
       return null;
     });
-  const predicted = Array.isArray(output?.items) && Array.isArray(output?.adjustments) ? output : null;
-  if (output !== null && predicted === null) console.error(`${label.name}: the parser returned no items and adjustments arrays`);
+  const predicted = isReceiptShaped(output) ? output : null;
+  if (output !== null && predicted === null) console.error(`${label.name}: the parser returned something that is not a Receipt`);
   const byStructure = label.source === "cord";
   const tally = byStructure ? structure : exact;
   const items = byStructure
@@ -83,4 +83,15 @@ function matched(expected, actual = []) {
     if (at !== -1) left.splice(at, 1);
     return at !== -1;
   }).length;
+}
+
+function isReceiptShaped(value) {
+  return (
+    Array.isArray(value?.items) &&
+    value.items.every((item) => Number.isSafeInteger(item?.price)) &&
+    Array.isArray(value.adjustments) &&
+    value.adjustments.every((adjustment) => typeof adjustment?.kind === "string" && Number.isSafeInteger(adjustment.amount)) &&
+    Number.isSafeInteger(value.subtotal) &&
+    Number.isSafeInteger(value.total)
+  );
 }

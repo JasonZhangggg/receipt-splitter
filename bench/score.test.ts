@@ -119,9 +119,13 @@ describe("bench/score.mjs", () => {
     });
   });
 
-  test("counts a malformed parser result as a miss and keeps scoring the rest", () => {
+  test.each([
+    ["no adjustments array", { items: [] }],
+    ["a null Item", { items: [null], adjustments: [], subtotal: 0, total: 0 }],
+    ["a text price", { items: [{ id: "i1", name: "Burger", price: "14.50" }], adjustments: [], subtotal: 1450, total: 1450 }],
+  ])("counts a parser result with %s as a miss and keeps scoring the rest", (_, malformed) => {
     const dir = benchDir([diner, warung]);
-    const parser = parserModule(dir, { "srd-diner": { items: [] }, "cord-warung": warung.receipt });
+    const parser = parserModule(dir, { "srd-diner": malformed, "cord-warung": warung.receipt });
 
     expect(score(dir, parser)).toEqual({
       exact: { receipts: 1, items: [0, 3], adjustments: [0, 2], totalCheck: [0, 1] },
