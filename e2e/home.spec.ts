@@ -349,63 +349,132 @@ test("a press shows on touch-down without waiting on a timer", async ({ page }) 
     .toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
 });
 
-test("the bar action shows its press within 50 ms of touch-down", async ({ page }) => {
-  await page.goto("/");
-  await settle(page);
-  const pressedAfter = page.evaluate(
-    (name) =>
-      new Promise<number>((resolve) => {
+const pressTimes = (page: Page, startEvent: "touchstart" | "mousedown") =>
+  page.evaluate(
+    ([name, type]) =>
+      new Promise<{ shows: number; full: number }>((resolve) => {
         const button = [...document.querySelectorAll('[role="button"]')].find((el) => el.textContent === name)!;
         addEventListener(
-          "touchstart",
+          type,
           (event) => {
-            const pressed = () =>
-              getComputedStyle(button).transform !== "none" ||
-              button.getAnimations().some((a) => (a as CSSTransition).transitionProperty === "transform");
-            const poll = () => (pressed() ? resolve(performance.now() - event.timeStamp) : requestAnimationFrame(poll));
+            let shows = NaN;
+            const poll = () => {
+              const since = performance.now() - event.timeStamp;
+              const { transform } = getComputedStyle(button);
+              const moving = button.getAnimations().some((a) => (a as CSSTransition).transitionProperty === "transform");
+              if (Number.isNaN(shows) && (transform !== "none" || moving)) shows = since;
+              if (transform !== "none" && new DOMMatrix(transform).a <= 0.9601) resolve({ shows, full: since });
+              else requestAnimationFrame(poll);
+            };
             poll();
           },
           { capture: true, once: true },
         );
       }),
-    "Scan or upload a receipt",
+    ["Scan or upload a receipt", startEvent] as const,
   );
-  await pressAndHold(page, "Scan or upload a receipt");
-  expect(await pressedAfter).toBeLessThan(50);
-});
 
-test("a scroll that starts on the inline action at 820 px never shows the press", async ({ page }) => {
-  await page.setViewportSize({ width: 820, height: 600 });
-  await page.clock.install();
+test("the bar action shows its press within 50 ms of touch-down and reaches 0.96 within 120 ms", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
-  const scan = page.getByRole("button", { name: "Scan or upload a receipt" });
-  const box = (await scan.boundingBox())!;
+  const times = pressTimes(page, "touchstart");
+  await pressAndHold(page, "Scan or upload a receipt");
+  const { shows, full } = await times;
+  expect(shows, "first pressed frame").toBeLessThan(50);
+  expect(full, "scale 0.96, the end of the 100 ms press-in").toBeLessThan(120);
+});
+
+test("a mouse press on the inline action at 1280 px shows within 50 ms of mouse-down", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
+  const page = await context.newPage();
+  await page.goto("/");
+  await settle(page);
+  const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const times = pressTimes(page, "mousedown");
+  await page.mouse.down();
+  expect((await times).shows, "first pressed frame").toBeLessThan(50);
+  await context.close();
+});
+
+type PressLog = { touchStart: number; scrollTop: number; scrolled: number; frames: { at: number; pressed: boolean }[] };
+
+async function touchInlineAction(page: Page, moves: number[], gap: number) {
+  await page.setViewportSize({ width: 900, height: 500 });
+  await page.goto("/");
+  await settle(page);
+  const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
+  await page.evaluate(() => {
+    const button = [...document.querySelectorAll('[role="button"]')].find((el) => el.textContent === "Scan or upload a receipt")!;
+    let scroller = button.parentElement!;
+    while (scroller.scrollHeight <= scroller.clientHeight || !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+      scroller = scroller.parentElement!;
+    }
+    const log: PressLog = { touchStart: 0, scrollTop: scroller.scrollTop, scrolled: 0, frames: [] };
+    addEventListener("touchstart", (event) => (log.touchStart = event.timeStamp), { capture: true, once: true });
+    const sample = () => {
+      const style = getComputedStyle(button);
+      const pressed = style.transform !== "none" || style.opacity !== "1" || button.getAnimations().length > 0;
+      log.frames.push({ at: performance.now(), pressed });
+      log.scrolled = scroller.scrollTop - log.scrollTop;
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    Object.assign(window, { pressLog: log });
+  });
   const at = (dy: number) => [{ x: box.x + box.width / 2, y: box.y + box.height / 2 + dy }];
   const cdp = await page.context().newCDPSession(page);
-  const seen = [];
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(0) });
-  seen.push(await pressLook(page));
-  for (const dy of [-12, -24, -48, -96]) {
+  for (const dy of moves) {
+    await page.waitForTimeout(gap);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(dy) });
-    seen.push(await pressLook(page));
   }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await page.clock.runFor(200);
-  seen.push(await pressLook(page));
-  expect(seen.filter((look) => look.transform !== "none" || look.transitions.length > 0)).toEqual([]);
-});
+  await page.waitForTimeout(400);
+  if (moves.length > 0) await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(200);
+  const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+  const pressedAt = log.frames.filter((frame) => frame.pressed).map((frame) => Math.round(frame.at - log.touchStart));
+  return { scrolled: log.scrolled, pressedAt };
+}
 
-test("the inline action at 820 px still presses on a held touch", async ({ page }) => {
-  await page.setViewportSize({ width: 820, height: 600 });
-  await page.goto("/");
-  await settle(page);
-  await pressAndHold(page, "Scan or upload a receipt");
-  await expect
-    .poll(() => pressLook(page))
-    .toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
-});
+const scrollsFromInlineAction = [
+  { start: "a small first move", moves: [-8, -20, -35, -55, -80, -110, -140], gap: 8 },
+  { start: "a slow drag", moves: [-10, -30, -50, -80, -120], gap: 40 },
+  { start: "a large first move", moves: [-40, -80, -120], gap: 8 },
+];
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  for (const { start, moves, gap } of scrollsFromInlineAction) {
+    test(`a scroll from the inline action that starts with ${start} never shows the press, motion ${reducedMotion}`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion });
+      const { scrolled, pressedAt } = await touchInlineAction(page, moves, gap);
+      expect(scrolled, "the page scrolled under the touch").toBeGreaterThan(50);
+      expect(pressedAt).toEqual([]);
+    });
+  }
+
+  test(`a key press on the inline action after a touch scroll still shows the press, motion ${reducedMotion}`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await touchInlineAction(page, [-40, -80, -120], 8);
+    await page.getByRole("button", { name: "Scan or upload a receipt" }).focus();
+    await page.keyboard.down(" ");
+    await expect
+      .poll(() => pressLook(page))
+      .toEqual(
+        reducedMotion === "reduce"
+          ? { transform: "none", opacity: "0.7", transitions: [] }
+          : { transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] },
+      );
+  });
+
+  test(`the inline action presses on a held touch after the scroll-view delay, motion ${reducedMotion}`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    const { scrolled, pressedAt } = await touchInlineAction(page, [], 0);
+    expect(scrolled).toBe(0);
+    expect(pressedAt[0], "first pressed frame after touch-down").toBeGreaterThanOrEqual(150);
+    expect(pressedAt.at(-1), "still pressed 600 ms after touch-down").toBeGreaterThan(550);
+  });
+}
 
 test("under reduced motion a press dims the action at once and never scales it", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
