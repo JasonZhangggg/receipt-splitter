@@ -62,7 +62,7 @@ function parserModule(dir: string, receipts: Record<string, unknown>): string {
 function score(dir: string, parser: string): unknown {
   const output = execFileSync(
     process.execPath,
-    ["--import", "./bench/register-ts.mjs", "bench/score.mjs", `--parser=${parser}`, `--labels=${join(dir, "labels")}`, "--json"],
+    ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "bench/score.mjs", `--parser=${parser}`, `--labels=${join(dir, "labels")}`, "--json"],
     { cwd: ROOT, encoding: "utf8" },
   );
   return JSON.parse(output);
@@ -182,7 +182,7 @@ describe("bench/score.mjs", () => {
   });
 
   test("scores every committed label against itself at 100 percent", () => {
-    const output = execFileSync(process.execPath, ["--import", "./bench/register-ts.mjs", "bench/score.mjs", "--parser=labels"], {
+    const output = execFileSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "bench/score.mjs", "--parser=labels"], {
       cwd: ROOT,
       encoding: "utf8",
     });

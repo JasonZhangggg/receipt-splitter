@@ -12,9 +12,9 @@
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
     "size": "node scripts/size.mjs",
-    "bench": "node --import ./bench/register-ts.mjs bench/score.mjs",
-    "bench:report": "node --import ./bench/register-ts.mjs bench/report.mjs",
-    "bench:fetch": "node --import ./bench/register-ts.mjs bench/fetch.mjs"
+    "bench": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/score.mjs",
+    "bench:report": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/report.mjs",
+    "bench:fetch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON bench/fetch.mjs"
   },
   "dependencies": {
     "expo": "~57.0.26",
