@@ -123,6 +123,7 @@ describe("bench/score.mjs", () => {
     ["no adjustments array", { items: [] }],
     ["a null Item", { items: [null], adjustments: [], subtotal: 0, total: 0 }],
     ["a text price", { items: [{ id: "i1", name: "Burger", price: "14.50" }], adjustments: [], subtotal: 1450, total: 1450 }],
+    ["no subtotal", { ...diner.receipt, subtotal: undefined }],
     ["no total", { ...diner.receipt, total: undefined }],
     ["an Adjustment with no kind", { ...diner.receipt, adjustments: diner.receipt.adjustments.map(({ amount }) => ({ amount })) }],
   ])("counts a parser result with %s as a miss and keeps scoring the rest", (_, malformed) => {
@@ -190,5 +191,15 @@ describe("bench/score.mjs", () => {
     expect(output).toMatch(/^exact, (\d+) receipts: Item prices (\d+)\/\2 100\.0%, Adjustments (\d+)\/\3 100\.0%, Total check \1\/\1 100\.0%$/m);
     expect(output).toMatch(/^structure, (\d+) receipts: Items (\d+)\/\2 100\.0%, Adjustments (\d+)\/\3 100\.0%$/m);
     expect(output).toMatch(/^misses: none$/m);
+  });
+
+  test("runs a parser in bench/parsers by its bare name and prints its median parse time", () => {
+    const output = execFileSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "bench/score.mjs", "--parser=app"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+
+    expect(output).toMatch(/^exact, 62 receipts: Item prices \d+\/268 \d+\.\d%, Adjustments \d+\/79 \d+\.\d%, Total check \d+\/62 \d+\.\d%$/m);
+    expect(output).toMatch(/^structure, 20 receipts: Items \d+\/67 \d+\.\d%, Adjustments \d+\/26 \d+\.\d%\nparse: median \d+(\.\d+)? ms over 82 receipts$/m);
   });
 });
