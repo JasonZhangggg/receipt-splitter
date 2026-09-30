@@ -39,6 +39,63 @@ function shareCents({ shares }: Shares): [string, number][] {
   return shares.map(({ participantId, share }) => [participantId, share]);
 }
 
+function random(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const MENU_PRICES = [0, 100, 250, 333, 500, 899, 1000, 1250, 1999, 4500];
+
+function seededReceipts(count: number) {
+  const next = random(2026);
+  const int = (low: number, high: number) => low + Math.floor(next() * (high - low + 1));
+  return Array.from({ length: count }, () => {
+    const [host, ...others] = Array.from({ length: int(2, 12) }, (_, index) => `${int(0, 46_655).toString(36)}_${index}`);
+    const people = [host, ...others];
+    const groups: string[][] = [];
+    for (let start = 0; start < people.length; ) {
+      const size = int(1, 4);
+      groups.push(people.slice(start, start + size));
+      start += size;
+    }
+    const rows = Array.from({ length: int(1, 20) }, (_, index): Row => {
+      const claimers = groups.filter(() => next() < 0.45).flat();
+      const fallback = next() < 0.8 ? groups[int(0, groups.length - 1)] : [];
+      const amount = next() < 0.5 ? MENU_PRICES[int(0, MENU_PRICES.length - 1)] : int(1, 5000);
+      return [`i${index}`, amount, claimers.length > 0 ? claimers : fallback];
+    });
+    const subtotal = rows.reduce((sum, [, amount]) => sum + amount, 0);
+    const adjustments: [AdjustmentKind, number][] = [
+      ["tax", Math.round(subtotal * 0.08875)],
+      ["tip", Math.round(subtotal * [0.18, 0.2, 0.22][int(0, 2)])],
+    ];
+    if (next() < 0.15) adjustments.push(["discount", -Math.min(subtotal, int(100, 800))]);
+    const [first, ...rest] = rows;
+    return {
+      split: splitWith({ items: [first, ...rest], adjustments, participants: [host, ...others] }),
+      twins: groups.filter((group) => group.length > 1),
+    };
+  });
+}
+
+function exactShares({ receipt }: Pick<Split, "receipt">) {
+  const weights = receipt.items.some(({ price }) => price > 0) ? receipt.items.map(({ price }) => price) : receipt.items.map(() => 1);
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  const shares = new Map<string, number>();
+  let unclaimed = 0;
+  receipt.items.forEach(({ claimedBy }, index) => {
+    const load = (receipt.total * weights[index]) / weightSum;
+    if (claimedBy.length === 0) unclaimed += load;
+    for (const id of claimedBy) shares.set(id, (shares.get(id) ?? 0) + load / claimedBy.length);
+  });
+  return { shares, unclaimed };
+}
+
 describe("computeShares", () => {
   test("a $30.00 pitcher Claimed by three Participants costs each 1000 cents", () => {
     const shares = computeShares(splitWith({ items: [["pitcher", 3000, ["ann", "bob", "cat"]]] }));
@@ -55,6 +112,22 @@ describe("computeShares", () => {
 
     expect(shares.map(({ share }) => share).sort((a, b) => a - b)).toEqual([333, 333, 334]);
     expect(shares.reduce((sum, { share }) => sum + share, 0)).toBe(1000);
+  });
+
+  test("the extra cent of an even three-way split lands on the lowest id about a third of the time", () => {
+    const next = random(334);
+    const receipts = 3_000;
+    let lowestPaidMore = 0;
+    for (let receipt = 0; receipt < receipts; receipt++) {
+      const people = Array.from({ length: 3 }, (_, index) => `${Math.floor(next() * 46_656).toString(36)}_${index}`);
+      const [host, ...others] = people;
+      const { shares } = computeShares(splitWith({ items: [["nachos", 1000, people]], participants: [host, ...others] }));
+      const lowest = [...people].sort()[0];
+      if (shares.find(({ participantId }) => participantId === lowest)?.share === 334) lowestPaidMore += 1;
+    }
+
+    expect(lowestPaidMore / receipts).toBeGreaterThan(0.3);
+    expect(lowestPaidMore / receipts).toBeLessThan(0.37);
   });
 
   test("tax and tip divide in proportion to each Participant's Claimed Items", () => {
@@ -136,8 +209,8 @@ describe("computeShares", () => {
     );
 
     expect(shareCents(shares)).toEqual([
-      ["ann", 4059],
-      ["bob", 1676],
+      ["ann", 4060],
+      ["bob", 1675],
       ["cat", 2932],
     ]);
     expect(shares.shares.reduce((sum, { share }) => sum + share, 0)).toBe(8667);
@@ -180,7 +253,7 @@ describe("computeShares", () => {
     ]);
   });
 
-  test("Items Claimed by the same Participants are split as one pool, so three shared $10.00 Items cost each exactly $10.00", () => {
+  test("three $10.00 Items shared by the same three Participants cost each exactly $10.00", () => {
     const everyone = ["ann", "bob", "cat"];
     const shares = computeShares(
       splitWith({
@@ -197,6 +270,87 @@ describe("computeShares", () => {
       ["bob", 1000],
       ["cat", 1000],
     ]);
+  });
+
+  test("two Participants who Claim the same Items pay the same, whatever else the third Claims", () => {
+    const shares = computeShares(
+      splitWith({
+        items: [
+          ["pizza", 500, ["a", "b", "c"]],
+          ["fries", 100, ["a", "b"]],
+        ],
+        adjustments: [
+          ["tax", 53],
+          ["tip", 120],
+        ],
+        participants: ["a", "b", "c"],
+      }),
+    );
+
+    expect(shareCents(shares)).toEqual([
+      ["a", 279],
+      ["b", 279],
+      ["c", 215],
+    ]);
+  });
+
+  test("every Share and the Unclaimed total land strictly within 1 cent of exact, and identical claimers within 1 cent of each other, across 3,000 seeded receipts", () => {
+    let worst = 0;
+    let widestTwinGap = 0;
+    for (const { split, twins } of seededReceipts(3_000)) {
+      const { shares, unclaimed } = computeShares(split);
+      const exact = exactShares(split);
+      const misses = [
+        ...shares.map(({ participantId, share }) => share - (exact.shares.get(participantId) ?? 0)),
+        unclaimed.total - exact.unclaimed,
+      ];
+      worst = Math.max(worst, ...misses.map(Math.abs));
+      expect(shares.reduce((sum, { share }) => sum + share, 0) + unclaimed.total).toBe(split.receipt.total);
+      const byId = new Map<string, number>(shares.map(({ participantId, share }) => [participantId, share]));
+      for (const group of twins) {
+        const paid = group.map((id) => byId.get(id) ?? 0);
+        widestTwinGap = Math.max(widestTwinGap, Math.max(...paid) - Math.min(...paid));
+      }
+    }
+
+    expect(worst).toBeLessThan(1);
+    expect(widestTwinGap).toBe(1);
+  });
+
+  test("a Claim moves a claimer's Share by the exact amount within 2 cents, since each side rounds on its own", () => {
+    const withNachos = (nachosClaimers: readonly string[]) =>
+      shareCents(
+        computeShares(
+          splitWith({
+            items: [
+              ["nachos", 335, nachosClaimers],
+              ["wings", 834, ["p0", "p1", "p2"]],
+            ],
+            adjustments: [["tax", 137]],
+            participants: ["p0", "p1", "p2"],
+          }),
+        ),
+      );
+
+    expect(withNachos(["p0", "p1", "p2"])).toEqual([
+      ["p0", 435],
+      ["p1", 436],
+      ["p2", 435],
+    ]);
+    expect(withNachos(["p0", "p2"])).toEqual([
+      ["p0", 498],
+      ["p1", 310],
+      ["p2", 498],
+    ]);
+  });
+
+  test("Shares do not depend on the order of the Receipt rows", () => {
+    for (const { split } of seededReceipts(300)) {
+      const [first, ...rest] = [...split.receipt.items].reverse();
+      const reversed = { ...split, receipt: { ...split.receipt, items: [first, ...rest] as const } };
+
+      expect(computeShares(reversed).shares).toEqual(computeShares(split).shares);
+    }
   });
 
   test("Participants who share every Item land within 1 cent of an exact twelfth, across 200 seeded receipts", () => {
@@ -229,7 +383,7 @@ describe("computeShares", () => {
     expect(worst).toBeLessThan(1);
   });
 
-  test("with mixed claimer sets no Participant is favored on average, and no Share misses exact by 6 cents", () => {
+  test("with mixed claimer sets no Participant is favored on average, and no Share misses exact by 1 cent", () => {
     const people = Array.from({ length: 12 }, (_, index) => `p${String(index).padStart(2, "0")}`);
     const [host, ...others] = people;
     let state = 11;
@@ -264,8 +418,8 @@ describe("computeShares", () => {
       }
     }
 
-    expect(Math.max(...[...drift.values()].map((total) => Math.abs(total / receipts)))).toBeLessThan(0.5);
-    expect(worst).toBeLessThan(6);
+    expect(Math.max(...[...drift.values()].map((total) => Math.abs(total / receipts)))).toBeLessThan(0.1);
+    expect(worst).toBeLessThan(1);
   });
 
   test("a $100,000.00 Item split thirty ways stays exact to the cent", () => {
@@ -297,16 +451,31 @@ describe("computeShares", () => {
     );
 
     expect(shares.filter(({ share }) => share !== 333_333).map(({ participantId, share }) => [participantId, share])).toEqual([
-      ["p00", 333_334],
+      ["p02", 333_334],
+      ["p05", 333_334],
+      ["p07", 333_334],
+      ["p11", 333_334],
+      ["p16", 333_334],
+      ["p18", 333_334],
       ["p22", 333_334],
-      ["p23", 333_334],
-      ["p24", 333_334],
-      ["p25", 333_334],
-      ["p26", 333_334],
       ["p27", 333_334],
-      ["p28", 333_334],
       ["p29", 333_335],
     ]);
     expect(shares.reduce((sum, { share }) => sum + share, 0) + unclaimed.total).toBe(MAX_CENTS);
+  });
+
+  test("at the caps, with every claimer count from 1 to 30 and a MAX_CENTS total, each Share stays within 1 cent of exact", () => {
+    const people = Array.from({ length: 30 }, (_, index) => `p${String(index).padStart(2, "0")}`);
+    const [host, ...others] = people;
+    const rows = Array.from({ length: 100 }, (_, index): Row => [`i${index}`, 97_001 + index, people.slice(0, 1 + (index % 30))]);
+    const subtotal = rows.reduce((sum, [, amount]) => sum + amount, 0);
+    const [first, ...rest] = rows;
+    const split = splitWith({ items: [first, ...rest], adjustments: [["tip", MAX_CENTS - subtotal]], participants: [host, ...others] });
+    const { shares, unclaimed } = computeShares(split);
+    const exact = exactShares(split);
+
+    expect(split.receipt.total).toBe(MAX_CENTS);
+    expect(shares.reduce((sum, { share }) => sum + share, 0) + unclaimed.total).toBe(MAX_CENTS);
+    expect(Math.max(...shares.map(({ participantId, share }) => Math.abs(share - (exact.shares.get(participantId) ?? 0))))).toBeLessThan(1);
   });
 });

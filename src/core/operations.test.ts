@@ -215,9 +215,9 @@ describe("applyOperation", () => {
     expect(claimed.receipt.items[0].claimedBy).toEqual(["Zed", "bob", "cat"]);
     expect(computeShares(claimed).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
       ["ann", 0],
-      ["bob", 467],
+      ["bob", 466],
       ["cat", 467],
-      ["Zed", 466],
+      ["Zed", 467],
     ]);
   });
 
@@ -547,7 +547,7 @@ describe("splitting Unclaimed items", () => {
     expect(everyone.recentChanges.at(-1)?.writes).toEqual([
       { kind: "claims", itemIds: ["pasta", "pitcher"], participantIds: ["ann", "bob", "cat"], claimed: true },
     ]);
-    expect(computeShares(everyone).shares.map(({ share }) => share)).toEqual([1467, 2267, 1466]);
+    expect(computeShares(everyone).shares.map(({ share }) => share)).toEqual([1467, 2266, 1467]);
     expect(computeShares(everyone).unclaimed).toEqual({ itemIds: [], subtotal: 0, total: 0 });
     expect(apply(everyone, { by: bob, type: "undo", revision: everyone.revision }).receipt).toEqual(split.receipt);
   });
@@ -791,6 +791,7 @@ describe("random operations", () => {
     const fresh = () => `n${seed}x${counter++}`;
     let split = startingSplit(next);
     const tally = { accepted: 0, rejected: 0, undone: 0 };
+    const worstDrift = { claimer: 0, nonClaimer: 0 };
 
     for (let step = 0; step < 300; step++) {
       const op = randomOperation(split, next, fresh);
@@ -816,10 +817,19 @@ describe("random operations", () => {
       if ((op.type === "claim" || op.type === "unclaim") && result.changed) {
         const item = split.receipt.items.find(({ id }) => id === op.itemId);
         const earlier = previous.receipt.items.find(({ id }) => id === op.itemId);
-        const touched = new Set([...(item?.claimedBy ?? []), ...(earlier?.claimedBy ?? [])]);
+        const { items: rows, total } = split.receipt;
+        const weights = rows.some(({ price }) => price > 0) ? rows.map(({ price }) => price) : rows.map(() => 1);
+        const load = (total * weights[rows.findIndex(({ id }) => id === op.itemId)]) / weights.reduce((sum, weight) => sum + weight, 0);
+        const portion = (claimedBy: readonly ParticipantId[] = [], id: ParticipantId) =>
+          claimedBy.includes(id) ? load / claimedBy.length : 0;
         const was = new Map(computeShares(previous).shares.map(({ participantId, share }) => [participantId, share]));
-        const moved = shares.filter(({ participantId, share }) => was.get(participantId) !== share).map(({ participantId }) => participantId);
-        expect(moved.filter((id) => !touched.has(id))).toEqual([]);
+        for (const { participantId: id, share } of shares) {
+          const exactMove = portion(item?.claimedBy, id) - portion(earlier?.claimedBy, id);
+          const drift = Math.abs(share - (was.get(id) ?? 0) - exactMove);
+          const claimer = item?.claimedBy.includes(id) || earlier?.claimedBy.includes(id);
+          if (claimer) worstDrift.claimer = Math.max(worstDrift.claimer, drift);
+          else worstDrift.nonClaimer = Math.max(worstDrift.nonClaimer, drift);
+        }
       }
 
       const newest = split.recentChanges.at(-1);
@@ -835,5 +845,7 @@ describe("random operations", () => {
     expect(tally.accepted).toBeGreaterThan(150);
     expect(tally.rejected).toBeGreaterThan(10);
     expect(tally.undone).toBeGreaterThan(3);
+    expect(worstDrift.nonClaimer).toBeLessThanOrEqual(1);
+    expect(worstDrift.claimer).toBeLessThan(2);
   });
 });

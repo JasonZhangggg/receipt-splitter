@@ -1,5 +1,5 @@
 import { cents, type Cents } from "./money";
-import type { Item, ItemId, ParticipantId, Split } from "./split";
+import type { ItemId, ParticipantId, Split } from "./split";
 
 export type HostShare = {
   readonly participantId: ParticipantId;
@@ -23,39 +23,33 @@ export type Shares = {
 
 export function computeShares(split: Pick<Split, "receipt" | "participants" | "payments">): Shares {
   const { items, total } = split.receipt;
-  const loads = loadItems(total, items);
-  const pools = new Map<string, { readonly claimers: readonly ParticipantId[]; load: number }>();
+  const weights = items.some((item) => item.price > 0) ? items.map((item) => item.price) : items.map(() => 1);
+  const scale = BigInt(items.reduce((multiple, { claimedBy }) => leastCommonMultiple(multiple, Math.max(claimedBy.length, 1)), 1));
+  const weightOf = new Map<ParticipantId | null, bigint>([[null, 0n], ...split.participants.map(({ id }): [ParticipantId, bigint] => [id, 0n])]);
   const unclaimedIds: ItemId[] = [];
   let unclaimedSubtotal = 0;
-  let unclaimedTotal = 0;
 
-  items.forEach((item, index) => {
-    if (item.claimedBy.length === 0) {
-      unclaimedIds.push(item.id);
-      unclaimedSubtotal += item.price;
-      unclaimedTotal += loads[index];
-      return;
+  items.forEach(({ id, price, claimedBy }, index) => {
+    const weight = BigInt(weights[index]) * scale;
+    if (claimedBy.length === 0) {
+      unclaimedIds.push(id);
+      unclaimedSubtotal += price;
     }
-    const key = item.claimedBy.join(",");
-    const pool = pools.get(key);
-    if (pool) pool.load += loads[index];
-    else pools.set(key, { claimers: item.claimedBy, load: loads[index] });
+    const claimers = claimedBy.length === 0 ? [null] : claimedBy;
+    for (const claimer of claimers) weightOf.set(claimer, (weightOf.get(claimer) ?? 0n) + weight / BigInt(claimers.length));
   });
 
-  const shareOf = new Map<ParticipantId, number>(split.participants.map(({ id }) => [id, 0]));
-  for (const [key, { claimers, load }] of pools) {
-    const count = claimers.length;
-    const base = Math.floor(load / count);
-    const leftover = load - base * count;
-    const start = fnv1a(key) % count;
-    claimers.forEach((claimer, position) => {
-      const extra = (position - start + count) % count < leftover ? 1 : 0;
-      shareOf.set(claimer, (shareOf.get(claimer) ?? 0) + base + extra);
-    });
-  }
+  const denominator = BigInt(weights.reduce((sum, weight) => sum + weight, 0)) * scale;
+  const exact = [...weightOf].map(([id, weight]) => {
+    const numerator = BigInt(total) * weight;
+    return { id, floor: Number(numerator / denominator), remainder: numerator % denominator, rank: id === null ? UNCLAIMED_RANK : hashId(id) };
+  });
+  const leftover = total - exact.reduce((sum, { floor }) => sum + floor, 0);
+  const roundedUp = new Set([...exact].sort(largestRemainderFirst).slice(0, leftover));
+  const rounded = new Map(exact.map((part) => [part.id, part.floor + (roundedUp.has(part) ? 1 : 0)]));
 
   const paidBy = new Map(split.payments.map((payment) => [payment.participantId, payment.amount]));
-  const shareFor = (id: ParticipantId) => cents(shareOf.get(id) ?? 0);
+  const shareFor = (id: ParticipantId) => cents(rounded.get(id) ?? 0);
   const [host, ...others] = split.participants;
   return {
     shares: [
@@ -66,31 +60,31 @@ export function computeShares(split: Pick<Split, "receipt" | "participants" | "p
         return { participantId: id, share, paid, owed: cents(share - paid) };
       }),
     ],
-    unclaimed: { itemIds: unclaimedIds, subtotal: cents(unclaimedSubtotal), total: cents(unclaimedTotal) },
+    unclaimed: { itemIds: unclaimedIds, subtotal: cents(unclaimedSubtotal), total: cents(rounded.get(null) ?? 0) },
   };
 }
 
-function loadItems(total: Cents, items: readonly Item[]): number[] {
-  const weights = items.some((item) => item.price > 0) ? items.map((item) => item.price) : items.map(() => 1);
-  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
-  const parts = weights.map((weight, index) => {
-    const product = total * weight;
-    const remainder = product % weightSum;
-    return { index, id: items[index].id, load: (product - remainder) / weightSum, remainder };
-  });
-  const loads = parts.map(({ load }) => load);
-  const leftover = total - loads.reduce((sum, load) => sum + load, 0);
-  const byRemainder = parts
-    .filter(({ remainder }) => remainder > 0)
-    .sort((a, b) => b.remainder - a.remainder || (a.id < b.id ? -1 : 1));
-  for (const { index } of byRemainder.slice(0, leftover)) loads[index] += 1;
-  return loads;
+const UNCLAIMED_RANK = 2 ** 32;
+
+type ExactPart = { readonly id: ParticipantId | null; readonly remainder: bigint; readonly rank: number };
+
+function largestRemainderFirst(a: ExactPart, b: ExactPart): number {
+  if (a.remainder !== b.remainder) return a.remainder > b.remainder ? -1 : 1;
+  return a.rank - b.rank || ((a.id ?? "") < (b.id ?? "") ? -1 : 1);
 }
 
-function fnv1a(text: string): number {
+function leastCommonMultiple(a: number, b: number): number {
+  let [x, y] = [a, b];
+  while (y !== 0) [x, y] = [y, x % y];
+  return (a / x) * b;
+}
+
+function hashId(text: string): number {
   let hash = 0x811c9dc5;
   for (let index = 0; index < text.length; index++) {
-    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193) >>> 0;
+    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193);
   }
-  return hash;
+  hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b);
+  hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
+  return (hash ^ (hash >>> 16)) >>> 0;
 }
