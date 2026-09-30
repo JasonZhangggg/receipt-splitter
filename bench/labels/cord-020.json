@@ -1,0 +1,56 @@
+{
+  "image": "cord-020.jpg",
+  "source": "cord",
+  "sourceId": "020",
+  "region": "ID",
+  "tags": [
+    "serviceCharge",
+    "tax"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "cashew nuts chkn",
+        "price": 64500
+      },
+      {
+        "id": "i2",
+        "name": "garlic pepper beef",
+        "price": 79500
+      },
+      {
+        "id": "i3",
+        "name": "red curry beef",
+        "price": 69500
+      },
+      {
+        "id": "i4",
+        "name": "phad thai",
+        "price": 64500
+      },
+      {
+        "id": "i5",
+        "name": "steamed rice",
+        "price": 47600
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 34351
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 17908
+      }
+    ],
+    "subtotal": 325600,
+    "total": 377859
+  }
+}

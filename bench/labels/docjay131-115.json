@@ -1,0 +1,77 @@
+{
+  "image": "docjay131-115.jpg",
+  "source": "docjay131",
+  "sourceId": "115",
+  "region": "US",
+  "tags": [],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "KS ORG SUGAR",
+        "price": 849
+      },
+      {
+        "id": "i2",
+        "name": "DC FIGS",
+        "price": 497
+      },
+      {
+        "id": "i3",
+        "name": "DRIED PLUMS",
+        "price": 899
+      },
+      {
+        "id": "i4",
+        "name": "HERSHEY NUGG",
+        "price": 1175
+      },
+      {
+        "id": "i5",
+        "name": "KS ORG CHERY",
+        "price": 799
+      },
+      {
+        "id": "i6",
+        "name": "KS WHL PEPER",
+        "price": 499
+      },
+      {
+        "id": "i7",
+        "name": "KS PURE SALT",
+        "price": 279
+      },
+      {
+        "id": "i8",
+        "name": "KS GRINDER",
+        "price": 689
+      },
+      {
+        "id": "i9",
+        "name": "40PK \"AA\"",
+        "price": 1599
+      },
+      {
+        "id": "i10",
+        "name": "KS ORG EGGS",
+        "price": 649
+      },
+      {
+        "id": "i11",
+        "name": "ORGANIC CHIP",
+        "price": 589
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 176
+      }
+    ],
+    "subtotal": 8523,
+    "total": 8699
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "image": "srd-1073.jpg",
+  "source": "srd",
+  "sourceId": "1073",
+  "region": "US",
+  "tags": [
+    "signatureSlip"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "#SMS $11.99 Any 2 FtLong",
+        "price": 1199
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Sales Tax (10.25%)",
+        "amount": 123
+      }
+    ],
+    "subtotal": 1199,
+    "total": 1322
+  }
+}

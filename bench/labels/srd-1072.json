@@ -1,0 +1,40 @@
+{
+  "image": "srd-1072.jpg",
+  "source": "srd",
+  "sourceId": "1072",
+  "region": "US",
+  "tags": [
+    "discount",
+    "blur"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "1/2 AND 1/2 COMBO",
+        "price": 845
+      },
+      {
+        "id": "i2",
+        "name": "1/2 AND 1/2 COMBO",
+        "price": 795
+      },
+      {
+        "id": "i3",
+        "name": "FOUNTAIN MEDIUM",
+        "price": 350
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "tax 1",
+        "amount": 179
+      }
+    ],
+    "subtotal": 1990,
+    "total": 2169
+  }
+}

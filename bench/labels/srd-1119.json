@@ -1,0 +1,54 @@
+{
+  "image": "srd-1119.jpg",
+  "source": "srd",
+  "sourceId": "1119",
+  "region": "US",
+  "tags": [
+    "signatureSlip"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Plate",
+        "price": 910
+      },
+      {
+        "id": "i2",
+        "name": "Plate",
+        "price": 910
+      },
+      {
+        "id": "i3",
+        "name": "XTRA ENTREE",
+        "price": 150
+      },
+      {
+        "id": "i4",
+        "name": "XTRA ENTREE",
+        "price": 150
+      },
+      {
+        "id": "i5",
+        "name": "PEPSI 20 OZ",
+        "price": 200
+      },
+      {
+        "id": "i6",
+        "name": "PEPSI 20 OZ",
+        "price": 200
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "TAX",
+        "amount": 224
+      }
+    ],
+    "subtotal": 2520,
+    "total": 2744
+  }
+}

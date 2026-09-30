@@ -1,0 +1,39 @@
+{
+  "image": "srd-1121.jpg",
+  "source": "srd",
+  "sourceId": "1121",
+  "region": "US",
+  "tags": [
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Traditional Pork & Clams",
+        "price": 2095
+      },
+      {
+        "id": "i2",
+        "name": "Osso Buco Sp",
+        "price": 2895
+      },
+      {
+        "id": "i3",
+        "name": "House Wines Half Pitcher",
+        "price": 1600
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 568
+      }
+    ],
+    "subtotal": 6590,
+    "total": 7158
+  }
+}

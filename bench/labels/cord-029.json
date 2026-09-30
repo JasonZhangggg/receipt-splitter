@@ -1,0 +1,55 @@
+{
+  "image": "cord-029.jpg",
+  "source": "cord",
+  "sourceId": "029",
+  "region": "ID",
+  "tags": [
+    "tax",
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "COLD OCHA",
+        "price": 10909
+      },
+      {
+        "id": "i2",
+        "name": "BCA PROMO",
+        "price": 54455
+      },
+      {
+        "id": "i3",
+        "name": "SKEWERED SHUMAI",
+        "price": 12727
+      },
+      {
+        "id": "i4",
+        "name": "SKEWERED TOFU ROLL",
+        "price": 12727
+      },
+      {
+        "id": "i5",
+        "name": "EBI TEMPURA",
+        "price": 13636
+      },
+      {
+        "id": "i6",
+        "name": "KITSUNE UDON (KIDS)",
+        "price": 28182
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 13264
+      }
+    ],
+    "subtotal": 132636,
+    "total": 145900
+  }
+}

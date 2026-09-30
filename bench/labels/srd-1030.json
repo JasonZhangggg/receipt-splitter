@@ -1,0 +1,52 @@
+{
+  "image": "srd-1030.jpg",
+  "source": "srd",
+  "sourceId": "1030",
+  "region": "US",
+  "tags": [],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Coffe",
+        "price": 350
+      },
+      {
+        "id": "i2",
+        "name": "Glass House Wine",
+        "price": 995
+      },
+      {
+        "id": "i3",
+        "name": "Jumbo Coctail Shrimp",
+        "price": 1295
+      },
+      {
+        "id": "i4",
+        "name": "Escargot Bourguigonne",
+        "price": 1095
+      },
+      {
+        "id": "i5",
+        "name": "Veal Zingaria",
+        "price": 2395
+      },
+      {
+        "id": "i6",
+        "name": "Duckling ala Arancio",
+        "price": 2595
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax1",
+        "amount": 753
+      }
+    ],
+    "subtotal": 8725,
+    "total": 9478
+  }
+}

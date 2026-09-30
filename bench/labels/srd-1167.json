@@ -1,0 +1,34 @@
+{
+  "image": "srd-1167.jpg",
+  "source": "srd",
+  "sourceId": "1167",
+  "region": "US",
+  "tags": [
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Grilled Skirt Steak",
+        "price": 2800
+      },
+      {
+        "id": "i2",
+        "name": "Fountain Sodas",
+        "price": 300
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Sale Tax",
+        "amount": 275
+      }
+    ],
+    "subtotal": 3100,
+    "total": 3375
+  }
+}

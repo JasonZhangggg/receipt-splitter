@@ -1,0 +1,56 @@
+{
+  "image": "srd-1015.jpg",
+  "source": "srd",
+  "sourceId": "1015",
+  "region": "US",
+  "tags": [
+    "discount",
+    "blur"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Coke",
+        "price": 250
+      },
+      {
+        "id": "i2",
+        "name": "Shrimp Entree",
+        "price": 2100
+      },
+      {
+        "id": "i3",
+        "name": "BBG & Blue Chz chips",
+        "price": 600
+      },
+      {
+        "id": "i4",
+        "name": "Sprite",
+        "price": 250
+      },
+      {
+        "id": "i5",
+        "name": "Lobster Roll",
+        "price": 2100
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "discount",
+        "name": "Discount :BBQ & Blue Chz",
+        "amount": -600
+      },
+      {
+        "id": "a2",
+        "kind": "tax",
+        "name": "State Tax",
+        "amount": 329
+      }
+    ],
+    "subtotal": 5300,
+    "total": 5029
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "image": "srd-1106.jpg",
+  "source": "srd",
+  "sourceId": "1106",
+  "region": "US",
+  "tags": [
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Spicy Chicken w. Spicy Garli",
+        "price": 795
+      },
+      {
+        "id": "i2",
+        "name": "Hf- Peking Duck",
+        "price": 1895
+      },
+      {
+        "id": "i3",
+        "name": "Stir Beef Fillet w. Tofu",
+        "price": 1595
+      },
+      {
+        "id": "i4",
+        "name": "Pork w. Spicy Capsicum",
+        "price": 1295
+      },
+      {
+        "id": "i5",
+        "name": "White Rice (S)",
+        "price": 150
+      },
+      {
+        "id": "i6",
+        "name": "Pork w. Spicy Tofu & Cayen",
+        "price": 1295
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Sales Tax",
+        "amount": 490
+      }
+    ],
+    "subtotal": 7025,
+    "total": 7515
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "image": "cord-017.jpg",
+  "source": "cord",
+  "sourceId": "017",
+  "region": "ID",
+  "tags": [
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Goblin's Mace",
+        "price": 25000
+      },
+      {
+        "id": "i2",
+        "name": "Mozarella Hot Dog",
+        "price": 38000
+      },
+      {
+        "id": "i3",
+        "name": "Chili Pepper Croquette",
+        "price": 14000
+      },
+      {
+        "id": "i4",
+        "name": "Cheese Croquette",
+        "price": 14000
+      },
+      {
+        "id": "i5",
+        "name": "Plastik Amook",
+        "price": 0
+      },
+      {
+        "id": "i6",
+        "name": "Plastik Putih Take Away",
+        "price": 0
+      }
+    ],
+    "adjustments": [],
+    "subtotal": 91000,
+    "total": 91000
+  }
+}

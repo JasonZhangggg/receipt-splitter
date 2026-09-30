@@ -1,0 +1,36 @@
+{
+  "image": "srd-1094.jpg",
+  "source": "srd",
+  "sourceId": "1094",
+  "region": "US",
+  "tags": [
+    "tip",
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Poke Box",
+        "price": 1350
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Castro Valley Sales Tax",
+        "amount": 125
+      },
+      {
+        "id": "a2",
+        "kind": "tip",
+        "name": "Tip",
+        "amount": 148
+      }
+    ],
+    "subtotal": 1350,
+    "total": 1623
+  }
+}

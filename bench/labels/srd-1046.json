@@ -1,0 +1,52 @@
+{
+  "image": "srd-1046.jpg",
+  "source": "srd",
+  "sourceId": "1046",
+  "region": "US",
+  "tags": [
+    "serviceCharge",
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Vanilla Bean",
+        "price": 1200
+      },
+      {
+        "id": "i2",
+        "name": "Classic Burger 4oz",
+        "price": 800
+      },
+      {
+        "id": "i3",
+        "name": "Route 66 Burger 8oz",
+        "price": 1400
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "discount",
+        "name": "10% (10.00%)",
+        "amount": -340
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service Charge (18.00%)",
+        "amount": 612
+      },
+      {
+        "id": "a3",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 214
+      }
+    ],
+    "subtotal": 3400,
+    "total": 3886
+  }
+}

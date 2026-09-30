@@ -1,0 +1,44 @@
+{
+  "image": "srd-1105.jpg",
+  "source": "srd",
+  "sourceId": "1105",
+  "region": "US",
+  "tags": [
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "American Coffee",
+        "price": 175
+      },
+      {
+        "id": "i2",
+        "name": "Nutella Coconut Pancakes",
+        "price": 800
+      },
+      {
+        "id": "i3",
+        "name": "American Coffee",
+        "price": 175
+      },
+      {
+        "id": "i4",
+        "name": "Cheddar Grits",
+        "price": 1000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 137
+      }
+    ],
+    "subtotal": 2150,
+    "total": 2287
+  }
+}

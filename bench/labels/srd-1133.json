@@ -1,0 +1,36 @@
+{
+  "image": "srd-1133.jpg",
+  "source": "srd",
+  "sourceId": "1133",
+  "region": "US",
+  "tags": [
+    "tipBlock",
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "FRI-SUN DINNER $29.88",
+        "price": 14940
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "discount",
+        "name": "29.88 50%0FF BIRTHDAY -0.50",
+        "amount": -1494
+      },
+      {
+        "id": "a2",
+        "kind": "tax",
+        "name": "Tax(9%)",
+        "amount": 1211
+      }
+    ],
+    "subtotal": 14940,
+    "total": 14657
+  }
+}

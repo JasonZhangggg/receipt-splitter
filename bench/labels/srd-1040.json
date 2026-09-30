@@ -1,0 +1,56 @@
+{
+  "image": "srd-1040.jpg",
+  "source": "srd",
+  "sourceId": "1040",
+  "region": "US",
+  "tags": [
+    "serviceCharge",
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Chicken Fried Rice And Egg",
+        "price": 799
+      },
+      {
+        "id": "i2",
+        "name": "California Tropic And Miso",
+        "price": 799
+      },
+      {
+        "id": "i3",
+        "name": "Add Two Tostones",
+        "price": 100
+      },
+      {
+        "id": "i4",
+        "name": "Sprite",
+        "price": 250
+      },
+      {
+        "id": "i5",
+        "name": "Perrier Sparkling Water",
+        "price": 350
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 161
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service fees on tables",
+        "amount": 345
+      }
+    ],
+    "subtotal": 2298,
+    "total": 2804
+  }
+}

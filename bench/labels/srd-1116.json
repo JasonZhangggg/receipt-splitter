@@ -1,0 +1,49 @@
+{
+  "image": "srd-1116.jpg",
+  "source": "srd",
+  "sourceId": "1116",
+  "region": "US",
+  "tags": [
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "P-VILLAGIO BREEZE",
+        "price": 1
+      },
+      {
+        "id": "i2",
+        "name": "ADD SALAD",
+        "price": 300
+      },
+      {
+        "id": "i3",
+        "name": "LUNCH SEAFOOD PASTA",
+        "price": 1400
+      },
+      {
+        "id": "i4",
+        "name": "KID PEPERONI PIZZA",
+        "price": 700
+      },
+      {
+        "id": "i5",
+        "name": "KID ALFREDO",
+        "price": 700
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 311
+      }
+    ],
+    "subtotal": 3101,
+    "total": 3412
+  }
+}

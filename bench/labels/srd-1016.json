@@ -1,0 +1,44 @@
+{
+  "image": "srd-1016.jpg",
+  "source": "srd",
+  "sourceId": "1016",
+  "region": "US",
+  "tags": [
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Scallion Pancake",
+        "price": 525
+      },
+      {
+        "id": "i2",
+        "name": "Little Juicy Pork Buns",
+        "price": 995
+      },
+      {
+        "id": "i3",
+        "name": "Beef w Bak Choy (L)",
+        "price": 875
+      },
+      {
+        "id": "i4",
+        "name": "I Hunan Beef (L)",
+        "price": 875
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Sales Tax",
+        "amount": 282
+      }
+    ],
+    "subtotal": 3270,
+    "total": 3552
+  }
+}

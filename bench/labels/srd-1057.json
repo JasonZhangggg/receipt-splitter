@@ -1,0 +1,34 @@
+{
+  "image": "srd-1057.jpg",
+  "source": "srd",
+  "sourceId": "1057",
+  "region": "US",
+  "tags": [
+    "signatureSlip"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "CROISSANT AUX RAISINS",
+        "price": 400
+      },
+      {
+        "id": "i2",
+        "name": "Cappucino",
+        "price": 475
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Sales Tax (9.5%)",
+        "amount": 83
+      }
+    ],
+    "subtotal": 875,
+    "total": 958
+  }
+}

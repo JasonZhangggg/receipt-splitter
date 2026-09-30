@@ -1,0 +1,39 @@
+{
+  "image": "srd-1065.jpg",
+  "source": "srd",
+  "sourceId": "1065",
+  "region": "US",
+  "tags": [
+    "tipBlock"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Chicken",
+        "price": 1500
+      },
+      {
+        "id": "i2",
+        "name": "Pescado",
+        "price": 1800
+      },
+      {
+        "id": "i3",
+        "name": "Arrachera solo",
+        "price": 950
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Total Tax",
+        "amount": 329
+      }
+    ],
+    "subtotal": 4250,
+    "total": 4579
+  }
+}

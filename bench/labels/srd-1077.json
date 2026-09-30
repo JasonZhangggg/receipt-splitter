@@ -1,0 +1,60 @@
+{
+  "image": "srd-1077.jpg",
+  "source": "srd",
+  "sourceId": "1077",
+  "region": "US",
+  "tags": [
+    "serviceCharge"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Chicken Lollipop",
+        "price": 900
+      },
+      {
+        "id": "i2",
+        "name": "Thai Fried Rice",
+        "price": 1200
+      },
+      {
+        "id": "i3",
+        "name": "Chicken Tikka Masala",
+        "price": 1600
+      },
+      {
+        "id": "i4",
+        "name": "Naan",
+        "price": 300
+      },
+      {
+        "id": "i5",
+        "name": "Vegetable Biryani",
+        "price": 1200
+      },
+      {
+        "id": "i6",
+        "name": "Mango Lassi",
+        "price": 400
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 370
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service Charge (18.0%)",
+        "amount": 1008
+      }
+    ],
+    "subtotal": 5600,
+    "total": 6979
+  }
+}

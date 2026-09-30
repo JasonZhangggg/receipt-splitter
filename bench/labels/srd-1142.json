@@ -1,0 +1,54 @@
+{
+  "image": "srd-1142.jpg",
+  "source": "srd",
+  "sourceId": "1142",
+  "region": "US",
+  "tags": [
+    "blur"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Crimini",
+        "price": 300
+      },
+      {
+        "id": "i2",
+        "name": "Salami",
+        "price": 300
+      },
+      {
+        "id": "i3",
+        "name": "Olives",
+        "price": 300
+      },
+      {
+        "id": "i4",
+        "name": "Lrg Clams\\mussels",
+        "price": 1400
+      },
+      {
+        "id": "i5",
+        "name": "Reg Ketel One",
+        "price": 5200
+      },
+      {
+        "id": "i6",
+        "name": "House Cab",
+        "price": 600
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Philly Liquor Tax",
+        "amount": 60
+      }
+    ],
+    "subtotal": 8100,
+    "total": 8344
+  }
+}

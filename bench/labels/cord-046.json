@@ -1,0 +1,27 @@
+{
+  "image": "cord-046.jpg",
+  "source": "cord",
+  "sourceId": "046",
+  "region": "ID",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "S-Bubble Milk Tea",
+        "price": 20000
+      },
+      {
+        "id": "i2",
+        "name": "S-Caramel Milk Tea",
+        "price": 20000
+      }
+    ],
+    "adjustments": [],
+    "subtotal": 40000,
+    "total": 40000
+  }
+}

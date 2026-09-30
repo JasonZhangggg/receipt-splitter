@@ -1,0 +1,44 @@
+{
+  "image": "srd-1152.jpg",
+  "source": "srd",
+  "sourceId": "1152",
+  "region": "US",
+  "tags": [
+    "serviceCharge"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Chicken Fingers 8.00",
+        "price": 800
+      },
+      {
+        "id": "i2",
+        "name": "Spicy Shrimp 20.00",
+        "price": 2000
+      },
+      {
+        "id": "i3",
+        "name": "Steamed Fish Lg 25.00",
+        "price": 2500
+      },
+      {
+        "id": "i4",
+        "name": "Bottled Water 2.00",
+        "price": 400
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "serviceCharge",
+        "name": "Service Charge 10%",
+        "amount": 570
+      }
+    ],
+    "subtotal": 5700,
+    "total": 6270
+  }
+}

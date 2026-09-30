@@ -1,0 +1,37 @@
+{
+  "image": "srd-1151.jpg",
+  "source": "srd",
+  "sourceId": "1151",
+  "region": "US",
+  "tags": [
+    "tipBlock",
+    "serviceCharge",
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Twisted Rueben",
+        "price": 1169
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "serviceCharge",
+        "name": "Service Fee (-6%)",
+        "amount": -70
+      },
+      {
+        "id": "a2",
+        "kind": "tax",
+        "name": "Sales Tax (9.2%)",
+        "amount": 114
+      }
+    ],
+    "subtotal": 1169,
+    "total": 1353
+  }
+}

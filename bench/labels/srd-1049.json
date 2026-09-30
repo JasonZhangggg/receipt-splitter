@@ -1,0 +1,40 @@
+{
+  "image": "srd-1049.jpg",
+  "source": "srd",
+  "sourceId": "1049",
+  "region": "US",
+  "tags": [
+    "tipBlock",
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Margarita",
+        "price": 1000
+      },
+      {
+        "id": "i2",
+        "name": "Strawberry Daiquiri",
+        "price": 1000
+      },
+      {
+        "id": "i3",
+        "name": "Snow Combo",
+        "price": 5400
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Total Tax",
+        "amount": 349
+      }
+    ],
+    "subtotal": 7400,
+    "total": 7749
+  }
+}

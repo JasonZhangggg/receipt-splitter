@@ -1,0 +1,54 @@
+{
+  "image": "srd-1169.jpg",
+  "source": "srd",
+  "sourceId": "1169",
+  "region": "US",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "No Bev (2 #0.00)",
+        "price": 0
+      },
+      {
+        "id": "i2",
+        "name": "Mozzarella Fritta",
+        "price": 799
+      },
+      {
+        "id": "i3",
+        "name": "Delmonico Steak",
+        "price": 2499
+      },
+      {
+        "id": "i4",
+        "name": "Asparragus",
+        "price": 299
+      },
+      {
+        "id": "i5",
+        "name": "Baked Potato",
+        "price": 399
+      },
+      {
+        "id": "i6",
+        "name": "Decaf Coffe - Unlimited",
+        "price": 299
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 344
+      }
+    ],
+    "subtotal": 4295,
+    "total": 4639
+  }
+}

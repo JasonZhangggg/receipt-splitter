@@ -1,0 +1,45 @@
+{
+  "image": "srd-1149.jpg",
+  "source": "srd",
+  "sourceId": "1149",
+  "region": "US",
+  "tags": [
+    "tip"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "No Beverage",
+        "price": 0
+      },
+      {
+        "id": "i2",
+        "name": "No Beverage",
+        "price": 0
+      },
+      {
+        "id": "i3",
+        "name": "Milk Shake",
+        "price": 399
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 30
+      },
+      {
+        "id": "a2",
+        "kind": "tip",
+        "name": "Gratuity",
+        "amount": 100
+      }
+    ],
+    "subtotal": 399,
+    "total": 529
+  }
+}

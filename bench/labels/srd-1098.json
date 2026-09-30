@@ -1,0 +1,44 @@
+{
+  "image": "srd-1098.jpg",
+  "source": "srd",
+  "sourceId": "1098",
+  "region": "US",
+  "tags": [
+    "skew"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Open Food",
+        "price": 2200
+      },
+      {
+        "id": "i2",
+        "name": "Ossobuco",
+        "price": 2800
+      },
+      {
+        "id": "i3",
+        "name": "Diet Coke",
+        "price": 250
+      },
+      {
+        "id": "i4",
+        "name": "G 14 Hands Cab",
+        "price": 1000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 539
+      }
+    ],
+    "subtotal": 6250,
+    "total": 6789
+  }
+}

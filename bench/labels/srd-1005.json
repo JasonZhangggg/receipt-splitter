@@ -1,0 +1,61 @@
+{
+  "image": "srd-1005.jpg",
+  "source": "srd",
+  "sourceId": "1005",
+  "region": "US",
+  "tags": [
+    "tipBlock",
+    "modifiers",
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Draft Blackhouse",
+        "price": 700
+      },
+      {
+        "id": "i2",
+        "name": "“Cowboy” 16oz Ribeye",
+        "price": 4500
+      },
+      {
+        "id": "i3",
+        "name": "Make It Blue",
+        "price": 2600
+      },
+      {
+        "id": "i4",
+        "name": "CK Manhayyam (2 @5.00)",
+        "price": 1000
+      },
+      {
+        "id": "i5",
+        "name": "Whistle Pig Rye 10yr (2 @20.00)",
+        "price": 4000
+      },
+      {
+        "id": "i6",
+        "name": "“Duke” 16oz Top Sirloin",
+        "price": 3400
+      },
+      {
+        "id": "i7",
+        "name": "Make It Blue",
+        "price": 500
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 1294
+      }
+    ],
+    "subtotal": 16700,
+    "total": 17994
+  }
+}

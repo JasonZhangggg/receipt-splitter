@@ -1,0 +1,35 @@
+{
+  "image": "cord-016.jpg",
+  "source": "cord",
+  "sourceId": "016",
+  "region": "ID",
+  "tags": [
+    "tax",
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "[LG] BLACK SAKURA",
+        "price": 59091
+      },
+      {
+        "id": "i2",
+        "name": "IVINERAL WATER (bundling) 5k",
+        "price": 4545
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 6364
+      }
+    ],
+    "subtotal": 63636,
+    "total": 70000
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "image": "cord-094.jpg",
+  "source": "cord",
+  "sourceId": "094",
+  "region": "ID",
+  "tags": [
+    "serviceCharge",
+    "tax"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "TAHU GORENG",
+        "price": 28000
+      },
+      {
+        "id": "i2",
+        "name": "CAKWE",
+        "price": 17000
+      },
+      {
+        "id": "i3",
+        "name": "PHO TAI CHIN(R)",
+        "price": 63000
+      },
+      {
+        "id": "i4",
+        "name": "TEA",
+        "price": 11000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 12733
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 8330
+      }
+    ],
+    "subtotal": 119000,
+    "total": 140063
+  }
+}

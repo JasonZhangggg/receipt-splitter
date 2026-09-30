@@ -1,0 +1,34 @@
+{
+  "image": "srd-1039.jpg",
+  "source": "srd",
+  "sourceId": "1039",
+  "region": "US",
+  "tags": [
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Santa Fe Ckn",
+        "price": 1138
+      },
+      {
+        "id": "i2",
+        "name": "E Green Chile",
+        "price": 70
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 97
+      }
+    ],
+    "subtotal": 1208,
+    "total": 1305
+  }
+}

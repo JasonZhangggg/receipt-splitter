@@ -1,0 +1,36 @@
+{
+  "image": "srd-1047.jpg",
+  "source": "srd",
+  "sourceId": "1047",
+  "region": "US",
+  "tags": [
+    "tipBlock",
+    "discount",
+    "blur"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Grey Goose (3 @9.50)",
+        "price": 2850
+      },
+      {
+        "id": "i2",
+        "name": "Rocks (3 @1.00)",
+        "price": 300
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 557
+      }
+    ],
+    "subtotal": 7950,
+    "total": 8507
+  }
+}

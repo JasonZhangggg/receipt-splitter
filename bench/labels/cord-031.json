@@ -1,0 +1,42 @@
+{
+  "image": "cord-031.jpg",
+  "source": "cord",
+  "sourceId": "031",
+  "region": "ID",
+  "tags": [
+    "serviceCharge",
+    "tax",
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "SALMON PESTO",
+        "price": 85500
+      },
+      {
+        "id": "i2",
+        "name": "SALMON PESTO",
+        "price": 0
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 18126
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 10260
+      }
+    ],
+    "subtotal": 85500,
+    "total": 113886
+  }
+}

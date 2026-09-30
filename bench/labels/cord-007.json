@@ -1,0 +1,30 @@
+{
+  "image": "cord-007.jpg",
+  "source": "cord",
+  "sourceId": "007",
+  "region": "ID",
+  "tags": [
+    "tax",
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Kupon 15",
+        "price": 100909
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 10091
+      }
+    ],
+    "subtotal": 100909,
+    "total": 111000
+  }
+}

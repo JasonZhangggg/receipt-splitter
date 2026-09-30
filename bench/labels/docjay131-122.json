@@ -1,0 +1,34 @@
+{
+  "image": "docjay131-122.jpg",
+  "source": "docjay131",
+  "sourceId": "122",
+  "region": "US",
+  "tags": [
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "#1 CHKIN PLATE",
+        "price": 1134
+      },
+      {
+        "id": "i2",
+        "name": "MD. DRINK",
+        "price": 229
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 140
+      }
+    ],
+    "subtotal": 1363,
+    "total": 1503
+  }
+}

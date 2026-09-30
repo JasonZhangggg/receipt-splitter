@@ -1,0 +1,47 @@
+{
+  "image": "cord-061.jpg",
+  "source": "cord",
+  "sourceId": "061",
+  "region": "ID",
+  "tags": [
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "TALAM UNGU",
+        "price": 3900
+      },
+      {
+        "id": "i2",
+        "name": "AREM - AREM",
+        "price": 4800
+      },
+      {
+        "id": "i3",
+        "name": "LEMPER",
+        "price": 10800
+      },
+      {
+        "id": "i4",
+        "name": "MIKA SEDANG",
+        "price": 0
+      },
+      {
+        "id": "i5",
+        "name": "PLASTIK KECIL",
+        "price": 0
+      },
+      {
+        "id": "i6",
+        "name": "TEH KOTAK",
+        "price": 5000
+      }
+    ],
+    "adjustments": [],
+    "subtotal": 24500,
+    "total": 24500
+  }
+}

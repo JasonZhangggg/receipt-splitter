@@ -1,0 +1,52 @@
+{
+  "image": "srd-1127.jpg",
+  "source": "srd",
+  "sourceId": "1127",
+  "region": "US",
+  "tags": [
+    "serviceCharge",
+    "discount"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "1 $FiveLU",
+        "price": 1249
+      },
+      {
+        "id": "i2",
+        "name": "1 $FiveLU",
+        "price": 769
+      },
+      {
+        "id": "i3",
+        "name": "1 PiTcher",
+        "price": 1350
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "discount",
+        "name": "COUPON (F6)",
+        "amount": -1018
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service Fee",
+        "amount": 94
+      },
+      {
+        "id": "a3",
+        "kind": "tax",
+        "name": "SALES TAX",
+        "amount": 232
+      }
+    ],
+    "subtotal": 3368,
+    "total": 2676
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "image": "srd-1174.jpg",
+  "source": "srd",
+  "sourceId": "1174",
+  "region": "US",
+  "tags": [
+    "tipBlock",
+    "tip"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "DINNER RODIZIO",
+        "price": 4195
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tip",
+        "name": "Gratuity",
+        "amount": 1049
+      },
+      {
+        "id": "a2",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 294
+      }
+    ],
+    "subtotal": 4195,
+    "total": 5538
+  }
+}

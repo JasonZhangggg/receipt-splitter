@@ -1,0 +1,52 @@
+{
+  "image": "cord-074.jpg",
+  "source": "cord",
+  "sourceId": "074",
+  "region": "ID",
+  "tags": [
+    "serviceCharge",
+    "tax",
+    "modifiers"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "BLACKCURRANT",
+        "price": 32000
+      },
+      {
+        "id": "i2",
+        "name": "SPRITE",
+        "price": 32000
+      },
+      {
+        "id": "i3",
+        "name": "GRILLED CALAMARI",
+        "price": 85000
+      },
+      {
+        "id": "i4",
+        "name": "DINE FOR 2",
+        "price": 129000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 30024
+      },
+      {
+        "id": "a2",
+        "kind": "serviceCharge",
+        "name": "Service",
+        "amount": 22240
+      }
+    ],
+    "subtotal": 278000,
+    "total": 330264
+  }
+}

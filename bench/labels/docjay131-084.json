@@ -1,0 +1,75 @@
+{
+  "image": "docjay131-084.jpg",
+  "source": "docjay131",
+  "sourceId": "084",
+  "region": "US",
+  "tags": [
+    "tip"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "Hamachi Collar",
+        "price": 1200
+      },
+      {
+        "id": "i2",
+        "name": "Mega Poke Bowl",
+        "price": 1700
+      },
+      {
+        "id": "i3",
+        "name": "Hamachi - Sashimi",
+        "price": 1200
+      },
+      {
+        "id": "i4",
+        "name": "Maguro - Sashimi",
+        "price": 1100
+      },
+      {
+        "id": "i5",
+        "name": "Salmon - Sashimi",
+        "price": 1000
+      },
+      {
+        "id": "i6",
+        "name": "Sockeye Salmon - Sashimi",
+        "price": 3600
+      },
+      {
+        "id": "i7",
+        "name": "Hamachi Japapeno",
+        "price": 1200
+      },
+      {
+        "id": "i8",
+        "name": "Salmon Collar",
+        "price": 1000
+      },
+      {
+        "id": "i9",
+        "name": "Escolar - Sashimi",
+        "price": 1100
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 1271
+      },
+      {
+        "id": "a2",
+        "kind": "tip",
+        "name": "Tip",
+        "amount": 1000
+      }
+    ],
+    "subtotal": 13100,
+    "total": 15371
+  }
+}

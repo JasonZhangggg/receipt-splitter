@@ -1,0 +1,35 @@
+{
+  "image": "srd-1043.jpg",
+  "source": "srd",
+  "sourceId": "1043",
+  "region": "US",
+  "tags": [
+    "discount",
+    "blur"
+  ],
+  "checked": false,
+  "receipt": {
+    "items": [
+      {
+        "id": "i1",
+        "name": "WINGS (5)",
+        "price": 1250
+      },
+      {
+        "id": "i2",
+        "name": "SIDE (SM) x3",
+        "price": 1200
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "a1",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 217
+      }
+    ],
+    "subtotal": 2450,
+    "total": 2667
+  }
+}
