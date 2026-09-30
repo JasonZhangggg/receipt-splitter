@@ -27,7 +27,7 @@ const LABELS: readonly (readonly [Label, RegExp])[] = [
   ["tax", /\b(tax(?!able)\w*|txtl|hst|gst|vat)\b|^([a-z]{2}\s+)?state$/i],
   ["tip", /\b(tip|gratuity|grat)\b/i],
   ["serviceCharge", /\b(service|svc|fees?)\b/i],
-  ["discount", /\b(discount|disc|coupon|promo|off|comp|savings?)\b/i],
+  ["discount", /\b(discount|disc|coupon|promo|comp|savings?)\b/i],
   ["total", /\b(total|totl|ttl|amount\s+due|balance\s+due|amt\s+due)\b/i],
 ];
 

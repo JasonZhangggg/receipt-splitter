@@ -93,6 +93,7 @@ describe("classifyLines", () => {
       receiptRows([
         ["Table Wine", "8.00"],
         ["Side Order Fries", "4.00"],
+        ["Kick Off Wings", "9.00"],
         ["Empire State Burger", "12.00"],
         ["NY State:", "1.92"],
       ]),
@@ -101,6 +102,7 @@ describe("classifyLines", () => {
     expect(lines).toEqual([
       { kind: "item", name: "Table Wine", price: 800, quantity: null },
       { kind: "item", name: "Side Order Fries", price: 400, quantity: null },
+      { kind: "item", name: "Kick Off Wings", price: 900, quantity: null },
       { kind: "item", name: "Empire State Burger", price: 1200, quantity: null },
       { kind: "tax", name: "NY State", amount: 192 },
     ]);
