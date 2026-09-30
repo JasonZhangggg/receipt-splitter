@@ -2,11 +2,18 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "./money";
 import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
 import { parseNewSplit, parseOperation, parseSplit } from "./parse";
-import { adjustmentId, isMintedSplitId, itemId, participantId, splitId, type Split } from "./split";
+import { adjustmentId, isMintedSplitId, itemId, participantId, type MintedSplitId, type Split } from "./split";
+
+function mintedId(value: string): MintedSplitId {
+  if (!isMintedSplitId(value)) throw new RangeError(`${value} is not a minted Split id`);
+  return value;
+}
+
+const minted = mintedId("q7Xv0Lr9_aZ-3mKp");
 
 function storedSplit(): Split {
   const created = createSplit({
-    id: splitId("s1"),
+    id: minted,
     receipt: {
       items: [
         { id: itemId("fries"), name: "Fries", price: price(800) },
@@ -207,8 +214,6 @@ describe("parseSplit bounds", () => {
 });
 
 describe("parseNewSplit", () => {
-  const minted = "q7Xv0Lr9_aZ-3mKp";
-  if (!isMintedSplitId(minted)) throw new Error(`${minted} is not a minted Split id`);
   const body = {
     receipt: {
       items: [

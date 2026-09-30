@@ -28,7 +28,6 @@ function id<T extends Id<string>>(value: string): T {
   return value;
 }
 
-export const splitId = (value: string) => id<SplitId>(value);
 export const participantId = (value: string) => id<ParticipantId>(value);
 export const itemId = (value: string) => id<ItemId>(value);
 export const adjustmentId = (value: string) => id<AdjustmentId>(value);

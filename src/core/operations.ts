@@ -10,6 +10,7 @@ import {
   type Edit,
   type Item,
   type ItemId,
+  type MintedSplitId,
   type NonEmpty,
   type Participant,
   type ParticipantId,
@@ -20,7 +21,6 @@ import {
   type Receipt,
   type RowWrite,
   type Split,
-  type SplitId,
   type Write,
 } from "./split";
 import { runTotalCheck, type FailedTotalCheck } from "./total-check";
@@ -499,7 +499,7 @@ function canonicalHandles(handles: NonEmpty<PaymentHandle>): NonEmpty<PaymentHan
 }
 
 export type NewSplit = {
-  readonly id: SplitId;
+  readonly id: MintedSplitId;
   readonly receipt: Receipt;
   readonly host: Participant;
   readonly paymentHandles: NonEmpty<PaymentHandle>;

@@ -15,11 +15,12 @@ import { computeShares } from "./shares";
 import {
   SPLIT_BYTE_BUDGET,
   adjustmentId,
+  isMintedSplitId,
   itemId,
   participantId,
   serializedBytes,
-  splitId,
   type Item,
+  type MintedSplitId,
   type ParticipantId,
   type Receipt,
   type Split,
@@ -34,6 +35,13 @@ const fries = itemId("fries");
 const pitcher = itemId("pitcher");
 const anyone: Auth = { creator: false };
 
+function mintedId(value: string): MintedSplitId {
+  if (!isMintedSplitId(value)) throw new RangeError(`${value} is not a minted Split id`);
+  return value;
+}
+
+const minted = mintedId("q7Xv0Lr9_aZ-3mKp");
+
 const dinner: Receipt = {
   items: [
     { id: pasta, name: "Pasta", price: price(1400) },
@@ -47,7 +55,7 @@ const dinner: Receipt = {
 
 function created(receipt: Receipt = dinner): Split {
   const result = createSplit({
-    id: splitId("s1"),
+    id: minted,
     receipt,
     host: { id: ann, name: "Ann" },
     paymentHandles: [{ service: "venmo", handle: "ann-host" }],
@@ -96,7 +104,7 @@ describe("createSplit", () => {
   test("starts a Split with the Host, every Item Unclaimed, and no changes", () => {
     expect(created()).toEqual({
       schemaVersion: 1,
-      id: "s1",
+      id: "q7Xv0Lr9_aZ-3mKp",
       currency: "USD",
       receipt: {
         items: [
@@ -118,7 +126,7 @@ describe("createSplit", () => {
 
   test("refuses a Receipt that fails the Total check", () => {
     const result = createSplit({
-      id: splitId("s1"),
+      id: minted,
       receipt: { ...dinner, subtotal: cents(5300), total: cents(5300) },
       host: { id: ann, name: "Ann" },
       paymentHandles: [{ service: "venmo", handle: "ann-host" }],
@@ -136,7 +144,7 @@ describe("createSplit", () => {
   test("refuses a total above MAX_CENTS, so Share math never leaves the exact range", () => {
     const big = cents(MAX_CENTS + 1);
     const result = createSplit({
-      id: splitId("s1"),
+      id: minted,
       receipt: { items: [{ id: pitcher, name: "Pitcher", price: price(big) }], adjustments: [], subtotal: big, total: big },
       host: { id: ann, name: "Ann" },
       paymentHandles: [{ service: "venmo", handle: "ann-host" }],
@@ -147,7 +155,7 @@ describe("createSplit", () => {
 
   test("stores Payment handles without the leading @ or $ that people type", () => {
     const result = createSplit({
-      id: splitId("s1"),
+      id: minted,
       receipt: dinner,
       host: { id: ann, name: "Ann" },
       paymentHandles: [
@@ -680,7 +688,7 @@ describe("names", () => {
     });
     const create = (itemName: string, tipName?: string) => {
       const result = createSplit({
-        id: splitId("s1"),
+        id: minted,
         receipt: receipt(itemName, tipName),
         host: { id: ann, name: "Ann" },
         paymentHandles: [{ service: "venmo", handle: "ann-host" }],
@@ -702,7 +710,7 @@ describe("names", () => {
     const tipped: Receipt = { ...dinner, adjustments: [tip], total: cents(5700) };
     const [first, ...rest] = tipped.items;
     const create = (receipt: Receipt) => {
-      const result = createSplit({ id: splitId("s1"), receipt, host: { id: ann, name: "Ann" }, paymentHandles: [{ service: "venmo", handle: "ann-host" }] });
+      const result = createSplit({ id: minted, receipt, host: { id: ann, name: "Ann" }, paymentHandles: [{ service: "venmo", handle: "ann-host" }] });
       return result.ok ? "accepted" : result.rejection.reason;
     };
     const split = created(tipped);
@@ -776,7 +784,7 @@ describe("the 32 KB budget", () => {
       price: price(100_000),
     }));
     const result = createSplit({
-      id: splitId(longId("split", 0)),
+      id: mintedId(longId("split", 0)),
       receipt: { items: [first, ...rest], adjustments: [], subtotal: cents(MAX_CENTS), total: cents(MAX_CENTS) },
       host: { id: participantId(longId("person", 0)), name: longName(0) },
       paymentHandles: [{ service: "zelle", handle: `${"a".repeat(60)}@example.com` }],
@@ -895,7 +903,7 @@ describe("random operations", () => {
     const tip = Math.round(subtotal * 0.2);
     const split = accepted(
       createSplit({
-        id: splitId("prop"),
+        id: minted,
         receipt: {
           items: [first, ...rest],
           adjustments: [
