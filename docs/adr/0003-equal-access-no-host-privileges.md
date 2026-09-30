@@ -1,0 +1,3 @@
+# Everyone with the link has equal access, except to payment handles
+
+There are no accounts and no host key. Anyone with a Split's link can edit its Items, prices and Adjustments, add Participants, and Claim any Item for anyone, the Host included. We chose simplicity over control because a Split is shared by a group of friends: to protect against mistakes, it keeps a recent-changes list with undo, and the Total check catches bad prices. The one exception is the Host's payment handles. They are entered when the Split is created and can only be changed from the device that created it, because an edited handle would send everyone's money to someone else.

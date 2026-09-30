@@ -1,0 +1,3 @@
+# One Expo app for the website and the native apps
+
+The product will ship as a website first and as iOS and Android apps later, so it is one Expo (React Native) codebase that exports a static website via react-native-web, instead of the Vite + React site the feasibility research proposed. Screens that should differ between web and native use platform-specific files (`.web.tsx`, `.native.tsx`), and so does OCR: onnxruntime-web in a Worker on the web, and native OCR in the apps. The parser, Total check and Share math are plain TypeScript with no React or platform imports. We accept a heavier web bundle than plain React in exchange for not writing the product twice. The share link must still open fast on a phone, so bundle size is measured from the first PR.
