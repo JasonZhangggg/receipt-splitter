@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { build } from "esbuild";
 
+import { fallbackSamples } from "../src/ui/home-copy";
+
 const phone = { width: 390, height: 844 };
 
 test.use({ viewport: phone });
@@ -188,6 +190,27 @@ for (const width of [320, phone.width, 960, 1280]) {
       ["error", "error"],
     ]);
     expect(blocked.boxes).toEqual(loaded.boxes);
+  });
+}
+
+for (const width of [phone.width, 1280]) {
+  test(`the fallback metrics sample every line the home screen renders at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+    await settle(page);
+    const rendered = await page.evaluate(() => {
+      const byWeight: Record<string, string[]> = {};
+      for (const el of document.querySelectorAll("#root *")) {
+        if (el.childElementCount > 0 || !el.textContent?.trim()) continue;
+        const style = getComputedStyle(el);
+        const text = style.textTransform === "uppercase" ? el.textContent.toUpperCase() : el.textContent;
+        (byWeight[style.fontWeight] ??= []).push(text);
+      }
+      return byWeight;
+    });
+    const unique = (byWeight: Record<string, string[]>) =>
+      Object.fromEntries(Object.entries(byWeight).map(([weight, lines]) => [weight, [...new Set(lines)].sort()]));
+    expect(unique(rendered)).toEqual(unique(fallbackSamples));
   });
 }
 

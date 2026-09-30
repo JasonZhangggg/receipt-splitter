@@ -4,32 +4,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "../src/ui/components/button";
 import { ListRow } from "../src/ui/components/list-row";
-import { formatCents, MoneyText } from "../src/ui/components/money-text";
+import { MoneyText } from "../src/ui/components/money-text";
+import { copy, example, shortfall, summary, total } from "../src/ui/home-copy";
 import { enter, useReducedMotion } from "../src/ui/motion";
 import { breakpoints, headlineType, motion, space, type, useColors } from "../src/ui/theme";
-
-const headline = ["Split the bill", "at the table."];
-
-const example = {
-  merchant: "Nonna Rosa",
-  detail: "Table 12, Sep 29, 8:41 PM",
-  items: [
-    { name: "Margherita pizza", cents: 1800 },
-    { name: "Caesar salad", cents: 1250 },
-    { name: "Spicy rigatoni", cents: 2100 },
-    { name: "Lemonade pitcher", cents: 1400 },
-    { name: "Tiramisu", cents: 850, flagged: true },
-  ],
-  subtotal: 7500,
-  adjustments: [
-    { name: "Tax", cents: 666 },
-    { name: "Tip 20%", cents: 1500 },
-  ],
-};
-const sum = (rows: { cents: number }[]) => rows.reduce((total, row) => total + row.cents, 0);
-const itemsSum = sum(example.items);
-const summary = [{ name: "Subtotal", cents: example.subtotal }, ...example.adjustments];
-const total = example.subtotal + sum(example.adjustments);
 
 export default function Home() {
   const c = useColors();
@@ -49,7 +27,7 @@ export default function Home() {
   };
 
   const scan = (outsideScroll: boolean) => (
-    <Button label="Scan or upload a receipt" onPress={() => router.push("/new")} outsideScroll={outsideScroll} />
+    <Button label={copy.action} onPress={() => router.push("/new")} outsideScroll={outsideScroll} />
   );
 
   return (
@@ -57,10 +35,10 @@ export default function Home() {
       <ScrollView contentContainerStyle={wide && styles.columns} style={styles.screen}>
         <View style={[styles.field, wide && styles.fieldWide, fieldPadding, { backgroundColor: c.field }]}>
           <Text role="heading" aria-level={1} style={[type.kicker, styles.wordmark, { color: c.onField }]}>
-            Receipt Splitter
+            {copy.wordmark}
           </Text>
           <View style={[styles.headline, headlineStyle.column]}>
-            {headline.map((line, i) => (
+            {copy.headline.map((line, i) => (
               <View key={line} style={[styles.mask, headlineStyle.mask]}>
                 <Text
                   style={[
@@ -76,15 +54,15 @@ export default function Home() {
           </View>
           <View style={styles.pitch}>
             <Text style={[type.body, wide && type.bodyWide, { color: c.onField }]}>
-              Take a photo of the receipt and send the link. Everyone taps what they ordered and pays you back.
+              {copy.pitch}
             </Text>
             {showBar ? null : <View style={styles.inlineAction}>{scan(false)}</View>}
-            <Text style={[type.small, { color: c.fieldMuted }]}>The photo stays on your phone.</Text>
+            <Text style={[type.small, { color: c.fieldMuted }]}>{copy.privacy}</Text>
           </View>
         </View>
 
         <View style={[styles.paper, wide && styles.paperWide, paperPadding]}>
-          <Text style={[type.kicker, { color: c.muted }]}>Example scan</Text>
+          <Text style={[type.kicker, { color: c.muted }]}>{copy.exampleKicker}</Text>
           <Text style={[type.title, styles.merchant, { color: c.ink }]}>{example.merchant}</Text>
           <Text style={[type.small, { color: c.muted }]}>{example.detail}</Text>
           <View style={[styles.rule, { backgroundColor: c.rule }]} />
@@ -92,7 +70,7 @@ export default function Home() {
             <ListRow
               key={item.name}
               title={item.name}
-              note={item.flagged ? "Check this price." : undefined}
+              note={item.flagged ? copy.flagNote : undefined}
               flagged={item.flagged}
               trailing={<MoneyText cents={item.cents} color={item.flagged ? c.flag : c.ink} />}
               style={enter(reduce, { delay: 280 + i * motion.stagger })}
@@ -106,12 +84,10 @@ export default function Home() {
           ))}
           <View style={[styles.rule, { backgroundColor: c.rule }]} />
           <View style={styles.total}>
-            <Text style={[type.heading, { color: c.ink }]}>Total</Text>
+            <Text style={[type.heading, { color: c.ink }]}>{copy.total}</Text>
             <MoneyText cents={total} size="total" color={c.ink} />
           </View>
-          <Text style={[type.small, styles.status, { color: c.flag }]}>
-            {`Items add up to ${formatCents(itemsSum)}, ${formatCents(example.subtotal - itemsSum)} short of the subtotal.`}
-          </Text>
+          <Text style={[type.small, styles.status, { color: c.flag }]}>{shortfall}</Text>
         </View>
       </ScrollView>
 

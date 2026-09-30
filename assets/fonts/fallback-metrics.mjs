@@ -1,33 +1,22 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { chromium } from "@playwright/test";
 
+// src/ui imports modules without an extension, which Metro resolves and Node does not.
+registerHooks({
+  resolve: (specifier, context, next) => {
+    try {
+      return next(specifier, context);
+    } catch {
+      return next(`${specifier}.ts`, context);
+    }
+  },
+});
+const { fallbackSamples } = await import("../../src/ui/home-copy.ts");
+
 const faces = [
-  {
-    file: "Archivo-CondensedBlack.ttf",
-    weight: 800,
-    local: "Arial Bold",
-    sample: ["Split the bill", "at the table.", "Nonna Rosa", "Total", "$18.00", "$12.50", "$21.00", "$91.66"],
-  },
-  {
-    file: "Archivo-Medium.ttf",
-    weight: 500,
-    local: "Arial",
-    sample: [
-      "Take a photo of the receipt and send the link. Everyone taps what they ordered and pays you back.",
-      "The photo stays on your phone.",
-      "Scan or upload a receipt",
-      "Margherita pizza",
-      "Caesar salad",
-      "Spicy rigatoni",
-      "Lemonade pitcher",
-      "Tiramisu",
-      "Check this price.",
-      "Subtotal",
-      "Tip 20%",
-      "Items add up to $75.00, $1.00 short of the subtotal.",
-      "Table 12, Sep 29, 8:41 PM",
-    ],
-  },
+  { file: "Archivo-CondensedBlack.ttf", weight: 800, local: "Arial Bold", sample: fallbackSamples[800] },
+  { file: "Archivo-Medium.ttf", weight: 500, local: "Arial", sample: fallbackSamples[500] },
 ];
 
 const browser = await chromium.launch();
@@ -54,7 +43,7 @@ for (const face of faces) {
       };
       const web = await measure(`web-${weight}`, data);
       const fallback = await measure(`fallback-${weight}`, `local("${local}")`);
-      const sizeAdjust = Math.min(...web.widths.map((width, i) => width / fallback.widths[i]));
+      const sizeAdjust = Math.floor(Math.min(...web.widths.map((width, i) => width / fallback.widths[i])) * 10000) / 10000;
       const descriptors = {
         sizeAdjust: `${(sizeAdjust * 100).toFixed(2)}%`,
         ascentOverride: `${((web.ascent / sizeAdjust) * 100).toFixed(2)}%`,
@@ -62,10 +51,13 @@ for (const face of faces) {
         lineGapOverride: "0%",
       };
       const check = await measure(`check-${weight}`, `local("${local}")`, descriptors);
+      const ratios = check.widths.map((width, i) => width / web.widths[i]);
+      const widest = ratios.indexOf(Math.max(...ratios));
       return {
         descriptors,
         check: {
-          widestRatio: +Math.max(...check.widths.map((width, i) => width / web.widths[i])).toFixed(4),
+          widestRatio: ratios[widest],
+          widestLine: sample[widest],
           ascent: [+web.ascent.toFixed(3), +check.ascent.toFixed(3)],
           descent: [+web.descent.toFixed(3), +check.descent.toFixed(3)],
         },
@@ -74,6 +66,10 @@ for (const face of faces) {
     { bytes, weight: face.weight, local: face.local, sample: face.sample },
   );
   console.log(JSON.stringify({ face: face.file, local: face.local, ...result }));
+  if (result.check.widestRatio > 1) {
+    console.error(`${face.file}: "${result.check.widestLine}" is ${result.check.widestRatio} times wider in ${face.local}`);
+    process.exitCode = 1;
+  }
   const d = result.descriptors;
   metrics[face.weight] =
     `size-adjust: ${d.sizeAdjust}; ascent-override: ${d.ascentOverride}; ` +
@@ -81,6 +77,7 @@ for (const face of faces) {
 }
 
 await browser.close();
+if (process.exitCode) process.exit();
 
 const entries = Object.entries(metrics).map(([weight, css]) => `  ${weight}: "${css}",`);
 writeFileSync(

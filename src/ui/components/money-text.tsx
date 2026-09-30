@@ -1,12 +1,7 @@
 import { Text } from "react-native";
 
+import { formatCents } from "../money";
 import { type } from "../theme";
-
-const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-export function formatCents(cents: number) {
-  return usd.format(cents / 100);
-}
 
 const sizes = { row: type.moneyRow, total: type.moneyTotal, body: type.moneyBody };
 
