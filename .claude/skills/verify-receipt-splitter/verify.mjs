@@ -67,7 +67,7 @@ async function launch() {
     }
     throw error;
   }
-  writeFileSync(launcherFile, String(process.pid));
+  writeFileSync(launcherFile, `${process.pid}\n${startTime(process.pid)}`);
   if (!values["no-build"]) {
     execFileSync("npm", ["run", "build"], { cwd: root, stdio: ["ignore", 2, 2], timeout: 180_000 });
   }
@@ -122,12 +122,13 @@ async function checks() {
 
 async function drive() {
   const { chromium, devices } = await import("@playwright/test");
-  const pixel7 = devices["Pixel 7"];
-  const viewport = { width: pixels("width", pixel7.viewport.width), height: pixels("height", pixel7.viewport.height) };
+  const width = pixels("width");
+  const device = devices[width >= 1024 ? "Desktop Chrome" : "Pixel 7"];
+  const viewport = { width: width ?? device.viewport.width, height: pixels("height") ?? device.viewport.height };
   const colorScheme = choice("color-scheme", ["light", "dark"]);
   const reducedMotion = choice("reduced-motion", ["reduce", "no-preference"]);
   const browser = await chromium.launch();
-  const page = await browser.newPage({ ...pixel7, viewport, colorScheme, reducedMotion });
+  const page = await browser.newPage({ ...device, viewport, colorScheme, reducedMotion });
   const consoleErrors = [];
   page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
   page.on("pageerror", (e) => consoleErrors.push(e.message));
@@ -141,6 +142,7 @@ async function drive() {
       height: innerHeight,
       colorScheme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches ? "reduce" : "no-preference",
+      pointer: matchMedia("(pointer: coarse)").matches ? "coarse" : "fine",
     }));
     if (values["expect-heading"]) {
       const heading = page.getByRole("heading", { name: values["expect-heading"] });
@@ -175,9 +177,9 @@ async function drive() {
   if (failures.length) process.exit(1);
 }
 
-function pixels(flag, fallback) {
+function pixels(flag) {
   const raw = values[flag];
-  if (raw === undefined) return fallback;
+  if (raw === undefined) return undefined;
   if (!/^[1-9]\d*$/.test(raw)) fail(`--${flag} must be a whole number of pixels above 0, not ${JSON.stringify(raw)}`);
   return Number(raw);
 }
@@ -215,7 +217,11 @@ async function evidence() {
 
 async function cleanup() {
   const launcher = liveLauncher();
-  if (launcher) fail(`launch pid ${launcher} on port ${port} is still starting; wait for it to return, then run cleanup`);
+  if (launcher) {
+    fail(
+      `launch pid ${launcher} on port ${port} is still starting; if your lane started it, wait for it to return, then run cleanup, otherwise pick another port`,
+    );
+  }
   const record = recordedGroup();
   if (record) {
     const strangers = record.members.filter((m) => !ownedByWorktree(m));
@@ -256,9 +262,13 @@ function recordedGroup() {
 
 function liveLauncher() {
   if (!existsSync(launcherFile)) return null;
-  const pid = readFileSync(launcherFile, "utf8").trim();
-  const [command = ""] = lines("ps", ["-ww", "-o", "command=", "-p", pid]);
-  return command.includes("verify.mjs launch") ? Number(pid) : null;
+  const [pid, started] = readFileSync(launcherFile, "utf8").split("\n");
+  return started && startTime(pid) === started ? Number(pid) : null;
+}
+
+function startTime(pid) {
+  const [started = ""] = lines("ps", ["-o", "lstart=", "-p", String(pid)]);
+  return started.trim();
 }
 
 function ownedByWorktree({ command }) {

@@ -5,7 +5,7 @@ description: Launch, check, drive, and tear down the Receipt Splitter website (E
 
 # Verify Receipt Splitter
 
-The app is an Expo Router website. `npm run build` exports it to `dist/`. `wrangler dev` serves `dist/` as Workers static assets with the SPA fallback, and routes `/api/*` and `/parties/*` to `worker/index.ts`. A user touches the site in a phone browser, so every drive runs Playwright's Chromium with the Pixel 7 profile. Drive flags change the viewport size, the color scheme, and the reduced-motion setting.
+The app is an Expo Router website. `npm run build` exports it to `dist/`. `wrangler dev` serves `dist/` as Workers static assets with the SPA fallback, and routes `/api/*` and `/parties/*` to `worker/index.ts`. A user touches the site in a phone browser, so a drive runs Playwright's Chromium with the Pixel 7 profile unless `--width` asks for a desktop width. Drive flags change the viewport size, the color scheme, and the reduced-motion setting.
 
 All commands go through one helper. Run it from the repo root of the worktree you are verifying. Every command prints one JSON line on stdout and exits 0 on success and 1 on failure. Every failure line has `"ok":false` and a readable message in `error`, so read `.error` whenever `ok` is false. Doctor, drive, and evidence failures also keep their other fields, such as the doctor checks and the drive `failures` list. This also holds when the command hits an error, such as a refused connection, a failed build, a missing wrangler or Chromium, or an unknown option. No stack trace goes to stdout. Build output from `launch` goes to stderr.
 
@@ -30,7 +30,7 @@ Each lane picks its own port. The helper derives everything else from it, so lan
 .claude/skills/verify-receipt-splitter/verify.mjs launch --port 8811
 ```
 
-Launch creates `.verify/<port>/` in one atomic step and records its own pid in `.verify/<port>/launcher`, so doctor and cleanup can tell that a launch is still starting. It runs `npm run build`, starts `wrangler dev` in its own process group, and records that group in `.verify/<port>/pgid`. It then waits up to 90 seconds until every listener on the port belongs to that group and `GET /` returns 200. Each request in that wait times out after 5 seconds, and the build gets 3 minutes. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pgid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
+Launch creates `.verify/<port>/` in one atomic step and records its own pid and start time in `.verify/<port>/launcher`, so doctor and cleanup can tell that a launch is still starting. The start time keeps a reused pid from passing as the launch. It runs `npm run build`, starts `wrangler dev` in its own process group, and records that group in `.verify/<port>/pgid`. It then waits up to 90 seconds until every listener on the port belongs to that group and `GET /` returns 200. Each request in that wait times out after 5 seconds, and the build gets 3 minutes. Pass `--no-build` to serve the existing `dist/`. Ready output looks like `{"ok":true,"port":8811,"pgid":73941,"url":"http://localhost:8811/","log":".../.verify/8811/wrangler.log"}`.
 
 Launch returns only when the site is ready, so you do not need to poll doctor after it. Launch fails without starting anything in these cases:
 
@@ -61,7 +61,7 @@ Doctor also reports `launching`. It is the pid of a launch on this port that is 
 
 ## Drive
 
-One call loads one route in a fresh mobile browser, checks it, and saves proof.
+One call loads one route in a fresh browser, checks it, and saves proof.
 
 ```sh
 .claude/skills/verify-receipt-splitter/verify.mjs drive --port 8811 --path /s/abc \
@@ -75,7 +75,7 @@ Drive saves files only where `--shot` and `--aria` point, and creates their fold
 - `--expect-text <text>` requires visible text with that exact content. Repeat it for several strings. Each expectation waits up to 5 seconds.
 - `--shot <file>` saves a full-page screenshot.
 - `--aria <file>` saves the ARIA snapshot of the page body.
-- `--width <px>` and `--height <px>` set the viewport in CSS pixels. Each defaults to the Pixel 7 viewport, 412 by 839. The rest of the Pixel 7 profile stays, so the page still gets touch input, a mobile user agent, and a device pixel ratio of 2.625. A screenshot is 2.625 times the viewport width, so `--width 1280` saves one 3360 pixels wide.
+- `--width <px>` and `--height <px>` set the viewport in CSS pixels. Without them, the drive uses the Pixel 7 profile at 412 by 839, with touch input, a mobile user agent, and a device pixel ratio of 2.625. A width below 1024 keeps that profile. A width of 1024 or more switches to Playwright's Desktop Chrome profile, with mouse input, a desktop user agent, a device pixel ratio of 1, and a default height of 720. A screenshot is the viewport width times the device pixel ratio.
 - `--color-scheme light|dark` sets `prefers-color-scheme`. The default is `light`.
 - `--reduced-motion reduce|no-preference` sets `prefers-reduced-motion`. The default is `no-preference`.
 
@@ -86,6 +86,7 @@ When the page loads, the JSON line has `media`, which the page reports about its
 - `width` and `height` are `innerWidth` and `innerHeight`.
 - `colorScheme` is `dark` when `matchMedia("(prefers-color-scheme: dark)")` matches, otherwise `light`.
 - `reducedMotion` is `reduce` when `matchMedia("(prefers-reduced-motion: reduce)")` matches, otherwise `no-preference`.
+- `pointer` is `coarse` when `matchMedia("(pointer: coarse)")` matches, otherwise `fine`. The Pixel 7 profile reports `coarse` and the Desktop Chrome profile reports `fine`.
 
 Cite `media` to show which viewport and preferences a screenshot was taken with. It proves that the page received the preference, not that the page honors it.
 
