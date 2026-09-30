@@ -24,9 +24,12 @@ const headlineSizes = {
 };
 
 export function headlineType(width: number) {
-  const size = width >= breakpoints.twoColumnsFrom ? headlineSizes.wide : headlineSizes.narrow;
-  const text: TextStyle = { fontFamily: display, fontWeight: "800", ...size };
-  return { text, descender: Math.ceil(size.fontSize * archivoDescent) };
+  const max = width >= breakpoints.twoColumnsFrom ? headlineSizes.wide : headlineSizes.narrow;
+  // "at the table." is about 4.6 em wide, so 18% of the window keeps each line whole down to 250 px.
+  const fontSize = Math.min(max.fontSize, Math.floor(width * 0.18));
+  const lineHeight = Math.round((max.lineHeight * fontSize) / max.fontSize);
+  const text: TextStyle = { fontFamily: display, fontWeight: "800", fontSize, lineHeight, letterSpacing: max.letterSpacing };
+  return { text, descender: Math.ceil(fontSize * archivoDescent) };
 }
 
 export const type = StyleSheet.create({
