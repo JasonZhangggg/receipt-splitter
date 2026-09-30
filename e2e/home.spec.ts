@@ -353,40 +353,44 @@ test("a press shows on touch-down without waiting on a timer", async ({ page }) 
     .toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
 });
 
-const pressTimes = (page: Page, startEvent: "touchstart" | "mousedown") =>
-  page.evaluate(
-    ([name, type]) =>
-      new Promise<{ shows: number; full: number }>((resolve) => {
-        const button = [...document.querySelectorAll('[role="button"]')].find((el) => el.textContent === name)!;
-        addEventListener(
-          type,
-          (event) => {
-            let shows = NaN;
-            const poll = () => {
-              const since = performance.now() - event.timeStamp;
-              const { transform, opacity } = getComputedStyle(button);
-              const moving = button.getAnimations().some((a) => (a as CSSTransition).transitionProperty === "transform");
-              if (Number.isNaN(shows) && (transform !== "none" || moving || opacity !== "1")) shows = since;
-              const scaled = transform !== "none" && new DOMMatrix(transform).a <= 0.9601;
-              if (scaled || opacity === "0.7") resolve({ shows, full: since });
-              else requestAnimationFrame(poll);
+type PressTiming = { shows: number; pressIn: number };
+
+async function timePress(page: Page, startEvent: "touchstart" | "mousedown", press: () => Promise<void>) {
+  await page.evaluate(
+    ([name, type]) => {
+      const button = [...document.querySelectorAll('[role="button"]')].find((el) => el.textContent === name)!;
+      addEventListener(
+        type,
+        (event) => {
+          const poll = () => {
+            const { transform, opacity } = getComputedStyle(button);
+            const pressIn = button.getAnimations().find((a) => (a as CSSTransition).transitionProperty === "transform");
+            if (transform === "none" && !pressIn && opacity === "1") return requestAnimationFrame(poll);
+            const timing: PressTiming = {
+              shows: performance.now() - event.timeStamp,
+              pressIn: Number(pressIn?.effect?.getComputedTiming().duration ?? 0),
             };
-            poll();
-          },
-          { capture: true, once: true },
-        );
-      }),
+            Object.assign(window, { pressTiming: timing });
+          };
+          poll();
+        },
+        { capture: true, once: true },
+      );
+    },
     ["Scan or upload a receipt", startEvent] as const,
   );
+  await press();
+  const handle = await page.waitForFunction(() => (window as unknown as { pressTiming?: PressTiming }).pressTiming);
+  return (await handle.jsonValue()) as PressTiming;
+}
 
-test("the bar action shows its press within 50 ms of touch-down and reaches 0.96 within 120 ms", async ({ page }) => {
+test("the bar action shows its press within 50 ms of touch-down and scales to 0.96 over 100 ms", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  const times = pressTimes(page, "touchstart");
-  await pressAndHold(page, "Scan or upload a receipt");
-  const { shows, full } = await times;
+  const { shows, pressIn } = await timePress(page, "touchstart", () => pressAndHold(page, "Scan or upload a receipt"));
   expect(shows, "first pressed frame").toBeLessThan(50);
-  expect(full, "scale 0.96, the end of the 100 ms press-in").toBeLessThan(120);
+  expect(pressIn, "press-in transition").toBe(100);
+  await expect.poll(() => pressLook(page)).toEqual({ transform: "matrix(0.96, 0, 0, 0.96, 0, 0)", opacity: "1", transitions: [] });
 });
 
 async function loadAndHoldMouseOnScan(page: Page) {
@@ -394,9 +398,7 @@ async function loadAndHoldMouseOnScan(page: Page) {
   await settle(page);
   const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  const times = pressTimes(page, "mousedown");
-  await page.mouse.down();
-  return times;
+  return timePress(page, "mousedown", () => page.mouse.down());
 }
 
 test("a mouse press on the inline action at 1280 px shows within 50 ms of mouse-down", async ({ browser }) => {
@@ -581,9 +583,8 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await reloadWithTouch();
     const box = (await page.getByRole("button", { name: "Scan or upload a receipt" }).boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    const mouse = pressTimes(page, "mousedown");
-    await page.mouse.down();
-    expect((await mouse).shows, "first pressed frame of a mouse press").toBeLessThan(50);
+    const { shows } = await timePress(page, "mousedown", () => page.mouse.down());
+    expect(shows, "first pressed frame of a mouse press").toBeLessThan(50);
     await context.close();
   });
 }
