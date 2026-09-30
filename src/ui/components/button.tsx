@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "rea
 import { pressTransition } from "../motion";
 import { type, useColors } from "../theme";
 
-const pressable = { dataSet: { pressable: "" } } as object;
+const pressable = { dataSet: { pressable: "" } };
 
 type Props = { label: string; onPress: () => void; style?: StyleProp<ViewStyle> };
 

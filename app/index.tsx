@@ -129,8 +129,8 @@ export default function Home() {
 
       <Sheet open={aboutOpen} onClose={() => setAboutOpen(false)} title="Your photo stays on your phone">
         <Text style={[type.body, { color: c.ink }]}>
-          Receipt Splitter reads the receipt on this device. The photo is never uploaded. The Split you share holds
-          the items and prices, not the photo.
+          Receipt Splitter reads the receipt on this device and never uploads the photo. The Split you share holds
+          only the items and prices.
         </Text>
         <Button label="Got it" onPress={() => setAboutOpen(false)} />
       </Sheet>
