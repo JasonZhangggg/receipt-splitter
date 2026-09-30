@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
-import { MAX_PARTICIPANT_NAME_LENGTH, MAX_RECEIPT_NAME_LENGTH, applyOperation, checkSplit, createSplit, type Auth, type Operation, type Rejected } from "./operations";
+import {
+  MAX_PARTICIPANT_NAME_LENGTH,
+  MAX_RECEIPT_NAME_LENGTH,
+  applyOperation,
+  checkSplit,
+  createSplit,
+  type Auth,
+  type Operation,
+  type Rejected,
+} from "./operations";
 import { parseOperation, parseSplit } from "./parse";
 import { computeShares } from "./shares";
 import {
@@ -625,16 +634,16 @@ describe("names", () => {
   });
 
   test("allows joined emoji, flags, and a Persian name with a zero-width non-joiner", () => {
-    const mahrokh = "ماه‌رخ";
-    expect(["👩‍🍳", "👨‍👩‍👧‍👦", "Zoë", "José", "李明", mahrokh, "🇺🇸", "❤️", "✈︎"].map(join)).toEqual(
+    const mahrokh = "\u0645\u0627\u0647\u200C\u0631\u062E";
+    expect(["👩\u200D🍳", "👨\u200D👩\u200D👧\u200D👦", "Zoë", "José", "李明", mahrokh, "🇺🇸", "❤\uFE0F", "✈\uFE0E"].map(join)).toEqual(
       Array.from({ length: 9 }, () => "accepted"),
     );
   });
 
   test("counts a joined emoji as one character toward the 40", () => {
-    expect(join("👨‍👩‍👧‍👦".repeat(40))).toBe("accepted");
+    expect(join("👨\u200D👩\u200D👧\u200D👦".repeat(40))).toBe("accepted");
     expect(join("🇺🇸".repeat(40))).toBe("accepted");
-    expect(join("👨‍👩‍👧‍👦".repeat(41))).toBe("badName");
+    expect(join("👨\u200D👩\u200D👧\u200D👦".repeat(41))).toBe("badName");
   });
 
   test("refuses one character stacked with 40 accents, and keeps the longest skin-toned emoji sequences", () => {
@@ -645,7 +654,7 @@ describe("names", () => {
   });
 
   test("refuses a lone bidi override, a null, a newline, a zero-width space, a lone surrogate, and a name made only of joiners", () => {
-    expect(["‮", "a\u0000b", "a\nb", "​", "\uD800", "‍", "‌️"].map(join)).toEqual(
+    expect(["\u202E", "a\u0000b", "a\nb", "\u200B", "\uD800", "\u200D", "\u200C\uFE0F"].map(join)).toEqual(
       Array.from({ length: 7 }, () => "badName"),
     );
   });
@@ -660,7 +669,12 @@ describe("names", () => {
       total: cents(1900),
     });
     const create = (itemName: string, tipName?: string) => {
-      const result = createSplit({ id: splitId("s1"), receipt: receipt(itemName, tipName), host: { id: ann, name: "Ann" }, paymentHandles: [{ service: "venmo", handle: "ann-host" }] });
+      const result = createSplit({
+        id: splitId("s1"),
+        receipt: receipt(itemName, tipName),
+        host: { id: ann, name: "Ann" },
+        paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      });
       return result.ok ? "accepted" : result.rejection.reason;
     };
 
