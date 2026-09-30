@@ -4,8 +4,9 @@ import { extname } from "node:path";
 import { chromium } from "@playwright/test";
 
 const [major, minor] = process.versions.node.split(".").map(Number);
-if (major < 22 || (major === 22 && minor < 18)) {
-  console.error(`fallback-metrics.mjs needs Node 22.18 or later to import home-copy.ts. This is Node ${process.versions.node}.`);
+const typeStrippingFrom = { 22: 18, 23: 6 }[major] ?? (major > 23 ? 0 : Infinity);
+if (minor < typeStrippingFrom) {
+  console.error(`fallback-metrics.mjs needs Node 22.18, 23.6, or 24 and later to import home-copy.ts. This is Node ${process.versions.node}.`);
   process.exit(1);
 }
 
