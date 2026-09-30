@@ -73,7 +73,7 @@ export default function Home() {
               </View>
             ))}
           </View>
-          <View style={[styles.pitch, enter(reduce, { delay: 220 })]}>
+          <View style={styles.pitch}>
             <Text style={[type.body, wide && type.bodyWide, { color: c.onField }]}>
               Take a photo of the receipt and send the link. Everyone taps what they ordered and pays you back.
             </Text>
