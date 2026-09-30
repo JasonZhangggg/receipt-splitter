@@ -31,28 +31,30 @@ type WebOnly = Partial<
 
 const webStyle = (style: WebOnly) => style as ViewStyle;
 
-const shown = { opacity: 1, transform: "none" };
-
 const keyframes = StyleSheet.create({
-  rise: { animationKeyframes: [{ from: { opacity: 0, transform: "translateY(8px)" }, to: shown }] },
+  rise: { animationKeyframes: [{ from: { opacity: 0, transform: "translateY(8px)" }, to: { opacity: 1, transform: "none" } }] },
   unmask: { animationKeyframes: [{ from: { transform: "translateY(100%)" }, to: { transform: "none" } }] },
-  fade: { animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }] },
-} as unknown as Record<"rise" | "unmask" | "fade", ViewStyle>);
+} as unknown as Record<"rise" | "unmask", ViewStyle>);
 
 type Enter = { delay?: number; duration?: number; from?: "rise" | "unmask" };
 
 export function enter(reduce: boolean, { delay = 0, duration = motion.enter, from = "rise" }: Enter = {}) {
-  if (!web) return [];
-  const timing = reduce
-    ? { animationDuration: `${motion.reducedFade}ms`, animationTimingFunction: "ease" }
-    : { animationDuration: `${duration}ms`, animationDelay: `${delay}ms`, animationTimingFunction: motion.easeOut };
-  return [keyframes[reduce ? "fade" : from], webStyle({ ...timing, animationFillMode: "both" })];
+  if (!web || reduce) return [];
+  return [
+    keyframes[from],
+    webStyle({
+      animationDuration: `${duration}ms`,
+      animationDelay: `${delay}ms`,
+      animationTimingFunction: motion.easeOut,
+      animationFillMode: "both",
+    }),
+  ];
 }
 
 export function pressTransition(pressed: boolean) {
   if (!web) return {};
   return webStyle({
-    transitionProperty: "transform, opacity",
+    transitionProperty: "transform",
     transitionDuration: `${pressed ? motion.pressIn : motion.pressOut}ms`,
     transitionTimingFunction: motion.easeOut,
   });

@@ -50,26 +50,18 @@ test("the bottom bar does not cover the end of the page", async ({ page }) => {
   expect(hit).toContain("short of the subtotal");
 });
 
-test("reduced motion drops movement and keeps the fades", async ({ page }) => {
-  const moving = () =>
-    page.evaluate(
-      () =>
-        document
-          .getAnimations()
-          .filter((a) => (a.effect as KeyframeEffect).getKeyframes().some((k) => k.transform && k.transform !== "none"))
-          .length,
-    );
+test("reduced motion skips the entrance animation", async ({ page }) => {
+  const animations = () => page.evaluate(() => document.getAnimations().length);
   const load = async () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
   };
   await load();
-  expect(await moving()).toBeGreaterThan(0);
+  expect(await animations()).toBeGreaterThan(0);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await load();
-  expect(await moving()).toBe(0);
-  expect(await page.evaluate(() => document.getAnimations().length)).toBeGreaterThan(0);
+  expect(await animations()).toBe(0);
 });
 
 const matrix = [390, 1280].flatMap((width) =>
