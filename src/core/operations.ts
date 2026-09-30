@@ -547,7 +547,7 @@ function checkState(split: Split): Rejection | null {
   if (total < 0) return { reason: "negativeTotal" };
 
   const rowsNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH));
-  const participantsNamed = participants.every(({ name }) => !BLANK.test(name) && isName(name, MAX_PARTICIPANT_NAME_LENGTH));
+  const participantsNamed = participants.every(({ name }) => isName(name, MAX_PARTICIPANT_NAME_LENGTH));
   if (!rowsNamed || !participantsNamed) return { reason: "badName" };
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
@@ -577,7 +577,7 @@ const MAX_UNITS_PER_GRAPHEME = 32;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
 function isName(name: string, maxLength: number): boolean {
-  if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name)) return false;
+  if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name) || BLANK.test(name)) return false;
   const characters = [...graphemes.segment(name)];
   return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_UNITS_PER_GRAPHEME);
 }

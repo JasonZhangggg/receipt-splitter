@@ -696,6 +696,36 @@ describe("names", () => {
     expect(join("d".repeat(41))).toBe("badName");
   });
 
+  test("refuses a blank or invisible Item or Adjustment name when the Receipt is created, and when a row is added or renamed", () => {
+    const blanks = ["", "   ", "\u3164", "\u200D"];
+    const tip = { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(500) };
+    const tipped: Receipt = { ...dinner, adjustments: [tip], total: cents(5700) };
+    const [first, ...rest] = tipped.items;
+    const create = (receipt: Receipt) => {
+      const result = createSplit({ id: splitId("s1"), receipt, host: { id: ann, name: "Ann" }, paymentHandles: [{ service: "venmo", handle: "ann-host" }] });
+      return result.ok ? "accepted" : result.rejection.reason;
+    };
+    const split = created(tipped);
+    const addItem = (name: string): Operation => ({
+      by: null,
+      type: "editReceipt",
+      items: [{ type: "add", item: { id: itemId("tea"), name, price: price(300) }, index: 0 }],
+      subtotalDelta: cents(300),
+      totalDelta: cents(300),
+    });
+    const refused = Array.from({ length: 4 }, () => "badName");
+
+    expect(blanks.map((name) => create({ ...tipped, items: [{ ...first, name }, ...rest] }))).toEqual(refused);
+    expect(blanks.map((name) => create({ ...tipped, adjustments: [{ ...tip, name }] }))).toEqual(refused);
+    expect(blanks.map((name) => reasonFor(split, addItem(name)))).toEqual(refused);
+    expect(blanks.map((name) => reasonFor(split, { by: null, type: "editReceipt", items: [{ type: "edit", itemId: fries, name }] }))).toEqual(refused);
+    expect(blanks.map((name) => reasonFor(split, { by: null, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tip.id, name }] }))).toEqual(
+      refused,
+    );
+    expect(reasonFor(split, addItem("Tea"))).toBe("accepted");
+    expect(reasonFor(split, { by: null, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tip.id, name: "Tip 20%" }] })).toBe("accepted");
+  });
+
   test("an Item renamed with a bidi override is refused", () => {
     expect(reasonFor(created(), { by: null, type: "editReceipt", items: [{ type: "edit", itemId: fries, name: "Fries\u202E" }] })).toBe("badName");
   });
