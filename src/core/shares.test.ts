@@ -362,24 +362,28 @@ describe("computeShares", () => {
       return 100 + (state % 4900);
     };
     let worst = 0;
+    let charged = 0;
     for (let receipt = 0; receipt < 200; receipt++) {
       const rows = Array.from({ length: 20 }, (_, index): Row => [`i${index}`, nextPrice(), people]);
       const subtotal = rows.reduce((sum, [, amount]) => sum + amount, 0);
+      const tax = Math.round(subtotal * 0.08875);
+      const tip = Math.round(subtotal * 0.2);
       const [first, ...rest] = rows;
       const { shares } = computeShares(
         splitWith({
           items: [first, ...rest],
           adjustments: [
-            ["tax", Math.round(subtotal * 0.08875)],
-            ["tip", Math.round(subtotal * 0.2)],
+            ["tax", tax],
+            ["tip", tip],
           ],
           participants: [host, ...others],
         }),
       );
-      const total = shares.reduce((sum, { share }) => sum + share, 0);
-      worst = Math.max(worst, ...shares.map(({ share }) => Math.abs(share - total / 12)));
+      charged += shares.reduce((sum, { share }) => sum + share, 0);
+      worst = Math.max(worst, ...shares.map(({ share }) => Math.abs(share - (subtotal + tax + tip) / 12)));
     }
 
+    expect(charged).toBe(13_116_903);
     expect(worst).toBeLessThan(1);
   });
 

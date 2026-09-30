@@ -689,7 +689,7 @@ describe("the 32 KB budget", () => {
     expect(renamed.recentChanges.at(-1)?.revision).toBe(renamed.revision);
   });
 
-  test("a change too big for the history reserve is rejected, so every accepted change stays undoable", () => {
+  test("a change too big for the history reserve is rejected, so no change lands without its record", () => {
     const split = atTheCaps();
     const doomed = split.receipt.items.slice(0, 50);
 
@@ -702,6 +702,34 @@ describe("the 32 KB budget", () => {
         totalDelta: cents(-50 * 100_000),
       }),
     ).toBe("tooLarge");
+  });
+  test("undoing the delete of a claimed Item is refused as tooLarge once Claims have filled the space it left", () => {
+    let split = atTheCaps();
+    const everyone = split.participants.map(({ id }) => id);
+    const [deleted, ...kept] = split.receipt.items;
+    split = apply(split, ...everyone.slice(0, 10).map((id): Operation => ({ by: null, type: "claim", itemId: deleted.id, participantId: id })));
+    split = apply(split, {
+      by: null,
+      type: "editReceipt",
+      items: [{ type: "delete", itemId: deleted.id }],
+      subtotalDelta: cents(-deleted.price),
+      totalDelta: cents(-deleted.price),
+    });
+    const deletedAt = split.revision;
+    let rejection = "none";
+    for (let turn = 0; rejection === "none"; turn++) {
+      const result = applyOperation(
+        split,
+        { by: null, type: "claim", itemId: kept[turn % kept.length].id, participantId: everyone[Math.floor(turn / kept.length)] },
+        anyone,
+      );
+      if (result.ok) split = result.split;
+      else rejection = result.rejection.reason;
+    }
+
+    expect(rejection).toBe("tooLarge");
+    expect(split.recentChanges.at(-1)?.revision).toBe(deletedAt);
+    expect(reasonFor(split, { by: null, type: "undo", revision: deletedAt })).toBe("tooLarge");
   });
 });
 
@@ -814,7 +842,7 @@ describe("random operations", () => {
     return { by, type: "undo", revision: target };
   }
 
-  test.each([1, 2, 3, 4, 5, 6, 7, 8])("seed %i keeps every invariant across 300 random operations", (seed) => {
+  test.each([1, 2, 3, 4, 5, 6, 7, 8])("seed %i keeps Shares, parsing, undo, and Claim bounds across 300 random operations; the caps tests prove the byte budget", (seed) => {
     const next = random(seed);
     let counter = 0;
     const fresh = () => `n${seed}x${counter++}`;
