@@ -25,7 +25,7 @@ function storedSplit(): Split {
       subtotal: cents(3800),
       total: cents(4137),
     },
-    host: { id: participantId("ann"), name: "Ann" },
+    participants: [{ id: participantId("ann"), name: "Ann" }],
     paymentHandles: [{ service: "venmo", handle: "ann-host" }],
   });
   if (!created.ok) throw new Error(JSON.stringify(created.rejection));
@@ -36,6 +36,7 @@ function storedSplit(): Split {
     { type: "splitUnclaimed", by: "ann" },
     { type: "recordPayment", by: "bob", participantId: "bob", amount: 2200 },
     { type: "undo", by: "ann", revision: 2 },
+    { type: "setJoined", by: "bob", participantId: "bob", joined: true },
   ];
   return ops.reduce<Split>((split, input) => {
     const parsed = parseOperation(input);
@@ -124,6 +125,16 @@ describe("parseSplit", () => {
     expect(parseSplit({ ...stored, schemaVersion: 2 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "schemaVersion" } });
     expect(parseSplit({ ...stored, participants: [stored.participants[0]] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
+  });
+
+  test("reads a Split stored before joins as joined by no one, and refuses joins out of order or by someone not in the Split", () => {
+    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const { joined, ...beforeJoins } = stored;
+
+    expect(joined).toEqual(["ann", "bob"]);
+    expect(parseSplit(beforeJoins)).toMatchObject({ ok: true, split: { joined: [] } });
+    expect(parseSplit({ ...stored, joined: ["bob", "ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
+    expect(parseSplit({ ...stored, joined: ["ann", "cat"] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
   });
 
   test("refuses a stored Split whose claimers are out of order or repeated", () => {
@@ -225,7 +236,7 @@ describe("parseNewSplit", () => {
       subtotal: 3800,
       total: 4137,
     },
-    host: { id: "ann", name: "Ann" },
+    participants: [{ id: "ann", name: "Ann" }],
     paymentHandles: [{ service: "venmo", handle: "@ann-host" }],
   };
 
@@ -246,12 +257,22 @@ describe("parseNewSplit", () => {
           total: 4137,
         },
         participants: [{ id: "ann", name: "Ann" }],
+        joined: ["ann"],
         payments: [],
         paymentHandles: [{ service: "venmo", handle: "ann-host" }],
         revision: 0,
         recentChanges: [],
       },
     });
+  });
+
+  test("reads the names the Host typed after the Host, and refuses no Participants or 31", () => {
+    const withPeople = (count: number) =>
+      parseNewSplit({ ...body, participants: Array.from({ length: count }, (_, index) => ({ id: `p${index}`, name: `P${index}` })) }, minted);
+
+    expect(withPeople(30)).toMatchObject({ ok: true, split: { participants: { length: 30, 29: { id: "p29", name: "P29" } }, joined: ["p0"] } });
+    expect(withPeople(0)).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
+    expect(withPeople(31)).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
   });
 
   test("refuses a body that picks its own Split id, valid or not", () => {
@@ -277,13 +298,14 @@ describe("parseNewSplit", () => {
     });
   });
 
-  test("refuses a body that brings its own revision, history, Payments, Participants, or Claims", () => {
+  test("refuses a body that brings its own revision, history, Payments, joins, or Claims", () => {
     const refused = (extra: object) => parseNewSplit({ ...body, ...extra }, minted);
 
     expect(refused({ revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "revision" } });
     expect(refused({ recentChanges: [] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
     expect(refused({ payments: [{ participantId: "bob", amount: 100 }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "payments" } });
-    expect(refused({ participants: [{ id: "bob", name: "Bob" }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
+    expect(refused({ host: { id: "bob", name: "Bob" } })).toEqual({ ok: false, rejection: { reason: "malformed", path: "host" } });
+    expect(refused({ joined: ["ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
     expect(
       parseNewSplit({ ...body, receipt: { ...body.receipt, items: [{ ...body.receipt.items[0], claimedBy: ["ann"] }, body.receipt.items[1]] } }, minted),
     ).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].claimedBy" } });
@@ -310,7 +332,7 @@ describe("parseNewSplit", () => {
   });
 
   test("refuses a Host named with a bidi override or left blank", () => {
-    const hosted = (name: string) => parseNewSplit({ ...body, host: { id: "ann", name } }, minted);
+    const hosted = (name: string) => parseNewSplit({ ...body, participants: [{ id: "ann", name }] }, minted);
 
     expect(hosted("\u202E")).toEqual(badName);
     expect(hosted("")).toEqual(badName);

@@ -2,24 +2,31 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { blockedReason, flaggedRows, loadDraft, reduceDraft, saveDraft, type ReceiptFile } from "../src/draft";
+import type { NonEmpty, PaymentHandle } from "../src/core/split";
+import { rememberSplit, splitOnDevice } from "../src/device";
+import { blockedReason, filledHandles, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
+import { createSplitLink, newParticipantId, splitUrl, useLiveSplit, type Live } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
 import { Button, PressTarget } from "../src/ui/components/button";
 import { FileRow } from "../src/ui/components/file-row";
+import { LinkBox } from "../src/ui/components/link-box";
 import { NameChips } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
 import { panel, Sheet } from "../src/ui/components/sheet";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
-import { copy } from "../src/ui/home-copy";
+import { copy, createCopy, linkCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { isPhoto, pickPhoto, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
 import { Reading } from "../src/ui/receipt-input/reading";
 import { breakpoints, motion, type, useColors } from "../src/ui/theme";
+import { prepareTurnstile, turnstileToken } from "../src/ui/turnstile";
 
-const createLater = () => {};
+const handleEdits = 700;
+
+const others = (live: Live) => (live.status === "live" ? live.split.participants.slice(1) : []);
 
 const ringChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 
@@ -27,13 +34,40 @@ export default function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [draft, dispatch] = useReducer(reduceDraft, undefined, () => loadDraft());
+  const [draft, apply] = useReducer(reduceDraft, undefined, () => loadDraft());
   const [progress, setProgress] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetHeight, setSheetHeight] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const scanning = useRef(0);
+  const splitId = draft.scan.status === "linked" ? draft.scan.splitId : null;
+  const { live, send } = useLiveSplit(splitId);
+  const sentHandles = useRef(JSON.stringify(filledHandles(draft.handles)));
   useEffect(prefetchModel, []);
   useEffect(() => saveDraft(draft), [draft]);
+
+  const dispatch = useCallback((action: DraftAction) => {
+    setFailure(null);
+    apply(action);
+  }, []);
+
+  useEffect(() => {
+    if (live.status === "gone") apply({ type: "unlinked" });
+  }, [live.status]);
+
+  useEffect(() => {
+    const [first, ...rest] = filledHandles(draft.handles);
+    const json = JSON.stringify([first, ...rest]);
+    if (splitId === null || first === undefined || json === sentHandles.current) return;
+    const timer = setTimeout(async () => {
+      sentHandles.current = json;
+      const handles: NonEmpty<PaymentHandle> = [first, ...rest];
+      const answer = await send({ type: "setPaymentHandles", by: null, handles }, splitOnDevice(splitId).creatorSecret);
+      if (!answer.ok) setNotice(answer.rejection.reason === "creatorRequired" ? linkCopy.handleLocked : createCopy.handle);
+    }, handleEdits);
+    return () => clearTimeout(timer);
+  }, [draft.handles, splitId, send]);
 
   const read = useCallback(async (photo: File) => {
     if (!isPhoto(photo)) return setNotice(copy.notPhoto);
@@ -44,7 +78,7 @@ export default function Home() {
     dispatch({ type: "reading", file });
     const receipt = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction)).then(parseReceipt, () => null);
     if (scan === scanning.current) dispatch({ type: "read", file, receipt });
-  }, []);
+  }, [dispatch]);
   const dragging = usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);
   const example = () => {
@@ -58,6 +92,36 @@ export default function Home() {
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
   const reason = blockedReason(draft);
+  useEffect(() => {
+    if (reason === null) prepareTurnstile();
+  }, [reason]);
+
+  const create = async () => {
+    const request = splitRequest(draft, newParticipantId);
+    if (!request) return;
+    setCreating(true);
+    setFailure(null);
+    const token = await turnstileToken().catch(() => null);
+    const created = token === null ? { ok: false as const, reason: createCopy.turnstile } : await createSplitLink({ turnstileToken: token, split: request });
+    setCreating(false);
+    if (!created.ok) return setFailure(created.reason);
+    rememberSplit(created.id, { creatorSecret: created.creatorSecret, me: request.participants[0].id });
+    sentHandles.current = JSON.stringify(request.paymentHandles);
+    apply({ type: "linked", splitId: created.id });
+  };
+
+  const people = live.status === "live" ? others(live).map(({ name }) => name) : draft.names;
+  const joined = live.status === "live" ? live.split.participants.filter(({ id }) => live.split.joined.includes(id)).map(({ name }) => name) : [];
+  const addName = (typed: string) => {
+    if (splitId === null) return dispatch({ type: "addName", name: typed });
+    const name = newName(typed, people);
+    if (name) void send({ type: "addParticipant", by: null, participant: { id: newParticipantId(), name } });
+  };
+  const removeName = (name: string) => {
+    if (splitId === null) return dispatch({ type: "removeName", name });
+    const participant = others(live).find((person) => person.name === name);
+    if (participant) void send({ type: "removeParticipant", by: null, participantId: participant.id });
+  };
   const compact = !wide && height - insets.top - insets.bottom < shortScreen;
   const besidePanel = wide ? { marginLeft: gutter + insets.left, marginRight: panelSpace + insets.right } : sides;
 
@@ -102,7 +166,7 @@ export default function Home() {
           <View style={[styles.doc, besidePanel]}>
             <View style={[styles.column, wide && styles.columnWide]}>
               <FileRow name={scan.file.name} items={scan.receipt.items.length} thumbnail={scan.file.thumbnail} onReplace={choose} />
-              <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} />
+              <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} locked={creating || scan.status === "linked"} />
             </View>
           </View>
         )}
@@ -112,17 +176,22 @@ export default function Home() {
         wide={wide}
         onHeight={setSheetHeight}
         action={
-          <Button
-            label={copy.action}
-            onPress={createLater}
-            outsideScroll
-            disabled={reason !== null}
-            reason={scan.status === "read" ? (reason ?? undefined) : undefined}
-          />
+          splitId === null ? (
+            <Button
+              label={creating ? copy.creating : copy.action}
+              onPress={create}
+              outsideScroll
+              busy={creating}
+              disabled={reason !== null}
+              reason={failure ?? (scan.status === "read" ? (reason ?? undefined) : undefined)}
+            />
+          ) : (
+            <LinkBox url={splitUrl(splitId)} onCopyFailed={() => setNotice(linkCopy.copyFailed)} />
+          )
         }
       >
         <PaymentRows handles={draft.handles} dispatch={dispatch} outsideScroll />
-        <NameChips names={draft.names} onAdd={(name) => dispatch({ type: "addName", name })} onRemove={(name) => dispatch({ type: "removeName", name })} outsideScroll />
+        <NameChips names={people} joined={joined} onAdd={addName} onRemove={removeName} outsideScroll />
       </Sheet>
       <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 0 : sheetHeight} />
     </View>

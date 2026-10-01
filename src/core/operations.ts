@@ -68,6 +68,7 @@ export type Operation = (
   | { readonly type: "recordPayment"; readonly participantId: ParticipantId; readonly amount: Cents }
   | { readonly type: "clearPayment"; readonly participantId: ParticipantId }
   | { readonly type: "setPaymentHandles"; readonly handles: NonEmpty<PaymentHandle> }
+  | { readonly type: "setJoined"; readonly participantId: ParticipantId; readonly joined: boolean }
   | { readonly type: "undo"; readonly revision: number }
 ) & { readonly by: ParticipantId | null };
 
@@ -189,6 +190,11 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const paymentHandles = canonicalHandles(op.handles);
       if (JSON.stringify(paymentHandles) === JSON.stringify(split.paymentHandles)) return unchanged(split);
       return { ok: true, split: { ...split, paymentHandles }, record: null };
+    }
+    case "setJoined": {
+      if (split.joined.includes(op.participantId) === op.joined) return unchanged(split);
+      const others = split.joined.filter((id) => id !== op.participantId);
+      return { ok: true, split: { ...split, joined: op.joined ? sortByCodeUnit([...others, op.participantId]) : others }, record: null };
     }
     case "undo":
       return undo(split, op.revision);
@@ -366,7 +372,7 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       if (!keepsNameValid(write, MAX_PARTICIPANT_NAME_LENGTH)) return "badName";
       if ("removed" in write) {
         const claimed = split.receipt.items.some(({ claimedBy }) => claimedBy.includes(write.id));
-        if (claimed || paymentOf(split, write.id) !== null) return "participantInUse";
+        if (claimed || split.joined.includes(write.id) || paymentOf(split, write.id) !== null) return "participantInUse";
       }
       const rows = putRow(others, write, 1, ({ name }) => ({ id: write.id, name }));
       return typeof rows === "string" ? rows : { ...split, participants: [host, ...rows] };
@@ -502,7 +508,7 @@ function canonicalHandles(handles: NonEmpty<PaymentHandle>): NonEmpty<PaymentHan
 export type NewSplit = {
   readonly id: MintedSplitId;
   readonly receipt: Receipt;
-  readonly host: Participant;
+  readonly participants: Split["participants"];
   readonly paymentHandles: NonEmpty<PaymentHandle>;
 };
 
@@ -544,7 +550,8 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
     id: input.id,
     currency: "USD",
     receipt: { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total },
-    participants: [input.host],
+    participants: input.participants,
+    joined: [input.participants[0].id],
     payments: [],
     paymentHandles: canonicalHandles(input.paymentHandles),
     revision: 0,
@@ -597,7 +604,8 @@ function checkState(split: Split): Rejection | null {
   const claimsValid = items.every(({ claimedBy }) => claimedBy.every((id) => ids.has(id)));
   const paidBy = payments.map(({ participantId }) => participantId);
   const paymentsValid = isStrictlySorted(paidBy) && paidBy.every((id) => ids.has(id) && id !== host.id);
-  if (!claimsValid || !paymentsValid) return { reason: "unknownParticipant" };
+  if (!isStrictlySorted(split.joined)) return { reason: "malformed", path: "joined" };
+  if (!claimsValid || !paymentsValid || !split.joined.every((id) => ids.has(id))) return { reason: "unknownParticipant" };
 
   const services = paymentHandles.map(({ service }) => service);
   const handlesValid = paymentHandles.every(({ service, handle }) => HANDLE_RULES[service].pattern.test(handle));

@@ -46,4 +46,5 @@ export const motion = {
   readingBar: 240,
   receiptIn: 240,
   dragOver: 150,
+  spinnerTurn: 800,
 } as const;

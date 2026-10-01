@@ -12,7 +12,7 @@ const SPLIT_ID = "benchlabelreceipt";
 
 function asReceipt(receipt: unknown) {
   if (!isMintedSplitId(SPLIT_ID)) throw new RangeError(`${SPLIT_ID} is too short for a minted Split id`);
-  const parsed = parseNewSplit({ receipt, host: { id: "host", name: "Host" }, paymentHandles: [{ service: "venmo", handle: "bench" }] }, SPLIT_ID);
+  const parsed = parseNewSplit({ receipt, participants: [{ id: "host", name: "Host" }], paymentHandles: [{ service: "venmo", handle: "bench" }] }, SPLIT_ID);
   return parsed.ok ? parsed.split.receipt : parsed.rejection;
 }
 

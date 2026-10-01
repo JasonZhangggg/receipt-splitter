@@ -35,6 +35,13 @@ describe("POST /api/splits", () => {
     expect(siteverify.map(({ response: token }) => token)).toEqual(["failed-token"]);
   });
 
+  it("answers a siteverify reply with no success field with 403 and creates nothing", async () => {
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async () => Response.json({ "error-codes": [] }));
+    const response = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ refused: "turnstileFailed" });
+  });
+
   it("answers the eleventh create from one IP within a minute with 429", async () => {
     const statuses: number[] = [];
     for (let attempt = 0; attempt < 11; attempt += 1) {

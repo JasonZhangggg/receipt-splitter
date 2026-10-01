@@ -13,12 +13,13 @@ type TargetProps = {
   name?: string;
   outsideScroll?: boolean;
   disabled?: boolean;
+  busy?: boolean;
   describedBy?: string;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;
 };
 
-export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, describedBy, style, children }: TargetProps) {
+export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, busy, describedBy, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   if (disabled && held) setHeld(false);
   const web = Platform.OS === "web" ? { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay } : {};
@@ -27,6 +28,7 @@ export function PressTarget({ onPress, name, outsideScroll = false, disabled = f
       role="button"
       aria-label={name}
       aria-describedby={describedBy}
+      aria-busy={busy}
       disabled={disabled}
       onPressIn={() => setHeld(!disabled)}
       onPressOut={() => setHeld(false)}
@@ -50,6 +52,12 @@ const kinds = {
     icon: 20,
     tone: (c: Colors, disabled: boolean): Tone => (disabled ? { fill: c.off, ink: c.onOff } : { fill: c.action, ink: c.onAction }),
   },
+  soft: {
+    face: { height: 54, paddingHorizontal: 24, borderRadius: 27 },
+    label: type.button,
+    icon: 20,
+    tone: (c: Colors): Tone => ({ fill: c.sheetIn, ink: c.ink }),
+  },
   outline: { face: { width: 52, height: 52, borderRadius: 14 }, label: type.button, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
   chip: {
     face: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
@@ -67,23 +75,25 @@ type Props = ({ label: string; name?: string } | { label?: undefined; name: stri
   icon?: IconName;
   outsideScroll?: boolean;
   disabled?: boolean;
+  busy?: boolean;
   reason?: string;
 };
 
 const colorChange = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
-export function Button({ label, onPress, kind = "primary", icon, name, outsideScroll, disabled = false, reason }: Props) {
+export function Button({ label, onPress, kind = "primary", icon, name, outsideScroll, disabled = false, busy = false, reason }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const reasonId = useId();
   const variant = kinds[kind];
-  const tone = variant.tone(c, disabled);
+  const tone = variant.tone(c, disabled && !busy);
   const target = (
     <PressTarget
       onPress={onPress}
       name={name}
       outsideScroll={outsideScroll}
-      disabled={disabled}
+      disabled={disabled || busy}
+      busy={busy}
       describedBy={reason ? reasonId : undefined}
       style={(pressed) => pressStyle(pressed, reduce)}
     >
@@ -96,7 +106,8 @@ export function Button({ label, onPress, kind = "primary", icon, name, outsideSc
             { backgroundColor: tone.fill, boxShadow: tone.ring && `inset 0 0 0 1px ${tone.ring}` },
           ]}
         >
-          {icon ? <Icon name={icon} size={variant.icon} color={tone.ink} /> : null}
+          {busy && !reduce ? <View style={[styles.spinner, spin, { borderColor: tone.ink, borderRightColor: "transparent" }]} /> : null}
+          {icon && !busy ? <Icon name={icon} size={variant.icon} color={tone.ink} /> : null}
           {label ? <Text style={[variant.label, { color: tone.ink }]}>{label}</Text> : null}
         </View>
       )}
@@ -113,7 +124,15 @@ export function Button({ label, onPress, kind = "primary", icon, name, outsideSc
   );
 }
 
+const spin = webStyle({
+  animationKeyframes: [{ from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } }],
+  animationDuration: `${motion.spinnerTurn}ms`,
+  animationTimingFunction: "linear",
+  animationIterationCount: "infinite",
+});
+
 const styles = StyleSheet.create({
+  spinner: { width: 16, height: 16, borderRadius: 8, borderWidth: 2 },
   face: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   withReason: { gap: 10 },
   reason: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },

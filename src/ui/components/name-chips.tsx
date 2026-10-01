@@ -5,9 +5,15 @@ import { copy } from "../home-copy";
 import { type, useColors } from "../theme";
 import { Button } from "./button";
 
-type Props = { names: readonly string[]; onAdd: (name: string) => void; onRemove: (name: string) => void; outsideScroll?: boolean };
+type Props = {
+  names: readonly string[];
+  joined?: readonly string[];
+  onAdd: (name: string) => void;
+  onRemove: (name: string) => void;
+  outsideScroll?: boolean;
+};
 
-export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
+export function NameChips({ names, joined = [], onAdd, onRemove, outsideScroll }: Props) {
   const c = useColors();
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
@@ -20,12 +26,15 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       <View style={[styles.chip, { backgroundColor: c.sheetIn }]}>
         <Text style={[type.label, { color: c.ink }]}>{copy.me}</Text>
       </View>
-      {names.map((name) => (
-        <View key={name} style={[styles.chip, styles.named, { backgroundColor: c.sheetIn }]}>
-          <Text style={[type.label, { color: c.ink }]}>{name}</Text>
-          <Button kind="icon" icon="x" name={copy.removeName(name)} onPress={() => onRemove(name)} outsideScroll={outsideScroll} />
-        </View>
-      ))}
+      {names.map((name) => {
+        const removable = !joined.includes(name);
+        return (
+          <View key={name} style={[styles.chip, removable && styles.named, { backgroundColor: c.sheetIn }]}>
+            <Text style={[type.label, { color: c.ink }]}>{name}</Text>
+            {removable ? <Button kind="icon" icon="x" name={copy.removeName(name)} onPress={() => onRemove(name)} outsideScroll={outsideScroll} /> : null}
+          </View>
+        );
+      })}
       {adding ? (
         <TextInput
           autoFocus

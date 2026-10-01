@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 
 import { cents, MAX_CENTS, price } from "./core/money";
-import { adjustmentId, itemId, type Receipt } from "./core/split";
+import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import type { ParsedItem } from "./parse";
-import { blockedReason, emptyDraft, flaggedRows, parseAmount, loadDraft, reduceDraft, saveDraft, type Draft, type DraftAction } from "./draft";
+import { blockedReason, emptyDraft, flaggedRows, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -335,6 +335,10 @@ describe("the Payment handles and names", () => {
     expect(run(draft, { type: "removeHandle", index: 1 }).handles.map(({ service }) => service)).toEqual(["cashApp", "paypal", "zelle"]);
   });
 
+  test("cuts a name to 40 graphemes, the longest a Split takes", () => {
+    expect(run(emptyDraft, { type: "addName", name: "S".repeat(45) }).names).toEqual(["S".repeat(40)]);
+  });
+
   test("adds trimmed names, skips blanks and repeats, and removes one", () => {
     const draft = run(emptyDraft, { type: "addName", name: " Sam " }, { type: "addName", name: "" }, { type: "addName", name: "sam" }, { type: "addName", name: "Me" }, { type: "addName", name: "Priya" });
     expect(draft.names).toEqual(["Sam", "Priya"]);
@@ -357,5 +361,104 @@ describe("the Example", () => {
     ]);
     expect([draft.scan.receipt.subtotal, draft.scan.receipt.tip, totalOf(draft)]).toEqual([2298, 0, 2804]);
     expect(blockedReason(draft)).toBeNull();
+  });
+});
+
+const splitId = "q7Xv0Lr9_aZ-3mKpAbCdEf" as SplitId;
+
+const counter = () => {
+  let next = 0;
+  return () => participantId(`p${next++}`);
+};
+
+describe("the Split link", () => {
+  test("the create body carries the Receipt with its tip as an Adjustment, Me first and then the names, and every handle the Host filled in", () => {
+    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
+
+    expect(splitRequest(draft, counter())).toEqual({
+      receipt: {
+        items: [
+          { id: "i1", name: "Chicken Fried Rice And Egg", price: 799 },
+          { id: "i2", name: "California Tropic And Miso", price: 799 },
+          { id: "i3", name: "Add Two Tostones", price: 100 },
+          { id: "i4", name: "Sprite", price: 250 },
+          { id: "i5", name: "Perrier Sparkling Water", price: 350 },
+        ],
+        adjustments: [
+          { id: "a1", kind: "tax", name: "Tax", amount: 161 },
+          { id: "a2", kind: "serviceCharge", name: "Service fees on tables", amount: 345 },
+          { id: "tip", kind: "tip", name: "Tip", amount: 460 },
+        ],
+        subtotal: 2298,
+        total: 3264,
+      },
+      participants: [
+        { id: "p0", name: "Me" },
+        { id: "p1", name: "Sam" },
+        { id: "p2", name: "Priya" },
+      ],
+      paymentHandles: [{ service: "venmo", handle: "@jason-z" }],
+    });
+  });
+
+  test("a typed receipt goes out with the Items' sum as its subtotal and trimmed names, and an unnamed Adjustment is called by its kind", () => {
+    const typed = run(
+      withVenmo(emptyDraft),
+      { type: "read", file, receipt: null },
+      { type: "addItem" },
+      { type: "editItem", id: "i1", name: " Fries ", price: price(800) },
+      { type: "editAdjustment", id: "a1", amount: cents(72) },
+      { type: "editTotal", amount: cents(872) },
+    );
+    const unnamed = run(withVenmo(emptyDraft), {
+      type: "read",
+      file,
+      receipt: { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "discount", name: " ", amount: cents(-100) }], total: cents(2198) },
+    });
+
+    expect(splitRequest(typed, counter())?.receipt).toEqual({
+      items: [{ id: "i1", name: "Fries", price: 800 }],
+      adjustments: [
+        { id: "a1", kind: "tax", name: "Tax", amount: 72 },
+        { id: "tip", kind: "tip", name: "Tip", amount: 0 },
+      ],
+      subtotal: 800,
+      total: 872,
+    });
+    expect(splitRequest(unnamed, counter())?.receipt.adjustments[0]).toEqual({ id: "a1", kind: "discount", name: "Discount", amount: -100 });
+  });
+
+  test("once the link exists the Receipt is locked, and replacing it starts a new draft that keeps only the Payment handles", () => {
+    const linked = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "linked", splitId });
+    const edited = run(linked, { type: "editItem", id: "i1", price: price(100) }, { type: "removeItem", id: "i2" }, { type: "editTip", amount: cents(500) });
+    const replaced = run(linked, { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
+
+    expect(linked.scan).toMatchObject({ status: "linked", splitId });
+    expect(edited).toEqual(linked);
+    expect(replaced).toEqual({
+      scan: { status: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } },
+      handles: [{ service: "venmo", handle: "@jason-z" }],
+      names: [],
+    });
+  });
+
+  test("a link to a Split that no longer exists unlocks the same Receipt, so a new link can be made", () => {
+    const read = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) });
+
+    expect(run(read, { type: "linked", splitId }, { type: "unlinked" })).toEqual(read);
+  });
+
+  test("a link arriving after the Receipt was replaced is dropped, so the new Receipt stays editable", () => {
+    const replacing = run(withVenmo(read1040()), { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
+
+    expect(run(replacing, { type: "linked", splitId })).toEqual(replacing);
+  });
+
+  test("a reload keeps the link", () => {
+    const storage = new MemoryStorage();
+    const linked = run(withVenmo(read1040()), { type: "linked", splitId });
+    saveDraft(linked, storage);
+
+    expect(loadDraft(storage)).toEqual(linked);
   });
 });

@@ -209,6 +209,46 @@ describe("model prefetch", () => {
     expect([...started, FakeWorker.started.length, listeners.length]).toEqual([0, 1, 1, 0]);
   });
 
+  test("keeps only the app shell and static files for offline use, never an API, socket, or Split page response", async () => {
+    vi.stubGlobal("document", { readyState: "complete" });
+    vi.stubGlobal("location", new URL("https://split.test/"));
+    const loaded = [
+      "https://split.test/_expo/static/js/web/entry-abc.js",
+      "https://split.test/fonts/plus-jakarta-sans-400-221a4135d0.woff2",
+      "https://split.test/assets/node_modules/expo-router/assets/error.png",
+      "https://split.test/favicon.ico",
+      "https://split.test/ort/ort.wasm.min.mjs",
+      "https://split.test/ort/ort-wasm-simd-threaded.wasm",
+      "https://split.test/models/det.onnx",
+      "https://split.test/api/splits",
+      "https://split.test/parties/split-server/q7Xv0Lr9_aZ-3mKpAbCdEf",
+      "https://split.test/s/q7Xv0Lr9_aZ-3mKpAbCdEf",
+      "https://split.test/sw.js",
+      "https://challenges.cloudflare.com/turnstile/v0/api.js",
+    ];
+    vi.stubGlobal("performance", { getEntriesByType: () => loaded.map((name) => ({ name })) });
+    const kept = new Promise<unknown>((resolve) => {
+      const registration = { active: { postMessage: resolve } };
+      vi.stubGlobal("navigator", { serviceWorker: { register: async () => registration, ready: Promise.resolve(registration) } });
+    });
+
+    client.prefetchModel();
+    FakePaintObserver.instances[0].report("first-contentful-paint");
+
+    expect(await kept).toEqual({
+      type: "keep",
+      urls: [
+        "https://split.test/",
+        "https://split.test/ocr-worker.mjs",
+        "https://split.test/_expo/static/js/web/entry-abc.js",
+        "https://split.test/fonts/plus-jakarta-sans-400-221a4135d0.woff2",
+        "https://split.test/assets/node_modules/expo-router/assets/error.png",
+        "https://split.test/favicon.ico",
+        "https://split.test/ort/ort.wasm.min.mjs",
+      ],
+    });
+  });
+
   test("is skipped without error where PerformanceObserver does not exist", () => {
     vi.stubGlobal("PerformanceObserver", undefined);
 
