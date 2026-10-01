@@ -49,7 +49,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - `docs/adr/0002-expo-universal-app.md` makes one Expo codebase that exports a static website.
 - `docs/adr/0003-equal-access-no-host-privileges.md` gives everyone with the link equal access, except to Payment handles.
 - `docs/adr/0004-one-durable-object-per-split.md` stores each Split as one JSON record in one Durable Object, and lists the four cost rules.
-- Adjustments divide in proportion to each Participant's Claimed Items. A shared Item divides evenly among its claimers. Leftover cents go to claimers in a fixed order so Shares sum to the total exactly.
+- Adjustments divide in proportion to each Participant's Claimed Items. Each unit of an Item divides evenly, by shares, or by amount among its claimers. Leftover cents go to the largest remainders first, with ties in a fixed order, so Shares sum to the total exactly.
 - Amounts are integer cents, and each Split carries `currency: "USD"`.
 - The Total check must pass before a Split can be created. Unclaimed items never block paying. The redesign below drops the banner that split them among everyone.
 - Payment handles are entered at creation, at least one is required, the device remembers them, and only the creating device can change them.
@@ -78,7 +78,7 @@ The operator's split page redesign of 2026-10-01 settled these, in the "Split pa
 - With quantity above 1, **Who had it** splits each unit, not the line total.
 - An Item splits **Evenly**, **By shares**, or **By amount**. A remainder that a **By amount** split leaves counts as Unclaimed.
 - Nobody pays for an Unclaimed item. It stays Unclaimed and flagged in yellow, and the Unclaimed figure under the Total includes its part of tax, fee, and tip. There is no "split among everyone" action.
-- History opens from a clock icon in the header. It lists Payments and manual Receipt changes only. It lists no picks, joins, added people, or Claims. Each change reverts once. Reverting a change made on another device asks for confirmation first. There is no Undo toast and no "someone edited" toast.
+- History opens from a clock icon in the header. It lists Payments and manual Receipt changes only. It lists no picks, joins, added people, or Claims. A manual Receipt change reverts once, but a Payment cannot be reverted, and History shows it without a Revert button. Reverting a change made on another device asks for confirmation first. There is no Undo toast and no "someone edited" toast.
 - The Split page warns in home's style, such as "Items are $0.25 over.", when the Items stop adding up to the subtotal.
 - The payer marks themselves paid, with **I already paid** on their own breakdown. Other people's breakdowns show Paid or Not paid with no buttons.
 - Spacing grows by about 2 px and type shrinks by about 1 px app-wide, the home page included. Inputs stay at 16 px. Appendix E lists the values.
@@ -264,7 +264,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
 
 - [ ] Lane 1. Regression lane against trunk. Load `/` and `/s/abc` at trunk and head. Save `core-regression.png`. Pass when both routes render the same at trunk and head, since RS-2 adds no UI.
-- [ ] Lane 2. Run the worked example from `features/README.md` through `node --experimental-strip-types -e` against `src/core` at head with the three-way $10.00 Item and 8.875 percent tax. Save `core-example.png` as a terminal capture. Pass when the printed Shares sum to the Receipt total to the cent.
+- [ ] Lane 2. Run the worked example in the "Run `src/core` without a browser" section of `features/README.md` against `src/core` at head. It uses `node --import ./bench/register-ts.mjs`, because plain `node` cannot load the extensionless imports in `src/core`. The example splits a $10.00 Item three ways with 8.875 percent tax. Save `core-example.png` as a terminal capture. Pass when the printed Shares sum to the Receipt total to the cent.
 
 **Feature map.**
 
@@ -381,7 +381,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `e2e/ocr.spec.ts` gains a case that recognizes SRD receipt 1040 and asserts a box with the text `Subtotal $22.98`. Run `npm run e2e`.
+- [ ] `e2e/ocr.spec.ts` gains a case that recognizes SRD receipt 1040 and asserts a box with the text `Subtotal` and a box with the text `$22.98`, because the detector returns the two on one line as two boxes. Run `npm run e2e`.
 - [ ] `src/ocr/ctc.test.ts` gains a CTC decode case with repeated and blank tokens. Run `npm test -- src/ocr`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
@@ -514,7 +514,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 **You see.**
 
 - [ ] At 390 by 844, `/` shows a white page with **Receipt Splitter**, **Example**, the blank slip with the black camera button, and **Add receipt**. The sheet below shows **Venmo**, the handle field, **+**, **Me**, **+ Add**, and a disabled **Create split link**.
-- [ ] At 1280 px, the drop area sits left of the 380 px panel. In dark mode the page is `#121315` and the action is a white pill.
+- [ ] At 1280 px, the drop area sits left of the 380 px panel. In dark mode the page is `#121315` and the disabled **Create split link** is `#26272B`.
 
 **Seams.**
 
@@ -674,7 +674,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 **Files.**
 
 - [ ] Create `worker/index.ts`, `worker/split-server.ts`, `worker/create.ts`, and `worker/rate-limit.ts`.
-- [ ] Create `worker/*.test.ts` and `vitest.worker.config.ts`.
+- [ ] Create `worker/*.test.ts`, and run them from the `tools/worker-vitest` workspace, whose config is `tools/worker-vitest/vitest.config.ts`.
 - [ ] Edit `wrangler.jsonc` to bind the `SplitServer` Durable Object with a `new_sqlite_classes` migration.
 - [ ] Edit `src/core/operations.ts` only to export the wire message types.
 
@@ -806,87 +806,87 @@ RS-9 is built as PR 13 at `2e8d6d5` and waits for the operator's review. Its box
 
 **Depends on.** RS-9.
 
-RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README.md` first. The operator's decisions there win over the board. The core and server half is built on the local branch `rs-10-claims` at `187798a`, and its boxes below are checked with their commits. The UI half starts from that head.
+RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README.md` first. The operator's decisions there win over the board. RS-10 merged as PR 15 (`5ba0cd1`). The core and server half is `3ea1ec8` through `20a89b3`, and the UI half is `981bfd6` with its follow-up fixes. Each box below is checked against the code and tests at `6baf220`. The lane, perf, review gate, and merge boxes stay open for the operator.
 
 **Files.**
 
-- [x] Edit `src/core/operations.ts`, `src/core/split.ts`, `src/core/shares.ts`, `worker/rate-limit.ts`, and their tests. Edit `e2e/join.spec.ts`. Done in `eb1899c` through `187798a`.
-- [ ] Edit `src/core/split.ts`, `src/core/operations.ts`, `src/core/shares.ts`, `src/core/operations.test.ts`, and `src/core/shares.test.ts` again for quantity, split modes, and **That's me**.
-- [ ] Edit `src/ui/theme.ts` and the home components in `src/ui/components/` for the new spacing and type.
-- [ ] Create `src/ui/split-view/`, `src/ui/item-sheet/`, and `src/ui/history/`.
-- [ ] Edit `app/s/[id].tsx`, `app/index.tsx`, and `src/device.ts`.
-- [ ] Create `e2e/claim.spec.ts`. Edit `e2e/join.spec.ts` where RS-9's full page goes away.
+- [x] Edit `src/core/operations.ts`, `src/core/split.ts`, `src/core/shares.ts`, `worker/rate-limit.ts`, and their tests. Edit `e2e/join.spec.ts`. Done in `3ea1ec8` through `20a89b3`.
+- [x] Edit `src/core/split.ts`, `src/core/operations.ts`, `src/core/shares.ts`, `src/core/operations.test.ts`, and `src/core/shares.test.ts` again for quantity, split modes, and **That's me**.
+- [x] Edit `src/ui/theme.ts` and the home components in `src/ui/components/` for the new spacing and type.
+- [x] Create `src/ui/split-view/`, `src/ui/item-sheet/`, and `src/ui/history/`.
+- [x] Edit `app/s/[id].tsx`, `app/index.tsx`, and `src/device.ts`.
+- [x] Create `e2e/claim.spec.ts`. Edit `e2e/join.spec.ts` where RS-9's full page goes away.
 
 **Build.**
 
-- [x] Refuse a change or a new Split that leaves two Participants with one name, as `nameTaken`, ignoring case and outer spaces. A stored Split that already repeats a name takes no further repeat. Done in `eb1899c` and `7d69511`.
-- [x] Hold one device per name. A second device's pick, and an Undo of an unmark after someone else took the name, are refused as `namePicked`. An unmark is a recorded change that Undo reverses. Done in `4e9b050` and `ab4f8d8`.
-- [x] Start every name unpicked in `createSplit`, so the Host picks like everyone else. Done in `ab4f8d8`.
-- [x] Make Participants add-only. `removeParticipant` is refused as `removalNotAllowed` for every client. Done in `ab4f8d8`.
-- [x] Make every Receipt edit by any Participant one recorded change that Undo reverses, and carry it between clients and across a Durable Object wake. Done in `195fffe` and `02daed8`.
-- [x] Keep the Receipt as created in `original`, and add `restoreReceipt`, one recorded change that puts every Item and Adjustment back and keeps the Claims on rows that stayed. Done in `84680f8`, `82d6225`, and `187798a`.
-- [x] Charge each recorded change's bytes to a per-Split history bucket of 5 KB that refills at 1 KB a second in `worker/rate-limit.ts`. Keep 64 recent changes and cap one change at 5 KB, so a burst cannot push a change out of reach of Undo. Done in `84680f8`.
-- [x] Add `shareBreakdown(split, participantId)` in `src/core/shares.ts`, whose Item and Adjustment lines add up to the Share from `computeShares`. Done in `4798fae`.
-- [x] Drive the 4500 close test in `e2e/join.spec.ts` with the page clock instead of a 3 second wait. Done in `17fdc9d`.
+- [x] Refuse a change or a new Split that leaves two Participants with one name, as `nameTaken`, ignoring case and outer spaces. A stored Split that already repeats a name takes no further repeat. Done in `3ea1ec8` and `7362ba1`.
+- [x] Hold one device per name. A second device's pick, and an Undo of an unmark after someone else took the name, are refused as `namePicked`. An unmark is a recorded change that Undo reverses. Done in `6edee91` and `06133c5`.
+- [x] Start every name unpicked in `createSplit`, so the Host picks like everyone else. Done in `06133c5`.
+- [x] Make Participants add-only. `removeParticipant` is refused as `removalNotAllowed` for every client. Done in `06133c5`.
+- [x] Make every Receipt edit by any Participant one recorded change that Undo reverses, and carry it between clients and across a Durable Object wake. Done in `c830589` and `e73d829`.
+- [x] Keep the Receipt as created in `original`, and add `restoreReceipt`, one recorded change that puts every Item and Adjustment back and keeps the Claims on rows that stayed. Done in `eccbe64`, `cfbb8c1`, and `20a89b3`.
+- [x] Charge each recorded change's bytes to a per-Split history bucket of 5 KB that refills at 1 KB a second in `worker/rate-limit.ts`. Keep 64 recent changes and cap one change at 5 KB, so a burst cannot push a change out of reach of Undo. Done in `eccbe64`.
+- [x] Add `shareBreakdown(split, participantId)` in `src/core/shares.ts`, whose Item and Adjustment lines add up to the Share from `computeShares`. Done in `e6c3307`.
+- [x] Drive the 4500 close test in `e2e/join.spec.ts` with the page clock instead of a 3 second wait. Done in `fdc0b9f`.
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`. Build motion with `animate`. Read `review-animations` by hand and fix each finding. Run `unslop` on every UI string.
 - [ ] Run `/architect` on the core changes below before code, and name the data shape first.
-- [ ] Add quantity and split modes to the model in `src/core/split.ts`, with `computeShares` and `shareBreakdown` following.
-  - [ ] Give each Item a quantity of 1 or more. With quantity above 1, **Who had it** splits each unit, not the line total. Each unit takes its own claimers.
-  - [ ] Give each Item one split mode, `even`, `shares`, or `amount`, as a discriminated union. `shares` holds a whole-number weight per claimer. `amount` holds cents per claimer.
-  - [ ] Count the cents that an `amount` split leaves unassigned as Unclaimed. Refuse an `amount` split whose parts exceed the price.
-  - [ ] Keep Adjustments in proportion to each Participant's claimed cents. Unclaimed cents, and their part of each Adjustment, stay out of every Share.
-  - [ ] Make a change to the quantity, the split mode, the shares, or the amounts one recorded change that Undo reverses.
-- [ ] Add a core operation for **That's me** that moves a picked name to the sending device, and drops the old device back to browsing. Record it outside History.
-- [ ] Delete the `splitUnclaimed` operation and its tests, since nobody pays for Unclaimed items and no page sends it. Close the RS-2 note on its `tooLarge` rejection with it.
-- [ ] Change the spacing and type tokens app-wide in `src/ui/theme.ts`, per Appendix E, so the home page moves too. Inputs stay at 16 px. The chip row on the Split page keeps an 8 px gap.
-- [ ] Build the tall pick sheet in `src/ui/split-view/`, per frames B, C, C2, D, and J-C.
-  - [ ] Open it over `app/s/[id].tsx` on every visit with no pick stored for this device. Show the invite line, such as "Jason invited you to split Sukhothai Sushi · $32.64", or "Link ready." for the creating device. Below it, show every name with the creator first, and **Not here? Add yourself** at the bottom.
-  - [ ] Mark a name picked on another phone. Tapping it shows "Picked on another phone." with **That's me** and **Cancel** inline in the row.
-  - [ ] Close the sheet with a ✕ or a flick down, without a pick.
-  - [ ] Remember the pick per Split in `src/device.ts`. Delete RS-9's full page and its **Not Sam?** link.
-  - [ ] Collapse to the regular sheet after a pick, per the spec beside frame E. Show the filled check for 80 ms, then run one critically damped spring of 0.35 s on `transform`. Fade the list out with a 2 px blur over 120 ms, and fade the chips in from scale 0.96 over 180 ms, 30 ms apart. A drag picks the sheet up where it is and keeps the finger's velocity. Under reduced motion, cross-fade over 200 ms.
-- [ ] Build the browse state of frame K. No chip is selected and no "you" mark shows. The sheet says "Pick your name to check off what you had." with a **Which one are you?** pill that reopens the tall sheet. Lines still open their Item. A tap on a line's circle reopens the tall sheet.
-- [ ] Show the people chips in the regular sheet. Mark your own chip "you", outline names nobody has picked, sort the creator first, and end the row with a **+** chip that adds a person.
-- [ ] Claim through the line's circle, per frame F. The left 44 px of each line toggles it for the selected chip, and the rest of the line opens the Item sheet. The hint reads "Check what you had". Initial dots show the claimers. Once claiming starts, Unclaimed lines turn yellow.
-- [ ] Show one person's breakdown on a chip tap, from `shareBreakdown`, per frames G and H. Show their Items, such as "½ of 1.00", their parts of tax, fee, and tip, their total, and Paid or Not paid. Your own breakdown reads "You owe" and holds the pay action that RS-11 wires. Decide how per-person lines show when they do not sum across people, per note N-a.
-- [ ] Build the Item sheet in `src/ui/item-sheet/`, per frames I1 and I2.
-  - [ ] Edit the name, the price, and the quantity in place. Save as you go, with no Save button. The ✕ closes the sheet.
-  - [ ] Show **Who had it** as chips with a **+** that adds a person to this Item.
-  - [ ] Switch the split with a three-way control, **Evenly**, **By shares**, and **By amount**. Show a stepper per person for shares and a dollar field per person for amounts. Under **By amount**, show "Adds up" or how much is left.
-  - [ ] Draw quantity above 1 per unit. The board draws quantity 1 only, so show the operator the quantity-2 sheet in the review gate.
-  - [ ] Show a shares split's ratio beside the line name on the receipt, such as "2:1", and "split" for an amount split.
-  - [ ] Slide the segment over 200 ms ease-out and cross-fade the rows below over 150 ms, with no height animation.
-- [ ] Build History in `src/ui/history/`, per frame I3. It replaces the recent-changes list and the Undo toast.
-  - [ ] Open it from a clock icon in the header, left of Share.
-  - [ ] List Payments and manual Receipt changes only, newest first, with the name picked on the sending device and the time. List no picks, joins, added people, Claims, or **That's me** moves. Word the name so that it claims no identity that `by` cannot prove, per notes N-c and N-d.
-  - [ ] Revert each change once, through Undo. Keep a reverted row in the list, dimmed over 150 ms, labeled "Reverted". "Created the split" has no Revert.
-  - [ ] Ask for confirmation before a revert of a change made on another device.
-  - [ ] Offer `restoreReceipt` on the "Created the split" row, with the same confirmation. The board draws no place for it, so show the operator this row in the review gate.
-- [ ] Show the mismatch warning under the Items in home's style, such as "Items are $0.25 over.", from the Total check in `src/core/total-check.ts`. The Subtotal row keeps the printed value.
-- [ ] Show the Unclaimed figure under the Total in yellow, with the Items' part of tax, fee, and tip, as $4.98 in the board. Remove the "split among everyone" banner.
-- [ ] Drop the remove buttons on the home sheet's name chips after the link exists, in `app/index.tsx`.
-- [ ] Drop "Me" from Split creation on `/`. The Host types their own name with the others.
-- [ ] Give a reloaded device that forgot its pick the **That's me** path, so it no longer stops at `namePicked` on its own name.
+- [x] Add quantity and split modes to the model in `src/core/split.ts`, with `computeShares` and `shareBreakdown` following. Done in `981bfd6`.
+  - [x] Give each Item a quantity of 1 or more. With quantity above 1, **Who had it** splits each unit, not the line total. Each unit takes its own claimers.
+  - [x] Give each Item one split mode, `even`, `shares`, or `amount`, as a discriminated union. `shares` holds a whole-number weight per claimer. `amount` holds cents per claimer.
+  - [x] Count the cents that an `amount` split leaves unassigned as Unclaimed. Refuse an `amount` split whose parts exceed the price.
+  - [x] Keep Adjustments in proportion to each Participant's claimed cents. Unclaimed cents, and their part of each Adjustment, stay out of every Share.
+  - [x] Make a change to the quantity, the split mode, the shares, or the amounts one recorded change that Undo reverses.
+- [x] Add a core operation for **That's me** that moves a picked name to the sending device, and drops the old device back to browsing. Record it outside History. Done in `981bfd6`.
+- [x] Delete the `splitUnclaimed` operation and its tests, since nobody pays for Unclaimed items and no page sends it. Done in `981bfd6`, and `src/core/operations.test.ts` asserts the operation is malformed.
+- [x] Change the spacing and type tokens app-wide in `src/ui/theme.ts`, per Appendix E, so the home page moves too. Inputs stay at 16 px. The chip row on the Split page keeps an 8 px gap. Done in `9df5896`.
+- [x] Build the tall pick sheet in `src/ui/split-view/`, per frames B, C, C2, D, and J-C.
+  - [x] Open it over `app/s/[id].tsx` on every visit with no pick stored for this device. Show the invite line, such as "Jason invited you to split Sukhothai Sushi · $32.64", or "Link ready." for the creating device. Below it, show every name with the creator first, and **Not here? Add yourself** at the bottom.
+  - [x] Mark a name picked on another phone. Tapping it shows "Picked on another phone." with **That's me** and **Cancel** inline in the row.
+  - [x] Close the sheet with a ✕ or a flick down, without a pick.
+  - [x] Remember the pick per Split in `src/device.ts`. Delete RS-9's full page and its **Not Sam?** link.
+  - [x] Collapse to the regular sheet after a pick, per the spec beside frame E. Show the filled check for 80 ms, then run one critically damped spring of 0.35 s on `transform`. Fade the list out with a 2 px blur over 120 ms, and fade the chips in from scale 0.96 over 180 ms, 30 ms apart. A drag picks the sheet up where it is and keeps the finger's velocity. Under reduced motion, cross-fade over 200 ms.
+- [x] Build the browse state of frame K. No chip is selected and no "you" mark shows. The sheet says "Pick your name to check off what you had." with a **Which one are you?** pill that reopens the tall sheet. Lines still open their Item. A tap on a line's circle reopens the tall sheet.
+- [x] Show the people chips in the regular sheet. Mark your own chip "you", outline names nobody has picked, sort the creator first, and end the row with a **+** chip that adds a person.
+- [x] Claim through the line's circle, per frame F. The left 44 px of each line toggles it for the selected chip, and the rest of the line opens the Item sheet. The hint reads "Check what you had". Initial dots show the claimers. Once claiming starts, Unclaimed lines turn yellow.
+- [x] Show one person's breakdown on a chip tap, from `shareBreakdown`, per frames G and H. Show their Items, such as "½ of 1.00", their parts of tax, fee, and tip, their total, and Paid or Not paid. Your own breakdown reads "You owe" and holds the pay action that RS-11 wires. Decide how per-person lines show when they do not sum across people, per note N-a.
+- [x] Build the Item sheet in `src/ui/item-sheet/`, per frames I1 and I2.
+  - [x] Edit the name, the price, and the quantity in place. Save as you go, with no Save button. The ✕ closes the sheet.
+  - [x] Show **Who had it** as chips with a **+** that adds a person to this Item.
+  - [x] Switch the split with a three-way control, **Evenly**, **By shares**, and **By amount**. Show a stepper per person for shares and a dollar field per person for amounts. Under **By amount**, show "Adds up" or how much is left.
+  - [x] Draw quantity above 1 per unit. The board draws quantity 1 only, so the review gate shows the operator the quantity-2 sheet.
+  - [x] Show a shares split's ratio beside the line name on the receipt, such as "2:1", and "split" for an amount split.
+  - [x] Slide the segment over 200 ms ease-out and cross-fade the rows below over 150 ms, with no height animation.
+- [x] Build History in `src/ui/history/`, per frame I3. It replaces the recent-changes list and the Undo toast.
+  - [x] Open it from a clock icon in the header, left of Share.
+  - [x] List Payments and manual Receipt changes only, newest first, with the name picked on the sending device and the time. List no picks, joins, added people, Claims, or **That's me** moves. Word the name so that it claims no identity that `by` cannot prove, per notes N-c and N-d.
+  - [x] Revert each change once, through Undo. Keep a reverted row in the list, dimmed over 150 ms, labeled "Reverted". "Created the split" has no Revert.
+  - [x] Ask for confirmation before a revert of a change made on another device.
+  - [x] Offer `restoreReceipt` on the "Created the split" row, with the same confirmation. The board draws no place for it, so the review gate shows the operator this row.
+- [x] Show the mismatch warning under the Items in home's style, such as "Items are $0.25 over.", from the Total check in `src/core/total-check.ts`. The Subtotal row keeps the printed value.
+- [x] Show the Unclaimed figure under the Total in yellow, with the Items' part of tax, fee, and tip, as $4.98 in the board. Remove the "split among everyone" banner.
+- [x] Drop the remove buttons on the home sheet's name chips after the link exists, in `app/index.tsx`. Done in `9df5896`.
+- [x] Drop "Me" from Split creation on `/`. The Host types their own name with the others. Done in `9df5896`.
+- [x] Give a reloaded device that forgot its pick the **That's me** path, so it no longer stops at `namePicked` on its own name.
 - [ ] Re-run hibernation and reconnect, which RS-9's live lane skipped, inside lane 1.
 - [ ] Split the `/s/[id]` route from the home bundle if the page's transfer passes 400 KB. It was 355 KB at RS-9.
 
 **You see.**
 
 - [ ] When the Host creates a Split with "Jason", "Sam", and "Priya", each of three browsers opens the tall pick sheet. After Priya picks Priya and checks Sprite, the other browsers show Priya on Sprite and Priya's new Share within one second.
-- [ ] Changing Sprite to $2.75 in its Item sheet shows "Items are $0.25 over." on every browser, and History lists the change.
+- [x] Changing Sprite to $2.75 in its Item sheet shows "Items are $0.25 over." on every browser, and History lists the change.
 
 **Seams.**
 
-- [ ] `applyOperation` and `computeShares` and `shareBreakdown` as the page calls them, in `src/core/operations.test.ts` and `src/core/shares.test.ts`.
-- [ ] The Split page as users drive it from several browsers, through Playwright in `e2e/claim.spec.ts` against `wrangler dev`.
+- [x] `applyOperation` and `computeShares` and `shareBreakdown` as the page calls them, in `src/core/operations.test.ts` and `src/core/shares.test.ts`.
+- [x] The Split page as users drive it from several browsers, through Playwright in `e2e/claim.spec.ts` against `wrangler dev`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [x] `src/core/operations.test.ts` and `src/core/shares.test.ts` gain the core half's cases, and `worker/split-server.test.ts` gains a 100-edit flood and a refused second pick. Gates at `187798a` passed 469 unit, 47 worker, and 93 e2e tests. 24 of 25 mutants were killed. Run `npm test` and `npm run test:worker`.
-- [ ] `src/core/shares.test.ts` gains the board's Split, and asserts each person's literal cents and an Unclaimed figure that brings the sum to $32.64. Run `npm test -- src/core`.
-- [ ] `src/core/shares.test.ts` gains Tostones at $1.00 split 2:1, which gives $0.67 and $0.33, and split by amount at $0.75 and $0.25. It also gains an amount split that leaves $0.10, and asserts the $0.10 and its Adjustment parts in Unclaimed. Run `npm test -- src/core`.
-- [ ] `src/core/shares.test.ts` gains two pitchers at $12.00 each, with Jason and Sam on one unit and Priya on the other, and asserts $6.00, $6.00, and $12.00 before Adjustments. Run `npm test -- src/core`.
-- [ ] `src/core/operations.test.ts` gains **That's me**, which moves a name to a second device and leaves the first unpicked, and a split mode change that Undo reverses. Run `npm test -- src/core`.
+- [x] `src/core/operations.test.ts` and `src/core/shares.test.ts` gain the core half's cases, and `worker/split-server.test.ts` gains a 100-edit flood and a refused second pick. Gates at `20a89b3` passed 469 unit, 47 worker, and 93 e2e tests. 24 of 25 mutants were killed. Run `npm test` and `npm run test:worker`.
+- [x] `src/core/shares.test.ts` gains the board's Split, and asserts each person's literal cents and an Unclaimed figure that brings the sum to $32.64. Run `npm test -- src/core`.
+- [x] `src/core/shares.test.ts` gains Tostones at $1.00 split 2:1, which gives $0.67 and $0.33, and split by amount at $0.75 and $0.25. It also gains an amount split that leaves $0.10, and asserts the $0.10 and its Adjustment parts in Unclaimed. Run `npm test -- src/core`.
+- [x] `src/core/shares.test.ts` gains two pitchers at $12.00 each, with Jason and Sam on one unit and Priya on the other, and asserts $6.00, $6.00, and $12.00 before Adjustments. Run `npm test -- src/core`.
+- [x] `src/core/operations.test.ts` gains **That's me**, which moves a name to a second device and leaves the first unpicked, and a split mode change that Undo reverses. Run `npm test -- src/core`.
 - [ ] Run at most 15 mutants on the new core logic against the unit tests, per **Verdict and merge**. No mutant touches UI or e2e.
 - [ ] `e2e/claim.spec.ts` gains two browsers that pick, check a line, and see each other's Shares, a closed pick sheet that browses, **That's me** on a second browser, and a revert from another browser that asks for confirmation. Every case holds the CI-robustness rule in **PR mechanics** and passes under a 4x CPU throttle. Run `npm run e2e`.
 
@@ -897,7 +897,7 @@ RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README
 
 **Feature map.**
 
-- [ ] Add `features/claim.md` in `verify-receipt-splitter`, with how to open several browsers on one Split and reach each board frame. Update `features/join.md` and `features/home.md`.
+- [x] Add `features/claim.md` in `verify-receipt-splitter`, with how to open several browsers on one Split and reach each board frame. Update `features/join.md` and `features/home.md`.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -923,53 +923,53 @@ RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README
 
 **Depends on.** RS-10.
 
-RS-11 wires the pay action and the paid status that RS-10 draws on the breakdowns. Build from frames G and H in `docs/design/split/`, and read its `README.md` first.
+RS-11 wires the pay action and the paid status that RS-10 draws on the breakdowns. Build from frames G and H in `docs/design/split/`, and read its `README.md` first. RS-11 merged as PR 16 (`6baf220`). Each box below is checked against the code and tests at that head. The lane, perf, review gate, and merge boxes stay open for the operator.
 
 **Files.**
 
-- [ ] Create `src/core/pay-links.ts` and `src/core/pay-links.test.ts`.
-- [ ] Create `src/ui/pay/`.
-- [ ] Edit `src/core/operations.ts`, `src/core/operations.test.ts`, and `app/s/[id].tsx`.
-- [ ] Create `e2e/pay.spec.ts`.
+- [x] Create `src/core/pay-links.ts` and `src/core/pay-links.test.ts`.
+- [x] Create `src/ui/pay/`.
+- [x] Edit `src/core/operations.ts`, `src/core/operations.test.ts`, and `app/s/[id].tsx`.
+- [x] Create `e2e/pay.spec.ts`.
 
 **Build.**
 
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`. Build motion with `animate`. Read `review-animations` by hand. Run `unslop` on every UI string.
-- [ ] Build the payment links in `src/core/pay-links.ts`. PayPal is `https://paypal.me/<user>/<amount>USD`. Cash App is `https://cash.app/$<tag>/<amount>`. Venmo is `https://venmo.com/<user>?txn=pay&amount=<amt>&note=<note>` on the web, and `venmo://paycharge` on a phone.
-- [ ] Put the pay pill on your own breakdown in `src/ui/pay/`, per frame G, such as "Pay Jason $12.05 on Venmo". Show one pill for each Payment handle the Host entered. Zelle shows a card that copies the handle and the amount.
-- [ ] Add **I already paid** under the pay pill, on your own breakdown only. It records a Payment with the amount, and shows in History.
-- [ ] Let only the payer mark or unmark themselves paid. Refuse `recordPayment` and `clearPayment` from a device that has not picked that name, per note N-f.
-- [ ] Show Paid or Not paid on every other person's breakdown, with no buttons, per frame H. Once someone has paid, their label reads "Priya paid $3.56" instead of "owes".
-- [ ] Show the difference when a Share changes after a Payment, as "You paid $22.00. The Host owes you $8.00." or "You owe $4.00 more."
+- [x] Build the payment links in `src/core/pay-links.ts`. PayPal is `https://paypal.me/<user>/<amount>USD`. Cash App is `https://cash.app/$<tag>/<amount>`. Venmo is `https://venmo.com/<user>?txn=pay&amount=<amt>&note=<note>` on the web, and `venmo://paycharge` on a phone. Done in `16ea9d0`.
+- [x] Put the pay pill on your own breakdown in `src/ui/pay/`, per frame G, such as "Pay Jason $12.05 on Venmo". Show one pill for each Payment handle the Host entered. Zelle shows a card that copies the handle and the amount. Done in `702fe65`.
+- [x] Add **I already paid** under the pay pill, on your own breakdown only. It records a Payment with the amount, and shows in History.
+- [x] Let only the payer mark or unmark themselves paid. Refuse `recordPayment` and `clearPayment` from a device that has not picked that name, per RS-10 core audit N-f, which found that any link holder could record payments. Done in `bc45222`.
+- [x] Show Paid or Not paid on every other person's breakdown, with no buttons, per frame H. Once someone has paid, their label reads "Priya paid $3.56" instead of "owes".
+- [x] Show the difference when a Share changes after a Payment, as "You paid $22.00. Jason owes you $8.00." or "You owe $4.00 more."
 
 **You see.**
 
-- [ ] Sam's own breakdown shows a Venmo pill that opens `https://venmo.com/<host>?txn=pay&amount=14.20&note=...` for a $14.20 Share. Priya's breakdown on Sam's phone shows Not paid and no buttons.
+- [x] Sam's own breakdown shows a Venmo pill that opens `https://venmo.com/<host>?txn=pay&amount=14.20&note=...` for a $14.20 Share. Priya's breakdown on Sam's phone shows Not paid and no buttons.
 
 **Seams.**
 
-- [ ] `payLink(handle, cents, note)` in `src/core/pay-links.test.ts`, `applyOperation` for Payments in `src/core/operations.test.ts`, and the pay flow through Playwright in `e2e/pay.spec.ts`.
+- [x] `payLink(handle, cents, note)` in `src/core/pay-links.test.ts`, `applyOperation` for Payments in `src/core/operations.test.ts`, and the pay flow through Playwright in `e2e/pay.spec.ts`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `src/core/pay-links.test.ts` gains the exact URL for each service at $14.20, and a note with spaces and an ampersand encoded. Run `npm test -- src/core`.
-- [ ] `src/core/operations.test.ts` gains a Payment from the payer's device that lands and one from another device that is refused. Run `npm test -- src/core`.
-- [ ] `e2e/pay.spec.ts` gains **I already paid** at $22.00, then a Claim that drops the Share to $14.00, and asserts "The Host owes you $8.00." The case holds the CI-robustness rule in **PR mechanics**. Run `npm run e2e`.
+- [x] `src/core/pay-links.test.ts` gains the exact URL for each service at $14.20, and a note with spaces and an ampersand encoded. Run `npm test -- src/core`.
+- [x] `src/core/operations.test.ts` gains a Payment from the payer's device that lands and one from another device that is refused. Run `npm test -- src/core`.
+- [x] `e2e/pay.spec.ts` gains **I already paid** at $22.00, then a Claim that drops the Share to $14.00, and asserts "You paid $22.00. Jason owes you $8.00." The case holds the CI-robustness rule in **PR mechanics**. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe. Both lanes run in one live pass of 15 minutes or less, per the verification budget.
 
-- [ ] Lane 1. Regression lane against trunk. From two browsers, claim Items, open your own breakdown, tap the pay pill, tap **I already paid**, then change a Claim from the other browser, citing `features/pay.md`. Trunk has no pay pill, so record that and gate the head flow. Save `pay-flow.png`. Pass when each pill's URL carries the Share to the cent, the other browser shows Paid with no buttons, and both browsers show the exact difference.
+- [ ] Lane 1. Regression lane against trunk. From two browsers, claim Items, open your own breakdown, tap the pay pill, tap **I already paid**, then change a Claim from the other browser, citing `features/pay.md`. Trunk is the baseline before the pay pill, so record that and gate the head flow. Save `pay-flow.png`. Pass when each pill's URL carries the Share to the cent, the other browser shows Paid with no buttons, and both browsers show the exact difference.
 - [ ] Lane 2. Shoot the screenshot matrix at 390 px, citing `features/pay.md`. Capture frames G and H in light and dark, the Zelle card at 1280 px, and History with a Payment. Save `pay-matrix/<frame>.png`. Pass when each frame has its screenshot, no text overflows, and every target is at least 44 px.
 
 **Feature map.**
 
-- [ ] Add `features/pay.md` in `verify-receipt-splitter`.
+- [x] Add `features/pay.md` in `verify-receipt-splitter`.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] Metric. Brotli bytes of every script `dist/index.html` loads, and LCP on `/s/<id>` under Playwright mobile emulation.
 - [ ] Probe. `npm run size` at trunk and head, and 3 loads of `/s/<id>` at trunk and head, interleaved.
-- [ ] Baseline. Record the trunk sizes first. Trunk has no pay pill.
+- [ ] Baseline. Record the trunk sizes first. Trunk is the baseline before the pay pill.
 - [ ] Rule. Fail if the scripts grow by more than 10 KB brotli, `/s/<id>` transfers more than 400 KB, or the head LCP median is more than 10 percent over trunk's.
 
 **Review gate.** The operator reviews before merge.
@@ -993,7 +993,7 @@ RS-11 wires the pay action and the paid status that RS-10 draws on the breakdown
 
 ## Appendix A. Prototype evidence
 
-One throwaway prototype answered whether one Expo codebase can run PaddleOCR in the browser. It lives in the scratch directory `proto-ocr/` of the planning session and is not in git. The harness `harness/run.mjs` reproduces every number. All numbers were measured on an Apple M4 in headless Chrome 154, against five ExpressExpense receipts at 960 px.
+One throwaway prototype answered whether one Expo codebase can run PaddleOCR in the browser. It lives in the scratch directory `proto-ocr/` of the planning session and is not in git, so no committed file reruns these numbers. Its harness `harness/run.mjs` produced every one. RS-4's model choice compares the models again with `bench/run-ocr.mjs`. All numbers were measured on an Apple M4 in headless Chrome 154, against five ExpressExpense receipts at 960 px.
 
 - Expo SDK 57 with `npx expo export -p web` runs PP-OCRv5 mobile in a Web Worker on onnxruntime-web 1.30. Metro cannot bundle `onnxruntime-web`, so the runtime, the worker, and the models go in `public/`.
 - The hello-world entry is 231 KB brotli. The OCR screen adds 2.8 KB because the runtime loads outside the bundle.
@@ -1019,7 +1019,7 @@ Two rounds of throwaway split page mockups chose the Split page. Each round is o
 
 - Round 7, on 2026-10-01, is Figma node 14-2 in `https://www.figma.com/design/rUCjp4g9qO5erLgaXSe5pO`. Its board lives at `/tmp/receipt-splitter-review/split7/` and is not in git. It drew the tall pick sheet, the collapse to people chips, claiming by a tap on the line, the breakdowns, and an Undo toast. Its eight open questions became the operator's split redesign answers.
 - Round 8, approved on 2026-10-01 with "Design looks great", is Figma node 17-2. `docs/design/split/` holds its board, its contact sheet, and its notes. It added the line circle, the Item sheet with three split modes, History, the browse state, **That's me**, and the spacing and type change.
-- In the round 8 numbers, Jason and Sam owe $12.05 each, Priya owes $3.56, and Unclaimed is $4.98, which together make the $32.64 Total. Tostones at $1.00 split 2:1 gives $0.67 and $0.33 by largest remainder.
+- In the round 8 numbers, Jason and Sam owe $12.05 each, Priya owes $3.56, and Unclaimed is $4.98, which together make the $32.64 Total. Tostones at $1.00 split 2:1 gives $0.67 and $0.33 by largest remainder. `computeShares` gives $12.06, $12.06, $3.55, and $4.97 for that Receipt, which `src/core/shares.test.ts` pins as "the design's dinner". The board's four figures each differ by a cent.
 
 These stay unproven. Nothing animates on either board, and no motion ran on a phone. The board draws quantity 1 only, so the per-unit Item sheet is not drawn. The board draws no place for `restoreReceipt`. The board's History still lists Claims and a **That's me** move, which the operator ruled out after approval.
 
@@ -1049,7 +1049,7 @@ These stay unproven. Nothing animates on either board, and no motion ran on a ph
 - Cross-origin isolation breaks Turnstile or a font. It lands in RS-4 and RS-9. The owner keeps the one-thread fallback working, and RS-9 lane 6 records the result.
 - The parser misses the RS-5 thresholds on real US receipts. The owner reports the per-category failures from `bench/score.mjs` and asks the operator before lowering a threshold.
 - The Venmo link format is undocumented and may change. It lands in RS-11. The owner keeps the format in `src/core/pay-links.ts` alone, so a change touches one file.
-- Equal access lets anyone with the link vandalize a Split. It lands in RS-10. History with Revert is the recovery for one change. `restoreReceipt` puts the whole Receipt back as created, in one change that can itself be reverted. The per-Split history rate of 5 KB, refilled at 1 KB a second, keeps a burst from pushing a change out of reach. The per-Split operation rate limit in RS-8 caps the damage. Claims are not recorded, so no Revert brings back a Claim a vandal cleared, which was audit finding F2. The root accepted that, because claims are self-service. A person who finds their Item unchecked checks it again. Participants are add-only, so a vandal cannot remove a person.
+- Equal access lets anyone with the link vandalize a Split. It lands in RS-10. History with Revert is the recovery for one change. `restoreReceipt` puts the whole Receipt back as created, in one change that can itself be reverted. The per-Split history rate of 5 KB, refilled at 1 KB a second, keeps a burst from pushing a change out of reach. The per-Split operation rate limit in RS-8 caps the damage. Claims are not recorded, so no Revert brings back a Claim a vandal cleared, which was audit finding F2. The root accepted that, because claims are self-service. A person who finds their Item unchecked checks it again. Because Claims are not recorded, `restoreReceipt` brings a deleted row back with no Claims, and an Undo of a quantity increase drops the Claims on the new units. Both are by design. Participants are add-only, so a vandal cannot remove a person.
 - A wrong **That's me** moves a name to the wrong phone, and there are no accounts to stop it. It lands in RS-10. The real person taps **That's me** again. History does not list the move.
 - The round 8 board draws quantity 1 only, so the per-unit Item sheet and its claims have no approved look. It lands in RS-10. The owner shows the quantity-2 sheet in the review gate.
 - The round 8 board gives `restoreReceipt` no place. It lands in RS-10. The owner puts it on the "Created the split" row in History and shows that row in the review gate.
