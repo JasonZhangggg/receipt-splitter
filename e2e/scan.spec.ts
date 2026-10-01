@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { dragOver, dropFile, pasteFile, photo } from "./files";
+
 test.use({ viewport: { width: 390, height: 844 } });
 
 const receipt1040 = "bench/data/srd-1040.jpg";
@@ -137,4 +139,263 @@ test("a failed read opens the empty editor with the file row, and two typed Item
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   await expect(page.getByText("2 items")).toBeVisible();
+});
+
+test.describe("at 1280 px", () => {
+  test.use({ viewport: { width: 1280, height: 820 }, isMobile: false, hasTouch: false });
+  test.setTimeout(120_000);
+
+  test("an image dropped on the page and an image pasted both read, a file dragged over draws the drop look, and a PDF gets one refusal line", async ({ page }) => {
+    await page.goto("/");
+    const zone = page.getByRole("button", { name: /^Drop a receipt/ });
+    const ring = () => zone.evaluate((el) => getComputedStyle(el).boxShadow);
+    const resting = await ring();
+    const leave = await dragOver(page, photo(receipt1040));
+    await expect.poll(ring).toBe("rgb(17, 18, 20) 0px 0px 0px 2px inset");
+    await leave();
+    await expect.poll(ring).toBe(resting);
+
+    await dropFile(page, { name: "menu.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") });
+    await expect(page.getByText("That file is not a photo.")).toBeVisible();
+    await expect(zone).toBeVisible();
+
+    await dropFile(page, photo(receipt1040));
+    await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+    expect(await readItems(page)).toHaveLength(5);
+    await expect(page.getByText("srd-1040.jpg")).toBeVisible();
+
+    await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
+    await expect(page.getByText("blank.png")).toBeVisible(scanTimeout);
+    await expect(page.getByText("0 items")).toBeVisible();
+  });
+});
+
+async function holdTheDownload(page: Page) {
+  await page.route("**/models/en_PP-OCRv5_rec_mobile.dict.txt", async (route) => {
+    await new Promise((done) => setTimeout(done, 3000));
+    await route.continue();
+  });
+}
+
+test.describe("the reading state", () => {
+  test.setTimeout(120_000);
+
+  test("darkens the slip's lines one at a time, fills the bar, and stops when the Items show", async ({ page }) => {
+    await holdTheDownload(page);
+    await page.goto("/");
+    await choose(page, receipt1040);
+    const lines = page.getByTestId("reading-line");
+    await expect(lines).toHaveCount(7);
+    const darkAt = await lines.evaluateAll((all) =>
+      all.map((line) => {
+        const [animation] = line.getAnimations();
+        const effect = animation.effect as KeyframeEffect;
+        const dark = effect.getKeyframes().find((frame) => Number(frame.opacity) === 1)!;
+        return Math.round(dark.computedOffset * Number(effect.getComputedTiming().duration));
+      }),
+    );
+    expect(darkAt).toEqual([150, 300, 450, 600, 750, 900, 1050]);
+    const darkFrom: (number | null)[] = Array(7).fill(null);
+    const started = Date.now();
+    while (Date.now() - started < 1400) {
+      const opacities = await lines.evaluateAll((all) => all.map((line) => Number(getComputedStyle(line).opacity)));
+      opacities.forEach((opacity, i) => {
+        if (opacity > 0.9 && darkFrom[i] === null) darkFrom[i] = Date.now() - started;
+      });
+      await page.waitForTimeout(25);
+    }
+    const order = darkFrom.map((at, line) => ({ at: at ?? Infinity, line })).sort((a, b) => a.at - b.at).map(({ line }) => line);
+    expect(order).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    const bar = await page.getByTestId("reading-bar").evaluate((el) => getComputedStyle(el).transitionDuration);
+    expect(bar).toBe("0.24s");
+
+    await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+    await expect(lines).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+  });
+
+  test("under reduced motion holds the lines still and moves the bar with no transition", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await holdTheDownload(page);
+    await page.goto("/");
+    await choose(page, receipt1040);
+    await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await page.getByTestId("reading-line").count()).toBe(0);
+    expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+    const fill = page.getByTestId("reading-bar");
+    expect(await fill.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe("0s");
+    await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+  });
+});
+
+test("a reload keeps the draft, and once the model is cached a reload and a new scan work offline", async ({ page, context }) => {
+  test.setTimeout(180_000);
+  await page.goto("/");
+  await choose(page, receipt1040);
+  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+  await amount(page, "Tip").fill("4.60");
+  await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+  await page.getByRole("textbox", { name: /^Price of Sprite/ }).fill("3.00");
+  await expect
+    .poll(() => page.evaluate(async () => (await caches.match("/")) !== undefined && navigator.serviceWorker.controller !== null), { timeout: 30_000 })
+    .toBe(true);
+
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByTestId("receipt")).toBeVisible();
+  await expect(amount(page, "Tip")).toHaveValue("$4.60");
+  await expect(page.getByRole("textbox", { name: /^Price of Sprite/ })).toHaveValue("3.00");
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
+  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $0.50 over." });
+
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Replace receipt" }).click();
+  await (await chooser).setFiles(receipt1040);
+  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+  await expect(amount(page, "Total")).toHaveValue("$28.04");
+  expect(await readItems(page)).toHaveLength(5);
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
+});
+
+test("the payment apps and names follow the Host's choices and survive a reload", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Example" }).click();
+  await page.getByRole("combobox", { name: "Payment app" }).selectOption("cashApp");
+  await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveAttribute("placeholder", "$cashtag");
+  await page.getByRole("button", { name: "Add another payment app" }).click();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
+  for (const name of ["Sam", "Priya"]) {
+    await page.getByRole("button", { name: "Add a name" }).click();
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+    await page.keyboard.press("Enter");
+  }
+  await page.getByRole("button", { name: "Remove Sam" }).click();
+  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
+  await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+
+  await page.reload();
+  const people = page.getByRole("group", { name: "People at the table" });
+  await expect(people).toContainText("Priya");
+  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Me", "Priya", "Add"]);
+  expect(await page.getByRole("combobox", { name: "Payment app" }).evaluateAll((pickers) => pickers.map((picker) => (picker as HTMLSelectElement).value))).toEqual([
+    "cashApp",
+    "venmo",
+  ]);
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
+  await page.getByRole("textbox", { name: "Venmo handle" }).fill("");
+  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
+});
+
+test.describe("the sheet", () => {
+  const grab = (page: Page) => page.locator("[data-sheet-grab]");
+  const sheetTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  const actionTop = async (page: Page) => Math.round((await action(page).boundingBox())!.y);
+
+  async function drag(page: Page, by: number, { steps = 12, pause = 16 } = {}) {
+    const box = (await grab(page).boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (let step = 1; step <= steps; step++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * step) / steps }] });
+      await page.waitForTimeout(pause);
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  }
+
+  test("a drag down on the grab handle collapses it to the action, follows the finger, and a flick up opens it again", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Example" }).click();
+    const open = { sheet: await sheetTop(page), action: await actionTop(page) };
+    const handle = page.getByRole("textbox", { name: "Venmo handle" });
+
+    await drag(page, 160);
+    await expect(grab(page)).toHaveAttribute("aria-expanded", "false");
+    await expect(handle).toBeHidden();
+    expect(await actionTop(page)).toBe(open.action);
+    const collapsedTop = await sheetTop(page);
+    expect(collapsedTop - open.sheet).toBe(52 + 16 + 44 + 8);
+
+    await drag(page, -50, { steps: 3, pause: 0 });
+    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
+    await expect(handle).toBeVisible();
+    await expect.poll(() => sheetTop(page)).toBe(open.sheet);
+  });
+
+  test("a slow short drag springs back open, and the handle toggles with a tap or the keyboard", async ({ page }) => {
+    await page.goto("/");
+    const open = await sheetTop(page);
+    await drag(page, 25, { steps: 10, pause: 50 });
+    await expect.poll(() => sheetTop(page)).toBe(open);
+    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
+
+    await grab(page).tap();
+    await expect(grab(page)).toHaveAttribute("aria-expanded", "false");
+    await grab(page).focus();
+    await page.keyboard.press("Enter");
+    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(() => sheetTop(page)).toBe(open);
+  });
+
+  test("a touch while the sheet settles catches it where it is, and a tap then sends it back the other way", async ({ page }) => {
+    await page.goto("/");
+    await expect(grab(page)).toBeVisible();
+    const open = await sheetTop(page);
+    const offset = () => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(new DOMMatrix(getComputedStyle(el).transform).f));
+    const touch = async (type: "touchStart" | "touchMove" | "touchEnd", dy = 0) => {
+      const box = (await grab(page).boundingBox())!;
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 + dy };
+      await cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [point] });
+    };
+    const cdp = await page.context().newCDPSession(page);
+    await touch("touchStart");
+    await touch("touchMove", 70);
+    await touch("touchEnd");
+    await page.waitForTimeout(32);
+    await touch("touchStart");
+    const caught = await offset();
+    await page.waitForTimeout(200);
+    const held = await offset();
+    await touch("touchEnd");
+
+    expect(caught >= 70 && caught < 140).toBe(true);
+    expect(held).toBe(caught);
+    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(() => sheetTop(page)).toBe(open);
+  });
+
+  test("past 45 percent of the screen its content scrolls on its own with overscroll contained", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto("/");
+    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Add another payment app" }).click();
+    for (const name of ["Sam", "Priya", "Lee", "Ana", "Jo", "Kai"]) {
+      await page.getByRole("button", { name: "Add a name" }).click();
+      await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+      await page.keyboard.press("Enter");
+    }
+    const scroller = await page.locator("[data-sheet-surface]").evaluate((sheet) => {
+      const box = [...sheet.querySelectorAll("div")].find((el) => getComputedStyle(el).overflowY === "auto" || getComputedStyle(el).overflowY === "scroll")!;
+      return { height: Math.round(box.getBoundingClientRect().height), scrolls: box.scrollHeight > box.clientHeight, overscroll: getComputedStyle(box).overscrollBehaviorY };
+    });
+    expect(scroller).toEqual({ height: Math.round(667 * 0.45), scrolls: true, overscroll: "contain" });
+    await expect(action(page)).toBeInViewport();
+  });
+});
+
+test("an EXIF-rotated phone photo reads upright", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await choose(page, "e2e/fixtures/srd-1040-exif-rotated.jpg");
+  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+  expect(await readItems(page)).toEqual([
+    "Chicken Fried Rice And Egg 7.99",
+    "California Tropic And Miso 7.99",
+    "Add Two Tostones 1.00",
+    "Sprite 2.50",
+    "Perrier Sparkling Water 3.50",
+  ]);
+  await expect(amount(page, "Total")).toHaveValue("$28.04");
 });
