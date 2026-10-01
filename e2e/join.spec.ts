@@ -23,9 +23,9 @@ async function createLink(page: Page): Promise<string> {
 }
 
 async function open(browser: Browser, link: string) {
-  const guest = await (await browser.newContext()).newPage();
-  await guest.goto(link);
-  return guest;
+  const page = await (await browser.newContext()).newPage();
+  await page.goto(link);
+  return page;
 }
 
 const question = (page: Page) => page.getByRole("heading", { name: "Which one are you?" });
@@ -56,25 +56,45 @@ test("a link made with no names lets a browser join as someone else, the Host se
   const context = await browser.newContext();
   const loaded: string[] = [];
   context.on("request", (request) => loaded.push(new URL(request.url()).pathname));
-  const guest = await context.newPage();
-  await guest.goto(link);
-  await expect(rows(guest)).toHaveText(["MePicked on another device"]);
-  await guest.getByRole("button", { name: "Someone else" }).click();
-  await guest.getByRole("textbox", { name: "Your name" }).fill("Lee");
-  await guest.getByRole("button", { name: "Join" }).click();
-  await expect(guest.getByRole("button", { name: "Not Lee?" })).toBeVisible();
+  const lee = await context.newPage();
+  await lee.goto(link);
+  await expect(rows(lee)).toHaveText(["MePicked on another device"]);
+  await lee.getByRole("button", { name: "Someone else" }).click();
+  await lee.getByRole("textbox", { name: "Your name" }).fill("Lee");
+  await lee.getByRole("button", { name: "Join" }).click();
+  await expect(lee.getByRole("button", { name: "Not Lee?" })).toBeVisible();
 
   const people = page.getByRole("group", { name: "People at the table" });
   await expect(people.getByText("Lee", { exact: true })).toBeVisible();
   await expect(people.getByRole("button", { name: "Remove Lee" })).toHaveCount(0);
 
-  await guest.reload();
-  await expect(guest.getByRole("button", { name: "Not Lee?" })).toBeVisible();
-  await expect(question(guest)).toHaveCount(0);
-  await guest.getByRole("button", { name: "Not Lee?" }).click();
-  await expect(rows(guest)).toHaveText(["MePicked on another device", "Lee"]);
+  await lee.reload();
+  await expect(lee.getByRole("button", { name: "Not Lee?" })).toBeVisible();
+  await expect(question(lee)).toHaveCount(0);
+  await lee.getByRole("button", { name: "Not Lee?" }).click();
+  await expect(rows(lee)).toHaveText(["MePicked on another device", "Lee"]);
 
   expect(loaded.filter((path) => path.startsWith("/models/") || path.startsWith("/ort/"))).toEqual([]);
+});
+
+test("without a system share sheet the link has Copy alone", async ({ page }) => {
+  await readyHome(page);
+  await createLink(page);
+
+  expect(await page.evaluate(() => typeof navigator.share)).toBe("undefined");
+  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Share" })).toHaveCount(0);
+});
+
+test("a Turnstile widget that cannot load shows one reason and enables Create split link again", async ({ page }) => {
+  await page.route("https://challenges.cloudflare.com/**", (route) => route.abort());
+  await readyHome(page);
+  const action = page.getByRole("button", { name: "Create split link" });
+
+  await action.click();
+
+  await expect(page.getByText("Couldn't check this browser. Try again.")).toBeVisible(linkTimeout);
+  await expect(action).not.toHaveAttribute("aria-disabled", "true");
 });
 
 test("Share hands the exact link to the system share sheet and Copy puts it on the clipboard", async ({ page, context }) => {
@@ -121,10 +141,10 @@ test("only the browser that made the link can change the Venmo handle", async ({
   await readyHome(page);
   const link = await createLink(page);
   const id = link.split("/s/")[1];
-  const guest = await open(browser, link);
-  await expect(question(guest)).toBeVisible();
+  const other = await open(browser, link);
+  await expect(question(other)).toBeVisible();
 
-  const answers = await guest.evaluate(async (id) => {
+  const answers = await other.evaluate(async (id) => {
     const socket = new WebSocket(`ws://${location.host}/parties/split-server/${id}`);
     const messages: { type: string; ref?: string; rejection?: { reason: string }; split?: { paymentHandles: unknown } }[] = [];
     const next = (test: (message: (typeof messages)[number]) => boolean) =>
@@ -147,7 +167,7 @@ test("only the browser that made the link can change the Venmo handle", async ({
   expect(answers).toEqual({ type: "rejected", ref: "steal", rejection: { reason: "creatorRequired" } });
 
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-zh");
-  expect(await guest.evaluate(() => (window as unknown as { nextHandles: () => Promise<unknown> }).nextHandles())).toEqual([{ service: "venmo", handle: "jason-zh" }]);
+  expect(await other.evaluate(() => (window as unknown as { nextHandles: () => Promise<unknown> }).nextHandles())).toEqual([{ service: "venmo", handle: "jason-zh" }]);
 });
 
 test("an unknown or malformed Split link says the split has expired", async ({ page }) => {

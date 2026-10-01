@@ -30,8 +30,15 @@ export const linkCopy = {
   copy: "Copy",
   copied: "Copied",
   copyFailed: "Couldn't copy the link.",
-  handleRefused: "Check how to pay you.",
   handleLocked: "Only the device that made this link can change how to pay you.",
+};
+
+export const createCopy = {
+  turnstile: "Couldn't check this browser. Try again.",
+  busy: "Too many links from here. Try again in a minute.",
+  network: "Couldn't reach the server. Try again.",
+  handle: "Check how to pay you.",
+  other: "Couldn't create the link. Try again.",
 };
 
 export const joinCopy = {
@@ -44,6 +51,7 @@ export const joinCopy = {
   nameNeeded: "Type your name.",
   nameTaken: "That name is already here.",
   nameRefused: "Couldn't add that name. Try another.",
+  joinFailed: "Couldn't join. Try again.",
   notMe: (name: string) => `Not ${name}?`,
   atTheTable: "At the table",
   newSplit: "Split a receipt",

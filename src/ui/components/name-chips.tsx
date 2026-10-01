@@ -26,18 +26,15 @@ export function NameChips({ names, joined = [], onAdd, onRemove, outsideScroll }
       <View style={[styles.chip, { backgroundColor: c.sheetIn }]}>
         <Text style={[type.label, { color: c.ink }]}>{copy.me}</Text>
       </View>
-      {names.map((name) =>
-        joined.includes(name) ? (
-          <View key={name} style={[styles.chip, { backgroundColor: c.sheetIn }]}>
+      {names.map((name) => {
+        const removable = !joined.includes(name);
+        return (
+          <View key={name} style={[styles.chip, removable && styles.named, { backgroundColor: c.sheetIn }]}>
             <Text style={[type.label, { color: c.ink }]}>{name}</Text>
+            {removable ? <Button kind="icon" icon="x" name={copy.removeName(name)} onPress={() => onRemove(name)} outsideScroll={outsideScroll} /> : null}
           </View>
-        ) : (
-          <View key={name} style={[styles.chip, styles.named, { backgroundColor: c.sheetIn }]}>
-            <Text style={[type.label, { color: c.ink }]}>{name}</Text>
-            <Button kind="icon" icon="x" name={copy.removeName(name)} onPress={() => onRemove(name)} outsideScroll={outsideScroll} />
-          </View>
-        ),
-      )}
+        );
+      })}
       {adding ? (
         <TextInput
           autoFocus

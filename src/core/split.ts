@@ -26,6 +26,12 @@ export function isMintedSplitId(value: string): value is MintedSplitId {
 
 export const SPLIT_ID_LENGTH = 22;
 
+const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
+
+export function randomId(length: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(length)), (byte) => ID_ALPHABET[byte & 63]).join("");
+}
+
 export function isRoutableSplitId(value: string): value is MintedSplitId {
   return value.length === SPLIT_ID_LENGTH && isMintedSplitId(value);
 }

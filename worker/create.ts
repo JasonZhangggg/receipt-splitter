@@ -1,12 +1,10 @@
 import type { CreateSplitRefusal, CreateSplitResponse } from "../src/core/operations";
 import { parseCreateSplitRequest } from "../src/core/parse";
-import { SPLIT_BYTE_BUDGET, SPLIT_ID_LENGTH, isRoutableSplitId, type MintedSplitId } from "../src/core/split";
+import { SPLIT_BYTE_BUDGET, SPLIT_ID_LENGTH, isRoutableSplitId, randomId, type MintedSplitId } from "../src/core/split";
 import { limiterKey } from "./rate-limit";
 
 const MAX_CREATE_BODY_BYTES = SPLIT_BYTE_BUDGET + 4 * 1024;
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-
-const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
 
 export async function createSplit(request: Request, env: Cloudflare.Env): Promise<Response> {
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
@@ -64,7 +62,7 @@ async function readCapped(request: Request, cap: number): Promise<string | null>
 }
 
 function mintSplitId(): MintedSplitId {
-  const id = Array.from(crypto.getRandomValues(new Uint8Array(SPLIT_ID_LENGTH)), (byte) => ID_ALPHABET[byte & 63]).join("");
+  const id = randomId(SPLIT_ID_LENGTH);
   if (!isRoutableSplitId(id)) throw new Error(`minted ${id}, which is not a Split id`);
   return id;
 }

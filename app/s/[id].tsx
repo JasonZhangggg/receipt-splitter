@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isRoutableSplitId, type Participant, type ParticipantId, type Split } from "../../src/core/split";
 import { rememberSplit, splitOnDevice } from "../../src/device";
 import { newName } from "../../src/draft";
-import { newParticipantId, useLiveSplit } from "../../src/live/client";
+import { newParticipantId, useLiveSplit, type GoneReason } from "../../src/live/client";
 import { Button, PressTarget } from "../../src/ui/components/button";
 import { Icon } from "../../src/ui/components/icon";
 import { copy, joinCopy } from "../../src/ui/home-copy";
@@ -23,9 +23,10 @@ export default function SplitScreen() {
 
   const join = async (participantId: ParticipantId) => {
     const answer = await send({ type: "setJoined", by: participantId, participantId, joined: true });
-    if (!answer.ok || !splitId) return;
+    if (!answer.ok || !splitId) return false;
     rememberSplit(splitId, { me: participantId });
     setMe(participantId);
+    return true;
   };
   const leave = () => {
     if (me !== null) void send({ type: "setJoined", by: me, participantId: me, joined: false });
@@ -35,8 +36,7 @@ export default function SplitScreen() {
   const addAndJoin = async (name: string) => {
     const participant = { id: newParticipantId(), name };
     const added = await send({ type: "addParticipant", by: null, participant });
-    if (added.ok) await join(participant.id);
-    return added.ok;
+    return added.ok && (await join(participant.id));
   };
 
   const split = live.status === "live" ? live.split : null;
@@ -64,7 +64,7 @@ export default function SplitScreen() {
   );
 }
 
-function Gone({ reason }: { reason: "notFound" | "unreadable" }) {
+function Gone({ reason }: { reason: GoneReason }) {
   const c = useColors();
   const words = reason === "notFound" ? joinCopy.expired : joinCopy.unreadable;
   return (
@@ -80,14 +80,16 @@ function Gone({ reason }: { reason: "notFound" | "unreadable" }) {
   );
 }
 
-type WhichOneProps = { split: Split; onJoin: (id: ParticipantId) => void; onAddAndJoin: (name: string) => Promise<boolean> };
+type WhichOneProps = { split: Split; onJoin: (id: ParticipantId) => Promise<boolean>; onAddAndJoin: (name: string) => Promise<boolean> };
 
 function WhichOne({ split, onJoin, onAddAndJoin }: WhichOneProps) {
   const c = useColors();
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
+  const [joinFailed, setJoinFailed] = useState(false);
   const names = split.participants.map(({ name }) => name);
+  const choose = async (id: ParticipantId) => setJoinFailed(!(await onJoin(id)));
 
   const submit = async () => {
     const name = newName(typed, names);
@@ -103,9 +105,10 @@ function WhichOne({ split, onJoin, onAddAndJoin }: WhichOneProps) {
       </Text>
       <View role="list" style={styles.rows}>
         {split.participants.map((person) => (
-          <PersonRow key={person.id} person={person} taken={split.joined.includes(person.id)} onPress={() => onJoin(person.id)} />
+          <PersonRow key={person.id} person={person} taken={split.joined.includes(person.id)} onPress={() => choose(person.id)} />
         ))}
       </View>
+      {joinFailed ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{joinCopy.joinFailed}</Text> : null}
       {adding ? (
         <View style={styles.someoneElse}>
           <TextInput

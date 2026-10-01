@@ -241,9 +241,12 @@ function totalCheck(receipt: DraftReceipt) {
   return core && runTotalCheck(core);
 }
 
+export const filledHandles = (handles: readonly HandleRow[]): PaymentHandle[] =>
+  handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
+
 export function splitRequest({ scan, handles, names }: Draft, newId: () => ParticipantId): Omit<NewSplit, "id"> | null {
   const receipt = scan.status === "read" ? receiptOf(scan.receipt) : null;
-  const [first, ...rest] = handles.flatMap(({ service, handle }): PaymentHandle[] => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
+  const [first, ...rest] = filledHandles(handles);
   if (!receipt || !first) return null;
   const paymentHandles: NonEmpty<PaymentHandle> = [first, ...rest];
   return { receipt, participants: [{ id: newId(), name: host }, ...names.map((name) => ({ id: newId(), name }))], paymentHandles };

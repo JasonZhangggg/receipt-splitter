@@ -2,28 +2,29 @@ import { PartySocket } from "partysocket";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { CreateSplitRefusal, CreateSplitRequest, CreateSplitResponse, Operation, ServerMessage, WireRejection } from "../core/operations";
-import { isRoutableSplitId, participantId, type ParticipantId, type Split, type SplitId } from "../core/split";
+import { isRoutableSplitId, participantId, randomId, type ParticipantId, type Split, type SplitId } from "../core/split";
+import { createCopy } from "../ui/home-copy";
+
+export type GoneReason = "notFound" | "unreadable";
 
 export type Live =
   | { readonly status: "connecting" }
   | { readonly status: "live"; readonly split: Split }
-  | { readonly status: "gone"; readonly reason: "notFound" | "unreadable" };
+  | { readonly status: "gone"; readonly reason: GoneReason };
 
 export type Answer = { readonly ok: true } | { readonly ok: false; readonly rejection: WireRejection | { readonly reason: "disconnected" } };
 
 type Send = (op: Operation, creatorSecret?: string) => Promise<Answer>;
 
-const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
-
 export function newParticipantId(): ParticipantId {
-  return participantId(Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) => ID_ALPHABET[byte & 63]).join(""));
+  return participantId(randomId(12));
 }
 
 export function splitUrl(id: SplitId): string {
   return `${globalThis.location?.origin ?? ""}/s/${id}`;
 }
 
-const endings: Record<number, "notFound" | "unreadable"> = { 4404: "notFound", 4500: "unreadable" };
+const endings: Record<number, GoneReason> = { 4404: "notFound", 4500: "unreadable" };
 
 export function useLiveSplit(id: string | null): { live: Live; send: Send } {
   const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(null);
@@ -93,20 +94,12 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
 
 export type Created = { readonly ok: true; readonly id: SplitId; readonly creatorSecret: string } | { readonly ok: false; readonly reason: string };
 
-const reasons = {
-  turnstile: "Couldn't check this browser. Try again.",
-  busy: "Too many links from here. Try again in a minute.",
-  network: "Couldn't reach the server. Try again.",
-  handle: "Check how to pay you.",
-  other: "Couldn't create the link. Try again.",
-};
-
 export async function createSplitLink(request: CreateSplitRequest): Promise<Created> {
   let response: Response;
   try {
     response = await fetch("/api/splits", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
   } catch {
-    return { ok: false, reason: reasons.network };
+    return { ok: false, reason: createCopy.network };
   }
   if (response.status === 201) {
     const { id, creatorSecret }: CreateSplitResponse = await response.json();
@@ -119,17 +112,15 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
 function refusalReason(refusal: CreateSplitRefusal | null): string {
   switch (refusal?.refused) {
     case "turnstileFailed":
-      return reasons.turnstile;
+      return createCopy.turnstile;
     case "rateLimited":
-      return reasons.busy;
+      return createCopy.busy;
     case "turnstileUnavailable":
     case undefined:
-      return reasons.network;
+      return createCopy.network;
     case "rejected":
-      return refusal.rejection.reason === "badHandle" ? reasons.handle : reasons.other;
+      return refusal.rejection.reason === "badHandle" ? createCopy.handle : createCopy.other;
     case "bodyTooLarge":
-      return reasons.other;
+      return createCopy.other;
   }
 }
-
-export const turnstileFailure = reasons.turnstile;

@@ -4,8 +4,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { NonEmpty, PaymentHandle } from "../src/core/split";
 import { rememberSplit, splitOnDevice } from "../src/device";
-import { blockedReason, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type HandleRow, type ReceiptFile } from "../src/draft";
-import { createSplitLink, newParticipantId, splitUrl, turnstileFailure, useLiveSplit, type Live } from "../src/live/client";
+import { blockedReason, filledHandles, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
+import { createSplitLink, newParticipantId, splitUrl, useLiveSplit, type Live } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
 import { Button, PressTarget } from "../src/ui/components/button";
@@ -16,7 +16,7 @@ import { PaymentRows } from "../src/ui/components/payment-row";
 import { panel, Sheet } from "../src/ui/components/sheet";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
-import { copy, linkCopy } from "../src/ui/home-copy";
+import { copy, createCopy, linkCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { isPhoto, pickPhoto, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
@@ -25,9 +25,6 @@ import { breakpoints, motion, type, useColors } from "../src/ui/theme";
 import { prepareTurnstile, turnstileToken } from "../src/ui/turnstile";
 
 const handleEdits = 700;
-
-const filled = (handles: readonly HandleRow[]): PaymentHandle[] =>
-  handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
 
 const others = (live: Live) => (live.status === "live" ? live.split.participants.slice(1) : []);
 
@@ -46,7 +43,7 @@ export default function Home() {
   const scanning = useRef(0);
   const splitId = draft.scan.status === "linked" ? draft.scan.splitId : null;
   const { live, send } = useLiveSplit(splitId);
-  const sentHandles = useRef(JSON.stringify(filled(draft.handles)));
+  const sentHandles = useRef(JSON.stringify(filledHandles(draft.handles)));
   useEffect(prefetchModel, []);
   useEffect(() => saveDraft(draft), [draft]);
 
@@ -60,14 +57,14 @@ export default function Home() {
   }, [live.status]);
 
   useEffect(() => {
-    const [first, ...rest] = filled(draft.handles);
+    const [first, ...rest] = filledHandles(draft.handles);
     const json = JSON.stringify([first, ...rest]);
     if (splitId === null || first === undefined || json === sentHandles.current) return;
     const timer = setTimeout(async () => {
       sentHandles.current = json;
       const handles: NonEmpty<PaymentHandle> = [first, ...rest];
       const answer = await send({ type: "setPaymentHandles", by: null, handles }, splitOnDevice(splitId).creatorSecret);
-      if (!answer.ok) setNotice(answer.rejection.reason === "creatorRequired" ? linkCopy.handleLocked : linkCopy.handleRefused);
+      if (!answer.ok) setNotice(answer.rejection.reason === "creatorRequired" ? linkCopy.handleLocked : createCopy.handle);
     }, handleEdits);
     return () => clearTimeout(timer);
   }, [draft.handles, splitId, send]);
@@ -105,7 +102,7 @@ export default function Home() {
     setCreating(true);
     setFailure(null);
     const token = await turnstileToken().catch(() => null);
-    const created = token === null ? { ok: false as const, reason: turnstileFailure } : await createSplitLink({ turnstileToken: token, split: request });
+    const created = token === null ? { ok: false as const, reason: createCopy.turnstile } : await createSplitLink({ turnstileToken: token, split: request });
     setCreating(false);
     if (!created.ok) return setFailure(created.reason);
     rememberSplit(created.id, { creatorSecret: created.creatorSecret, me: request.participants[0].id });
