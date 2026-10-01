@@ -150,6 +150,22 @@ test("the camera button and Add receipt sit fully above the sheet at 375 by 667"
   expect(await bottom(page.getByText("Add receipt", { exact: true })), "Add receipt bottom").toBeLessThanOrEqual(sheet.top);
 });
 
+test("the whole hero, subline included, sits above the sheet at 375 by 667 with both safe-area insets", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, bottom: 34, left: 0, right: 0 } });
+  await page.goto("/");
+  await settle(page);
+  const sheet = await sheetOf(action(page));
+  const subline = (await page.getByText("Take or upload a photo", { exact: true }).boundingBox())!;
+  const wordmark = (await page.getByRole("heading", { name: "Receipt Splitter" }).boundingBox())!;
+  const slip = (await hero(page).locator("[data-press-face]").boundingBox())!;
+  expect({ sublineAboveSheet: subline.y + subline.height <= sheet.top, slipBelowHeader: slip.y >= wordmark.y + wordmark.height }).toEqual({
+    sublineAboveSheet: true,
+    slipBelowHeader: true,
+  });
+});
+
 test("the sheet lifts its content by the bottom safe-area inset", async ({ page }) => {
   const gapBelowAction = async () => {
     const box = (await action(page).boundingBox())!;

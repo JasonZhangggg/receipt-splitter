@@ -26,7 +26,7 @@ const ringChange = webStyle({ transitionProperty: "box-shadow", transitionDurati
 export default function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [draft, dispatch] = useReducer(reduceDraft, undefined, () => loadDraft());
   const [progress, setProgress] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export default function Home() {
           >
             {(pressed) => (
               <>
-                <Slip icon={wide ? "upload" : "camera"} pressed={pressed} />
+                <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={!wide && height - insets.top - insets.bottom < shortScreen} />
                 <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
                 <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text>
               </>
@@ -128,6 +128,8 @@ export default function Home() {
 }
 
 const panelSpace = panel.right + panel.width + 28;
+
+const shortScreen = 600;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

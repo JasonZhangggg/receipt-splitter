@@ -6,17 +6,17 @@ import { Icon, type IconName } from "./icon";
 
 const pressFace = { dataSet: { pressFace: "" } };
 
-export function Slip({ icon, pressed }: { icon: IconName; pressed: boolean }) {
+export function Slip({ icon, pressed, compact = false }: { icon: IconName; pressed: boolean; compact?: boolean }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <View {...pressFace} style={[styles.slip, { backgroundColor: c.paper, filter: c.lift }, pressStyle(pressed, reduce, pressFeel.slip)]}>
+    <View {...pressFace} style={[styles.slip, compact && styles.compact, { backgroundColor: c.paper, filter: c.lift }, pressStyle(pressed, reduce, pressFeel.slip)]}>
       <View style={styles.lines}>
         {[0, 1, 2, 3].map((line) => (
           <View key={line} style={[styles.line, line % 2 === 1 && styles.shortLine, { backgroundColor: c.hairline }]} />
         ))}
       </View>
-      <View style={[styles.camera, { backgroundColor: c.action }]}>
+      <View style={[styles.camera, compact && styles.compactCamera, { backgroundColor: c.action }]}>
         <Icon name={icon} size={28} color={c.onAction} />
       </View>
     </View>
@@ -25,9 +25,11 @@ export function Slip({ icon, pressed }: { icon: IconName; pressed: boolean }) {
 
 const styles = StyleSheet.create({
   slip: { width: 148, height: 188, marginBottom: 26, borderRadius: 14 },
+  compact: { height: 156, marginBottom: 14 },
   lines: { position: "absolute", top: 26, left: 24, right: 24, gap: 11 },
   line: { height: 5, borderRadius: 3 },
   shortLine: { marginRight: "30%" },
+  compactCamera: { top: 70 },
   camera: {
     position: "absolute",
     top: 84,
