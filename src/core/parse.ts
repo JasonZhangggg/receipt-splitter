@@ -2,6 +2,7 @@ import { isCents, isPrice } from "./money";
 import {
   MAX_ADJUSTMENTS,
   MAX_ITEMS,
+  MAX_JOINED_DEVICES,
   MAX_PARTICIPANTS,
   MAX_WRITES_PER_CHANGE,
   RECENT_CHANGES_LIMIT,
@@ -229,6 +230,11 @@ const writeVariants: { readonly [Kind in Write["kind"]]: Parser<Extract<Write, {
     before: read("before", nullable(cents)),
     after: read("after", nullable(cents)),
   })),
+  joined: strict(({ read }) => ({
+    kind: read("kind", literal("joined")),
+    participantId: read("participantId", participantId),
+    joined: read("joined", flag),
+  })),
   claims: strict(({ read }) => ({
     kind: read("kind", literal("claims")),
     itemIds: read("itemIds", nonEmpty(itemId, MAX_ITEMS)),
@@ -280,7 +286,7 @@ const split: Parser<Split> = strict(({ read, maybe }) => ({
   currency: read("currency", literal("USD")),
   receipt: read("receipt", receipt(item)),
   participants: read("participants", participants),
-  joined: maybe("joined", array(participantId, MAX_PARTICIPANTS)).joined ?? [],
+  joined: maybe("joined", array(participantId, MAX_PARTICIPANTS * MAX_JOINED_DEVICES)).joined ?? [],
   payments: read(
     "payments",
     array(

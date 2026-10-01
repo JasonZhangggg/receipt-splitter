@@ -1,6 +1,7 @@
 import { MAX_CENTS, cents, isCents, type Cents, type Price } from "./money";
 import {
   SPLIT_BYTE_BUDGET,
+  devicesPicking,
   serializedBytes,
   type Adjustment,
   type AdjustmentId,
@@ -30,6 +31,7 @@ export const MAX_ITEMS = 100;
 export const MAX_ADJUSTMENTS = 20;
 export const MAX_PARTICIPANTS = 30;
 export const MAX_PARTICIPANT_NAME_LENGTH = 40;
+export const MAX_JOINED_DEVICES = 5;
 export const MAX_ROW_NAME_LENGTH = 80;
 export const RECENT_CHANGES_LIMIT = 50;
 export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
@@ -194,9 +196,11 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       return { ok: true, split: { ...split, paymentHandles }, record: null };
     }
     case "setJoined": {
-      if (split.joined.includes(op.participantId) === op.joined) return unchanged(split);
-      const others = split.joined.filter((id) => id !== op.participantId);
-      return { ok: true, split: { ...split, joined: op.joined ? sortByCodeUnit([...others, op.participantId]) : others }, record: null };
+      const { participantId, joined } = op;
+      if (!findParticipant(split, participantId)) return reject("unknownParticipant");
+      const devices = devicesPicking(split.joined, participantId);
+      if (joined ? devices >= MAX_JOINED_DEVICES : devices === 0) return unchanged(split);
+      return commit(split, [() => [{ kind: "joined", participantId, joined }]], { recorded: !joined });
     }
     case "undo":
       return undo(split, op.revision);
@@ -233,6 +237,8 @@ function inverse(split: Split, write: Write): readonly Write[] {
       return [{ kind: "payment", participantId: write.participantId, before: write.after, after: write.before }];
     case "claims":
       return claimsStillHeld(split, write);
+    case "joined":
+      return [{ ...write, joined: !write.joined }];
   }
 }
 
@@ -393,6 +399,12 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       if (write.after === null) return { ...split, payments: others };
       const payments = [...others, { participantId: write.participantId, amount: write.after }];
       return { ...split, payments: payments.sort((a, b) => compareCodeUnits(a.participantId, b.participantId)) };
+    }
+    case "joined": {
+      const at = split.joined.indexOf(write.participantId);
+      if (!findParticipant(split, write.participantId) || (!write.joined && at === -1)) return "conflict";
+      const joined = write.joined ? sortByCodeUnit([...split.joined, write.participantId]) : split.joined.filter((_, index) => index !== at);
+      return { ...split, joined };
     }
     case "claims": {
       const targets = new Set<ItemId>(write.itemIds);
@@ -606,7 +618,7 @@ function checkState(split: Split): Rejection | null {
   const claimsValid = items.every(({ claimedBy }) => claimedBy.every((id) => ids.has(id)));
   const paidBy = payments.map(({ participantId }) => participantId);
   const paymentsValid = isStrictlySorted(paidBy) && paidBy.every((id) => ids.has(id) && id !== host.id);
-  if (!isStrictlySorted(split.joined)) return { reason: "malformed", path: "joined" };
+  if (!isSorted(split.joined) || split.joined.some((id) => devicesPicking(split.joined, id) > MAX_JOINED_DEVICES)) return { reason: "malformed", path: "joined" };
   if (!claimsValid || !paymentsValid || !split.joined.every((id) => ids.has(id))) return { reason: "unknownParticipant" };
 
   const services = paymentHandles.map(({ service }) => service);
@@ -642,4 +654,8 @@ function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {
 
 function isStrictlySorted(values: readonly (string | number)[]): boolean {
   return values.every((value, index) => index === 0 || values[index - 1] < value);
+}
+
+function isSorted(values: readonly string[]): boolean {
+  return values.every((value, index) => index === 0 || values[index - 1] <= value);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
+  MAX_JOINED_DEVICES,
   MAX_PARTICIPANT_NAME_LENGTH,
   MAX_ROW_NAME_LENGTH,
   applyOperation,
@@ -316,19 +317,28 @@ describe("applyOperation", () => {
 describe("joining", () => {
   const join = (participantId: ParticipantId, joined = true): Operation => ({ by: participantId, type: "setJoined", participantId, joined });
 
-  test("marks a Participant joined in id order, without a recent change, and unmarks them", () => {
+  test("marks a Participant joined in id order without a recent change, and records an unmark that Undo reverses", () => {
     const split = apply(withBobAndCat(), join(cat), join(bob));
-    const left = apply(split, join(cat, false));
+    const left = apply(split, { by: null, type: "setJoined", participantId: cat, joined: false });
 
     expect([split.joined, split.revision, split.recentChanges.length]).toEqual([["ann", "bob", "cat"], 4, 2]);
-    expect([left.joined, left.revision]).toEqual([["ann", "bob"], 5]);
+    expect([left.joined, left.revision, left.recentChanges.at(-1)?.writes]).toEqual([["ann", "bob"], 5, [{ kind: "joined", participantId: "cat", joined: false }]]);
+    expect(apply(left, { by: ann, type: "undo", revision: 5 }).joined).toEqual(["ann", "bob", "cat"]);
   });
 
-  test("joining twice changes nothing, and an unknown Participant is refused", () => {
-    const split = apply(withBobAndCat(), join(bob));
+  test("counts each device that joins as one Participant, so one leaving keeps the mark until the last one leaves", () => {
+    const twice = apply(withBobAndCat(), join(bob), join(bob));
+    const once = apply(twice, join(bob, false));
 
-    expect(applyOperation(split, join(bob), anyone)).toEqual({ ok: true, split, changed: false });
-    expect(reasonFor(split, { by: null, type: "setJoined", participantId: dan, joined: true })).toBe("unknownParticipant");
+    expect([twice.joined, once.joined, apply(once, join(bob, false)).joined]).toEqual([["ann", "bob", "bob"], ["ann", "bob"], ["ann"]]);
+  });
+
+  test("a join past the device limit and an unmark of someone not joined change nothing, and an unknown Participant is refused", () => {
+    const full = apply(withBobAndCat(), ...Array.from({ length: MAX_JOINED_DEVICES }, () => join(bob)));
+
+    expect(applyOperation(full, join(bob), anyone)).toEqual({ ok: true, split: full, changed: false });
+    expect(applyOperation(full, join(cat, false), anyone)).toEqual({ ok: true, split: full, changed: false });
+    expect(reasonFor(full, { by: null, type: "setJoined", participantId: dan, joined: true })).toBe("unknownParticipant");
   });
 
   test("keeps a joined Participant from being removed, by hand or by undoing their add", () => {

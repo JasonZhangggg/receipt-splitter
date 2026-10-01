@@ -134,6 +134,7 @@ describe("parseSplit", () => {
     expect(joined).toEqual(["ann", "bob"]);
     expect(parseSplit(beforeJoins)).toMatchObject({ ok: true, split: { joined: [] } });
     expect(parseSplit({ ...stored, joined: ["bob", "ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
+    expect(parseSplit({ ...stored, joined: ["ann", "bob", "bob"] })).toMatchObject({ ok: true, split: { joined: ["ann", "bob", "bob"] } });
     expect(parseSplit({ ...stored, joined: ["ann", "cat"] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
   });
 

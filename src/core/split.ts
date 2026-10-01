@@ -124,6 +124,7 @@ export type Write =
       readonly before: Cents | null;
       readonly after: Cents | null;
     }
+  | { readonly kind: "joined"; readonly participantId: ParticipantId; readonly joined: boolean }
   | {
       readonly kind: "claims";
       readonly itemIds: NonEmpty<ItemId>;
@@ -139,13 +140,17 @@ export type Change = {
   readonly writes: NonEmpty<Write>;
 };
 
+export type DevicePicks = readonly ParticipantId[];
+
+export const devicesPicking = (picks: DevicePicks, id: ParticipantId) => picks.filter((picked) => picked === id).length;
+
 export type Split = {
   readonly schemaVersion: 1;
   readonly id: SplitId;
   readonly currency: "USD";
   readonly receipt: Receipt<SplitItem>;
   readonly participants: readonly [host: Participant, ...others: Participant[]];
-  readonly joined: readonly ParticipantId[];
+  readonly joined: DevicePicks;
   readonly payments: readonly Payment[];
   readonly paymentHandles: NonEmpty<PaymentHandle>;
   readonly revision: number;
