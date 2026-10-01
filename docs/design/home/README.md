@@ -8,4 +8,4 @@ The approved design for the home page `/`, from the operator's six prototype rou
 - `layout.md` holds the layout, the states, the motion notes and the reasons the tip section and payment fields were cut.
 - `fonts/` holds Plus Jakarta Sans 400 and 500 under the SIL Open Font License (`fonts/OFL.txt`).
 
-Changes after the sketch, decided by the operator: no PDF upload in v1, no "photo stays on this phone" line, and a slightly taller bottom sheet. `tokens.md` and `layout.md` predate these decisions where they mention PDF.
+Changes after the sketch, decided by the operator: no PDF upload in v1, no "photo stays on this phone" line, and a slightly taller bottom sheet. `tokens.md`, `layout.md`, and the frames of `idea2.png` predate these decisions where they print "Photo or PDF". The copy that ships is in `idea2.html` and `src/ui/home-copy.ts`.

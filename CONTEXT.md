@@ -8,7 +8,11 @@ Splitting one group bill from a photo of its receipt: reading the items, decidin
 
 **Host**:
 The person who paid the bill and scanned the receipt to start the Split. Every Share is owed to the Host. After creating the Split, the Host has no more control over it than anyone else.
-_Avoid_: Creator, owner, payer, organizer
+_Avoid_: Creator, owner, payer, organizer. The one exception is **Creator secret**.
+
+**Creator secret**:
+The token the creating device keeps and sends to change the Payment handles. It is a key, not a role, so it gives the Host no other control. The code uses this name.
+_Avoid_: Host secret, host key
 
 **Participant**:
 A person who shared the bill, including the Host. Every Participant but the Host owes the Host their Share.
@@ -53,7 +57,7 @@ How each unit of an Item divides among the people who had it: evenly, by whole-n
 _Avoid_: Split type, method
 
 **Pick**:
-A device saying which Participant it is. One device holds a name at a time, and **That's me** moves a picked name to the device that asks. A Pick is not a Claim.
+A device saying which Participant it is. One device holds a name at a time, and **That's me** moves a picked name to the device that asks, with no check and no History entry. A Pick is not a Claim.
 _Avoid_: Join, login
 
 **Unclaimed item**:
@@ -65,5 +69,5 @@ One Participant's part of the bill: their Claimed Items plus a part of the Adjus
 _Avoid_: Portion, amount owed, balance
 
 **Payment**:
-A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer.
+A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer. Only the device that picked the name records or clears its Payment. That rule stops honest mistakes and is not a security check, because **That's me** lets any device take a name. History shows a Payment but cannot revert it.
 _Avoid_: Settlement, transaction

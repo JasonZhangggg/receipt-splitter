@@ -8,3 +8,5 @@ Live Splits are stored in one SQLite-backed Cloudflare Durable Object each, with
 - Serve the site and OCR model as static assets, never through the Worker.
 
 Free-plan limits fail with errors rather than bills, so the account moves to the $5 Paid plan before public launch.
+
+A stored Split outlives the Worker that wrote it. From launch, any change to `parseSplit` that a stored row could fail bumps `schemaVersion` and ships a migration in the same change, so a deploy never turns a live Split unreadable. A rolled-back Worker refuses a row with a newer `schemaVersion` as unreadable and does not read it with fields dropped. Until launch no real Split exists, so `schemaVersion` stays 1.
