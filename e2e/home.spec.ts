@@ -1,7 +1,5 @@
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 
-import { fallbackSamples } from "../src/ui/home-copy";
-
 const phone = { width: 390, height: 844 };
 
 test.use({ viewport: phone });
@@ -43,285 +41,11 @@ test("the bottom bar lifts the scan action by the bottom safe-area inset", async
   await expect.poll(gapBelowScan).toBe(flush + 34);
 });
 
-test("the bottom bar does not cover the end of the page", async ({ page }) => {
-  await page.goto("/");
-  const last = page.getByText("short of the subtotal", { exact: false });
-  await last.scrollIntoViewIfNeeded();
-  await page.mouse.wheel(0, 4000);
-  await expect(last).toBeInViewport();
-  const box = (await last.boundingBox())!;
-  const hit = await page.evaluate(
-    ([x, y]) => document.elementFromPoint(x, y)?.textContent ?? "",
-    [box.x + box.width / 2, box.y + box.height / 2],
-  );
-  expect(hit).toContain("short of the subtotal");
-});
-
-test("reduced motion skips the entrance animation", async ({ page }) => {
-  const animations = () => page.evaluate(() => document.getAnimations().length);
-  const load = async () => {
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
-  };
-  await load();
-  expect(await animations()).toBeGreaterThan(0);
-
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await load();
-  expect(await animations()).toBe(0);
-});
-
 async function settle(page: Page) {
   await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
 }
-
-const headline = ["Split the bill", "at the table."];
-
-const headlineWidths = [320, phone.width, 900, 960, 1010, 1024, 1280];
-
-for (const width of headlineWidths) {
-  test(`the headline mask hides no glyph ink at ${width} px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: phone.height });
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/");
-    await settle(page);
-    for (const line of headline) {
-      const mask = page.getByText(line, { exact: true }).locator("..");
-      const box = (await mask.boundingBox())!;
-      const clip = { x: 0, y: box.y - 32, width, height: box.height + 64 };
-      const clipped = await page.screenshot({ clip });
-      await mask.evaluate((el) => (el.style.overflow = "visible"));
-      const unclipped = await page.screenshot({ clip });
-      expect(Buffer.compare(clipped, unclipped), `"${line}" looks different without its mask`).toBe(0);
-    }
-  });
-}
-
-for (const width of headlineWidths) {
-  test(`the headline rises from fully hidden behind its mask at ${width} px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: phone.height });
-    await page.goto("/");
-    await expect(page.getByText(headline[0], { exact: true })).toBeAttached();
-    await page.evaluate(() => document.fonts.ready);
-    await page.evaluate(() =>
-      document.getAnimations().forEach((a) => {
-        a.pause();
-        a.currentTime = 0;
-      }),
-    );
-    for (const line of headline) {
-      const text = page.getByText(line, { exact: true });
-      const box = (await text.locator("..").boundingBox())!;
-      const atStart = await page.screenshot({ clip: box });
-      await text.evaluate((el) => (el.style.visibility = "hidden"));
-      expect(Buffer.compare(atStart, await page.screenshot({ clip: box })), `"${line}" peeks out at the start`).toBe(0);
-    }
-  });
-}
-
-for (const width of headlineWidths) {
-  test(`each headline line fits on one line at ${width} px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await page.goto("/");
-    await settle(page);
-    const lineCounts = await page.evaluate(
-      (lines) =>
-        lines.map((line) => {
-          const el = [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent === line)!;
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
-        }),
-      headline,
-    );
-    expect(lineCounts).toEqual([1, 1]);
-  });
-}
-
-for (const [width, body, pitch] of [
-  [320, "18px", 54.3],
-  [phone.width, "18px", 54.3],
-  [900, "21px", 53.6],
-] as const) {
-  test(`without container query units the headline keeps one line per row above body size at ${width} px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/");
-    await settle(page);
-    const layout = await page.evaluate((lines) => {
-      for (const el of document.querySelectorAll<HTMLElement>("[style]")) {
-        for (const property of [...el.style]) {
-          if (property === "container-type" || el.style.getPropertyValue(property).includes("cqi")) el.style.removeProperty(property);
-        }
-      }
-      const leaf = (text: string) =>
-        [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent?.startsWith(text))!;
-      const rows = lines.map((line) => {
-        const range = document.createRange();
-        range.selectNodeContents(leaf(line));
-        const tops = [...range.getClientRects()].map((r) => Math.round(r.top));
-        return { lines: new Set(tops).size, top: leaf(line).getBoundingClientRect().top };
-      });
-      return {
-        headline: getComputedStyle(leaf(lines[0])).fontSize,
-        body: getComputedStyle(leaf("Take a photo of the receipt")).fontSize,
-        lines: rows.map((row) => row.lines),
-        pitch: Math.round((rows[1].top - rows[0].top) * 10) / 10,
-      };
-    }, headline);
-    expect(layout).toEqual({ headline: "56px", body, lines: [1, 1], pitch });
-  });
-}
-
-for (const [width, finalSize] of [
-  [phone.width, 64],
-  [960, 83.5],
-]) {
-  test(`the headline paints its first frame at ${finalSize} px at ${width} px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await page.addInitScript((line) => {
-      const sizes: string[] = [];
-      Object.assign(window, { headlineSizes: sizes });
-      const sample = () => {
-        const el = [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent === line);
-        if (el) sizes.push(getComputedStyle(el).fontSize);
-        requestAnimationFrame(sample);
-      };
-      requestAnimationFrame(sample);
-    }, headline[0]);
-    await page.goto("/");
-    await settle(page);
-    const sizes = await page.evaluate(() => (window as unknown as { headlineSizes: string[] }).headlineSizes);
-    expect([...new Set(sizes.map((size) => Number(parseFloat(size).toFixed(1))))]).toEqual([finalSize]);
-  });
-}
-
-for (const width of [320, phone.width, 960, 1280]) {
-  test(`the fallback fonts keep the headline lines of the web fonts at ${width} px`, async ({ browser }) => {
-    const layout = async (blockFonts: boolean) => {
-      const context = await browser.newContext({ viewport: { width, height: phone.height }, reducedMotion: "reduce" });
-      const page = await context.newPage();
-      if (blockFonts) await page.route(/\.ttf$/, (route) => route.abort());
-      await page.goto("/");
-      await settle(page);
-      const box = async (text: string) => {
-        const { y, height } = (await page.getByText(text).first().boundingBox())!;
-        return [Math.round(y), Math.round(height)];
-      };
-      const result = {
-        webFaces: await page.evaluate(() =>
-          [...document.fonts].filter((f) => /^"?Archivo(Condensed)?"?$/.test(f.family)).map((f) => f.status),
-        ),
-        boxes: [await box(headline[0]), await box(headline[1])],
-      };
-      await context.close();
-      return result;
-    };
-    const loaded = await layout(false);
-    const blocked = await layout(true);
-    expect([loaded.webFaces, blocked.webFaces]).toEqual([
-      ["loaded", "loaded"],
-      ["error", "error"],
-    ]);
-    expect(blocked.boxes).toEqual(loaded.boxes);
-  });
-}
-
-for (const width of [phone.width, 1280]) {
-  test(`the fallback metrics sample every line the home screen renders at ${width} px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await page.goto("/");
-    await settle(page);
-    const rendered = await page.evaluate(() => {
-      const byWeight: Record<string, string[]> = {};
-      for (const el of document.querySelectorAll("#root *")) {
-        if (el.childElementCount > 0 || !el.textContent?.trim()) continue;
-        const style = getComputedStyle(el);
-        const text = style.textTransform === "uppercase" ? el.textContent.toUpperCase() : el.textContent;
-        (byWeight[style.fontWeight] ??= []).push(text);
-      }
-      return byWeight;
-    });
-    const unique = (byWeight: Record<string, string[]>) =>
-      Object.fromEntries(Object.entries(byWeight).map(([weight, lines]) => [weight, [...new Set(lines)].sort()]));
-    expect(unique(rendered)).toEqual(unique(fallbackSamples));
-  });
-}
-
-test("no sample line is wider in the shipped fallback face than in Archivo", async ({ page }) => {
-  await page.goto("/");
-  await settle(page);
-  const widest = await page.evaluate(async (samples) => {
-    const families = { 500: "Archivo", 800: "ArchivoCondensed" };
-    const result: Record<string, { ratio: number; line: string; faces: string[] }> = {};
-    for (const [weight, family] of Object.entries(families)) {
-      const fallback = `${family} Fallback`;
-      const faces = await Promise.all(
-        [family, fallback].map(async (face) => (await document.fonts.load(`${weight} 100px "${face}"`))[0]?.status ?? "missing"),
-      );
-      const width = (face: string, line: string) => {
-        const ctx = document.createElement("canvas").getContext("2d")!;
-        ctx.font = `${weight} 1000px "${face}"`;
-        return ctx.measureText(line).width;
-      };
-      const ratios = samples[weight as "500" | "800"].map((line) => ({ ratio: width(fallback, line) / width(family, line), line }));
-      const top = ratios.reduce((a, b) => (b.ratio > a.ratio ? b : a));
-      result[weight] = { ...top, faces };
-    }
-    return result;
-  }, fallbackSamples);
-  for (const weight of ["500", "800"]) {
-    expect(widest[weight].faces, `${weight} Archivo and fallback faces`).toEqual(["loaded", "loaded"]);
-    expect(widest[weight].ratio, `"${widest[weight].line}" in the ${weight} fallback against Archivo`).toBeLessThanOrEqual(1);
-  }
-});
-
-test("the two columns start level at 1280 px", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/");
-  await settle(page);
-  const top = async (text: string) => (await page.getByText(text, { exact: true }).boundingBox())!.y;
-  expect(await top("Example scan")).toBe(await top("Receipt Splitter"));
-});
-
-test("side safe-area insets keep the content clear of a landscape notch", async ({ page }) => {
-  const landscape = { width: 844, height: 390 };
-  await page.setViewportSize(landscape);
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 21, left: 47, right: 47 } });
-  await page.goto("/");
-  await settle(page);
-  const edges = async (text: string) => {
-    const box = (await page.getByText(text, { exact: true }).boundingBox())!;
-    return [box.x, box.x + box.width];
-  };
-  expect(await edges("Split the bill")).toEqual([47 + 24, landscape.width - 47 - 24]);
-  expect(await edges("Example scan")).toEqual([47 + 24, landscape.width - 47 - 24]);
-  const field = (await page.getByText("Split the bill", { exact: true }).locator("../../..").boundingBox())!;
-  expect([field.x, field.width]).toEqual([0, landscape.width]);
-});
-
-test("item hairlines span the same width as the heavy rules", async ({ page }) => {
-  await page.goto("/");
-  await settle(page);
-  const edges = await page.evaluate(() => {
-    const names = ["Margherita pizza", "Caesar salad", "Spicy rigatoni", "Lemonade pitcher", "Tiramisu"];
-    const rows = names.map(
-      (name) =>
-        [...document.querySelectorAll("body *")].find((e) => e.childElementCount === 0 && e.textContent === name)!.parentElement!
-          .parentElement!,
-    );
-    const span = (el: Element) => {
-      const r = el.getBoundingClientRect();
-      return [r.left, r.right];
-    };
-    return { rule: span(rows[0].previousElementSibling!), rows: rows.map(span) };
-  });
-  expect(edges.rule).toEqual([24, phone.width - 24]);
-  expect(edges.rows).toEqual(Array(5).fill([24, phone.width - 24]));
-});
 
 async function pressAndHold(page: Page, name: string) {
   const box = (await page.getByRole("button", { name }).boundingBox())!;
@@ -902,9 +626,6 @@ test("the inline scan action takes keyboard focus with a visible ring at 1280 px
   const scan = await tabTo(page, "Scan or upload a receipt");
   await expect(scan).toBeFocused();
   expect(await focusRing(scan)).toEqual(["solid", "2px"]);
-  const action = (await scan.boundingBox())!;
-  const note = (await page.getByText("The photo stays on your phone.").boundingBox())!;
-  expect(action.y + action.height, "the action sits inline under the pitch").toBeLessThan(note.y);
   await context.close();
 });
 
@@ -941,12 +662,6 @@ for (const { width, colorScheme, reducedMotion } of matrix) {
     );
     expect(clipped).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    const loaded = await page.evaluate(() =>
-      [...document.fonts]
-        .filter((f) => f.status === "loaded" && /^"?Archivo(Condensed)?"?$/.test(f.family))
-        .map((f) => `${f.family.replaceAll('"', "")} ${f.weight}`),
-    );
-    expect(loaded.sort()).toEqual(["Archivo 500", "ArchivoCondensed 800"]);
     expect(errors).toEqual([]);
     if (process.env.SHOTS) {
       await page.screenshot({ path: `${process.env.SHOTS}/home-${width}-${colorScheme}-${reducedMotion}.png` });

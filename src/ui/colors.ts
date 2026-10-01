@@ -1,7 +1,4 @@
 const light = {
-  field: "#FF5B2E",
-  onField: "#17110E",
-  fieldMuted: "#4A1D0E",
   paper: "#FAF7F2",
   ink: "#17110E",
   muted: "#6B625B",
@@ -19,9 +16,6 @@ const light = {
 export type Colors = Record<keyof typeof light, string>;
 
 const dark: Colors = {
-  field: "#17110E",
-  onField: "#FF6A3D",
-  fieldMuted: "#C9B8AC",
   paper: "#221B17",
   ink: "#F6EFE8",
   muted: "#B3A79D",

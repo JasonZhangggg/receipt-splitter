@@ -21,8 +21,6 @@ test("contrast matches the WCAG formula on known pairs", () => {
 });
 
 const text: [fg: keyof Colors, bg: keyof Colors][] = [
-  ["onField", "field"],
-  ["fieldMuted", "field"],
   ["ink", "paper"],
   ["muted", "paper"],
   ["flag", "paper"],
@@ -31,9 +29,8 @@ const text: [fg: keyof Colors, bg: keyof Colors][] = [
 ];
 
 const shapes: [fg: keyof Colors, bg: keyof Colors][] = [
-  ["action", "field"],
+  ["action", "paper"],
   ["action", "bar"],
-  ["focus", "field"],
   ["focus", "paper"],
 ];
 
