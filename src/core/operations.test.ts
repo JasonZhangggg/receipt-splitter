@@ -693,7 +693,7 @@ describe("restoring the original Receipt", () => {
     expect([undone.receipt.items[1].price, restored.receipt.items[1].price, restored.revision - split.revision]).toEqual([800, 800, 1]);
   });
 
-  test("puts deleted rows back in place, drops added ones, moves a moved one back, and Undo and redo swap the two Receipts exactly", () => {
+  test("puts deleted rows back in place, drops added ones, moves a moved one back with its Claims, and Undo and redo swap the two Receipts exactly", () => {
     const junk = itemId("junk");
     const vandalized = apply(
       withBobAndCat(),
@@ -719,6 +719,7 @@ describe("restoring the original Receipt", () => {
         ],
       },
       { by: cat, type: "claim", itemId: junk, participantId: cat },
+      { by: cat, type: "claim", itemId: fries, participantId: cat },
     );
     const restored = apply(vandalized, restore);
     const undone = apply(restored, { by: ann, type: "undo", revision: restored.revision });
@@ -741,7 +742,7 @@ describe("restoring the original Receipt", () => {
     expect(restored.receipt).toEqual({
       items: [
         { id: "pasta", name: "Pasta", price: 1400, claimedBy: [] },
-        { id: "fries", name: "Fries", price: 800, claimedBy: [] },
+        { id: "fries", name: "Fries", price: 800, claimedBy: ["cat"] },
         { id: "pitcher", name: "Pitcher", price: 3000, claimedBy: ["bob"] },
       ],
       adjustments: [],
