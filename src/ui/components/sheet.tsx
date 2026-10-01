@@ -35,7 +35,7 @@ export function Sheet({ wide, children, action, onHeight }: Props) {
         <ScrollView style={[{ maxHeight: windowHeight - panel.top - insets.top - 140 }, contain]} contentContainerStyle={styles.panelContent}>
           {children}
         </ScrollView>
-        {action}
+        <View style={styles.panelAction}>{action}</View>
       </View>
     );
   }
@@ -183,4 +183,5 @@ const styles = StyleSheet.create({
   actionInner: { alignSelf: "center", width: "100%", maxWidth: 440 },
   panel: { position: "absolute", padding: 20, gap: 12, borderRadius: 28 },
   panelContent: { gap: 12 },
+  panelAction: { marginTop: 8 },
 });
