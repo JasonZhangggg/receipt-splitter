@@ -27,7 +27,7 @@ export function Breakdown({ split, person, viewer, onPaid }: Props) {
   const isHost = person.id === host.id;
   const mine = person.id === viewer;
   const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
-  const paid = state.kind === "settled" || state.kind === "over";
+  const paid = state.kind === "settled" || state.kind === "over" || state.kind === "short";
   const shareWord = mine ? say.yourShare : say.shareOf(person.name);
   const label =
     isHost || state.kind === "over" || state.kind === "short" ? shareWord : state.kind === "settled" ? (mine ? say.youPaid : say.paidBy(person.name)) : mine ? say.youOwe : say.owes(person.name);
