@@ -1,5 +1,6 @@
 import { routePartykitRequest } from "partyserver";
-import { createSplit, isRoutableSplitId } from "./create";
+import { isRoutableSplitId } from "../src/core/split";
+import { createSplit } from "./create";
 
 export { CreateLimiter } from "./rate-limit";
 export { SplitServer } from "./split-server";

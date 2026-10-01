@@ -1,6 +1,6 @@
 import type { CreateSplitRefusal, CreateSplitResponse, Rejection } from "../src/core/operations";
 import { parseNewSplit } from "../src/core/parse";
-import { SPLIT_BYTE_BUDGET, isMintedSplitId, type MintedSplitId } from "../src/core/split";
+import { SPLIT_BYTE_BUDGET, SPLIT_ID_LENGTH, isRoutableSplitId, type MintedSplitId } from "../src/core/split";
 import { limiterKey } from "./rate-limit";
 
 const MAX_TURNSTILE_TOKEN_LENGTH = 2048;
@@ -8,7 +8,6 @@ const MAX_CREATE_BODY_BYTES = SPLIT_BYTE_BUDGET + 4 * 1024;
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
-const ID_LENGTH = 22;
 
 export async function createSplit(request: Request, env: Cloudflare.Env): Promise<Response> {
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
@@ -89,13 +88,9 @@ async function readCapped(request: Request, cap: number): Promise<string | null>
 }
 
 function mintSplitId(): MintedSplitId {
-  const id = Array.from(crypto.getRandomValues(new Uint8Array(ID_LENGTH)), (byte) => ID_ALPHABET[byte & 63]).join("");
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(SPLIT_ID_LENGTH)), (byte) => ID_ALPHABET[byte & 63]).join("");
   if (!isRoutableSplitId(id)) throw new Error(`minted ${id}, which is not a Split id`);
   return id;
-}
-
-export function isRoutableSplitId(id: string): id is MintedSplitId {
-  return id.length === ID_LENGTH && isMintedSplitId(id);
 }
 
 async function verifyTurnstile(token: string, ip: string | null, secret: string | undefined): Promise<"passed" | "failed" | "unavailable"> {

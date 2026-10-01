@@ -24,6 +24,12 @@ export function isMintedSplitId(value: string): value is MintedSplitId {
   return value.length >= MIN_MINTED_ID_LENGTH && isId<"SplitId">(value);
 }
 
+export const SPLIT_ID_LENGTH = 22;
+
+export function isRoutableSplitId(value: string): value is MintedSplitId {
+  return value.length === SPLIT_ID_LENGTH && isMintedSplitId(value);
+}
+
 function id<Kind extends IdKind>(value: string): Id<Kind> {
   if (!isId<Kind>(value)) throw new RangeError(`${JSON.stringify(value)} is not 1 to 24 letters, digits, "_", or "-", or is "__proto__"`);
   return value;
