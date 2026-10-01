@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { TextInput, type StyleProp, type TextStyle } from "react-native";
 
 import type { Cents } from "../../core/money";
 import { parseAmount, plainAmount } from "../../draft";
 import { useColors } from "../theme";
+
+type Selectable = { target: unknown; preventDefault(): void };
+
+const selectAll = ({ target }: Selectable) => (target as HTMLInputElement).select();
 
 type Props = {
   amount: number;
@@ -17,6 +21,18 @@ type Props = {
 export function AmountInput({ amount, label, onChange, allowNegative = false, prefix = "", style }: Props) {
   const c = useColors();
   const [typing, setTyping] = useState<string | null>(null);
+  const focusedByPointer = useRef(false);
+  const selection = {
+    onMouseDown: (event: Selectable) => {
+      focusedByPointer.current = document.activeElement !== event.target;
+    },
+    onMouseUp: (event: Selectable) => {
+      if (!focusedByPointer.current) return;
+      focusedByPointer.current = false;
+      event.preventDefault();
+      selectAll(event);
+    },
+  };
   return (
     <TextInput
       aria-label={label}
@@ -24,7 +40,10 @@ export function AmountInput({ amount, label, onChange, allowNegative = false, pr
       inputMode="decimal"
       placeholder={`${prefix}0.00`}
       enterKeyHint="done"
-      selectTextOnFocus={amount !== 0}
+      onFocus={(event) => {
+        if (!focusedByPointer.current) selectAll(event);
+      }}
+      {...selection}
       placeholderTextColor={c.muted}
       onBlur={() => setTyping(null)}
       onChangeText={(text) => {

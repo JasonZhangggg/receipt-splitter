@@ -78,7 +78,8 @@ test.describe("fixing the Example receipt", () => {
 
   test("a price edit that breaks the Total check highlights the row and names the gap until the numbers add up again", async ({ page }) => {
     const perrier = page.getByRole("textbox", { name: /^Price of Perrier Sparkling Water/ });
-    await perrier.fill("3.00");
+    await perrier.click();
+    await page.keyboard.type("3.00", { delay: 120 });
     const flagged = () => items(page).evaluateAll((rows) => rows.filter((row) => row.dataset.flagged === "true").map((row) => row.querySelector("input")!.value));
     expect(await flagged()).toEqual(["Perrier Sparkling Water"]);
     await expect(page.getByRole("textbox", { name: "Price of Perrier Sparkling Water, check this price" })).toBeVisible();
