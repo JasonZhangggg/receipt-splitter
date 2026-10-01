@@ -398,9 +398,10 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
   unclaim: op("unclaim", claimFields),
   recordPayment: op("recordPayment", ({ read }) => ({
     participantId: read("participantId", participantId),
+    device: read("device", deviceId),
     amount: read("amount", cents),
   })),
-  clearPayment: op("clearPayment", ({ read }) => ({ participantId: read("participantId", participantId) })),
+  clearPayment: op("clearPayment", ({ read }) => ({ participantId: read("participantId", participantId), device: read("device", deviceId) })),
   setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", paymentHandles) })),
   pick: op("pick", ({ read }) => ({ participantId: read("participantId", participantId), device: read("device", deviceId), takeOver: read("takeOver", flag) })),
   undo: op("undo", ({ read }) => ({ revision: read("revision", count) })),

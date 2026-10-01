@@ -35,9 +35,9 @@ function storedSplit(): Split {
     { type: "claim", by: "bob", itemId: "fries", participantId: "bob" },
     { type: "claim", by: "ann", itemId: "pitcher", participantId: "ann" },
     { type: "claim", by: "ann", itemId: "pitcher", participantId: "bob" },
-    { type: "recordPayment", by: "bob", participantId: "bob", amount: 2200 },
-    { type: "undo", by: "ann", revision: 2 },
     { type: "pick", by: "bob", participantId: "bob", device: "bobs-phone", takeOver: false },
+    { type: "recordPayment", by: "bob", participantId: "bob", device: "bobs-phone", amount: 2200 },
+    { type: "undo", by: "ann", revision: 2 },
   ];
   return ops.reduce<Split>((split, input) => {
     const parsed = parseOperation(input);
@@ -128,9 +128,9 @@ describe("parseSplit", () => {
 
     expect(split.recentChanges.map(({ revision, undoneBy }) => [revision, undoneBy])).toEqual([
       [1, null],
-      [2, 7],
-      [6, null],
+      [2, 8],
       [7, null],
+      [8, null],
     ]);
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
@@ -235,8 +235,9 @@ describe("parseSplit bounds", () => {
     const ops: unknown[] = [
       ...joiners.map((id) => ({ type: "addParticipant", by: null, participant: { id, name: id } })),
       ...joiners.map((id) => ({ type: "claim", by: null, itemId: "pitcher", participantId: id })),
-      ...joiners.map((id) => ({ type: "recordPayment", by: null, participantId: id, amount: 100 })),
-      ...joiners.slice(0, 5).map((id) => ({ type: "recordPayment", by: null, participantId: id, amount: 200 })),
+      ...joiners.map((id) => ({ type: "pick", by: id, participantId: id, device: `phone-${id}`, takeOver: false })),
+      ...joiners.map((id) => ({ type: "recordPayment", by: null, participantId: id, device: `phone-${id}`, amount: 100 })),
+      ...joiners.slice(0, 5).map((id) => ({ type: "recordPayment", by: null, participantId: id, device: `phone-${id}`, amount: 200 })),
     ];
     const split = ops.reduce<Split>((current, input) => {
       const parsed = parseOperation(input);

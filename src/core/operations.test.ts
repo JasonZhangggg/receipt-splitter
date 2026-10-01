@@ -383,9 +383,21 @@ describe("picking a name", () => {
 });
 
 describe("Payments", () => {
+  const bobsPhone = deviceId("phone-bob");
+  const catsLaptop = deviceId("laptop-cat");
+  const pay = (participantId: ParticipantId, amount: number, device = bobsPhone): Operation => ({
+    by: participantId,
+    type: "recordPayment",
+    participantId,
+    device,
+    amount: cents(amount),
+  });
+
   function claimedDinner(): Split {
     return apply(
       withBobAndCat(),
+      { by: bob, type: "pick", participantId: bob, device: bobsPhone, takeOver: false },
+      { by: cat, type: "pick", participantId: cat, device: catsLaptop, takeOver: false },
       { by: ann, type: "claim", itemId: pitcher, participantId: ann },
       { by: bob, type: "claim", itemId: pitcher, participantId: bob },
       { by: cat, type: "claim", itemId: pitcher, participantId: cat },
@@ -397,8 +409,8 @@ describe("Payments", () => {
   test("a Payment followed by a price edit reports what each Participant who paid now owes or gets back", () => {
     const paid = apply(
       claimedDinner(),
-      { by: bob, type: "recordPayment", participantId: bob, amount: cents(1800) },
-      { by: cat, type: "recordPayment", participantId: cat, amount: cents(2400) },
+      pay(bob, 1800),
+      pay(cat, 2400, catsLaptop),
     );
 
     expect(computeShares(paid).shares).toEqual([
@@ -425,13 +437,34 @@ describe("Payments", () => {
     ]);
   });
 
-  test("a Payment can be undone, and the Host cannot record one", () => {
-    const paid = apply(claimedDinner(), { by: bob, type: "recordPayment", participantId: bob, amount: cents(1800) });
-    const undone = apply(paid, { by: bob, type: "undo", revision: paid.revision });
+  test("a Payment from the payer's device lands, and one from another device is refused", () => {
+    const paid = apply(claimedDinner(), pay(bob, 1800));
 
-    expect(undone.payments).toEqual([]);
-    expect(shareOf(undone, "bob")).toEqual({ participantId: "bob", share: 1800, paid: 0, owed: 1800 });
-    expect(reasonFor(paid, { by: ann, type: "recordPayment", participantId: ann, amount: cents(1000) })).toBe("host");
+    expect(paid.payments).toEqual([{ participantId: "bob", amount: 1800 }]);
+    expect(reasonFor(claimedDinner(), pay(bob, 1800, catsLaptop))).toBe("payerOnly");
+  });
+
+  test("a clearPayment from another device is refused and the Payment stays, and the payer's own clears it", () => {
+    const paid = apply(claimedDinner(), pay(bob, 1800));
+    const clear = (device: typeof bobsPhone): Operation => ({ by: bob, type: "clearPayment", participantId: bob, device });
+
+    expect(reasonFor(paid, clear(catsLaptop))).toBe("payerOnly");
+    expect(apply(paid, clear(bobsPhone)).payments).toEqual([]);
+  });
+
+  test("a Payment for a name nobody picked, or picked with no device, is refused, and the Host cannot record one", () => {
+    const unpicked = apply(withBobAndCat(), { by: bob, type: "pick", participantId: bob, device: bobsPhone, takeOver: false });
+    const legacy: Split = { ...unpicked, picks: [{ participantId: cat }] };
+
+    expect(reasonFor(unpicked, pay(cat, 2400))).toBe("payerOnly");
+    expect(reasonFor(legacy, pay(cat, 2400))).toBe("payerOnly");
+    expect(reasonFor(claimedDinner(), pay(ann, 1000))).toBe("host");
+  });
+
+  test("History cannot undo a Payment", () => {
+    const paid = apply(claimedDinner(), pay(bob, 1800));
+
+    expect(reasonFor(paid, { by: bob, type: "undo", revision: paid.revision })).toBe("paymentNotRevertible");
   });
 });
 
@@ -928,11 +961,13 @@ describe("Participants", () => {
   });
 
   test("Undo of an add is refused once the Participant has a Claim or a Payment", () => {
-    const split = apply(
+    const paid = apply(
       withBobAndCat(),
       { by: bob, type: "claim", itemId: fries, participantId: bob },
-      { by: cat, type: "recordPayment", participantId: cat, amount: cents(500) },
+      { by: cat, type: "pick", participantId: cat, device: deviceId("phone-cat"), takeOver: false },
+      { by: cat, type: "recordPayment", participantId: cat, device: deviceId("phone-cat"), amount: cents(500) },
     );
+    const split: Split = { ...paid, picks: [] };
 
     expect(reasonFor(split, { by: ann, type: "undo", revision: 1 })).toBe("participantInUse");
     expect(reasonFor(split, { by: ann, type: "undo", revision: 2 })).toBe("participantInUse");
@@ -1056,9 +1091,11 @@ describe("limits", () => {
   });
 
   test("rejects an amount above MAX_CENTS, a blank name, an index outside the list, and deleting the last Item", () => {
-    const split = withBobAndCat();
+    const split = apply(withBobAndCat(), { by: bob, type: "pick", participantId: bob, device: deviceId("phone-bob"), takeOver: false });
 
-    expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, amount: cents(MAX_CENTS + 1) })).toBe("amountOutOfRange");
+    expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, device: deviceId("phone-bob"), amount: cents(MAX_CENTS + 1) })).toBe(
+      "amountOutOfRange",
+    );
     expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: "  " } })).toBe("badName");
     expect(
       reasonFor(split, { by: null, type: "editReceipt", items: [{ type: "add", item: { id: itemId("tea"), name: "Tea", price: price(0) }, index: 4 }] }),
@@ -1212,15 +1249,15 @@ describe("the 32 KB budget", () => {
   const longName = (index: number) => `${index} `.padEnd(MAX_PARTICIPANT_NAME_LENGTH, "x");
   const longItemName = (index: number) => `${index} `.padEnd(MAX_ROW_NAME_LENGTH, "x");
 
-  function atTheCaps(): Split {
-    const [first, ...rest] = Array.from({ length: 100 }, (_, index): Item => ({
+  function atTheCaps(itemCount = 100): Split {
+    const [first, ...rest] = Array.from({ length: itemCount }, (_, index): Item => ({
       id: itemId(longId("item", index)),
       name: longItemName(index),
       price: price(100_000),
     }));
     const result = createSplit({
       id: mintedId(longId("split", 0)),
-      receipt: { items: [first, ...rest], adjustments: [], subtotal: cents(MAX_CENTS), total: cents(MAX_CENTS) },
+      receipt: { items: [first, ...rest], adjustments: [], subtotal: cents(itemCount * 100_000), total: cents(itemCount * 100_000) },
       participants: [{ id: participantId(longId("person", 0)), name: longName(0) }],
       paymentHandles: [{ service: "zelle", handle: `${"a".repeat(60)}@example.com` }],
     });
@@ -1233,16 +1270,32 @@ describe("the 32 KB budget", () => {
     return apply(result.split, ...joined);
   }
 
+  const deviceOf = (index: number) => deviceId(`device${String(index).padStart(10, "0")}`);
+  const itemsBesideEveryPick = 80;
+
+  function pickedByEveryone(): Split {
+    const split = atTheCaps(itemsBesideEveryPick);
+    return apply(
+      split,
+      ...split.participants.slice(1).map(({ id }, index): Operation => ({ by: id, type: "pick", participantId: id, device: deviceOf(index + 1), takeOver: false })),
+    );
+  }
+
+  function payment(split: Split, index: number, amount: number): Operation {
+    const paidBy = split.participants[index].id;
+    return { by: paidBy, type: "recordPayment", participantId: paidBy, device: deviceOf(index), amount: cents(amount) };
+  }
+
   test("Claims stop with tooLarge before the reserves, then every Payment and a large edit still fit and stay undoable", () => {
-    let split = atTheCaps();
+    let split = pickedByEveryone();
     const everyone = split.participants.map(({ id }) => id);
     let rejection = "none";
     for (let turn = 0; rejection === "none"; turn++) {
       const op: Operation = {
         by: null,
         type: "claim",
-        itemId: split.receipt.items[turn % 100].id,
-        participantId: everyone[Math.floor(turn / 100) % 30],
+        itemId: split.receipt.items[turn % 80].id,
+        participantId: everyone[Math.floor(turn / 80) % 30],
       };
       const result = applyOperation(split, op, anyone);
       if (result.ok) split = result.split;
@@ -1251,8 +1304,8 @@ describe("the 32 KB budget", () => {
 
     expect(rejection).toBe("tooLarge");
 
-    for (const paidBy of everyone.slice(1)) {
-      split = apply(split, { by: paidBy, type: "recordPayment", participantId: paidBy, amount: cents(MAX_CENTS) });
+    for (let index = 1; index < everyone.length; index++) {
+      split = apply(split, payment(split, index, MAX_CENTS));
       expect(serializedBytes(split)).toBeLessThanOrEqual(SPLIT_BYTE_BUDGET);
       expect(split.recentChanges.at(-1)?.revision).toBe(split.revision);
     }
@@ -1275,12 +1328,12 @@ describe("the 32 KB budget", () => {
   });
 
   test("with Claims filling the Split, a change of the largest size survives a full history burst after it, so Undo still reaches it", () => {
-    let split = atTheCaps();
+    let split = pickedByEveryone();
     const everyone = split.participants.map(({ id }) => id);
     for (let turn = 0; ; turn++) {
       const result = applyOperation(
         split,
-        { by: null, type: "claim", itemId: split.receipt.items[turn % 100].id, participantId: everyone[Math.floor(turn / 100) % 30] },
+        { by: null, type: "claim", itemId: split.receipt.items[turn % 80].id, participantId: everyone[Math.floor(turn / 80) % 30] },
         anyone,
       );
       if (!result.ok) break;
@@ -1294,7 +1347,7 @@ describe("the 32 KB budget", () => {
     let flooded = victim;
     let written = 0;
     for (let turn = 0; turn < 100; turn++) {
-      const next = apply(flooded, { by: null, type: "recordPayment", participantId: everyone[1 + (turn % 29)], amount: cents(100 + turn) });
+      const next = apply(flooded, { ...payment(flooded, 1 + (turn % 29), 100 + turn), by: null });
       written += serializedBytes(next.recentChanges.at(-1));
       if (written > MAX_CHANGE_BYTES) break;
       flooded = next;
@@ -1394,7 +1447,11 @@ describe("random operations", () => {
       type: "addParticipant",
       participant: { id: participantId(`p${String(index + 1).padStart(2, "0")}`), name: `Person ${index + 1}` },
     }));
-    return apply(split, ...joiners);
+    const joined = apply(split, ...joiners);
+    return apply(
+      joined,
+      ...joined.participants.slice(1, 7).map(({ id }): Operation => ({ by: id, type: "pick", participantId: id, device: deviceId(`device-${id}`), takeOver: false })),
+    );
   }
 
   function randomOperation(split: Split, next: () => number, fresh: () => string): Operation {
@@ -1444,9 +1501,11 @@ describe("random operations", () => {
     }
     if (roll < 0.73) {
       const paidBy = pick(people);
+      const held = split.picks.find((name) => name.participantId === paidBy)?.device;
+      const device = held && next() < 0.8 ? held : deviceId("stranger");
       return next() < 0.75
-        ? { by, type: "recordPayment", participantId: paidBy, amount: cents(1 + Math.floor(next() * 5000)) }
-        : { by, type: "clearPayment", participantId: paidBy };
+        ? { by, type: "recordPayment", participantId: paidBy, device, amount: cents(1 + Math.floor(next() * 5000)) }
+        : { by, type: "clearPayment", participantId: paidBy, device };
     }
     if (roll < 0.78) {
       return next() < 0.5
@@ -1506,7 +1565,8 @@ describe("random operations", () => {
       }
 
       const newest = split.recentChanges.at(-1);
-      if (result.changed && newest?.revision === split.revision) {
+      const payment = op.type === "recordPayment" || op.type === "clearPayment";
+      if (result.changed && newest?.revision === split.revision && !payment) {
         const reverted = accepted(applyOperation(split, { by: null, type: "undo", revision: newest.revision }, anyone));
         expect(content(reverted)).toEqual(content(previous));
         const redone = accepted(applyOperation(reverted, { by: null, type: "undo", revision: reverted.revision }, anyone));

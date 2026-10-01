@@ -136,6 +136,22 @@ describe("picks, edits, and Undo between clients", () => {
     expect([final.receipt.items[0].price, final.receipt.total]).toEqual([800, 4137]);
     for (const client of [a.client, b.client]) expect(await stateFrom(client)).toEqual(final);
   });
+
+  it("only the device that picked a name records its Payment, and the other client sees it land", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    const b = await open(id);
+    a.client.send(op("a1", { type: "addParticipant", by: "bob", participant: { id: "bob", name: "Bob" } }));
+    a.client.send(op("a2", { type: "pick", by: "bob", participantId: "bob", device: "phone-a", takeOver: false }));
+    for (let n = 0; n < 2; n += 1) await stateFrom(a.client);
+    for (let n = 0; n < 2; n += 1) await stateFrom(b.client);
+
+    b.client.send(op("b1", { type: "recordPayment", by: "bob", participantId: "bob", device: "phone-b", amount: 2200 }));
+    expect(await b.client.next()).toEqual({ type: "rejected", ref: "b1", rejection: { reason: "payerOnly" } });
+
+    a.client.send(op("a3", { type: "recordPayment", by: "bob", participantId: "bob", device: "phone-a", amount: 2200 }));
+    expect((await stateFrom(b.client)).payments).toEqual([{ participantId: "bob", amount: 2200 }]);
+  });
 });
 
 describe("a flood of recorded changes", () => {

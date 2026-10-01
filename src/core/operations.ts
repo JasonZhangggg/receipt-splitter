@@ -90,8 +90,8 @@ export type Operation = (
   | { readonly type: "removeParticipant"; readonly participantId: ParticipantId }
   | ({ readonly type: "claim" } & Claim)
   | ({ readonly type: "unclaim" } & Claim)
-  | { readonly type: "recordPayment"; readonly participantId: ParticipantId; readonly amount: Cents }
-  | { readonly type: "clearPayment"; readonly participantId: ParticipantId }
+  | { readonly type: "recordPayment"; readonly participantId: ParticipantId; readonly device: DeviceId; readonly amount: Cents }
+  | { readonly type: "clearPayment"; readonly participantId: ParticipantId; readonly device: DeviceId }
   | { readonly type: "setPaymentHandles"; readonly handles: NonEmpty<PaymentHandle> }
   /** Picks a name for a device. With takeOver it moves a name another device picked, which is "That's me". Neither is recorded. */
   | { readonly type: "pick"; readonly participantId: ParticipantId; readonly device: DeviceId; readonly takeOver: boolean }
@@ -110,6 +110,8 @@ export type RejectionReason =
   | "emptyEdit"
   | "lastItem"
   | "host"
+  | "payerOnly"
+  | "paymentNotRevertible"
   | "participantInUse"
   | "tooManyItems"
   | "tooManyAdjustments"
@@ -207,6 +209,7 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const index = indexOf(split.participants, participantId);
       if (index === -1) return reject("unknownParticipant");
       if (index === 0) return reject("host");
+      if (!split.picks.some((pick) => pick.participantId === participantId && pick.device === op.device)) return reject("payerOnly");
       const before = paymentOf(split, participantId);
       const after = op.type === "recordPayment" ? op.amount : null;
       return commit(split, [() => (before === after ? [] : [{ kind: "payment", participantId, before, after }])]);
@@ -372,6 +375,7 @@ function undo(split: Split, revision: number): Step {
   const target = split.recentChanges.find((change) => change.revision === revision);
   if (!target) return reject("changeNotFound");
   if (target.undoneBy !== null) return reject("alreadyUndone");
+  if (target.writes.some((write) => write.kind === "payment")) return reject("paymentNotRevertible");
   const step = commit(
     split,
     [...target.writes].reverse().map((write): MakeWrites => (current) => inverse(current, write)),
@@ -631,6 +635,10 @@ const HANDLE_RULES: { readonly [Service in PaymentService]: { readonly sigil: st
   paypal: { sigil: "", pattern: /^[A-Za-z0-9]{1,20}$/ },
   zelle: { sigil: "", pattern: /^(?:(?=.{3,80}$)[^\s@]+@[^\s@]+\.[^\s@]+|\d{10})$/ },
 };
+
+export function handleText({ service, handle }: PaymentHandle): string {
+  return `${HANDLE_RULES[service].sigil}${handle}`;
+}
 
 function canonicalHandles(handles: NonEmpty<PaymentHandle>): NonEmpty<PaymentHandle> {
   const canonical = ({ service, handle }: PaymentHandle): PaymentHandle => {
