@@ -89,11 +89,11 @@ test.describe("fixing the Example receipt", () => {
   test("a price edit that breaks the Total check highlights the row and names the gap until the numbers add up again", async ({ page }) => {
     const perrier = page.getByRole("textbox", { name: /^Price of Perrier Sparkling Water/ });
     await perrier.click();
-    await page.keyboard.type("3.00", { delay: 120 });
+    await page.keyboard.type("3.00");
     const flagged = () => items(page).evaluateAll((rows) => rows.filter((row) => row.dataset.flagged === "true").map((row) => row.querySelector("input")!.value));
-    expect(await flagged()).toEqual(["Perrier Sparkling Water"]);
+    await expect.poll(flagged).toEqual(["Perrier Sparkling Water"]);
     await expect(page.getByRole("textbox", { name: "Price of Perrier Sparkling Water, check this price" })).toBeVisible();
-    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $0.50 short." });
+    await expect.poll(() => blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $0.50 short." });
 
     await perrier.fill("3.50");
     expect(await flagged()).toEqual([]);
@@ -102,7 +102,7 @@ test.describe("fixing the Example receipt", () => {
 
   test("a tip typed as 4.60 moves the Total to $32.64 and keeps the action enabled", async ({ page }) => {
     await amount(page, "Tip").click();
-    await page.keyboard.type("4.60", { delay: 120 });
+    await page.keyboard.type("4.60");
     await amount(page, "Tip").blur();
     await expect(amount(page, "Tip")).toHaveValue("$4.60");
     await expect(amount(page, "Total")).toHaveValue("$32.64");
@@ -187,17 +187,20 @@ test.describe("at 1280 px", () => {
 });
 
 async function holdTheDownload(page: Page) {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/models/en_PP-OCRv5_rec_mobile.dict.txt", async (route) => {
-    await new Promise((done) => setTimeout(done, 3000));
+    await held;
     await route.continue();
   });
+  return release;
 }
 
 test.describe("the reading state", () => {
   test.setTimeout(120_000);
 
   test("darkens the slip's lines one at a time and stops when the Items show", async ({ page }) => {
-    await holdTheDownload(page);
+    const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
     const lines = page.getByTestId("reading-line");
@@ -209,18 +212,23 @@ test.describe("the reading state", () => {
       }),
     );
     expect(darkAt.every((at, i) => i === 0 || at > darkAt[i - 1])).toBe(true);
-    const darkFrom: (number | null)[] = Array(7).fill(null);
-    const started = Date.now();
-    while (Date.now() - started < 1400) {
-      const opacities = await lines.evaluateAll((all) => all.map((line) => Number(getComputedStyle(line).opacity)));
-      opacities.forEach((opacity, i) => {
-        if (opacity > 0.9 && darkFrom[i] === null) darkFrom[i] = Date.now() - started;
-      });
-      await page.waitForTimeout(25);
-    }
+    const darkFrom = await lines.evaluateAll((all) => {
+      const animations = all.map((line) => line.getAnimations()[0]);
+      animations.forEach((animation) => animation.pause());
+      const cycle = Number(animations[0].effect!.getComputedTiming().duration);
+      const first: (number | null)[] = all.map(() => null);
+      for (let time = 0; time <= cycle; time += 5) {
+        animations.forEach((animation) => (animation.currentTime = time));
+        all.forEach((line, i) => {
+          if (first[i] === null && Number(getComputedStyle(line).opacity) > 0.9) first[i] = time;
+        });
+      }
+      return first;
+    });
     const order = darkFrom.map((at, line) => ({ at: at ?? Infinity, line })).sort((a, b) => a.at - b.at).map(({ line }) => line);
     expect(order).toEqual([0, 1, 2, 3, 4, 5, 6]);
 
+    release();
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
     await expect(lines).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
@@ -228,13 +236,14 @@ test.describe("the reading state", () => {
 
   test("under reduced motion holds the lines still and runs no animation", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await holdTheDownload(page);
+    const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
     await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
     await page.waitForTimeout(500);
     expect(await page.getByTestId("reading-line").count()).toBe(0);
     expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+    release();
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
   });
 });
@@ -300,17 +309,18 @@ test.describe("the sheet", () => {
   const sheetTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(el.getBoundingClientRect().top));
   const actionTop = async (page: Page) => Math.round((await action(page).boundingBox())!.y);
 
-  async function drag(page: Page, by: number, { steps = 12, pause = 16 } = {}) {
+  async function drag(page: Page, by: number, { steps = 12, stepMs = 16 } = {}) {
     const box = (await grab(page).boundingBox())!;
     const x = box.x + box.width / 2;
     const y = box.y + box.height / 2;
     const cdp = await page.context().newCDPSession(page);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    const start = Date.now() / 1000;
+    const at = (step: number) => start + (step * stepMs) / 1000;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }], timestamp: at(0) });
     for (let step = 1; step <= steps; step++) {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * step) / steps }] });
-      await page.waitForTimeout(pause);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * step) / steps }], timestamp: at(step) });
     }
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [], timestamp: at(steps) });
   }
 
   test("a drag down on the grab handle collapses it to the action, follows the finger, and a flick up opens it again", async ({ page }) => {
@@ -325,7 +335,7 @@ test.describe("the sheet", () => {
     expect(await actionTop(page)).toBe(open.action);
     expect(await sheetTop(page)).toBeGreaterThan(open.sheet);
 
-    await drag(page, -50, { steps: 3, pause: 0 });
+    await drag(page, -50, { steps: 3, stepMs: 8 });
     await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
     await expect(handle).toBeVisible();
     await expect.poll(() => sheetTop(page)).toBe(open.sheet);
@@ -334,7 +344,7 @@ test.describe("the sheet", () => {
   test("a slow short drag springs back open, and the handle toggles with a tap or the keyboard", async ({ page }) => {
     await page.goto("/");
     const open = await sheetTop(page);
-    await drag(page, 25, { steps: 10, pause: 50 });
+    await drag(page, 25, { steps: 10, stepMs: 50 });
     await expect.poll(() => sheetTop(page)).toBe(open);
     await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
 
@@ -360,9 +370,8 @@ test.describe("the sheet", () => {
     await touch("touchStart");
     await touch("touchMove", 70);
     await touch("touchEnd");
-    await page.waitForTimeout(32);
+    await expect.poll(offset).toBeGreaterThan(0);
     await touch("touchStart");
-    await page.waitForTimeout(50);
     const caught = await offset();
     await page.waitForTimeout(200);
     const held = await offset();
