@@ -219,11 +219,17 @@ export const plainAmount = (amount: number) => `${amount < 0 ? "-" : ""}${(Math.
 
 const dollars = (amount: number) => `$${plainAmount(amount)}`;
 
+function hasAmountOverLimit(receipt: DraftReceipt): boolean {
+  const amounts = [...receipt.items.map((item) => item.price), ...receipt.adjustments.map((row) => row.amount), receipt.subtotal ?? 0, receipt.tip, totalOf(receipt)];
+  return amounts.some((amount) => Math.abs(amount) > MAX_CENTS);
+}
+
 const gapReason = (what: string, gap: number) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short" : "over"}.`;
 
 export function blockedReason({ scan, handles }: Draft): string | null {
   if (scan.status === "empty") return "Add a receipt.";
   if (scan.status === "reading") return "Reading the receipt.";
+  if (hasAmountOverLimit(scan.receipt)) return `An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`;
   const check = totalCheck(scan.receipt);
   if (!check) return "Add an item.";
   if (!check.ok) {
@@ -250,8 +256,12 @@ type Store = Pick<Storage, "getItem" | "setItem">;
 
 const key = "receipt-splitter:draft";
 
-export function saveDraft(draft: Draft, storage: Store = globalThis.localStorage): void {
-  storage.setItem(key, JSON.stringify({ version: 1, draft }));
+export function saveDraft(draft: Draft, storage: Store | undefined = globalThis.localStorage): void {
+  try {
+    storage?.setItem(key, JSON.stringify({ version: 1, draft }));
+  } catch {
+    return;
+  }
 }
 
 export function loadDraft(storage: Store | undefined = globalThis.localStorage): Draft {
@@ -277,8 +287,7 @@ function parseDraft(saved: unknown): Draft | null {
   const { scan, handles, names } = saved.draft;
   if (!Array.isArray(handles) || handles.length === 0 || !handles.every(isHandle)) return null;
   if (!Array.isArray(names) || !names.every(isText)) return null;
-  const parsedScan = parseScan(scan);
-  return parsedScan && { scan: parsedScan, handles, names };
+  return { scan: parseScan(scan) ?? emptyDraft.scan, handles, names };
 }
 
 const isHandle = (row: unknown): row is HandleRow =>

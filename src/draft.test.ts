@@ -59,6 +59,23 @@ describe("blockedReason", () => {
     });
   });
 
+  test("refuses an amount over MAX_CENTS, which Create split link would be refused for", () => {
+    const withAdjustment = (amount: number): Receipt => ({ ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(amount) }] });
+    const reason = "An amount is over $100,000.";
+    expect({
+      adjustment: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(99_999_999) }))),
+      negativeAdjustment: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(-99_999_999) }))),
+      total: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, total: cents(MAX_CENTS + 1) } }))),
+      subtotal: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, subtotal: cents(MAX_CENTS + 1) } }))),
+      tipOnTop: blockedReason(withVenmo(run(read1040(), { type: "editTip", amount: cents(MAX_CENTS) }))),
+    }).toEqual({ adjustment: reason, negativeAdjustment: reason, total: reason, subtotal: reason, tipOnTop: reason });
+  });
+
+  test("lets an amount of exactly MAX_CENTS through", () => {
+    const receipt: Receipt = { items: [{ id: itemId("i1"), name: "Car", price: price(MAX_CENTS) }], adjustments: [], subtotal: cents(MAX_CENTS), total: cents(MAX_CENTS) };
+    expect(blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt })))).toBeNull();
+  });
+
   test("blames tax and charges when the Items match the subtotal but the total does not", () => {
     const draft = withVenmo(read1040());
     expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and charges are $0.61 short.");
@@ -153,6 +170,39 @@ describe("loadDraft and saveDraft", () => {
     expect(loadDraft(storage)).toEqual(emptyDraft);
   });
 
+  test("a stored draft with another version loads the empty draft", () => {
+    const storage = new MemoryStorage();
+    saveDraft(withVenmo(read1040()), storage);
+    const stored = JSON.parse(storage.getItem("receipt-splitter:draft") ?? "null");
+    storage.setItem("receipt-splitter:draft", JSON.stringify({ ...stored, version: 2 }));
+    expect(loadDraft(storage)).toEqual(emptyDraft);
+  });
+
+  test("a reload keeps the handles and names when the Receipt carries a 999999.99 adjustment", () => {
+    const storage = new MemoryStorage();
+    const bigAdjustment: Receipt = { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(99_999_999) }] };
+    saveDraft(run(withVenmo(emptyDraft), { type: "addName", name: "Ann" }, { type: "read", file, receipt: bigAdjustment }), storage);
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Ann"] });
+  });
+
+  test("a reload keeps the handles and names when the Receipt total is over MAX_CENTS", () => {
+    const storage = new MemoryStorage();
+    const bigTotal: Receipt = { ...receipt1040, total: cents(MAX_CENTS + 1) };
+    saveDraft(run(withVenmo(emptyDraft), { type: "addName", name: "Ann" }, { type: "read", file, receipt: bigTotal }), storage);
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Ann"] });
+  });
+
+  test("saving does nothing where there is no storage, and survives a storage that refuses", () => {
+    const refusing = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("quota");
+      },
+    };
+    expect(() => saveDraft(emptyDraft, undefined)).not.toThrow();
+    expect(() => saveDraft(emptyDraft, refusing)).not.toThrow();
+  });
+
   test("replacing the Receipt keeps the Payment handles and the names", () => {
     const draft = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
     expect(draft).toEqual({
@@ -182,6 +232,22 @@ describe("reading OCR into the draft", () => {
     const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: " ", price: price(150) }] };
     const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt });
     expect(draft.scan.status === "read" && draft.scan.receipt.items.at(-1)).toEqual({ id: "i6", name: "", price: 150 });
+  });
+
+  test("an Item added after a dropped blank row gets an id no row has, and editing it touches only it", () => {
+    const receipt: Receipt = {
+      items: [
+        { id: itemId("i1"), name: "Fries", price: price(100) },
+        { id: itemId("i2"), name: "", price: price(0) },
+        { id: itemId("i3"), name: "Soda", price: price(200) },
+      ],
+      adjustments: [],
+      subtotal: cents(300),
+      total: cents(300),
+    };
+    const draft = run(emptyDraft, { type: "read", file, receipt }, { type: "addItem" }, { type: "editItem", id: "i4", name: "Water", price: price(0) });
+    if (draft.scan.status !== "read") throw new Error("no receipt");
+    expect(draft.scan.receipt.items.map(({ id, name, price }) => `${id} ${name} ${price}`)).toEqual(["i1 Fries 100", "i3 Soda 200", "i4 Water 0"]);
   });
 
   test("keeps a 0-cent Item, such as a kitchen note printed as a line", () => {

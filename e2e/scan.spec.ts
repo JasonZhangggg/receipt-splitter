@@ -241,6 +241,7 @@ test("a reload keeps the draft, and once the model is cached a reload and a new 
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByTestId("receipt")).toBeVisible();
+  expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
   await expect(amount(page, "Tip")).toHaveValue("$4.60");
   await expect(page.getByRole("textbox", { name: /^Price of Sprite/ })).toHaveValue("3.00");
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
