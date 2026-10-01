@@ -2,7 +2,6 @@ import { isCents, isPrice } from "./money";
 import {
   MAX_ADJUSTMENTS,
   MAX_ITEMS,
-  MAX_JOINED_DEVICES,
   MAX_PARTICIPANTS,
   MAX_WRITES_PER_CHANGE,
   RECENT_CHANGES_LIMIT,
@@ -286,7 +285,7 @@ const split: Parser<Split> = strict(({ read, maybe }) => ({
   currency: read("currency", literal("USD")),
   receipt: read("receipt", receipt(item)),
   participants: read("participants", participants),
-  joined: maybe("joined", array(participantId, MAX_PARTICIPANTS * MAX_JOINED_DEVICES)).joined ?? [],
+  joined: maybe("joined", array(participantId, MAX_PARTICIPANTS)).joined ?? [],
   payments: read(
     "payments",
     array(

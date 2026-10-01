@@ -127,14 +127,15 @@ describe("parseSplit", () => {
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });
 
-  test("reads a Split stored before joins as joined by no one, and refuses joins out of order or by someone not in the Split", () => {
+  test("reads a Split stored before joins as joined by no one, and refuses picks out of order, a name picked twice, or someone not in the Split", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
     const { joined, ...beforeJoins } = stored;
 
-    expect(joined).toEqual(["ann", "bob"]);
+    expect(joined).toEqual(["bob"]);
     expect(parseSplit(beforeJoins)).toMatchObject({ ok: true, split: { joined: [] } });
+    expect(parseSplit({ ...stored, joined: ["ann", "bob"] })).toMatchObject({ ok: true, split: { joined: ["ann", "bob"] } });
     expect(parseSplit({ ...stored, joined: ["bob", "ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
-    expect(parseSplit({ ...stored, joined: ["ann", "bob", "bob"] })).toMatchObject({ ok: true, split: { joined: ["ann", "bob", "bob"] } });
+    expect(parseSplit({ ...stored, joined: ["ann", "bob", "bob"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
     expect(parseSplit({ ...stored, joined: ["ann", "cat"] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
   });
 
@@ -258,7 +259,7 @@ describe("parseNewSplit", () => {
           total: 4137,
         },
         participants: [{ id: "ann", name: "Ann" }],
-        joined: ["ann"],
+        joined: [],
         payments: [],
         paymentHandles: [{ service: "venmo", handle: "ann-host" }],
         revision: 0,
@@ -271,7 +272,7 @@ describe("parseNewSplit", () => {
     const withPeople = (count: number) =>
       parseNewSplit({ ...body, participants: Array.from({ length: count }, (_, index) => ({ id: `p${index}`, name: `P${index}` })) }, minted);
 
-    expect(withPeople(30)).toMatchObject({ ok: true, split: { participants: { length: 30, 29: { id: "p29", name: "P29" } }, joined: ["p0"] } });
+    expect(withPeople(30)).toMatchObject({ ok: true, split: { participants: { length: 30, 29: { id: "p29", name: "P29" } }, joined: [] } });
     expect(withPeople(0)).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
     expect(withPeople(31)).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
   });

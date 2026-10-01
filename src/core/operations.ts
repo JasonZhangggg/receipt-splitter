@@ -1,7 +1,6 @@
 import { MAX_CENTS, cents, isCents, type Cents, type Price } from "./money";
 import {
   SPLIT_BYTE_BUDGET,
-  devicesPicking,
   serializedBytes,
   type Adjustment,
   type AdjustmentId,
@@ -31,7 +30,6 @@ export const MAX_ITEMS = 100;
 export const MAX_ADJUSTMENTS = 20;
 export const MAX_PARTICIPANTS = 30;
 export const MAX_PARTICIPANT_NAME_LENGTH = 40;
-export const MAX_JOINED_DEVICES = 5;
 export const MAX_ROW_NAME_LENGTH = 80;
 export const RECENT_CHANGES_LIMIT = 50;
 export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
@@ -98,6 +96,8 @@ export type RejectionReason =
   | "alreadyUndone"
   | "conflict"
   | "nameTaken"
+  | "namePicked"
+  | "removalNotAllowed"
   | "tooLarge";
 
 export type Rejection =
@@ -156,12 +156,8 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const { id, name } = op.participant;
       return commit(split, [() => [{ kind: "participant", id, added: { index: split.participants.length, name } }]]);
     }
-    case "removeParticipant": {
-      const index = indexOf(split.participants, op.participantId);
-      if (index === -1) return reject("unknownParticipant");
-      const { id, name } = split.participants[index];
-      return commit(split, [() => [{ kind: "participant", id, removed: { index, name } }]]);
-    }
+    case "removeParticipant":
+      return reject("removalNotAllowed");
     case "claim":
     case "unclaim": {
       const item = split.receipt.items.find(({ id }) => id === op.itemId);
@@ -198,8 +194,7 @@ function run(split: Split, op: Operation, auth: Auth): Step {
     case "setJoined": {
       const { participantId, joined } = op;
       if (!findParticipant(split, participantId)) return reject("unknownParticipant");
-      const devices = devicesPicking(split.joined, participantId);
-      if (joined ? devices >= MAX_JOINED_DEVICES : devices === 0) return unchanged(split);
+      if (!joined && !split.joined.includes(participantId)) return unchanged(split);
       return commit(split, [() => [{ kind: "joined", participantId, joined }]], { recorded: !joined });
     }
     case "undo":
@@ -401,10 +396,11 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       return { ...split, payments: payments.sort((a, b) => compareCodeUnits(a.participantId, b.participantId)) };
     }
     case "joined": {
-      const at = split.joined.indexOf(write.participantId);
-      if (!findParticipant(split, write.participantId) || (!write.joined && at === -1)) return "conflict";
-      const joined = write.joined ? sortByCodeUnit([...split.joined, write.participantId]) : split.joined.filter((_, index) => index !== at);
-      return { ...split, joined };
+      const picked = split.joined.includes(write.participantId);
+      if (!findParticipant(split, write.participantId) || (!write.joined && !picked)) return "conflict";
+      if (write.joined && picked) return "namePicked";
+      const others = split.joined.filter((id) => id !== write.participantId);
+      return { ...split, joined: write.joined ? sortByCodeUnit([...others, write.participantId]) : others };
     }
     case "claims": {
       const targets = new Set<ItemId>(write.itemIds);
@@ -565,7 +561,7 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
     currency: "USD",
     receipt: { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total },
     participants: input.participants,
-    joined: [input.participants[0].id],
+    joined: [],
     payments: [],
     paymentHandles: canonicalHandles(input.paymentHandles),
     revision: 0,
@@ -618,7 +614,7 @@ function checkState(split: Split): Rejection | null {
   const claimsValid = items.every(({ claimedBy }) => claimedBy.every((id) => ids.has(id)));
   const paidBy = payments.map(({ participantId }) => participantId);
   const paymentsValid = isStrictlySorted(paidBy) && paidBy.every((id) => ids.has(id) && id !== host.id);
-  if (!isSorted(split.joined) || split.joined.some((id) => devicesPicking(split.joined, id) > MAX_JOINED_DEVICES)) return { reason: "malformed", path: "joined" };
+  if (!isStrictlySorted(split.joined)) return { reason: "malformed", path: "joined" };
   if (!claimsValid || !paymentsValid || !split.joined.every((id) => ids.has(id))) return { reason: "unknownParticipant" };
 
   const services = paymentHandles.map(({ service }) => service);
@@ -654,8 +650,4 @@ function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {
 
 function isStrictlySorted(values: readonly (string | number)[]): boolean {
   return values.every((value, index) => index === 0 || values[index - 1] < value);
-}
-
-function isSorted(values: readonly string[]): boolean {
-  return values.every((value, index) => index === 0 || values[index - 1] <= value);
 }

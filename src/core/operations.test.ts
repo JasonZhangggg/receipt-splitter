@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
-  MAX_JOINED_DEVICES,
   MAX_PARTICIPANT_NAME_LENGTH,
   MAX_ROW_NAME_LENGTH,
   applyOperation,
@@ -118,7 +117,7 @@ describe("createSplit", () => {
         total: 5200,
       },
       participants: [{ id: "ann", name: "Ann" }],
-      joined: ["ann"],
+      joined: [],
       payments: [],
       paymentHandles: [{ service: "venmo", handle: "ann-host" }],
       revision: 0,
@@ -126,7 +125,7 @@ describe("createSplit", () => {
     });
   });
 
-  test("starts with every name the Host typed, after the Host, and only the Host joined", () => {
+  test("starts with every name the Host typed, after the Host, and no one picked, so the Host picks a name too", () => {
     const result = createSplit({
       id: minted,
       receipt: dinner,
@@ -144,7 +143,7 @@ describe("createSplit", () => {
         { id: "bob", name: "Bob" },
         { id: "cat", name: "Cat" },
       ],
-      joined: ["ann"],
+      joined: [],
       revision: 0,
       recentChanges: [],
     });
@@ -321,33 +320,33 @@ describe("joining", () => {
     const split = apply(withBobAndCat(), join(cat), join(bob));
     const left = apply(split, { by: null, type: "setJoined", participantId: cat, joined: false });
 
-    expect([split.joined, split.revision, split.recentChanges.length]).toEqual([["ann", "bob", "cat"], 4, 2]);
-    expect([left.joined, left.revision, left.recentChanges.at(-1)?.writes]).toEqual([["ann", "bob"], 5, [{ kind: "joined", participantId: "cat", joined: false }]]);
-    expect(apply(left, { by: ann, type: "undo", revision: 5 }).joined).toEqual(["ann", "bob", "cat"]);
+    expect([split.joined, split.revision, split.recentChanges.length]).toEqual([["bob", "cat"], 4, 2]);
+    expect([left.joined, left.revision, left.recentChanges.at(-1)?.writes]).toEqual([["bob"], 5, [{ kind: "joined", participantId: "cat", joined: false }]]);
+    expect(apply(left, { by: ann, type: "undo", revision: 5 }).joined).toEqual(["bob", "cat"]);
   });
 
-  test("counts each device that joins as one Participant, so one leaving keeps the mark until the last one leaves", () => {
-    const twice = apply(withBobAndCat(), join(bob), join(bob));
-    const once = apply(twice, join(bob, false));
+  test("a second device's pick of a taken name is refused as namePicked, an unmark of a free name changes nothing, and an unknown Participant is refused", () => {
+    const picked = apply(withBobAndCat(), join(bob));
 
-    expect([twice.joined, once.joined, apply(once, join(bob, false)).joined]).toEqual([["ann", "bob", "bob"], ["ann", "bob"], ["ann"]]);
+    expect(reasonFor(picked, join(bob))).toBe("namePicked");
+    expect(applyOperation(picked, join(cat, false), anyone)).toEqual({ ok: true, split: picked, changed: false });
+    expect(reasonFor(picked, { by: null, type: "setJoined", participantId: dan, joined: true })).toBe("unknownParticipant");
   });
 
-  test("a join past the device limit and an unmark of someone not joined change nothing, and an unknown Participant is refused", () => {
-    const full = apply(withBobAndCat(), ...Array.from({ length: MAX_JOINED_DEVICES }, () => join(bob)));
+  test("undoing an unmark is refused as namePicked once another device has picked the name, and lands once it is free again", () => {
+    const released = apply(withBobAndCat(), join(bob), join(bob, false));
+    const unmark = released.revision;
+    const retaken = apply(released, join(bob));
 
-    expect(applyOperation(full, join(bob), anyone)).toEqual({ ok: true, split: full, changed: false });
-    expect(applyOperation(full, join(cat, false), anyone)).toEqual({ ok: true, split: full, changed: false });
-    expect(reasonFor(full, { by: null, type: "setJoined", participantId: dan, joined: true })).toBe("unknownParticipant");
+    expect(reasonFor(retaken, { by: ann, type: "undo", revision: unmark })).toBe("namePicked");
+    expect(apply(retaken, join(bob, false), { by: ann, type: "undo", revision: unmark }).joined).toEqual(["bob"]);
   });
 
-  test("keeps a joined Participant from being removed, by hand or by undoing their add", () => {
+  test("keeps a picked Participant from being taken out by undoing their add", () => {
     const split = apply(withBobAndCat(), join(bob));
-    const added = split.recentChanges[0].revision;
 
-    expect(reasonFor(split, { by: ann, type: "removeParticipant", participantId: bob })).toBe("participantInUse");
-    expect(reasonFor(split, { by: ann, type: "undo", revision: added })).toBe("participantInUse");
-    expect(reasonFor(split, { by: ann, type: "removeParticipant", participantId: cat })).toBe("accepted");
+    expect(reasonFor(split, { by: ann, type: "undo", revision: 1 })).toBe("participantInUse");
+    expect(reasonFor(split, { by: ann, type: "undo", revision: 2 })).toBe("accepted");
   });
 });
 
@@ -597,7 +596,7 @@ describe("undo", () => {
       withBobAndCat(),
       { by: dan, type: "addParticipant", participant: { id: dan, name: "Dan" } },
       { by: eve, type: "addParticipant", participant: { id: eve, name: "Eve" } },
-      { by: ann, type: "removeParticipant", participantId: bob },
+      { by: ann, type: "undo", revision: 1 },
     );
     const undone = apply(split, { by: ann, type: "undo", revision: 3 });
 
@@ -629,35 +628,39 @@ describe("undo", () => {
 });
 
 describe("Participants", () => {
-  test("a Participant with no Claims and no Payment can be removed, and the removal undone at the same row", () => {
-    const removed = apply(withBobAndCat(), { by: cat, type: "removeParticipant", participantId: bob });
+  test("a direct removal is refused for anyone, the creator included, and Undo of an add takes the Participant out and a redo puts them back at their row", () => {
+    const split = withBobAndCat();
+    const removed = apply(split, { by: cat, type: "undo", revision: 1 });
 
+    expect(reasonFor(split, { by: ann, type: "removeParticipant", participantId: bob }, { creator: true })).toBe("removalNotAllowed");
     expect(removed.participants.map(({ id }) => id)).toEqual(["ann", "cat"]);
-    expect(apply(removed, { by: cat, type: "undo", revision: 3 }).participants).toEqual([
+    expect(apply(removed, { by: cat, type: "undo", revision: removed.revision }).participants).toEqual([
       { id: "ann", name: "Ann" },
       { id: "bob", name: "Bob" },
       { id: "cat", name: "Cat" },
     ]);
   });
 
-  test("the Host and a Participant with a Claim or a Payment cannot be removed", () => {
+  test("Undo of an add is refused once the Participant has a Claim or a Payment", () => {
     const split = apply(
       withBobAndCat(),
       { by: bob, type: "claim", itemId: fries, participantId: bob },
       { by: cat, type: "recordPayment", participantId: cat, amount: cents(500) },
     );
-    const remove = (participantId: ParticipantId): Operation => ({ by: null, type: "removeParticipant", participantId });
 
-    expect(reasonFor(split, remove(ann))).toBe("host");
-    expect(reasonFor(split, remove(bob))).toBe("participantInUse");
-    expect(reasonFor(split, remove(cat))).toBe("participantInUse");
+    expect(reasonFor(split, { by: ann, type: "undo", revision: 1 })).toBe("participantInUse");
+    expect(reasonFor(split, { by: ann, type: "undo", revision: 2 })).toBe("participantInUse");
   });
 
-  test("undoing the add of a Participant who has since Claimed an Item is rejected by the same rule", () => {
-    const joined = apply(withBobAndCat(), { by: dan, type: "addParticipant", participant: { id: dan, name: "Dan" } });
-    const claimed = apply(joined, { by: dan, type: "claim", itemId: fries, participantId: dan });
+  test("an Undo from a tampered stored history cannot take the Host out", () => {
+    const stored = {
+      ...created(),
+      revision: 1,
+      recentChanges: [{ revision: 1, by: null, undoes: null, undoneBy: null, writes: [{ kind: "participant", id: "ann", added: { index: 0, name: "Ann" } }] }],
+    };
+    const tampered = accepted(parseSplit(JSON.parse(JSON.stringify(stored))));
 
-    expect(reasonFor(claimed, { by: ann, type: "undo", revision: joined.revision })).toBe("participantInUse");
+    expect(reasonFor(tampered, { by: null, type: "undo", revision: 1 })).toBe("host");
   });
 
   test("an operation by someone who is not a Participant is rejected", () => {
@@ -671,8 +674,8 @@ describe("Participants", () => {
     expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: "Bobby" } })).toBe("accepted");
   });
 
-  test("undoing a removal is refused once someone else has taken the name", () => {
-    const removed = apply(withBobAndCat(), { by: cat, type: "removeParticipant", participantId: bob });
+  test("a redo of an undone add is refused once someone else has taken the name", () => {
+    const removed = apply(withBobAndCat(), { by: cat, type: "undo", revision: 1 });
     const retaken = apply(removed, { by: null, type: "addParticipant", participant: { id: dan, name: "BOB" } });
 
     expect(reasonFor(retaken, { by: cat, type: "undo", revision: removed.revision })).toBe("nameTaken");

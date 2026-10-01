@@ -41,12 +41,12 @@ test("a link made with two names asks a second browser which one they are, marks
 
   const sam = await open(browser, link);
   await expect(question(sam)).toBeVisible();
-  await expect(rows(sam)).toHaveText(["MePicked on another device", "Sam", "Priya"]);
+  await expect(rows(sam)).toHaveText(["Me", "Sam", "Priya"]);
   await sam.getByRole("button", { name: "Sam", exact: true }).click();
   await expect(sam.getByRole("button", { name: "Not Sam?" })).toBeVisible();
 
   const second = await open(browser, link);
-  await expect(rows(second)).toHaveText(["MePicked on another device", "SamPicked on another device", "Priya"]);
+  await expect(rows(second)).toHaveText(["Me", "SamPicked on another device", "Priya"]);
 });
 
 test("a link made with no names lets a browser join as someone else, the Host sees the name, and a reload remembers the choice", async ({ page, browser }) => {
@@ -58,7 +58,7 @@ test("a link made with no names lets a browser join as someone else, the Host se
   context.on("request", (request) => loaded.push(new URL(request.url()).pathname));
   const lee = await context.newPage();
   await lee.goto(link);
-  await expect(rows(lee)).toHaveText(["MePicked on another device"]);
+  await expect(rows(lee)).toHaveText(["Me"]);
   await lee.getByRole("button", { name: "Someone else" }).click();
   await lee.getByRole("textbox", { name: "Your name" }).fill("Lee");
   await lee.getByRole("button", { name: "Join" }).click();
@@ -72,7 +72,7 @@ test("a link made with no names lets a browser join as someone else, the Host se
   await expect(lee.getByRole("button", { name: "Not Lee?" })).toBeVisible();
   await expect(question(lee)).toHaveCount(0);
   await lee.getByRole("button", { name: "Not Lee?" }).click();
-  await expect(rows(lee)).toHaveText(["MePicked on another device", "Lee"]);
+  await expect(rows(lee)).toHaveText(["Me", "Lee"]);
 
   expect(loaded.filter((path) => path.startsWith("/models/") || path.startsWith("/ort/"))).toEqual([]);
 });
