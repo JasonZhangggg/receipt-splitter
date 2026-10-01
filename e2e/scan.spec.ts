@@ -253,7 +253,7 @@ test("a reload keeps the draft, and once the model is cached a reload and a new 
   await page.getByRole("button", { name: "Replace receipt" }).click();
   await (await chooser).setFiles(receipt1040);
   await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
-  await expect(amount(page, "Total")).toHaveValue("$28.04");
+  await expect(amount(page, "Total")).toHaveValue("$28.04", scanTimeout);
   expect(await readItems(page)).toHaveLength(5);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
 });
