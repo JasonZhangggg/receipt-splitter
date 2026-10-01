@@ -21,9 +21,9 @@ export function animateSpring(from: number, to: number, velocity: number, onFram
   const friction = 4 * Math.PI * damping / response;
   let value = from;
   let speed = velocity;
-  let last = performance.now();
+  let last: number | null = null;
   let frame = requestAnimationFrame(function step(now) {
-    const dt = Math.min(0.032, (now - last) / 1000);
+    const dt = last === null ? 0 : Math.min(0.032, Math.max(0, (now - last) / 1000));
     last = now;
     speed += (-stiffness * (value - to) - friction * speed) * dt;
     value += speed * dt;

@@ -58,70 +58,72 @@ function PhoneSheet({ children, action, onHeight, maxContent }: Omit<Props, "wid
   const drag = useRef<Drag | null>(null);
   const stop = useRef<() => void>(() => {});
   useEffect(() => () => stop.current(), []);
+  const position = useRef(0);
+  const heading = useRef<0 | 1>(0);
 
-  const slide = (offset: number) => {
+  const paint = (value: number) => {
+    position.current = value;
     const element = top.current as unknown as HTMLElement | null;
-    if (element) element.style.transform = offset ? `translateY(${offset}px)` : "";
+    if (element) element.style.transform = value ? `translateY(${value}px)` : "";
   };
 
   useEffect(() => {
     onHeight(collapsed ? heights.sheet - contentHeight : heights.sheet);
   }, [collapsed, heights.sheet, contentHeight, onHeight]);
 
-  const settle = (from: number, to: 0 | 1, velocity: number) => {
-    const end = to * contentHeight;
+  const unfold = () => {
+    if (!collapsed) return;
+    setCollapsed(false);
+    paint(contentHeight);
+  };
+
+  const settle = (to: 0 | 1, velocity: number) => {
+    heading.current = to;
+    stop.current();
     const done = () => {
-      slide(0);
+      paint(0);
+      position.current = to * contentHeight;
       setCollapsed(to === 1);
     };
-    stop.current();
     if (reduce) return done();
-    stop.current = animateSpring(from, end, velocity, slide, done);
+    stop.current = animateSpring(position.current, to * contentHeight, velocity, paint, done);
   };
 
   const toggle = () => {
-    if (!collapsed) return settle(0, 1, 0);
-    setCollapsed(false);
-    slide(contentHeight);
-    settle(contentHeight, 0, 0);
+    unfold();
+    settle(heading.current === 1 ? 0 : 1, 0);
   };
 
   const onPointerDown = (event: PointerEvent) => {
     const { pointerId, clientY } = event.nativeEvent;
-    const { timeStamp } = event;
     if (drag.current) return;
     stop.current();
     (event.currentTarget as unknown as HTMLElement).setPointerCapture?.(pointerId);
-    const from = collapsed ? contentHeight : 0;
-    if (collapsed) {
-      setCollapsed(false);
-      slide(contentHeight);
-    }
-    drag.current = { pointer: pointerId, startY: clientY, from, moved: false, samples: [{ y: clientY, t: timeStamp }] };
+    unfold();
+    drag.current = { pointer: pointerId, startY: clientY, from: position.current, moved: false, samples: [{ y: clientY, t: event.timeStamp }] };
   };
 
   const onPointerMove = (event: PointerEvent) => {
     const current = drag.current;
     const { pointerId, clientY } = event.nativeEvent;
-    const { timeStamp } = event;
     if (!current || current.pointer !== pointerId) return;
     const travel = clientY - current.startY;
     current.moved ||= Math.abs(travel) > tapSlop;
-    current.samples = [...current.samples.slice(-4), { y: clientY, t: timeStamp }];
-    const position = current.from + travel;
-    slide(position < 0 ? rubberband(position, contentHeight) : position > contentHeight ? contentHeight + rubberband(position - contentHeight, contentHeight) : position);
+    current.samples = [...current.samples.slice(-4), { y: clientY, t: event.timeStamp }];
+    const at = current.from + travel;
+    paint(at < 0 ? rubberband(at, contentHeight) : at > contentHeight ? contentHeight + rubberband(at - contentHeight, contentHeight) : at);
   };
 
   const onPointerUp = (event: PointerEvent) => {
     const current = drag.current;
     if (!current || current.pointer !== event.nativeEvent.pointerId) return;
     drag.current = null;
-    if (!current.moved) return settle(current.from, current.from ? 0 : 1, 0);
+    if (!current.moved) return toggle();
     const [first] = current.samples;
     const last = current.samples.at(-1) ?? first;
     const velocity = last.t > first.t ? ((last.y - first.y) / (last.t - first.t)) * 1000 : 0;
-    const position = Math.min(contentHeight, Math.max(0, current.from + last.y - current.startY));
-    settle(position, snapTarget(position, velocity, contentHeight), velocity);
+    const at = Math.min(contentHeight, Math.max(0, position.current));
+    settle(snapTarget(at, velocity, contentHeight), velocity);
   };
 
   const grabKeys = {
