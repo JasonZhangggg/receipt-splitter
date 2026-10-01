@@ -14,7 +14,7 @@ export function snapTarget(position: number, velocity: number, collapsedAt: numb
 
 type Spring = { response: number; damping: number };
 
-export const sheetSpring: Spring = { response: 0.3, damping: 0.8 };
+const sheetSpring: Spring = { response: 0.3, damping: 0.8 };
 
 export function animateSpring(from: number, to: number, velocity: number, onFrame: (value: number) => void, onDone: () => void, { response, damping } = sheetSpring) {
   const stiffness = (2 * Math.PI / response) ** 2;

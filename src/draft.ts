@@ -5,7 +5,7 @@ import type { ParsedItem } from "./parse";
 
 export type ReceiptFile = { readonly name: string; readonly thumbnail: string | null };
 
-export type DraftItem = {
+type DraftItem = {
   readonly id: string;
   readonly name: string;
   readonly price: Price;
@@ -14,7 +14,7 @@ export type DraftItem = {
   readonly retyped?: true;
 };
 
-export type DraftAdjustment = { readonly id: string; readonly kind: Exclude<AdjustmentKind, "tip">; readonly name: string; readonly amount: Cents };
+type DraftAdjustment = { readonly id: string; readonly kind: Exclude<AdjustmentKind, "tip">; readonly name: string; readonly amount: Cents };
 
 export type DraftReceipt = {
   readonly items: readonly DraftItem[];
@@ -25,7 +25,7 @@ export type DraftReceipt = {
   readonly nextId: number;
 };
 
-export type Scan =
+type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
   | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: DraftReceipt };
@@ -53,7 +53,7 @@ export type DraftAction =
   | { readonly type: "addName"; readonly name: string }
   | { readonly type: "removeName"; readonly name: string };
 
-export const MAX_GRAPHEMES = 80;
+const MAX_GRAPHEMES = 80;
 
 export const emptyDraft: Draft = { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], names: [] };
 
@@ -61,7 +61,7 @@ const host = "Me";
 
 const graphemes = new Intl.Segmenter();
 
-export function clip(text: string): string {
+function clip(text: string): string {
   let kept = "";
   let count = 0;
   for (const { segment } of graphemes.segment(text)) {
@@ -217,7 +217,7 @@ export function parseAmount(text: string, allowNegative = false): Cents | null {
 
 export const plainAmount = (amount: number) => `${amount < 0 ? "-" : ""}${(Math.abs(amount) / 100).toFixed(2)}`;
 
-export const formatCents = (amount: number) => `${amount < 0 ? "-" : ""}$${(Math.abs(amount) / 100).toFixed(2)}`;
+const formatCents = (amount: number) => `${amount < 0 ? "-" : ""}$${(Math.abs(amount) / 100).toFixed(2)}`;
 
 const gapReason = (what: string, gap: number) => `${what} ${formatCents(Math.abs(gap))} ${gap > 0 ? "short" : "over"}.`;
 

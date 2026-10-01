@@ -7,7 +7,7 @@ type Reply = { id: number; boxes: TextBox[] } | { id: number; error: string } | 
 
 type Scan = { settle: (reply: Exclude<Reply, { progress: number }>) => void; onProgress?: (fraction: number) => void };
 
-export const idleRelease = 10_000;
+const idleRelease = 10_000;
 
 let worker: Worker | undefined;
 let idle: ReturnType<typeof setTimeout> | undefined;
