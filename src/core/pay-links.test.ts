@@ -26,6 +26,11 @@ describe("payLink", () => {
     );
   });
 
+  test("keeps the dollars of an amount with 50 cents or more", () => {
+    expect(payLink({ service: "paypal", handle: "jasonz" }, cents(1450), "")).toBe("https://paypal.me/jasonz/14.50USD");
+    expect(payLink({ service: "cashApp", handle: "jasonz" }, cents(99), "")).toBe("https://cash.app/$jasonz/0.99");
+  });
+
   test("writes whole dollars and cents under a dime with two decimals", () => {
     expect(payLink({ service: "paypal", handle: "jasonz" }, cents(1400), "")).toBe("https://paypal.me/jasonz/14.00USD");
     expect(payLink({ service: "paypal", handle: "jasonz" }, cents(1405), "")).toBe("https://paypal.me/jasonz/14.05USD");
