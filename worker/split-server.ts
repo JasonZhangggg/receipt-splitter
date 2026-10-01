@@ -1,8 +1,8 @@
 import { Server, type Connection } from "partyserver";
 import { applyOperation, type Operation, type ServerMessage, type WireRejection } from "../src/core/operations";
 import { parseOperation, parseSplit } from "../src/core/parse";
-import { SPLIT_BYTE_BUDGET, type Split } from "../src/core/split";
-import { OPERATION_LIMIT, takeToken, type Bucket } from "./rate-limit";
+import { SPLIT_BYTE_BUDGET, serializedBytes, type Split } from "../src/core/split";
+import { HISTORY_LIMIT, OPERATION_LIMIT, takeToken, type Bucket } from "./rate-limit";
 
 const MAX_MESSAGE_BYTES = 40 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -40,6 +40,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
 
   #stored: Stored = { kind: "missing" };
   #bucket: Bucket | null = null;
+  #history: Bucket | null = null;
   #pacing = new Map<string, Pacing>();
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
@@ -90,9 +91,17 @@ export class SplitServer extends Server<Cloudflare.Env> {
     this.#pacing.delete(connection.id);
     const frame = readFrame(message);
     if (!frame.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: frame.rejection });
-    const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) });
+    const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) }, now);
     if (!result.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: result.rejection });
     if (!result.changed) return send(connection, { type: "unchanged", ref: frame.ref, revision: stored.split.revision });
+    const recorded = result.split.recentChanges.at(-1);
+    if (recorded?.revision === result.split.revision) {
+      const charge = takeToken(this.#history, now, HISTORY_LIMIT, serializedBytes(recorded));
+      this.#history = charge.state;
+      if (!charge.ok) {
+        return send(connection, { type: "rejected", ref: frame.ref, rejection: { reason: "rateLimited", retryAfterMs: charge.retryAfterMs } });
+      }
+    }
     const json = JSON.stringify(result.split);
     this.ctx.storage.sql.exec("UPDATE split SET json = ?, changed_at = ?", json, now);
     this.#stored = { ...stored, split: result.split, json, changedAt: now };

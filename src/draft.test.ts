@@ -27,7 +27,7 @@ const run = (draft: Draft, ...actions: DraftAction[]) => actions.reduce(reduceDr
 
 const read1040 = (draft = emptyDraft) => run(draft, { type: "reading", file }, { type: "read", file, receipt: receipt1040 });
 
-const withVenmo = (draft: Draft) => run(draft, { type: "setHandle", index: 0, handle: "@jason-z" });
+const withVenmo = (draft: Draft) => run(draft, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addName", name: "Jason" });
 
 class MemoryStorage {
   values = new Map<string, string>();
@@ -48,6 +48,7 @@ describe("blockedReason", () => {
       short: blockedReason(run(ready, { type: "editItem", id: "i5", price: price(300) })),
       over: blockedReason(run(ready, { type: "editItem", id: "i5", price: price(400) })),
       noHandle: blockedReason(read1040()),
+      noName: blockedReason(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
       ready: blockedReason(ready),
     }).toEqual({
       noReceipt: "Add a receipt.",
@@ -55,6 +56,7 @@ describe("blockedReason", () => {
       short: "Items are $0.50 short.",
       over: "Items are $0.50 over.",
       noHandle: "Add how to pay you.",
+      noName: "Add your name.",
       ready: null,
     });
   });
@@ -182,14 +184,14 @@ describe("loadDraft and saveDraft", () => {
     const storage = new MemoryStorage();
     const bigAdjustment: Receipt = { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(99_999_999) }] };
     saveDraft(run(withVenmo(emptyDraft), { type: "addName", name: "Ann" }, { type: "read", file, receipt: bigAdjustment }), storage);
-    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Ann"] });
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason", "Ann"] });
   });
 
   test("a reload keeps the handles and names when the Receipt total is over MAX_CENTS", () => {
     const storage = new MemoryStorage();
     const bigTotal: Receipt = { ...receipt1040, total: cents(MAX_CENTS + 1) };
     saveDraft(run(withVenmo(emptyDraft), { type: "addName", name: "Ann" }, { type: "read", file, receipt: bigTotal }), storage);
-    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Ann"] });
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason", "Ann"] });
   });
 
   test("saving does nothing where there is no storage, and survives a storage that refuses", () => {
@@ -208,7 +210,7 @@ describe("loadDraft and saveDraft", () => {
     expect(draft).toEqual({
       scan: { status: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } },
       handles: [{ service: "venmo", handle: "@jason-z" }],
-      names: ["Sam"],
+      names: ["Jason", "Sam"],
     });
   });
 });
@@ -341,8 +343,8 @@ describe("the Payment handles and names", () => {
 
   test("adds trimmed names, skips blanks and repeats, and removes one", () => {
     const draft = run(emptyDraft, { type: "addName", name: " Sam " }, { type: "addName", name: "" }, { type: "addName", name: "sam" }, { type: "addName", name: "Me" }, { type: "addName", name: "Priya" });
-    expect(draft.names).toEqual(["Sam", "Priya"]);
-    expect(run(draft, { type: "removeName", name: "Sam" }).names).toEqual(["Priya"]);
+    expect(draft.names).toEqual(["Sam", "Me", "Priya"]);
+    expect(run(draft, { type: "removeName", name: "Sam" }).names).toEqual(["Me", "Priya"]);
   });
 });
 
@@ -372,8 +374,8 @@ const counter = () => {
 };
 
 describe("the Split link", () => {
-  test("the create body carries the Receipt with its tip as an Adjustment, Me first and then the names, and every handle the Host filled in", () => {
-    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
+  test("the create body carries the Receipt with its tip as an Adjustment, the Host first as the first name typed, and every handle the Host filled in", () => {
+    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
 
     expect(splitRequest(draft, counter())).toEqual({
       receipt: {
@@ -393,7 +395,7 @@ describe("the Split link", () => {
         total: 3264,
       },
       participants: [
-        { id: "p0", name: "Me" },
+        { id: "p0", name: "Jason" },
         { id: "p1", name: "Sam" },
         { id: "p2", name: "Priya" },
       ],

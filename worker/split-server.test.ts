@@ -41,7 +41,7 @@ describe("two clients on one Split", () => {
     expect(toOther).toMatchObject({ type: "state", ref: null });
     if (toOther.type !== "state") throw new Error("expected state");
     expect(toOther.split.revision).toBe(1);
-    expect(toOther.split.receipt.items.map(({ id: itemId, claimedBy }) => [itemId, claimedBy])).toEqual([
+    expect(toOther.split.receipt.items.map(({ id: itemId, split }) => [itemId, split.units[0]])).toEqual([
       ["fries", ["ann"]],
       ["pitcher", []],
     ]);
@@ -50,7 +50,7 @@ describe("two clients on one Split", () => {
     expect(await b.client.next()).toMatchObject({ type: "state", ref: "b1", split: { revision: 2 } });
     const seenByA = await a.client.next();
     if (seenByA.type !== "state") throw new Error("expected state");
-    expect(seenByA.split.receipt.items.map(({ claimedBy }) => claimedBy)).toEqual([["ann"], ["ann"]]);
+    expect(seenByA.split.receipt.items.map(({ split }) => split.units[0])).toEqual([["ann"], ["ann"]]);
   });
 
   it("answers an operation that changes nothing to the sender alone, with the current revision", async () => {
@@ -87,6 +87,103 @@ describe("two clients on one Split", () => {
 
     const late = await open(id);
     expect(late.hello).toMatchObject({ type: "state", ref: null, split: { revision: 1 } });
+  });
+});
+
+describe("picks, edits, and Undo between clients", () => {
+  const op = (ref: string, operation: object): ClientMessage => JSON.parse(JSON.stringify({ ref, op: operation }));
+
+  async function stateFrom(client: Client): Promise<Split> {
+    const message = await client.next();
+    if (message.type !== "state") throw new Error(`expected state, got ${JSON.stringify(message)}`);
+    return message.split;
+  }
+
+  it("a second device's pick of a taken name is refused, That's me moves it, and a price fix reaches every client, survives a wake, and a third client's Undo reverses it", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    const b = await open(id);
+    a.client.send(op("a1", { type: "addParticipant", by: "bob", participant: { id: "bob", name: "Bob" } }));
+    a.client.send(op("a2", { type: "pick", by: "bob", participantId: "bob", device: "phone-a", takeOver: false }));
+    for (let n = 0; n < 2; n += 1) await stateFrom(a.client);
+    for (let n = 0; n < 2; n += 1) await stateFrom(b.client);
+    b.client.send(op("b1", { type: "pick", by: "bob", participantId: "bob", device: "phone-b", takeOver: false }));
+    expect(await b.client.next()).toEqual({ type: "rejected", ref: "b1", rejection: { reason: "namePicked" } });
+
+    b.client.send(op("b2", { type: "pick", by: "bob", participantId: "bob", device: "phone-b", takeOver: true }));
+    b.client.send(
+      op("b3", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 600 }], subtotalDelta: -200, totalDelta: -200 }),
+    );
+    await stateFrom(a.client);
+    const seenByA = await stateFrom(a.client);
+    expect(await stateFrom(b.client)).toMatchObject({ picks: [{ participantId: "bob", device: "phone-b" }] });
+    expect(await stateFrom(b.client)).toEqual(seenByA);
+    expect([seenByA.picks, seenByA.receipt.items[0].price, seenByA.recentChanges.map(({ revision, writes }) => [revision, writes[0].kind])]).toEqual([
+      [{ participantId: "bob", device: "phone-b" }],
+      600,
+      [
+        [1, "participant"],
+        [4, "item"],
+      ],
+    ]);
+
+    await evictDurableObject(env.SplitServer.getByName(id));
+    const c = await open(id);
+    expect(c.hello).toMatchObject({ type: "state", split: { revision: 4, picks: [{ participantId: "bob", device: "phone-b" }] } });
+    c.client.send(op("c1", { type: "undo", by: null, revision: 4 }));
+    const final = await stateFrom(c.client);
+
+    expect([final.receipt.items[0].price, final.receipt.total]).toEqual([800, 4137]);
+    for (const client of [a.client, b.client]) expect(await stateFrom(client)).toEqual(final);
+  });
+});
+
+describe("a flood of recorded changes", () => {
+  const op = (ref: string, operation: object): ClientMessage => JSON.parse(JSON.stringify({ ref, op: operation }));
+
+  it("is rate limited by bytes before it pushes a price change out of the recent changes, so Undo still reaches it, and restoreReceipt puts the price back", async () => {
+    const { id } = await createSplit();
+    const victim = await open(id);
+    const vandal = await open(id);
+    victim.client.send(
+      op("v1", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 1 }], subtotalDelta: -799, totalDelta: -799 }),
+    );
+    await victim.client.next();
+    await vandal.client.next();
+
+    for (let index = 0; index < 100; index += 1) {
+      vandal.client.send(op(`f${index}`, { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "pitcher", name: `Pitcher ${index}` }] }));
+    }
+    const replies: ServerMessage[] = [];
+    for (let index = 0; index < 100; index += 1) replies.push(await vandal.client.next());
+    const landed = replies.filter((reply) => reply.type === "state");
+    const byBytes = replies.filter((reply) => reply.type === "rejected" && reply.ref !== null);
+    const last = landed.at(-1);
+    if (last?.type !== "state") throw new Error("expected a state");
+
+    expect([landed.length, byBytes.length, replies.length - landed.length - byBytes.length]).toEqual([30, 29, 41]);
+    expect(byBytes[0]).toEqual({ type: "rejected", ref: "f30", rejection: { reason: "rateLimited", retryAfterMs: 4 } });
+    expect(last.split.recentChanges[0]).toMatchObject({
+      revision: 1,
+      writes: [
+        { kind: "item", id: "fries", edit: { price: [800, 1] } },
+        { kind: "totals", subtotalDelta: -799, totalDelta: -799 },
+      ],
+    });
+
+    vi.setSystemTime(T0 + 10_000);
+    victim.client.send(op("v2", { type: "undo", by: null, revision: 1 }));
+    victim.client.send(op("v3", { type: "undo", by: null, revision: last.split.revision + 1 }));
+    victim.client.send(op("v4", { type: "restoreReceipt", by: null }));
+    const answers: ServerMessage[] = [];
+    for (let index = 0; index < 33; index += 1) answers.push(await victim.client.next());
+    const mine = answers.filter((answer) => answer.type !== "state" || answer.ref !== null);
+
+    expect(mine.map((answer) => (answer.type === "state" ? [answer.ref, answer.split.receipt.items.map(({ name, price }) => [name, price])] : answer))).toEqual([
+      ["v2", [["Fries", 800], ["Pitcher 29", 3000]]],
+      ["v3", [["Fries", 1], ["Pitcher 29", 3000]]],
+      ["v4", [["Fries", 800], ["Pitcher", 3000]]],
+    ]);
   });
 });
 
@@ -288,7 +385,7 @@ describe("refusals leave the stored Split unchanged", () => {
     const parse = vi.spyOn(JSON, "parse");
     const frames = [
       "{".repeat(41 * 1024),
-      `{"ref":"k","op":{"type":"splitUnclaimed","by":null${',"x":0'.repeat(20_000)}}}`,
+      `{"ref":"k","op":{"type":"restoreReceipt","by":null${',"x":0'.repeat(20_000)}}}`,
       JSON.stringify(claim("fits", "fries")),
     ];
 
@@ -316,6 +413,7 @@ describe("refusals leave the stored Split unchanged", () => {
     let refusedItem = "";
     for (let index = 0; rejection === null; index += 1) {
       refusedItem = `extra${index}`;
+      vi.setSystemTime(T0 + index * 10_000);
       a.client.send({
         ref: `add${index}`,
         op: JSON.parse(
@@ -350,8 +448,19 @@ describe("refusals leave the stored Split unchanged", () => {
     expect(await a.client.next()).toEqual({ type: "rejected", ref: null, rejection: { reason: "malformed", path: "" } });
     a.client.send(JSON.stringify({ ref: "e1", op: { type: "claim" } }));
     expect(await a.client.next()).toMatchObject({ type: "rejected", ref: "e1", rejection: { reason: "malformed" } });
-    a.client.send(JSON.stringify({ ref: "e2", op: { type: "splitUnclaimed", by: null }, extra: 1 }));
+    a.client.send(JSON.stringify({ ref: "e2", op: { type: "restoreReceipt", by: null }, extra: 1 }));
     expect(await a.client.next()).toEqual({ type: "rejected", ref: "e2", rejection: { reason: "malformed", path: "extra" } });
+    a.client.send(claim("ok", "fries"));
+    expect(await a.client.next()).toMatchObject({ type: "state", ref: "ok", split: { revision: 1 } });
+  });
+
+  it("refuses an added Item of 10,000,000 units within 250 ms and keeps serving", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    const started = performance.now();
+    a.client.send({ ref: "q1", op: { type: "editReceipt", by: null, items: [{ type: "add", item: { id: "pie", name: "Pie", price: 100, quantity: 10_000_000 }, index: 0 }] } } as never);
+    expect(await a.client.next()).toEqual({ type: "rejected", ref: "q1", rejection: { reason: "malformed", path: "op.items[0].item.quantity" } });
+    expect(performance.now() - started).toBeLessThan(250);
     a.client.send(claim("ok", "fries"));
     expect(await a.client.next()).toMatchObject({ type: "state", ref: "ok", split: { revision: 1 } });
   });
@@ -359,7 +468,7 @@ describe("refusals leave the stored Split unchanged", () => {
   it("refuses a creator secret that is not a string and a ref outside the pattern", async () => {
     const { id } = await createSplit();
     const a = await open(id);
-    const op = { type: "splitUnclaimed", by: null };
+    const op = { type: "claim", by: "ann", itemId: "fries", participantId: "ann" };
     a.client.send(JSON.stringify({ ref: "n", creatorSecret: 5, op }));
     expect(await a.client.next()).toEqual({ type: "rejected", ref: "n", rejection: { reason: "malformed", path: "creatorSecret" } });
     for (const ref of ["has space", "x".repeat(65), ""]) {

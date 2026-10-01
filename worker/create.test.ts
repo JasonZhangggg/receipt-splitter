@@ -107,6 +107,16 @@ describe("POST /api/splits", () => {
     expect(await response.json()).toMatchObject({ refused: "rejected", rejection: { reason: "totalCheckFailed" } });
   });
 
+  it("refuses an Item of 10,000,000 units with 400 within 250 ms, before the rate limit and Turnstile", async () => {
+    const [fries, pitcher] = newSplit.receipt.items;
+    const started = performance.now();
+    const response = await postSplit({ turnstileToken: PASSING_TOKEN, split: { ...newSplit, receipt: { ...newSplit.receipt, items: [{ ...fries, quantity: 10_000_000 }, pitcher] } } });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ refused: "rejected", rejection: { reason: "malformed", path: "split.receipt.items[0].quantity" } });
+    expect(performance.now() - started).toBeLessThan(250);
+    expect(siteverify).toEqual([]);
+  });
+
   it("refuses a streamed body over the byte cap that declares no length", async () => {
     const bytes = new TextEncoder().encode(
       JSON.stringify({ turnstileToken: PASSING_TOKEN, split: { ...newSplit, pad: "x".repeat(40 * 1024) } }),

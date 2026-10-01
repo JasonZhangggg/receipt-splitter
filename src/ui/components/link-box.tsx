@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { linkCopy } from "../home-copy";
 import { useReducedMotion, webStyle } from "../motion";
-import { motion, type, useColors } from "../theme";
+import { layout, motion, type, useColors } from "../theme";
 import { Button } from "./button";
 
 const copiedFor = 1600;
@@ -64,6 +64,6 @@ export function LinkBox({ url, onCopyFailed }: { url: string; onCopyFailed: () =
 const styles = StyleSheet.create({
   box: { gap: 10 },
   line: { marginHorizontal: 4 },
-  two: { flexDirection: "row", gap: 8 },
+  two: { flexDirection: "row", gap: layout.pairGap },
   half: { flex: 1 },
 });

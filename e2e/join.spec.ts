@@ -1,6 +1,6 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
-test.use({ viewport: { width: 390, height: 844 } });
+test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
 test.setTimeout(90_000);
 
 const linkTimeout = { timeout: 30_000 };
@@ -9,70 +9,81 @@ async function readyHome(page: Page, names: string[] = []) {
   await page.goto("/");
   await page.getByRole("button", { name: "Example" }).click();
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
-  for (const name of names) {
-    await page.getByRole("button", { name: "Add a name" }).click();
-    await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  for (const [index, name] of ["Jason", ...names].entries()) {
+    await page.getByRole("button", { name: index === 0 ? "Your name" : "Add a name" }).click();
+    await page.getByRole("textbox", { name: index === 0 ? "Your name" : "Name", exact: true }).fill(name);
     await page.keyboard.press("Enter");
   }
 }
 
 async function createLink(page: Page): Promise<string> {
   await page.getByRole("button", { name: "Create split link" }).click();
-  await expect(page.getByText("Link ready")).toBeVisible(linkTimeout);
-  return `http://${await page.getByTestId("split-link").textContent()}`;
+  await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
+  return page.url();
 }
 
 async function open(browser: Browser, link: string) {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newContext(browser)).newPage();
   await page.goto(link);
   return page;
 }
 
 const question = (page: Page) => page.getByRole("heading", { name: "Which one are you?" });
-const rows = (page: Page) => page.getByRole("listitem");
+const rows = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("listitem");
 
-test("a link made with two names asks a second browser which one they are, marks names picked elsewhere, and locks the Receipt", async ({ page, browser }) => {
+test("Create split link takes the Host to the tall pick sheet, and a second browser sees the Host's name as picked", async ({ page, browser }) => {
   await readyHome(page, ["Sam", "Priya"]);
   const link = await createLink(page);
 
   expect(link).toMatch(/^http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{22}$/);
-  await expect(page.getByRole("textbox", { name: "Name of item 1" })).not.toBeEditable();
-  await expect(page.getByRole("button", { name: "Add item" })).toHaveCount(0);
+  await expect(rows(page)).toHaveText(["JJason", "SSam", "PPriya"]);
+  await page.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
 
   const sam = await open(browser, link);
-  await expect(question(sam)).toBeVisible();
-  await expect(rows(sam)).toHaveText(["MePicked on another device", "Sam", "Priya"]);
-  await sam.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(sam.getByRole("button", { name: "Not Sam?" })).toBeVisible();
-
-  const second = await open(browser, link);
-  await expect(rows(second)).toHaveText(["MePicked on another device", "SamPicked on another device", "Priya"]);
+  await expect(sam.getByText("Jason invited you to split $28.04")).toBeVisible();
+  await expect(rows(sam)).toHaveText(["JJasonPicked", "SSam", "PPriya"]);
 });
 
-test("a link made with no names lets a browser join as someone else, the Host sees the name, and a reload remembers the choice", async ({ page, browser }) => {
+test("before the link is shared, the Host taps Sam's chip and sees Sam's breakdown under the link row", async ({ page }) => {
+  await readyHome(page, ["Sam"]);
+  await createLink(page);
+  await page.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+
+  const samChip = page.getByRole("button", { name: "Sam", exact: true });
+  await expect(samChip).toHaveCount(1);
+  await samChip.click();
+  const sheet = page.getByTestId("split-sheet");
+  await expect(sheet.getByTestId("breakdown").getByText("Sam owes")).toBeVisible();
+  await expect(sheet.getByTestId("split-link")).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Copy" })).toBeVisible();
+});
+
+test("a browser not on the list adds itself, the Host's home sheet lists the name with no remove button, and a reload remembers the pick", async ({ page, browser }) => {
   await readyHome(page);
   const link = await createLink(page);
 
-  const context = await browser.newContext();
+  const context = await newContext(browser);
   const loaded: string[] = [];
   context.on("request", (request) => loaded.push(new URL(request.url()).pathname));
   const lee = await context.newPage();
   await lee.goto(link);
-  await expect(rows(lee)).toHaveText(["MePicked on another device"]);
-  await lee.getByRole("button", { name: "Someone else" }).click();
+  await expect(rows(lee)).toHaveText(["JJason"]);
+  await lee.getByRole("button", { name: "Not here? Add yourself" }).click();
   await lee.getByRole("textbox", { name: "Your name" }).fill("Lee");
-  await lee.getByRole("button", { name: "Join" }).click();
-  await expect(lee.getByRole("button", { name: "Not Lee?" })).toBeVisible();
+  await lee.getByRole("button", { name: "Join as Lee" }).click();
+  await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
 
+  await page.goBack();
   const people = page.getByRole("group", { name: "People at the table" });
   await expect(people.getByText("Lee", { exact: true })).toBeVisible();
   await expect(people.getByRole("button", { name: "Remove Lee" })).toHaveCount(0);
+  await expect(people.getByRole("button", { name: "Remove Jason" })).toHaveCount(0);
 
   await lee.reload();
-  await expect(lee.getByRole("button", { name: "Not Lee?" })).toBeVisible();
+  await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
   await expect(question(lee)).toHaveCount(0);
-  await lee.getByRole("button", { name: "Not Lee?" }).click();
-  await expect(rows(lee)).toHaveText(["MePicked on another device", "Lee"]);
 
   expect(loaded.filter((path) => path.startsWith("/models/") || path.startsWith("/ort/"))).toEqual([]);
 });
@@ -80,10 +91,11 @@ test("a link made with no names lets a browser join as someone else, the Host se
 test("without a system share sheet the link has Copy alone", async ({ page }) => {
   await readyHome(page);
   await createLink(page);
+  await page.getByRole("button", { name: "Jason", exact: true }).click();
 
   expect(await page.evaluate(() => typeof navigator.share)).toBe("undefined");
   await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Share" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
 });
 
 test("a Turnstile widget that cannot load shows one reason and enables Create split link again", async ({ page }) => {
@@ -97,7 +109,7 @@ test("a Turnstile widget that cannot load shows one reason and enables Create sp
   await expect(action).not.toHaveAttribute("aria-disabled", "true");
 });
 
-test("Share hands the exact link to the system share sheet and Copy puts it on the clipboard", async ({ page, context }) => {
+test("Copy puts the exact link on the clipboard, and Share in the header hands it to the system share sheet", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => {
     const shared: ShareData[] = [];
@@ -106,12 +118,15 @@ test("Share hands the exact link to the system share sheet and Copy puts it on t
   });
   await readyHome(page);
   const link = await createLink(page);
+  await page.getByRole("button", { name: "Jason", exact: true }).click();
 
-  await page.getByRole("button", { name: "Share" }).click();
-  expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
   await page.getByRole("button", { name: "Copy" }).click();
   await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
+  await expect(page.getByRole("button", { name: "Copied" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Share link" }).click();
+  expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
 });
 
 test("a failed Turnstile token shows one reason and enables Create split link again", async ({ page }) => {
@@ -134,7 +149,7 @@ test("a failed Turnstile token shows one reason and enables Create split link ag
   await expect(action).not.toHaveAttribute("aria-disabled", "true");
   await page.unroute("**/api/splits");
   await action.click();
-  await expect(page.getByText("Link ready")).toBeVisible(linkTimeout);
+  await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
 });
 
 test("only the browser that made the link can change the Venmo handle", async ({ page, browser }) => {
@@ -166,6 +181,7 @@ test("only the browser that made the link can change the Venmo handle", async ({
   }, id);
   expect(answers).toEqual({ type: "rejected", ref: "steal", rejection: { reason: "creatorRequired" } });
 
+  await page.goBack();
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-zh");
   expect(await other.evaluate(() => (window as unknown as { nextHandles: () => Promise<unknown> }).nextHandles())).toEqual([{ service: "venmo", handle: "jason-zh" }]);
 });
@@ -179,14 +195,35 @@ test("an unknown or malformed Split link says the split has expired", async ({ p
 });
 
 test("a Split whose socket closes with 4500 says it can't be opened, and stops reconnecting", async ({ page }) => {
-  let connects = 0;
-  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => {
-    connects += 1;
-    socket.close({ code: 4500, reason: "unreadable" });
+  await page.clock.install();
+  let code = 4000;
+  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => socket.close({ code, reason: "closed" }));
+  // After routeWebSocket, which swaps in its own WebSocket, so this counts the sockets the page opens through the route.
+  await page.addInitScript(() => {
+    const Native = WebSocket;
+    Object.assign(window, { sockets: 0 });
+    window.WebSocket = class extends Native {
+      constructor(...args: ConstructorParameters<typeof WebSocket>) {
+        super(...args);
+        (window as unknown as { sockets: number }).sockets += 1;
+      }
+    };
   });
-  await page.goto("/s/q7Xv0Lr9_aZ-3mKpAbCdEf");
+  const sockets = () => page.evaluate(() => (window as unknown as { sockets: number }).sockets);
+  const tick = async () => {
+    await page.clock.runFor(50);
+    return sockets();
+  };
 
+  await page.goto("/s/q7Xv0Lr9_aZ-3mKpAbCdEf");
+  await expect.poll(tick).toBe(1);
+  await page.clock.runFor(10_000);
+  expect(await sockets()).toBeGreaterThan(1);
+
+  code = 4500;
+  await page.reload();
+  await expect.poll(tick).toBe(1);
   await expect(page.getByRole("heading", { name: "This split can't be opened" })).toBeVisible();
-  await page.waitForTimeout(3000);
-  expect(connects).toBe(1);
+  await page.clock.runFor(60_000);
+  expect(await sockets()).toBe(1);
 });

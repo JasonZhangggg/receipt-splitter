@@ -1,13 +1,14 @@
 import type { Cents, Price } from "./money";
 
 declare const idBrand: unique symbol;
-type IdKind = "SplitId" | "ParticipantId" | "ItemId" | "AdjustmentId";
+type IdKind = "SplitId" | "ParticipantId" | "ItemId" | "AdjustmentId" | "DeviceId";
 type Id<Kind extends IdKind> = string & { readonly [idBrand]: Kind };
 
 export type SplitId = Id<"SplitId">;
 export type ParticipantId = Id<"ParticipantId">;
 export type ItemId = Id<"ItemId">;
 export type AdjustmentId = Id<"AdjustmentId">;
+export type DeviceId = Id<"DeviceId">;
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,24}$/;
 
@@ -44,14 +45,18 @@ function id<Kind extends IdKind>(value: string): Id<Kind> {
 export const participantId = (value: string) => id<"ParticipantId">(value);
 export const itemId = (value: string) => id<"ItemId">(value);
 export const adjustmentId = (value: string) => id<"AdjustmentId">(value);
+export const deviceId = (value: string) => id<"DeviceId">(value);
 
 export type NonEmpty<T> = readonly [T, ...T[]];
 
-export type Item = {
+export type ItemRow = {
   readonly id: ItemId;
   readonly name: string;
   readonly price: Price;
 };
+
+/** An Item as read from the receipt. The price covers every unit. */
+export type Item = ItemRow & { readonly quantity?: number };
 
 export const ADJUSTMENT_KINDS = ["tax", "tip", "serviceCharge", "discount"] as const;
 
@@ -71,16 +76,32 @@ export type Receipt<I extends Item = Item> = {
   readonly total: Cents;
 };
 
-export type SplitItem = Item & { readonly claimedBy: readonly ParticipantId[] };
+export type Part<Value extends number> = readonly [participantId: ParticipantId, value: Value];
+
+/** How an Item divides. Each entry of `units` is one unit of the line and lists who had it, sorted by id, so the quantity is `units.length`. */
+export type ItemSplit =
+  | { readonly by: "even"; readonly units: NonEmpty<readonly ParticipantId[]> }
+  | { readonly by: "shares"; readonly units: NonEmpty<readonly Part<number>[]> }
+  | { readonly by: "amount"; readonly units: NonEmpty<readonly Part<Cents>[]> };
+
+export const SPLIT_MODES = ["even", "shares", "amount"] as const satisfies readonly ItemSplit["by"][];
+
+export type SplitMode = (typeof SPLIT_MODES)[number];
+
+export type SplitItem = ItemRow & { readonly split: ItemSplit };
+
+export type NamePick = { readonly participantId: ParticipantId; readonly device?: DeviceId };
 
 export type Participant = {
   readonly id: ParticipantId;
   readonly name: string;
 };
 
+/** `unit` is the unit's index in the Item, 0 when absent. */
 export type Claim = {
   readonly itemId: ItemId;
   readonly participantId: ParticipantId;
+  readonly unit?: number;
 };
 
 export type Payment = {
@@ -109,13 +130,11 @@ export type Presence<RowId, Fields> =
   | { readonly id: RowId; readonly added: Placed<Fields> }
   | { readonly id: RowId; readonly removed: Placed<Fields> };
 
-export type RowWrite<RowId, Fields, Editable extends keyof Fields> =
-  | Presence<RowId, Fields>
-  | { readonly id: RowId; readonly edit: Edit<Pick<Fields, Editable>> };
+export type RowWrite<RowId, Fields> = Presence<RowId, Fields> | { readonly id: RowId; readonly edit: Edit<Fields> };
 
 export type Write =
-  | ({ readonly kind: "item" } & RowWrite<ItemId, ItemFields, "name" | "price">)
-  | ({ readonly kind: "adjustment" } & RowWrite<AdjustmentId, AdjustmentFields, keyof AdjustmentFields>)
+  | ({ readonly kind: "item" } & RowWrite<ItemId, ItemFields>)
+  | ({ readonly kind: "adjustment" } & RowWrite<AdjustmentId, AdjustmentFields>)
   | ({ readonly kind: "participant" } & Presence<ParticipantId, ParticipantFields>)
   | { readonly kind: "totals"; readonly subtotalDelta: Cents; readonly totalDelta: Cents }
   | {
@@ -123,7 +142,10 @@ export type Write =
       readonly participantId: ParticipantId;
       readonly before: Cents | null;
       readonly after: Cents | null;
-    }
+    };
+
+export type LegacyWrite =
+  | { readonly kind: "joined"; readonly participantId: ParticipantId; readonly joined: boolean }
   | {
       readonly kind: "claims";
       readonly itemIds: NonEmpty<ItemId>;
@@ -136,7 +158,8 @@ export type Change = {
   readonly by: ParticipantId | null;
   readonly undoes: number | null;
   readonly undoneBy: number | null;
-  readonly writes: NonEmpty<Write>;
+  readonly writes: NonEmpty<Write | LegacyWrite>;
+  readonly at?: number;
 };
 
 export type Split = {
@@ -144,8 +167,10 @@ export type Split = {
   readonly id: SplitId;
   readonly currency: "USD";
   readonly receipt: Receipt<SplitItem>;
+  readonly original?: Receipt;
   readonly participants: readonly [host: Participant, ...others: Participant[]];
-  readonly joined: readonly ParticipantId[];
+  /** Sorted by id, one per picked name. */
+  readonly picks: readonly NamePick[];
   readonly payments: readonly Payment[];
   readonly paymentHandles: NonEmpty<PaymentHandle>;
   readonly revision: number;

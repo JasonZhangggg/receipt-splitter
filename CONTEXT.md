@@ -42,11 +42,22 @@ _Avoid_: Validation, reconciliation
 ### Dividing it
 
 **Claim**:
-Marking an Item as shared by a Participant. Anyone with the Split's link can Claim or unclaim any Item for any Participant. An Item Claimed by several people is split evenly among them.
+Marking a unit of an Item as had by a Participant. Anyone with the Split's link can Claim or unclaim any Item for any Participant. A unit Claimed by several people divides by the Item's Split mode, evenly unless someone changes it.
 _Avoid_: Assignment, pick, select
 
+**Unit**:
+One of the things an Item's quantity counts, such as one of two pitchers on one line. Each unit has its own claimers.
+
+**Split mode**:
+How each unit of an Item divides among the people who had it: evenly, by whole-number shares, or by amount in cents. Cents an amount split leaves count as Unclaimed.
+_Avoid_: Split type, method
+
+**Pick**:
+A device saying which Participant it is. One device holds a name at a time, and **That's me** moves a picked name to the device that asks. A Pick is not a Claim.
+_Avoid_: Join, login
+
 **Unclaimed item**:
-An Item no Participant has Claimed.
+An Item with a unit no Participant has Claimed, or cents an amount split leaves. Nobody pays for it.
 _Avoid_: Unassigned item
 
 **Share**:

@@ -5,7 +5,7 @@ import type { TextBox } from "../ocr/types";
 import { classifyLines, hasWords, type Line, type Quantity } from "./lines";
 import { groupRows } from "./rows";
 
-type DraftItem = Omit<ParsedItem, "id"> & { readonly quantity: Quantity | null };
+type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null };
 
 export type ParsedItem = Item & { readonly discountExceededPrice?: true };
 type DraftAdjustment = AdjustmentFields;

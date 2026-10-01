@@ -15,11 +15,12 @@ type TargetProps = {
   disabled?: boolean;
   busy?: boolean;
   describedBy?: string;
+  toggled?: boolean;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;
 };
 
-export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, busy, describedBy, style, children }: TargetProps) {
+export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   if (disabled && held) setHeld(false);
   const web = Platform.OS === "web" ? { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay } : {};
@@ -29,6 +30,7 @@ export function PressTarget({ onPress, name, outsideScroll = false, disabled = f
       aria-label={name}
       aria-describedby={describedBy}
       aria-busy={busy}
+      aria-pressed={toggled}
       disabled={disabled}
       onPressIn={() => setHeld(!disabled)}
       onPressOut={() => setHeld(false)}
@@ -58,7 +60,7 @@ const kinds = {
     icon: 20,
     tone: (c: Colors): Tone => ({ fill: c.sheetIn, ink: c.ink }),
   },
-  outline: { face: { width: 52, height: 52, borderRadius: 14 }, label: type.button, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
+  outline: { face: { width: 54, height: 54, borderRadius: 16 }, label: type.button, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
   chip: {
     face: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
     label: type.label,

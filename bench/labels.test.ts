@@ -44,7 +44,7 @@ describe("bench labels", () => {
   test.each(labels.map((label) => [label.name, label] as const))("%s parses as a Receipt", (_, label) => {
     expect(asReceipt(label.receipt)).toEqual({
       ...label.receipt,
-      items: label.receipt.items.map((item: object) => ({ ...item, claimedBy: [] })),
+      items: label.receipt.items.map((item: object) => ({ ...item, split: { by: "even", units: [[]] } })),
     });
   });
 

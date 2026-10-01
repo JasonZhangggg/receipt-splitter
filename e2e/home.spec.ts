@@ -64,13 +64,12 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "JPEG, PNG, or WebP",
     "V",
     "Venmo",
-    "Me",
-    "Add",
+    "Your name",
     "Create split link",
   ]);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
   await expect(page.getByRole("button", { name: "Add another payment app" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "People at the table" })).toContainText("Me");
+  await expect(page.getByRole("group", { name: "People at the table" })).toContainText("Your name");
   await expect(action(page)).toHaveAttribute("aria-disabled", "true");
 });
 
@@ -203,13 +202,13 @@ test("side safe-area insets keep the header and the sheet clear of a landscape n
     const box = (await target.boundingBox())!;
     return [box.x, box.x + box.width];
   };
-  expect((await edges(page.getByRole("heading", { name: "Receipt Splitter" })))[0]).toBe(47 + 20);
-  expect((await edges(page.getByRole("button", { name: "Example" })))[1]).toBe(landscape.width - 47 - 20);
+  expect((await edges(page.getByRole("heading", { name: "Receipt Splitter" })))[0]).toBe(47 + 22);
+  expect((await edges(page.getByRole("button", { name: "Example" })))[1]).toBe(landscape.width - 47 - 22);
   const sheet = await sheetOf(action(page));
   expect([sheet.left, sheet.width]).toEqual([0, landscape.width]);
   const [left, right] = await edges(action(page));
-  expect(left).toBeGreaterThanOrEqual(47 + 20);
-  expect(right).toBeLessThanOrEqual(landscape.width - 47 - 20);
+  expect(left).toBeGreaterThanOrEqual(47 + 22);
+  expect(right).toBeLessThanOrEqual(landscape.width - 47 - 22);
 });
 
 test("at 1280 px the drop area sits left of the 380 px panel with the upload glyph, and dark mode puts the page and the camera button on the charcoal ladder", async ({ browser }) => {
@@ -243,6 +242,7 @@ const looks = {
     paper: "rgb(245, 246, 247)",
     hairline: "rgb(227, 229, 232)",
     ink: "rgb(17, 18, 20)",
+    muted: "rgb(105, 109, 116)",
     sheetShadow: "rgb(227, 229, 232) 0px -1px 0px 0px, rgba(17, 18, 20, 0.06) 0px -12px 32px 0px",
     lift: "drop-shadow(rgba(17, 18, 20, 0.06) 0px 1px 1px) drop-shadow(rgba(17, 18, 20, 0.08) 0px 12px 20px)",
     themeColor: "#FFFFFF",
@@ -251,6 +251,7 @@ const looks = {
     paper: "rgb(28, 29, 32)",
     hairline: "rgb(47, 49, 53)",
     ink: "rgb(242, 242, 243)",
+    muted: "rgb(160, 163, 169)",
     sheetShadow: "rgb(47, 49, 53) 0px -1px 0px 0px, rgba(0, 0, 0, 0.4) 0px -14px 36px 0px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset",
     lift: "drop-shadow(rgba(0, 0, 0, 0.4) 0px 1px 1px) drop-shadow(rgba(0, 0, 0, 0.35) 0px 12px 18px)",
     themeColor: "#121315",
@@ -280,7 +281,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       };
       return {
         title: font("Add receipt"),
-        me: getComputedStyle(leaf("Me")).color,
+        name: getComputedStyle(leaf("Your name")).color,
         glyph: getComputedStyle(leaf("V")).color,
         handle: getComputedStyle(document.querySelector("input")!).fontSize,
       };
@@ -290,7 +291,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect({ sheet, slip, text, themeColor }).toEqual({
       sheet: { shadow: tokens.sheetShadow, grab: [36, 5, tokens.hairline] },
       slip: { fill: tokens.paper, lift: tokens.lift, lines: [100, 70, 100, 70].map((width) => [width, 5, tokens.hairline]) },
-      text: { title: ["28px", "400", "-0.56px", tokens.ink], me: tokens.ink, glyph: tokens.paper, handle: "16px" },
+      text: { title: ["26px", "400", "-0.52px", tokens.ink], name: tokens.muted, glyph: tokens.paper, handle: "16px" },
       themeColor: tokens.themeColor,
     });
   });
@@ -306,7 +307,7 @@ test("the hero fills the space between the header and the sheet, and the header 
   await page.goto("/");
   await settle(page);
   const flush = await layout();
-  expect([flush.heroTop, flush.heroBottom]).toEqual([56, flush.sheetTop]);
+  expect([flush.heroTop, flush.heroBottom]).toEqual([60, flush.sheetTop]);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, bottom: 0, left: 0, right: 0 } });
   await page.reload();

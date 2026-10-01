@@ -3,7 +3,7 @@ import { StyleSheet, TextInput, View } from "react-native";
 import { PAYMENT_SERVICES } from "../../core/split";
 import type { DraftAction, HandleRow } from "../../draft";
 import { copy, paymentApps } from "../home-copy";
-import { type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 import { AppPicker } from "./app-picker";
 import { Button } from "./button";
 
@@ -31,7 +31,7 @@ export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
                 spellCheck={false}
                 enterKeyHint="done"
                 onChangeText={(text) => dispatch({ type: "setHandle", index, handle: text })}
-                style={[type.body, styles.handle, { color: c.ink }]}
+                style={[type.input, styles.handle, { color: c.ink }]}
               />
             </View>
             {index > 0 ? (
@@ -47,8 +47,8 @@ export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
 }
 
 const styles = StyleSheet.create({
-  rows: { gap: 8 },
-  row: { flexDirection: "row", gap: 8 },
-  field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: 52, borderRadius: 14, overflow: "hidden" },
+  rows: { gap: layout.pairGap },
+  row: { flexDirection: "row", gap: layout.pairGap },
+  field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: layout.field, borderRadius: layout.fieldRadius, overflow: "hidden" },
   handle: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
 });
