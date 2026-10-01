@@ -14,6 +14,7 @@ type Props = { wide: boolean; children: ReactNode; action: ReactNode; onHeight: 
 const contain = webStyle({ overscrollBehavior: "contain" });
 const grabbable = webStyle({ touchAction: "none", cursor: "grab" });
 const tapSlop = 10;
+const maxVelocity = 3000;
 const sheetMarker = { dataSet: { sheet: "" } };
 const surfaceMarker = { dataSet: { sheetSurface: "" } };
 
@@ -121,7 +122,8 @@ function PhoneSheet({ children, action, onHeight, maxContent }: Omit<Props, "wid
     if (!current.moved) return toggle();
     const [first] = current.samples;
     const last = current.samples.at(-1) ?? first;
-    const velocity = last.t > first.t ? ((last.y - first.y) / (last.t - first.t)) * 1000 : 0;
+    const measured = last.t > first.t ? ((last.y - first.y) / (last.t - first.t)) * 1000 : 0;
+    const velocity = Math.max(-maxVelocity, Math.min(maxVelocity, measured));
     const at = Math.min(contentHeight, Math.max(0, position.current));
     settle(snapTarget(at, velocity, contentHeight), velocity);
   };
