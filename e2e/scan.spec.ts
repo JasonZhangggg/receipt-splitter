@@ -56,11 +56,12 @@ test.describe("reading SRD receipt 1040", () => {
       ["Subtotal", "$22.98"],
       ["Tax", "$1.61"],
       ["Service fees on tables", "$3.45"],
-      ["Tip", "$0.00"],
       ["Total", "$28.04"],
     ]) {
       await expect(amount(page, name)).toHaveValue(value);
     }
+    await expect(amount(page, "Tip")).toHaveValue("");
+    await expect(amount(page, "Tip")).toHaveAttribute("placeholder", "$0.00");
     expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
 
     await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
@@ -88,8 +89,9 @@ test.describe("fixing the Example receipt", () => {
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   });
 
-  test("a tip edit to 4.60 moves the Total to $32.64 and keeps the action enabled", async ({ page }) => {
-    await amount(page, "Tip").fill("4.60");
+  test("a tip typed as 4.60 moves the Total to $32.64 and keeps the action enabled", async ({ page }) => {
+    await amount(page, "Tip").click();
+    await page.keyboard.type("4.60");
     await amount(page, "Tip").blur();
     await expect(amount(page, "Tip")).toHaveValue("$4.60");
     await expect(amount(page, "Total")).toHaveValue("$32.64");

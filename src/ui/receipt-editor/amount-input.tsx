@@ -20,16 +20,15 @@ export function AmountInput({ amount, label, onChange, allowNegative = false, pr
   return (
     <TextInput
       aria-label={label}
-      value={typing ?? (amount < 0 ? `-${prefix}${plainAmount(-amount)}` : `${prefix}${plainAmount(amount)}`)}
+      value={typing ?? (amount === 0 ? "" : amount < 0 ? `-${prefix}${plainAmount(-amount)}` : `${prefix}${plainAmount(amount)}`)}
       inputMode="decimal"
-      placeholder="0.00"
+      placeholder={`${prefix}0.00`}
       enterKeyHint="done"
       selectTextOnFocus
       placeholderTextColor={c.muted}
-      onFocus={() => setTyping(amount === 0 ? "" : plainAmount(amount))}
       onBlur={() => setTyping(null)}
       onChangeText={(text) => {
-        const cents = parseAmount(text, allowNegative);
+        const cents = parseAmount(text.replace(prefix, ""), allowNegative);
         if (cents === null) return;
         setTyping(text);
         onChange(cents);
