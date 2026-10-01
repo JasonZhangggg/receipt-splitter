@@ -21,17 +21,26 @@ test("contrast matches the WCAG formula on known pairs", () => {
 });
 
 const text: [fg: keyof Colors, bg: keyof Colors][] = [
+  ["ink", "field"],
   ["ink", "paper"],
+  ["ink", "inset"],
+  ["ink", "sheet"],
+  ["ink", "sheetIn"],
+  ["muted", "field"],
   ["muted", "paper"],
-  ["flag", "paper"],
-  ["flag", "flagWash"],
+  ["muted", "sheet"],
+  ["muted", "sheetIn"],
   ["onAction", "action"],
+  ["onOff", "off"],
+  ["flag", "flagWash"],
 ];
 
 const shapes: [fg: keyof Colors, bg: keyof Colors][] = [
-  ["action", "paper"],
-  ["action", "bar"],
+  ["action", "field"],
+  ["action", "sheet"],
+  ["focus", "field"],
   ["focus", "paper"],
+  ["focus", "sheet"],
 ];
 
 describe.each(["light", "dark"] as const)("%s colors", (scheme) => {

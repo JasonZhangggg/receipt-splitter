@@ -19,12 +19,12 @@ export default function Home() {
   const startScan = () => router.push("/new");
 
   return (
-    <View style={[styles.screen, { backgroundColor: c.paper }]}>
+    <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView style={styles.screen} contentContainerStyle={[styles.content, padding]}>
-        <Text role="heading" aria-level={1} style={[type.kicker, { color: c.ink }]}>
+        <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
           {copy.wordmark}
         </Text>
-        {showBar ? null : <View style={styles.inlineAction}><Button label={copy.action} onPress={startScan} /></View>}
+        {showBar ? null : <View style={styles.inlineAction}><Button label={scanLabel} onPress={startScan} /></View>}
       </ScrollView>
 
       {showBar ? (
@@ -40,12 +40,14 @@ export default function Home() {
             },
           ]}
         >
-          <Button label={copy.action} onPress={startScan} outsideScroll />
+          <Button label={scanLabel} onPress={startScan} outsideScroll />
         </View>
       ) : null}
     </View>
   );
 }
+
+const scanLabel = "Scan or upload a receipt";
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

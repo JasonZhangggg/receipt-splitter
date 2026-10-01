@@ -46,10 +46,10 @@ export function Toast({ message, onHide, action }: Props) {
     <View role="status" aria-live="polite" pointerEvents="box-none" style={[styles.anchor, { bottom: space.l + insets.bottom }]}>
       {shown ? (
         <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }] }]}>
-          <Text style={[type.small, styles.message, { color: c.paper }]}>{shown}</Text>
+          <Text style={[type.small, styles.message, { color: c.field }]}>{shown}</Text>
           {action ? (
             <Pressable role="button" onPress={action.onPress} style={styles.action}>
-              <Text style={[type.small, styles.actionLabel, { color: c.paper }]}>{action.label}</Text>
+              <Text style={[type.small, styles.actionLabel, { color: c.field }]}>{action.label}</Text>
             </Pressable>
           ) : null}
         </Animated.View>
