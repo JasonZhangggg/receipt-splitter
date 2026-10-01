@@ -519,6 +519,43 @@ describe("editing the Receipt", () => {
 });
 
 describe("undo", () => {
+  test("any Participant's edit of any Item, price, charge, or the tip is one recorded change that another Participant's Undo reverses exactly", () => {
+    const tax = adjustmentId("tax");
+    const tip = adjustmentId("tip");
+    const charged: Receipt = {
+      ...dinner,
+      adjustments: [
+        { id: tax, kind: "tax", name: "Tax", amount: cents(520) },
+        { id: tip, kind: "tip", name: "Tip", amount: cents(1040) },
+      ],
+      total: cents(6760),
+    };
+    const start = apply(created(charged), { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } }, { by: ann, type: "addParticipant", participant: { id: cat, name: "Cat" } });
+    const edits: Record<string, Omit<Extract<Operation, { type: "editReceipt" }>, "by" | "type">> = {
+      price: { items: [{ type: "edit", itemId: fries, price: price(600) }], subtotalDelta: cents(-200), totalDelta: cents(-200) },
+      rename: { items: [{ type: "edit", itemId: fries, name: "Chips" }] },
+      addItem: { items: [{ type: "add", item: { id: itemId("salad"), name: "Salad", price: price(900) }, index: 1 }], subtotalDelta: cents(900), totalDelta: cents(900) },
+      deleteItem: { items: [{ type: "delete", itemId: pasta }], subtotalDelta: cents(-1400), totalDelta: cents(-1400) },
+      tip: { adjustments: [{ type: "edit", adjustmentId: tip, amount: cents(1500) }], totalDelta: cents(460) },
+      deleteTax: { adjustments: [{ type: "delete", adjustmentId: tax }], totalDelta: cents(-520) },
+      addDiscount: { adjustments: [{ type: "add", adjustment: { id: adjustmentId("promo"), kind: "discount", name: "Promo", amount: cents(-300) }, index: 2 }], totalDelta: cents(-300) },
+      renameCharge: { adjustments: [{ type: "edit", adjustmentId: tax, name: "Sales tax" }] },
+      priceAndTip: {
+        items: [{ type: "edit", itemId: pitcher, price: price(2800) }],
+        adjustments: [{ type: "edit", adjustmentId: tip, amount: cents(1240) }],
+        subtotalDelta: cents(-200),
+      },
+    };
+
+    const outcomes = Object.entries(edits).map(([name, edit]) => {
+      const edited = apply(start, { by: bob, type: "editReceipt", ...edit });
+      const undone = apply(edited, { by: cat, type: "undo", revision: edited.revision });
+      return [name, edited.recentChanges.at(-1)?.by, edited.receipt === start.receipt, undone.receipt];
+    });
+
+    expect(outcomes).toEqual(Object.keys(edits).map((name) => [name, "bob", false, start.receipt]));
+  });
+
   test("an older price edit can be undone after someone edits another Item", () => {
     const split = apply(withBobAndCat(), priceEdit(bob, fries, 800, 600), priceEdit(cat, pasta, 1400, 1500));
 
