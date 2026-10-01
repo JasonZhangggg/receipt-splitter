@@ -22,7 +22,10 @@ function fakeCaches() {
       stores.set(name, store);
       return {
         match: async (url: string) => store.get(url)?.clone(),
-        put: async (url: string, response: Response) => void store.set(url, response),
+        put: async (url: string, response: Response) => {
+          const body = await response.arrayBuffer();
+          store.set(url, new Response(body, { headers: response.headers }));
+        },
       };
     },
     keys: async () => [...stores.keys()],

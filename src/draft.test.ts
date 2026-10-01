@@ -65,6 +65,15 @@ describe("blockedReason", () => {
     expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and fees are $0.39 over.");
   });
 
+  test("blames the Items for a typed receipt, which has no subtotal to check them against", () => {
+    const typed = run(emptyDraft, { type: "read", file, receipt: null }, { type: "addItem" }, { type: "editItem", id: "i1", name: "Pad thai", price: price(1800) });
+    expect(blockedReason(withVenmo(typed))).toBe("Items are $18.00 over.");
+  });
+
+  test("a handle of only spaces is no way to pay the Host", () => {
+    expect(blockedReason(run(read1040(), { type: "setHandle", index: 0, handle: "   " }))).toBe("Add how to pay you.");
+  });
+
   test("needs a named Item before a typed receipt can go out", () => {
     const typed = withVenmo(run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt: null }));
     expect(blockedReason(typed)).toBe("Add an item.");
@@ -167,6 +176,12 @@ describe("reading OCR into the draft", () => {
     const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: "  ", price: price(0) }] };
     const draft = run(emptyDraft, { type: "read", file, receipt });
     expect(draft.scan.status === "read" && draft.scan.receipt.items.length).toBe(5);
+  });
+
+  test("keeps a priced OCR row with a blank name, for the Host to name", () => {
+    const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: " ", price: price(150) }] };
+    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt });
+    expect(draft.scan.status === "read" && draft.scan.receipt.items.at(-1)).toEqual({ id: "i6", name: "", price: 150 });
   });
 
   test("keeps a 0-cent Item, such as a kitchen note printed as a line", () => {
