@@ -179,14 +179,35 @@ test("an unknown or malformed Split link says the split has expired", async ({ p
 });
 
 test("a Split whose socket closes with 4500 says it can't be opened, and stops reconnecting", async ({ page }) => {
-  let connects = 0;
-  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => {
-    connects += 1;
-    socket.close({ code: 4500, reason: "unreadable" });
+  await page.clock.install();
+  let code = 4000;
+  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => socket.close({ code, reason: "closed" }));
+  // After routeWebSocket, which swaps in its own WebSocket, so this counts the sockets the page opens through the route.
+  await page.addInitScript(() => {
+    const Native = WebSocket;
+    Object.assign(window, { sockets: 0 });
+    window.WebSocket = class extends Native {
+      constructor(...args: ConstructorParameters<typeof WebSocket>) {
+        super(...args);
+        (window as unknown as { sockets: number }).sockets += 1;
+      }
+    };
   });
-  await page.goto("/s/q7Xv0Lr9_aZ-3mKpAbCdEf");
+  const sockets = () => page.evaluate(() => (window as unknown as { sockets: number }).sockets);
+  const tick = async () => {
+    await page.clock.runFor(50);
+    return sockets();
+  };
 
+  await page.goto("/s/q7Xv0Lr9_aZ-3mKpAbCdEf");
+  await expect.poll(tick).toBe(1);
+  await page.clock.runFor(10_000);
+  expect(await sockets()).toBeGreaterThan(1);
+
+  code = 4500;
+  await page.reload();
+  await expect.poll(tick).toBe(1);
   await expect(page.getByRole("heading", { name: "This split can't be opened" })).toBeVisible();
-  await page.waitForTimeout(3000);
-  expect(connects).toBe(1);
+  await page.clock.runFor(60_000);
+  expect(await sockets()).toBe(1);
 });
