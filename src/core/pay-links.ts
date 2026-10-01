@@ -15,7 +15,6 @@ const LINKS: { readonly [Service in PaymentService]: LinkBuilder } = {
   zelle: () => null,
 };
 
-/** The link that opens a payment of `amount` to the Host, or null for Zelle, which has no link. */
 export function payLink(handle: PaymentHandle, amount: Cents, note: string, target: PayTarget = "web"): string | null {
   return LINKS[handle.service](encodeURIComponent(handle.handle), dollars(amount), encodeURIComponent(note), target);
 }

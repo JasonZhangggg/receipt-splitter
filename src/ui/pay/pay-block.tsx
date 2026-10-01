@@ -13,7 +13,7 @@ import { ZelleCard } from "./zelle-card";
 
 type Props = { host: string; handles: readonly PaymentHandle[]; state: PayState; onPaid: (paid: boolean) => void };
 
-/** Venmo notes can be public, and the Receipt keeps no merchant name, so the note stays generic. */
+/** Venmo notes can be public, so the note stays generic. */
 const note = "Receipt split";
 const target = Platform.OS === "web" ? "web" : "app";
 

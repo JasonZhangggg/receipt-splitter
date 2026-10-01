@@ -19,7 +19,6 @@ export type Viewer = "payer" | "host" | "other";
 
 export const dollars = (amount: Cents) => `$${plainAmount(amount)}`;
 
-/** The line that squares a Payment with a Share that moved after it, or null when they match. */
 export function differenceNote(state: PayState, viewer: Viewer, payer: string, host: string): string | null {
   if (state.kind === "over") return say.paidOver(viewer, payer, host, dollars(state.paid), dollars(state.back));
   if (state.kind === "short") return say.paidShort(viewer, payer, dollars(state.paid), dollars(state.rest));

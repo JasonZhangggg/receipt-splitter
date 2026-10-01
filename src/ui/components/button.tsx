@@ -8,7 +8,6 @@ import { Icon, type IconName } from "./icon";
 
 const scrollViewTouchDelay = 150;
 
-/** A target either runs `onPress` or opens `href`, which on the web is a real link in a new tab. */
 export type Action = { onPress: () => void; href?: undefined } | { href: string; onPress?: undefined };
 
 type TargetProps = Action & {

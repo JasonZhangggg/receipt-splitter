@@ -90,7 +90,6 @@ export type Operation = (
   | { readonly type: "removeParticipant"; readonly participantId: ParticipantId }
   | ({ readonly type: "claim" } & Claim)
   | ({ readonly type: "unclaim" } & Claim)
-  /** Only the device that picked `participantId` may send these, and History never reverts them. */
   | { readonly type: "recordPayment"; readonly participantId: ParticipantId; readonly device: DeviceId; readonly amount: Cents }
   | { readonly type: "clearPayment"; readonly participantId: ParticipantId; readonly device: DeviceId }
   | { readonly type: "setPaymentHandles"; readonly handles: NonEmpty<PaymentHandle> }
@@ -112,6 +111,7 @@ export type RejectionReason =
   | "lastItem"
   | "host"
   | "payerOnly"
+  | "paymentNotRevertible"
   | "participantInUse"
   | "tooManyItems"
   | "tooManyAdjustments"
@@ -375,7 +375,7 @@ function undo(split: Split, revision: number): Step {
   const target = split.recentChanges.find((change) => change.revision === revision);
   if (!target) return reject("changeNotFound");
   if (target.undoneBy !== null) return reject("alreadyUndone");
-  if (target.writes.some((write) => write.kind === "payment")) return reject("payerOnly");
+  if (target.writes.some((write) => write.kind === "payment")) return reject("paymentNotRevertible");
   const step = commit(
     split,
     [...target.writes].reverse().map((write): MakeWrites => (current) => inverse(current, write)),
@@ -636,7 +636,6 @@ const HANDLE_RULES: { readonly [Service in PaymentService]: { readonly sigil: st
   zelle: { sigil: "", pattern: /^(?:(?=.{3,80}$)[^\s@]+@[^\s@]+\.[^\s@]+|\d{10})$/ },
 };
 
-/** A canonical handle as people write it, such as `@jason-z` or `$jasonz`. */
 export function handleText({ service, handle }: PaymentHandle): string {
   return `${HANDLE_RULES[service].sigil}${handle}`;
 }

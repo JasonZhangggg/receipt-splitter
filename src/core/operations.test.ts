@@ -464,7 +464,7 @@ describe("Payments", () => {
   test("History cannot undo a Payment", () => {
     const paid = apply(claimedDinner(), pay(bob, 1800));
 
-    expect(reasonFor(paid, { by: bob, type: "undo", revision: paid.revision })).toBe("payerOnly");
+    expect(reasonFor(paid, { by: bob, type: "undo", revision: paid.revision })).toBe("paymentNotRevertible");
   });
 });
 
@@ -1271,10 +1271,10 @@ describe("the 32 KB budget", () => {
   }
 
   const deviceOf = (index: number) => deviceId(`device${String(index).padStart(10, "0")}`);
+  const itemsBesideEveryPick = 80;
 
-  /** Picks have no byte reserve, so beside 100 long Items only 2 of the 29 names can be picked. */
   function pickedByEveryone(): Split {
-    const split = atTheCaps(80);
+    const split = atTheCaps(itemsBesideEveryPick);
     return apply(
       split,
       ...split.participants.slice(1).map(({ id }, index): Operation => ({ by: id, type: "pick", participantId: id, device: deviceOf(index + 1), takeOver: false })),
