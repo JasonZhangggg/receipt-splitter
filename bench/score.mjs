@@ -18,6 +18,7 @@ if (!flags.parser) {
     [
       "usage: npm run bench -- --parser=<labels | a name in bench/parsers | path to a parser module> [--labels=<dir>] [--json]",
       "A parser module's default export takes { name, imagePath } and returns a Receipt, a Promise of one, or null.",
+      "An optional named export load({ name, imagePath }) runs first, untimed, and its result goes to the default export in place of { name, imagePath }.",
     ].join("\n"),
   );
   process.exit(2);
@@ -25,10 +26,10 @@ if (!flags.parser) {
 
 const labels = readLabels(flags.labels);
 const named = join(import.meta.dirname, "parsers", `${flags.parser}.mjs`);
-const parse =
+const { default: parse, load } =
   flags.parser === "labels"
-    ? ({ name }) => labels.find((label) => label.name === name).receipt
-    : (await import(pathToFileURL(existsSync(named) ? named : resolve(flags.parser)).href)).default;
+    ? { default: ({ name }) => labels.find((label) => label.name === name).receipt }
+    : await import(pathToFileURL(existsSync(named) ? named : resolve(flags.parser)).href);
 
 const exact = { receipts: 0, items: [0, 0], adjustments: [0, 0], totalCheck: [0, 0] };
 const structure = { receipts: 0, items: [0, 0], adjustments: [0, 0] };
@@ -37,9 +38,14 @@ const parseMs = [];
 
 for (const label of labels) {
   const imagePath = join(flags.labels, "..", "data", label.image);
-  const started = performance.now();
+  let started = performance.now();
   const output = await Promise.resolve()
-    .then(() => parse({ name: label.name, imagePath }))
+    .then(async () => {
+      const request = { name: label.name, imagePath };
+      const input = load ? await load(request) : request;
+      started = performance.now();
+      return parse(input);
+    })
     .catch((error) => {
       console.error(`${label.name}: the parser threw ${error}`);
       return null;

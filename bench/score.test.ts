@@ -182,6 +182,29 @@ describe("bench/score.mjs", () => {
     });
   });
 
+  test("times a parser's parse and leaves out the time its load takes", () => {
+    const dir = benchDir([diner, warung]);
+    const parser = join(dir, "loads.mjs");
+    writeFileSync(
+      parser,
+      `const receipts = ${JSON.stringify({ "srd-diner": diner.receipt, "cord-warung": warung.receipt })};
+export function load({ name }) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  return receipts[name];
+}
+export default (receipt) => receipt;
+`,
+    );
+    const output = execFileSync(
+      process.execPath,
+      ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "bench/score.mjs", `--parser=${parser}`, `--labels=${join(dir, "labels")}`],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+
+    expect(output).toMatch(/^exact, 1 receipts: Item prices 3\/3 100\.0%, Adjustments 2\/2 100\.0%, Total check 1\/1 100\.0%$/m);
+    expect(Number(output.match(/^parse: median (\d+(?:\.\d+)?) ms over 2 receipts$/m)?.[1])).toBeLessThan(100);
+  });
+
   test("scores every committed label against itself at 100 percent", () => {
     const output = execFileSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "bench/score.mjs", "--parser=labels"], {
       cwd: ROOT,
