@@ -37,6 +37,35 @@ The loop prints eight JSON lines. Before you cite a screenshot, check that its l
 
 A screenshot shows one frame, so it cannot prove that motion stops under reduced motion. Prove that with a spec under `e2e/`.
 
+## Run `src/core` without a browser
+
+Use this to check a Share calculation from a terminal. `src/core` imports its own files without extensions, and plain `node` cannot load those. `bench/register-ts.mjs` adds the resolve hook that finds the `.ts` files. Pass it with `--import`, and pass `--input-type=module` so `-e` accepts `import`. Import the files you call with their `.ts` extension.
+
+This example splits a $10.00 Item three ways with 8.875 percent tax, which is 89 cents:
+
+```sh
+node --import ./bench/register-ts.mjs --input-type=module -e '
+import { computeShares } from "./src/core/shares.ts";
+import { adjustmentId, itemId, participantId } from "./src/core/split.ts";
+const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
+const split = {
+	receipt: {
+		items: [{ id: itemId("nachos"), name: "Nachos", price: 1000, split: { by: "even", units: [[ann, bob, cat]] } }],
+		adjustments: [{ id: adjustmentId("tax"), kind: "tax", name: "Tax 8.875%", amount: 89 }],
+		subtotal: 1000,
+		total: 1089,
+	},
+	participants: [ann, bob, cat].map((id) => ({ id, name: id })),
+	payments: [],
+};
+const { shares } = computeShares(split);
+console.log(shares.map(({ participantId, share }) => `${participantId} ${share}`).join("\n"));
+console.log("sum", shares.reduce((sum, { share }) => sum + share, 0), "total", split.receipt.total);
+'
+```
+
+The output is `ann 363`, `bob 363`, `cat 363`, then `sum 1089 total 1089`. The Shares sum to the Receipt total to the cent.
+
 ## Proof and skip reporting
 
 - Each drive saves a screenshot, and an ARIA snapshot where the feature file asks for one.
