@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
 test.setTimeout(90_000);
@@ -23,7 +23,7 @@ async function createLink(page: Page): Promise<string> {
 }
 
 async function open(browser: Browser, link: string) {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newContext(browser)).newPage();
   await page.goto(link);
   return page;
 }
@@ -45,11 +45,26 @@ test("Create split link takes the Host to the tall pick sheet, and a second brow
   await expect(rows(sam)).toHaveText(["JJasonPicked", "SSam", "PPriya"]);
 });
 
+test("before the link is shared, the Host taps Sam's chip and sees Sam's breakdown under the link row", async ({ page }) => {
+  await readyHome(page, ["Sam"]);
+  await createLink(page);
+  await page.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+
+  const samChip = page.getByRole("button", { name: "Sam", exact: true });
+  await expect(samChip).toHaveCount(1);
+  await samChip.click();
+  const sheet = page.getByTestId("split-sheet");
+  await expect(sheet.getByTestId("breakdown").getByText("Sam owes")).toBeVisible();
+  await expect(sheet.getByTestId("split-link")).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Copy" })).toBeVisible();
+});
+
 test("a browser not on the list adds itself, the Host's home sheet lists the name with no remove button, and a reload remembers the pick", async ({ page, browser }) => {
   await readyHome(page);
   const link = await createLink(page);
 
-  const context = await browser.newContext();
+  const context = await newContext(browser);
   const loaded: string[] = [];
   context.on("request", (request) => loaded.push(new URL(request.url()).pathname));
   const lee = await context.newPage();

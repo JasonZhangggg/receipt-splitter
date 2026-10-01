@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -37,7 +37,7 @@ async function createSplit(request: APIRequestContext, workerIndex: number): Pro
 }
 
 async function open(browser: Browser, link: string): Promise<Page> {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await newContext(browser)).newPage();
   await page.goto(link);
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
   return page;
@@ -145,6 +145,7 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await expect(jason.getByText("Items are $0.25 over.")).toBeVisible(live);
 
   await jason.getByRole("button", { name: "History" }).click();
+  await expect.poll(async () => (await jason.getByTestId("split-sheet").boundingBox())?.y, live).toBeGreaterThanOrEqual(844);
   await jason.getByRole("button", { name: "Revert Sprite" }).click();
   const confirm = jason.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" });
   await settled(confirm);
@@ -171,4 +172,20 @@ test("the payer marks themselves paid, and another browser sees Paid on their br
   await sam.getByRole("button", { name: "Priya", exact: true }).click();
   await expect(sam.getByTestId("breakdown").getByText("Paid", { exact: true })).toBeVisible(live);
   await expect(sam.getByText("Priya paid")).toBeVisible(live);
+});
+
+test("someone who owes $0.00 sees no Pay button and no I already paid, and both appear once they check a line", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const priya = await open(browser, link);
+  await pick(priya, "Priya");
+  await expect(owe(priya)).toHaveText("$0.00", live);
+
+  await owe(priya).click();
+  await expect(priya.getByTestId("breakdown")).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: /^Pay Jason/ })).toHaveCount(0);
+  await expect(priya.getByRole("button", { name: "I already paid" })).toHaveCount(0);
+
+  await circle(priya, "Sprite", "Priya").click();
+  await expect(priya.getByRole("button", { name: "Pay Jason $2.50 on Venmo" })).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: "I already paid" })).toBeVisible(live);
 });
