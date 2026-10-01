@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Split page, round 8</title>
+<link rel="stylesheet" href="board.css" />
+</head>
+<body>
+<h1 class="board-title">Split page, round 8</h1>
+<p class="board-sub">Sukhothai Sushi, $32.64. Jason made the split and typed all four names, his own included. Everyone picks who they are, or closes the sheet to look. The circle on a line checks it off. The rest of the line opens the Item. Spacing is up a little and type is down a smudge everywhere.</p>
+
+<div class="row">
+  <div class="cell"><h3>A. Home, names only</h3><p class="cap">The creator types every name, his own too. No Me chip.</p><div class="ph" id="frame-A"></div></div>
+  <div class="cell"><h3>B. Creator, after Create</h3><p class="cap">Jason picks Jason like everyone else. The ✕ closes the sheet to look.</p><div class="ph" id="frame-B"></div></div>
+  <div class="cell"><h3>C. Participant opens the link</h3><p class="cap">Jason is picked on another phone, so his row can't be taken by a tap.</p><div class="ph" id="frame-C"></div></div>
+  <div class="cell"><h3>C2. Taking a name back</h3><p class="cap">Sam lost his pick (new phone, cleared browser). Tapping a picked row asks "That's me". It moves the pick and logs it in History.</p><div class="ph" id="frame-C2"></div></div>
+  <div class="cell"><h3>D. Not here? Add yourself</h3><p class="cap">For someone the creator didn't list. The sheet rides the keyboard up.</p><div class="ph" id="frame-D"></div></div>
+</div>
+
+<div class="row">
+  <div class="cell"><h3>E. Collapse, mid-flight</h3><p class="cap">About 160 ms in. The list blurs out, the picked row holds, the chips fade up, the scrim lifts.</p><div class="ph" id="frame-E1"></div></div>
+  <div class="cell"><h3>E. Collapse, settled (creator)</h3><p class="cap">Share and Copy sit in the sheet until the link is shared. After that, Share lives in the header.</p><div class="ph" id="frame-E2"></div></div>
+  <div class="spec">
+    <h4>Collapse motion (unchanged from round 7)</h4>
+    <ul>
+      <li>One spring on <code>transform: translateY</code>, tall to regular. Critically damped, no bounce, response 0.35 s (<code>withSpring({ duration: 350, dampingRatio: 1 })</code>).</li>
+      <li>Starts 80 ms after the tap so the filled check shows first. The list fades out with a 2 px blur over 120 ms. The chips fade in from scale 0.96 over 180 ms <code>cubic-bezier(0.23, 1, 0.32, 1)</code>, 30 ms apart.</li>
+      <li>Interruptible. A drag picks the sheet up where it is and keeps the finger's velocity.</li>
+      <li>Reduced motion: a 200 ms cross-fade, no slide.</li>
+    </ul>
+    <h4>New motion</h4>
+    <ul>
+      <li>Closing the pick sheet with ✕ or a flick down: the same spring, down to the regular sheet in K.</li>
+      <li>Item and History sheets: rise on the same spring, scrim fades with progress. They close the way they came.</li>
+      <li>Split mode switch: the white segment slides under the labels, 200 ms ease-out. The rows below cross-fade over 150 ms. No height animation.</li>
+      <li>Check circle: the dot fades in from scale 0.9 over 150 ms ease-out. Unchecking has no motion.</li>
+      <li>Revert: the row dims to 45% over 150 ms and its button becomes "Reverted". The changed receipt value cross-fades with a 2 px blur.</li>
+      <li>Reduced motion: every sheet cross-fades over 200 ms. The segment jumps.</li>
+    </ul>
+  </div>
+  <div class="cell"><h3>K. Browsing without picking</h3><p class="cap">After ✕. Nobody is selected, the "you" mark is gone, and the sheet keeps asking. Lines still open their Item.</p><div class="ph" id="frame-K"></div></div>
+</div>
+
+<div class="row">
+  <div class="cell"><h3>F. Claiming</h3><p class="cap">Tap the circle to check a line for the selected chip. The rest of the line opens the Item. Unclaimed lines stay yellow, and the yellow figure under the Total is what nobody pays.</p><div class="ph" id="frame-F"></div></div>
+  <div class="cell"><h3>G. Your chip</h3><p class="cap">Your Items, your share of tax, fee and tip, the pay action, and "I already paid". Only you can mark yourself paid.</p><div class="ph" id="frame-G"></div></div>
+  <div class="cell"><h3>H. Someone else's chip</h3><p class="cap">Priya's Items and share. She marked herself paid. No buttons here.</p><div class="ph" id="frame-H"></div></div>
+</div>
+
+<div class="row">
+  <div class="cell"><h3>I1. Item detail, even split</h3><p class="cap">Opened by tapping the Tostones line. Name, price and quantity edit in place. Chips add or remove people from this Item.</p><div class="ph" id="frame-I1"></div></div>
+  <div class="cell"><h3>I2. Split by shares</h3><p class="cap">Jason had two, Sam had one. Steppers set the shares, and the amounts follow.</p><div class="ph" id="frame-I2"></div></div>
+  <div class="cell"><h3>I2. Split by amount</h3><p class="cap">Exact dollars. The line under the rows says when it adds up, or how much is left.</p><div class="ph" id="frame-I2b"></div></div>
+  <div class="cell"><h3>I3. History</h3><p class="cap">Opens from the clock in the header. Each change can be reverted once. Behind it, the receipt shows the mismatch warning.</p><div class="ph" id="frame-I3"></div></div>
+</div>
+
+<div class="row">
+  <div class="cell"><h3>J. Dark, participant opens the link</h3><p class="cap">C in the neutral charcoal theme.</p><div class="ph" id="frame-JC"></div></div>
+  <div class="cell"><h3>J. Dark, claiming</h3><p class="cap">F in the neutral charcoal theme.</p><div class="ph" id="frame-JF"></div></div>
+</div>
+
+<script src="board.js"></script>
+</body>
+</html>
