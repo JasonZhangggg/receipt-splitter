@@ -724,7 +724,20 @@ describe("restoring the original Receipt", () => {
     const undone = apply(restored, { by: ann, type: "undo", revision: restored.revision });
     const redone = apply(undone, { by: ann, type: "undo", revision: undone.revision });
 
+    const steps = restored.recentChanges.at(-1)?.writes.map((write) => {
+      if (write.kind !== "item" && write.kind !== "adjustment") return [write.kind];
+      return [write.kind, write.id, "added" in write ? "added" : "removed" in write ? "removed" : "edit"];
+    });
+
     expect(vandalized.receipt.items.map(({ id }) => id)).toEqual(["junk", "pitcher", "fries"]);
+    expect(steps).toEqual([
+      ["item", "junk", "removed"],
+      ["item", "pasta", "added"],
+      ["item", "fries", "removed"],
+      ["item", "fries", "added"],
+      ["adjustment", "off", "removed"],
+      ["totals"],
+    ]);
     expect(restored.receipt).toEqual({
       items: [
         { id: "pasta", name: "Pasta", price: 1400, claimedBy: [] },
