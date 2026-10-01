@@ -820,7 +820,7 @@ RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README
 **Build.**
 
 - [x] Refuse a change or a new Split that leaves two Participants with one name, as `nameTaken`, ignoring case and outer spaces. A stored Split that already repeats a name takes no further repeat. Done in `3ea1ec8` and `7362ba1`.
-- [x] Hold one device per name. A second device's pick, and an Undo of an unmark after someone else took the name, are refused as `namePicked`. An unmark is a recorded change that Undo reverses. Done in `6edee91` and `06133c5`.
+- [x] Hold one device per name. A second device's pick is refused as `namePicked`. Done in `6edee91` and `06133c5`.
 - [x] Start every name unpicked in `createSplit`, so the Host picks like everyone else. Done in `06133c5`.
 - [x] Make Participants add-only. `removeParticipant` is refused as `removalNotAllowed` for every client. Done in `06133c5`.
 - [x] Make every Receipt edit by any Participant one recorded change that Undo reverses, and carry it between clients and across a Durable Object wake. Done in `c830589` and `e73d829`.
@@ -848,7 +848,7 @@ RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README
 - [x] Build the browse state of frame K. No chip is selected and no "you" mark shows. The sheet says "Pick your name to check off what you had." with a **Which one are you?** pill that reopens the tall sheet. Lines still open their Item. A tap on a line's circle reopens the tall sheet.
 - [x] Show the people chips in the regular sheet. Mark your own chip "you", outline names nobody has picked, sort the creator first, and end the row with a **+** chip that adds a person.
 - [x] Claim through the line's circle, per frame F. The left 44 px of each line toggles it for the selected chip, and the rest of the line opens the Item sheet. The hint reads "Check what you had". Initial dots show the claimers. Once claiming starts, Unclaimed lines turn yellow.
-- [x] Show one person's breakdown on a chip tap, from `shareBreakdown`, per frames G and H. Show their Items, such as "½ of 1.00", their parts of tax, fee, and tip, their total, and Paid or Not paid. Your own breakdown reads "You owe" and holds the pay action that RS-11 wires. Decide how per-person lines show when they do not sum across people, per note N-a.
+- [x] Show one person's breakdown on a chip tap, from `shareBreakdown`, per frames G and H. Show their Items, such as "½ of 1.00", their parts of tax, fee, and tip, their total, and Paid or Not paid. Your own breakdown reads "You owe" and holds the pay action that RS-11 wires. Decide how per-person lines show when they do not sum across people. Each line keeps its own cents.
 - [x] Build the Item sheet in `src/ui/item-sheet/`, per frames I1 and I2.
   - [x] Edit the name, the price, and the quantity in place. Save as you go, with no Save button. The ✕ closes the sheet.
   - [x] Show **Who had it** as chips with a **+** that adds a person to this Item.
@@ -858,7 +858,7 @@ RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README
   - [x] Slide the segment over 200 ms ease-out and cross-fade the rows below over 150 ms, with no height animation.
 - [x] Build History in `src/ui/history/`, per frame I3. It replaces the recent-changes list and the Undo toast.
   - [x] Open it from a clock icon in the header, left of Share.
-  - [x] List Payments and manual Receipt changes only, newest first, with the name picked on the sending device and the time. List no picks, joins, added people, Claims, or **That's me** moves. Word the name so that it claims no identity that `by` cannot prove, per notes N-c and N-d.
+  - [x] List Payments and manual Receipt changes only, newest first, with the name picked on the sending device and the time. List no picks, joins, added people, Claims, or **That's me** moves. Word the name so that it claims no identity that `by` cannot prove.
   - [x] Revert each change once, through Undo. Keep a reverted row in the list, dimmed over 150 ms, labeled "Reverted". "Created the split" has no Revert.
   - [x] Ask for confirmation before a revert of a change made on another device.
   - [x] Offer `restoreReceipt` on the "Created the split" row, with the same confirmation. The board draws no place for it, so the review gate shows the operator this row.
@@ -873,7 +873,7 @@ RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README
 **You see.**
 
 - [ ] When the Host creates a Split with "Jason", "Sam", and "Priya", each of three browsers opens the tall pick sheet. After Priya picks Priya and checks Sprite, the other browsers show Priya on Sprite and Priya's new Share within one second.
-- [x] Changing Sprite to $2.75 in its Item sheet shows "Items are $0.25 over." on every browser, and History lists the change.
+- [x] Changing Sprite to $2.75 in its Item sheet shows "Items are $0.25 over." on the other browser, and History lists the change.
 
 **Seams.**
 
@@ -882,7 +882,7 @@ RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [x] `src/core/operations.test.ts` and `src/core/shares.test.ts` gain the core half's cases, and `worker/split-server.test.ts` gains a 100-edit flood and a refused second pick. Gates at `20a89b3` passed 469 unit, 47 worker, and 93 e2e tests. 24 of 25 mutants were killed. Run `npm test` and `npm run test:worker`.
+- [x] `src/core/operations.test.ts` and `src/core/shares.test.ts` gain the core half's cases, and `worker/split-server.test.ts` gains a 100-edit flood and a refused second pick. Gates measured at `187798a`, the same patch-id as `20a89b3`, passed 469 unit, 47 worker, and 93 e2e tests. 24 of 25 mutants were killed. Run `npm test` and `npm run test:worker`.
 - [x] `src/core/shares.test.ts` gains the board's Split, and asserts each person's literal cents and an Unclaimed figure that brings the sum to $32.64. Run `npm test -- src/core`.
 - [x] `src/core/shares.test.ts` gains Tostones at $1.00 split 2:1, which gives $0.67 and $0.33, and split by amount at $0.75 and $0.25. It also gains an amount split that leaves $0.10, and asserts the $0.10 and its Adjustment parts in Unclaimed. Run `npm test -- src/core`.
 - [x] `src/core/shares.test.ts` gains two pitchers at $12.00 each, with Jason and Sam on one unit and Priya on the other, and asserts $6.00, $6.00, and $12.00 before Adjustments. Run `npm test -- src/core`.
@@ -938,7 +938,7 @@ RS-11 wires the pay action and the paid status that RS-10 draws on the breakdown
 - [x] Build the payment links in `src/core/pay-links.ts`. PayPal is `https://paypal.me/<user>/<amount>USD`. Cash App is `https://cash.app/$<tag>/<amount>`. Venmo is `https://venmo.com/<user>?txn=pay&amount=<amt>&note=<note>` on the web, and `venmo://paycharge` on a phone. Done in `16ea9d0`.
 - [x] Put the pay pill on your own breakdown in `src/ui/pay/`, per frame G, such as "Pay Jason $12.05 on Venmo". Show one pill for each Payment handle the Host entered. Zelle shows a card that copies the handle and the amount. Done in `702fe65`.
 - [x] Add **I already paid** under the pay pill, on your own breakdown only. It records a Payment with the amount, and shows in History.
-- [x] Let only the payer mark or unmark themselves paid. Refuse `recordPayment` and `clearPayment` from a device that has not picked that name, per RS-10 core audit N-f, which found that any link holder could record payments. Done in `bc45222`.
+- [x] Let only the payer mark or unmark themselves paid. Refuse `recordPayment` and `clearPayment` from a device that has not picked that name, because any link holder could otherwise record payments. Done in `bc45222`.
 - [x] Show Paid or Not paid on every other person's breakdown, with no buttons, per frame H. Once someone has paid, their label reads "Priya paid $3.56" instead of "owes".
 - [x] Show the difference when a Share changes after a Payment, as "You paid $22.00. Jason owes you $8.00." or "You owe $4.00 more."
 

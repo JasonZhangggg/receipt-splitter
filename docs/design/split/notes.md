@@ -67,7 +67,7 @@ The chip row on the split page keeps an 8 px gap. At 10 px, four names plus "+" 
 1. The circle on the left of each line is the claim checkbox. The rest of the line opens the Item.
 2. The hint text changed from "Tap what you had" to "Check what you had".
 3. The clock icon for History sits in the header, left of Share.
-4. Reverted History entries stay in the list, dimmed, with a "Reverted" label. Each manual Receipt change reverts once, and a Payment has no Revert. "Created the split" has no Revert.
+4. Reverted History entries stay in the list, dimmed, with a "Reverted" label. Each manual Receipt change can be reverted once, and a Payment has no Revert. "Created the split" has no Revert.
 5. "That's me" with Cancel, inline in the picked row. The move is not a History entry.
 6. In K, the line "Pick your name to check off what you had." and a "Which one are you?" pill.
 7. Tapping a circle in K reopens the pick sheet.
