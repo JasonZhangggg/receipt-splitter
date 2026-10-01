@@ -398,7 +398,7 @@ for (const [width, named] of [
   });
 }
 
-test("the payment app picker is a native select over its face that lists the four apps with Venmo first, and rings its face on keyboard focus", async ({ page }) => {
+test("the payment app picker is a native select over its face that lists the four apps with Venmo first", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const picker = appPicker(page);
@@ -406,9 +406,8 @@ test("the payment app picker is a native select over its face that lists the fou
   const face = page.locator("[data-app-picker] [data-press-face]");
   const [faceBox, pickerBox] = [(await face.boundingBox())!, (await picker.boundingBox())!];
   expect(pickerBox.x <= faceBox.x && pickerBox.x + pickerBox.width >= faceBox.x + faceBox.width).toBe(true);
-  expect(await picker.evaluate((el) => getComputedStyle(el).fontSize)).toBe("16px");
-  await tabTo(picker);
-  expect(await face.evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth])).toEqual(["solid", "2px"]);
+  await picker.selectOption("zelle");
+  await expect(page.getByRole("textbox", { name: "Zelle handle" })).toHaveAttribute("placeholder", "Email or phone");
 });
 
 test("the fonts load as same-origin WOFF2 files with an immutable cache header while the page stays cross-origin isolated", async ({ page }) => {

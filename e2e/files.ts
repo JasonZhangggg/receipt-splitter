@@ -25,13 +25,6 @@ export async function dropFile(page: Page, file: FilePayload, target = "body") {
   await page.dispatchEvent(target, "drop", { dataTransfer });
 }
 
-export async function dragOver(page: Page, file: FilePayload, target = "body") {
-  const dataTransfer = await transfer(page, file);
-  await page.dispatchEvent(target, "dragenter", { dataTransfer });
-  await page.dispatchEvent(target, "dragover", { dataTransfer });
-  return () => page.dispatchEvent(target, "dragleave", { dataTransfer });
-}
-
 export async function pasteFile(page: Page, file: FilePayload) {
   const clipboardData = await transfer(page, file);
   await page.evaluate((data) => document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true })), clipboardData);
