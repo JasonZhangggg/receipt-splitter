@@ -44,10 +44,9 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
     });
     socket.current = ws;
     const settle = (ref: string | null, answer: Answer) => {
-      const resolve = ref === null ? undefined : waiting.get(ref);
-      if (!resolve || ref === null) return;
+      if (ref === null) return;
+      waiting.get(ref)?.(answer);
       waiting.delete(ref);
-      resolve(answer);
     };
     ws.addEventListener("message", ({ data }: MessageEvent<string>) => {
       const message: ServerMessage = JSON.parse(data);

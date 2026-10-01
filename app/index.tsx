@@ -110,7 +110,7 @@ export default function Home() {
     apply({ type: "linked", splitId: created.id });
   };
 
-  const people = splitId === null ? draft.names : others(live).map(({ name }) => name);
+  const people = live.status === "live" ? others(live).map(({ name }) => name) : draft.names;
   const joined = live.status === "live" ? live.split.participants.filter(({ id }) => live.split.joined.includes(id)).map(({ name }) => name) : [];
   const addName = (typed: string) => {
     if (splitId === null) return dispatch({ type: "addName", name: typed });
