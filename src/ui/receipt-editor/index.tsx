@@ -13,17 +13,24 @@ type Props = { receipt: DraftReceipt; flagged: readonly string[]; dispatch: (act
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 
+const enter = (from: Record<string, string | number>, duration: number) =>
+  webStyle({
+    animationKeyframes: [{ from, to: { opacity: 1, transform: "none" } }],
+    animationDuration: `${duration}ms`,
+    animationTimingFunction: motion.easeOut,
+  });
+
+const entrance = StyleSheet.create({
+  risen: enter({ opacity: 0, transform: "translateY(8px)" }, motion.receiptIn),
+  faded: enter({ opacity: 0 }, motion.reducedFade),
+});
+
 export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const enter = webStyle({
-    animationKeyframes: [{ from: { opacity: 0, transform: reduce ? "none" : "translateY(8px)" }, to: { opacity: 1, transform: "none" } }],
-    animationDuration: `${reduce ? motion.reducedFade : motion.receiptIn}ms`,
-    animationTimingFunction: motion.easeOut,
-  });
   const amountText = [type.body, tabular, styles.amount, { color: c.ink }];
   return (
-    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper }, enter]}>
+    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper }, reduce ? entrance.faded : entrance.risen]}>
       <View role="list" aria-label={editorCopy.items}>
         {receipt.items.map((item, index) => {
           const flag = flagged.includes(item.id);

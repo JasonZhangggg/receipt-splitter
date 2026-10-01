@@ -29,6 +29,8 @@ const darken = (index: number) => {
   });
 };
 
+const darkening = StyleSheet.create(Object.fromEntries(lines.map((line) => [line, darken(line)])));
+
 export function Reading({ progress, title }: { progress: number; title: string }) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -37,7 +39,7 @@ export function Reading({ progress, title }: { progress: number; title: string }
       <View style={[styles.slip, { backgroundColor: c.paper, filter: c.lift }]}>
         {lines.map((line) => (
           <View key={line} style={[styles.line, { marginRight: shortLines[line] ?? 0, backgroundColor: c.skeleton }]}>
-            {reduce ? null : <View testID="reading-line" style={[StyleSheet.absoluteFill, styles.ink, { backgroundColor: c.skeletonInk }, darken(line)]} />}
+            {reduce ? null : <View testID="reading-line" style={[StyleSheet.absoluteFill, styles.ink, { backgroundColor: c.skeletonInk }, darkening[line]]} />}
           </View>
         ))}
       </View>
