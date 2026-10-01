@@ -1,3 +1,4 @@
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSplit } from "./create";
@@ -6,7 +7,7 @@ import { connect, newSplit, PASSING_TOKEN, postSplit, stubSiteverify, type Sitev
 let siteverify: Siteverify[];
 
 beforeEach(() => {
-  vi.setSystemTime(Date.parse("2026-10-01T12:00:00Z"));
+  vi.setSystemTime(Date.parse("2030-10-01T12:00:00Z"));
   siteverify = stubSiteverify();
 });
 
@@ -57,9 +58,34 @@ describe("POST /api/splits", () => {
 
     const elsewhere = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.45" });
     expect(elsewhere.status).toBe(201);
-    vi.setSystemTime(Date.parse("2026-10-01T12:01:00Z"));
+    vi.setSystemTime(Date.parse("2030-10-01T12:01:00Z"));
     const nextMinute = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.44" });
     expect(nextMinute.status).toBe(201);
+  });
+
+  it("keeps counting creates from one IP after its limiter is evicted", async () => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect((await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.90" })).status).toBe(201);
+    }
+    await evictDurableObject(env.CreateLimiter.getByName("192.0.2.90"));
+    const eleventh = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.90" });
+    expect([eleventh.status, eleventh.headers.get("retry-after")]).toEqual([429, "60"]);
+  });
+
+  it("forgets an IP's creates once a minute has passed since the last one", async () => {
+    const limiter = env.CreateLimiter.getByName("192.0.2.91");
+    const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
+    await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.91" });
+    vi.setSystemTime(Date.parse("2030-10-01T12:00:30Z"));
+    await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.91" });
+
+    vi.setSystemTime(Date.parse("2030-10-01T12:01:00Z"));
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect((await stored()).alarm).toBe(Date.parse("2030-10-01T12:01:30Z"));
+
+    vi.setSystemTime(Date.parse("2030-10-01T12:01:30Z"));
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect(await stored()).toEqual({ keys: [], alarm: null });
   });
 
   it("counts every IPv6 address in one /64 as one client", async () => {

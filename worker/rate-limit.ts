@@ -42,12 +42,24 @@ export function limiterKey(ip: string): string {
   return `${groups.slice(0, 4).map((group) => group.padStart(4, "0")).join(":")}::/64`;
 }
 
-export class CreateLimiter extends DurableObject<Cloudflare.Env> {
-  #times: readonly number[] = [];
+const TIMES_KEY = "times";
 
-  admit(): { readonly ok: true } | { readonly ok: false; readonly retryAfterMs: number } {
-    const admission = admitToWindow(this.#times, Date.now(), CREATE_LIMIT);
-    this.#times = admission.state;
-    return admission.ok ? { ok: true } : { ok: false, retryAfterMs: admission.retryAfterMs };
+export class CreateLimiter extends DurableObject<Cloudflare.Env> {
+  async admit(): Promise<{ readonly ok: true } | { readonly ok: false; readonly retryAfterMs: number }> {
+    const storage = this.ctx.storage;
+    const admission = admitToWindow((await storage.get<number[]>(TIMES_KEY)) ?? [], Date.now(), CREATE_LIMIT);
+    if (!admission.ok) return { ok: false, retryAfterMs: admission.retryAfterMs };
+    await storage.put(TIMES_KEY, admission.state);
+    if ((await storage.getAlarm()) === null) await storage.setAlarm(admission.state[0] + CREATE_LIMIT.windowMs);
+    return { ok: true };
+  }
+
+  async alarm(): Promise<void> {
+    const storage = this.ctx.storage;
+    const now = Date.now();
+    const recent = ((await storage.get<number[]>(TIMES_KEY)) ?? []).filter((time) => now - time < CREATE_LIMIT.windowMs);
+    if (recent.length === 0) return storage.deleteAll();
+    await storage.put(TIMES_KEY, recent);
+    await storage.setAlarm(recent[0] + CREATE_LIMIT.windowMs);
   }
 }
