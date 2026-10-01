@@ -95,11 +95,14 @@ export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
             />
           </Line>
         ))}
-        <Line label={editorCopy.tip}>
-          <View style={[styles.tip, { borderBottomColor: c.muted }]}>
-            <AmountInput amount={receipt.tip} label={editorCopy.tip} prefix="$" onChange={(amount) => dispatch({ type: "editTip", amount })} style={amountText} />
-            <Icon name="pencil" size={14} color={c.muted} />
-          </View>
+        <Line label={editorCopy.tip} end={<Icon name="pencil" size={14} color={c.muted} />}>
+          <AmountInput
+            amount={receipt.tip}
+            label={editorCopy.tip}
+            prefix="$"
+            onChange={(amount) => dispatch({ type: "editTip", amount })}
+            style={[amountText, styles.tip, { textDecorationColor: c.muted }]}
+          />
         </Line>
       </View>
 
@@ -118,9 +121,9 @@ export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
   );
 }
 
-type LineProps = { label: string; flagged?: boolean; onRemove?: () => void; children: React.ReactNode };
+type LineProps = { label: string; flagged?: boolean; onRemove?: () => void; end?: React.ReactNode; children: React.ReactNode };
 
-function Line({ label, flagged = false, onRemove, children }: LineProps) {
+function Line({ label, flagged = false, onRemove, end, children }: LineProps) {
   const c = useColors();
   return (
     <View style={[styles.line, flagged && [styles.flaggedLine, { backgroundColor: c.flagWash }]]}>
@@ -128,7 +131,7 @@ function Line({ label, flagged = false, onRemove, children }: LineProps) {
         {label}
       </Text>
       {children}
-      {onRemove ? <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={onRemove} /> : <View style={styles.noRemove} />}
+      {onRemove ? <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={onRemove} /> : <View style={styles.noRemove}>{end}</View>}
     </View>
   );
 }
@@ -148,9 +151,9 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", minHeight: 44, gap: 6 },
   flaggedLine: { marginLeft: -10, paddingLeft: 10, borderRadius: 12 },
   lineLabel: { flex: 1, minWidth: 0 },
-  amount: { width: 96, minHeight: 40, textAlign: "right", fontWeight: "500" },
-  noRemove: { width: 44 },
-  tip: { flexDirection: "row", alignItems: "center", gap: 2, borderBottomWidth: 1.5, borderStyle: "dotted" },
+  amount: { width: 96, minHeight: 40, paddingRight: 8, textAlign: "right", fontWeight: "500" },
+  noRemove: { width: 44, alignItems: "center" },
+  tip: { textDecorationLine: "underline", textDecorationStyle: "dotted" },
   total: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingTop: 12, borderTopWidth: 1 },
-  totalInput: { flex: 1, minWidth: 0, textAlign: "right" },
+  totalInput: { flex: 1, minWidth: 0, paddingRight: 8, textAlign: "right" },
 });
