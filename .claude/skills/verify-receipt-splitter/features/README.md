@@ -15,7 +15,7 @@ This folder is the maintained source for verifying what a user can do on the Rec
 - Run every command from the worktree root. `verify.mjs` means `.claude/skills/verify-receipt-splitter/verify.mjs`.
 - `<out>` in a command is the lane's output folder. Use the folder the lane names, such as `/tmp/swarm-<pr-id>/worker-<n>/`. If the lane names none, use `/tmp/verify-receipt-splitter/<port>/`, the folder `evidence` writes to by default. Drive creates the folder if it does not exist.
 - Every drive opens a fresh browser, so no state carries between drives. `--width`, `--height`, `--color-scheme`, and `--reduced-motion` change the viewport and media preferences for one drive. A width of 1024 or more drives a desktop browser instead of the Pixel 7.
-- Prefer accessible names and route paths. The test ids are `split-id` on the Split screen, and `ocr-status`, `ocr-photo`, and `ocr-json` on the OCR debug route.
+- Prefer accessible names and route paths. The test ids are `split-id` on the Split screen; `ocr-status`, `ocr-photo`, `ocr-json`, `parse`, `parse-items`, and `parse-check` on the OCR debug route; and `receipt`, `item-<id>`, `reading-line`, and `reading-bar` on the home page. The home page also marks the sheet with `data-sheet`, its sliding top with `data-sheet-surface`, and the grab handle with `data-sheet-grab`.
 - Use the terms in `CONTEXT.md`: Split, Host, Participant, Item, Claim, Share.
 
 ## Viewport and media matrix
@@ -59,4 +59,5 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Routes](./routes.md) covers the home screen and opening a Split link, including the SPA fallback for deep links.
 - [Live Splits](./live.md) covers creating a Split through `POST /api/splits` and driving several WebSocket clients on one Split: Claims between clients, hibernation, reconnect, the 32 KB cap, and the Claim round trip.
 - [OCR](./ocr.md) covers the model prefetch on `/`, reading a photo on the debug route `/debug/ocr`, and the OCR benchmark command.
-- [Home](./home.md) covers the home page at `/`: the hero with the blank slip, the bottom sheet with the payment row, the name chips, and **Create split link**, the press rules of its Buttons, and the light, dark, and reduced-motion modes.
+- [Home](./home.md) covers the home page at `/`: the hero with the blank slip, the bottom sheet with the payment row, the name chips, and **Create split link**, the sheet drag, the press rules of its Buttons, and the light, dark, and reduced-motion modes.
+- [Scan](./scan.md) covers reading a Receipt on `/`: the picker, drop, and paste, the reading state, the receipt editor and the Total check, the tip line, the reason under **Create split link**, the saved draft, and the offline scan.
