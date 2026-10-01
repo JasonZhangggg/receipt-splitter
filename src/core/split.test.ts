@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { isMintedSplitId, itemId, participantId, serializedBytes } from "./split";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { isMintedSplitId, itemId, participantId, randomId, serializedBytes } from "./split";
 
 describe("ids", () => {
   test("accept 1 to 24 letters, digits, underscores, and hyphens, and nothing else", () => {
@@ -8,6 +8,27 @@ describe("ids", () => {
     expect(() => participantId("a".repeat(25))).toThrow('"aaaaaaaaaaaaaaaaaaaaaaaaa" is not 1 to 24 letters, digits, "_", or "-"');
     expect(() => itemId("")).toThrow('"" is not 1 to 24 letters, digits, "_", or "-"');
     expect(() => itemId("fries?x=1")).toThrow('"fries?x=1" is not 1 to 24 letters, digits, "_", or "-"');
+  });
+});
+
+describe("randomId", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("maps each random byte to one of 64 symbols by its low 6 bits", () => {
+    const bytes = [0, 1, 25, 26, 51, 52, 61, 62, 63, 64, 127, 255];
+    vi.spyOn(crypto, "getRandomValues").mockImplementation(((array: Uint8Array) => {
+      array.set(bytes);
+      return array;
+    }) as typeof crypto.getRandomValues);
+    expect(randomId(12)).toBe("ABZaz09_-A--");
+  });
+
+  test("returns 22 characters of the id alphabet and reaches all 64 symbols", () => {
+    const ids = Array.from({ length: 2000 }, () => randomId(22));
+    expect(ids.every((id) => /^[A-Za-z0-9_-]{22}$/.test(id))).toBe(true);
+    expect(new Set(ids.join("")).size).toBe(64);
   });
 });
 
