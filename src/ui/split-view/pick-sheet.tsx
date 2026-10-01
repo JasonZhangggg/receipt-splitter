@@ -6,7 +6,7 @@ import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { motion, type, useColors } from "../theme";
+import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
 
 export type PickRow = { readonly person: Participant; readonly picked: boolean };
@@ -157,23 +157,23 @@ const listLeaving = webStyle({
 });
 
 const styles = StyleSheet.create({
-  sheet: { gap: 14 },
+  sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   invite: { flex: 1, marginTop: 2, marginLeft: 2 },
   strong: { fontWeight: "500" },
   close: { marginTop: -10, marginRight: -12 },
   ask: { marginHorizontal: 2, marginBottom: 4 },
-  rows: { gap: 10 },
+  rows: { gap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 58, paddingLeft: 13, paddingRight: 18, borderRadius: 16 },
   rowLead: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 1 },
   name: { flexShrink: 1 },
   claimback: { gap: 12, padding: 14, paddingLeft: 13, borderRadius: 16 },
   indent: { marginLeft: 44 },
-  two: { flexDirection: "row", gap: 10 },
+  two: { flexDirection: "row", gap: layout.pairGap },
   half: { flex: 1 },
   notHere: { justifyContent: "flex-start", paddingLeft: 13 },
   ring: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   adding: { gap: 10 },
-  field: { minHeight: 54, paddingHorizontal: 16, borderRadius: 16, fontWeight: "500" },
+  field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius, fontWeight: "500" },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

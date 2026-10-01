@@ -47,16 +47,16 @@ describe("historyOf", () => {
     );
 
     expect(history).toEqual([
-      { revision: 8, lead: "Sam paid $3.00", more: 0, by: "Sam", at: 8_000, reverted: false },
-      { revision: 7, lead: "Sprite", before: "×1", after: "×2", more: 0, by: "Ann", at: 7_000, reverted: false },
-      { revision: 5, lead: "Sprite split", before: "evenly", after: "by shares", more: 0, by: "Ann", at: 5_000, reverted: true },
-      { revision: 4, lead: "Sprite", before: "2.50", after: "2.75", more: 0, by: "Sam", at: 4_000, reverted: false },
+      { revision: 8, lead: "Sam paid $3.00", more: 0, by: "sam", name: "Sam", at: 8_000, reverted: false },
+      { revision: 7, lead: "Sprite", before: "×1", after: "×2", more: 0, by: "ann", name: "Ann", at: 7_000, reverted: false },
+      { revision: 5, lead: "Sprite split", before: "evenly", after: "by shares", more: 0, by: "ann", name: "Ann", at: 5_000, reverted: true },
+      { revision: 4, lead: "Sprite", before: "2.50", after: "2.75", more: 0, by: "sam", name: "Sam", at: 4_000, reverted: false },
     ]);
   });
 
   test("names a rename by its old and new names, and someone who sent no name as null", () => {
     expect(historyOf(split({ by: null, type: "editReceipt", items: [{ type: "edit", itemId: sprite, name: "Sprite Zero" }] }))).toEqual([
-      { revision: 1, lead: "", before: "Sprite", after: "Sprite Zero", more: 0, by: null, at: 1_000, reverted: false },
+      { revision: 1, lead: "", before: "Sprite", after: "Sprite Zero", more: 0, by: null, name: null, at: 1_000, reverted: false },
     ]);
   });
 });

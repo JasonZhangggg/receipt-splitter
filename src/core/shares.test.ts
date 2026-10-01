@@ -697,6 +697,16 @@ describe("shareBreakdown", () => {
     ]);
   });
 
+  test("when the Items run over the printed subtotal, each Item line still shows its own cents and the Adjustments take the difference", () => {
+    const fair = splitWith({ items: [["tropic", 799, ["sam"]], ["tostones", 100, ["ann", "bob", "sam"]], ["sprite", 275, ["bob"]]], adjustments: [["tax", 100]], participants: ["ann", "bob", "sam"] });
+    const over = { ...fair, receipt: { ...fair.receipt, subtotal: cents(1149), total: cents(1249) } };
+    const breakdown = shareBreakdown(over, participantId("sam"));
+
+    expect(breakdown.items[0].portion).toBe(799);
+    expect([33, 34]).toContain(breakdown.items[1].portion);
+    expect(linesOf(breakdown)).toBe(breakdown.share);
+  });
+
   test("a receipt discount shows as a negative line", () => {
     const split = splitWith({ items: [["pitcher", 3000, ["ann"]]], adjustments: [["discount", -300], ["tax", 270]] });
 

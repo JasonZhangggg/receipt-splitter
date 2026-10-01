@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { cents, price } from "../../core/money";
 import { itemId, participantId, type ItemSplit, type SplitItem } from "../../core/split";
-import { circleTap, itemsGap, lineTag, shareOfItem, unitAmounts } from "./model";
+import { circleTap, itemsGap, lineTag, shareLabel, unitAmounts } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -23,8 +23,14 @@ describe("lineTag", () => {
   });
 });
 
-test("shareOfItem reads whole units of a line as 1 of 2, a part of a unit as a fraction, and all of an Item as nothing", () => {
-  expect([shareOfItem([1, 2], 2), shareOfItem([1, 4], 2), shareOfItem([1, 2], 1), shareOfItem([2, 7], 1), shareOfItem([1, 1], 1)]).toEqual(["1 of 2", "¼", "½", "2/7", null]);
+test("shareLabel reads whole units of a line as 1 of 2, part of the price as ½ of 1.00, and all of an Item as nothing", () => {
+  expect([shareLabel([1, 2], 2, "3.50"), shareLabel([1, 4], 2, "24.00"), shareLabel([1, 2], 1, "1.00"), shareLabel([2, 7], 1, "7.00"), shareLabel([1, 1], 1, "1.00")]).toEqual([
+    "1 of 2",
+    "¼ of 24.00",
+    "½ of 1.00",
+    "2/7 of 7.00",
+    null,
+  ]);
 });
 
 describe("circleTap", () => {

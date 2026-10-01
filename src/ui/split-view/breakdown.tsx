@@ -8,7 +8,7 @@ import { Icon } from "../components/icon";
 import { paymentApps } from "../home-copy";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
-import { shareOfItem } from "./model";
+import { shareLabel } from "./model";
 
 type Props = {
   split: Split;
@@ -38,7 +38,7 @@ export function Breakdown({ split, person, mine, onPaid }: Props) {
   const paid = split.payments.find(({ participantId }) => participantId === person.id);
   const handle = split.paymentHandles[0];
   const url = payUrl(handle, share);
-  const label = isHost ? say.yourShare : mine ? (paid ? say.youPaid : say.youOwe) : paid ? say.paidBy(person.name) : say.owes(person.name);
+  const label = isHost ? (mine ? say.yourShare : say.shareOf(person.name)) : mine ? (paid ? say.youPaid : say.youOwe) : paid ? say.paidBy(person.name) : say.owes(person.name);
 
   return (
     <View testID="breakdown" style={styles.box}>
@@ -59,12 +59,12 @@ export function Breakdown({ split, person, mine, onPaid }: Props) {
       <View>
         {items.map((line, index) => {
           const item = split.receipt.items.find(({ id }) => id === line.id);
-          const part = shareOfItem(line.fraction, item?.split.units.length ?? 1);
+          const part = shareLabel(line.fraction, item?.split.units.length ?? 1, plainAmount(line.price));
           return (
             <View key={line.id} style={[styles.line, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
               <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
                 {line.name}
-                {part ? <Text style={[type.caption, { color: c.muted }]}>{`  ${say.ofPrice(part, plainAmount(line.price))}`}</Text> : null}
+                {part ? <Text style={[type.caption, { color: c.muted }]}>{`  ${part}`}</Text> : null}
               </Text>
               <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(line.portion)}</Text>
             </View>

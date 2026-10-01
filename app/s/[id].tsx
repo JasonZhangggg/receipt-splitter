@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cents } from "../../src/core/money";
 import type { Operation } from "../../src/core/operations";
 import { computeShares } from "../../src/core/shares";
-import { isRoutableSplitId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
+import { isRoutableSplitId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { newName, plainAmount } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
@@ -25,7 +25,7 @@ import { PickRows, PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { SpringSheet } from "../../src/ui/split-view/spring-sheet";
 import { useReducedMotion, webStyle } from "../../src/ui/motion";
-import { motion, type, useColors } from "../../src/ui/theme";
+import { layout, motion, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,7 +36,7 @@ export default function SplitScreen() {
 
   if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} send={send} />;
   return (
-    <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: 22 + insets.left, paddingRight: 22 + insets.right }]}>
+    <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
         <SplitHeader />
         {live.status === "gone" ? (
@@ -128,20 +128,19 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
     );
   };
 
-  const addYourself = async (typed: string) => {
+  /** Adds a typed name to the Split and returns its id, or why it was not added. */
+  const addPerson = async (typed: string): Promise<{ readonly id: ParticipantId } | { readonly refused: string }> => {
     const name = newName(typed, people.map(({ name: other }) => other));
-    if (!name) return typed.trim() ? say.nameTaken : say.nameNeeded;
+    if (!name) return { refused: typed.trim() ? say.nameTaken : say.nameNeeded };
     const participant = { id: newParticipantId(), name };
-    if (!(await act({ by: null, type: "addParticipant", participant }))) return say.nameRefused;
-    await choose(participant.id, false);
-    return null;
+    return (await act({ by: me, type: "addParticipant", participant })) ? { id: participant.id } : { refused: say.nameRefused };
   };
 
-  const addPerson = async (typed: string) => {
-    const name = newName(typed, people.map(({ name: other }) => other));
-    if (!name) return null;
-    const participant = { id: newParticipantId(), name };
-    return (await act({ by: me, type: "addParticipant", participant })) ? participant.id : null;
+  const addYourself = async (typed: string) => {
+    const added = await addPerson(typed);
+    if ("refused" in added) return added.refused;
+    await choose(added.id, false);
+    return null;
   };
 
   const onCircle = async (item: SplitItem) => {
@@ -211,7 +210,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView
         style={styles.page}
-        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: sheetHeight + 16, paddingLeft: 22 + insets.left, paddingRight: 22 + insets.right }}
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: sheetHeight + 16, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
       >
         <View style={styles.column}>
           <SplitHeader onHistory={() => setOverlay({ kind: "history" })} onShare={() => void share()} />
@@ -261,7 +260,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
               me={me}
               send={act}
               onAddPerson={(typed, unit) =>
-                void addPerson(typed).then((participantId) => participantId && act({ by: me, type: "claim", itemId: overlay.itemId, participantId, unit }))
+                void addPerson(typed).then((added) => "id" in added && act({ by: me, type: "claim", itemId: overlay.itemId, participantId: added.id, unit }))
               }
               onClose={closeOverlay}
             />
@@ -274,7 +273,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   );
 }
 
-function pickRows(split: Split, device: string) {
+function pickRows(split: Split, device: DeviceId) {
   return split.participants.map((person) => {
     const pick = split.picks.find(({ participantId }) => participantId === person.id);
     return { person, picked: pick !== undefined && pick.device !== device };
@@ -300,7 +299,7 @@ const styles = StyleSheet.create({
   opening: { paddingTop: 24 },
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
-  regular: { gap: 14 },
+  regular: { gap: layout.blockGap },
   waiting: { opacity: 0 },
   leaving: { position: "absolute", left: 0, right: 0 },
   prompt: { marginHorizontal: 2 },

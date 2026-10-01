@@ -597,6 +597,13 @@ describe("Item quantity and split", () => {
     expect(reasonFor(amounts, edit({ price: price(600) }, fries))).toBe("amountOverPrice");
   });
 
+  test("amounts that add up to the price exactly are accepted, and leave nothing Unclaimed on that line", () => {
+    const claimed = apply(withBobAndCat(), claim(fries, bob), claim(fries, cat));
+    const exact = apply(claimed, edit({ by: "amount", values: [{ unit: 0, participantId: bob, value: 500 }, { unit: 0, participantId: cat, value: 300 }] }, fries));
+
+    expect(computeShares(exact).unclaimed.itemIds).toEqual(["pasta", "pitcher"]);
+  });
+
   test("a value for someone who did not have the unit, a share count of 0, or a quantity of 0 or 21 is refused", () => {
     const claimed = apply(withBobAndCat(), claim(fries, bob));
 

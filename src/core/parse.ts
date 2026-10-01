@@ -18,6 +18,7 @@ import {
 import {
   ADJUSTMENT_KINDS,
   PAYMENT_SERVICES,
+  SPLIT_MODES,
   isId,
   type Change,
   type ItemSplit,
@@ -350,7 +351,7 @@ const itemPatch = tagged<ItemPatch>("type", {
     ...maybe("name", text),
     ...maybe("price", price),
     ...maybe("quantity", count),
-    ...maybe("by", oneOf(["even", "shares", "amount"] as const)),
+    ...maybe("by", oneOf(SPLIT_MODES)),
     ...maybe("values", array(strict((fields) => ({ unit: fields.read("unit", count), participantId: fields.read("participantId", participantId), value: fields.read("value", count) })), MAX_QUANTITY * MAX_PARTICIPANTS)),
   })),
   delete: strict(({ read }) => ({ type: read("type", literal("delete")), itemId: read("itemId", itemId) })),

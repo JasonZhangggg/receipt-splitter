@@ -283,9 +283,13 @@ const STARTING_VALUE = { shares: 1, amount: 0 } as const;
 function withClaimers(by: SplitMode, claimers: readonly (readonly ParticipantId[])[], valueOf: (unit: number, id: ParticipantId) => number | undefined): ItemSplit {
   const [first = [], ...rest] = claimers;
   if (by === "even") return { by, units: [first, ...rest] };
-  const parts = (ids: readonly ParticipantId[], unit: number) => ids.map((id): Part<number> => [id, valueOf(unit, id) ?? STARTING_VALUE[by]]);
-  const [head, ...tail] = [first, ...rest].map(parts);
-  return by === "shares" ? { by, units: [head, ...tail] } : { by, units: [head as Part<Cents>[], ...(tail as Part<Cents>[][])] };
+  const value = (unit: number, id: ParticipantId) => valueOf(unit, id) ?? STARTING_VALUE[by];
+  if (by === "shares") {
+    const shares = (ids: readonly ParticipantId[], unit: number) => ids.map((id): Part<number> => [id, value(unit, id)]);
+    return { by, units: [shares(first, 0), ...rest.map((ids, unit) => shares(ids, unit + 1))] };
+  }
+  const amounts = (ids: readonly ParticipantId[], unit: number) => ids.map((id): Part<Cents> => [id, cents(value(unit, id))]);
+  return { by, units: [amounts(first, 0), ...rest.map((ids, unit) => amounts(ids, unit + 1))] };
 }
 
 function valueIn(split: ItemSplit, unit: number, id: ParticipantId): number | undefined {

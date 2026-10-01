@@ -3,7 +3,7 @@ import { StyleSheet, TextInput, View } from "react-native";
 import { PAYMENT_SERVICES } from "../../core/split";
 import type { DraftAction, HandleRow } from "../../draft";
 import { copy, paymentApps } from "../home-copy";
-import { type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 import { AppPicker } from "./app-picker";
 import { Button } from "./button";
 
@@ -47,8 +47,8 @@ export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
 }
 
 const styles = StyleSheet.create({
-  rows: { gap: 10 },
-  row: { flexDirection: "row", gap: 10 },
-  field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: 54, borderRadius: 16, overflow: "hidden" },
+  rows: { gap: layout.pairGap },
+  row: { flexDirection: "row", gap: layout.pairGap },
+  field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: layout.field, borderRadius: layout.fieldRadius, overflow: "hidden" },
   handle: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
 });

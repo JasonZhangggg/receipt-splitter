@@ -6,7 +6,7 @@ import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
 import { historyOf, whenText, type Entry } from "./describe";
 
@@ -18,7 +18,7 @@ type Props = {
   onClose: () => void;
 };
 
-type Asking = { readonly revision: number | "restore"; readonly by: string | null };
+type Asking = { readonly revision: number | "restore"; readonly name: string | null };
 
 /** History of frame I3: Payments and manual Receipt changes, newest first, each revertable once. Reverting a change made on another device, or restoring the Receipt, asks first. */
 export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props) {
@@ -32,7 +32,6 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
     return () => clearInterval(timer);
   }, []);
   const entries = historyOf(split);
-  const myName = split.participants.find(({ id }) => id === me)?.name ?? null;
   const [host] = split.participants;
 
   const run = async (action: () => Promise<boolean>) => {
@@ -40,8 +39,8 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
     setProblem((await action()) ? null : say.revertFailed);
   };
   const revert = (entry: Entry) => {
-    if (entry.by !== null && entry.by === myName) return void run(() => onRevert(entry.revision));
-    setAsking({ revision: entry.revision, by: entry.by });
+    if (entry.by !== null && entry.by === me) return void run(() => onRevert(entry.revision));
+    setAsking({ revision: entry.revision, name: entry.name });
   };
 
   return (
@@ -63,8 +62,8 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
         {entries.map((entry) => (
           <Row
             key={entry.revision}
-            name={entry.by ?? say.someone}
-            meta={[entry.by ? say.asName(entry.by) : say.someone, whenText(entry.at, now)]}
+            name={entry.name ?? say.someone}
+            meta={[entry.name ? say.asName(entry.name) : say.someone, whenText(entry.at, now)]}
             reverted={entry.reverted}
             what={
               <Text style={[type.button, styles.what, { color: c.ink }]}>
@@ -76,7 +75,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
             }
             confirm={
               asking?.revision === entry.revision ? (
-                <Confirm question={say.confirmRevert(asking.by ?? say.someone)} action={say.confirm} onYes={() => run(() => onRevert(entry.revision))} onNo={() => setAsking(null)} />
+                <Confirm question={say.confirmRevert(asking.name ?? say.someone)} action={say.confirm} onYes={() => run(() => onRevert(entry.revision))} onNo={() => setAsking(null)} />
               ) : null
             }
             end={entry.reverted || asking?.revision === entry.revision ? null : <End label={say.revert} name={`${say.revert} ${entry.lead || entry.after}`} onPress={() => revert(entry)} />}
@@ -88,7 +87,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           reverted={false}
           what={<Text style={[type.button, styles.what, { color: c.ink }]}>{say.created}</Text>}
           confirm={asking?.revision === "restore" ? <Confirm question={say.confirmRestore} action={say.confirmRestoreAction} onYes={() => run(onRestore)} onNo={() => setAsking(null)} /> : null}
-          end={split.original && asking?.revision !== "restore" ? <End label={say.restore} name={say.restoreName} onPress={() => setAsking({ revision: "restore", by: null })} /> : null}
+          end={split.original && asking?.revision !== "restore" ? <End label={say.restore} name={say.restoreName} onPress={() => setAsking({ revision: "restore", name: null })} /> : null}
         />
       </View>
     </View>
@@ -150,7 +149,7 @@ function Confirm({ question, action, onYes, onNo }: { question: string; action: 
 const dim = webStyle({ transitionProperty: "opacity", transitionDuration: "150ms", transitionTimingFunction: "ease-out" });
 
 const styles = StyleSheet.create({
-  sheet: { gap: 14 },
+  sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   title: { fontSize: 18, lineHeight: 22, marginTop: 2 },
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },

@@ -6,7 +6,7 @@ import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { motion, type, useColors } from "../theme";
+import { layout, motion, type, useColors } from "../theme";
 
 type Props = {
   people: readonly Participant[];
@@ -99,7 +99,7 @@ const chipEnter = webStyle({
 });
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", flexWrap: "wrap", columnGap: 8, rowGap: 10 },
+  row: { flexDirection: "row", flexWrap: "wrap", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, paddingHorizontal: 14, borderRadius: 22 },
   you: { opacity: 0.7 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },

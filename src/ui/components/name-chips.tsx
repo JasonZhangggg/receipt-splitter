@@ -2,7 +2,7 @@ import { useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { copy } from "../home-copy";
-import { type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 import { Button } from "./button";
 
 type Props = {
@@ -54,7 +54,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: layout.pairGap },
   chip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: "center" },
   named: { flexDirection: "row", alignItems: "center", paddingRight: 0 },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },

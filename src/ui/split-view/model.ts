@@ -34,13 +34,13 @@ export function fractionText([numerator, denominator]: readonly [number, number]
   return UNICODE_FRACTIONS[`${numerator}/${denominator}`] ?? `${numerator}/${denominator}`;
 }
 
-/** How much of an Item one person had: "1 of 2" for whole units of a line of several, otherwise a fraction, or null for all of it. */
-export function shareOfItem(fraction: readonly [number, number], quantity: number): string | null {
+/** How much of an Item one person had: "1 of 2" for whole units of a line of several, "½ of 1.00" for part of the price, or null for all of it. */
+export function shareLabel(fraction: readonly [number, number], quantity: number, price: string): string | null {
   const [numerator, denominator] = fraction;
   if (numerator === denominator) return null;
   const units = (numerator * quantity) / denominator;
   if (quantity > 1 && Number.isInteger(units)) return `${units} of ${quantity}`;
-  return fractionText(fraction);
+  return `${fractionText(fraction)} of ${price}`;
 }
 
 /** A tap on a line's circle: unchecks the person from every unit they had, or checks them on the first unit nobody had, else the first unit. */

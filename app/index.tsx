@@ -22,7 +22,7 @@ import { webStyle } from "../src/ui/motion";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { isPhoto, pickPhoto, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
 import { Reading } from "../src/ui/receipt-input/reading";
-import { breakpoints, motion, type, useColors } from "../src/ui/theme";
+import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
 import { prepareTurnstile, turnstileToken } from "../src/ui/turnstile";
 
 const handleEdits = 700;
@@ -88,7 +88,7 @@ export default function Home() {
 
   const wide = width >= breakpoints.panelFrom;
   const hero = wide ? copy.hero.desktop : copy.hero.phone;
-  const gutter = wide ? 32 : 22;
+  const gutter = wide ? 32 : layout.gutter;
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
   const reason = blockedReason(draft);
@@ -124,7 +124,7 @@ export default function Home() {
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: wide ? 0 : sheetHeight }]}>
-        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? panel.top : 60) + insets.top }]}>
+        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? panel.top : layout.header) + insets.top }]}>
           <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
             {copy.wordmark}
           </Text>
@@ -209,6 +209,6 @@ const styles = StyleSheet.create({
   dropCompact: { paddingVertical: 14 },
   heroCompact: { paddingVertical: 4 },
   doc: { paddingTop: 12, paddingBottom: 20 },
-  column: { alignSelf: "center", width: "100%", maxWidth: 480, gap: 14 },
+  column: { alignSelf: "center", width: "100%", maxWidth: 480, gap: layout.blockGap },
   columnWide: { maxWidth: 560 },
 });

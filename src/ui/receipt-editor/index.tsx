@@ -6,7 +6,7 @@ import { Button } from "../components/button";
 import { Icon } from "../components/icon";
 import { editorCopy } from "../home-copy";
 import { useReducedMotion, webStyle } from "../motion";
-import { motion, type, useColors } from "../theme";
+import { layout, motion, type, useColors } from "../theme";
 import { AmountInput } from "./amount-input";
 
 type Props = { receipt: DraftReceipt; flagged: readonly string[]; dispatch: (action: DraftAction) => void; locked?: boolean };
@@ -144,9 +144,9 @@ function Line({ label, locked, flagged = false, onRemove, end, children }: LineP
 }
 
 const styles = StyleSheet.create({
-  card: { paddingTop: 10, paddingBottom: 20, paddingLeft: 20, paddingRight: 10, borderRadius: 22 },
+  card: { paddingTop: 10, paddingBottom: 20, paddingLeft: 20, paddingRight: 10, borderRadius: layout.cardRadius },
   lockedCard: { paddingRight: 10 },
-  item: { minHeight: 52, justifyContent: "center" },
+  item: { minHeight: layout.row, justifyContent: "center" },
   divided: { borderTopWidth: 1 },
   flagged: { marginVertical: 4, marginLeft: -10, paddingLeft: 10, borderRadius: 12 },
   itemLine: { flexDirection: "row", alignItems: "center", gap: 4 },

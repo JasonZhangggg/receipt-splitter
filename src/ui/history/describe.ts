@@ -1,5 +1,6 @@
 import type { Change, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
 import { plainAmount } from "../../draft";
+import { splitCopy as say } from "../split-copy";
 import { ratio } from "../split-view/model";
 
 /** One History row: what changed as a lead and an optional before and after, who sent it, when, and whether it was reverted. */
@@ -9,7 +10,9 @@ export type Entry = {
   readonly before?: string;
   readonly after?: string;
   readonly more: number;
-  readonly by: string | null;
+  /** Who the sending device had picked, which the server does not check. */
+  readonly by: ParticipantId | null;
+  readonly name: string | null;
   readonly at: number | undefined;
   readonly reverted: boolean;
 };
@@ -30,7 +33,8 @@ export function historyOf(split: Split): Entry[] {
         revision: change.revision,
         ...words,
         more: writes.filter((write) => write.kind !== "totals" && write !== lead).length,
-        by: split.participants.find(({ id }) => id === change.by)?.name ?? null,
+        by: change.by,
+        name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
         at: change.at,
         reverted: change.undoneBy !== null,
       };
@@ -79,7 +83,7 @@ export function splitWord(split: ItemSplit, order: readonly ParticipantId[]): st
 export function whenText(at: number | undefined, now: number): string | null {
   if (at === undefined) return null;
   const minutes = Math.floor((now - at) / 60_000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1) return say.justNow;
+  if (minutes < 60) return say.minutesAgo(minutes);
   return new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }

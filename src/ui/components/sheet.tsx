@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { sheetCopy } from "../home-copy";
 import { useReducedMotion, webStyle } from "../motion";
-import { useColors } from "../theme";
+import { layout, useColors } from "../theme";
 import { animateSpring, rubberband, snapTarget } from "./sheet-motion";
 
 export const panel = { top: 64, width: 380, right: 32 };
@@ -143,7 +143,7 @@ function PhoneSheet({ children, action, onHeight, maxContent }: Omit<Props, "wid
 
   return (
     <View {...sheetMarker} style={styles.anchor} onLayout={measureSheet}>
-      <View ref={top} {...surfaceMarker} style={[styles.sheet, { backgroundColor: c.sheet, boxShadow: c.sheetShadow, paddingLeft: 22 + insets.left, paddingRight: 22 + insets.right }]}>
+      <View ref={top} {...surfaceMarker} style={[styles.sheet, { backgroundColor: c.sheet, boxShadow: c.sheetShadow, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
         <View
           role="button"
           aria-label={collapsed ? sheetCopy.expand : sheetCopy.collapse}
@@ -165,7 +165,7 @@ function PhoneSheet({ children, action, onHeight, maxContent }: Omit<Props, "wid
           </ScrollView>
         </View>
       </View>
-      <View style={[styles.action, { backgroundColor: c.sheet, paddingBottom: 30 + insets.bottom, paddingLeft: 22 + insets.left, paddingRight: 22 + insets.right }]}>
+      <View style={[styles.action, { backgroundColor: c.sheet, paddingBottom: 30 + insets.bottom, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
         <View style={styles.actionInner}>{action}</View>
       </View>
     </View>
@@ -178,8 +178,8 @@ const styles = StyleSheet.create({
   grabArea: { alignSelf: "center", width: 120, height: 29, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },
   hidden: { display: "none" },
-  content: { alignSelf: "center", width: "100%", maxWidth: 440, gap: 14, paddingBottom: 8 },
-  action: { position: "relative", zIndex: 1, paddingTop: 14 },
+  content: { alignSelf: "center", width: "100%", maxWidth: 440, gap: layout.blockGap, paddingBottom: 8 },
+  action: { position: "relative", zIndex: 1, paddingTop: layout.blockGap },
   actionInner: { alignSelf: "center", width: "100%", maxWidth: 440 },
   panel: { position: "absolute", padding: 20, gap: 12, borderRadius: 28 },
   panelContent: { gap: 12 },

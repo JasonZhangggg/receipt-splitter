@@ -86,12 +86,14 @@ export type ItemSplit =
   | { readonly by: "shares"; readonly units: NonEmpty<readonly Part<number>[]> }
   | { readonly by: "amount"; readonly units: NonEmpty<readonly Part<Cents>[]> };
 
-export type SplitMode = ItemSplit["by"];
+export const SPLIT_MODES = ["even", "shares", "amount"] as const satisfies readonly ItemSplit["by"][];
+
+export type SplitMode = (typeof SPLIT_MODES)[number];
 
 export type SplitItem = ItemRow & { readonly split: ItemSplit };
 
-/** A picked name and the device holding it. A pick stored before devices has none. */
-export type Pick = { readonly participantId: ParticipantId; readonly device?: DeviceId };
+/** A name a device picked as itself, and the device holding it. A pick stored before devices has none. */
+export type NamePick = { readonly participantId: ParticipantId; readonly device?: DeviceId };
 
 export type Participant = {
   readonly id: ParticipantId;
@@ -174,7 +176,7 @@ export type Split = {
   readonly original?: Receipt;
   readonly participants: readonly [host: Participant, ...others: Participant[]];
   /** Sorted by id, one per picked name. */
-  readonly picks: readonly Pick[];
+  readonly picks: readonly NamePick[];
   readonly payments: readonly Payment[];
   readonly paymentHandles: NonEmpty<PaymentHandle>;
   readonly revision: number;

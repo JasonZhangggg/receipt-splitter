@@ -101,10 +101,10 @@ export type ShareBreakdown = {
 type Fraction = readonly [numerator: bigint, denominator: bigint];
 
 export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "payments">, participantId: ParticipantId): ShareBreakdown {
-  const { items, adjustments, subtotal } = split.receipt;
+  const { items, adjustments } = split.receipt;
   const shareIn = (receipt: Receipt<SplitItem>) => computeShares({ ...split, receipt }).shares.find((row) => row.participantId === participantId)?.share ?? 0;
   const share = shareIn(split.receipt);
-  const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: subtotal });
+  const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: cents(items.reduce((total, { price }) => total + price, 0)) });
   const { all, weightOf, denominator } = weighted(items);
   const mine = items.flatMap((item, index) => {
     const units = all.filter((piece) => piece.item === index);
@@ -113,8 +113,8 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
     const unitsHad = sum(units.map(had));
     if (unitsHad === 0n) return [];
     const prices = unitPrices(item.price, units.length);
-    const cents = sum(units.map((piece, unit) => had(piece) * BigInt(prices[unit])));
-    return [{ item, fraction: [unitsHad, multiple * BigInt(units.length)] as const, cents: [cents, multiple] as const }];
+    const itemCents = sum(units.map((piece, unit) => had(piece) * BigInt(prices[unit])));
+    return [{ item, fraction: [unitsHad, multiple * BigInt(units.length)] as const, cents: [itemCents, multiple] as const }];
   });
   const itemPortions = allocate(itemsPart, mine.map(({ cents }): Fraction => cents));
   const claimed = sum(all.map((piece) => weightOf(participantId, piece)));

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { animateSpring, project, rubberband } from "../components/sheet-motion";
 import { useReducedMotion, webStyle } from "../motion";
-import { useColors } from "../theme";
+import { layout, useColors } from "../theme";
 
 export const sheetSpring = { response: 0.35, damping: 1 };
 const reducedFade = 200;
@@ -145,7 +145,7 @@ export function SpringSheet({ children, scrim = false, onClose, stays = false, c
         testID={testID}
         style={[styles.sheet, { height: tallest, backgroundColor: c.sheet, boxShadow: c.sheetShadow }]}
       >
-        <View style={[styles.column, { paddingLeft: 22 + insets.left, paddingRight: 22 + insets.right }]}>
+        <View style={[styles.column, { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
           <View
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

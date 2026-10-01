@@ -6,7 +6,7 @@ import { plainAmount } from "../../draft";
 import { PressTarget } from "../components/button";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 import { Dot } from "./dot";
 import { claimersOfItem, itemsGap, lineTag } from "./model";
 
@@ -38,8 +38,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
       <View role="list" aria-label={say.item}>
         {items.map((item, index) => {
           const claimers = claimersOfItem(item);
-          const open = started && claimers.length === 0;
-          const previousOpen = index > 0 && started && claimersOfItem(items[index - 1]).length === 0;
+          const open = started && shares.unclaimed.itemIds.includes(item.id);
+          const previousOpen = index > 0 && started && shares.unclaimed.itemIds.includes(items[index - 1].id);
           return (
             <Line
               key={item.id}
@@ -158,9 +158,9 @@ function Row({ label, amount }: { label: string; amount: number }) {
 }
 
 const styles = StyleSheet.create({
-  card: { paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20, borderRadius: 22 },
+  card: { paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20, borderRadius: layout.cardRadius },
   hint: { marginTop: 0, marginBottom: 6 },
-  line: { flexDirection: "row", alignItems: "center", minHeight: 52, gap: 6 },
+  line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: 6 },
   divided: { borderTopWidth: 1 },
   open: { marginVertical: 4, marginHorizontal: -12, paddingHorizontal: 12, borderRadius: 14 },
   circle: { width: 44, height: 44, marginLeft: -10, paddingLeft: 10, justifyContent: "center" },
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   why: { marginTop: 8, marginBottom: 2 },
   mark: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.adjustmentRow, gap: 12 },
   rowLabel: { flexShrink: 1 },
   strong: { fontWeight: "500" },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
