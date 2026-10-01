@@ -342,6 +342,23 @@ describe("joining", () => {
     expect(apply(retaken, join(bob, false), { by: ann, type: "undo", revision: unmark }).joined).toEqual(["bob"]);
   });
 
+  test("a vandal's unclaims leave no recent change, so Bob gets his pick back with Undo and claims his Items again", () => {
+    const claim = (itemId: typeof fries, claimed: boolean): Operation => ({ by: null, type: claimed ? "claim" : "unclaim", itemId, participantId: bob });
+    const start = apply(withBobAndCat(), join(bob), claim(fries, true), claim(pasta, true));
+    const vandalized = apply(start, claim(fries, false), claim(pasta, false), join(bob, false));
+    const recovered = apply(vandalized, { by: bob, type: "undo", revision: vandalized.revision }, claim(fries, true), claim(pasta, true));
+
+    expect(vandalized.recentChanges.length - start.recentChanges.length).toBe(1);
+    expect([recovered.joined, recovered.receipt.items.map(({ id, claimedBy }) => [id, claimedBy])]).toEqual([
+      ["bob"],
+      [
+        ["pasta", ["bob"]],
+        ["fries", ["bob"]],
+        ["pitcher", []],
+      ],
+    ]);
+  });
+
   test("keeps a picked Participant from being taken out by undoing their add", () => {
     const split = apply(withBobAndCat(), join(bob));
 
@@ -685,6 +702,16 @@ describe("Participants", () => {
     const stored = { ...withBobAndCat(), participants: [...withBobAndCat().participants, { id: dan, name: "BOB" }] };
 
     expect(parseSplit(JSON.parse(JSON.stringify(stored)))).toMatchObject({ ok: true, split: { participants: { 3: { name: "BOB" } } } });
+  });
+
+  test("a stored Split that already repeats a name still takes a Claim and a new name, and refuses another repeat", () => {
+    const stored = { ...withBobAndCat(), participants: [...withBobAndCat().participants, { id: dan, name: "BOB" }] };
+    const legacy = accepted(parseSplit(JSON.parse(JSON.stringify(stored))));
+    const eve = participantId("eve");
+
+    expect(reasonFor(legacy, { by: dan, type: "claim", itemId: fries, participantId: dan })).toBe("accepted");
+    expect(reasonFor(legacy, { by: null, type: "addParticipant", participant: { id: eve, name: "Eve" } })).toBe("accepted");
+    expect(reasonFor(legacy, { by: null, type: "addParticipant", participant: { id: eve, name: "cat" } })).toBe("nameTaken");
   });
 
   test("a new Split with two Participants of one name is refused", () => {

@@ -126,7 +126,7 @@ export function applyOperation(split: Split, op: Operation, auth: Auth): Operati
   const state: Split = { ...step.split, revision, recentChanges: [] };
   const rejection = checkState(state);
   if (rejection) return { ok: false, rejection };
-  if (namesRepeat(state.participants) && !namesRepeat(split.participants)) return reject("nameTaken");
+  if (repeatedNames(state.participants) > repeatedNames(split.participants)) return reject("nameTaken");
   let recentChanges = step.split.recentChanges;
   if (step.record) {
     const change: Change = { revision, by: op.by, undoes: step.record.undoes, undoneBy: null, writes: step.record.writes };
@@ -567,7 +567,7 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
     revision: 0,
     recentChanges: [],
   };
-  const rejection = namesRepeat(split.participants) ? { reason: "nameTaken" as const } : checkSplit(split);
+  const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : checkSplit(split);
   return rejection ? { ok: false, rejection } : { ok: true, split };
 }
 
@@ -640,8 +640,8 @@ function isName(name: string, maxLength: number): boolean {
   return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_UNITS_PER_GRAPHEME);
 }
 
-function namesRepeat(participants: readonly Participant[]): boolean {
-  return new Set(participants.map(({ name }) => name.trim().toLowerCase())).size !== participants.length;
+function repeatedNames(participants: readonly Participant[]): number {
+  return participants.length - new Set(participants.map(({ name }) => name.trim().toLowerCase())).size;
 }
 
 function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {
