@@ -1,5 +1,5 @@
-import { cents, type Cents } from "./money";
-import type { ItemId, ParticipantId, Split } from "./split";
+import { cents, type Cents, type Price } from "./money";
+import type { AdjustmentId, AdjustmentKind, ItemId, ParticipantId, Receipt, Split, SplitItem } from "./split";
 
 export type HostShare = {
   readonly participantId: ParticipantId;
@@ -62,6 +62,57 @@ export function computeShares(split: Pick<Split, "receipt" | "participants" | "p
     ],
     unclaimed: { itemIds: unclaimedIds, subtotal: cents(unclaimedSubtotal), total: cents(rounded.get(null) ?? 0) },
   };
+}
+
+export type ShareBreakdown = {
+  readonly items: readonly { readonly id: ItemId; readonly name: string; readonly price: Price; readonly claimers: number; readonly portion: Cents }[];
+  readonly adjustments: readonly { readonly id: AdjustmentId; readonly kind: AdjustmentKind; readonly name: string; readonly portion: Cents }[];
+  readonly share: Cents;
+};
+
+type Fraction = readonly [numerator: bigint, denominator: bigint];
+
+export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "payments">, participantId: ParticipantId): ShareBreakdown {
+  const { items, adjustments, subtotal } = split.receipt;
+  const shareIn = (receipt: Receipt<SplitItem>) => computeShares({ ...split, receipt }).shares.find((row) => row.participantId === participantId)?.share ?? 0;
+  const share = shareIn(split.receipt);
+  const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: subtotal });
+  const mine = items.filter(({ claimedBy }) => claimedBy.includes(participantId));
+  const itemPortions = allocate(itemsPart, mine.map(({ price, claimedBy }): Fraction => [BigInt(price), BigInt(claimedBy.length)]));
+  const [numerator, denominator] = claimedFraction(items, participantId);
+  const adjustmentPortions = allocate(share - itemsPart, adjustments.map(({ amount }): Fraction => [BigInt(amount) * numerator, denominator]));
+  return {
+    items: mine.map(({ id, name, price, claimedBy }, index) => ({ id, name, price, claimers: claimedBy.length, portion: cents(itemPortions[index]) })),
+    adjustments: adjustments.map(({ id, kind, name }, index) => ({ id, kind, name, portion: cents(adjustmentPortions[index]) })),
+    share: cents(share),
+  };
+}
+
+function claimedFraction(items: readonly SplitItem[], participantId: ParticipantId): Fraction {
+  const weights = items.some((item) => item.price > 0) ? items.map((item) => BigInt(item.price)) : items.map(() => 1n);
+  const multiple = BigInt(items.reduce((lcm, { claimedBy }) => leastCommonMultiple(lcm, Math.max(claimedBy.length, 1)), 1));
+  const claimed = items.reduce((sum, { claimedBy }, index) => (claimedBy.includes(participantId) ? sum + (weights[index] * multiple) / BigInt(claimedBy.length) : sum), 0n);
+  return [claimed, multiple * weights.reduce((sum, weight) => sum + weight, 0n)];
+}
+
+function allocate(target: number, parts: readonly Fraction[]): number[] {
+  const floors = parts.map(([numerator, denominator]) => numerator / denominator - (numerator % denominator < 0n ? 1n : 0n));
+  const remainders = parts.map(([numerator, denominator], index) => numerator - floors[index] * denominator);
+  const byRemainder = parts
+    .map((_, index) => index)
+    .sort((a, b) => {
+      const left = remainders[a] * parts[b][1];
+      const right = remainders[b] * parts[a][1];
+      return left === right ? a - b : left > right ? -1 : 1;
+    });
+  const portions = floors.map(Number);
+  let left = target - portions.reduce((sum, portion) => sum + portion, 0);
+  const order = left > 0 ? byRemainder : [...byRemainder].reverse();
+  for (let step = 0; left !== 0 && order.length > 0; step += 1) {
+    portions[order[step % order.length]] += Math.sign(left);
+    left -= Math.sign(left);
+  }
+  return portions;
 }
 
 const UNCLAIMED_RANK = 2 ** 32;
