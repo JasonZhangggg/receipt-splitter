@@ -448,6 +448,12 @@ describe("the Split link", () => {
     expect(run(read, { type: "linked", splitId }, { type: "unlinked" })).toEqual(read);
   });
 
+  test("a link arriving after the Receipt was replaced is dropped, so the new Receipt stays editable", () => {
+    const replacing = run(withVenmo(read1040()), { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
+
+    expect(run(replacing, { type: "linked", splitId })).toEqual(replacing);
+  });
+
   test("a reload keeps the link", () => {
     const storage = new MemoryStorage();
     const linked = run(withVenmo(read1040()), { type: "linked", splitId });

@@ -192,7 +192,6 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       return { ok: true, split: { ...split, paymentHandles }, record: null };
     }
     case "setJoined": {
-      if (!findParticipant(split, op.participantId)) return reject("unknownParticipant");
       if (split.joined.includes(op.participantId) === op.joined) return unchanged(split);
       const others = split.joined.filter((id) => id !== op.participantId);
       return { ok: true, split: { ...split, joined: op.joined ? sortByCodeUnit([...others, op.participantId]) : others }, record: null };
