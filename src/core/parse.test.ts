@@ -2,14 +2,10 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "./money";
 import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
 import { parseNewSplit, parseOperation, parseSplit } from "./parse";
-import { adjustmentId, isMintedSplitId, itemId, participantId, type MintedSplitId, type Split } from "./split";
+import { adjustmentId, itemId, participantId, type Split } from "./split";
+import { mintedId } from "./test-ids";
 
 const badName = { ok: false, rejection: { reason: "badName" } };
-
-function mintedId(value: string): MintedSplitId {
-  if (!isMintedSplitId(value)) throw new RangeError(`${value} is not a minted Split id`);
-  return value;
-}
 
 const minted = mintedId("q7Xv0Lr9_aZ-3mKp");
 

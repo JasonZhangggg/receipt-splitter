@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { parseNewSplit } from "../src/core/parse";
-import { isMintedSplitId } from "../src/core/split";
+import { mintedId } from "../src/core/test-ids";
 import { runTotalCheck } from "../src/core/total-check";
 import { readLabels } from "./read-labels.mjs";
 
@@ -11,8 +11,7 @@ const labels = readLabels(join(BENCH, "labels"));
 const SPLIT_ID = "benchlabelreceipt";
 
 function asReceipt(receipt: unknown) {
-  if (!isMintedSplitId(SPLIT_ID)) throw new RangeError(`${SPLIT_ID} is too short for a minted Split id`);
-  const parsed = parseNewSplit({ receipt, participants: [{ id: "host", name: "Host" }], paymentHandles: [{ service: "venmo", handle: "bench" }] }, SPLIT_ID);
+  const parsed = parseNewSplit({ receipt, participants: [{ id: "host", name: "Host" }], paymentHandles: [{ service: "venmo", handle: "bench" }] }, mintedId(SPLIT_ID));
   return parsed.ok ? parsed.split.receipt : parsed.rejection;
 }
 
