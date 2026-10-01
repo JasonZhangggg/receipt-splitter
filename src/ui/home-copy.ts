@@ -29,7 +29,7 @@ export const linkCopy = {
   share: "Share",
   copy: "Copy",
   copied: "Copied",
-  copyFailed: "Couldn't copy. Select the link and copy it.",
+  copyFailed: "Couldn't copy the link.",
   handleRefused: "Check how to pay you.",
   handleLocked: "Only the device that made this link can change how to pay you.",
 };
@@ -47,7 +47,7 @@ export const joinCopy = {
   notMe: (name: string) => `Not ${name}?`,
   atTheTable: "At the table",
   newSplit: "Split a receipt",
-  expired: { title: "This split has expired", hint: "Splits are deleted 60 days after their last change." },
+  expired: { title: "This split has expired", hint: "A split lasts 60 days after its last change." },
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
 

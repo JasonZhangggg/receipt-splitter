@@ -44,10 +44,10 @@ export default function SplitScreen() {
 
   return (
     <ScrollView style={[styles.screen, { backgroundColor: c.field }]} contentContainerStyle={[styles.page, { paddingTop: 4 + insets.top, paddingBottom: 24 + insets.bottom, paddingLeft: 20 + insets.left, paddingRight: 20 + insets.right }]}>
-      <View style={styles.header}>
-        <Text style={[type.wordmark, { color: c.ink }]}>{copy.wordmark}</Text>
-      </View>
       <View style={styles.column}>
+        <View style={styles.header}>
+          <Text style={[type.wordmark, { color: c.ink }]}>{copy.wordmark}</Text>
+        </View>
         {live.status === "connecting" ? (
           <Text role="status" style={[type.secondary, styles.opening, { color: c.muted }]}>
             {joinCopy.opening}
@@ -180,8 +180,8 @@ function Joined({ split, me, onLeave }: { split: Split; me: Participant; onLeave
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1 },
-  header: { minHeight: 56, justifyContent: "center" },
-  column: { alignSelf: "center", width: "100%", maxWidth: 480, paddingTop: 12 },
+  header: { minHeight: 56, justifyContent: "center", marginBottom: 12 },
+  column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   opening: { paddingTop: 24 },
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
