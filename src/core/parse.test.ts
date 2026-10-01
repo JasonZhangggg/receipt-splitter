@@ -33,10 +33,11 @@ function storedSplit(): Split {
     { type: "addParticipant", by: null, participant: { id: "bob", name: "Bob" } },
     { type: "editReceipt", by: "bob", items: [{ type: "edit", itemId: "fries", price: 600 }], subtotalDelta: -200, totalDelta: -200 },
     { type: "claim", by: "bob", itemId: "fries", participantId: "bob" },
-    { type: "splitUnclaimed", by: "ann" },
+    { type: "claim", by: "ann", itemId: "pitcher", participantId: "ann" },
+    { type: "claim", by: "ann", itemId: "pitcher", participantId: "bob" },
     { type: "recordPayment", by: "bob", participantId: "bob", amount: 2200 },
     { type: "undo", by: "ann", revision: 2 },
-    { type: "setJoined", by: "bob", participantId: "bob", joined: true },
+    { type: "pick", by: "bob", participantId: "bob", device: "bobs-phone", takeOver: false },
   ];
   return ops.reduce<Split>((split, input) => {
     const parsed = parseOperation(input);
@@ -111,10 +112,9 @@ describe("parseSplit", () => {
 
     expect(split.recentChanges.map(({ revision, undoneBy }) => [revision, undoneBy])).toEqual([
       [1, null],
-      [2, 6],
-      [4, null],
-      [5, null],
+      [2, 7],
       [6, null],
+      [7, null],
     ]);
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
@@ -127,29 +127,33 @@ describe("parseSplit", () => {
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });
 
-  test("reads a Split stored before joins as joined by no one, and refuses picks out of order, a name picked twice, or someone not in the Split", () => {
+  test("reads a Split stored before joins as picked by no one, joined ids as picks with no device, and refuses picks out of order, twice, or for someone not in the Split", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
-    const { joined, ...beforeJoins } = stored;
+    const { picks, ...beforeJoins } = stored;
+    const pick = (participantId: string) => ({ participantId, device: `${participantId}-phone` });
 
-    expect(joined).toEqual(["bob"]);
-    expect(parseSplit(beforeJoins)).toMatchObject({ ok: true, split: { joined: [] } });
-    expect(parseSplit({ ...stored, joined: ["ann", "bob"] })).toMatchObject({ ok: true, split: { joined: ["ann", "bob"] } });
-    expect(parseSplit({ ...stored, joined: ["bob", "ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
-    expect(parseSplit({ ...stored, joined: ["ann", "bob", "bob"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
-    expect(parseSplit({ ...stored, joined: ["ann", "cat"] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
+    expect(picks).toEqual([{ participantId: "bob", device: "bobs-phone" }]);
+    expect(parseSplit(beforeJoins)).toMatchObject({ ok: true, split: { picks: [] } });
+    expect(parseSplit({ ...beforeJoins, joined: ["ann", "bob"] })).toMatchObject({ ok: true, split: { picks: [{ participantId: "ann" }, { participantId: "bob" }] } });
+    expect(parseSplit({ ...stored, joined: ["ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
+    expect(parseSplit({ ...stored, picks: [pick("bob"), pick("ann")] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "picks" } });
+    expect(parseSplit({ ...stored, picks: [pick("bob"), pick("bob")] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "picks" } });
+    expect(parseSplit({ ...stored, picks: [pick("cat")] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
   });
 
-  test("refuses a stored Split whose claimers are out of order or repeated", () => {
+  test("reads a line-level claimedBy as one even unit, and refuses claimers out of order or repeated, in either shape", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
-    const withPitcherClaimers = (claimedBy: string[]) => ({
-      ...stored,
-      receipt: { ...stored.receipt, items: [stored.receipt.items[0], { ...stored.receipt.items[1], claimedBy }] },
-    });
+    const [fries, pitcher] = stored.receipt.items;
+    const { split: _, ...pitcherRow } = pitcher;
+    const withPitcher = (row: object) => ({ ...stored, receipt: { ...stored.receipt, items: [fries, row] } });
+    const malformed = { ok: false, rejection: { reason: "malformed", path: "receipt.items[1].split" } };
 
-    expect(stored.receipt.items[1].claimedBy).toEqual(["ann", "bob"]);
-    const malformed = { ok: false, rejection: { reason: "malformed", path: "receipt.items[1].claimedBy" } };
-    expect(parseSplit(withPitcherClaimers(["bob", "ann"]))).toEqual(malformed);
-    expect(parseSplit(withPitcherClaimers(["ann", "ann", "bob"]))).toEqual(malformed);
+    expect(pitcher.split).toEqual({ by: "even", units: [["ann", "bob"]] });
+    expect(parseSplit(withPitcher({ ...pitcherRow, claimedBy: ["ann", "bob"] }))).toMatchObject({ ok: true, split: { receipt: { items: [{}, { split: pitcher.split }] } } });
+    expect(parseSplit(withPitcher({ ...pitcherRow, claimedBy: ["bob", "ann"] }))).toEqual(malformed);
+    expect(parseSplit(withPitcher({ ...pitcherRow, split: { by: "even", units: [["ann", "ann", "bob"]] } }))).toEqual(malformed);
+    expect(parseSplit(withPitcher({ ...pitcher, claimedBy: ["ann"] }))).toEqual(malformed);
+    expect(parseSplit(withPitcher(pitcherRow))).toEqual(malformed);
   });
 
   test("refuses a stored Split whose Host or another Participant has a name the Names rules refuse", () => {
@@ -171,22 +175,26 @@ describe("parseSplit bounds", () => {
 
   test("refuses each oversized array of a stored Split by its count, before reading the first element", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
-    const [addBob, priceEdit, splitUnclaimed] = stored.recentChanges;
+    const [addBob, priceEdit, third] = stored.recentChanges;
     const withChange = (index: number, change: object) => ({
       ...stored,
       recentChanges: stored.recentChanges.map((original: object, at: number) => (at === index ? change : original)),
     });
     const withPriceEdit = (price: unknown) => withChange(1, { ...priceEdit, writes: [{ ...priceEdit.writes[0], edit: { price } }, priceEdit.writes[1]] });
-    const withClaims = (fields: object) => withChange(2, { ...splitUnclaimed, writes: [{ ...splitUnclaimed.writes[0], ...fields }] });
+    const withClaims = (fields: object) =>
+      withChange(2, { ...third, writes: [{ kind: "claims", itemIds: ["pitcher"], participantIds: ["ann"], claimed: true, ...fields }] });
     const [fries, pitcher] = stored.receipt.items;
 
     expect(priceEdit.writes[0]).toEqual({ kind: "item", id: "fries", edit: { price: [800, 600] } });
-    expect(splitUnclaimed.writes[0]).toMatchObject({ kind: "claims", itemIds: ["pitcher"] });
     expect.soft(parseSplit({ ...stored, participants: unreadable })).toEqual(refusedAt("participants"));
     expect.soft(parseSplit({ ...stored, payments: unreadable })).toEqual(refusedAt("payments"));
     expect.soft(parseSplit({ ...stored, recentChanges: unreadable })).toEqual(refusedAt("recentChanges"));
-    expect.soft(parseSplit({ ...stored, receipt: { ...stored.receipt, items: [{ ...fries, claimedBy: unreadable }, pitcher] } })).toEqual(
+    const { split: _, ...friesRow } = fries;
+    expect.soft(parseSplit({ ...stored, receipt: { ...stored.receipt, items: [{ ...friesRow, claimedBy: unreadable }, pitcher] } })).toEqual(
       refusedAt("receipt.items[0].claimedBy"),
+    );
+    expect.soft(parseSplit({ ...stored, receipt: { ...stored.receipt, items: [{ ...fries, split: { by: "even", units: unreadable } }, pitcher] } })).toEqual(
+      refusedAt("receipt.items[0].split.units"),
     );
     expect.soft(parseSplit(withChange(0, { ...addBob, writes: unreadable }))).toEqual(refusedAt("recentChanges[0].writes"));
     expect.soft(parseSplit(withPriceEdit(unreadable))).toEqual(refusedAt("recentChanges[1].writes[0].edit.price"));
@@ -202,7 +210,7 @@ describe("parseSplit bounds", () => {
       return { ...stored, recentChanges: [{ ...stored.recentChanges[0], writes }, ...stored.recentChanges.slice(1)] };
     };
 
-    expect(parseSplit(withWrites(121))).toMatchObject({ ok: true, split: { recentChanges: [{ writes: { length: 121 } }, {}, {}, {}, {}] } });
+    expect(parseSplit(withWrites(121))).toMatchObject({ ok: true, split: { recentChanges: [{ writes: { length: 121 } }, {}, {}, {}] } });
     expect(parseSplit(withWrites(122))).toEqual(refusedAt("recentChanges[0].writes"));
   });
 
@@ -223,7 +231,7 @@ describe("parseSplit bounds", () => {
     }, storedSplit());
 
     expect([split.participants.length, split.payments.length, split.recentChanges.length]).toEqual([30, 29, 64]);
-    expect(split.receipt.items[1].claimedBy).toHaveLength(30);
+    expect(split.receipt.items[1].split.units[0]).toHaveLength(30);
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
 });
@@ -252,8 +260,8 @@ describe("parseNewSplit", () => {
         currency: "USD",
         receipt: {
           items: [
-            { id: "fries", name: "Fries", price: 800, claimedBy: [] },
-            { id: "pitcher", name: "Pitcher", price: 3000, claimedBy: [] },
+            { id: "fries", name: "Fries", price: 800, split: { by: "even", units: [[]] } },
+            { id: "pitcher", name: "Pitcher", price: 3000, split: { by: "even", units: [[]] } },
           ],
           adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 337 }],
           subtotal: 3800,
@@ -269,7 +277,7 @@ describe("parseNewSplit", () => {
           total: 4137,
         },
         participants: [{ id: "ann", name: "Ann" }],
-        joined: [],
+        picks: [],
         payments: [],
         paymentHandles: [{ service: "venmo", handle: "ann-host" }],
         revision: 0,
@@ -282,7 +290,7 @@ describe("parseNewSplit", () => {
     const withPeople = (count: number) =>
       parseNewSplit({ ...body, participants: Array.from({ length: count }, (_, index) => ({ id: `p${index}`, name: `P${index}` })) }, minted);
 
-    expect(withPeople(30)).toMatchObject({ ok: true, split: { participants: { length: 30, 29: { id: "p29", name: "P29" } }, joined: [] } });
+    expect(withPeople(30)).toMatchObject({ ok: true, split: { participants: { length: 30, 29: { id: "p29", name: "P29" } }, picks: [] } });
     expect(withPeople(0)).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
     expect(withPeople(31)).toEqual({ ok: false, rejection: { reason: "malformed", path: "participants" } });
   });
@@ -317,7 +325,7 @@ describe("parseNewSplit", () => {
     expect(refused({ recentChanges: [] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
     expect(refused({ payments: [{ participantId: "bob", amount: 100 }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "payments" } });
     expect(refused({ host: { id: "bob", name: "Bob" } })).toEqual({ ok: false, rejection: { reason: "malformed", path: "host" } });
-    expect(refused({ joined: ["ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
+    expect(refused({ picks: [] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "picks" } });
     expect(
       parseNewSplit({ ...body, receipt: { ...body.receipt, items: [{ ...body.receipt.items[0], claimedBy: ["ann"] }, body.receipt.items[1]] } }, minted),
     ).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].claimedBy" } });

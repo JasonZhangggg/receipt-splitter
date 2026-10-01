@@ -91,7 +91,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
     this.#pacing.delete(connection.id);
     const frame = readFrame(message);
     if (!frame.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: frame.rejection });
-    const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) });
+    const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) }, now);
     if (!result.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: result.rejection });
     if (!result.changed) return send(connection, { type: "unchanged", ref: frame.ref, revision: stored.split.revision });
     const recorded = result.split.recentChanges.at(-1);

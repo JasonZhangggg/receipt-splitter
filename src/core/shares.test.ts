@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { MAX_CENTS, cents, price } from "./money";
-import { computeShares, shareBreakdown, type ShareBreakdown, type Shares } from "./shares";
-import { adjustmentId, itemId, participantId, type AdjustmentKind, type Split, type SplitItem } from "./split";
+import { MAX_CENTS, cents, price, type Cents } from "./money";
+import { computeShares, shareBreakdown, unitPrices, type ShareBreakdown, type Shares } from "./shares";
+import { adjustmentId, itemId, participantId, type AdjustmentKind, type ItemSplit, type Part, type ParticipantId, type Split, type SplitItem } from "./split";
 
 type Row = readonly [id: string, price: number, claimers: readonly string[]];
 
@@ -15,7 +15,7 @@ function splitWith(options: {
     id: itemId(id),
     name: id,
     price: price(amount),
-    claimedBy: [...claimers].sort().map(participantId),
+    split: { by: "even", units: [[...claimers].sort().map(participantId)] },
   });
   const [first, ...rest] = options.items;
   const adjustments = (options.adjustments ?? []).map(([kind, amount]) => ({
@@ -88,7 +88,8 @@ function exactShares({ receipt }: Pick<Split, "receipt">) {
   const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
   const shares = new Map<string, number>();
   let unclaimed = 0;
-  receipt.items.forEach(({ claimedBy }, index) => {
+  receipt.items.forEach(({ split }, index) => {
+    const claimedBy = split.by === "even" ? split.units[0] : [];
     const load = (receipt.total * weights[index]) / weightSum;
     if (claimedBy.length === 0) unclaimed += load;
     for (const id of claimedBy) shares.set(id, (shares.get(id) ?? 0) + load / claimedBy.length);
@@ -189,7 +190,7 @@ describe("computeShares", () => {
       ["bob", 0],
       ["cat", 0],
     ]);
-    expect(shares.unclaimed).toEqual({ itemIds: ["salad"], subtotal: 1000, total: 1289 });
+    expect(shares.unclaimed).toEqual({ itemIds: ["salad"], total: 1289 });
   });
 
   test("the Unclaimed items total loses a tie for the last cent to a Participant", () => {
@@ -208,7 +209,7 @@ describe("computeShares", () => {
       ["bob", 0],
       ["cat", 0],
     ]);
-    expect(shares.unclaimed).toEqual({ itemIds: ["wine"], subtotal: 100, total: 100 });
+    expect(shares.unclaimed).toEqual({ itemIds: ["wine"], total: 100 });
   });
 
   test("Shares sum exactly to the Receipt total", () => {
@@ -233,7 +234,7 @@ describe("computeShares", () => {
       ["cat", 2932],
     ]);
     expect(shares.shares.reduce((sum, { share }) => sum + share, 0)).toBe(8667);
-    expect(shares.unclaimed).toEqual({ itemIds: [], subtotal: 0, total: 0 });
+    expect(shares.unclaimed).toEqual({ itemIds: [], total: 0 });
   });
 
   test("reports what each Participant paid and still owes, negative when they overpaid, and nothing owed for the Host", () => {
@@ -503,6 +504,129 @@ describe("computeShares", () => {
   });
 });
 
+describe("Item quantity and split modes", () => {
+  const ids = (names: string) => (names ? names.split(",").map(participantId) : []);
+  const weighted = (names: Record<string, number>) => Object.entries(names).map(([id, value]): [ParticipantId, number] => [participantId(id), value]);
+  const amounts = (names: Record<string, number>) => Object.entries(names).map(([id, value]): Part<Cents> => [participantId(id), cents(value)]);
+  const withSplit = (split: ReturnType<typeof splitWith>, id: string, shape: ItemSplit): ReturnType<typeof splitWith> => {
+    const [first, ...rest] = split.receipt.items.map((item) => (item.id === id ? { ...item, split: shape } : item));
+    return { ...split, receipt: { ...split.receipt, items: [first, ...rest] } };
+  };
+  const tostones = (shape: ItemSplit, adjustments: readonly (readonly [AdjustmentKind, number])[] = []) =>
+    withSplit(splitWith({ items: [["tostones", 100, []]], adjustments }), "tostones", shape);
+
+  test("a $1.00 Item split 2:1 by shares costs 67 and 33 cents", () => {
+    expect(shareCents(computeShares(tostones({ by: "shares", units: [weighted({ ann: 2, bob: 1 })] })))).toEqual([
+      ["ann", 67],
+      ["bob", 33],
+      ["cat", 0],
+    ]);
+  });
+
+  test("a $1.00 Item split by amount as 75 and 25 cents costs exactly that", () => {
+    expect(shareCents(computeShares(tostones({ by: "amount", units: [amounts({ ann: 75, bob: 25 })] })))).toEqual([
+      ["ann", 75],
+      ["bob", 25],
+      ["cat", 0],
+    ]);
+  });
+
+  test("the 10 cents an amount split leaves is Unclaimed, with its part of the tax", () => {
+    const split = withSplit(splitWith({ items: [["tostones", 100, []], ["rice", 900, ["cat"]]], adjustments: [["tax", 100]] }), "tostones", {
+      by: "amount",
+      units: [amounts({ ann: 60, bob: 30 })],
+    });
+    const { shares, unclaimed } = computeShares(split);
+
+    expect(shares.map(({ share }) => share)).toEqual([66, 33, 990]);
+    expect(unclaimed).toEqual({ itemIds: ["tostones"], total: 11 });
+    expect(shareBreakdown(split, participantId("ann")).items).toEqual([{ id: "tostones", name: "tostones", price: 100, fraction: [3, 5], portion: 60 }]);
+  });
+
+  test("two $12.00 pitchers with Jason and Sam on one and Priya on the other cost $6.00, $6.00, and $12.00", () => {
+    const split = withSplit(splitWith({ items: [["pitchers", 2400, []]], participants: ["jason", "sam", "priya"] }), "pitchers", {
+      by: "even",
+      units: [ids("jason,sam"), ids("priya")],
+    });
+
+    expect(computeShares(split).shares.map(({ share }) => share)).toEqual([600, 600, 1200]);
+    expect(shareBreakdown(split, participantId("priya")).items).toEqual([{ id: "pitchers", name: "pitchers", price: 2400, fraction: [1, 2], portion: 1200 }]);
+    expect(shareBreakdown(split, participantId("sam")).items).toEqual([{ id: "pitchers", name: "pitchers", price: 2400, fraction: [1, 4], portion: 600 }]);
+  });
+
+  test("a unit nobody had stays Unclaimed: 3 beers at $15.00 with one each for Ann and Bob leave $5.00", () => {
+    const split = withSplit(splitWith({ items: [["beer", 1500, []]] }), "beer", { by: "even", units: [ids("ann"), ids("bob"), []] });
+    const { shares, unclaimed } = computeShares(split);
+
+    expect(shares.map(({ share }) => share)).toEqual([500, 500, 0]);
+    expect(unclaimed).toEqual({ itemIds: ["beer"], total: 500 });
+  });
+
+  test("a $10.00 line of 3 units costs 334, 333, and 333 cents a unit", () => {
+    const split = withSplit(splitWith({ items: [["beer", 1000, []]] }), "beer", { by: "amount", units: [amounts({ ann: 334 }), amounts({ bob: 333 }), amounts({ cat: 333 })] });
+
+    expect(computeShares(split).shares.map(({ share }) => share)).toEqual([334, 333, 333]);
+  });
+
+  test("the design's dinner: Jason and Sam owe $12.06, Priya $3.55, and $4.97 is Unclaimed out of $32.64", () => {
+    const dinner = splitWith({
+      items: [
+        ["rice", 799, ["jason"]],
+        ["tropic", 799, ["sam"]],
+        ["tostones", 100, ["jason", "sam"]],
+        ["sprite", 250, ["priya"]],
+        ["perrier", 350, []],
+      ],
+      adjustments: [["tax", 161], ["serviceCharge", 345], ["tip", 460]],
+      participants: ["jason", "sam", "priya", "lee"],
+    });
+    const { shares, unclaimed } = computeShares(dinner);
+
+    expect(shares.map(({ share }) => share)).toEqual([1206, 1206, 355, 0]);
+    expect(unclaimed.total).toBe(497);
+    expect(shares.reduce((total: number, { share }) => total + share, unclaimed.total)).toBe(3264);
+  });
+
+  test("across 300 seeded receipts with random quantities and modes, Shares and the Unclaimed total add up to the total, and every breakdown adds up to its Share", () => {
+    const next = random(88);
+    const misses: string[] = [];
+    for (const { split: plain } of seededReceipts(300)) {
+      const people = plain.participants.map(({ id }) => id);
+      const [first, ...rest] = plain.receipt.items.map((item): SplitItem => {
+        const count = 1 + Math.floor(next() * 3);
+        const prices = unitPrices(item.price, count);
+        const claimers = prices.map(() => people.filter(() => next() < 0.3).sort());
+        const roll = next();
+        if (roll < 0.33) return { ...item, split: { by: "even", units: [claimers[0], ...claimers.slice(1)] } };
+        if (roll < 0.66) {
+          const units = claimers.map((unit) => unit.map((id): Part<number> => [id, 1 + Math.floor(next() * 4)]));
+          return { ...item, split: { by: "shares", units: [units[0], ...units.slice(1)] } };
+        }
+        const units = claimers.map((unit, index) => {
+          let left = prices[index];
+          return unit.map((id): Part<Cents> => {
+            const cents = Math.floor(next() * (left + 1)) as Cents;
+            left -= cents;
+            return [id, cents];
+          });
+        });
+        return { ...item, split: { by: "amount", units: [units[0], ...units.slice(1)] } };
+      });
+      const split = { ...plain, receipt: { ...plain.receipt, items: [first, ...rest] as const } };
+      const { shares, unclaimed } = computeShares(split);
+      const sumOfShares = shares.reduce((total, { share }) => total + share, 0) + unclaimed.total;
+      if (sumOfShares !== split.receipt.total) misses.push(`shares ${sumOfShares} total ${split.receipt.total}`);
+      for (const { participantId: id, share } of shares) {
+        const breakdown = shareBreakdown(split, id);
+        const lines = [...breakdown.items, ...breakdown.adjustments].reduce((total, { portion }) => total + portion, 0);
+        if (lines !== share) misses.push(`${id} lines ${lines} share ${share}`);
+      }
+    }
+
+    expect(misses).toEqual([]);
+  });
+});
+
 describe("shareBreakdown", () => {
   const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
   const linesOf = ({ items, adjustments }: ShareBreakdown) => sum([...items, ...adjustments].map(({ portion }) => portion));
@@ -512,8 +636,8 @@ describe("shareBreakdown", () => {
 
     expect(shareBreakdown(split, participantId("bob"))).toEqual({
       items: [
-        { id: "pitcher", name: "pitcher", price: 3000, claimers: 3, portion: 1000 },
-        { id: "fries", name: "fries", price: 900, claimers: 1, portion: 900 },
+        { id: "pitcher", name: "pitcher", price: 3000, fraction: [1, 3], portion: 1000 },
+        { id: "fries", name: "fries", price: 900, fraction: [1, 1], portion: 900 },
       ],
       adjustments: [
         { id: "tax", kind: "tax", name: "tax", portion: 190 },
@@ -545,7 +669,7 @@ describe("shareBreakdown", () => {
 
     expect(["ann", "bob"].map((id) => shareBreakdown(split, participantId(id)))).toEqual([
       {
-        items: [{ id: "burger", name: "burger", price: 2000, claimers: 1, portion: 2000 }],
+        items: [{ id: "burger", name: "burger", price: 2000, fraction: [1, 1], portion: 2000 }],
         adjustments: [
           { id: "tax", kind: "tax", name: "tax", portion: 177 },
           { id: "tip", kind: "tip", name: "tip", portion: 400 },
@@ -586,8 +710,8 @@ describe("shareBreakdown", () => {
       for (const { participantId: id, share } of shares) {
         const breakdown = shareBreakdown(split, id);
         if (linesOf(breakdown) !== share || breakdown.share !== share) misses.push(`${id} lines ${linesOf(breakdown)} share ${share}`);
-        for (const { price, claimers, portion } of breakdown.items) {
-          if (Math.abs(portion - price / claimers) >= 1) misses.push(`${id} item ${portion} of ${price}/${claimers}`);
+        for (const { price, fraction, portion } of breakdown.items) {
+          if (Math.abs(portion - (price * fraction[0]) / fraction[1]) >= 1) misses.push(`${id} item ${portion} of ${price} times ${fraction.join("/")}`);
         }
       }
     }

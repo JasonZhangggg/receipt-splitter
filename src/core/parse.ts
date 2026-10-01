@@ -3,6 +3,7 @@ import {
   MAX_ADJUSTMENTS,
   MAX_ITEMS,
   MAX_PARTICIPANTS,
+  MAX_QUANTITY,
   MAX_WRITES_PER_CHANGE,
   RECENT_CHANGES_LIMIT,
   checkSplit,
@@ -19,8 +20,11 @@ import {
   PAYMENT_SERVICES,
   isId,
   type Change,
+  type ItemSplit,
+  type LegacyWrite,
   type MintedSplitId,
   type NonEmpty,
+  type Part,
   type Split,
   type Write,
 } from "./split";
@@ -69,6 +73,7 @@ type Fields = {
   read<T>(key: string, parser: Parser<T>): T;
   maybe<Key extends string, T>(key: Key, parser: Parser<T>): { readonly [Named in Key]?: T };
   has(key: string): boolean;
+  fail(key: string): never;
 };
 
 function parse<T>(parser: Parser<T>, input: unknown): { readonly ok: true; readonly value: T } | Rejected {
@@ -138,6 +143,9 @@ function strict<T>(build: (fields: Fields) => T): Parser<T> {
         return found;
       },
       has: (key) => source.has(key),
+      fail: (key) => {
+        throw new Malformed(at(path, key));
+      },
     };
     const value = build(fields);
     const extra = [...source.keys()].find((key) => !seen.has(key));
@@ -165,6 +173,7 @@ const splitId = check(isId<"SplitId">);
 const itemId = check(isId<"ItemId">);
 const adjustmentId = check(isId<"AdjustmentId">);
 const participantId = check(isId<"ParticipantId">);
+const deviceId = check(isId<"DeviceId">);
 const adjustmentKind = oneOf(ADJUSTMENT_KINDS);
 
 function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
@@ -174,12 +183,35 @@ function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
   };
 }
 
-const itemFields = ({ read }: Fields) => ({
-  name: read("name", text),
-  price: read("price", price),
-  claimedBy: read("claimedBy", array(participantId, MAX_PARTICIPANTS)),
+function part<Value extends number>(value: Parser<Value>): Parser<Part<Value>> {
+  return (input, path) => {
+    if (!Array.isArray(input) || input.length !== 2) throw new Malformed(path);
+    return [participantId(input[0], at(path, 0)), value(input[1], at(path, 1))];
+  };
+}
+
+function units<T>(parser: Parser<T>) {
+  return nonEmpty(array(parser, MAX_PARTICIPANTS), MAX_QUANTITY);
+}
+
+const itemSplit = tagged<ItemSplit>("by", {
+  even: strict(({ read }) => ({ by: read("by", literal("even")), units: read("units", units(participantId)) })),
+  shares: strict(({ read }) => ({ by: read("by", literal("shares")), units: read("units", units(part(count))) })),
+  amount: strict(({ read }) => ({ by: read("by", literal("amount")), units: read("units", units(part(cents))) })),
 });
-const itemEdit = ({ maybe }: Fields) => ({ ...maybe("name", pair(text)), ...maybe("price", pair(price)) });
+
+/** A stored Item has a split, or the line-level claimedBy written before per-unit claims, which reads as one even unit. */
+const itemFields = ({ read, has, fail }: Fields) => {
+  const head = { name: read("name", text), price: read("price", price) };
+  if (has("claimedBy") === has("split")) return fail("split");
+  if (has("split")) return { ...head, split: read("split", itemSplit) };
+  return { ...head, split: { by: "even" as const, units: [read("claimedBy", array(participantId, MAX_PARTICIPANTS))] as const } };
+};
+const itemEdit = ({ maybe }: Fields) => ({
+  ...maybe("name", pair(text)),
+  ...maybe("price", pair(price)),
+  ...maybe("split", pair(itemSplit)),
+});
 const adjustmentFields = ({ read }: Fields) => ({
   kind: read("kind", adjustmentKind),
   name: read("name", text),
@@ -210,7 +242,7 @@ function rowWrite<const Kind extends string, RowId, Full, Edit>(
   });
 }
 
-const writeVariants: { readonly [Kind in Write["kind"]]: Parser<Extract<Write, { kind: Kind }>> } = {
+const writeVariants: { readonly [Kind in (Write | LegacyWrite)["kind"]]: Parser<Extract<Write | LegacyWrite, { kind: Kind }>> } = {
   item: rowWrite("item", itemId, itemFields, itemEdit),
   adjustment: rowWrite("adjustment", adjustmentId, adjustmentFields, adjustmentEdit),
   participant: strict((fields) => {
@@ -242,16 +274,17 @@ const writeVariants: { readonly [Kind in Write["kind"]]: Parser<Extract<Write, {
   })),
 };
 
-const change: Parser<Change> = strict(({ read }) => ({
+const change: Parser<Change> = strict(({ read, maybe }) => ({
   revision: read("revision", count),
   by: read("by", nullable(participantId)),
   undoes: read("undoes", nullable(count)),
   undoneBy: read("undoneBy", nullable(count)),
-  writes: read("writes", nonEmpty(tagged<Write>("kind", writeVariants), MAX_WRITES_PER_CHANGE)),
+  writes: read("writes", nonEmpty(tagged<Write | LegacyWrite>("kind", writeVariants), MAX_WRITES_PER_CHANGE)),
+  ...maybe("at", count),
 }));
 
 const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));
-const receiptItem = strict(({ read }) => ({ id: read("id", itemId), name: read("name", text), price: read("price", price) }));
+const receiptItem = strict(({ read, maybe }) => ({ id: read("id", itemId), name: read("name", text), price: read("price", price), ...maybe("quantity", count) }));
 const adjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...adjustmentFields(fields) }));
 const participant = strict((fields) => ({ id: fields.read("id", participantId), ...participantFields(fields) }));
 const paymentHandle = strict(({ read }) => ({ service: read("service", oneOf(PAYMENT_SERVICES)), handle: read("handle", text) }));
@@ -279,14 +312,20 @@ const createRequest: Parser<CreateSplitRequest> = strict(({ read }) => ({
   split: read("split", newSplit),
 }));
 
-const split: Parser<Split> = strict(({ read, maybe }) => ({
+const pick = strict(({ read, maybe }) => ({ participantId: read("participantId", participantId), ...maybe("device", deviceId) }));
+
+const split: Parser<Split> = strict(({ read, maybe, has, fail }) => ({
   schemaVersion: read("schemaVersion", literal(1)),
   id: read("id", splitId),
   currency: read("currency", literal("USD")),
   receipt: read("receipt", receipt(item)),
   ...maybe("original", receipt(receiptItem)),
   participants: read("participants", participants),
-  joined: maybe("joined", array(participantId, MAX_PARTICIPANTS)).joined ?? [],
+  picks: has("joined")
+    ? has("picks")
+      ? fail("joined")
+      : (read("joined", array(participantId, MAX_PARTICIPANTS)).map((id) => ({ participantId: id })))
+    : (maybe("picks", array(pick, MAX_PARTICIPANTS)).picks ?? []),
   payments: read(
     "payments",
     array(
@@ -310,6 +349,9 @@ const itemPatch = tagged<ItemPatch>("type", {
     itemId: read("itemId", itemId),
     ...maybe("name", text),
     ...maybe("price", price),
+    ...maybe("quantity", count),
+    ...maybe("by", oneOf(["even", "shares", "amount"] as const)),
+    ...maybe("values", array(strict((fields) => ({ unit: fields.read("unit", count), participantId: fields.read("participantId", participantId), value: fields.read("value", count) })), MAX_QUANTITY * MAX_PARTICIPANTS)),
   })),
   delete: strict(({ read }) => ({ type: read("type", literal("delete")), itemId: read("itemId", itemId) })),
 });
@@ -338,7 +380,7 @@ function op<const Type extends string, Body>(type: Type, body: (fields: Fields) 
   }));
 }
 
-const claimFields = ({ read }: Fields) => ({ itemId: read("itemId", itemId), participantId: read("participantId", participantId) });
+const claimFields = ({ read, maybe }: Fields) => ({ itemId: read("itemId", itemId), participantId: read("participantId", participantId), ...maybe("unit", count) });
 
 const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<Operation, { type: Type }>> } = {
   editReceipt: op("editReceipt", ({ maybe }) => ({
@@ -351,14 +393,13 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
   removeParticipant: op("removeParticipant", ({ read }) => ({ participantId: read("participantId", participantId) })),
   claim: op("claim", claimFields),
   unclaim: op("unclaim", claimFields),
-  splitUnclaimed: op("splitUnclaimed", () => ({})),
   recordPayment: op("recordPayment", ({ read }) => ({
     participantId: read("participantId", participantId),
     amount: read("amount", cents),
   })),
   clearPayment: op("clearPayment", ({ read }) => ({ participantId: read("participantId", participantId) })),
   setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", paymentHandles) })),
-  setJoined: op("setJoined", ({ read }) => ({ participantId: read("participantId", participantId), joined: read("joined", flag) })),
+  pick: op("pick", ({ read }) => ({ participantId: read("participantId", participantId), device: read("device", deviceId), takeOver: read("takeOver", flag) })),
   undo: op("undo", ({ read }) => ({ revision: read("revision", count) })),
   restoreReceipt: op("restoreReceipt", () => ({})),
 };

@@ -32,10 +32,15 @@ const items = claimerCounts.map((count, index): SplitItem => {
     id: itemId(`i${index}`),
     name: `Item ${index}`,
     price: price(int(99, 4999)),
-    claimedBy: shuffled
-      .slice(0, count)
-      .map(({ id }) => id)
-      .sort(),
+    split: {
+      by: "even",
+      units: [
+        shuffled
+          .slice(0, count)
+          .map(({ id }) => id)
+          .sort(),
+      ],
+    },
   };
 });
 
