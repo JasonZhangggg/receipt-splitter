@@ -59,10 +59,10 @@ describe("blockedReason", () => {
     });
   });
 
-  test("blames tax and fees when the Items match the subtotal but the total does not", () => {
+  test("blames tax and charges when the Items match the subtotal but the total does not", () => {
     const draft = withVenmo(read1040());
-    expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and fees are $0.61 short.");
-    expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and fees are $0.39 over.");
+    expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and charges are $0.61 short.");
+    expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and charges are $0.39 over.");
   });
 
   test("blames the Items for a typed receipt, which has no subtotal to check them against", () => {

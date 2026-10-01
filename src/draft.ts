@@ -217,9 +217,9 @@ export function parseAmount(text: string, allowNegative = false): Cents | null {
 
 export const plainAmount = (amount: number) => `${amount < 0 ? "-" : ""}${(Math.abs(amount) / 100).toFixed(2)}`;
 
-const formatCents = (amount: number) => `${amount < 0 ? "-" : ""}$${(Math.abs(amount) / 100).toFixed(2)}`;
+const dollars = (amount: number) => `$${plainAmount(amount)}`;
 
-const gapReason = (what: string, gap: number) => `${what} ${formatCents(Math.abs(gap))} ${gap > 0 ? "short" : "over"}.`;
+const gapReason = (what: string, gap: number) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short" : "over"}.`;
 
 export function blockedReason({ scan, handles }: Draft): string | null {
   if (scan.status === "empty") return "Add a receipt.";
@@ -228,7 +228,7 @@ export function blockedReason({ scan, handles }: Draft): string | null {
   if (!check) return "Add an item.";
   if (!check.ok) {
     if (check.subtotalGap !== 0) return gapReason("Items are", check.subtotalGap);
-    return gapReason(scan.receipt.subtotal === null ? "Items are" : "Tax and fees are", check.totalGap);
+    return gapReason(scan.receipt.subtotal === null ? "Items are" : "Tax and charges are", check.totalGap);
   }
   if (scan.receipt.items.some((item) => !item.name.trim())) return "Name every item.";
   if (!handles.some((row) => row.handle.trim())) return "Add how to pay you.";
