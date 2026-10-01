@@ -227,6 +227,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         scrim={phase !== "regular"}
         label={phase === "pick" ? say.question : say.people}
         minHeight={phase === "pick" ? windowHeight - tallPickTop : 0}
+        rises={false}
         onHeight={setSheetHeight}
         onClose={phase === "pick" ? () => setPhase("regular") : undefined}
         stays

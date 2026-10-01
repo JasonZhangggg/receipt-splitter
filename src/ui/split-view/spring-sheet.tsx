@@ -20,6 +20,8 @@ type Props = {
   onClose?: () => void;
   stays?: boolean;
   minHeight?: number;
+  /** A sheet that is part of the page appears in place on load. Others rise from the bottom. */
+  rises?: boolean;
   closing?: boolean;
   onHeight?: (height: number) => void;
   extra?: ReactNode;
@@ -29,7 +31,7 @@ type Props = {
 
 type Drag = { pointer: number; startY: number; from: number; moved: boolean; samples: { y: number; t: number }[] };
 
-export function SpringSheet({ children, scrim = false, onClose, stays = false, closing = false, onHeight, extra, minHeight = 0, label, testID }: Props) {
+export function SpringSheet({ children, scrim = false, onClose, stays = false, closing = false, onHeight, extra, minHeight = 0, rises = true, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
@@ -77,6 +79,7 @@ export function SpringSheet({ children, scrim = false, onClose, stays = false, c
   const follow = useEffectEvent(() => {
     if (offset.current === null) paint(tallest);
     if (visible === 0 || drag.current || leaving.current) return;
+    if (!rises && offset.current === tallest) return paint(tallest - visible);
     settle(tallest - visible, handoff.current);
     handoff.current = 0;
   });
