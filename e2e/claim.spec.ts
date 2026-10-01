@@ -182,10 +182,10 @@ test("someone who owes $0.00 sees no Pay button and no I already paid, and both 
 
   await owe(priya).click();
   await expect(priya.getByTestId("breakdown")).toBeVisible(live);
-  await expect(priya.getByRole("button", { name: /^Pay Jason/ })).toHaveCount(0);
+  await expect(priya.getByRole("link", { name: /^Pay Jason/ })).toHaveCount(0);
   await expect(priya.getByRole("button", { name: "I already paid" })).toHaveCount(0);
 
   await circle(priya, "Sprite", "Priya").click();
-  await expect(priya.getByRole("button", { name: "Pay Jason $2.50 on Venmo" })).toBeVisible(live);
+  await expect(priya.getByRole("link", { name: "Pay Jason $2.50 on Venmo" })).toBeVisible(live);
   await expect(priya.getByRole("button", { name: "I already paid" })).toBeVisible(live);
 });
