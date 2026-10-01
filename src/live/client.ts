@@ -23,6 +23,8 @@ export function splitUrl(id: SplitId): string {
   return `${globalThis.location?.origin ?? ""}/s/${id}`;
 }
 
+const endings: Record<number, "notFound" | "unreadable"> = { 4404: "notFound", 4500: "unreadable" };
+
 export function useLiveSplit(id: string | null): { live: Live; send: Send } {
   const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(null);
   const socket = useRef<PartySocket | null>(null);
@@ -61,8 +63,12 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
           return setLive({ status: "gone", reason: message.reason });
       }
     });
-    ws.addEventListener("close", () => {
+    ws.addEventListener("close", ({ code }: CloseEvent) => {
       for (const ref of [...waiting.keys()]) settle(ref, { ok: false, rejection: { reason: "disconnected" } });
+      const reason = endings[code];
+      if (reason === undefined) return;
+      ws.close();
+      setLive({ status: "gone", reason });
     });
     return () => {
       ws.close();

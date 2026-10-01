@@ -157,3 +157,16 @@ test("an unknown or malformed Split link says the split has expired", async ({ p
     await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
   }
 });
+
+test("a Split whose socket closes with 4500 says it can't be opened, and stops reconnecting", async ({ page }) => {
+  let connects = 0;
+  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => {
+    connects += 1;
+    socket.close({ code: 4500, reason: "unreadable" });
+  });
+  await page.goto("/s/q7Xv0Lr9_aZ-3mKpAbCdEf");
+
+  await expect(page.getByRole("heading", { name: "This split can't be opened" })).toBeVisible();
+  await page.waitForTimeout(3000);
+  expect(connects).toBe(1);
+});
