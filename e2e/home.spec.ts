@@ -16,6 +16,11 @@ type Motion = "no-preference" | "reduce";
 const hero: Target = (page) => page.getByRole("button", { name: /^(Add|Drop a) receipt/ });
 const sheetButton: Target = (page) => page.getByRole("button", { name: "Add a name", exact: true });
 
+const sheetButtons: [string, Target][] = ["Payment app, Venmo", "Add another payment app", "Add a name"].map((name) => [
+  name,
+  (page: Page) => page.getByRole("button", { name, exact: true }),
+]);
+
 const pressedScale = (target: Target) => (target === hero ? 0.97 : 0.96);
 
 async function tabTo(target: Locator) {
@@ -113,6 +118,14 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
   await page.keyboard.up(" ");
 });
 
+test("a keydown on the disabled Create split link draws no press", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await action(page).evaluate((el) => el.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+  await page.waitForTimeout(200);
+  expect(await pressLook(page, action)).toEqual(restLook);
+});
+
 test("the sheet stands taller than the 223 px prototype at 390 by 844", async ({ page }) => {
   await page.goto("/");
   await settle(page);
@@ -130,7 +143,7 @@ test("the camera button and Add receipt sit fully above the sheet at 375 by 667"
     const box = (await target.boundingBox())!;
     return box.y + box.height;
   };
-  const camera = page.locator("[data-press-face] > div").last();
+  const camera = hero(page).locator("[data-press-face] > div").last();
   expect(await bottom(camera), "camera button bottom").toBeLessThanOrEqual(sheet.top);
   expect(await bottom(page.getByText("Add receipt", { exact: true })), "Add receipt bottom").toBeLessThanOrEqual(sheet.top);
 });
@@ -169,7 +182,7 @@ test("side safe-area insets keep the header and the sheet clear of a landscape n
   expect(right).toBeLessThanOrEqual(landscape.width - 47 - 20);
 });
 
-test("at 1280 px the drop area sits left of the 380 px panel, and dark mode keeps the page and the action on the charcoal ladder", async ({ browser }) => {
+test("at 1280 px the drop area sits left of the 380 px panel with the upload glyph, and dark mode puts the page and the camera button on the charcoal ladder", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 }, colorScheme: "dark" });
   const page = await context.newPage();
   await page.goto("/");
@@ -182,9 +195,133 @@ test("at 1280 px the drop area sits left of the 380 px panel, and dark mode keep
   expect(zone.y).toBe(panel.top);
   const colors = await page.evaluate(() => ({
     page: getComputedStyle(document.body).backgroundColor,
-    action: getComputedStyle(document.querySelector("[data-press-face] > div:last-child")!).backgroundColor,
+    slip: getComputedStyle(document.querySelector("[data-press-face]")!).backgroundColor,
+    cameraButton: getComputedStyle(document.querySelector("[data-press-face] > div:last-child")!).backgroundColor,
+    glyph: document.querySelector("[data-press-face] [data-icon]")!.getAttribute("data-icon"),
+    dropArea: getComputedStyle(document.querySelector("[data-pressable]:has([data-press-face])")!).boxShadow,
   }));
-  expect(colors).toEqual({ page: "rgb(18, 19, 21)", action: "rgb(242, 242, 243)" });
+  expect(colors).toEqual({
+    page: "rgb(18, 19, 21)",
+    slip: "rgb(28, 29, 32)",
+    cameraButton: "rgb(242, 242, 243)",
+    glyph: "upload",
+    dropArea: "rgb(47, 49, 53) 0px 0px 0px 1.5px inset",
+  });
+  await context.close();
+});
+
+const looks = {
+  light: { paper: "rgb(245, 246, 247)", hairline: "rgb(227, 229, 232)", ink: "rgb(17, 18, 20)", sheetShadow: "rgb(227, 229, 232) 0px -1px 0px 0px, rgba(17, 18, 20, 0.06) 0px -12px 32px 0px", themeColor: "#FFFFFF" },
+  dark: {
+    paper: "rgb(28, 29, 32)",
+    hairline: "rgb(47, 49, 53)",
+    ink: "rgb(242, 242, 243)",
+    sheetShadow: "rgb(47, 49, 53) 0px -1px 0px 0px, rgba(0, 0, 0, 0.4) 0px -14px 36px 0px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset",
+    themeColor: "#121315",
+  },
+};
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`the slip, the sheet, the chips, and the type follow the design tokens at 390 px, ${colorScheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
+    await page.goto("/");
+    await settle(page);
+    const sheet = await action(page).evaluate((el) => {
+      let sheet = el;
+      while (getComputedStyle(sheet).borderTopLeftRadius !== "28px") sheet = sheet.parentElement!;
+      const grab = sheet.firstElementChild!;
+      const { width, height } = grab.getBoundingClientRect();
+      return { shadow: getComputedStyle(sheet).boxShadow, grab: [width, height, getComputedStyle(grab).backgroundColor] };
+    });
+    const slip = await hero(page).locator("[data-press-face]").evaluate((el) => ({
+      fill: getComputedStyle(el).backgroundColor,
+      lines: [...el.firstElementChild!.children].map((line) => [Math.round(line.getBoundingClientRect().width), line.getBoundingClientRect().height, getComputedStyle(line).backgroundColor]),
+    }));
+    const text = await page.evaluate(() => {
+      const leaf = (content: string) => [...document.querySelectorAll("#root *")].find((el) => !el.childElementCount && el.textContent === content)!;
+      const font = (content: string) => {
+        const style = getComputedStyle(leaf(content));
+        return [style.fontSize, style.fontWeight, style.letterSpacing, style.color];
+      };
+      return { title: font("Add receipt"), me: getComputedStyle(leaf("Me")).color, handle: getComputedStyle(document.querySelector("input")!).fontSize };
+    });
+    const themeColor = await page.locator(`meta[name="theme-color"][media="(prefers-color-scheme: ${colorScheme})"]`).getAttribute("content");
+    const tokens = looks[colorScheme];
+    expect({ sheet, slip, text, themeColor }).toEqual({
+      sheet: { shadow: tokens.sheetShadow, grab: [36, 5, tokens.hairline] },
+      slip: { fill: tokens.paper, lines: [100, 70, 100, 70].map((width) => [width, 5, tokens.hairline]) },
+      text: { title: ["28px", "400", "-0.56px", tokens.ink], me: tokens.ink, handle: "16px" },
+      themeColor: tokens.themeColor,
+    });
+  });
+}
+
+test("the hero fills the space between the header and the sheet, and the header clears the top safe-area inset", async ({ page }) => {
+  const layout = async () => {
+    const heroBox = (await hero(page).boundingBox())!;
+    const sheet = await sheetOf(action(page));
+    const wordmark = (await page.getByRole("heading", { name: "Receipt Splitter" }).boundingBox())!;
+    return { heroTop: heroBox.y, heroBottom: heroBox.y + heroBox.height, sheetTop: sheet.top, wordmarkTop: wordmark.y };
+  };
+  await page.goto("/");
+  await settle(page);
+  const flush = await layout();
+  expect([flush.heroTop, flush.heroBottom]).toEqual([56, flush.sheetTop]);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, bottom: 0, left: 0, right: 0 } });
+  await page.reload();
+  await settle(page);
+  const notched = await layout();
+  expect([notched.wordmarkTop - flush.wordmarkTop, notched.heroTop - flush.heroTop, notched.heroBottom]).toEqual([47, 47, notched.sheetTop]);
+});
+
+test("Example lines up with the wordmark", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const middle = async (target: Locator) => {
+    const box = (await target.boundingBox())!;
+    return box.y + box.height / 2;
+  };
+  const wordmark = await middle(page.getByRole("heading", { name: "Receipt Splitter" }));
+  const example = await middle(page.getByText("Example", { exact: true }));
+  expect(Math.abs(example - wordmark)).toBeLessThanOrEqual(1);
+});
+
+for (const [width, wide] of [
+  [899, false],
+  [900, true],
+] as const) {
+  test(`at ${width} px the sheet ${wide ? "is" : "is not"} the 380 px panel`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+    await settle(page);
+    const sheet = await sheetOf(action(page));
+    expect(sheet.width === 380).toBe(wide);
+  });
+}
+
+test("the handle placeholder fits its field at 320 px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto("/");
+  await settle(page);
+  const fit = await page.getByRole("textbox", { name: "Venmo handle" }).evaluate((input: HTMLInputElement) => {
+    const style = getComputedStyle(input);
+    const ctx = document.createElement("canvas").getContext("2d")!;
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return { placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room };
+  });
+  expect(fit).toEqual({ placeholder: "@username", fits: true });
+  await expect(page.getByRole("button", { name: "Payment app, Venmo" })).toBeVisible();
+});
+
+test("the hero slip eases its press with cubic-bezier(0.23, 1, 0.32, 1)", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
+  const page = await context.newPage();
+  await loadAndHoldMouseOnHero(page);
+  const curve = await hero(page).locator("[data-press-face]").evaluate((el) => getComputedStyle(el).transitionTimingFunction);
+  expect(curve).toBe("cubic-bezier(0.23, 1, 0.32, 1)");
+  await page.mouse.up();
   await context.close();
 });
 
@@ -295,14 +432,16 @@ const expectScrollViewDelay = (pressedAt: number[]) => {
   expect(pressedAt[0], "first pressed frame after touch-down").toBeLessThan(260);
 };
 
-test("a press on a sheet button shows on touch-down without waiting on a timer", async ({ page }) => {
-  await page.clock.install();
-  await page.goto("/");
-  await settle(page);
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
-  await pressAndHold(sheetButton(page));
-  await expect.poll(() => pressLook(page, sheetButton)).toEqual(pressedLook("no-preference", sheetButton));
-});
+for (const [name, button] of sheetButtons) {
+  test(`a press on ${name} in the sheet shows on touch-down without waiting on a timer`, async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/");
+    await settle(page);
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    await pressAndHold(button(page));
+    await expect.poll(() => pressLook(page, button)).toEqual(pressedLook("no-preference", button));
+  });
+}
 
 type PressTiming = { shows: number; pressIn: number; delay: number };
 
@@ -341,14 +480,16 @@ async function timePress(
   return page.evaluate(() => window.pressTiming!);
 }
 
-test("a sheet button shows its press within 50 ms of touch-down and scales to 0.96 over 100 ms", async ({ page }) => {
-  await page.goto("/");
-  await settle(page);
-  const { shows, pressIn, delay } = await timePress(page, "touchstart", () => pressAndHold(sheetButton(page)), sheetButton);
-  expect(shows, "first pressed frame").toBeLessThan(50);
-  expect({ pressIn, delay }, "press-in transition").toEqual({ pressIn: 100, delay: 0 });
-  await expect.poll(() => pressLook(page, sheetButton)).toEqual(pressedLook("no-preference", sheetButton));
-});
+for (const [name, button] of sheetButtons) {
+  test(`${name} in the sheet shows its press within 50 ms of touch-down and scales to 0.96 over 100 ms`, async ({ page }) => {
+    await page.goto("/");
+    await settle(page);
+    const { shows, pressIn, delay } = await timePress(page, "touchstart", () => pressAndHold(button(page)), button);
+    expect(shows, "first pressed frame").toBeLessThan(50);
+    expect({ pressIn, delay }, "press-in transition").toEqual({ pressIn: 100, delay: 0 });
+    await expect.poll(() => pressLook(page, button)).toEqual(pressedLook("no-preference", button));
+  });
+}
 
 test("the hero slip shows its press within 50 ms of mouse-down and scales to 0.97 over 120 ms", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
@@ -429,6 +570,43 @@ for (const pointerType of ["mouse", "pen"] as const) {
     await context.close();
   });
 }
+
+test("a held pen press on the hero lets go when the pen leaves it and presses again on return", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
+  const page = await context.newPage();
+  await page.goto("/");
+  await settle(page);
+  const box = (await hero(page).boundingBox())!;
+  const on = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const off = { x: on.x, y: box.y - 40 };
+  const cdp = await context.newCDPSession(page);
+  const pen = (type: "mouseMoved" | "mousePressed" | "mouseReleased", at: At, buttons: number) =>
+    cdp.send("Input.dispatchMouseEvent", { type, ...at, button: "left", buttons, clickCount: 1, pointerType: "pen" });
+  await pen("mouseMoved", on, 0);
+  await pen("mousePressed", on, 1);
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  for (const at of glide(on, off)) await pen("mouseMoved", at, 1);
+  await expect.poll(() => pressLook(page), "off the hero").toEqual(restLook);
+  for (const at of glide(off, on)) await pen("mouseMoved", at, 1);
+  await expect.poll(() => pressLook(page), "back on the hero").toEqual(pressedLook("no-preference"));
+  await pen("mouseReleased", on, 0);
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  await context.close();
+});
+
+test("a mouse that comes back over the hero with no button held after a lost release draws no press", async ({ browser }) => {
+  const { context, page, on, off, mouse, move, clearLog, pressedFrames } = await desktopHeroPress(browser);
+  await mouse("mouseMoved", on, { buttons: 0 });
+  await mouse("mousePressed", on, { button: "left", buttons: 1 });
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await move(on, off, { buttons: 1 });
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  await clearLog();
+  await move(off, on, { buttons: 0 });
+  await page.waitForTimeout(300);
+  expect(await pressedFrames(), "pressed frames after the release was lost").toBe(0);
+  await context.close();
+});
 
 test("a right-button press during a held mouse press lets the press go", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
@@ -1053,8 +1231,26 @@ for (const { width, colorScheme, reducedMotion } of matrix) {
   });
 }
 
+async function mountHarness(page: Page, harness: string) {
+  const { build } = await import("esbuild");
+  const bundle = await build({
+    stdin: { contents: harness, loader: "tsx", resolveDir: process.cwd() },
+    bundle: true,
+    write: false,
+    jsx: "automatic",
+    alias: { "react-native": "react-native-web" },
+    resolveExtensions: [".web.tsx", ".web.ts", ".web.js", ".tsx", ".ts", ".js"],
+    loader: { ".js": "jsx" },
+    define: { "process.env.NODE_ENV": '"production"', __DEV__: "false" },
+  });
+  await page.setContent('<div id="root"></div>');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+}
+
 async function mountToast(page: Page) {
-  const harness = `
+  await mountHarness(
+    page,
+    `
     import { useState } from "react";
     import { createRoot } from "react-dom/client";
     import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -1065,22 +1261,126 @@ async function mountToast(page: Page) {
     }
     window.hiddenAt = [];
     createRoot(document.getElementById("root")).render(<SafeAreaProvider><Harness /></SafeAreaProvider>);
-  `;
-  const { build } = await import("esbuild");
-  const bundle = await build({
-    stdin: { contents: harness, loader: "tsx", resolveDir: process.cwd() },
-    bundle: true,
-    write: false,
-    jsx: "automatic",
-    alias: { "react-native": "react-native-web" },
-    resolveExtensions: [".web.tsx", ".web.ts", ".web.js", ".tsx", ".ts", ".js"],
-    loader: { ".ttf": "dataurl", ".js": "jsx" },
-    define: { "process.env.NODE_ENV": '"production"', __DEV__: "false" },
-  });
-  await page.setContent('<div id="root"></div>');
-  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  `,
+  );
   await expect(page.getByText("Copied the link")).toBeVisible();
 }
+
+const componentHarness = `
+  import { createRoot } from "react-dom/client";
+  import { View } from "react-native";
+  import { SafeAreaProvider } from "react-native-safe-area-context";
+  import { Button } from "./src/ui/components/button";
+  import { FileRow } from "./src/ui/components/file-row";
+  const thumbnail = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='52'><rect width='40' height='52' fill='%23c8a'/></svg>";
+  window.presses = 0;
+  createRoot(document.getElementById("root")).render(
+    <SafeAreaProvider>
+      <View style={{ width: 350, padding: 20, gap: 16 }}>
+        <Button label="Create split link" onPress={() => window.presses++} reason="Items are $0.50 short." />
+        <FileRow name="IMG_4127.jpg" items={5} thumbnail={thumbnail} onReplace={() => {}} />
+        <FileRow name="IMG_4128.jpg" items={1} thumbnail={thumbnail} onReplace={() => {}} />
+      </View>
+    </SafeAreaProvider>,
+  );
+`;
+
+const ink = { light: { action: "rgb(17, 18, 20)", onAction: "rgb(255, 255, 255)", flagWash: "rgb(255, 239, 158)", flag: "rgb(90, 69, 0)" }, dark: { action: "rgb(242, 242, 243)", onAction: "rgb(17, 18, 20)", flagWash: "rgb(70, 58, 12)", flag: "rgb(255, 226, 122)" } };
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`an enabled primary Button is a 54 px pill in the action color with its reason line above it, ${colorScheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
+    await mountHarness(page, componentHarness);
+    const button = page.getByRole("button", { name: "Create split link" });
+    await expect(button).toBeVisible();
+    const look = await button.evaluate((el) => {
+      const face = getComputedStyle(el.firstElementChild!);
+      const reason = document.getElementById(el.getAttribute("aria-describedby")!)!;
+      const label = getComputedStyle(el.querySelector('[dir="auto"]')!);
+      return {
+        disabled: el.getAttribute("aria-disabled"),
+        height: el.getBoundingClientRect().height,
+        radius: face.borderTopLeftRadius,
+        fill: face.backgroundColor,
+        label: label.color,
+        reason: [reason.textContent, getComputedStyle(reason).backgroundColor, getComputedStyle(reason).color],
+        reasonAbove: reason.getBoundingClientRect().bottom <= el.getBoundingClientRect().top,
+      };
+    });
+    expect(look).toEqual({
+      disabled: null,
+      height: 54,
+      radius: "27px",
+      fill: ink[colorScheme].action,
+      label: ink[colorScheme].onAction,
+      reason: ["Items are $0.50 short.", ink[colorScheme].flagWash, ink[colorScheme].flag],
+      reasonAbove: true,
+    });
+    await button.click();
+    expect(await page.evaluate(() => (window as unknown as { presses: number }).presses)).toBe(1);
+  });
+}
+
+test("a key press draws the press exactly when it activates the Button, with any modifier", async ({ page }) => {
+  await mountHarness(page, componentHarness);
+  const button = page.getByRole("button", { name: "Create split link" });
+  await expect(button).toBeVisible();
+  const seen: Record<string, { drawn: boolean; activated: number }> = {};
+  for (const modifier of [null, "Shift", "Alt", "Control", "Meta"]) {
+    for (const key of ["Enter", " "]) {
+      await button.focus();
+      await page.evaluate(() => Object.assign(window as unknown as { presses: number }, { presses: 0 }));
+      if (modifier) await page.keyboard.down(modifier);
+      await page.keyboard.down(key);
+      const drawn = [];
+      for (let frame = 0; frame < 8; frame++) {
+        drawn.push(await button.evaluate((el) => getComputedStyle(el).transform !== "none"));
+        await page.evaluate(() => new Promise(requestAnimationFrame));
+      }
+      await page.keyboard.up(key);
+      if (modifier) await page.keyboard.up(modifier);
+      await page.waitForTimeout(300);
+      const activated = await page.evaluate(() => (window as unknown as { presses: number }).presses);
+      seen[`${modifier ?? "plain"} ${key === " " ? "Space" : key}`] = { drawn: drawn.some(Boolean), activated };
+    }
+  }
+  const press = { drawn: true, activated: 1 };
+  const none = { drawn: false, activated: 0 };
+  expect(seen).toEqual({
+    "plain Enter": press,
+    "plain Space": press,
+    "Shift Enter": press,
+    "Shift Space": press,
+    "Alt Enter": none,
+    "Alt Space": none,
+    "Control Enter": none,
+    "Control Space": press,
+    "Meta Enter": none,
+    "Meta Space": press,
+  });
+});
+
+test("the file row shows the thumbnail, the file name, the item count, and a replace button", async ({ page }) => {
+  await mountHarness(page, componentHarness);
+  const rows = await page.getByRole("button", { name: "Replace receipt" }).evaluateAll((buttons) =>
+    buttons.map((button) => {
+      const row = button.parentElement!;
+      const thumbnail = row.firstElementChild!;
+      const box = (el: Element) => [Math.round(el.getBoundingClientRect().width), Math.round(el.getBoundingClientRect().height)];
+      return {
+        text: row.innerText.split("\n"),
+        thumbnail: [box(thumbnail), thumbnail.querySelector("img")?.getAttribute("src")?.startsWith("data:image/svg+xml") ?? false],
+        replace: [box(button), button.querySelector("[data-icon]")?.getAttribute("data-icon")],
+      };
+    }),
+  );
+  const thumbnail = [[40, 52], true];
+  const replace = [[44, 44], "camera"];
+  expect(rows).toEqual([
+    { text: ["IMG_4127.jpg", "5 items"], thumbnail, replace },
+    { text: ["IMG_4128.jpg", "1 item"], thumbnail, replace },
+  ]);
+});
 
 test("the toast hides 4 s after it shows even when reduced motion changes on the way", async ({ page }) => {
   await page.clock.install({ time: 0 });

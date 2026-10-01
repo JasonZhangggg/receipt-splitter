@@ -10,7 +10,7 @@ export function Slip({ icon, pressed }: { icon: IconName; pressed: boolean }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <View {...pressFace} style={[styles.slip, { backgroundColor: c.paper, boxShadow: c.lift }, pressStyle(pressed, reduce, pressFeel.slip)]}>
+    <View {...pressFace} style={[styles.slip, { backgroundColor: c.paper, filter: c.lift }, pressStyle(pressed, reduce, pressFeel.slip)]}>
       <View style={styles.lines}>
         {[0, 1, 2, 3].map((line) => (
           <View key={line} style={[styles.line, line % 2 === 1 && styles.shortLine, { backgroundColor: c.hairline }]} />

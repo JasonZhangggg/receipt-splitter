@@ -26,7 +26,7 @@ export default function Home() {
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView style={styles.screen} contentContainerStyle={styles.page}>
-        <View style={[styles.header, wide && styles.headerWide, sides, { paddingTop: (wide ? 20 : 4) + insets.top }]}>
+        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? panel.top : 56) + insets.top }]}>
           <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
             {copy.wordmark}
           </Text>
@@ -75,8 +75,7 @@ const panelSpace = panel.right + panel.width + 28;
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 56 },
-  headerWide: { minHeight: panel.top },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
   heroWide: { marginBottom: 32, paddingTop: 24, paddingBottom: 48, paddingHorizontal: 32, borderRadius: 32 },
   action: { marginTop: 8 },

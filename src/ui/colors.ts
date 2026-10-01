@@ -15,7 +15,7 @@ const light = {
   sheet: "#FFFFFF",
   sheetIn: "#F5F6F7",
   focus: "#111214",
-  lift: "0 1px 1px rgba(17, 18, 20, 0.06), 0 12px 20px rgba(17, 18, 20, 0.08)",
+  lift: "drop-shadow(0 1px 1px rgba(17, 18, 20, 0.06)) drop-shadow(0 12px 20px rgba(17, 18, 20, 0.08))",
   sheetShadow: "0 -1px 0 #E3E5E8, 0 -12px 32px rgba(17, 18, 20, 0.06)",
   panelShadow: "0 0 0 1px #E3E5E8, 0 12px 32px rgba(17, 18, 20, 0.06)",
 };
@@ -39,7 +39,7 @@ const dark: Colors = {
   sheet: "#1C1D20",
   sheetIn: "#2A2B2F",
   focus: "#F2F2F3",
-  lift: "0 1px 1px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.35)",
+  lift: "drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4)) drop-shadow(0 12px 18px rgba(0, 0, 0, 0.35))",
   sheetShadow: "0 -1px 0 #2F3135, 0 -14px 36px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04)",
   panelShadow: "0 0 0 1px #2F3135, 0 12px 32px rgba(17, 18, 20, 0.06)",
 };

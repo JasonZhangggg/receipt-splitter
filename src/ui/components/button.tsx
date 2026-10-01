@@ -27,13 +27,16 @@ const timedLooks: Partial<Record<Look, { after: number; next: Look }>> = {
   tapped: { after: tapLook, next: "rest" },
 };
 
-const pressKeys = new Set([" ", "Enter"]);
+type KeyPress = { key: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean };
+
+const keyActivates = ({ key, altKey, ctrlKey, metaKey }: KeyPress) =>
+  key === "Enter" ? !altKey && !ctrlKey && !metaKey : key === " " && !altKey;
 
 const primaryHeld = ({ nativeEvent }: PointerEvent) => (nativeEvent.buttons & 1) === 1;
 
 const inputOf = ({ nativeEvent }: GestureResponderEvent) => ("type" in nativeEvent ? nativeEvent.type : undefined);
 
-const commandKey = (event: GestureResponderEvent) => inputOf(event) === "keydown" && "metaKey" in event.nativeEvent && event.nativeEvent.metaKey === true;
+const keyWithoutClick = (event: GestureResponderEvent) => inputOf(event) === "keydown" && !keyActivates(event.nativeEvent as unknown as KeyPress);
 
 function usePressLook(outsideScroll: boolean) {
   const [look, setLook] = useState<Look>("rest");
@@ -52,7 +55,7 @@ function usePressLook(outsideScroll: boolean) {
     pressProps: {
       delayPressIn: 0,
       onPressIn: (event: GestureResponderEvent) => {
-        if (commandKey(event)) return;
+        if (keyWithoutClick(event)) return;
         const touch = inputOf(event) === "touchstart";
         if (touch && event.nativeEvent.touches.length > 1) return;
         const waits = touch && !outsideScroll;
@@ -69,11 +72,13 @@ function usePressLook(outsideScroll: boolean) {
       onPointerLeave: (event: PointerEvent) => {
         if (event.nativeEvent.pointerId === pointer.current && primaryHeld(event)) move("pressed", "away");
       },
-      onPointerEnter: () => move("away", "pressed"),
+      onPointerEnter: (event: PointerEvent) => {
+        if (primaryHeld(event)) move("away", "pressed");
+      },
       onPointerCancel: rest,
       onBlur: rest,
-      onKeyDown: (event: { key: string; metaKey: boolean }) => {
-        if (!pressKeys.has(event.key) || event.metaKey) return;
+      onKeyDown: (event: KeyPress) => {
+        if (!keyActivates(event)) return;
         pointer.current = null;
         setLook("pressed");
       },
@@ -94,7 +99,7 @@ type TargetProps = {
 export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, describedBy, style, children }: TargetProps) {
   const look = usePressLook(outsideScroll);
   const web = Platform.OS === "web";
-  const webProps = web ? { dataSet: { pressable: "" }, ...look.pressProps } : {};
+  const webProps = web ? { dataSet: { pressable: "" }, ...(disabled ? {} : look.pressProps) } : {};
   return (
     <Pressable
       role="button"
@@ -115,22 +120,20 @@ type Tone = { fill?: string; ink: string; ring?: string };
 const kinds = {
   primary: {
     face: { height: 54, paddingHorizontal: 24, borderRadius: 27 },
-    stretch: true,
     label: type.button,
     icon: 20,
     tone: (c: Colors, disabled: boolean): Tone => (disabled ? { fill: c.off, ink: c.onOff } : { fill: c.action, ink: c.onAction }),
   },
-  outline: { face: { width: 52, height: 52, borderRadius: 14 }, stretch: false, label: type.button, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
+  outline: { face: { width: 52, height: 52, borderRadius: 14 }, label: type.button, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
   chip: {
     face: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
-    stretch: false,
     label: type.label,
     icon: 16,
     tone: (c: Colors): Tone => ({ ink: c.muted, ring: c.hairline }),
   },
-  link: { face: { minHeight: 44, paddingHorizontal: 2 }, stretch: false, label: type.small, icon: 16, tone: (c: Colors): Tone => ({ ink: c.muted }) },
-  icon: { face: { width: 44, height: 44 }, stretch: false, label: type.small, icon: 18, tone: (c: Colors): Tone => ({ ink: c.muted }) },
-} satisfies Record<string, { face: ViewStyle; stretch: boolean; label: TextStyle; icon: number; tone: (c: Colors, disabled: boolean) => Tone }>;
+  link: { face: { minHeight: 44, paddingHorizontal: 2 }, label: type.small, icon: 16, tone: (c: Colors): Tone => ({ ink: c.muted }) },
+  icon: { face: { width: 44, height: 44 }, label: type.small, icon: 18, tone: (c: Colors): Tone => ({ ink: c.muted }) },
+} satisfies Record<string, { face: ViewStyle; label: TextStyle; icon: number; tone: (c: Colors, disabled: boolean) => Tone }>;
 
 type Props = ({ label: string; name?: string } | { label?: undefined; name: string }) & {
   onPress: () => void;
@@ -156,7 +159,7 @@ export function Button({ label, onPress, kind = "primary", icon, name, outsideSc
       outsideScroll={outsideScroll}
       disabled={disabled}
       describedBy={reason ? reasonId : undefined}
-      style={(pressed) => [styles.target, variant.stretch && styles.stretch, pressStyle(pressed, reduce)]}
+      style={(pressed) => pressStyle(pressed, reduce)}
     >
       {() => (
         <View
@@ -185,9 +188,7 @@ export function Button({ label, onPress, kind = "primary", icon, name, outsideSc
 }
 
 const styles = StyleSheet.create({
-  target: { alignSelf: "flex-start" },
-  stretch: { alignSelf: "stretch" },
   face: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  withReason: { alignSelf: "stretch", gap: 10 },
+  withReason: { gap: 10 },
   reason: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
