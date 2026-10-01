@@ -1,11 +1,11 @@
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { shareBreakdown } from "../../core/shares";
-import type { Participant, PaymentHandle, Split } from "../../core/split";
+import type { Participant, ParticipantId, Split } from "../../core/split";
 import { plainAmount } from "../../draft";
-import { Button } from "../components/button";
 import { Icon } from "../components/icon";
-import { paymentApps } from "../home-copy";
+import { differenceNote, payState } from "../pay/model";
+import { PayBlock } from "../pay/pay-block";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
 import { shareLabel } from "./model";
@@ -13,30 +13,25 @@ import { shareLabel } from "./model";
 type Props = {
   split: Split;
   person: Participant;
-  mine: boolean;
+  viewer: ParticipantId | null;
   onPaid: (paid: boolean) => void;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
 
-function payUrl({ service, handle }: PaymentHandle, amount: number): string | null {
-  const value = plainAmount(amount);
-  if (service === "venmo") return `https://venmo.com/${encodeURIComponent(handle)}?txn=pay&amount=${value}`;
-  if (service === "cashApp") return `https://cash.app/$${encodeURIComponent(handle)}/${value}`;
-  if (service === "paypal") return `https://paypal.me/${encodeURIComponent(handle)}/${value}USD`;
-  return null;
-}
-
-export function Breakdown({ split, person, mine, onPaid }: Props) {
+export function Breakdown({ split, person, viewer, onPaid }: Props) {
   const c = useColors();
   const { items, adjustments, difference, share } = shareBreakdown(split, person.id);
   const [host] = split.participants;
   const isHost = person.id === host.id;
-  const paid = split.payments.find(({ participantId }) => participantId === person.id);
-  const handle = split.paymentHandles[0];
-  const url = payUrl(handle, share);
-  const label = isHost ? (mine ? say.yourShare : say.shareOf(person.name)) : mine ? (paid ? say.youPaid : say.youOwe) : paid ? say.paidBy(person.name) : say.owes(person.name);
+  const mine = person.id === viewer;
+  const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
+  const paid = state.kind === "settled" || state.kind === "over";
+  const shareWord = mine ? say.yourShare : say.shareOf(person.name);
+  const label =
+    isHost || state.kind === "over" || state.kind === "short" ? shareWord : state.kind === "settled" ? (mine ? say.youPaid : say.paidBy(person.name)) : mine ? say.youOwe : say.owes(person.name);
+  const note = differenceNote(state, mine ? "payer" : viewer === host.id ? "host" : "other", person.name, host.name);
 
   return (
     <View testID="breakdown" style={styles.box}>
@@ -84,19 +79,15 @@ export function Breakdown({ split, person, mine, onPaid }: Props) {
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
         <Text style={[type.button, { color: c.ink }]}>{label}</Text>
         <Text testID="share" style={[type.total, tabular, { color: c.ink }]}>
-          {dollars(paid ? paid.amount : share)}
+          {dollars(share)}
         </Text>
       </View>
-      {mine && !isHost && (paid || share > 0) ? (
-        <View style={styles.actions}>
-          {!paid && url ? (
-            <Button label={say.payOn(host.name, dollars(share), paymentApps[handle.service].name)} onPress={() => void Linking.openURL(url)} outsideScroll />
-          ) : null}
-          <View style={styles.center}>
-            <Button kind="link" label={paid ? say.undoPaid : say.alreadyPaid} onPress={() => onPaid(!paid)} outsideScroll />
-          </View>
-        </View>
+      {note ? (
+        <Text testID="difference" style={[type.secondary, styles.note, { color: c.muted }]}>
+          {note}
+        </Text>
       ) : null}
+      {mine && !isHost ? <PayBlock host={host.name} handles={split.paymentHandles} state={state} onPaid={onPaid} /> : null}
     </View>
   );
 }
@@ -113,6 +104,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   rowLabel: { flexShrink: 1 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
-  actions: { marginTop: 14, gap: 4 },
-  center: { alignItems: "center" },
+  note: { marginTop: 6, marginHorizontal: 2 },
 });

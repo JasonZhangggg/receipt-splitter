@@ -90,6 +90,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const [phase, setPhase] = useState<Phase>(me ? "regular" : "pick");
   const [chosen, setChosen] = useState<ParticipantId | null>(null);
   const [pickProblem, setPickProblem] = useState<string | null>(null);
+  const [payProblem, setPayProblem] = useState<string | null>(null);
   const [selected, setSelected] = useState<ParticipantId | null>(me);
   const [expanded, setExpanded] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -162,6 +163,12 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
     else await navigator.clipboard?.writeText(url).catch(() => {});
   };
 
+  const markPaid = async (payer: ParticipantId, paid: boolean) => {
+    setPayProblem(null);
+    const answer = await send(paid ? { by: payer, type: "recordPayment", participantId: payer, device, amount: myShare } : { by: payer, type: "clearPayment", participantId: payer, device });
+    if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : say.saveFailed);
+  };
+
   const closeOverlay = () => setClosing(true);
   const overlayGone = () => {
     setOverlay(null);
@@ -192,12 +199,10 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         <>
           {unshared ? <LinkLine url={splitUrl(splitId)} onShared={() => remember({ shared: true })} /> : null}
           {expanded && selectedPerson ? (
-            <Breakdown
-              split={split}
-              person={selectedPerson}
-              mine={selectedPerson.id === me}
-              onPaid={(paid) => void act(paid ? { by: me, type: "recordPayment", participantId: me, device, amount: myShare } : { by: me, type: "clearPayment", participantId: me, device })}
-            />
+            <View>
+              <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} />
+              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{payProblem}</Text> : null}
+            </View>
           ) : unshared ? null : (
             <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
           )}

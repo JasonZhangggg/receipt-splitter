@@ -23,6 +23,7 @@ html, body { overscroll-behavior: none; }
 body { background-color: ${light.field}; text-wrap: pretty; }
 @media (prefers-color-scheme: dark) { body { background-color: ${dark.field}; } }
 [data-pressable] { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
 [data-pressable]:focus { outline: none; }
 [data-pressable]:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 [data-pressable]:has([data-press-face]):focus-visible { outline: none; }

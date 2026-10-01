@@ -636,6 +636,11 @@ const HANDLE_RULES: { readonly [Service in PaymentService]: { readonly sigil: st
   zelle: { sigil: "", pattern: /^(?:(?=.{3,80}$)[^\s@]+@[^\s@]+\.[^\s@]+|\d{10})$/ },
 };
 
+/** A canonical handle as people write it, such as `@jason-z` or `$jasonz`. */
+export function handleText({ service, handle }: PaymentHandle): string {
+  return `${HANDLE_RULES[service].sigil}${handle}`;
+}
+
 function canonicalHandles(handles: NonEmpty<PaymentHandle>): NonEmpty<PaymentHandle> {
   const canonical = ({ service, handle }: PaymentHandle): PaymentHandle => {
     const { sigil } = HANDLE_RULES[service];

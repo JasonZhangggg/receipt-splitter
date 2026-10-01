@@ -48,6 +48,15 @@ export const splitCopy = {
   payOn: (host: string, amount: string, app: string) => `Pay ${host} ${amount} on ${app}`,
   alreadyPaid: "I already paid",
   undoPaid: "I haven't paid",
+  paidRest: "I paid the rest",
+  payOnZelle: (host: string) => `Pay ${host} on Zelle`,
+  copyValue: (value: string) => `Copy ${value}`,
+  copyValueFailed: "Couldn't copy that. Select it and copy it by hand.",
+  payerOnly: "Only the phone that picked your name can mark you paid.",
+  paidOver: (viewer: "payer" | "host" | "other", payer: string, host: string, paid: string, back: string) =>
+    viewer === "payer" ? `You paid ${paid}. ${host} owes you ${back}.` : `${payer} paid ${paid}. ${viewer === "host" ? "You owe" : `${host} owes`} ${payer} ${back}.`,
+  paidShort: (viewer: "payer" | "host" | "other", payer: string, paid: string, rest: string) =>
+    viewer === "payer" ? `You paid ${paid}. You owe ${rest} more.` : `${payer} paid ${paid} and owes ${rest} more.`,
   showBreakdown: "Show what you owe",
   hideBreakdown: "Hide what you owe",
   item: "Item",
