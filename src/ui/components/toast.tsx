@@ -12,9 +12,10 @@ type Props = {
   message: string | null;
   onHide: () => void;
   action?: { label: string; onPress: () => void };
+  lift?: number;
 };
 
-export function Toast({ message, onHide, action }: Props) {
+export function Toast({ message, onHide, action, lift = 0 }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -43,7 +44,7 @@ export function Toast({ message, onHide, action }: Props) {
   const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   return (
-    <View role="status" aria-live="polite" pointerEvents="box-none" style={[styles.anchor, { bottom: space.l + insets.bottom }]}>
+    <View role="status" aria-live="polite" pointerEvents="box-none" style={[styles.anchor, { bottom: space.l + (lift || insets.bottom) }]}>
       {shown ? (
         <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }] }]}>
           <Text style={[type.small, styles.message, { color: c.field }]}>{shown}</Text>

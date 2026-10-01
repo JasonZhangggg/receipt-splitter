@@ -5,8 +5,11 @@ export const copy = {
   example: "Example",
   hero: {
     phone: { title: "Add receipt", hint: "Take or upload a photo" },
-    desktop: { title: "Drop a receipt", hint: "Click to choose a photo, or paste one." },
+    desktop: { title: "Drop a receipt", hint: "Choose a photo, or paste one" },
   },
+  reading: "Reading receipt",
+  notPhoto: "That file is not a photo.",
+  pastedPhoto: "Pasted photo",
   paymentApp: "Payment app",
   addApp: "Add another payment app",
   people: "People at the table",
@@ -14,6 +17,29 @@ export const copy = {
   addName: { label: "Add", name: "Add a name" },
   action: "Create split link",
   replace: "Replace receipt",
+  removeName: (name: string) => `Remove ${name}`,
+  newName: "Name",
+  removeApp: (app: string) => `Remove ${app}`,
+};
+
+export const sheetCopy = {
+  collapse: "Hide payment and names",
+  expand: "Show payment and names",
+};
+
+export const editorCopy = {
+  items: "Items",
+  itemNumber: (n: number) => `item ${n}`,
+  itemName: (n: number) => `Name of item ${n}`,
+  namePlaceholder: "Item",
+  priceOf: (name: string, flagged: boolean) => `Price of ${name}${flagged ? ", check this price" : ""}`,
+  remove: (name: string) => `Remove ${name}`,
+  addItem: "Add item",
+  subtotal: "Subtotal",
+  tip: "Tip",
+  total: "Total",
+  unreadPrice: "Could not read this price.",
+  discountExceededPrice: "Its discount was more than its price.",
 };
 
 export const paymentApps: Record<PaymentService, { name: string; glyph: string; hint: string }> = {

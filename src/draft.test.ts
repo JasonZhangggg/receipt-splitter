@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, MAX_CENTS, price } from "./core/money";
 import { adjustmentId, itemId, type Receipt } from "./core/split";
 import type { ParsedItem } from "./parse";
-import { blockedReason, emptyDraft, flaggedRows, loadDraft, reduceDraft, saveDraft, type Draft, type DraftAction } from "./draft";
+import { blockedReason, emptyDraft, flaggedRows, parseAmount, loadDraft, reduceDraft, saveDraft, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -193,7 +193,7 @@ describe("reading OCR into the draft", () => {
     expect(draft.scan).toEqual({
       status: "read",
       file,
-      receipt: { items: [], adjustments: [], subtotal: null, tip: 0, totalBeforeTip: 0, nextId: 1 },
+      receipt: { items: [], adjustments: [{ id: "a1", kind: "tax", name: "Tax", amount: 0 }], subtotal: null, tip: 0, totalBeforeTip: 0, nextId: 1 },
     });
   });
 });
@@ -235,6 +235,15 @@ describe("editing", () => {
     const typed = run(emptyDraft, { type: "read", file, receipt: null }, { type: "editTip", amount: cents(200) }, { type: "editTotal", amount: cents(1200) });
     expect(totalOf(typed)).toBe(1200);
     expect(totalOf(run(typed, { type: "editTip", amount: cents(300) }))).toBe(1300);
+  });
+});
+
+describe("parseAmount", () => {
+  test("reads what the Host types into a price, and refuses anything over MAX_CENTS", () => {
+    expect(["3", "3.5", "3.50", ".5", "", "100000.00", "100000.01", "3.505", "1e3", "-2.00"].map((text) => parseAmount(text))).toEqual([
+      300, 350, 350, 50, 0, MAX_CENTS, null, null, null, null,
+    ]);
+    expect(["-2.00", "-", "--1"].map((text) => parseAmount(text, true))).toEqual([-200, -0, null]);
   });
 });
 

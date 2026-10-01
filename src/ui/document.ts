@@ -27,6 +27,7 @@ body { background-color: ${light.field}; text-wrap: pretty; }
 [data-pressable]:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 [data-pressable]:has([data-press-face]):focus-visible { outline: none; }
 [data-pressable]:focus-visible [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; }
+[data-app-picker]:has(select:focus-visible) [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
 `;
 }
 

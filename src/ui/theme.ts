@@ -17,6 +17,9 @@ installDocument(colors);
 
 export const type = StyleSheet.create({
   hero: { fontFamily: sans, fontWeight: "400", fontSize: 28, lineHeight: 31, letterSpacing: -0.56 },
+  reading: { fontFamily: sans, fontWeight: "400", fontSize: 24, lineHeight: 28, letterSpacing: -0.48 },
+  total: { fontFamily: sans, fontWeight: "500", fontSize: 28, lineHeight: 32, letterSpacing: -0.56 },
+  merchant: { fontFamily: sans, fontWeight: "500", fontSize: 17, lineHeight: 21, letterSpacing: -0.17 },
   wordmark: { fontFamily: sans, fontWeight: "500", fontSize: 18, lineHeight: 22, letterSpacing: -0.27 },
   body: { fontFamily: sans, fontWeight: "400", fontSize: 16, lineHeight: 23 },
   button: { fontFamily: sans, fontWeight: "500", fontSize: 16, lineHeight: 20 },
@@ -39,4 +42,9 @@ export const motion = {
   toastIn: 240,
   toastOut: 180,
   reducedFade: 160,
+  readingCycle: 1600,
+  readingStagger: 150,
+  readingBar: 240,
+  receiptIn: 240,
+  dragOver: 150,
 } as const;

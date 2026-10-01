@@ -138,7 +138,14 @@ function editReceipt(receipt: DraftReceipt, action: ReceiptEdit): DraftReceipt {
   }
 }
 
-const typedReceipt: DraftReceipt = { items: [], adjustments: [], subtotal: null, tip: cents(0), totalBeforeTip: cents(0), nextId: 1 };
+const typedReceipt: DraftReceipt = {
+  items: [],
+  adjustments: [{ id: "a1", kind: "tax", name: "Tax", amount: cents(0) }],
+  subtotal: null,
+  tip: cents(0),
+  totalBeforeTip: cents(0),
+  nextId: 1,
+};
 
 function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
   const items = receipt.items.flatMap((item): DraftItem[] => {
@@ -196,6 +203,19 @@ function totalCheck(receipt: DraftReceipt) {
   };
   return runTotalCheck(core);
 }
+
+const unsignedAmount = /^\d{0,6}(\.\d{0,2})?$/;
+const signedAmount = /^-?\d{0,6}(\.\d{0,2})?$/;
+
+export function parseAmount(text: string, allowNegative = false): Cents | null {
+  if (!(allowNegative ? signedAmount : unsignedAmount).test(text)) return null;
+  const [whole = "", part = ""] = text.replace("-", "").split(".");
+  const amount = Number(whole || 0) * 100 + Number(part.padEnd(2, "0"));
+  if (amount > MAX_CENTS) return null;
+  return cents(text.startsWith("-") ? -amount : amount);
+}
+
+export const plainAmount = (amount: number) => `${amount < 0 ? "-" : ""}${(Math.abs(amount) / 100).toFixed(2)}`;
 
 export const formatCents = (amount: number) => `${amount < 0 ? "-" : ""}$${(Math.abs(amount) / 100).toFixed(2)}`;
 

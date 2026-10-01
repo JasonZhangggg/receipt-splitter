@@ -1,66 +1,54 @@
-import { StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 
-import type { PaymentService } from "../../core/split";
+import { PAYMENT_SERVICES } from "../../core/split";
+import type { DraftAction, HandleRow } from "../../draft";
 import { copy, paymentApps } from "../home-copy";
-import { pressStyle, useReducedMotion } from "../motion";
 import { type, useColors } from "../theme";
-import { Button, PressTarget } from "./button";
-import { Icon } from "./icon";
+import { AppPicker } from "./app-picker";
+import { Button } from "./button";
 
-const pressFace = { dataSet: { pressFace: "" } };
+type Props = { handles: readonly HandleRow[]; dispatch: (action: DraftAction) => void; outsideScroll?: boolean };
 
-type Props = {
-  service: PaymentService;
-  onPickApp: () => void;
-  onAddApp: () => void;
-  outsideScroll?: boolean;
-};
-
-export function PaymentRow({ service, onPickApp, onAddApp, outsideScroll }: Props) {
+export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
   const c = useColors();
-  const reduce = useReducedMotion();
-  const app = paymentApps[service];
-  const showName = useWindowDimensions().width >= 360;
+  const roomForMore = handles.length < PAYMENT_SERVICES.length;
   return (
-    <View style={styles.row}>
-      <View style={[styles.field, { backgroundColor: c.sheetIn }]}>
-        <PressTarget
-          name={`${copy.paymentApp}, ${app.name}`}
-          onPress={onPickApp}
-          outsideScroll={outsideScroll}
-          style={() => [styles.picker, { borderRightColor: c.hairline }]}
-        >
-          {(pressed) => (
-            <View {...pressFace} style={[styles.pickerFace, pressStyle(pressed, reduce)]}>
-              <View style={[styles.glyph, { backgroundColor: c.ink }]}>
-                <Text style={[type.glyph, { color: c.paper }]}>{app.glyph}</Text>
-              </View>
-              {showName ? <Text style={[type.body, { color: c.ink }]}>{app.name}</Text> : null}
-              <Icon name="chevron" size={16} color={c.muted} />
+    <View style={styles.rows}>
+      {handles.map(({ service, handle }, index) => {
+        const app = paymentApps[service];
+        const choices = PAYMENT_SERVICES.filter((choice) => choice === service || !handles.some((row) => row.service === choice));
+        return (
+          <View key={service} style={styles.row}>
+            <View style={[styles.field, { backgroundColor: c.sheetIn }]}>
+              <AppPicker service={service} choices={choices} onPick={(next) => dispatch({ type: "setService", index, service: next })} />
+              <TextInput
+                aria-label={`${app.name} handle`}
+                value={handle}
+                placeholder={app.hint}
+                placeholderTextColor={c.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                enterKeyHint="done"
+                onChangeText={(text) => dispatch({ type: "setHandle", index, handle: text })}
+                style={[type.body, styles.handle, { color: c.ink }]}
+              />
             </View>
-          )}
-        </PressTarget>
-        <TextInput
-          aria-label={`${app.name} handle`}
-          placeholder={app.hint}
-          placeholderTextColor={c.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          enterKeyHint="done"
-          style={[type.body, styles.handle, { color: c.ink }]}
-        />
-      </View>
-      <Button kind="outline" icon="plus" name={copy.addApp} onPress={onAddApp} outsideScroll={outsideScroll} />
+            {index > 0 ? (
+              <Button kind="outline" icon="x" name={copy.removeApp(app.name)} onPress={() => dispatch({ type: "removeHandle", index })} outsideScroll={outsideScroll} />
+            ) : roomForMore ? (
+              <Button kind="outline" icon="plus" name={copy.addApp} onPress={() => dispatch({ type: "addHandle" })} outsideScroll={outsideScroll} />
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  rows: { gap: 8 },
   row: { flexDirection: "row", gap: 8 },
   field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: 52, borderRadius: 14, overflow: "hidden" },
-  picker: { justifyContent: "center", paddingLeft: 12, paddingRight: 10, borderRightWidth: 1 },
-  pickerFace: { flexDirection: "row", alignItems: "center", gap: 8 },
-  glyph: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   handle: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
 });

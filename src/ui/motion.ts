@@ -16,7 +16,22 @@ export function useReducedMotion() {
   return reduce;
 }
 
-type WebOnly = Partial<Record<"transitionProperty" | "transitionDuration" | "transitionTimingFunction", string>>;
+type WebOnly = Partial<
+  Record<
+    | "transitionProperty"
+    | "transitionDuration"
+    | "transitionTimingFunction"
+    | "animationDuration"
+    | "animationDelay"
+    | "animationTimingFunction"
+    | "animationIterationCount"
+    | "animationFillMode"
+    | "overscrollBehavior"
+    | "touchAction"
+    | "cursor",
+    string
+  > & { animationKeyframes: Record<string, Record<string, number | string>>[] }
+>;
 
 export const webStyle = (style: WebOnly) => style as ViewStyle;
 

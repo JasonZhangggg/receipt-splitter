@@ -17,7 +17,7 @@ type Motion = "no-preference" | "reduce";
 const hero: Target = (page) => page.getByRole("button", { name: /^(Add|Drop a) receipt/ });
 const sheetButton: Target = (page) => page.getByRole("button", { name: "Add a name", exact: true });
 
-const sheetButtons: [string, Target][] = ["Payment app, Venmo", "Add another payment app", "Add a name"].map((name) => [
+const sheetButtons: [string, Target][] = ["Add another payment app", "Add a name"].map((name) => [
   name,
   (page: Page) => page.getByRole("button", { name, exact: true }),
 ]);
@@ -56,17 +56,19 @@ async function pressAndHold(target: Locator) {
 
 const sheetOf = (inside: Locator) =>
   inside.evaluate((el) => {
-    let sheet = el;
-    while (getComputedStyle(sheet).borderTopLeftRadius !== "28px") sheet = sheet.parentElement!;
-    const { top, left, width, height } = sheet.getBoundingClientRect();
+    const { top, left, width, height } = el.closest("[data-sheet]")!.getBoundingClientRect();
     return { top, left, width, height };
   });
+
+const appPicker = (page: Page) => page.getByRole("combobox", { name: "Payment app" });
 
 const action = (page: Page) => page.getByRole("button", { name: "Create split link" });
 
 test("the empty home at 390 px shows the hero over the sheet, and only those words", async ({ page }) => {
   await page.goto("/");
   await settle(page);
+  await expect(appPicker(page)).toHaveValue("venmo");
+  await page.locator("#root select").evaluateAll((pickers) => pickers.forEach((picker) => ((picker as HTMLElement).style.display = "none")));
   expect((await page.locator("#root").innerText()).split("\n").filter(Boolean)).toEqual([
     "Receipt Splitter",
     "Example",
@@ -78,7 +80,6 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "Add",
     "Create split link",
   ]);
-  await expect(page.getByRole("button", { name: "Payment app, Venmo" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
   await expect(page.getByRole("button", { name: "Add another payment app" })).toBeVisible();
   await expect(page.getByRole("group", { name: "People at the table" })).toContainText("Me");
@@ -191,7 +192,7 @@ test("at 1280 px the drop area sits left of the 380 px panel with the upload gly
   await settle(page);
   const zone = (await hero(page).boundingBox())!;
   const panel = await sheetOf(action(page));
-  expect(await hero(page).innerText()).toBe("Drop a receipt\nClick to choose a photo, or paste one.");
+  expect(await hero(page).innerText()).toBe("Drop a receipt\nChoose a photo, or paste one");
   expect(panel.width).toBe(380);
   expect(zone.x + zone.width).toBeLessThan(panel.left);
   expect(zone.y).toBe(panel.top);
@@ -236,10 +237,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
     await page.goto("/");
     await settle(page);
-    const sheet = await action(page).evaluate((el) => {
-      let sheet = el;
-      while (getComputedStyle(sheet).borderTopLeftRadius !== "28px") sheet = sheet.parentElement!;
-      const grab = sheet.firstElementChild!;
+    const sheet = await page.locator("[data-sheet-surface]").evaluate((sheet) => {
+      const grab = sheet.querySelector("[data-sheet-grab] > div")!;
       const { width, height } = grab.getBoundingClientRect();
       return { shadow: getComputedStyle(sheet).boxShadow, grab: [width, height, getComputedStyle(grab).backgroundColor] };
     });
@@ -328,7 +327,7 @@ test("the handle placeholder fits its field at 320 px", async ({ page }) => {
     return { placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room };
   });
   expect(fit).toEqual({ placeholder: "@username", fits: true });
-  await expect(page.getByRole("button", { name: "Payment app, Venmo" })).toBeVisible();
+  await expect(appPicker(page)).toBeVisible();
 });
 
 test("the hero slip eases its press with cubic-bezier(0.23, 1, 0.32, 1)", async ({ browser }) => {
@@ -378,18 +377,22 @@ for (const [width, named] of [
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
     await settle(page);
-    const picker = page.getByRole("button", { name: "Payment app, Venmo", exact: true });
-    expect(await picker.innerText()).toBe(named ? "V\nVenmo" : "V");
+    const face = page.locator("[data-app-picker] [data-press-face]");
+    expect(await face.innerText()).toBe(named ? "V\nVenmo" : "V");
   });
 }
 
-test("the payment picker presses its inner face and leaves its field segment still", async ({ page }) => {
+test("the payment app picker is a native select over its face that lists the four apps with Venmo first, and rings its face on keyboard focus", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  const picker = page.getByRole("button", { name: "Payment app, Venmo", exact: true });
-  await pressAndHold(picker);
-  await expect.poll(() => picker.locator("[data-press-face]").evaluate((el) => getComputedStyle(el).transform)).toBe("matrix(0.96, 0, 0, 0.96, 0, 0)");
-  expect(await picker.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
+  const picker = appPicker(page);
+  expect(await picker.locator("option").allTextContents()).toEqual(["Venmo", "Cash App", "PayPal", "Zelle"]);
+  const face = page.locator("[data-app-picker] [data-press-face]");
+  const [faceBox, pickerBox] = [(await face.boundingBox())!, (await picker.boundingBox())!];
+  expect(pickerBox.x <= faceBox.x && pickerBox.x + pickerBox.width >= faceBox.x + faceBox.width).toBe(true);
+  expect(await picker.evaluate((el) => getComputedStyle(el).fontSize)).toBe("16px");
+  await tabTo(picker);
+  expect(await face.evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth])).toEqual(["solid", "2px"]);
 });
 
 test("the fonts load as same-origin WOFF2 files with an immutable cache header while the page stays cross-origin isolated", async ({ page }) => {
@@ -424,7 +427,7 @@ for (const width of fontWidths) {
       page.evaluate(() => ({
         faces: [...document.fonts].filter((f) => f.family.replaceAll('"', "") === "Plus Jakarta Sans").length,
         lines: [...document.querySelectorAll("#root *")]
-          .filter((el) => el.childElementCount === 0 && el.textContent?.trim())
+          .filter((el) => el.childElementCount === 0 && el.textContent?.trim() && el.localName !== "option")
           .map((el) => {
             const range = document.createRange();
             range.selectNodeContents(el);
@@ -456,7 +459,7 @@ test("the fallback metrics sample exactly the lines the home renders at 390 and 
     await settle(page);
     const lines = await page.evaluate(() =>
       [...document.querySelectorAll("#root *")]
-        .filter((el) => el.childElementCount === 0 && el.textContent?.trim())
+        .filter((el) => el.childElementCount === 0 && el.textContent?.trim() && el.localName !== "option")
         .map((el) => [getComputedStyle(el).fontWeight, el.textContent!]),
     );
     for (const [weight, line] of lines) (rendered[weight] ??= new Set()).add(line);
