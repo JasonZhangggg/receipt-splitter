@@ -8,7 +8,7 @@ const DET_MODEL = asset("./models/ch_PP-OCRv5_det_mobile.onnx");
 const REC_MODEL = asset("./models/en_PP-OCRv5_rec_mobile.onnx");
 const REC_DICT = asset("./models/en_PP-OCRv5_rec_mobile.dict.txt");
 const DOWNLOADS = [ORT_GLUE, ORT_THREAD_GLUE, ORT_WASM, DET_MODEL, REC_MODEL, REC_DICT];
-const CACHE = "ocr-ort-1.30.0";
+const CACHE = "ocr-3ef68217dfef";
 
 const DET_MAX_SIDE = 960;
 const DET_MEAN = [0.485, 0.456, 0.406];
