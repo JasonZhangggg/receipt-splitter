@@ -7,6 +7,7 @@ import { Button } from "../components/button";
 import { paymentApps } from "../home-copy";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
+import { dollars } from "./model";
 
 const copiedFor = 1600;
 
@@ -23,7 +24,7 @@ export function ZelleCard({ host, handle, amount }: { host: string; handle: stri
           <Text style={[type.button, { color: c.ink }]}>{say.payOnZelle(host)}</Text>
         </View>
         <CopyRow shown={handle} value={handle} onFail={() => setProblem(true)} />
-        <CopyRow shown={`$${plainAmount(amount)}`} value={plainAmount(amount)} onFail={() => setProblem(true)} />
+        <CopyRow shown={dollars(amount)} value={plainAmount(amount)} onFail={() => setProblem(true)} />
       </View>
       {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.copyValueFailed}</Text> : null}
     </View>

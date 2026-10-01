@@ -17,7 +17,7 @@ export function payState(share: Cents, paid: Cents | null): PayState {
 
 export type Viewer = "payer" | "host" | "other";
 
-const dollars = (amount: Cents) => `$${plainAmount(amount)}`;
+export const dollars = (amount: Cents) => `$${plainAmount(amount)}`;
 
 /** The line that squares a Payment with a Share that moved after it, or null when they match. */
 export function differenceNote(state: PayState, viewer: Viewer, payer: string, host: string): string | null {
