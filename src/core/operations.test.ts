@@ -490,6 +490,14 @@ describe("Payment handles", () => {
     expect(applyOperation(withBobAndCat(), parsed.op, anyone)).toEqual({ ok: false, rejection: { reason: "creatorRequired" } });
   });
 
+  test("a Zelle handle with a bidi override or a zero-width character is rejected", () => {
+    const zelle = (handle: string): Operation => ({ by: null, type: "setPaymentHandles", handles: [{ service: "zelle", handle }] });
+
+    expect(reasonFor(withBobAndCat(), zelle("ann\u202Emoc.elpmaxe@x.com"), { creator: true })).toBe("badHandle");
+    expect(reasonFor(withBobAndCat(), zelle("ann\u200B@example.com"), { creator: true })).toBe("badHandle");
+    expect(reasonFor(withBobAndCat(), zelle("ann@example.com"), { creator: true })).toBe("accepted");
+  });
+
   test("a handle that could break out of a payment link is rejected even for the creator", () => {
     const split = withBobAndCat();
     const link = (handle: string): Operation => ({ by: null, type: "setPaymentHandles", handles: [{ service: "venmo", handle }] });
@@ -985,6 +993,18 @@ describe("Participants", () => {
 
     expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: " bob " } })).toBe("nameTaken");
     expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: "Bobby" } })).toBe("accepted");
+  });
+
+  test("a name that differs from one at the table only in Unicode form, width, inner spacing, or a hidden character is refused", () => {
+    const join = (split: Split, id: string, name: string): Operation => ({ by: null, type: "addParticipant", participant: { id: participantId(id), name } });
+    const withJose = apply(withBobAndCat(), join(withBobAndCat(), "jose", "Jos\u00E9"), join(withBobAndCat(), "mary", "Mary Ann"));
+
+    expect(reasonFor(withJose, join(withJose, "dan", "Jose\u0301"))).toBe("nameTaken");
+    expect(reasonFor(withJose, join(withJose, "dan", "\uFF22ob"))).toBe("nameTaken");
+    expect(reasonFor(withJose, join(withJose, "dan", "Mary \u00A0Ann"))).toBe("nameTaken");
+    expect(reasonFor(withJose, join(withJose, "dan", "Bob\u200B"))).toBe("badName");
+    expect(reasonFor(withJose, join(withJose, "dan", "\u202EboB"))).toBe("badName");
+    expect(reasonFor(withJose, join(withJose, "dan", "Josie"))).toBe("accepted");
   });
 
   test("a redo of an undone add is refused once someone else has taken the name", () => {

@@ -759,7 +759,7 @@ function checkState(split: Split): Rejection | null {
   if (!claimsValid || !paymentsValid || !picked.every((id) => ids.has(id))) return { reason: "unknownParticipant" };
 
   const services = paymentHandles.map(({ service }) => service);
-  const handlesValid = paymentHandles.every(({ service, handle }) => HANDLE_RULES[service].pattern.test(handle));
+  const handlesValid = paymentHandles.every(({ service, handle }) => HANDLE_RULES[service].pattern.test(handle) && !HIDDEN_CHARACTERS.test(handle));
   if (!handlesValid || new Set(services).size !== services.length) return { reason: "badHandle" };
 
   const core = serializedBytes({ ...split, payments: [], recentChanges: [] });
@@ -785,7 +785,19 @@ function isName(name: string, maxLength: number): boolean {
 }
 
 function repeatedNames(participants: readonly Participant[]): number {
-  return participants.length - new Set(participants.map(({ name }) => name.trim().toLowerCase())).size;
+  return participants.length - new Set(participants.map(({ name }) => nameKey(name))).size;
+}
+
+const INVISIBLE = /[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+
+/** A name as a person typed it, in NFC, with inner whitespace collapsed to one space and invisible characters dropped. */
+export function canonicalName(typed: string): string {
+  return typed.normalize("NFC").replace(/\s+/gu, " ").replace(INVISIBLE, "").trim();
+}
+
+/** Two names are the same name when their keys match, so "José" in either Unicode form, "Ｓam" and "sam" all collide with "Sam". */
+export function nameKey(name: string): string {
+  return canonicalName(name).normalize("NFKC").toLowerCase();
 }
 
 function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {

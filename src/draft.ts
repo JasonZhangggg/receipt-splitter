@@ -1,5 +1,5 @@
 import { cents, isCents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
-import { MAX_PARTICIPANT_NAME_LENGTH, type NewSplit } from "./core/operations";
+import { canonicalName, MAX_PARTICIPANT_NAME_LENGTH, nameKey, type NewSplit } from "./core/operations";
 import {
   ADJUSTMENT_KINDS,
   adjustmentId,
@@ -88,8 +88,8 @@ function clip(text: string, max = MAX_GRAPHEMES): string {
 }
 
 export function newName(typed: string, names: readonly string[]): string | null {
-  const name = clip(typed.trim(), MAX_PARTICIPANT_NAME_LENGTH);
-  const taken = names.some((other) => other.toLowerCase() === name.toLowerCase());
+  const name = clip(canonicalName(typed), MAX_PARTICIPANT_NAME_LENGTH);
+  const taken = names.some((other) => nameKey(other) === nameKey(name));
   return name && !taken ? name : null;
 }
 

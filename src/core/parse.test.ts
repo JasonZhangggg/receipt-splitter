@@ -381,6 +381,14 @@ describe("parseNewSplit", () => {
     expect(hosted("   ")).toEqual(badName);
   });
 
+  test("refuses a Split whose names repeat once Unicode form and width are set aside", () => {
+    const named = (second: string) => parseNewSplit({ ...body, participants: [{ id: "ann", name: "Jos\u00E9" }, { id: "bob", name: second }] }, minted);
+
+    expect(named("jose\u0301")).toEqual({ ok: false, rejection: { reason: "nameTaken" } });
+    expect(named("\uFF2A\uFF4F\uFF53\u00E9")).toEqual({ ok: false, rejection: { reason: "nameTaken" } });
+    expect(named("Josie")).toMatchObject({ ok: true });
+  });
+
   test("refuses a Receipt that fails the Total check, as parseSplit does", () => {
     expect(parseNewSplit({ ...body, receipt: { ...body.receipt, total: 4000 } }, minted)).toMatchObject({
       ok: false,

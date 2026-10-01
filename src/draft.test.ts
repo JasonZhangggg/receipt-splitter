@@ -341,6 +341,21 @@ describe("the Payment handles and names", () => {
     expect(run(emptyDraft, { type: "addName", name: "S".repeat(45) }).names).toEqual(["S".repeat(40)]);
   });
 
+  test("skips a name that repeats one already added once Unicode form, width, spacing and hidden characters are set aside, and drops hidden characters from a new name", () => {
+    const draft = run(
+      emptyDraft,
+      { type: "addName", name: "Jos\u00E9" },
+      { type: "addName", name: "Jose\u0301" },
+      { type: "addName", name: "Sam" },
+      { type: "addName", name: "Sam\u200B" },
+      { type: "addName", name: "\uFF33am" },
+      { type: "addName", name: "Mary  Ann" },
+      { type: "addName", name: "mary ann" },
+      { type: "addName", name: "\u202EBob" },
+    );
+    expect(draft.names).toEqual(["Jos\u00E9", "Sam", "Mary Ann", "Bob"]);
+  });
+
   test("adds trimmed names, skips blanks and repeats, and removes one", () => {
     const draft = run(emptyDraft, { type: "addName", name: " Sam " }, { type: "addName", name: "" }, { type: "addName", name: "sam" }, { type: "addName", name: "Me" }, { type: "addName", name: "Priya" });
     expect(draft.names).toEqual(["Sam", "Me", "Priya"]);
