@@ -13,6 +13,7 @@ export type Entry = {
   readonly name: string | null;
   readonly at: number | undefined;
   readonly reverted: boolean;
+  readonly revertible: boolean;
 };
 
 type Shown = Extract<Write, { kind: "item" | "adjustment" | "totals" | "payment" }>;
@@ -34,6 +35,7 @@ export function historyOf(split: Split): Entry[] {
         name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
         at: change.at,
         reverted: change.undoneBy !== null,
+        revertible: !writes.some((write) => write.kind === "payment"),
       };
     })
     .reverse();

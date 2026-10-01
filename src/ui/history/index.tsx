@@ -77,7 +77,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
                 <Confirm question={say.confirmRevert(asking.name ?? say.someone)} action={say.confirm} onYes={() => run(() => onRevert(entry.revision))} onNo={() => setAsking(null)} />
               ) : null
             }
-            end={entry.reverted || asking?.revision === entry.revision ? null : <End label={say.revert} name={`${say.revert} ${entry.lead || entry.after}`} onPress={() => revert(entry)} />}
+            end={entry.reverted || !entry.revertible || asking?.revision === entry.revision ? null : <End label={say.revert} name={`${say.revert} ${entry.lead || entry.after}`} onPress={() => revert(entry)} />}
           />
         ))}
         <Row
