@@ -75,8 +75,6 @@ const MAX_GRAPHEMES = 80;
 
 export const emptyDraft: Draft = { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], names: [] };
 
-const host = "Me";
-
 const graphemes = new Intl.Segmenter();
 
 function clip(text: string, max = MAX_GRAPHEMES): string {
@@ -91,7 +89,7 @@ function clip(text: string, max = MAX_GRAPHEMES): string {
 
 export function newName(typed: string, names: readonly string[]): string | null {
   const name = clip(typed.trim(), MAX_PARTICIPANT_NAME_LENGTH);
-  const taken = [host, ...names].some((other) => other.toLowerCase() === name.toLowerCase());
+  const taken = names.some((other) => other.toLowerCase() === name.toLowerCase());
   return name && !taken ? name : null;
 }
 
@@ -244,12 +242,14 @@ function totalCheck(receipt: DraftReceipt) {
 export const filledHandles = (handles: readonly HandleRow[]): PaymentHandle[] =>
   handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
 
+/** The first name is the Host's, since the Host types their own name first. */
 export function splitRequest({ scan, handles, names }: Draft, newId: () => ParticipantId): Omit<NewSplit, "id"> | null {
   const receipt = scan.status === "read" ? receiptOf(scan.receipt) : null;
   const [first, ...rest] = filledHandles(handles);
-  if (!receipt || !first) return null;
+  const [host, ...others] = names;
+  if (!receipt || !first || host === undefined) return null;
   const paymentHandles: NonEmpty<PaymentHandle> = [first, ...rest];
-  return { receipt, participants: [{ id: newId(), name: host }, ...names.map((name) => ({ id: newId(), name }))], paymentHandles };
+  return { receipt, participants: [{ id: newId(), name: host }, ...others.map((name) => ({ id: newId(), name }))], paymentHandles };
 }
 
 const unsignedAmount = /^\d{0,6}(\.\d{0,2})?$/;
@@ -274,7 +274,7 @@ function hasAmountOverLimit(receipt: DraftReceipt): boolean {
 
 const gapReason = (what: string, gap: number) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short" : "over"}.`;
 
-export function blockedReason({ scan, handles }: Draft): string | null {
+export function blockedReason({ scan, handles, names }: Draft): string | null {
   if (scan.status === "empty") return "Add a receipt.";
   if (scan.status === "reading") return "Reading the receipt.";
   if (hasAmountOverLimit(scan.receipt)) return `An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`;
@@ -286,6 +286,7 @@ export function blockedReason({ scan, handles }: Draft): string | null {
   }
   if (scan.receipt.items.some((item) => !item.name.trim())) return "Name every item.";
   if (!handles.some((row) => row.handle.trim())) return "Add how to pay you.";
+  if (names.length === 0) return "Add your name.";
   return null;
 }
 

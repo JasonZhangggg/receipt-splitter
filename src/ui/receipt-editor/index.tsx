@@ -28,7 +28,7 @@ const entrance = StyleSheet.create({
 export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const amountText = [type.body, tabular, styles.amount, { color: c.ink }];
+  const amountText = [type.input, tabular, styles.amount, { color: c.ink }];
   return (
     <View testID="receipt" style={[styles.card, locked && styles.lockedCard, { backgroundColor: c.paper }, reduce ? entrance.faded : entrance.risen]}>
       <View role="list" aria-label={editorCopy.items}>
@@ -53,7 +53,7 @@ export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Pr
                   placeholderTextColor={flag ? c.flag : c.muted}
                   enterKeyHint="next"
                   onChangeText={(name) => dispatch({ type: "editItem", id: item.id, name })}
-                  style={[type.body, styles.name, { color: flag ? c.flag : c.ink }]}
+                  style={[type.input, styles.name, { color: flag ? c.flag : c.ink }]}
                 />
                 <AmountInput
                   amount={item.price}
@@ -61,7 +61,7 @@ export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Pr
                   editable={!locked}
                   onChange={(amount) => dispatch({ type: "editItem", id: item.id, price: price(amount) })}
                   style={[
-                    type.body,
+                    type.input,
                     tabular,
                     styles.price,
                     { color: c.ink },
@@ -144,9 +144,9 @@ function Line({ label, locked, flagged = false, onRemove, end, children }: LineP
 }
 
 const styles = StyleSheet.create({
-  card: { paddingTop: 8, paddingBottom: 18, paddingLeft: 18, paddingRight: 8, borderRadius: 20 },
+  card: { paddingTop: 10, paddingBottom: 20, paddingLeft: 20, paddingRight: 10, borderRadius: 22 },
   lockedCard: { paddingRight: 10 },
-  item: { minHeight: 48, justifyContent: "center" },
+  item: { minHeight: 52, justifyContent: "center" },
   divided: { borderTopWidth: 1 },
   flagged: { marginVertical: 4, marginLeft: -10, paddingLeft: 10, borderRadius: 12 },
   itemLine: { flexDirection: "row", alignItems: "center", gap: 4 },
@@ -156,12 +156,12 @@ const styles = StyleSheet.create({
   note: { marginTop: -6, marginBottom: 8, marginRight: 50 },
   addItem: { flexDirection: "row", paddingVertical: 2 },
   lines: { marginTop: 4, paddingTop: 6, borderTopWidth: 1 },
-  line: { flexDirection: "row", alignItems: "center", minHeight: 44, gap: 6 },
+  line: { flexDirection: "row", alignItems: "center", minHeight: 46, gap: 6 },
   flaggedLine: { marginLeft: -10, paddingLeft: 10, borderRadius: 12 },
   lineLabel: { flex: 1, minWidth: 0 },
   amount: { width: 96, minHeight: 40, paddingRight: 8, textAlign: "right", fontWeight: "500" },
   noRemove: { width: 44, alignItems: "center" },
   tip: { textDecorationLine: "underline", textDecorationStyle: "dotted" },
-  total: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingTop: 12, borderTopWidth: 1 },
+  total: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
   totalInput: { flex: 1, minWidth: 0, paddingRight: 8, textAlign: "right" },
 });

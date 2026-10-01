@@ -7,13 +7,13 @@ import { Button } from "./button";
 
 type Props = {
   names: readonly string[];
-  joined?: readonly string[];
   onAdd: (name: string) => void;
-  onRemove: (name: string) => void;
+  /** Absent once the link exists, since people can only be added to a Split. */
+  onRemove?: (name: string) => void;
   outsideScroll?: boolean;
 };
 
-export function NameChips({ names, joined = [], onAdd, onRemove, outsideScroll }: Props) {
+export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
   const c = useColors();
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
@@ -23,23 +23,17 @@ export function NameChips({ names, joined = [], onAdd, onRemove, outsideScroll }
   };
   return (
     <View role="group" aria-label={copy.people} style={styles.row}>
-      <View style={[styles.chip, { backgroundColor: c.sheetIn }]}>
-        <Text style={[type.label, { color: c.ink }]}>{copy.me}</Text>
-      </View>
-      {names.map((name) => {
-        const removable = !joined.includes(name);
-        return (
-          <View key={name} style={[styles.chip, removable && styles.named, { backgroundColor: c.sheetIn }]}>
-            <Text style={[type.label, { color: c.ink }]}>{name}</Text>
-            {removable ? <Button kind="icon" icon="x" name={copy.removeName(name)} onPress={() => onRemove(name)} outsideScroll={outsideScroll} /> : null}
-          </View>
-        );
-      })}
+      {names.map((name) => (
+        <View key={name} style={[styles.chip, onRemove && styles.named, { backgroundColor: c.sheetIn }]}>
+          <Text style={[type.label, { color: c.ink }]}>{name}</Text>
+          {onRemove ? <Button kind="icon" icon="x" name={copy.removeName(name)} onPress={() => onRemove(name)} outsideScroll={outsideScroll} /> : null}
+        </View>
+      ))}
       {adding ? (
         <TextInput
           autoFocus
-          aria-label={copy.newName}
-          placeholder={copy.newName}
+          aria-label={names.length === 0 ? copy.yourName : copy.newName}
+          placeholder={names.length === 0 ? copy.yourName : copy.newName}
           placeholderTextColor={c.muted}
           value={typed}
           enterKeyHint="done"
@@ -51,16 +45,16 @@ export function NameChips({ names, joined = [], onAdd, onRemove, outsideScroll }
             commit();
             setAdding(false);
           }}
-          style={[type.body, styles.input, { color: c.ink, backgroundColor: c.sheetIn }]}
+          style={[type.input, styles.input, { color: c.ink, backgroundColor: c.sheetIn }]}
         />
       ) : null}
-      <Button kind="chip" icon="plus" label={copy.addName.label} name={copy.addName.name} onPress={() => setAdding(true)} outsideScroll={outsideScroll} />
+      <Button kind="chip" icon="plus" label={names.length === 0 ? copy.addYourName : copy.addName.label} name={names.length === 0 ? copy.addYourName : copy.addName.name} onPress={() => setAdding(true)} outsideScroll={outsideScroll} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   chip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: "center" },
   named: { flexDirection: "row", alignItems: "center", paddingRight: 0 },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },

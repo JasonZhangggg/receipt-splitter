@@ -25,6 +25,13 @@ async function readItems(page: Page) {
 
 const amount = (page: Page, name: string) => page.getByRole("textbox", { name, exact: true });
 
+async function addName(page: Page, name: string) {
+  const first = await page.getByRole("button", { name: "Your name" }).count();
+  await page.getByRole("button", { name: first ? "Your name" : "Add a name" }).click();
+  await page.getByRole("textbox", { name: first ? "Your name" : "Name", exact: true }).fill(name);
+  await page.keyboard.press("Enter");
+}
+
 async function blockedBy(page: Page) {
   const button = action(page);
   const described = await button.getAttribute("aria-describedby");
@@ -65,6 +72,8 @@ test.describe("reading SRD receipt 1040", () => {
     expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
 
     await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
+    await addName(page, "Jason");
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   });
 });
@@ -74,6 +83,7 @@ test.describe("fixing the Example receipt", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Example" }).click();
     await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+    await addName(page, "Jason");
   });
 
   test("a price edit that breaks the Total check highlights the row and names the gap until the numbers add up again", async ({ page }) => {
@@ -138,6 +148,7 @@ test("a failed read opens the empty editor with the file row, and two typed Item
   expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $18.00 over." });
   await amount(page, "Total").fill("18.00");
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+  await addName(page, "Jason");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   await expect(page.getByText("2 items")).toBeVisible();
 });
@@ -265,11 +276,7 @@ test("the payment apps and names follow the Host's choices and survive a reload"
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveAttribute("placeholder", "$cashtag");
   await page.getByRole("button", { name: "Add another payment app" }).click();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
-  for (const name of ["Sam", "Priya"]) {
-    await page.getByRole("button", { name: "Add a name" }).click();
-    await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
-    await page.keyboard.press("Enter");
-  }
+  for (const name of ["Jason", "Sam", "Priya"]) await addName(page, name);
   await page.getByRole("button", { name: "Remove Sam" }).click();
   expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
@@ -277,7 +284,7 @@ test("the payment apps and names follow the Host's choices and survive a reload"
   await page.reload();
   const people = page.getByRole("group", { name: "People at the table" });
   await expect(people).toContainText("Priya");
-  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Me", "Priya", "Add"]);
+  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Jason", "Priya", "Add"]);
   expect(await page.getByRole("combobox", { name: "Payment app" }).evaluateAll((pickers) => pickers.map((picker) => (picker as HTMLSelectElement).value))).toEqual([
     "cashApp",
     "venmo",
@@ -371,11 +378,7 @@ test.describe("the sheet", () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/");
     for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Add another payment app" }).click();
-    for (const name of ["Sam", "Priya", "Lee", "Ana", "Jo", "Kai"]) {
-      await page.getByRole("button", { name: "Add a name" }).click();
-      await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
-      await page.keyboard.press("Enter");
-    }
+    for (const name of ["Jason", "Sam", "Priya", "Lee", "Ana", "Jo", "Kai"]) await addName(page, name);
     const scrolls = await page.locator("[data-sheet-surface]").evaluate((sheet) =>
       [...sheet.querySelectorAll("div")].some((el) => getComputedStyle(el).overflowY === "auto" && el.scrollHeight > el.clientHeight),
     );

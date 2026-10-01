@@ -31,7 +31,7 @@ export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
                 spellCheck={false}
                 enterKeyHint="done"
                 onChangeText={(text) => dispatch({ type: "setHandle", index, handle: text })}
-                style={[type.body, styles.handle, { color: c.ink }]}
+                style={[type.input, styles.handle, { color: c.ink }]}
               />
             </View>
             {index > 0 ? (
@@ -47,8 +47,8 @@ export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
 }
 
 const styles = StyleSheet.create({
-  rows: { gap: 8 },
-  row: { flexDirection: "row", gap: 8 },
-  field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: 52, borderRadius: 14, overflow: "hidden" },
+  rows: { gap: 10 },
+  row: { flexDirection: "row", gap: 10 },
+  field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: 54, borderRadius: 16, overflow: "hidden" },
   handle: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
 });

@@ -14,8 +14,9 @@ export const copy = {
   paymentApp: "Payment app",
   addApp: "Add another payment app",
   people: "People at the table",
-  me: "Me",
   addName: { label: "Add", name: "Add a name" },
+  addYourName: "Your name",
+  yourName: "Your name",
   action: "Create split link",
   creating: "Creating link",
   replace: "Replace receipt",
@@ -90,5 +91,5 @@ const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
   400: [copy.example, phone.title, phone.hint, desktop.title, desktop.hint, copy.formats, paymentApps.venmo.name],
-  500: [copy.wordmark, paymentApps.venmo.glyph, copy.me, copy.addName.label, copy.action],
+  500: [copy.wordmark, paymentApps.venmo.glyph, copy.addYourName, copy.action],
 };

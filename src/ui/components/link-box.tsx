@@ -64,6 +64,6 @@ export function LinkBox({ url, onCopyFailed }: { url: string; onCopyFailed: () =
 const styles = StyleSheet.create({
   box: { gap: 10 },
   line: { marginHorizontal: 4 },
-  two: { flexDirection: "row", gap: 8 },
+  two: { flexDirection: "row", gap: 10 },
   half: { flex: 1 },
 });

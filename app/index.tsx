@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -5,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NonEmpty, PaymentHandle } from "../src/core/split";
 import { rememberSplit, splitOnDevice } from "../src/device";
 import { blockedReason, filledHandles, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
-import { createSplitLink, newParticipantId, splitUrl, useLiveSplit, type Live } from "../src/live/client";
+import { createSplitLink, newParticipantId, splitUrl, useLiveSplit } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
 import { Button, PressTarget } from "../src/ui/components/button";
@@ -26,7 +27,6 @@ import { prepareTurnstile, turnstileToken } from "../src/ui/turnstile";
 
 const handleEdits = 700;
 
-const others = (live: Live) => (live.status === "live" ? live.split.participants.slice(1) : []);
 
 const ringChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 
@@ -88,7 +88,7 @@ export default function Home() {
 
   const wide = width >= breakpoints.panelFrom;
   const hero = wide ? copy.hero.desktop : copy.hero.phone;
-  const gutter = wide ? 32 : 20;
+  const gutter = wide ? 32 : 22;
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
   const reason = blockedReason(draft);
@@ -105,30 +105,26 @@ export default function Home() {
     const created = token === null ? { ok: false as const, reason: createCopy.turnstile } : await createSplitLink({ turnstileToken: token, split: request });
     setCreating(false);
     if (!created.ok) return setFailure(created.reason);
-    rememberSplit(created.id, { creatorSecret: created.creatorSecret, me: request.participants[0].id });
+    rememberSplit(created.id, { creatorSecret: created.creatorSecret });
     sentHandles.current = JSON.stringify(request.paymentHandles);
     apply({ type: "linked", splitId: created.id });
+    router.push(`/s/${created.id}`);
   };
 
-  const people = live.status === "live" ? others(live).map(({ name }) => name) : draft.names;
-  const joined = live.status === "live" ? live.split.participants.filter(({ id }) => live.split.joined.includes(id)).map(({ name }) => name) : [];
+  const people = live.status === "live" ? live.split.participants.map(({ name }) => name) : draft.names;
   const addName = (typed: string) => {
     if (splitId === null) return dispatch({ type: "addName", name: typed });
     const name = newName(typed, people);
     if (name) void send({ type: "addParticipant", by: null, participant: { id: newParticipantId(), name } });
   };
-  const removeName = (name: string) => {
-    if (splitId === null) return dispatch({ type: "removeName", name });
-    const participant = others(live).find((person) => person.name === name);
-    if (participant) void send({ type: "removeParticipant", by: null, participantId: participant.id });
-  };
+  const removeName = splitId === null ? (name: string) => dispatch({ type: "removeName", name }) : undefined;
   const compact = !wide && height - insets.top - insets.bottom < shortScreen;
   const besidePanel = wide ? { marginLeft: gutter + insets.left, marginRight: panelSpace + insets.right } : sides;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: wide ? 0 : sheetHeight }]}>
-        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? panel.top : 56) + insets.top }]}>
+        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? panel.top : 60) + insets.top }]}>
           <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
             {copy.wordmark}
           </Text>
@@ -191,7 +187,7 @@ export default function Home() {
         }
       >
         <PaymentRows handles={draft.handles} dispatch={dispatch} outsideScroll />
-        <NameChips names={people} joined={joined} onAdd={addName} onRemove={removeName} outsideScroll />
+        <NameChips names={people} onAdd={addName} onRemove={removeName} outsideScroll />
       </Sheet>
       <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 0 : sheetHeight} />
     </View>
@@ -213,6 +209,6 @@ const styles = StyleSheet.create({
   dropCompact: { paddingVertical: 14 },
   heroCompact: { paddingVertical: 4 },
   doc: { paddingTop: 12, paddingBottom: 20 },
-  column: { alignSelf: "center", width: "100%", maxWidth: 480, gap: 12 },
+  column: { alignSelf: "center", width: "100%", maxWidth: 480, gap: 14 },
   columnWide: { maxWidth: 560 },
 });

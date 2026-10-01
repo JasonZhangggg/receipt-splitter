@@ -16,17 +16,19 @@ const sans = "'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', system-ui, -app
 installDocument(colors);
 
 export const type = StyleSheet.create({
-  hero: { fontFamily: sans, fontWeight: "400", fontSize: 28, lineHeight: 31, letterSpacing: -0.56 },
-  reading: { fontFamily: sans, fontWeight: "400", fontSize: 24, lineHeight: 28, letterSpacing: -0.48 },
-  total: { fontFamily: sans, fontWeight: "500", fontSize: 28, lineHeight: 32, letterSpacing: -0.56 },
-  wordmark: { fontFamily: sans, fontWeight: "500", fontSize: 18, lineHeight: 22, letterSpacing: -0.27 },
-  body: { fontFamily: sans, fontWeight: "400", fontSize: 16, lineHeight: 23 },
-  button: { fontFamily: sans, fontWeight: "500", fontSize: 16, lineHeight: 20 },
-  label: { fontFamily: sans, fontWeight: "500", fontSize: 15, lineHeight: 20 },
-  glyph: { fontFamily: sans, fontWeight: "500", fontSize: 13, lineHeight: 16 },
-  secondary: { fontFamily: sans, fontWeight: "400", fontSize: 15, lineHeight: 22 },
-  small: { fontFamily: sans, fontWeight: "400", fontSize: 14, lineHeight: 20 },
-  caption: { fontFamily: sans, fontWeight: "400", fontSize: 13, lineHeight: 18 },
+  hero: { fontFamily: sans, fontWeight: "400", fontSize: 26, lineHeight: 29, letterSpacing: -0.52 },
+  reading: { fontFamily: sans, fontWeight: "400", fontSize: 23, lineHeight: 27, letterSpacing: -0.46 },
+  total: { fontFamily: sans, fontWeight: "500", fontSize: 26, lineHeight: 30, letterSpacing: -0.52 },
+  wordmark: { fontFamily: sans, fontWeight: "500", fontSize: 17, lineHeight: 21, letterSpacing: -0.26 },
+  body: { fontFamily: sans, fontWeight: "400", fontSize: 15, lineHeight: 22 },
+  title: { fontFamily: sans, fontWeight: "500", fontSize: 16, lineHeight: 20, letterSpacing: -0.16 },
+  input: { fontFamily: sans, fontWeight: "400", fontSize: 16, lineHeight: 23 },
+  button: { fontFamily: sans, fontWeight: "500", fontSize: 15, lineHeight: 20 },
+  label: { fontFamily: sans, fontWeight: "500", fontSize: 14, lineHeight: 19 },
+  glyph: { fontFamily: sans, fontWeight: "500", fontSize: 12, lineHeight: 15 },
+  secondary: { fontFamily: sans, fontWeight: "400", fontSize: 14, lineHeight: 21 },
+  small: { fontFamily: sans, fontWeight: "400", fontSize: 13, lineHeight: 19 },
+  caption: { fontFamily: sans, fontWeight: "400", fontSize: 12.5, lineHeight: 17 },
 });
 
 const easeOut = [0.23, 1, 0.32, 1] as const;
