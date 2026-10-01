@@ -133,6 +133,7 @@ export type Split = {
   readonly currency: "USD";
   readonly receipt: Receipt<SplitItem>;
   readonly participants: readonly [host: Participant, ...others: Participant[]];
+  readonly joined: readonly ParticipantId[];
   readonly payments: readonly Payment[];
   readonly paymentHandles: NonEmpty<PaymentHandle>;
   readonly revision: number;

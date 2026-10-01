@@ -248,18 +248,21 @@ function receipt<I>(itemParser: Parser<I>) {
   }));
 }
 
+const participants = nonEmpty(participant, MAX_PARTICIPANTS);
+
 const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read }) => ({
   receipt: read("receipt", receipt(receiptItem)),
-  host: read("host", participant),
+  participants: read("participants", participants),
   paymentHandles: read("paymentHandles", paymentHandles),
 }));
 
-const split: Parser<Split> = strict(({ read }) => ({
+const split: Parser<Split> = strict(({ read, maybe }) => ({
   schemaVersion: read("schemaVersion", literal(1)),
   id: read("id", splitId),
   currency: read("currency", literal("USD")),
   receipt: read("receipt", receipt(item)),
-  participants: read("participants", nonEmpty(participant, MAX_PARTICIPANTS)),
+  participants: read("participants", participants),
+  joined: maybe("joined", array(participantId, MAX_PARTICIPANTS)).joined ?? [],
   payments: read(
     "payments",
     array(
@@ -331,6 +334,7 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
   })),
   clearPayment: op("clearPayment", ({ read }) => ({ participantId: read("participantId", participantId) })),
   setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", paymentHandles) })),
+  setJoined: op("setJoined", ({ read }) => ({ participantId: read("participantId", participantId), joined: read("joined", flag) })),
   undo: op("undo", ({ read }) => ({ revision: read("revision", count) })),
 };
 

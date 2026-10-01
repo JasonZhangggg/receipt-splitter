@@ -17,7 +17,7 @@ export const newSplit: CreateSplitRequest["split"] = JSON.parse(
       subtotal: 3800,
       total: 4137,
     },
-    host: { id: "ann", name: "Ann" },
+    participants: [{ id: "ann", name: "Ann" }],
     paymentHandles: [{ service: "venmo", handle: "ann-host" }],
   }),
 );

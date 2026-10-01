@@ -72,7 +72,7 @@ async function createSplit() {
           subtotal: 3800,
           total: 4137,
         },
-        host: { id: "ann", name: "Ann" },
+        participants: [{ id: "ann", name: "Ann" }],
         paymentHandles: [{ service: "venmo", handle: "ann-host" }],
       },
     }),

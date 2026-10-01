@@ -57,7 +57,7 @@ function created(receipt: Receipt = dinner): Split {
   const result = createSplit({
     id: minted,
     receipt,
-    host: { id: ann, name: "Ann" },
+    participants: [{ id: ann, name: "Ann" }],
     paymentHandles: [{ service: "venmo", handle: "ann-host" }],
   });
   if (!result.ok) throw new Error(`createSplit rejected: ${JSON.stringify(result.rejection)}`);
@@ -117,6 +117,7 @@ describe("createSplit", () => {
         total: 5200,
       },
       participants: [{ id: "ann", name: "Ann" }],
+      joined: ["ann"],
       payments: [],
       paymentHandles: [{ service: "venmo", handle: "ann-host" }],
       revision: 0,
@@ -124,11 +125,49 @@ describe("createSplit", () => {
     });
   });
 
+  test("starts with every name the Host typed, after the Host, and only the Host joined", () => {
+    const result = createSplit({
+      id: minted,
+      receipt: dinner,
+      participants: [
+        { id: ann, name: "Me" },
+        { id: bob, name: "Bob" },
+        { id: cat, name: "Cat" },
+      ],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+    });
+
+    expect(accepted(result)).toMatchObject({
+      participants: [
+        { id: "ann", name: "Me" },
+        { id: "bob", name: "Bob" },
+        { id: "cat", name: "Cat" },
+      ],
+      joined: ["ann"],
+      revision: 0,
+      recentChanges: [],
+    });
+  });
+
+  test("refuses two Participants with one id", () => {
+    const result = createSplit({
+      id: minted,
+      receipt: dinner,
+      participants: [
+        { id: ann, name: "Me" },
+        { id: ann, name: "Ann" },
+      ],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+    });
+
+    expect(result).toEqual({ ok: false, rejection: { reason: "duplicateId" } });
+  });
+
   test("refuses a Receipt that fails the Total check", () => {
     const result = createSplit({
       id: minted,
       receipt: { ...dinner, subtotal: cents(5300), total: cents(5300) },
-      host: { id: ann, name: "Ann" },
+      participants: [{ id: ann, name: "Ann" }],
       paymentHandles: [{ service: "venmo", handle: "ann-host" }],
     });
 
@@ -146,7 +185,7 @@ describe("createSplit", () => {
     const result = createSplit({
       id: minted,
       receipt: { items: [{ id: pitcher, name: "Pitcher", price: price(big) }], adjustments: [], subtotal: big, total: big },
-      host: { id: ann, name: "Ann" },
+      participants: [{ id: ann, name: "Ann" }],
       paymentHandles: [{ service: "venmo", handle: "ann-host" }],
     });
 
@@ -157,7 +196,7 @@ describe("createSplit", () => {
     const result = createSplit({
       id: minted,
       receipt: dinner,
-      host: { id: ann, name: "Ann" },
+      participants: [{ id: ann, name: "Ann" }],
       paymentHandles: [
         { service: "venmo", handle: "@ann-host" },
         { service: "cashApp", handle: "$annpays" },
@@ -271,6 +310,34 @@ describe("applyOperation", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("joining", () => {
+  const join = (participantId: ParticipantId, joined = true): Operation => ({ by: participantId, type: "setJoined", participantId, joined });
+
+  test("marks a Participant joined in id order, without a recent change, and unmarks them", () => {
+    const split = apply(withBobAndCat(), join(cat), join(bob));
+    const left = apply(split, join(cat, false));
+
+    expect([split.joined, split.revision, split.recentChanges.length]).toEqual([["ann", "bob", "cat"], 4, 2]);
+    expect([left.joined, left.revision]).toEqual([["ann", "bob"], 5]);
+  });
+
+  test("joining twice changes nothing, and an unknown Participant is refused", () => {
+    const split = apply(withBobAndCat(), join(bob));
+
+    expect(applyOperation(split, join(bob), anyone)).toEqual({ ok: true, split, changed: false });
+    expect(reasonFor(split, { by: null, type: "setJoined", participantId: dan, joined: true })).toBe("unknownParticipant");
+  });
+
+  test("keeps a joined Participant from being removed, by hand or by undoing their add", () => {
+    const split = apply(withBobAndCat(), join(bob));
+    const added = split.recentChanges[0].revision;
+
+    expect(reasonFor(split, { by: ann, type: "removeParticipant", participantId: bob })).toBe("participantInUse");
+    expect(reasonFor(split, { by: ann, type: "undo", revision: added })).toBe("participantInUse");
+    expect(reasonFor(split, { by: ann, type: "removeParticipant", participantId: cat })).toBe("accepted");
   });
 });
 
@@ -690,7 +757,7 @@ describe("names", () => {
       const result = createSplit({
         id: minted,
         receipt: receipt(itemName, tipName),
-        host: { id: ann, name: "Ann" },
+        participants: [{ id: ann, name: "Ann" }],
         paymentHandles: [{ service: "venmo", handle: "ann-host" }],
       });
       return result.ok ? "accepted" : result.rejection.reason;
@@ -710,7 +777,7 @@ describe("names", () => {
     const tipped: Receipt = { ...dinner, adjustments: [tip], total: cents(5700) };
     const [first, ...rest] = tipped.items;
     const create = (receipt: Receipt) => {
-      const result = createSplit({ id: minted, receipt, host: { id: ann, name: "Ann" }, paymentHandles: [{ service: "venmo", handle: "ann-host" }] });
+      const result = createSplit({ id: minted, receipt, participants: [{ id: ann, name: "Ann" }], paymentHandles: [{ service: "venmo", handle: "ann-host" }] });
       return result.ok ? "accepted" : result.rejection.reason;
     };
     const split = created(tipped);
@@ -767,7 +834,7 @@ describe("the 32 KB budget", () => {
     const result = createSplit({
       id: mintedId(longId("split", 0)),
       receipt: { items: [first, ...rest], adjustments: [], subtotal: cents(MAX_CENTS), total: cents(MAX_CENTS) },
-      host: { id: participantId(longId("person", 0)), name: longName(0) },
+      participants: [{ id: participantId(longId("person", 0)), name: longName(0) }],
       paymentHandles: [{ service: "zelle", handle: `${"a".repeat(60)}@example.com` }],
     });
     if (!result.ok) throw new Error(`createSplit rejected: ${JSON.stringify(result.rejection)}`);
@@ -894,7 +961,7 @@ describe("random operations", () => {
           subtotal: cents(subtotal),
           total: cents(subtotal + tax + tip),
         },
-        host: { id: participantId("p00"), name: "Host" },
+        participants: [{ id: participantId("p00"), name: "Host" }],
         paymentHandles: [{ service: "venmo", handle: "the-host" }],
       }),
     );
