@@ -126,12 +126,12 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 
-test("the sheet stands taller than the 223 px prototype at 390 by 844", async ({ page }) => {
+test("the sheet stands 247 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const sheet = await sheetOf(action(page));
   expect(sheet.top + sheet.height).toBe(phone.height);
-  expect(sheet.height).toBeGreaterThan(223);
+  expect(sheet.height).toBe(247);
 });
 
 test("the camera button and Add receipt sit fully above the sheet at 375 by 667", async ({ page }) => {
@@ -160,6 +160,7 @@ test("the sheet lifts its content by the bottom safe-area inset", async ({ page 
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
   await page.reload();
   await expect.poll(gapBelowAction).toBe(flush + 34);
+  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(281);
 });
 
 test("side safe-area insets keep the header and the sheet clear of a landscape notch", async ({ page }) => {
@@ -211,12 +212,20 @@ test("at 1280 px the drop area sits left of the 380 px panel with the upload gly
 });
 
 const looks = {
-  light: { paper: "rgb(245, 246, 247)", hairline: "rgb(227, 229, 232)", ink: "rgb(17, 18, 20)", sheetShadow: "rgb(227, 229, 232) 0px -1px 0px 0px, rgba(17, 18, 20, 0.06) 0px -12px 32px 0px", themeColor: "#FFFFFF" },
+  light: {
+    paper: "rgb(245, 246, 247)",
+    hairline: "rgb(227, 229, 232)",
+    ink: "rgb(17, 18, 20)",
+    sheetShadow: "rgb(227, 229, 232) 0px -1px 0px 0px, rgba(17, 18, 20, 0.06) 0px -12px 32px 0px",
+    lift: "drop-shadow(rgba(17, 18, 20, 0.06) 0px 1px 1px) drop-shadow(rgba(17, 18, 20, 0.08) 0px 12px 20px)",
+    themeColor: "#FFFFFF",
+  },
   dark: {
     paper: "rgb(28, 29, 32)",
     hairline: "rgb(47, 49, 53)",
     ink: "rgb(242, 242, 243)",
     sheetShadow: "rgb(47, 49, 53) 0px -1px 0px 0px, rgba(0, 0, 0, 0.4) 0px -14px 36px 0px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset",
+    lift: "drop-shadow(rgba(0, 0, 0, 0.4) 0px 1px 1px) drop-shadow(rgba(0, 0, 0, 0.35) 0px 12px 18px)",
     themeColor: "#121315",
   },
 };
@@ -235,6 +244,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
     const slip = await hero(page).locator("[data-press-face]").evaluate((el) => ({
       fill: getComputedStyle(el).backgroundColor,
+      lift: getComputedStyle(el).filter,
       lines: [...el.firstElementChild!.children].map((line) => [Math.round(line.getBoundingClientRect().width), line.getBoundingClientRect().height, getComputedStyle(line).backgroundColor]),
     }));
     const text = await page.evaluate(() => {
@@ -243,14 +253,19 @@ for (const colorScheme of ["light", "dark"] as const) {
         const style = getComputedStyle(leaf(content));
         return [style.fontSize, style.fontWeight, style.letterSpacing, style.color];
       };
-      return { title: font("Add receipt"), me: getComputedStyle(leaf("Me")).color, handle: getComputedStyle(document.querySelector("input")!).fontSize };
+      return {
+        title: font("Add receipt"),
+        me: getComputedStyle(leaf("Me")).color,
+        glyph: getComputedStyle(leaf("V")).color,
+        handle: getComputedStyle(document.querySelector("input")!).fontSize,
+      };
     });
     const themeColor = await page.locator(`meta[name="theme-color"][media="(prefers-color-scheme: ${colorScheme})"]`).getAttribute("content");
     const tokens = looks[colorScheme];
     expect({ sheet, slip, text, themeColor }).toEqual({
       sheet: { shadow: tokens.sheetShadow, grab: [36, 5, tokens.hairline] },
-      slip: { fill: tokens.paper, lines: [100, 70, 100, 70].map((width) => [width, 5, tokens.hairline]) },
-      text: { title: ["28px", "400", "-0.56px", tokens.ink], me: tokens.ink, handle: "16px" },
+      slip: { fill: tokens.paper, lift: tokens.lift, lines: [100, 70, 100, 70].map((width) => [width, 5, tokens.hairline]) },
+      text: { title: ["28px", "400", "-0.56px", tokens.ink], me: tokens.ink, glyph: tokens.paper, handle: "16px" },
       themeColor: tokens.themeColor,
     });
   });
@@ -323,6 +338,57 @@ test("the hero slip eases its press with cubic-bezier(0.23, 1, 0.32, 1)", async 
   expect(curve).toBe("cubic-bezier(0.23, 1, 0.32, 1)");
   await page.mouse.up();
   await context.close();
+});
+
+const glyphs = {
+  receipt: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z"/><path d="M9 8h6M9 12h6"/>',
+  camera:
+    '<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.5"/>',
+  chevron: '<path d="M6 9l6 6 6-6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+};
+
+test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from assistive tech, at 390 px", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const icons = await page.locator("[data-icon]").evaluateAll((wrappers) =>
+    wrappers.map((wrapper) => {
+      const img = wrapper.querySelector("img")!;
+      const svg = new DOMParser().parseFromString(decodeURIComponent(img.src.replace(/^data:image\/svg\+xml;utf8,/, "")), "image/svg+xml").documentElement;
+      return {
+        icon: wrapper.getAttribute("data-icon"),
+        hidden: wrapper.getAttribute("aria-hidden"),
+        alt: img.getAttribute("alt"),
+        stroke: svg.getAttribute("stroke"),
+        width: svg.getAttribute("stroke-width"),
+        glyph: svg.innerHTML.replaceAll(' xmlns="http://www.w3.org/2000/svg"', ""),
+      };
+    }),
+  );
+  const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", alt: "", stroke, width: "1.5", glyph: glyphs[name] });
+  expect(icons).toEqual([icon("receipt", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
+});
+
+for (const [width, named] of [
+  [359, false],
+  [360, true],
+] as const) {
+  test(`the payment picker ${named ? "shows" : "hides"} the app name at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/");
+    await settle(page);
+    const picker = page.getByRole("button", { name: "Payment app, Venmo", exact: true });
+    expect(await picker.innerText()).toBe(named ? "V\nVenmo" : "V");
+  });
+}
+
+test("the payment picker presses its inner face and leaves its field segment still", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const picker = page.getByRole("button", { name: "Payment app, Venmo", exact: true });
+  await pressAndHold(picker);
+  await expect.poll(() => picker.locator("[data-press-face]").evaluate((el) => getComputedStyle(el).transform)).toBe("matrix(0.96, 0, 0, 0.96, 0, 0)");
+  expect(await picker.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
 });
 
 const fontWidths = [320, phone.width, 1280];
@@ -594,19 +660,24 @@ test("a held pen press on the hero lets go when the pen leaves it and presses ag
   await context.close();
 });
 
-test("a mouse that comes back over the hero with no button held after a lost release draws no press", async ({ browser }) => {
-  const { context, page, on, off, mouse, move, clearLog, pressedFrames } = await desktopHeroPress(browser);
-  await mouse("mouseMoved", on, { buttons: 0 });
-  await mouse("mousePressed", on, { button: "left", buttons: 1 });
-  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
-  await move(on, off, { buttons: 1 });
-  await expect.poll(() => pressLook(page)).toEqual(restLook);
-  await clearLog();
-  await move(off, on, { buttons: 0 });
-  await page.waitForTimeout(300);
-  expect(await pressedFrames(), "pressed frames after the release was lost").toBe(0);
-  await context.close();
-});
+for (const [buttons, held] of [
+  [0, "no button held"],
+  [2, "only the right button held"],
+] as const) {
+  test(`a mouse that comes back over the hero with ${held} after a lost release draws no press`, async ({ browser }) => {
+    const { context, page, on, off, mouse, move, clearLog, pressedFrames } = await desktopHeroPress(browser);
+    await mouse("mouseMoved", on, { buttons: 0 });
+    await mouse("mousePressed", on, { button: "left", buttons: 1 });
+    await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+    await move(on, off, { buttons: 1 });
+    await expect.poll(() => pressLook(page)).toEqual(restLook);
+    await clearLog();
+    await move(off, on, { buttons });
+    await page.waitForTimeout(300);
+    expect(await pressedFrames(), "pressed frames after the release was lost").toBe(0);
+    await context.close();
+  });
+}
 
 test("a right-button press during a held mouse press lets the press go", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
@@ -759,6 +830,13 @@ for (const [buttons, who] of [
     await context.close();
   });
 }
+
+test("a held touch on Example, which sits in the scroll view, presses after the scroll-view delay", async ({ page }) => {
+  const example: Target = (p) => p.getByRole("button", { name: "Example", exact: true });
+  await watchPress(page, example);
+  const { pressedAt } = await touchPress(page, { release: false }, example);
+  expectScrollViewDelay(pressedAt);
+});
 
 test("a cancelled touch lets a sheet button's press go", async ({ page }) => {
   await page.goto("/");
@@ -1362,6 +1440,7 @@ test("a key press draws the press exactly when it activates the Button, with any
 
 test("the file row shows the thumbnail, the file name, the item count, and a replace button", async ({ page }) => {
   await mountHarness(page, componentHarness);
+  await expect(page.getByRole("button", { name: "Replace receipt" })).toHaveCount(2);
   const rows = await page.getByRole("button", { name: "Replace receipt" }).evaluateAll((buttons) =>
     buttons.map((button) => {
       const row = button.parentElement!;
