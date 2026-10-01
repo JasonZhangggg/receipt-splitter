@@ -295,7 +295,7 @@ const bodyEnter = webStyle({
 });
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, overflow: "hidden" },
+  screen: { flex: 1, overflow: "hidden", ...webStyle({ overflow: "clip" }) },
   page: { flex: 1 },
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   doc: { paddingTop: 6 },

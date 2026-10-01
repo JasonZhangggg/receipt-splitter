@@ -26,6 +26,7 @@ type WebOnly = Partial<
     | "animationTimingFunction"
     | "animationIterationCount"
     | "animationFillMode"
+    | "overflow"
     | "overscrollBehavior"
     | "touchAction"
     | "cursor",
