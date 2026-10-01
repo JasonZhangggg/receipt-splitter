@@ -39,18 +39,19 @@ function PayWays({ host, handles, amount }: { host: string; handles: readonly Pa
   const c = useColors();
   const links = handles.flatMap((handle) => {
     const href = payLink(handle, amount, note, target);
-    return href === null ? [] : [{ handle, href }];
+    return href === null ? [] : [{ handle, href, fallbackHref: payLink(handle, amount, note, "web") ?? href }];
   });
   const zelle = handles.find(({ service }) => service === "zelle");
   return (
     <View style={styles.ways}>
-      {links.map(({ handle, href }, index) => (
+      {links.map(({ handle, href, fallbackHref }, index) => (
         <Button
           key={handle.service}
           kind={index === 0 ? "primary" : "soft"}
           glyph={paymentApps[handle.service].glyph}
           label={say.payOn(host, dollars(amount), paymentApps[handle.service].name)}
           href={href}
+          fallbackHref={fallbackHref}
           outsideScroll
         />
       ))}

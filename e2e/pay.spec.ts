@@ -68,6 +68,7 @@ test("Sam's breakdown links each pay app at his $14.20 Share and shows the Zelle
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Cash App" })).toHaveAttribute("href", "https://cash.app/$jasonz/14.20");
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on PayPal" })).toHaveAttribute("href", "https://paypal.me/jasonzhang/14.20USD");
   await expect(pills.first()).toHaveAttribute("target", "_blank");
+  await expect(pills.first()).toHaveAttribute("rel", "noopener noreferrer");
   await expect(breakdown(sam).getByText("Venmo @jason-z · Cash App $jasonz · PayPal jasonzhang")).toBeVisible();
   const zelle = breakdown(sam).getByTestId("zelle");
   await expect(zelle.getByText("Pay Jason on Zelle")).toBeVisible();

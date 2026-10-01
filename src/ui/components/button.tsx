@@ -8,7 +8,7 @@ import { Icon, type IconName } from "./icon";
 
 const scrollViewTouchDelay = 150;
 
-export type Action = { onPress: () => void; href?: undefined } | { href: string; onPress?: undefined };
+export type Action = { onPress: () => void; href?: undefined; fallbackHref?: undefined } | { href: string; fallbackHref?: string; onPress?: undefined };
 
 type TargetProps = Action & {
   name?: string;
@@ -23,7 +23,7 @@ type TargetProps = Action & {
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, href, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, style, children }: TargetProps) {
+export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   if (disabled && held) setHeld(false);
   const web = Platform.OS === "web" ? { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay, ...(href === undefined ? {} : { href, hrefAttrs: newTab }) } : {};
@@ -40,7 +40,7 @@ export function PressTarget({ onPress, href, name, outsideScroll = false, disabl
       onPress={() => {
         if (disabled) return;
         if (href === undefined) onPress();
-        else if (Platform.OS !== "web") void Linking.openURL(href);
+        else if (Platform.OS !== "web") void Linking.openURL(href).catch(() => fallbackHref && Linking.openURL(fallbackHref));
       }}
       {...web}
       style={() => style(held)}
