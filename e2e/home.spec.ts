@@ -192,23 +192,12 @@ const fontWidths = [320, phone.width, 1280];
 
 for (const width of fontWidths) {
   test(`the fallback faces keep every text line and its glyph box where Plus Jakarta Sans puts them at ${width} px`, async ({ browser }) => {
-    const layout = async (withoutWebFaces: boolean) => {
-      const context = await browser.newContext({ viewport: { width, height: phone.height }, reducedMotion: "reduce" });
-      const page = await context.newPage();
-      if (withoutWebFaces) {
-        await page.addInitScript(() => {
-          const append = Node.prototype.appendChild;
-          Node.prototype.appendChild = function <T extends Node>(this: Node, node: T): T {
-            if (node instanceof HTMLStyleElement && node.id === "rs-theme") {
-              node.textContent = node.textContent!.replace(/@font-face \{ font-family: "Plus Jakarta Sans";[^}]*\}/g, "");
-            }
-            return append.call(this, node) as T;
-          };
-        });
-      }
-      await page.goto("/");
-      await settle(page);
-      const result = await page.evaluate(() => ({
+    const context = await browser.newContext({ viewport: { width, height: phone.height }, reducedMotion: "reduce" });
+    const page = await context.newPage();
+    await page.goto("/");
+    await settle(page);
+    const layout = () =>
+      page.evaluate(() => ({
         faces: [...document.fonts].filter((f) => f.family.replaceAll('"', "") === "Plus Jakarta Sans").length,
         lines: [...document.querySelectorAll("#root *")]
           .filter((el) => el.childElementCount === 0 && el.textContent?.trim())
@@ -219,11 +208,17 @@ for (const width of fontWidths) {
             return `${el.textContent} ${lines.join(" ")}`;
           }),
       }));
-      await context.close();
-      return result;
-    };
-    const web = await layout(false);
-    const fallback = await layout(true);
+    const web = await layout();
+    await page.evaluate(() => {
+      for (const sheet of document.styleSheets) {
+        for (let i = sheet.cssRules.length - 1; i >= 0; i--) {
+          const rule = sheet.cssRules[i];
+          if (rule instanceof CSSFontFaceRule && rule.style.getPropertyValue("font-family").replaceAll('"', "") === "Plus Jakarta Sans") sheet.deleteRule(i);
+        }
+      }
+    });
+    const fallback = await layout();
+    await context.close();
     expect([web.faces, fallback.faces]).toEqual([2, 0]);
     expect(fallback.lines).toEqual(web.lines);
   });
@@ -342,8 +337,8 @@ async function timePress(
     startEvent,
   );
   await press();
-  const handle = await page.waitForFunction(() => (window as unknown as { pressTiming?: PressTiming }).pressTiming);
-  return (await handle.jsonValue()) as PressTiming;
+  await page.waitForFunction(() => window.pressTiming);
+  return page.evaluate(() => window.pressTiming!);
 }
 
 test("a sheet button shows its press within 50 ms of touch-down and scales to 0.96 over 100 ms", async ({ page }) => {
@@ -404,7 +399,7 @@ for (const pointerType of ["mouse", "pen"] as const) {
     const send = (type: "mouseMoved" | "mousePressed" | "mouseReleased", at: { x: number; y: number }, buttons: number) =>
       cdp.send("Input.dispatchMouseEvent", { type, ...at, button: "left", buttons, clickCount: 1, pointerType });
     const gesture = async (path: { x: number; y: number }[], pressed: boolean) => {
-      await page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { start: 0, clicks: 0, frames: [] }));
+      await page.evaluate(() => Object.assign(window.pressLog, { start: 0, clicks: 0, frames: [] }));
       const buttons = pressed ? 1 : 0;
       await send("mouseMoved", path[0], 0);
       if (pressed) await send("mousePressed", path[0], 1);
@@ -417,7 +412,7 @@ for (const pointerType of ["mouse", "pen"] as const) {
       }
       if (pressed) await send("mouseReleased", path.at(-1)!, 0);
       await page.waitForTimeout(400);
-      const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+      const log = await page.evaluate(() => window.pressLog);
       return { shown: log.frames.some((frame) => frame.pressed), activated: log.clicks };
     };
     expect({
@@ -469,8 +464,8 @@ async function desktopHeroPress(browser: Browser) {
       await page.waitForTimeout(16);
     }
   };
-  const clearLog = () => page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { clicks: 0, frames: [] }));
-  const readLog = () => page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+  const clearLog = () => page.evaluate(() => Object.assign(window.pressLog, { clicks: 0, frames: [] }));
+  const readLog = () => page.evaluate(() => window.pressLog);
   const pressedFrames = async () => (await readLog()).frames.filter((frame) => frame.pressed).length;
   return { context, page, cdp, on, off: { x: on.x, y: box.y - 40 }, mouse, move, clearLog, readLog, pressedFrames };
 }
@@ -604,7 +599,7 @@ test("a second finger or a passing mouse on the hero leaves a held touch pressed
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [first] });
   await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
-  await page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { frames: [] }));
+  await page.evaluate(() => Object.assign(window.pressLog, { frames: [] }));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [first, second] });
   await page.waitForTimeout(100);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [second] });
@@ -613,7 +608,7 @@ test("a second finger or a passing mouse on the hero leaves a held touch pressed
   await page.mouse.move(first.x - 40, first.y, { steps: 4 });
   await page.mouse.move(first.x - 40, box.y - 60, { steps: 4 });
   await page.waitForTimeout(300);
-  const frames = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog.frames.map((frame) => frame.pressed));
+  const frames = await page.evaluate(() => window.pressLog.frames.map((frame) => frame.pressed));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [first] });
   expect(frames.length, "frames sampled while the first finger held").toBeGreaterThan(30);
   expect(frames.filter((pressed) => !pressed)).toEqual([]);
@@ -644,6 +639,14 @@ test("a mouse press on the hero shows within 50 ms on a touch-first device", asy
 
 type PressLog = { start: number; end: number; clicks: number; scrollTop: number; scrolled: number; frames: { at: number; pressed: boolean }[] };
 
+declare global {
+  interface Window {
+    pressLog: PressLog;
+    pressTiming?: PressTiming;
+    hiddenAt: number[];
+  }
+}
+
 async function watchPress(page: Page, target: Target = hero) {
   await page.goto("/");
   await settle(page);
@@ -655,7 +658,7 @@ async function watchPress(page: Page, target: Target = hero) {
     addEventListener(
       "click",
       (event) => {
-        if (target.contains(event.target as Node)) log.clicks++;
+        if (event.target instanceof Node && target.contains(event.target)) log.clicks++;
         event.stopPropagation();
       },
       { capture: true },
@@ -686,7 +689,7 @@ async function touchPress(page: Page, { moves = [] as number[], gap = 8, hold = 
   const at = (dy: number) => [{ x: box.x + box.width / 2, y: box.y + box.height / 2 + dy }];
   const cdp = await page.context().newCDPSession(page);
   await page.evaluate(() => {
-    const log = (window as unknown as { pressLog: PressLog }).pressLog;
+    const log = window.pressLog;
     Object.assign(log, { start: 0, end: 0, frames: [], scrollTop: log.scrollTop + log.scrolled, scrolled: 0 });
   });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(0) });
@@ -697,7 +700,7 @@ async function touchPress(page: Page, { moves = [] as number[], gap = 8, hold = 
   await page.waitForTimeout(hold);
   if (release) await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(300);
-  const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+  const log = await page.evaluate(() => window.pressLog);
   const pressedAt = log.frames.filter((frame) => frame.pressed).map((frame) => Math.round(frame.at - log.start));
   return { scrolled: log.scrolled, pressedAt, cdp };
 }
@@ -750,7 +753,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     for (const hold of [60, 100, 140]) {
       await touchPress(page, { hold });
       await page.waitForTimeout(400);
-      const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+      const log = await page.evaluate(() => window.pressLog);
       const lastPressed = (log.frames.filter((frame) => frame.pressed).at(-1)?.at ?? log.end) - log.end;
       taps[hold] = { heldAfterRelease: lastPressed >= pressOut + 70, restsInTime: lastPressed < pressOut + 180 && isRest(await pressLook(page)) };
     }
@@ -794,10 +797,10 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [resting] });
     await page.waitForTimeout(100);
-    await page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { start: 0, frames: [] }));
+    await page.evaluate(() => Object.assign(window.pressLog, { start: 0, frames: [] }));
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [resting, onHero] });
     await page.waitForTimeout(400);
-    const frames = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog.frames.filter((f) => f.pressed).length);
+    const frames = await page.evaluate(() => window.pressLog.frames.filter((f) => f.pressed).length);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     expect(frames).toBe(0);
   });
@@ -883,10 +886,10 @@ test("the hero takes keyboard focus with a visible ring on its slip at 1280 px",
   await context.close();
 });
 
-const readPressLog = (page: Page) => page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+const readPressLog = (page: Page) => page.evaluate(() => window.pressLog);
 
 const clearPressLog = (page: Page) =>
-  page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { start: 0, end: 0, clicks: 0, frames: [] }));
+  page.evaluate(() => Object.assign(window.pressLog, { start: 0, end: 0, clicks: 0, frames: [] }));
 
 async function lastPressedAfterRelease(page: Page) {
   const log = await readPressLog(page);
@@ -1095,5 +1098,5 @@ test("the toast hides 4 s after it shows even when reduced motion changes on the
   await page.clock.runFor(1000);
   await setReducedMotion("no-preference");
   await page.clock.runFor(5000);
-  expect(await page.evaluate(() => (window as unknown as { hiddenAt: number[] }).hiddenAt)).toEqual([5000]);
+  expect(await page.evaluate(() => window.hiddenAt)).toEqual([5000]);
 });

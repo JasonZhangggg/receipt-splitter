@@ -18,7 +18,7 @@ export function useReducedMotion() {
 
 type WebOnly = Partial<Record<"transitionProperty" | "transitionDuration" | "transitionTimingFunction", string>>;
 
-const webStyle = (style: WebOnly) => style as ViewStyle;
+export const webStyle = (style: WebOnly) => style as ViewStyle;
 
 type PressFeel = { scale: number; pressIn: number };
 

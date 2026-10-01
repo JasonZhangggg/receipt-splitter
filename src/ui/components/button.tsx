@@ -13,7 +13,7 @@ import {
 } from "react-native";
 
 import type { Colors } from "../colors";
-import { pressStyle, useReducedMotion } from "../motion";
+import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { motion, type, useColors } from "../theme";
 import { Icon, type IconName } from "./icon";
 
@@ -141,7 +141,7 @@ type Props = ({ label: string; name?: string } | { label?: undefined; name: stri
   reason?: string;
 };
 
-const colorChange = { transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" } as ViewStyle;
+const colorChange = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
 export function Button({ label, onPress, kind = "primary", icon, name, outsideScroll, disabled = false, reason }: Props) {
   const c = useColors();
