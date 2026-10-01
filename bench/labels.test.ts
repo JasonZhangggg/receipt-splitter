@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -25,6 +26,12 @@ describe("bench labels", () => {
 
   test("pin every source image by sha256", () => {
     expect(labels.filter(({ sourceSha256 }) => !/^[0-9a-f]{64}$/.test(sourceSha256)).map(({ name }) => name)).toEqual([]);
+  });
+
+  test("pin every committed image by sha256, so an edited image fails with no network", () => {
+    const changed = labels.filter(({ image, committedSha256 }) => createHash("sha256").update(readFileSync(join(BENCH, "data", image))).digest("hex") !== committedSha256);
+
+    expect(changed.map(({ name }) => name)).toEqual([]);
   });
 
   test("keep no EXIF, IPTC, or comment segment in any image", () => {

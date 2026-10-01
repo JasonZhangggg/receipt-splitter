@@ -4,6 +4,7 @@
   "sourceId": "078",
   "region": "US",
   "sourceSha256": "8c8e1971ca572c7e7f7515bba9e39e6bc34018c50c33d600c1802d89fe2f3b0d",
+  "committedSha256": "8c8e1971ca572c7e7f7515bba9e39e6bc34018c50c33d600c1802d89fe2f3b0d",
   "tags": [
     "tipBlock",
     "modifiers"

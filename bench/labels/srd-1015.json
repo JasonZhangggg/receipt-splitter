@@ -4,6 +4,7 @@
   "sourceId": "1015",
   "region": "US",
   "sourceSha256": "73c77152e1dd0089754be5c78bb724cd68b4e4abf4e8bc03e47323c7f38e9d4a",
+  "committedSha256": "73c77152e1dd0089754be5c78bb724cd68b4e4abf4e8bc03e47323c7f38e9d4a",
   "tags": [
     "discount",
     "blur"

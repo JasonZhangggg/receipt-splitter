@@ -4,6 +4,7 @@
   "sourceId": "031",
   "region": "ID",
   "sourceSha256": "71b70060764fb270f4c71ca4ec90a060fed2ae90f0bcc47df4e2ece3477d5716",
+  "committedSha256": "37f85e058fed721f72eec7c7541397266d26b415d064a5b8e611b8e08e0b9f1f",
   "tags": [
     "serviceCharge",
     "tax",
