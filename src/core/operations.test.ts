@@ -616,6 +616,40 @@ describe("Participants", () => {
   test("an operation by someone who is not a Participant is rejected", () => {
     expect(reasonFor(created(), { by: bob, type: "claim", itemId: fries, participantId: ann })).toBe("unknownParticipant");
   });
+
+  test("a second Participant with a name already at the table is refused, whatever its case or spacing", () => {
+    const split = withBobAndCat();
+
+    expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: " bob " } })).toBe("nameTaken");
+    expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: "Bobby" } })).toBe("accepted");
+  });
+
+  test("undoing a removal is refused once someone else has taken the name", () => {
+    const removed = apply(withBobAndCat(), { by: cat, type: "removeParticipant", participantId: bob });
+    const retaken = apply(removed, { by: null, type: "addParticipant", participant: { id: dan, name: "BOB" } });
+
+    expect(reasonFor(retaken, { by: cat, type: "undo", revision: removed.revision })).toBe("nameTaken");
+  });
+
+  test("a stored Split that already repeats a name still reads, so the rule needs no schema change", () => {
+    const stored = { ...withBobAndCat(), participants: [...withBobAndCat().participants, { id: dan, name: "BOB" }] };
+
+    expect(parseSplit(JSON.parse(JSON.stringify(stored)))).toMatchObject({ ok: true, split: { participants: { 3: { name: "BOB" } } } });
+  });
+
+  test("a new Split with two Participants of one name is refused", () => {
+    const result = createSplit({
+      id: minted,
+      receipt: dinner,
+      participants: [
+        { id: ann, name: "Me" },
+        { id: bob, name: "me" },
+      ],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+    });
+
+    expect(result.ok ? "accepted" : result.rejection.reason).toBe("nameTaken");
+  });
 });
 
 describe("splitting Unclaimed items", () => {
