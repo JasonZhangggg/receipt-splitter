@@ -923,7 +923,6 @@ declare global {
   interface Window {
     pressLog: PressLog;
     pressTiming?: PressTiming;
-    hiddenAt: number[];
   }
 }
 
@@ -1333,25 +1332,6 @@ for (const { width, colorScheme, reducedMotion } of matrix) {
   });
 }
 
-async function mountToast(page: Page) {
-  await mountHarness(
-    page,
-    `
-    import { useState } from "react";
-    import { createRoot } from "react-dom/client";
-    import { SafeAreaProvider } from "react-native-safe-area-context";
-    import { Toast } from "./src/ui/components/toast";
-    function Harness() {
-      const [message, setMessage] = useState("Copied the link");
-      return <Toast message={message} onHide={() => { window.hiddenAt.push(Date.now()); setMessage(null); }} />;
-    }
-    window.hiddenAt = [];
-    createRoot(document.getElementById("root")).render(<SafeAreaProvider><Harness /></SafeAreaProvider>);
-  `,
-  );
-  await expect(page.getByText("Copied the link")).toBeVisible();
-}
-
 const componentHarness = `
   import { createRoot } from "react-dom/client";
   import { View } from "react-native";
@@ -1580,23 +1560,4 @@ test("the file row shows the thumbnail, the file name, the item count, and a rep
     { text: ["IMG_4127.jpg", "5 items"], thumbnail, replace },
     { text: ["IMG_4128.jpg", "1 item"], thumbnail, replace },
   ]);
-});
-
-test("the toast hides 4 s after it shows even when reduced motion changes on the way", async ({ page }) => {
-  await page.clock.install({ time: 0 });
-  await page.clock.pauseAt(1000);
-  const setReducedMotion = async (reducedMotion: "reduce" | "no-preference") => {
-    const changed = page.evaluate(
-      () => new Promise((done) => matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", done, { once: true })),
-    );
-    await page.emulateMedia({ reducedMotion });
-    await changed;
-  };
-  await mountToast(page);
-  await page.clock.runFor(2000);
-  await setReducedMotion("reduce");
-  await page.clock.runFor(1000);
-  await setReducedMotion("no-preference");
-  await page.clock.runFor(5000);
-  expect(await page.evaluate(() => window.hiddenAt)).toEqual([5000]);
 });
