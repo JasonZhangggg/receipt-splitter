@@ -33,7 +33,7 @@ const primaryHeld = ({ nativeEvent }: PointerEvent) => (nativeEvent.buttons & 1)
 
 const inputOf = ({ nativeEvent }: GestureResponderEvent) => ("type" in nativeEvent ? nativeEvent.type : undefined);
 
-const withCommand = ({ nativeEvent }: GestureResponderEvent) => "metaKey" in nativeEvent && nativeEvent.metaKey === true;
+const commandKey = (event: GestureResponderEvent) => inputOf(event) === "keydown" && "metaKey" in event.nativeEvent && event.nativeEvent.metaKey === true;
 
 function usePressLook(outsideScroll: boolean) {
   const [look, setLook] = useState<Look>("rest");
@@ -52,7 +52,7 @@ function usePressLook(outsideScroll: boolean) {
     pressProps: {
       delayPressIn: 0,
       onPressIn: (event: GestureResponderEvent) => {
-        if (withCommand(event)) return;
+        if (commandKey(event)) return;
         const touch = inputOf(event) === "touchstart";
         if (touch && event.nativeEvent.touches.length > 1) return;
         const waits = touch && !outsideScroll;

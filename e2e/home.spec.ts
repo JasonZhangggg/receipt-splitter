@@ -497,6 +497,23 @@ for (const { press, button, buttons, modifiers } of refusedPresses) {
   });
 }
 
+for (const [press, modifiers] of [
+  ["a Shift-held", 8],
+  ["a Cmd-held", 4],
+] as const) {
+  test(`${press} left press shows the press and activates the hero once`, async ({ browser }) => {
+    const { context, page, on, mouse, clearLog, readLog } = await desktopHeroPress(browser);
+    await mouse("mouseMoved", on, { buttons: 0 });
+    await clearLog();
+    await mouse("mousePressed", on, { button: "left", buttons: 1, modifiers });
+    await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+    await mouse("mouseReleased", on, { button: "left", buttons: 0, modifiers });
+    await expect.poll(() => pressLook(page)).toEqual(restLook);
+    expect((await readLog()).clicks).toBe(1);
+    await context.close();
+  });
+}
+
 test("a left press while the right button is held shows the press and activates the hero once", async ({ browser }) => {
   const { context, page, on, mouse, clearLog, readLog } = await desktopHeroPress(browser);
   await mouse("mouseMoved", on, { buttons: 0 });
