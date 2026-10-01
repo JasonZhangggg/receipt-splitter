@@ -9,7 +9,7 @@ import { useReducedMotion, webStyle } from "../motion";
 import { motion, type, useColors } from "../theme";
 import { AmountInput } from "./amount-input";
 
-type Props = { receipt: DraftReceipt; flagged: readonly string[]; dispatch: (action: DraftAction) => void };
+type Props = { receipt: DraftReceipt; flagged: readonly string[]; dispatch: (action: DraftAction) => void; locked?: boolean };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 
@@ -25,12 +25,12 @@ const entrance = StyleSheet.create({
   faded: enter({ opacity: 0 }, motion.reducedFade),
 });
 
-export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
+export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const amountText = [type.body, tabular, styles.amount, { color: c.ink }];
   return (
-    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper }, reduce ? entrance.faded : entrance.risen]}>
+    <View testID="receipt" style={[styles.card, locked && styles.lockedCard, { backgroundColor: c.paper }, reduce ? entrance.faded : entrance.risen]}>
       <View role="list" aria-label={editorCopy.items}>
         {receipt.items.map((item, index) => {
           const flag = flagged.includes(item.id);
@@ -48,6 +48,7 @@ export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
                 <TextInput
                   aria-label={editorCopy.itemName(index + 1)}
                   value={item.name}
+                  editable={!locked}
                   placeholder={editorCopy.namePlaceholder}
                   placeholderTextColor={flag ? c.flag : c.muted}
                   enterKeyHint="next"
@@ -57,6 +58,7 @@ export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
                 <AmountInput
                   amount={item.price}
                   label={editorCopy.priceOf(label, flag)}
+                  editable={!locked}
                   onChange={(amount) => dispatch({ type: "editItem", id: item.id, price: price(amount) })}
                   style={[
                     type.body,
@@ -66,42 +68,46 @@ export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
                     flag && [styles.flaggedPrice, { backgroundColor: c.inset, boxShadow: `inset 0 0 0 1.5px ${c.flag}` }],
                   ]}
                 />
-                <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={() => dispatch({ type: "removeItem", id: item.id })} />
+                {locked ? null : <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={() => dispatch({ type: "removeItem", id: item.id })} />}
               </View>
               {note ? <Text style={[type.caption, styles.note, { color: flag ? c.flag : c.muted }]}>{note}</Text> : null}
             </View>
           );
         })}
       </View>
-      <View style={styles.addItem}>
-        <Button kind="link" icon="plus" label={editorCopy.addItem} onPress={() => dispatch({ type: "addItem" })} />
-      </View>
+      {locked ? null : (
+        <View style={styles.addItem}>
+          <Button kind="link" icon="plus" label={editorCopy.addItem} onPress={() => dispatch({ type: "addItem" })} />
+        </View>
+      )}
 
       <View style={[styles.lines, { borderTopColor: c.hairline }]}>
         {receipt.subtotal === null ? null : (
-          <Line label={editorCopy.subtotal}>
-            <AmountInput amount={receipt.subtotal} label={editorCopy.subtotal} prefix="$" onChange={(amount) => dispatch({ type: "editSubtotal", amount })} style={amountText} />
+          <Line label={editorCopy.subtotal} locked={locked}>
+            <AmountInput amount={receipt.subtotal} label={editorCopy.subtotal} prefix="$" editable={!locked} onChange={(amount) => dispatch({ type: "editSubtotal", amount })} style={amountText} />
           </Line>
         )}
         {receipt.adjustments.map((row) => (
-          <Line key={row.id} label={row.name} flagged={flagged.includes(row.id)} onRemove={() => dispatch({ type: "removeAdjustment", id: row.id })}>
+          <Line key={row.id} label={row.name} locked={locked} flagged={flagged.includes(row.id)} onRemove={() => dispatch({ type: "removeAdjustment", id: row.id })}>
             <AmountInput
               amount={row.amount}
               label={row.name}
               prefix="$"
+              editable={!locked}
               allowNegative
               onChange={(amount) => dispatch({ type: "editAdjustment", id: row.id, amount })}
               style={amountText}
             />
           </Line>
         ))}
-        <Line label={editorCopy.tip} end={<Icon name="pencil" size={14} color={c.muted} />}>
+        <Line label={editorCopy.tip} locked={locked} end={<Icon name="pencil" size={14} color={c.muted} />}>
           <AmountInput
             amount={receipt.tip}
             label={editorCopy.tip}
             prefix="$"
+            editable={!locked}
             onChange={(amount) => dispatch({ type: "editTip", amount })}
-            style={[amountText, styles.tip, { textDecorationColor: c.muted }]}
+            style={[amountText, !locked && [styles.tip, { textDecorationColor: c.muted }]]}
           />
         </Line>
       </View>
@@ -112,18 +118,19 @@ export function ReceiptEditor({ receipt, flagged, dispatch }: Props) {
           amount={totalOf(receipt)}
           label={editorCopy.total}
           prefix="$"
+          editable={!locked}
           onChange={(amount) => dispatch({ type: "editTotal", amount })}
           style={[type.total, tabular, styles.totalInput, { color: c.ink }]}
         />
-        <View style={styles.noRemove} />
+        {locked ? null : <View style={styles.noRemove} />}
       </View>
     </View>
   );
 }
 
-type LineProps = { label: string; flagged?: boolean; onRemove?: () => void; end?: React.ReactNode; children: React.ReactNode };
+type LineProps = { label: string; locked: boolean; flagged?: boolean; onRemove?: () => void; end?: React.ReactNode; children: React.ReactNode };
 
-function Line({ label, flagged = false, onRemove, end, children }: LineProps) {
+function Line({ label, locked, flagged = false, onRemove, end, children }: LineProps) {
   const c = useColors();
   return (
     <View style={[styles.line, flagged && [styles.flaggedLine, { backgroundColor: c.flagWash }]]}>
@@ -131,13 +138,14 @@ function Line({ label, flagged = false, onRemove, end, children }: LineProps) {
         {label}
       </Text>
       {children}
-      {onRemove ? <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={onRemove} /> : <View style={styles.noRemove}>{end}</View>}
+      {locked ? null : onRemove ? <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={onRemove} /> : <View style={styles.noRemove}>{end}</View>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: { paddingTop: 8, paddingBottom: 18, paddingLeft: 18, paddingRight: 8, borderRadius: 20 },
+  lockedCard: { paddingRight: 10 },
   item: { minHeight: 48, justifyContent: "center" },
   divided: { borderTopWidth: 1 },
   flagged: { marginVertical: 4, marginLeft: -10, paddingLeft: 10, borderRadius: 12 },

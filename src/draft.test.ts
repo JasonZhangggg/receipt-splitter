@@ -442,6 +442,12 @@ describe("the Split link", () => {
     });
   });
 
+  test("a link to a Split that no longer exists unlocks the same Receipt, so a new link can be made", () => {
+    const read = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) });
+
+    expect(run(read, { type: "linked", splitId }, { type: "unlinked" })).toEqual(read);
+  });
+
   test("a reload keeps the link", () => {
     const storage = new MemoryStorage();
     const linked = run(withVenmo(read1040()), { type: "linked", splitId });

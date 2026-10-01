@@ -15,10 +15,11 @@ type Props = {
   onChange: (amount: Cents) => void;
   allowNegative?: boolean;
   prefix?: string;
+  editable?: boolean;
   style: StyleProp<TextStyle>;
 };
 
-export function AmountInput({ amount, label, onChange, allowNegative = false, prefix = "", style }: Props) {
+export function AmountInput({ amount, label, onChange, allowNegative = false, prefix = "", editable = true, style }: Props) {
   const c = useColors();
   const [typing, setTyping] = useState<string | null>(null);
   const focusedByPointer = useRef(false);
@@ -38,6 +39,7 @@ export function AmountInput({ amount, label, onChange, allowNegative = false, pr
       aria-label={label}
       value={typing ?? (amount === 0 ? "" : amount < 0 ? `-${prefix}${plainAmount(-amount)}` : `${prefix}${plainAmount(amount)}`)}
       inputMode="decimal"
+      editable={editable}
       placeholder={`${prefix}0.00`}
       enterKeyHint="done"
       onFocus={(event) => {

@@ -55,6 +55,7 @@ export type DraftAction =
   | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt<ParsedItem> | null }
   | { readonly type: "example" }
   | { readonly type: "linked"; readonly splitId: SplitId }
+  | { readonly type: "unlinked" }
   | { readonly type: "editItem"; readonly id: string; readonly name?: string; readonly price?: Price }
   | { readonly type: "addItem" }
   | { readonly type: "removeItem"; readonly id: string }
@@ -88,6 +89,12 @@ function clip(text: string, max = MAX_GRAPHEMES): string {
   return kept;
 }
 
+export function newName(typed: string, names: readonly string[]): string | null {
+  const name = clip(typed.trim(), MAX_PARTICIPANT_NAME_LENGTH);
+  const taken = [host, ...names].some((other) => other.toLowerCase() === name.toLowerCase());
+  return name && !taken ? name : null;
+}
+
 export function reduceDraft(draft: Draft, action: DraftAction): Draft {
   const names = draft.scan.status === "linked" ? [] : draft.names;
   switch (action.type) {
@@ -99,6 +106,11 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
       return { ...draft, names, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: fromReceipt(example1040) } };
     case "linked":
       return draft.scan.status === "read" ? { ...draft, scan: { ...draft.scan, status: "linked", splitId: action.splitId } } : draft;
+    case "unlinked": {
+      if (draft.scan.status !== "linked") return draft;
+      const { file, receipt } = draft.scan;
+      return { ...draft, scan: { status: "read", file, receipt } };
+    }
     case "setService":
       return { ...draft, handles: draft.handles.map((row, i) => (i === action.index ? { ...row, service: action.service } : row)) };
     case "setHandle":
@@ -110,9 +122,8 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     case "removeHandle":
       return draft.handles.length > 1 ? { ...draft, handles: draft.handles.filter((_, i) => i !== action.index) } : draft;
     case "addName": {
-      const name = clip(action.name.trim(), MAX_PARTICIPANT_NAME_LENGTH);
-      const taken = [host, ...draft.names].some((other) => other.toLowerCase() === name.toLowerCase());
-      return name && !taken ? { ...draft, names: [...draft.names, name] } : draft;
+      const name = newName(action.name, draft.names);
+      return name ? { ...draft, names: [...draft.names, name] } : draft;
     }
     case "removeName":
       return { ...draft, names: draft.names.filter((name) => name !== action.name) };

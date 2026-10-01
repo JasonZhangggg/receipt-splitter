@@ -17,10 +17,38 @@ export const copy = {
   me: "Me",
   addName: { label: "Add", name: "Add a name" },
   action: "Create split link",
+  creating: "Creating link",
   replace: "Replace receipt",
   removeName: (name: string) => `Remove ${name}`,
   newName: "Name",
   removeApp: (app: string) => `Remove ${app}`,
+};
+
+export const linkCopy = {
+  ready: "Link ready",
+  share: "Share",
+  copy: "Copy",
+  copied: "Copied",
+  copyFailed: "Couldn't copy. Select the link and copy it.",
+  handleRefused: "Check how to pay you.",
+  handleLocked: "Only the device that made this link can change how to pay you.",
+};
+
+export const joinCopy = {
+  opening: "Opening split",
+  question: "Which one are you?",
+  taken: "Picked on another device",
+  someoneElse: "Someone else",
+  yourName: "Your name",
+  join: "Join",
+  nameNeeded: "Type your name.",
+  nameTaken: "That name is already here.",
+  nameRefused: "Couldn't add that name. Try another.",
+  notMe: (name: string) => `Not ${name}?`,
+  atTheTable: "At the table",
+  newSplit: "Split a receipt",
+  expired: { title: "This split has expired", hint: "Splits are deleted 60 days after their last change." },
+  unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
 
 export const sheetCopy = {
