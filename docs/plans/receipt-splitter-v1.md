@@ -1015,6 +1015,14 @@ Six rounds of throwaway home page prototypes chose the design. Each round is sta
 
 These stay unproven. The reading animation was not built. The sheet was not tried with a long receipt or with the on-screen keyboard on a real phone. Drag, drop, and paste were not wired.
 
+Two rounds of throwaway split page mockups chose the Split page. Each round is one static board that draws every frame from one Split model with `render(state)`, rendered by Playwright in Chromium at 390 by 844.
+
+- Round 7, on 2026-10-01, is Figma node 14-2 in `https://www.figma.com/design/rUCjp4g9qO5erLgaXSe5pO`. Its board lives at `/tmp/receipt-splitter-review/split7/` and is not in git. It drew the tall pick sheet, the collapse to people chips, claiming by a tap on the line, the breakdowns, and an Undo toast. Its eight open questions became the operator's split redesign answers.
+- Round 8, approved on 2026-10-01 with "Design looks great", is Figma node 17-2. `docs/design/split/` holds its board, its contact sheet, and its notes. It added the line circle, the Item sheet with three split modes, History, the browse state, **That's me**, and the spacing and type change.
+- In the round 8 numbers, Jason and Sam owe $12.05 each, Priya owes $3.56, and Unclaimed is $4.98, which together make the $32.64 Total. Tostones at $1.00 split 2:1 gives $0.67 and $0.33 by largest remainder.
+
+These stay unproven. Nothing animates on either board, and no motion ran on a phone. The board draws quantity 1 only, so the per-unit Item sheet is not drawn. The board draws no place for `restoreReceipt`. The board's History still lists Claims and a **That's me** move, which the operator ruled out after approval.
+
 ## Appendix B. Alternatives rejected
 
 - A Vite and React website lost to one Expo codebase, because the operator chose React Native for the later app. See ADR 0002.
@@ -1029,6 +1037,11 @@ These stay unproven. The reading animation was not built. The sheet was not trie
 - Tip buttons for 18, 20, and 22 percent lost to a tip line read from the receipt. The buttons took space on every page for a value most receipts print.
 - Round 6 idea 1, a centered card, and idea 3, a dashed drop zone, lost to idea 2. The round 5 notes recommended idea 3, and the operator chose idea 2.
 - PDF upload lost for v1. It needs a PDF renderer such as pdf.js before OCR and a rule for multi-page PDFs.
+- RS-9's full-page "Which one are you?" lost to a tall bottom sheet over the Split page. The sheet keeps the receipt in view behind it, can be closed to look, and collapses into the people chips after the pick.
+- The Undo toast of round 7, and a "someone edited" toast, lost to History behind a clock icon. A toast that lasts 5 seconds lets one person undo, while History lets anyone revert any change later, and keeps the page quiet while people claim.
+- A per-device pick counter, which let several devices hold one name, lost to one device per name with **That's me**. With a counter, two people could check off Items as one name, and "Not Sam?" cleared the name for every device.
+- A "split among everyone" action for Unclaimed items lost to nobody paying for them. The operator wants the table to settle an Unclaimed item by checking it off.
+- Removing and renaming people lost to add-only Participants, on the operator's answer. With equal access, any link holder could otherwise remove anyone.
 
 ## Appendix C. Risks
 
@@ -1036,7 +1049,11 @@ These stay unproven. The reading animation was not built. The sheet was not trie
 - Cross-origin isolation breaks Turnstile or a font. It lands in RS-4 and RS-9. The owner keeps the one-thread fallback working, and RS-9 lane 6 records the result.
 - The parser misses the RS-5 thresholds on real US receipts. The owner reports the per-category failures from `bench/score.mjs` and asks the operator before lowering a threshold.
 - The Venmo link format is undocumented and may change. It lands in RS-11. The owner keeps the format in `src/core/pay-links.ts` alone, so a change touches one file.
-- Equal access lets anyone with the link vandalize a Split. It lands in RS-10. The recent-changes list with **Undo** is the recovery, and the per-Split rate limit in RS-8 caps the damage.
+- Equal access lets anyone with the link vandalize a Split. It lands in RS-10. History with Revert is the recovery for one change. `restoreReceipt` puts the whole Receipt back as created, in one change that can itself be reverted. The per-Split history rate of 5 KB, refilled at 1 KB a second, keeps a burst from pushing a change out of reach. The per-Split operation rate limit in RS-8 caps the damage. Claims are not recorded, so no Revert brings back a Claim a vandal cleared, which was audit finding F2. The root accepted that, because claims are self-service. A person who finds their Item unchecked checks it again. Participants are add-only, so a vandal cannot remove a person.
+- A wrong **That's me** moves a name to the wrong phone, and there are no accounts to stop it. It lands in RS-10. The real person taps **That's me** again. History does not list the move.
+- The round 8 board draws quantity 1 only, so the per-unit Item sheet and its claims have no approved look. It lands in RS-10. The owner shows the quantity-2 sheet in the review gate.
+- The round 8 board gives `restoreReceipt` no place. It lands in RS-10. The owner puts it on the "Created the split" row in History and shows that row in the review gate.
+- The spacing and type change moves the home page that RS-6 and RS-7 verified. It lands in RS-10. Lane 2 shoots the home page at the new tokens.
 - A WebSocket that stops hibernating multiplies the Cloudflare bill. It lands in RS-8. The perf rule greps for timers and `ws.accept(`, and lane 2 checks hibernation.
 - The verification skill cannot drive a real phone camera. Lanes upload files instead, and RS-7 lane 6 covers the offline cached path.
 - The bottom sheet covers about 253 of 844 px in the read state, and more after the operator's taller default. It lands in RS-6 and RS-7. RS-7 gives the sheet a max height with its own scroll, and its lanes check that no row hides under it.
@@ -1053,13 +1070,15 @@ These stay unproven. The reading animation was not built. The sheet was not trie
 - Read `https://developers.cloudflare.com/turnstile/troubleshooting/testing/` before RS-8 and RS-9.
 - Read `https://developers.cloudflare.com/workers/static-assets/headers/` before RS-4.
 - Read `docs/design/home/idea2.html` in all five states, `docs/design/home/idea2.png`, `docs/design/home/tokens.md`, and `docs/design/home/layout.md` before RS-6 and RS-7.
+- Read `docs/design/split/README.md`, `docs/design/split/board.html` in every frame, `docs/design/split/board.png`, and `docs/design/split/notes.md` before RS-10 and RS-11. The README's operator decisions win over the board.
+- Read `/tmp/swarm-RS-10/owner/pr-body.md` before the RS-10 UI half, for what the core half built.
 - Run `/how` at the start of RS-7, RS-8, and RS-10, because they join modules built by earlier PRs.
 - Run `/interrogate` on RS-2 and RS-8 before their PRs open, because the Share math and the shared state are the hardest parts to change later.
 - Keep a decision trail per `/show-me-your-work` in `docs/plans/receipt-splitter-v1.trail.tsv`, and commit it with the last PR.
 
-## Appendix E. Home page design reference
+## Appendix E. Home and Split page design reference
 
-These values come from `docs/design/home/tokens.md` and `docs/design/home/idea2.html`. The dark ladder mirrors the light one. In light the page is white, a surface is one step darker, and a control on a surface is white again. In dark the page is the darkest step and each layer up is lighter. Every gray is neutral.
+The colors come from `docs/design/home/tokens.md` and `docs/design/home/idea2.html`, and the Split page keeps them unchanged. The dark ladder mirrors the light one. In light the page is white, a surface is one step darker, and a control on a surface is white again. In dark the page is the darkest step and each layer up is lighter. Every gray is neutral.
 
 | Token | Role | Light | Dark |
 | --- | --- | --- | --- |
@@ -1078,15 +1097,34 @@ These values come from `docs/design/home/tokens.md` and `docs/design/home/idea2.
 | `--sheet` | Bottom sheet | `#FFFFFF` | `#1C1D20` |
 | `--sheet-in` | Fields and chips in the sheet | `#F5F6F7` | `#2A2B2F` |
 
-| Use | Size and weight |
-| --- | --- |
-| Hero line, such as **Add receipt** | 28 px, 400, tracking -0.02em |
-| Total amount | 28 px, 500, tracking -0.02em |
-| Wordmark | 18 px, 500 |
-| Merchant name | 17 px, 500 |
-| Body, Items, and inputs | 16 px, 400 |
-| Action and button labels | 16 px, 500 |
-| Chips | 15 px, 500 |
-| Secondary text | 13 to 15 px, 400, muted |
+Round 8 of the split page, approved on 2026-10-01, set spacing about 2 px larger and type about 1 px smaller app-wide, the home page included. The round 8 column wins. `docs/design/split/notes.md` holds the source table. Inputs stay at 16 px, because iOS zooms the page into any input under 16 px.
 
-Shapes. The primary action is a 54 px pill. Cards take a 20 to 28 px radius and fields 14 px. The sheet takes 28 px at its top corners. Icons use a 1.5 px stroke. Prices use tabular figures.
+| Use | Round 6 | Round 8 |
+| --- | --- | --- |
+| Hero line, such as **Add receipt**, and the pick sheet headline "Which one are you?" | 28 px, 400, tracking -0.02em | 26 px, 400, tracking -0.02em |
+| Total amount and "You owe" amount | 28 px, 500, tracking -0.02em | 26 px, 500, tracking -0.02em |
+| Wordmark | 18 px, 500 | 17 px, 500 |
+| Merchant name | 17 px, 500 | 16 px, 500 |
+| Body and Items | 16 px, 400 | 15 px, 400 |
+| Action and button labels | 16 px, 500 | 15 px, 500 |
+| Inputs | 16 px, 400 | 16 px, 400 |
+| Chips | 15 px, 500 | 14 px, 500 |
+| Secondary text, and the tax, fee, and tip rows | 13 to 15 px, 400, muted | 14 px, 400, muted |
+| Hints and meta lines | 13 px | 12.5 px |
+
+| Spacing | Round 7 | Round 8 |
+| --- | --- | --- |
+| Page side gutter | 20 px | 22 px |
+| Header height | 56 px | 60 px |
+| Receipt card padding, top and sides and bottom | 14, 18, and 18 px | 18, 20, and 20 px |
+| Receipt card radius | 20 px | 22 px |
+| Item row height | 48 px | 52 px |
+| Tax, fee, and tip row height | 32 px | 34 px |
+| Sheet padding, top and sides and bottom | 8, 20, and 28 px | 10, 22, and 30 px |
+| Gap between sheet blocks | 12 px | 14 px |
+| Name row in the pick sheet | 56 px tall, 8 px apart | 58 px tall, 10 px apart |
+| Fields | 52 px, radius 14 px | 54 px, radius 16 px |
+| Gap between paired buttons and wrapped chips | 8 px | 10 px |
+| Gap in the Split page chip row | 8 px | 8 px, so four names and **+** fit at 390 px |
+
+Shapes. The primary action is a 54 px pill. Cards take a 22 to 28 px radius and fields 16 px. The sheet takes 28 px at its top corners. Icons use a 1.5 px stroke. Prices use tabular figures. Every sheet moves on one critically damped spring of 0.35 s, and cross-fades over 200 ms under reduced motion.
