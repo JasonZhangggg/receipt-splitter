@@ -8,6 +8,7 @@ import {
   checkSplit,
   createSplit,
   type AdjustmentPatch,
+  type CreateSplitRequest,
   type ItemPatch,
   type NewSplit,
   type Operation,
@@ -34,6 +35,18 @@ export function parseSplit(input: unknown): { readonly ok: true; readonly split:
   if (!parsed.ok) return parsed;
   const rejection = checkSplit(parsed.value);
   return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
+}
+
+export const MAX_TURNSTILE_TOKEN_LENGTH = 2048;
+
+export function parseCreateSplitRequest(
+  input: unknown,
+  id: MintedSplitId,
+): { readonly ok: true; readonly turnstileToken: string; readonly split: Split } | Rejected {
+  const parsed = parse(createRequest, input);
+  if (!parsed.ok) return parsed;
+  const created = createSplit({ ...parsed.value.split, id });
+  return created.ok ? { ok: true, turnstileToken: parsed.value.turnstileToken, split: created.split } : created;
 }
 
 export function parseNewSplit(input: unknown, id: MintedSplitId): { readonly ok: true; readonly split: Split } | Rejected {
@@ -254,6 +267,11 @@ const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read }) => ({
   receipt: read("receipt", receipt(receiptItem)),
   participants: read("participants", participants),
   paymentHandles: read("paymentHandles", paymentHandles),
+}));
+
+const createRequest: Parser<CreateSplitRequest> = strict(({ read }) => ({
+  turnstileToken: read("turnstileToken", check((input): input is string => typeof input === "string" && input.length <= MAX_TURNSTILE_TOKEN_LENGTH)),
+  split: read("split", newSplit),
 }));
 
 const split: Parser<Split> = strict(({ read, maybe }) => ({
