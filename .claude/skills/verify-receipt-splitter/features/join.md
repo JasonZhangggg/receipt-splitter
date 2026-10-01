@@ -25,7 +25,7 @@ The Host types their own name first among the names on the home sheet, then crea
 
 Preconditions:
 
-- `verify.mjs doctor --port 8811` reports `"ok":true`. The machine reaches `challenges.cloudflare.com`, because the page loads the real Turnstile script. The build uses the test site key `1x00000000000000000000BB` unless `EXPO_PUBLIC_TURNSTILE_SITE_KEY` is set, and `.dev.vars` holds the matching test secret.
+- `verify.mjs doctor --port 8811` reports `"ok":true`. The machine reaches `challenges.cloudflare.com`, because the page loads the real Turnstile script. The build uses the test site key `1x00000000000000000000BB` unless `EXPO_PUBLIC_TURNSTILE_SITE_KEY` is set, because `launch` builds with `ALLOW_TEST_TURNSTILE=1`. `launch` passes the matching test secret to `wrangler dev` with `--var`.
 - `<out>` is the lane's output folder, as defined in [README.md](./README.md).
 
 A single `drive` cannot tap through the sheet, so these flows run as Playwright specs or as a short Playwright script against the lane's port. `e2e/join.spec.ts` is the reference for every step below. To run it on its own port, use `PORT=<port> npx playwright test e2e/join.spec.ts`, which builds and starts its own `wrangler dev`. Do not point it at a port where `launch` already serves.
