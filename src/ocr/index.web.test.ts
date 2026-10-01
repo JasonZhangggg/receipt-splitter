@@ -68,7 +68,8 @@ test("a scan rejects with the worker's error for that scan, and the next scan do
   await expect(client.recognize(new Blob())).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
 });
 
-test("a scan reports its progress, and the worker is released once no scan is left", async () => {
+test("a scan reports its progress, and the worker is released 10 s after the last scan settles", async () => {
+  vi.useFakeTimers();
   const progress: number[] = [];
   const first = client.recognize(new Blob(), (fraction) => progress.push(fraction));
   const second = client.recognize(new Blob());
@@ -78,15 +79,37 @@ test("a scan reports its progress, and the worker is released once no scan is le
   worker.onmessage?.({ data: { id: 1, progress: 0.5 } });
   worker.onmessage?.({ data: { id: 0, progress: 0.75 } });
   worker.onmessage?.({ data: { id: 0, boxes: [] } });
-  const releasedEarly = worker.terminated;
+  vi.advanceTimersByTime(20_000);
+  const released = [worker.terminated];
   worker.onmessage?.({ data: { id: 1, error: "unreadable" } });
+  vi.advanceTimersByTime(9_999);
+  released.push(worker.terminated);
+  vi.advanceTimersByTime(1);
+  released.push(worker.terminated);
 
   await expect(first).resolves.toEqual([]);
   await expect(second).rejects.toThrow("unreadable");
   expect(progress).toEqual([0.25, 0.75]);
-  expect([releasedEarly, worker.terminated]).toEqual([false, true]);
+  expect(released).toEqual([false, false, true]);
   void client.recognize(new Blob());
   expect(FakeWorker.started).toHaveLength(2);
+  vi.useRealTimers();
+});
+
+test("a scan within 10 s of the last one reuses the worker", async () => {
+  vi.useFakeTimers();
+  const first = client.recognize(new Blob());
+  const [worker] = FakeWorker.started;
+  worker.onmessage?.({ data: { id: 0, boxes: [] } });
+  await first;
+  vi.advanceTimersByTime(9_000);
+  const second = client.recognize(new Blob());
+  vi.advanceTimersByTime(9_000);
+  worker.onmessage?.({ data: { id: 1, boxes: [] } });
+  await second;
+
+  expect([FakeWorker.started.length, worker.terminated]).toEqual([1, false]);
+  vi.useRealTimers();
 });
 
 class FakePaintObserver {

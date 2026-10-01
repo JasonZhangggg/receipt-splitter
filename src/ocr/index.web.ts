@@ -7,11 +7,15 @@ type Reply = { id: number; boxes: TextBox[] } | { id: number; error: string } | 
 
 type Scan = { settle: (reply: Exclude<Reply, { progress: number }>) => void; onProgress?: (fraction: number) => void };
 
+export const idleRelease = 10_000;
+
 let worker: Worker | undefined;
+let idle: ReturnType<typeof setTimeout> | undefined;
 let nextId = 0;
 const pending = new Map<number, Scan>();
 
 function release() {
+  clearTimeout(idle);
   worker?.terminate();
   worker = undefined;
 }
@@ -24,7 +28,7 @@ function ocrWorker(): Worker {
       if ("progress" in data) return scan?.onProgress?.(data.progress);
       pending.delete(data.id);
       scan?.settle(data);
-      if (pending.size === 0) release();
+      if (pending.size === 0) idle = setTimeout(release, idleRelease);
     };
     worker.onerror = (event) => {
       release();
@@ -39,6 +43,7 @@ function ocrWorker(): Worker {
 export const recognize: typeof Ocr.recognize = (image, onProgress) =>
   new Promise((resolve, reject) => {
     const id = nextId++;
+    clearTimeout(idle);
     pending.set(id, { settle: (reply) => ("boxes" in reply ? resolve(reply.boxes) : reject(new Error(reply.error))), onProgress });
     ocrWorker().postMessage({ type: "recognize", id, image });
   });
