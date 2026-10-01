@@ -2,7 +2,7 @@
 
 Your own breakdown on the Split page `/s/<id>` (frame G) shows one pay pill for each Payment handle the Host entered, in the Host's order. The first is black and the rest are gray, such as **Pay Jason $12.05 on Venmo**. Each pill is a link that opens the app's payment page with your Share to the cent. A muted line under the pills lists the Host's handles, such as `Venmo @jason-z · Cash App $jasonz`. Zelle has no link, so it shows a card, **Pay Jason on Zelle**, with the handle and the amount, each with a copy button. **I already paid** records a Payment of your Share. Once paid, the button reads **I haven't paid** and clears it. Someone else's breakdown (frame H) shows Paid or Not paid and no buttons, and "Priya paid $3.56" once they paid. When a Share moves after a Payment, every browser shows the difference: "You paid $22.00. Jason owes you $8.00." for the payer, "Sam paid $22.00. You owe Sam $8.00." for the Host, and "Sam paid $22.00. Jason owes Sam $8.00." for anyone else. A Share that grew shows "You paid $22.00. You owe $4.00 more." with pills for the rest and **I paid the rest**. History lists Payments with no **Revert**.
 
-Only the device that picked a name can record or clear that person's Payment. The server refuses anything else with `payerOnly`, and refuses an `undo` of a Payment change the same way.
+Only the device that picked a name can record or clear that person's Payment. The server refuses anything else with `payerOnly`, and refuses an `undo` of a Payment change with `paymentNotRevertible`.
 
 ## Sub-features
 
