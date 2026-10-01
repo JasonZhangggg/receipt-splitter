@@ -6,7 +6,7 @@ import { basename, join } from "node:path";
 import { parseArgs, promisify } from "node:util";
 import { brotliCompress, constants } from "node:zlib";
 
-const USAGE = `usage: node bench/run-ocr.mjs --url http://localhost:<port> [--threads 4|1] [--only srd-1040,srd-1008] [--out bench/ocr] [--shots <dir>]
+const USAGE = `usage: node bench/run-ocr.mjs --url http://localhost:<port> [--threads 4|1] [--data bench/data] [--only srd-1040,srd-1008] [--out bench/ocr] [--shots <dir>]
 
 Launch the exported site first with .claude/skills/verify-receipt-splitter/verify.mjs launch --port <port>.`;
 
@@ -14,6 +14,7 @@ const { values: args } = parseArgs({
   options: {
     url: { type: "string" },
     threads: { type: "string", default: "4" },
+    data: { type: "string", default: "bench/data" },
     only: { type: "string" },
     out: { type: "string", default: "bench/ocr" },
     shots: { type: "string" },
@@ -25,7 +26,7 @@ if (!args.url || !["1", "4"].includes(args.threads)) {
 }
 
 const SESSION_SCANS = 6;
-const DATA = "bench/data";
+const DATA = args.data;
 const TRANSCRIPTS = "bench/ocr/transcripts";
 const route = new URL("/debug/ocr", args.url).href;
 const only = args.only?.split(",").map((name) => name.replace(/\.jpg$/, ""));
@@ -33,7 +34,7 @@ const images = readdirSync(DATA)
   .filter((file) => file.endsWith(".jpg") && (!only || only.includes(basename(file, ".jpg"))))
   .sort();
 if (images.length === 0) {
-  console.error(`no images in ${DATA} match --only ${args.only}`);
+  console.error(args.only ? `no .jpg in ${DATA} matches --only ${args.only}` : `no .jpg images in ${DATA}`);
   process.exit(1);
 }
 
