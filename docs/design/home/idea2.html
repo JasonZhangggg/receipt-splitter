@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121315" />
+<title>Idea 2. Open table</title>
+<link rel="stylesheet" href="shared.css" />
+<style>
+  :root { --sheet: #FFFFFF; --sheet-in: #F5F6F7; }
+  :root[data-theme="dark"] { --sheet: #1C1D20; --sheet-in: #2A2B2F; }
+  body { min-height: 100dvh; }
+  .page { display: flex; flex-direction: column; min-height: 100dvh; }
+  header { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: calc(4px + env(safe-area-inset-top)) 20px 0; }
+  .ex { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 2px; font-size: 14px; color: var(--muted); }
+  .ex .icon { width: 16px; height: 16px; }
+  /* The whole space above the sheet is the target. */
+  .zone { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px 20px calc(var(--sheet-h, 260px) + 12px); cursor: pointer; text-align: center; }
+  .zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .slip { position: relative; width: 148px; height: 188px; margin-bottom: 26px; background: var(--paper); border-radius: 14px; display: grid; place-items: center; }
+  .slip-wrap { filter: var(--lift); }
+  .slip .lines { position: absolute; left: 24px; right: 24px; top: 26px; display: grid; gap: 11px; }
+  .slip .lines i { height: 5px; border-radius: 3px; background: var(--hairline); }
+  .slip .lines i:nth-child(2n) { margin-right: 30%; }
+  .slip .c { position: relative; width: 64px; height: 64px; border-radius: 50%; background: var(--action); color: var(--on-action); display: grid; place-items: center; margin-top: 44px; }
+  .slip .c .icon { width: 28px; height: 28px; }
+  .zone h1 { font: 400 28px/1.1 var(--body); letter-spacing: -0.02em; }
+  .zone p { font-size: 15px; color: var(--muted); }
+  .zone.press:active .slip-wrap { transform: scale(0.97); transition: transform 120ms var(--ease-out); }
+
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 20px calc(16px + env(safe-area-inset-bottom)); background: var(--sheet); border-radius: 28px 28px 0 0; box-shadow: 0 -1px 0 var(--hairline), 0 -12px 32px rgba(17,18,20,.06), inset 0 1px 0 var(--edge); }
+  :root[data-theme="dark"] .sheet { box-shadow: 0 -1px 0 var(--hairline), 0 -14px 36px rgba(0,0,0,.4), inset 0 1px 0 var(--edge); }
+  .grab { width: 36px; height: 5px; border-radius: 3px; background: var(--hairline); margin: 0 auto 14px; }
+  .sheet-in { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+  .sheet .pay { background: var(--sheet-in); box-shadow: none; }
+  .sheet .chip { background: var(--sheet-in); }
+  .sheet .chip.add { background: transparent; }
+  .sheet .more { box-shadow: inset 0 0 0 1px var(--hairline); }
+  .sheet .act { margin-top: 6px; }
+
+  .doc { flex: 1; padding: 12px 20px calc(var(--sheet-h, 260px) + 20px); }
+  .doc .slip { width: auto; height: auto; display: block; place-items: normal; margin: 0; padding: 16px 18px 18px; border-radius: 20px; }
+  .col { max-width: 480px; margin: 0 auto; }
+  .file { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 10px 4px 10px 10px; border-radius: 18px; background: var(--paper); }
+  .file .ft { width: 40px; height: 52px; border-radius: 8px; flex: none; background: #ccc url(../../../bench/data/srd-1040.jpg) center/cover; }
+  .file .meta { flex: 1; min-width: 0; }
+  .file .meta b { display: block; font-weight: 500; font-size: 15px; }
+  .file .meta span { font-size: 13px; color: var(--muted); }
+  .file .btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--muted); flex: none; }
+  .file .btn .icon { width: 18px; height: 18px; }
+  .rc-head { margin-bottom: 2px; }
+
+  /* Reading: the blank slip with quiet skeleton lines, no photo. */
+  .skel .lines { top: 24px; gap: 12px; }
+  .skel .lines i { background: color-mix(in srgb, var(--ink) 9%, var(--paper)); }
+  .skel .lines i:nth-child(3n) { margin-right: 30%; }
+  .skel .lines i:nth-child(5n) { margin-right: 12%; }
+  @media (prefers-reduced-motion: no-preference) {
+    .skel .lines i { background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 9%, var(--paper)) 30%, color-mix(in srgb, var(--ink) 4%, var(--paper)) 50%, color-mix(in srgb, var(--ink) 9%, var(--paper)) 70%) 100% 0 / 300% 100%; animation: shimmer 1400ms linear infinite; }
+    .skel .lines i:nth-child(2) { animation-delay: -150ms; }
+    .skel .lines i:nth-child(3) { animation-delay: -300ms; }
+    .skel .lines i:nth-child(4) { animation-delay: -450ms; }
+    .skel .lines i:nth-child(5) { animation-delay: -600ms; }
+    .skel .lines i:nth-child(6) { animation-delay: -750ms; }
+    .skel .lines i:nth-child(7) { animation-delay: -900ms; }
+    @keyframes shimmer { to { background-position: 0 0; } }
+  }
+
+  @media (min-width: 900px) {
+    .page { flex-direction: row; flex-wrap: wrap; }
+    header { width: 100%; padding: 20px 32px 0; }
+    .zone, .doc { padding: 24px 32px 48px; margin-right: 440px; min-height: calc(100dvh - 76px); }
+    .zone { margin: 0 440px 32px 32px; border-radius: 32px; box-shadow: inset 0 0 0 1.5px var(--hairline); background: var(--paper); }
+    .sheet { left: auto; right: 32px; bottom: auto; top: 76px; width: 380px; border-radius: 28px; padding: 20px; }
+    .sheet, :root[data-theme="dark"] .sheet { box-shadow: 0 0 0 1px var(--hairline), 0 12px 32px rgba(17,18,20,.06); }
+    .grab { display: none; }
+    .col { max-width: 560px; }
+  }
+</style>
+</head>
+<body>
+<main class="page" id="app"></main>
+<script src="shared.js"></script>
+<script>
+const app = document.getElementById("app");
+const ex = D.phase === "empty" ? `<button class="ex press">${icon("receipt")}Example</button>` : "";
+const hdr = `<header><span class="wordmark">Receipt Splitter</span>${ex}</header>`;
+const lines = `<div class="lines" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`;
+const sheet = `<div class="sheet"><div class="grab" aria-hidden="true"></div><div class="sheet-in">${payRow()}${namesRow()}<div class="act">${actionBlock()}</div></div></div>`;
+let body;
+if (D.phase === "empty") {
+  body = `<label class="zone press"><input type="file" accept="${ACCEPT}" aria-label="Add receipt photo" />
+    <div class="slip-wrap"><div class="slip">${lines}<span class="c">${icon(desktop() ? "upload" : "camera")}</span></div></div>
+    <h1>${desktop() ? "Drop a receipt" : "Add receipt"}</h1><p>${desktop() ? "Anywhere here. Paste works too." : "Take or upload a photo"}</p></label>`;
+} else if (D.phase === "reading") {
+  body = `<div class="zone" role="status"><div class="slip-wrap"><div class="slip skel"><div class="lines" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div><h1 style="font-size:24px">Reading receipt</h1><div class="bar-fill" style="width:160px;margin-top:8px"><i style="width:64%"></i></div></div>`;
+} else {
+  const file = `<div class="file"><span class="ft" role="img" aria-label="Receipt photo"></span><div class="meta"><b>IMG_4127.jpg</b><span>5 items</span></div><button class="btn press" aria-label="Replace receipt">${icon("camera")}</button></div>`;
+  const head = `<div class="rc-head"><h2>${RECEIPT.merchant}</h2></div>`;
+  body = `<div class="doc"><div class="col">${file}<div class="slip-wrap"><div class="slip">${head}${receiptBody()}</div></div></div></div>`;
+}
+app.innerHTML = `${hdr}${body}${sheet}`;
+const sh = document.querySelector(".sheet");
+if (!desktop()) document.documentElement.style.setProperty("--sheet-h", sh.offsetHeight + "px");
+</script>
+</body>
+</html>
