@@ -12,6 +12,14 @@ describe("routing", () => {
     expect(response.status).toBe(404);
   });
 
+  it("tells browsers not to sniff an API response into another type", async () => {
+    const responses = await Promise.all(["http://localhost/api/unknown", "http://localhost/api/splits"].map((url) => exports.default.fetch(url)));
+    expect(responses.map((response) => [response.status, response.headers.get("x-content-type-options")])).toEqual([
+      [404, "nosniff"],
+      [405, "nosniff"],
+    ]);
+  });
+
   it("serves the Split socket only for a minted id on the split-server party", async () => {
     const upgrade = { headers: { upgrade: "websocket" } };
     const statuses = await Promise.all(
