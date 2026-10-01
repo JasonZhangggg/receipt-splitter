@@ -8,7 +8,11 @@ Splitting one group bill from a photo of its receipt: reading the items, decidin
 
 **Host**:
 The person who paid the bill and scanned the receipt to start the Split. Every Share is owed to the Host. After creating the Split, the Host has no more control over it than anyone else.
-_Avoid_: Creator, owner, payer, organizer
+_Avoid_: Creator, owner, payer, organizer. The one exception is **Creator secret**.
+
+**Creator secret**:
+The token the creating device keeps and sends to change the Payment handles. It is a key, not a role, so it gives the Host no other control. The code uses this name.
+_Avoid_: Host secret, host key
 
 **Participant**:
 A person who shared the bill, including the Host. Every Participant but the Host owes the Host their Share.
@@ -65,5 +69,5 @@ One Participant's part of the bill: their Claimed Items plus a part of the Adjus
 _Avoid_: Portion, amount owed, balance
 
 **Payment**:
-A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer.
+A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer. History shows a Payment but cannot revert it.
 _Avoid_: Settlement, transaction
