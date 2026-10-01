@@ -27,7 +27,7 @@ const timedLooks: Partial<Record<Look, { after: number; next: Look }>> = {
   tapped: { after: tapLook, next: "rest" },
 };
 
-type KeyPress = { key: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean };
+type KeyPress = { key: string; code: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean };
 
 const keyActivates = ({ key, altKey, ctrlKey, metaKey }: KeyPress) =>
   key === "Enter" ? !altKey && !ctrlKey && !metaKey : key === " " && !altKey;
@@ -38,10 +38,13 @@ const inputOf = ({ nativeEvent }: GestureResponderEvent) => ("type" in nativeEve
 
 const keyWithoutClick = (event: GestureResponderEvent) => inputOf(event) === "keydown" && !keyActivates(event.nativeEvent as unknown as KeyPress);
 
-function usePressLook(outsideScroll: boolean) {
+function usePressLook(outsideScroll: boolean, disabled: boolean) {
   const [look, setLook] = useState<Look>("rest");
   const tapUntil = useRef(0);
   const pointer = useRef<number | null>(null);
+  const startedDisabled = useRef(false);
+  const spaceHeld = useRef(false);
+  if (disabled && look !== "rest") setLook("rest");
   useEffect(() => {
     const timed = timedLooks[look];
     if (!timed) return;
@@ -50,11 +53,18 @@ function usePressLook(outsideScroll: boolean) {
   }, [look]);
   const rest = () => setLook("rest");
   const move = (from: Look, to: Look) => setLook((current) => (current === from ? to : current));
+  const activates = () => {
+    const refused = startedDisabled.current;
+    startedDisabled.current = false;
+    return !refused;
+  };
   return {
     pressed: look === "pressed" || look === "tapped",
+    activates,
     pressProps: {
       delayPressIn: 0,
       onPressIn: (event: GestureResponderEvent) => {
+        startedDisabled.current = false;
         if (keyWithoutClick(event)) return;
         const touch = inputOf(event) === "touchstart";
         if (touch && event.nativeEvent.touches.length > 1) return;
@@ -68,19 +78,30 @@ function usePressLook(outsideScroll: boolean) {
       },
       onPointerDown: (event: PointerEvent) => {
         pointer.current = event.nativeEvent.pointerId;
+        startedDisabled.current = disabled;
       },
       onPointerLeave: (event: PointerEvent) => {
         if (event.nativeEvent.pointerId === pointer.current && primaryHeld(event)) move("pressed", "away");
       },
       onPointerEnter: (event: PointerEvent) => {
-        if (primaryHeld(event)) move("away", "pressed");
+        if (!disabled && primaryHeld(event)) move("away", "pressed");
       },
       onPointerCancel: rest,
-      onBlur: rest,
+      onBlur: () => {
+        spaceHeld.current = false;
+        rest();
+      },
       onKeyDown: (event: KeyPress) => {
+        if (disabled) return;
+        if (event.code === "Space") spaceHeld.current = true;
+        if (event.key === "Alt" && spaceHeld.current) rest();
         if (!keyActivates(event)) return;
         pointer.current = null;
         setLook("pressed");
+      },
+      onKeyUp: (event: KeyPress) => {
+        if (event.code === "Space") spaceHeld.current = false;
+        else if (event.key === "Alt" && spaceHeld.current && !disabled) setLook("pressed");
       },
     },
   };
@@ -97,16 +118,19 @@ type TargetProps = {
 };
 
 export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, describedBy, style, children }: TargetProps) {
-  const look = usePressLook(outsideScroll);
+  const look = usePressLook(outsideScroll, disabled);
   const web = Platform.OS === "web";
-  const webProps = web ? { dataSet: { pressable: "" }, ...(disabled ? {} : look.pressProps) } : {};
+  const webProps = web ? { dataSet: { pressable: "" }, ...look.pressProps } : {};
+  const activate = () => {
+    if (look.activates()) onPress();
+  };
   return (
     <Pressable
       role="button"
       aria-label={name}
       aria-describedby={describedBy}
       disabled={disabled}
-      onPress={onPress}
+      onPress={activate}
       {...webProps}
       style={({ pressed }) => style(web ? look.pressed : pressed)}
     >

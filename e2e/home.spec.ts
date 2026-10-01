@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 
 import { fallbackSamples } from "../src/ui/home-copy";
+import { mountHarness } from "./harness";
 
 const phone = { width: 390, height: 844 };
 
@@ -1309,22 +1310,6 @@ for (const { width, colorScheme, reducedMotion } of matrix) {
   });
 }
 
-async function mountHarness(page: Page, harness: string) {
-  const { build } = await import("esbuild");
-  const bundle = await build({
-    stdin: { contents: harness, loader: "tsx", resolveDir: process.cwd() },
-    bundle: true,
-    write: false,
-    jsx: "automatic",
-    alias: { "react-native": "react-native-web" },
-    resolveExtensions: [".web.tsx", ".web.ts", ".web.js", ".tsx", ".ts", ".js"],
-    loader: { ".js": "jsx" },
-    define: { "process.env.NODE_ENV": '"production"', __DEV__: "false" },
-  });
-  await page.setContent('<div id="root"></div>');
-  await page.addScriptTag({ content: bundle.outputFiles[0].text });
-}
-
 async function mountToast(page: Page) {
   await mountHarness(
     page,
@@ -1435,6 +1420,119 @@ test("a key press draws the press exactly when it activates the Button, with any
     "Control Space": press,
     "Meta Enter": none,
     "Meta Space": press,
+  });
+});
+
+const toggleHarness = (startDisabled: boolean) => `
+  import { useState } from "react";
+  import { createRoot } from "react-dom/client";
+  import { SafeAreaProvider } from "react-native-safe-area-context";
+  import { Button } from "./src/ui/components/button";
+  function Harness() {
+    const [disabled, setDisabled] = useState(${startDisabled});
+    window.setDisabled = setDisabled;
+    const press = () => { window.presses++; if (window.disableOnPress) setDisabled(true); };
+    return <Button label="Create split link" outsideScroll disabled={disabled} onPress={press} />;
+  }
+  window.presses = 0;
+  createRoot(document.getElementById("root")).render(<SafeAreaProvider><Harness /></SafeAreaProvider>);
+`;
+
+type Toggle = Window & { presses: number; disableOnPress?: boolean; setDisabled: (disabled: boolean) => void };
+
+async function mountToggle(page: Page, startDisabled: boolean) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await mountHarness(page, toggleHarness(startDisabled));
+  const button = page.getByRole("button", { name: "Create split link" });
+  await expect(button).toBeVisible();
+  const drawn = () => button.evaluate((el) => getComputedStyle(el).opacity !== "1");
+  const setDisabled = async (disabled: boolean) => {
+    await page.evaluate((value) => (window as unknown as Toggle).setDisabled(value), disabled);
+    await expect.poll(() => button.getAttribute("aria-disabled")).toBe(disabled ? "true" : null);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+  };
+  const presses = () => page.evaluate(() => (window as unknown as Toggle).presses);
+  return { button, drawn, setDisabled, presses };
+}
+
+test("a Button that turns disabled during a press rests at once and draws nothing after release", async ({ page }) => {
+  const { button, drawn, setDisabled, presses } = await mountToggle(page, false);
+  const seen: Record<string, boolean[]> = {};
+
+  await button.focus();
+  await page.evaluate(() => Object.assign(window as unknown as Toggle, { disableOnPress: true }));
+  await page.keyboard.down("Enter");
+  seen.enterThatDisables = [await drawn()];
+  await page.keyboard.up("Enter");
+  seen.enterThatDisables.push(await drawn());
+  await page.evaluate(() => Object.assign(window as unknown as Toggle, { disableOnPress: false }));
+  await setDisabled(false);
+
+  await button.focus();
+  await page.keyboard.down(" ");
+  seen.spaceHeld = [await drawn()];
+  await setDisabled(true);
+  seen.spaceHeld.push(await drawn());
+  await page.keyboard.up(" ");
+  seen.spaceHeld.push(await drawn());
+  await setDisabled(false);
+  seen.spaceHeld.push(await drawn());
+
+  const cdp = await pressAndHold(button);
+  seen.touchHeld = [await drawn()];
+  await setDisabled(true);
+  seen.touchHeld.push(await drawn());
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  seen.touchHeld.push(await drawn());
+  await setDisabled(false);
+  seen.touchHeld.push(await drawn());
+
+  expect(seen).toEqual({
+    enterThatDisables: [false, false],
+    spaceHeld: [true, false, false, false],
+    touchHeld: [true, false, false, false],
+  });
+  expect(await presses()).toBe(1);
+});
+
+test("a press that starts on a disabled Button draws nothing and does not activate when it enables before release", async ({ page }) => {
+  const { button, drawn, setDisabled, presses } = await mountToggle(page, true);
+  const box = (await button.boundingBox())!;
+  const seen: boolean[] = [];
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  seen.push(await drawn());
+  await setDisabled(false);
+  seen.push(await drawn());
+  await page.mouse.up();
+  seen.push(await drawn());
+  expect(seen).toEqual([false, false, false]);
+  expect(await presses()).toBe(0);
+
+  await button.click();
+  expect(await presses()).toBe(1);
+});
+
+test("a held Space draws the press exactly while its release would activate, as Alt goes down and up", async ({ page }) => {
+  const { button, drawn, presses } = await mountToggle(page, false);
+  const run = async (steps: [ "down" | "up", string][]) => {
+    await button.focus();
+    const before = await presses();
+    const looks = [];
+    for (const [direction, key] of steps) {
+      await page.keyboard[direction](key);
+      looks.push(await drawn());
+    }
+    return { looks, activated: (await presses()) - before };
+  };
+  expect({
+    altAfterSpace: await run([["down", " "], ["down", "Alt"], ["up", " "], ["up", "Alt"]]),
+    altBeforeSpace: await run([["down", "Alt"], ["down", " "], ["up", "Alt"], ["up", " "]]),
+    altTappedMidHold: await run([["down", " "], ["down", "Alt"], ["up", "Alt"], ["up", " "]]),
+  }).toEqual({
+    altAfterSpace: { looks: [true, false, false, false], activated: 0 },
+    altBeforeSpace: { looks: [false, false, true, false], activated: 1 },
+    altTappedMidHold: { looks: [true, false, true, false], activated: 1 },
   });
 });
 
