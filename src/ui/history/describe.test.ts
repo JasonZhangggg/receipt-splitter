@@ -42,7 +42,7 @@ describe("historyOf", () => {
         { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ unit: 0, participantId: sam, value: 2 }] }] },
         { by: ann, type: "undo", revision: 5 },
         { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, quantity: 2 }] },
-        { by: sam, type: "recordPayment", participantId: sam, amount: cents(300) },
+        { by: sam, type: "recordPayment", participantId: sam, device: deviceId("phone"), amount: cents(300) },
       ),
     );
 

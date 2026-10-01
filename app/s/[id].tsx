@@ -196,7 +196,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
               split={split}
               person={selectedPerson}
               mine={selectedPerson.id === me}
-              onPaid={(paid) => void act(paid ? { by: me, type: "recordPayment", participantId: me, amount: myShare } : { by: me, type: "clearPayment", participantId: me })}
+              onPaid={(paid) => void act(paid ? { by: me, type: "recordPayment", participantId: me, device, amount: myShare } : { by: me, type: "clearPayment", participantId: me, device })}
             />
           ) : unshared ? null : (
             <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
