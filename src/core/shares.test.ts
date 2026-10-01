@@ -719,10 +719,91 @@ describe("shareBreakdown", () => {
     expect(shareBreakdown(over, participantId("ann")).adjustments.map(({ portion }) => portion)).toEqual([74, 0]);
   });
 
+  test("a $0.00 tip stays $0.00 when tax rounds against the Items: $2.23 split three ways and $18.20 split two ways with $1.81 tax", () => {
+    const split = splitWith({ items: [["chips", 223, ["a", "b", "c"]], ["steak", 1820, ["a", "d"]]], adjustments: [["tax", 181], ["tip", 0]], participants: ["a", "b", "c", "d"] });
+
+    expect(shareBreakdown(split, participantId("a"))).toEqual({
+      items: [
+        { id: "chips", name: "chips", price: 223, fraction: [1, 3], portion: 74 },
+        { id: "steak", name: "steak", price: 1820, fraction: [1, 2], portion: 910 },
+      ],
+      adjustments: [
+        { id: "tax", kind: "tax", name: "tax", portion: 87 },
+        { id: "tip", kind: "tip", name: "tip", portion: 0 },
+      ],
+      difference: 0,
+      share: 1071,
+    });
+  });
+
+  test("a $10.00 discount on $6.00 of Items, $1.00 of it Unclaimed, gives the one who claimed nothing no lines", () => {
+    const fair = splitWith({ items: [["pasta", 500, ["ann", "bob"]], ["bread", 100, []]], adjustments: [["discount", -1000]], participants: ["ann", "bob", "cat"] });
+    const printed = { ...fair, receipt: { ...fair.receipt, total: cents(300) } };
+
+    expect(shareBreakdown(printed, participantId("cat"))).toEqual({ items: [], adjustments: [{ id: "discount", kind: "discount", name: "discount", portion: 0 }], difference: 0, share: 0 });
+  });
+
   test("a receipt discount shows as a negative line", () => {
     const split = splitWith({ items: [["pitcher", 3000, ["ann"]]], adjustments: [["discount", -300], ["tax", 270]] });
 
     expect(shareBreakdown(split, participantId("ann")).adjustments.map(({ portion }) => portion)).toEqual([-300, 270]);
+  });
+
+  test("across 15,000 seeded receipts with $0.00 lines, discounts past the Items, and printed totals that disagree, every line stays between $0.00 and its Item or Adjustment and the lines add up to the Share", () => {
+    const next = random(20261001);
+    const int = (low: number, high: number) => low + Math.floor(next() * (high - low + 1));
+    const pick = <T,>(values: readonly T[]): T => values[int(0, values.length - 1)];
+    const misses: string[] = [];
+    for (let run = 0; run < 15_000; run += 1) {
+      const people = Array.from({ length: int(1, 6) }, (_, index) => `p${index}`);
+      const rows = Array.from({ length: int(1, 6) }, (_, index): SplitItem => {
+        const amount = pick([0, 1, 2, 99, 223, 1820, int(0, 5000)]);
+        const prices = unitPrices(amount, int(1, 3));
+        const claimers = prices.map(() => people.filter(() => next() < 0.4).map(participantId));
+        const counts = claimers.map((unit) => unit.map((id): Part<number> => [id, int(1, 4)]));
+        const amounts = claimers.map((unit, index) => {
+          let left = prices[index];
+          return unit.map((id): Part<Cents> => {
+            const value = cents(int(0, left));
+            left -= value;
+            return [id, value];
+          });
+        });
+        const split: ItemSplit = pick<ItemSplit>([
+          { by: "even", units: [claimers[0], ...claimers.slice(1)] },
+          { by: "shares", units: [counts[0], ...counts.slice(1)] },
+          { by: "amount", units: [amounts[0], ...amounts.slice(1)] },
+        ]);
+        return { id: itemId(`i${index}`), name: `i${index}`, price: price(amount), split };
+      });
+      const itemsSum = rows.reduce((total, { price }) => total + price, 0);
+      const adjustments = Array.from({ length: int(0, 3) }, (_, index) => {
+        const kind = pick(["tax", "tip", "serviceCharge", "discount"] as const);
+        const size = pick([0, 0, 1, 99, 181, int(0, 900), int(0, itemsSum + 1000)]);
+        return { id: adjustmentId(`a${index}`), kind, name: kind, amount: cents(kind === "discount" ? -size : size) };
+      });
+      const agreeing = adjustments.reduce((total, { amount }) => total + amount, itemsSum);
+      const total = Math.max(0, pick([agreeing, agreeing, agreeing + int(-300, 300), 0]));
+      const [host, ...others] = people.map((id) => ({ id: participantId(id), name: id }));
+      const split = {
+        receipt: { items: [rows[0], ...rows.slice(1)] as const, adjustments, subtotal: cents(itemsSum), total: cents(total) },
+        participants: [host, ...others] as const,
+        payments: [],
+      };
+      for (const { participantId: id, share } of computeShares(split).shares) {
+        const breakdown = shareBreakdown(split, id);
+        const where = `receipt ${run} ${id}`;
+        if (linesOf(breakdown) !== share || breakdown.share !== share) misses.push(`${where} lines ${linesOf(breakdown)} share ${share}`);
+        if (total === agreeing && breakdown.difference !== 0) misses.push(`${where} difference ${breakdown.difference} on an agreeing receipt`);
+        for (const { portion, price } of breakdown.items) if (portion < 0 || portion > price) misses.push(`${where} item ${portion} of ${price}`);
+        breakdown.adjustments.forEach(({ portion }, index) => {
+          const { amount } = adjustments[index];
+          if (portion < Math.min(0, amount) || portion > Math.max(0, amount)) misses.push(`${where} adjustment ${portion} of ${amount}`);
+        });
+      }
+    }
+
+    expect(misses.slice(0, 5)).toEqual([]);
   });
 
   test("across 300 seeded receipts every breakdown adds up to its Share, and each Item part is its price split evenly to the cent", () => {

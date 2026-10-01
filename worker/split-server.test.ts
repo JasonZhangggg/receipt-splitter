@@ -454,6 +454,17 @@ describe("refusals leave the stored Split unchanged", () => {
     expect(await a.client.next()).toMatchObject({ type: "state", ref: "ok", split: { revision: 1 } });
   });
 
+  it("refuses an added Item of 10,000,000 units within 250 ms and keeps serving", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    const started = performance.now();
+    a.client.send({ ref: "q1", op: { type: "editReceipt", by: null, items: [{ type: "add", item: { id: "pie", name: "Pie", price: 100, quantity: 10_000_000 }, index: 0 }] } } as never);
+    expect(await a.client.next()).toEqual({ type: "rejected", ref: "q1", rejection: { reason: "malformed", path: "op.items[0].item.quantity" } });
+    expect(performance.now() - started).toBeLessThan(250);
+    a.client.send(claim("ok", "fries"));
+    expect(await a.client.next()).toMatchObject({ type: "state", ref: "ok", split: { revision: 1 } });
+  });
+
   it("refuses a creator secret that is not a string and a ref outside the pattern", async () => {
     const { id } = await createSplit();
     const a = await open(id);

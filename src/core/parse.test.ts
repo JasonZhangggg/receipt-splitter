@@ -96,6 +96,22 @@ describe("parseOperation bounds", () => {
     });
   });
 
+  test("refuses an added Item of 10,000,000 units, and an edit to 21, at the quantity, within 250 ms; reads 20", () => {
+    const addPie = (quantity: number) => ({ type: "editReceipt", by: null, items: [{ type: "add", item: { id: "pie", name: "Pie", price: 100, quantity }, index: 0 }] });
+    const started = performance.now();
+
+    expect(parseOperation(addPie(10_000_000))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].item.quantity" } });
+    expect(performance.now() - started).toBeLessThan(250);
+    expect(parseOperation({ type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", quantity: 21 }] })).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "items[0].quantity" },
+    });
+    expect(parseOperation(addPie(20))).toEqual({
+      ok: true,
+      op: { type: "editReceipt", by: null, items: [{ type: "add", item: { id: "pie", name: "Pie", price: 100, quantity: 20 }, index: 0 }] },
+    });
+  });
+
   test("refuses more Payment handles than there are services", () => {
     const handles = Array.from({ length: 5 }, () => ({ service: "venmo", handle: "ann-host" }));
 
@@ -349,6 +365,14 @@ describe("parseNewSplit", () => {
     expect(withRows(100, 20)).toMatchObject({ ok: true, split: { receipt: { items: { length: 100 }, adjustments: { length: 20 }, total: 10_020 } } });
     expect(withRows(101, 0)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items" } });
     expect(withRows(1, 21)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments" } });
+  });
+
+  test("refuses an Item of 10,000,000 units at its quantity within 250 ms, before building a unit", () => {
+    const huge = { ...body, receipt: { ...body.receipt, items: [{ ...body.receipt.items[0], quantity: 10_000_000 }, body.receipt.items[1]] } };
+    const started = performance.now();
+
+    expect(parseNewSplit(huge, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].quantity" } });
+    expect(performance.now() - started).toBeLessThan(250);
   });
 
   test("refuses a Host named with a bidi override or left blank", () => {

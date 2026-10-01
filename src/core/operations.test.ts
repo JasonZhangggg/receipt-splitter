@@ -614,6 +614,14 @@ describe("Item quantity and split", () => {
     expect(reasonFor(claimed, edit({ quantity: MAX_QUANTITY + 1 }, fries))).toBe("amountOutOfRange");
   });
 
+  test("a share count of 99 is accepted and 100 is refused", () => {
+    const claimed = apply(withBobAndCat(), claim(fries, bob), claim(fries, cat), edit({ by: "shares" }, fries));
+    const most = apply(claimed, edit({ values: [{ unit: 0, participantId: bob, value: 99 }] }, fries));
+
+    expect(most.receipt.items.find(({ id }) => id === fries)?.split).toEqual({ by: "shares", units: [[[bob, 99], [cat, 1]]] });
+    expect(reasonFor(claimed, edit({ values: [{ unit: 0, participantId: bob, value: 100 }] }, fries))).toBe("amountOutOfRange");
+  });
+
   test("the same mode sent again changes nothing", () => {
     const shaped = apply(withBobAndCat(), edit({ by: "shares" }));
 

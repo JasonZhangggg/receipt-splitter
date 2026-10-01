@@ -168,6 +168,7 @@ function tagged<T>(tag: string, variants: { readonly [name: string]: Parser<T> }
 const text = check((input): input is string => typeof input === "string");
 const flag = check((input): input is boolean => typeof input === "boolean");
 const count = check((input): input is number => typeof input === "number" && Number.isSafeInteger(input) && input >= 0);
+const quantity = check((input): input is number => typeof input === "number" && Number.isInteger(input) && input >= 1 && input <= MAX_QUANTITY);
 const cents = check(isCents);
 const price = check(isPrice);
 const splitId = check(isId<"SplitId">);
@@ -286,7 +287,7 @@ const change: Parser<Change> = strict(({ read, maybe }) => ({
 }));
 
 const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));
-const receiptItem = strict(({ read, maybe }) => ({ id: read("id", itemId), name: read("name", text), price: read("price", price), ...maybe("quantity", count) }));
+const receiptItem = strict(({ read, maybe }) => ({ id: read("id", itemId), name: read("name", text), price: read("price", price), ...maybe("quantity", quantity) }));
 const adjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...adjustmentFields(fields) }));
 const participant = strict((fields) => ({ id: fields.read("id", participantId), ...participantFields(fields) }));
 const paymentHandle = strict(({ read }) => ({ service: read("service", oneOf(PAYMENT_SERVICES)), handle: read("handle", text) }));
@@ -351,7 +352,7 @@ const itemPatch = tagged<ItemPatch>("type", {
     itemId: read("itemId", itemId),
     ...maybe("name", text),
     ...maybe("price", price),
-    ...maybe("quantity", count),
+    ...maybe("quantity", quantity),
     ...maybe("by", oneOf(SPLIT_MODES)),
     ...maybe("values", array(strict((fields) => ({ unit: fields.read("unit", count), participantId: fields.read("participantId", participantId), value: fields.read("value", count) })), MAX_QUANTITY * MAX_PARTICIPANTS)),
   })),

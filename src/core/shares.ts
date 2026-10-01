@@ -62,7 +62,8 @@ export function computeShares(split: Pick<Split, "receipt" | "participants" | "p
   const parties: Party[] = [null, ...split.participants.map(({ id }) => id)];
   const floored = parties.map((id) => {
     const numerator = BigInt(total) * sum(all.map((piece) => weightOf(id, piece)));
-    return { id, floor: Number(numerator / denominator), remainder: numerator % denominator, rank: id === null ? UNCLAIMED_RANK : tieRank(id) };
+    const floor = floorDivide(numerator, denominator);
+    return { id, floor: Number(floor), remainder: numerator - floor * denominator, rank: id === null ? UNCLAIMED_RANK : tieRank(id) };
   });
   const leftover = total - floored.reduce((sum, { floor }) => sum + floor, 0);
   const roundedUp = new Set([...floored].sort(largestRemainderFirst).slice(0, leftover));
@@ -115,9 +116,13 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
     const itemCents = sum(units.map((piece, unit) => had(piece) * BigInt(prices[unit])));
     return [{ item, fraction: [unitsHad, multiple * BigInt(units.length)] as const, cents: [itemCents, multiple] as const }];
   });
-  const itemPortions = allocate(itemsPart, mine.map(({ cents }): Fraction => cents));
   const claimed = sum(all.map((piece) => weightOf(participantId, piece)));
-  const adjustmentPortions = allocate(agreeingShare - itemsPart, adjustments.map(({ amount }): Fraction => [BigInt(amount) * claimed, denominator]));
+  const adjustmentParts = adjustments.map(({ amount }): Fraction => [BigInt(amount) * claimed, denominator]);
+  const [fewest, most] = roundingRange(adjustmentParts);
+  // itemsPart and agreeingShare each round on their own, so their gap can be a cent more than the Adjustments can round to; the Items take that cent.
+  const adjustmentsPart = Math.min(Math.max(agreeingShare - itemsPart, fewest), most);
+  const itemPortions = allocate(agreeingShare - adjustmentsPart, mine.map(({ cents }): Fraction => cents));
+  const adjustmentPortions = allocate(adjustmentsPart, adjustmentParts);
   return {
     items: mine.map(({ item: { id, name, price }, fraction }, index) => ({ id, name, price, fraction: reduced(fraction), portion: cents(itemPortions[index]) })),
     adjustments: adjustments.map(({ id, kind, name }, index) => ({ id, kind, name, portion: cents(adjustmentPortions[index]) })),
@@ -135,24 +140,38 @@ function sum(values: readonly bigint[]): bigint {
   return values.reduce((total, value) => total + value, 0n);
 }
 
+/**
+ * Rounds each line to the cent below or above its exact value, so no line leaves the range between 0 and its Item or Adjustment.
+ * The target must lie in `roundingRange(parts)`.
+ */
 function allocate(target: number, parts: readonly Fraction[]): number[] {
-  const floors = parts.map(([numerator, denominator]) => numerator / denominator - (numerator % denominator < 0n ? 1n : 0n));
+  const floors = parts.map(([numerator, denominator]) => floorDivide(numerator, denominator));
   const remainders = parts.map(([numerator, denominator], index) => numerator - floors[index] * denominator);
-  const byRemainder = parts
+  const portions = floors.map(Number);
+  const short = target - portions.reduce((total, portion) => total + portion, 0);
+  const roundedUp = parts
     .map((_, index) => index)
+    .filter((index) => remainders[index] > 0n)
     .sort((a, b) => {
       const left = remainders[a] * parts[b][1];
       const right = remainders[b] * parts[a][1];
       return left === right ? a - b : left > right ? -1 : 1;
     });
-  const portions = floors.map(Number);
-  let left = target - portions.reduce((sum, portion) => sum + portion, 0);
-  const order = left > 0 ? byRemainder : [...byRemainder].reverse();
-  for (let step = 0; left !== 0 && order.length > 0; step += 1) {
-    portions[order[step % order.length]] += Math.sign(left);
-    left -= Math.sign(left);
-  }
+  if (short < 0 || short > roundedUp.length) throw new RangeError(`cannot round ${parts.length} lines to ${target} cents`);
+  for (const index of roundedUp.slice(0, short)) portions[index] += 1;
   return portions;
+}
+
+/** The fewest and most cents `allocate` can give the parts in total. */
+function roundingRange(parts: readonly Fraction[]): readonly [number, number] {
+  const floors = parts.map(([numerator, denominator]) => floorDivide(numerator, denominator));
+  const fewest = Number(sum(floors));
+  return [fewest, fewest + parts.filter(([numerator, denominator], index) => numerator !== floors[index] * denominator).length];
+}
+
+function floorDivide(numerator: bigint, denominator: bigint): bigint {
+  const quotient = numerator / denominator;
+  return numerator % denominator < 0n ? quotient - 1n : quotient;
 }
 
 const UNCLAIMED_RANK = 2 ** 32;
