@@ -3,10 +3,11 @@ import { writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 
-const USAGE = `usage: tools/live-clients.mjs <create|claims|idle|drop|cap|render> --port <port> [options]
+const USAGE = `usage: .claude/skills/verify-receipt-splitter/live-clients.mjs <create|claims|idle|drop|cap|render> --port <port> [options]
   create                      create a Split with the Turnstile test token and print { id, creatorSecret }
   claims --claims 200 --pace-ms 60 --clients 2
-                              clients take turns to Claim and unclaim; reports the round trip until the next client sees each new state
+                              each client in turn Claims and then unclaims, so every client receives both from another;
+                              reports the round trip until the other clients see each new state
   idle --clients 3 --idle-s 60
                               opens clients, waits, then client 0 Claims; every client must receive it
   drop --drop-s 10            client 1 closes, client 0 Claims, client 1 reconnects and must see the Claim
@@ -137,6 +138,8 @@ async function openClients(id, count) {
   return clients;
 }
 
+const holds = (split, itemId) => split.receipt.items.find(({ id }) => id === itemId).claimedBy.includes("ann");
+
 const claim = (ref, itemId, claimed) => ({
   ref,
   op: { type: claimed ? "claim" : "unclaim", by: "ann", itemId, participantId: "ann" },
@@ -147,8 +150,9 @@ function converged(clients) {
   return rest.every((json) => json === first);
 }
 
-async function claimAndWatch(clients, ref, claimed) {
+async function claimAndWatch(clients, ref) {
   const [sender, ...others] = clients;
+  const claimed = !holds(sender.split, "fries");
   const target = sender.split.revision + 1;
   const seen = others.map((client) => client.waitFor((message) => message.type === "state" && message.split.revision === target));
   const answer = sender.waitFor((message) => message.ref === ref);
@@ -157,7 +161,7 @@ async function claimAndWatch(clients, ref, claimed) {
   const reply = await answer;
   if (reply.message.type !== "state") throw new Error(`${ref} was answered ${JSON.stringify(reply.message)}`);
   const arrivals = await Promise.all(seen);
-  return { roundTripMs: arrivals[0].at - sentAt, revision: target };
+  return { roundTripMs: arrivals[0].at - sentAt, revision: target, claimed };
 }
 
 function percentile(sorted, p) {
@@ -179,11 +183,13 @@ const commands = {
     const clients = await openClients(id, Number(values.clients ?? 2));
     const count = Number(values.claims);
     const times = [];
+    const received = new Map(clients.map((client) => [client.name, { claims: 0, unclaims: 0 }]));
     let divergedAfter = null;
     for (let index = 0; index < count; index += 1) {
-      const turn = index % clients.length;
+      const turn = Math.floor(index / 2) % clients.length;
       const rotated = [...clients.slice(turn), ...clients.slice(0, turn)];
-      const { roundTripMs, revision } = await claimAndWatch(rotated, `c${index}`, index % 2 === 0);
+      const { roundTripMs, revision, claimed } = await claimAndWatch(rotated, `c${index}`);
+      for (const other of rotated.slice(1)) received.get(other.name)[claimed ? "claims" : "unclaims"] += 1;
       times.push(roundTripMs);
       if (divergedAfter === null && !converged(clients)) divergedAfter = revision;
       if (count <= 20) note({ event: "claim seen by every client", sender: rotated[0].name, revision, roundTripMs, fries: clients.map((client) => client.split.receipt.items[0].claimedBy) });
@@ -199,10 +205,12 @@ const commands = {
       maxMs: round(sorted.at(-1)),
       finalRevision: clients[0].split.revision,
       sameStateAfterEveryClaim: divergedAfter === null,
+      received: Object.fromEntries(received),
+      everyClientReceivedBoth: [...received.values()].every(({ claims, unclaims }) => claims > 0 && unclaims > 0),
     };
     note({ event: "claims", ...result });
     clients.forEach((client) => client.close());
-    return { ok: result.sameStateAfterEveryClaim && result.p95Ms <= 150, ...result };
+    return { ok: result.sameStateAfterEveryClaim && result.everyClientReceivedBoth && result.p95Ms <= 150, ...result };
   },
 
   async idle() {
@@ -211,7 +219,7 @@ const commands = {
     const idleS = Number(values["idle-s"]);
     note({ event: "idle", seconds: idleS });
     await sleep(idleS * 1000);
-    const { roundTripMs, revision } = await claimAndWatch(clients, "after-idle", true);
+    const { roundTripMs, revision } = await claimAndWatch(clients, "after-idle");
     const everyone = clients.map((client) => ({ client: client.name, revision: client.split.revision }));
     note({ event: "claim after idle", roundTripMs, everyone });
     clients.forEach((client) => client.close());

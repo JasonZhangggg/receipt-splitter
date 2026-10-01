@@ -92,7 +92,7 @@ Cite `media` to show which viewport and preferences a screenshot was taken with.
 
 A drive fails on a non-200 response, a missing heading or text, or any console error or uncaught page error. The JSON line lists the failures in `failures` and joins them in `error`. If the page cannot load at all, for example because nothing listens on the port, the failure line carries the browser's error in `error`.
 
-For multi-step interactions that one navigation cannot express, write a Playwright spec under `e2e/` and run it with `PORT=<port> npm run e2e`. The spec config runs `npm run build` and starts its own `wrangler dev` on that port with the inspector on `port + 10000`, so do not run it against a port where `launch` is already serving.
+For several WebSocket clients on one Split, use `live-clients.mjs` in this folder, as [features/live.md](features/live.md) describes. For multi-step interactions that one navigation cannot express, write a Playwright spec under `e2e/` and run it with `PORT=<port> npm run e2e`. The spec config runs `npm run build` and starts its own `wrangler dev` on that port with the inspector on `port + 10000`, so do not run it against a port where `launch` is already serving.
 
 ## Evidence
 
