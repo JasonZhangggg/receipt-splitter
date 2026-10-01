@@ -17,14 +17,14 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 **Problem.** Splitting a restaurant bill takes too long and goes wrong. Splitwise charges for receipt scanning. Lily Split uploads receipt photos to a public bucket, asks for every name before showing any Items, supports only Venmo, and never checks the Items against the receipt total. Friends overpay or underpay and nobody notices.
 
-**Solution.** The Host photographs or uploads the Receipt. The site reads it on the phone in about a second, checks that the Items add up to the total, and highlights any row that does not. The Host sets the tip, enters a Payment handle, optionally adds names, and shares a link. Anyone who opens the link picks their name, Claims their Items, watches every Share update live, and pays the Host with one tap on Venmo, Cash App, or PayPal, or copies the Zelle details.
+**Solution.** The Host does everything on the home page, with no steps to move between. The Host takes or uploads a photo of the Receipt. The site reads it on the phone in about a second, checks that the Items add up to the total, and highlights any row that does not. The tip comes from the receipt as one Adjustment line the Host can edit. In a bottom sheet on the same page, the Host enters a Payment handle, optionally adds names, and creates a share link. Anyone who opens the link picks their name, Claims their Items, watches every Share update live, and pays the Host with one tap on Venmo, Cash App, or PayPal, or copies the Zelle details.
 
 **User stories.**
 
 1. As a Host, I want the site to read my receipt photo on my phone, so that nobody else ever sees the photo.
 2. As a Host, I want rows that break the Total check highlighted, so that I can fix a misread price in one tap.
 3. As a Host, I want to type Items by hand when the photo is unreadable, so that I can still split the bill.
-4. As a Host, I want to set the tip as 18, 20, or 22 percent or a dollar amount, so that a handwritten tip still counts.
+4. As a Host, I want the tip read from the receipt as one line I can edit, so that a handwritten tip still counts without a separate step.
 5. As a Host, I want to share one link without typing names first, so that I can send it to the group chat at once.
 6. As a Participant, I want to pick my name from a list or add it, so that I can start claiming in one tap.
 7. As a Participant, I want to Claim my Items and see my Share update live, so that I know what I owe before I pay.
@@ -33,8 +33,9 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 10. As a Participant, I want one tap to pay the Host on the app they use, so that I do not have to type a handle or an amount.
 11. As a Participant, I want to record that I paid and what I paid, so that a later change shows exactly what is still owed.
 12. As a Host, I want to see who has paid, so that I know whom to remind.
+13. As a Host, I want to read the Receipt, fix it, and create the link on one page, so that I never lose my place between steps.
 
-**Out of scope.** Sign-in, saved groups, and history of past Splits. Any LLM fallback. The iOS and Android apps, although every module keeps them possible. Currencies other than USD. Debt netting across Splits. Long receipts taken in several photos. WebGPU. A production deploy, which the operator runs after the stack lands.
+**Out of scope.** Sign-in, saved groups, and history of past Splits. Any LLM fallback. The iOS and Android apps, although every module keeps them possible. Currencies other than USD. Debt netting across Splits. Long receipts taken in several photos. PDF receipts. WebGPU. A production deploy, which the operator runs after the stack lands.
 
 **Decisions.** The grilling settled these, and they are binding.
 
@@ -50,6 +51,16 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - The OCR model starts downloading in the background on the home page. A share link never downloads it.
 - A Split is deleted 60 days after its last change.
 - Every UI PR follows the `## UI work` rule in `CLAUDE.md`.
+
+The operator's home redesign of 2026-09-30 settled these. They supersede earlier plan text wherever the two differ.
+
+- The home page `/` is the one page where the Host does everything, with no navigation. The `/new` routes `app/new/index.tsx`, `app/new/tip.tsx`, `app/new/handles.tsx`, and `app/new/people.tsx` are dropped.
+- The tip is inferred from the receipt and shown as one editable Adjustment line. The 18, 20, and 22 percent buttons are gone.
+- The home page shows no headline, no pitch, and no full example scan.
+- The visual language is round 6 idea 2, "Open table". The page is white, with gray surfaces, one black action, Plus Jakarta Sans 400 and 500 under the SIL Open Font License, and a neutral charcoal ladder in dark mode. It replaces the orange field and Archivo. Appendix E lists the tokens and the type sizes.
+- v1 reads images only. The input takes a camera photo or a library photo on a phone, and an image file on a desktop. PDF upload is not in v1.
+- The line "The photo stays on this phone" is left out of the page.
+- Owners commit locally and never push. The root pushes once on a clean verdict, per the push rule in `~/.claude/orchestrate/receipt-splitter/preferences.md`. This replaces opening the PR ready and pushing early.
 
 ## Program checklist
 
@@ -67,6 +78,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
   - [ ] `~/.claude/skills/create-verification-skill/SKILL.md`
   - [ ] `~/.claude/skills/emil-design-eng/SKILL.md`, `~/.claude/skills/apple-design/SKILL.md`, and `~/.claude/skills/mobile-native/SKILL.md` for every UI PR
   - [ ] `~/.claude/skills/animate/SKILL.md` and `~/.claude/skills/review-animations/SKILL.md` for every UI PR
+  - [ ] `~/.claude/skills/unslop/SKILL.md` for the UI text of every UI PR
   - [ ] `~/.claude/skills/principle-model-the-domain/SKILL.md` and `~/.claude/skills/principle-type-system-discipline/SKILL.md` for RS-2 and RS-8
 - [ ] Arm the 30-minute audit tick as a real `/loop` in dynamic mode. Never leave the cadence to memory.
 - [ ] Use this tick prompt, verbatim. "Re-read the execution playbook and the standing objective. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a status message to the operator in chat, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, open notes and their fixers, and blockers."
@@ -92,15 +104,20 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
   - [ ] RS-3 touches only `bench/**` and `package.json` scripts.
   - [ ] RS-4 touches only `src/ocr/**`, `public/ort/**`, `public/models/**`, `public/_headers`, and `bench/run-ocr.mjs`.
   - [ ] RS-5 touches only `src/parse/**` and `bench/**`.
-  - [ ] RS-6 touches only `src/ui/**`, `assets/fonts/**`, and `app/index.tsx`.
+  - [ ] RS-6 touches only `src/ui/**`, `assets/fonts/**`, `app/index.tsx`, `e2e/home.spec.ts`, and `features/home.md` and `features/README.md` in `verify-receipt-splitter`.
+  - [ ] RS-7 touches only `app/index.tsx`, `src/ui/**`, `src/draft.ts`, `src/draft.test.ts`, `src/ocr/**`, `public/ocr-worker.mjs`, `e2e/**`, `package.json`, and `features/**` in `verify-receipt-splitter`. RS-7 may also edit `src/parse/index.ts`, only to report an Item that `foldInto` set to 0. No PR creates a route under `app/new/`.
   - [ ] RS-8 touches only `worker/**`, `src/core/**` for the shared operation types, and `wrangler.jsonc`.
 - [ ] Hold the review gate. RS-6, RS-7, RS-9, RS-10, and RS-11 change an interaction, and RS-3 needs the operator to check the benchmark labels. They wait for the operator's review in chat with screenshots, and a video where the PR changes an interaction, before merge.
 
 ### PR mechanics, for every PR
 
 - [ ] Resolve the forge once. Default to `gh`; if `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Record any fallback to `gh`. Never require `gt`.
-- [ ] Open the PR ready, never draft, with `origin pr create --status open --base <base-branch>` or `gh pr create --base <base-branch>` according to the resolved forge. A stack child targets its parent branch.
-- [ ] Run the repo's lint and typecheck once before the PR-facing push, with `npm run lint` and `npm run typecheck`. Push with hooks on.
+- [ ] Commit locally and never push. A verifier checks out the owner's local SHA, which every worktree reaches through the shared object store.
+- [ ] Draft the PR body at `/tmp/swarm-<PR>/owner/pr-body.md`.
+- [ ] On a clean verdict, the root pushes that exact SHA once. The root then opens the PR ready, never draft, with `origin pr create --status open --base <base-branch>` or `gh pr create --base <base-branch>` according to the resolved forge, or updates the open PR, with the owner's drafted body. A stack child targets its parent branch.
+- [ ] CI runs once, on the verified commit. A CI failure goes back to the owner like a lane `FAIL`.
+- [ ] Force-push with lease only for a restack, and restack only when `main` moves.
+- [ ] Run `npm run lint` and `npm run typecheck` before the verdict. Commit with hooks on.
 - [ ] Write tests through `/tdd` at the PR's **Seams**.
 - [ ] Run `/deslop` before each commit and `/no-comments` before review.
 - [ ] Run `/spec-review` against this plan's PR section before the code-ready report. Fix every Spec finding.
@@ -109,7 +126,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 ### Verdict and merge, for every PR
 
-- [ ] At the merge-ready head SHA, run the swarm per `~/.claude/skills/swarm/SKILL.md`. One gates lane. The live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. One audit lane that reads the diff and the receipts and distrusts the PR body.
+- [ ] At the owner's merge-ready local head SHA, run the swarm per `~/.claude/skills/swarm/SKILL.md`. One gates lane. The live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. One audit lane that reads the diff and the receipts and distrusts the PR body.
 - [ ] Lanes return `PASS`, `PASS+NOTES`, or `FAIL`. `FAIL` is a blocking issue, a defect, or new code without a test that fails for it. Clean when no lane fails. `FAIL` findings go back to the owner.
 - [ ] Each note names its fixer, the next PR touching those files or the cleanup PR, and goes in `~/.claude/orchestrate/receipt-splitter/notes.md`. A PR sent back fixes its own notes too.
 - [ ] The first verdict runs every lane. A fix round reruns gates, an audit of the new commits, and the lanes whose surface changed. Perf reuses deterministic trunk values (build bytes) at the same trunk SHA and keeps timings interleaved.
@@ -119,7 +136,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 Each live lane runs in its own worktree at the PR head, with its own app instance and port per `verify-receipt-splitter`. Drive only through `verify-receipt-splitter`.
 
-- [ ] `git fetch origin <head-branch> && git checkout <head SHA>`.
+- [ ] `git checkout <head SHA>`. Until the root pushes it, the head SHA exists only in the owner's commits, and the lane's worktree reaches it through the shared object store.
 - [ ] Run `npm ci`, then the `verify-receipt-splitter` launch command, which exports the web build and starts `npx wrangler dev` on the lane's own port. Wait for its doctor command to report ready.
 - [ ] Deliver input only through the verification skill's drive commands, which run Playwright against the lane's port. Read-only diagnostics are the doctor command, the browser console log, the network log, and `npx wrangler dev` output.
 - [ ] Save every screenshot to `/tmp/swarm-<pr-id>/worker-<n>/<slug>.png` and return the paths with the report.
@@ -389,7 +406,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `src/parse/index.test.ts` gains SRD receipt 1040 parsed to three Items, a subtotal of 2298 cents, and a total of 2804 cents. Run `npm test -- src/parse`.
+- [ ] `src/parse/index.test.ts` gains SRD receipt 1040 parsed to five Items, a subtotal of 2298 cents, and a total of 2804 cents. Run `npm test -- src/parse`.
 - [ ] `src/parse/index.test.ts` gains the curled SRD receipt 1019 with each price on its own Item. Run `npm test -- src/parse`.
 - [ ] `src/parse/lines.test.ts` gains a quantity line, a modifier with a price, and an Item-level discount. Run `npm test -- src/parse`.
 
@@ -424,49 +441,85 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Files.**
 
-- [ ] Create `src/ui/theme.ts`, `src/ui/components/`, and `assets/fonts/`.
-- [ ] Edit `app/index.tsx`.
+- [ ] Rework the open RS-6 branch in place. It already holds `src/ui/`, `assets/fonts/`, `app/index.tsx`, `e2e/home.spec.ts`, and `features/home.md` from the Table direction.
+- [ ] Edit `src/ui/colors.ts`, `src/ui/theme.ts`, `src/ui/document.ts`, `src/ui/motion.ts`, and `src/ui/home-copy.ts`.
+- [ ] Edit `src/ui/components/button.tsx` and `src/ui/components/sheet.tsx`.
+- [ ] Create `src/ui/components/slip.tsx`, `src/ui/components/payment-row.tsx`, `src/ui/components/name-chips.tsx`, and `src/ui/components/file-row.tsx`.
+- [ ] Create the Plus Jakarta Sans 400 and 500 Latin WOFF2 files and their `OFL.txt` in `assets/fonts/`. Delete the Archivo files. Edit `assets/fonts/fallback-metrics.mjs`.
+- [ ] Edit `app/index.tsx` and `e2e/home.spec.ts`.
 
 **Build.**
 
-- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`.
-- [ ] Build three distinct visual directions for the home screen and a sample Receipt list behind one switcher, per `~/.claude/skills/poteto-mode/playbooks/prototype.md`. Each direction names its type, color, spacing, and motion choices.
-- [ ] Present the three directions to the operator with screenshots at phone and desktop widths. Build only the chosen one.
-- [ ] Write the chosen direction as tokens in `src/ui/theme.ts`, with light and dark modes, and as base components in `src/ui/components/` for button, list row, money text, sheet, and toast. Self-host the fonts in `assets/fonts/`.
-- [ ] Rebuild the home screen in `app/index.tsx` with the base components, with one clear action to scan or upload a Receipt.
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`. Read `review-animations` by hand. Run `unslop` on every UI string.
+- [ ] Remove the Table direction first. Delete the orange field, Archivo and its fallback faces, the headline with its `cqi` sizing and its mask, the pitch, the example scan, and their cases in `e2e/home.spec.ts`. Delete any other piece the approved design `docs/design/home/idea2.html` does not show.
+- [ ] Keep the Button press behavior in `src/ui/components/button.tsx` and every committed press case in `e2e/home.spec.ts`. Point each case at a Button the new page renders in the same position, inside the scroll view or outside it. Keep every timing bound. List each case's old target and new target in the PR body.
+- [ ] Close the RS-6 notes in `~/.claude/orchestrate/receipt-splitter/notes.md`.
+  - [ ] Kill the eight press mutants that survive the committed e2e, V14, W18, W19, W6c, W7, W12, W17, and W16 in `/tmp/swarm-RS-6/v7-audit/mutants.summary`. Add a test that fails for each one, or delete the code that no test can justify.
+  - [ ] Stop a passing mouse with its left button down from hiding a held press it did not start, at `button.tsx:51-52`. Park only presses that came from a mouse.
+  - [ ] Filter `metaKey` on keydown, so Cmd+Enter does not leave the press look on until blur.
+  - [ ] Clear the last mouse id in `pointer.current`, so a mouse that leaves during a held Space keeps the key's look.
+  - [ ] List in the PR body's census that a Space press blurred while held leaves the document keyup listener of `PressResponder` active.
+  - [ ] Correct the census row "unmount mid-press not reachable". A resize across the breakpoint swaps the Buttons.
+  - [ ] Map the PR body's pre-rebase SHAs and test counts to the current ones, from `/tmp/swarm-RS-6/v7-audit/sha-map.txt`.
+- [ ] Give Button a `disabled` state that its look follows, because **Create split link** shows disabled on the empty page.
+- [ ] Write the white look as tokens in `src/ui/colors.ts` and `src/ui/theme.ts`, in light and dark, from Appendix E. Dark mode is the neutral charcoal ladder with no warm tint. Set `theme-color` to `#FFFFFF` in light and `#121315` in dark.
+- [ ] Self-host Plus Jakarta Sans 400 and 500 from `@fontsource/plus-jakarta-sans@5.3.0`, with its `OFL.txt`. Use no weight above 500. Retarget `assets/fonts/fallback-metrics.mjs` to the new face and the new copy, so the font swap does not move the layout.
+- [ ] Build the static components in `src/ui/components/`. Each renders in light and dark and reads no app state yet.
+  - [ ] Build the blank slip in `slip.tsx`. It is a faint `--paper` slip with hairline lines and the black camera button on it.
+  - [ ] Rebuild `sheet.tsx` as the bottom sheet, in place of the modal sheet that has no caller. It is white, with a hairline, a soft neutral shadow, a grab handle, and padding for the bottom safe-area inset. From 900 px it is a 380 px panel at the right.
+  - [ ] Build the payment row in `payment-row.tsx`. An app picker shows Venmo by default, one handle field shows that app's placeholder, and a **+** button adds another app.
+  - [ ] Build the name chips in `name-chips.tsx`, with **Me** and **+ Add**.
+  - [ ] Give Button the primary look, a 54 px black pill that is white in dark mode. The blocked look uses `--off`, with room for one short reason line above it in the yellow highlight.
+  - [ ] Build the file row in `file-row.tsx`, with a thumbnail, the file name, the Item count, and one replace button.
+- [ ] Build the empty state of the home page in `app/index.tsx`.
+  - [ ] Put the wordmark **Receipt Splitter** at the top left and a small **Example** link at the top right.
+  - [ ] Fill the space above the sheet with the hero. It holds the blank slip, the black camera button, **Add receipt**, and an image-only subline of a few words, such as "Take or upload a photo".
+  - [ ] Put the payment row, the name chips, and a disabled **Create split link** in the sheet.
+  - [ ] From 900 px, draw the hero as a gray drop area left of the panel, with **Drop a receipt** and an image-only subline.
+  - [ ] Show no headline, no pitch, no example scan, and no line about the photo staying on the phone.
+- [ ] Make the sheet taller by default than the round 6 prototype, per the operator's tweak. The prototype sheet measured 223 px at 390 by 844 when empty. Keep the camera button and **Add receipt** fully above the sheet at 375 by 667. Record the chosen height in `features/home.md`.
+- [ ] Build the press motion with `animate`. The hero slip scales to 0.97 over 120 ms with `cubic-bezier(0.23, 1, 0.32, 1)`. The action moves from the blocked look to black over 180 ms ease. Under reduced motion nothing scales.
+- [ ] Keep the OCR model prefetch effect that RS-4 added to `app/index.tsx`.
 
 **You see.**
 
-- [ ] The home screen renders in the chosen direction at 390 px and 1280 px wide, in light and dark mode.
+- [ ] At 390 by 844, `/` shows a white page with **Receipt Splitter**, **Example**, the blank slip with the black camera button, and **Add receipt**. The sheet below shows **Venmo**, the handle field, **+**, **Me**, **+ Add**, and a disabled **Create split link**.
+- [ ] At 1280 px, the drop area sits left of the 380 px panel. In dark mode the page is `#121315` and the action is a white pill.
 
 **Seams.**
 
-- [ ] The home screen as a user sees it, through Playwright in `e2e/home.spec.ts`.
+- [ ] The home page and its Buttons as a user sees and presses them, through Playwright in `e2e/home.spec.ts`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `e2e/home.spec.ts` gains a case that the scan action is visible and focusable by keyboard at 390 px. Run `npm run e2e`.
+- [ ] `e2e/home.spec.ts` keeps every committed press case, pointed at the new page's Buttons, with every timing bound unchanged. Run `npm run e2e`.
+- [ ] `e2e/home.spec.ts` gains one case for each of the mutants V14, W18, W19, W6c, W7, W12, W17, and W16, and each case fails with its mutant applied. Run `npm run e2e`, then rerun the root's 45 mutants from `/tmp/swarm-RS-6/v7-audit/` and record zero survivors.
+- [ ] `e2e/home.spec.ts` gains the empty state at 390 px. **Add receipt** takes keyboard focus with a visible ring, and **Create split link** has `aria-disabled="true"`. Run `npm run e2e`.
+- [ ] `e2e/home.spec.ts` gains a sheet taller than 223 px at 390 by 844, and a camera button fully above the sheet at 375 by 667. Run `npm run e2e`.
+- [ ] `e2e/home.spec.ts` keeps the home matrix. It fails on clipped text, horizontal page overflow, a missing Plus Jakarta Sans face, or a console error at 320, 375, 390, 900, 1024, and 1280 px. Run `npm run e2e`.
 
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `swarm`, per the boot recipe.
 
-- [ ] Lane 1. Regression lane against trunk. Load `/` at trunk and head at 390 px. Save `home-trunk-head.png`. Pass when head shows the new direction, `/s/abc` still resolves, and the console has no errors.
-- [ ] Lane 2. Load `/` at 390 px and 1280 px in light and dark mode with reduced motion on and off, citing `features/home.md`. Save `home-matrix.png`. Pass when no text overflows, contrast meets WCAG AA, and motion stops under reduced motion.
+- [ ] Lane 1. Regression lane against trunk. Load `/` at trunk and head at 390 px. Trunk shows the RS-4 placeholder home, so record that and gate the head empty state. Save `home-trunk-head.png`. Pass when head shows the empty state from **You see**, `/s/abc` still resolves, the first `/models/` request starts after first contentful paint, and the console has no errors.
+- [ ] Lane 2. Drive `/` at 375, 390, and 1280 px, in light and dark, with reduced motion on and off, citing `features/home.md`. Save `home-matrix.png`. Pass when no text overflows, every text pair meets WCAG AA, every target is at least 44 by 44 px, and no animation runs under reduced motion.
+- [ ] Lane 3. Press lane. Run the press harness `/tmp/swarm-RS-6/v5-worker-1/press5.mjs` against the new page's Buttons by mouse, pen, touch, and keyboard, with drag-in and multi-pointer cases added, citing `home-press` in `features/home.md`. Save `home-press.png`. Pass when every case matches the press rules in `features/home.md`.
+- [ ] Lane 4. Measure the sheet at 390 by 844 and at 375 by 667 with a 34 px bottom safe-area inset, citing `home-sheet` in `features/home.md`. Save `home-sheet.png`. Pass when the sheet is taller than 223 px at 390 by 844, the camera button and **Add receipt** sit fully above it at both sizes, the inset lifts the sheet's content by 34 px, and the handle field's text is at least 16 px.
 
 **Feature map.**
 
-- [ ] Add `features/home.md` in `verify-receipt-splitter`.
+- [ ] Rewrite `features/home.md` in `verify-receipt-splitter` for the new page, with the sub-features `home-hero`, `home-sheet`, `home-press`, `home-layout`, and `home-theme`. Drop `home-headline`, `home-example`, `home-bar`, and the gotcha that the action goes to `/new`. List Home in `features/README.md`.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Entry JavaScript brotli bytes, font bytes, and home screen Largest Contentful Paint under Playwright's mobile emulation with 4G throttling.
+- [ ] Metric. Entry JavaScript brotli bytes, font bytes, and home page Largest Contentful Paint under Playwright's mobile emulation with 4G throttling.
 - [ ] Probe. `npm run size` and a Playwright LCP measurement at trunk and head, interleaved, three runs each.
-- [ ] Baseline. Record the trunk entry size and LCP first.
-- [ ] Rule. Fail if the entry grows by more than 40 KB brotli, fonts exceed 100 KB, or head LCP exceeds 1.5 s.
+- [ ] Baseline. Record the trunk entry size and LCP first. The two prototype font files measure 24 KB together.
+- [ ] Rule. Fail if the entry grows by more than 40 KB brotli, fonts exceed 30 KB, or head LCP exceeds 1.5 s.
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy the three direction screenshots and lane 2 screenshots into `/tmp/receipt-splitter-review/RS-6-review-directions.png` and `/tmp/receipt-splitter-review/RS-6-review-home.png`.
-- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of the home screen in both modes as `/tmp/receipt-splitter-review/RS-6-review.mp4`.
+- [ ] Copy lane 2 and lane 4 screenshots into `/tmp/receipt-splitter-review/RS-6-review-home.png` and `/tmp/receipt-splitter-review/RS-6-review-sheet.png`. Put them beside the approved sheet `docs/design/home/idea2.png`.
+- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of the home page in both modes, with a press on each Button, as `/tmp/receipt-splitter-review/RS-6-review.mp4`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -476,64 +529,105 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
 - [ ] The root appends RS-6 to the stack, and the operator lands it bottom-up.
 
-## Scan a Receipt and fix it until the Total check passes (RS-7)
+## Read a Receipt and fix it on the home page (RS-7)
 
 **Depends on.** RS-5 and RS-6.
 
 **Files.**
 
-- [ ] Create `app/new/index.tsx`, `app/new/receipt.tsx`, and `app/new/tip.tsx`.
-- [ ] Create `src/ui/receipt-editor/`.
-- [ ] Create `src/draft.ts`.
+- [ ] Edit `app/index.tsx`.
+- [ ] Create `src/ui/receipt-input/` and `src/ui/receipt-editor/`.
+- [ ] Create `src/draft.ts` and `src/draft.test.ts`.
+- [ ] Edit the sheet, the payment row, the name chips, the file row, Button, and Toast in `src/ui/components/`.
+- [ ] Edit `src/ocr/index.web.ts` and `public/ocr-worker.mjs`.
+- [ ] Create `e2e/scan.spec.ts` and `e2e/toast.spec.ts`. Edit `e2e/home.spec.ts` and `package.json`.
 
 **Build.**
 
-- [ ] Add photo upload and camera capture on `app/new/index.tsx`, with a progress state while the model finishes downloading and OCR runs.
-- [ ] Show the parsed Receipt in an editor in `src/ui/receipt-editor/`. Highlight the rows that `runTotalCheck` names and show the gap in dollars.
-- [ ] Let the Host edit an Item's name or price, add an Item, and delete a row with one tap each. Re-run `runTotalCheck` on every change.
-- [ ] Offer manual entry, which opens the same editor empty.
-- [ ] Add the tip step on `app/new/tip.tsx` with 18, 20, and 22 percent buttons and a dollar field. The tip overrides any tip OCR read.
-- [ ] Keep the draft Receipt in local storage through `src/draft.ts` so a reload does not lose it.
-- [ ] Disable **Continue** until the Total check passes.
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`. Read `review-animations` by hand. Run `unslop` on every UI string.
+- [ ] Take a Receipt image on `/` in `src/ui/receipt-input/`.
+  - [ ] Open the system picker with `accept="image/*"` on a tap of the hero. On a phone the picker offers the camera and the photo library.
+  - [ ] On a desktop, read an image dragged onto the drop area and dropped, or pasted from the clipboard. Show the drag-over look while a file is over the area.
+  - [ ] Refuse any file that is not an image with one short line.
+  - [ ] Decode with `imageOrientation: "from-image"`, so an EXIF-rotated phone photo reads upright.
+  - [ ] Keep every scan on `/`. `public/_headers` already isolates `/`, so the four-thread path needs no new header.
+- [ ] Show the reading state.
+  - [ ] Turn the slip into a skeleton slip with a progress bar under it and no photo. The bar shows the model download, then OCR.
+  - [ ] Build the operator's reading animation with `animate`. The slip's lines darken one by one while OCR runs, and the animation ends when the Items show. Under reduced motion the lines hold still, and the bar updates with no transition.
+  - [ ] Run `review-animations` on the reading animation and fix each finding.
+- [ ] Show the read state.
+  - [ ] Put the file row on top, with the thumbnail, the file name, the Item count, and one replace button that opens the picker again.
+  - [ ] Put the receipt card below it, with the editable Items, then Subtotal, Tax, the other Adjustments, the Tip line, and the Total.
+  - [ ] Highlight each row that `runTotalCheck` names in the yellow highlight.
+  - [ ] Let the Host edit an Item's name or price, add an Item, and delete a row, with one tap each. Rerun `runTotalCheck` on every change.
+- [ ] Show the tip as one editable Adjustment line, inferred from the receipt. When the receipt prints no tip, the line reads $0.00. A tip edit moves the Total by the same amount, so it never breaks the Total check.
+- [ ] When OCR fails or finds no Items, open the same editor empty and keep the file row, so the Host can type the Items.
+- [ ] Wire **Create split link** to the draft. It stays disabled with one short reason until the Total check passes and one Payment handle exists, such as "Items are $0.50 short." or "Add how to pay you." Show no reason on the empty page. RS-9 gives the enabled action its handler.
+- [ ] Wire the payment row and the name chips to the draft. They moved here from RS-9 because they need no server.
+  - [ ] Offer Venmo, Cash App, PayPal, and Zelle in the picker, with Venmo first. Each app shows its own placeholder. **+** adds a row for another app.
+  - [ ] Show **Me** for the Host. **+ Add** adds a name, and a name chip can be removed.
+- [ ] Keep the draft in local storage through `src/draft.ts`, with the Receipt, the tip, the Payment handles, and the names, so a reload does not lose it. Keep the Payment handles on the device when the Host replaces the Receipt.
+- [ ] Make **Example** fill the draft with a bundled example Receipt, copied from the checked label of SRD receipt 1040, so a Host can try the editor without a photo.
+- [ ] Close the RS-7 notes in `~/.claude/orchestrate/receipt-splitter/notes.md`.
+  - [ ] Lift the Toast above the sheet.
+  - [ ] Move the Toast test from `e2e/home.spec.ts` to `e2e/toast.spec.ts`, and declare `esbuild` in `package.json`.
+  - [ ] Give the sheet drag on its grab handle with velocity handoff, a max height with its own scroll, and `overscroll-behavior: contain`. The sheet never leaves the page, so a drag down collapses it to the action instead of dismissing it.
+  - [ ] Truncate each OCR line to 80 graphemes before `createSplit`, refuse blank rows, and refuse a price over `MAX_CENTS`.
+  - [ ] Show 0-cent Items, such as "APPS OUT FIRST" on SRD receipt 1019.
+  - [ ] Show the Host when `foldInto` in `src/parse/index.ts` sets an Item to 0 because a discount exceeds its price.
+  - [ ] Release the OCR worker after a scan.
+  - [ ] Let a scan skip the wait on an in-flight low-priority prefetch, at `public/ocr-worker.mjs:130-138,153`.
+  - [ ] Cache the ORT JavaScript glue with the runtime and the models, so a cached scan runs offline.
+  - [ ] Add `parse`, `parse-items`, and `parse-check` to the test ids in `features/README.md`.
+  - [ ] Use five Items for SRD receipt 1040 in every RS-7 test and lane. The old plan text said three, and the checked label has five.
 
 **You see.**
 
-- [ ] Uploading SRD receipt 1040 shows three Items, a subtotal of $22.98, a total of $28.04, and an enabled **Continue**.
-- [ ] Changing an Item price highlights that row and disables **Continue** until the numbers add up again.
+- [ ] Choosing SRD receipt 1040 on `/` shows the reading state, then the file row with "5 items". The receipt card shows five Items, Subtotal $22.98, Tax $1.61, the service charge $3.45, Tip $0.00, and Total $28.04. With a Venmo handle typed, **Create split link** is enabled.
+- [ ] Changing the Perrier Sparkling Water price to 3.00 highlights that row and disables **Create split link** with "Items are $0.50 short." until the numbers add up again.
 
 **Seams.**
 
-- [ ] The new-Split flow as a user drives it, through Playwright in `e2e/scan.spec.ts`.
+- [ ] The home page as a Host drives it, through Playwright in `e2e/scan.spec.ts`.
+- [ ] `loadDraft`, `saveDraft`, and `blockedReason(draft)` in `src/draft.ts` as the page calls them, in `src/draft.test.ts`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `e2e/scan.spec.ts` gains upload of receipt 1040 and asserts the three Items and an enabled **Continue**. Run `npm run e2e`.
-- [ ] `e2e/scan.spec.ts` gains a price edit that breaks the Total check and asserts the highlighted row. Run `npm run e2e`.
-- [ ] `e2e/scan.spec.ts` gains manual entry of two Items and a total. Run `npm run e2e`.
+- [ ] `src/draft.test.ts` gains `blockedReason` for no Receipt, reading, $0.50 short, $0.50 over, no Payment handle, and ready, each against its literal string or `null`. Run `npm test -- src/draft`.
+- [ ] `src/draft.test.ts` gains a draft saved and loaded with the Receipt, the tip, two Payment handles, and three names. It also gains an OCR line cut to 80 graphemes and a price over `MAX_CENTS` refused. Run `npm test -- src/draft`.
+- [ ] `e2e/scan.spec.ts` gains SRD receipt 1040 chosen through the picker. It asserts five Items, Tip $0.00, Total $28.04, and an enabled **Create split link** after a Venmo handle. Run `npm run e2e`.
+- [ ] `e2e/scan.spec.ts` gains a price edit that breaks the Total check, and asserts the highlighted row and "Items are $0.50 short." Run `npm run e2e`.
+- [ ] `e2e/scan.spec.ts` gains a tip edit to 4.60 that moves the Total to $32.64 and keeps the action enabled. Run `npm run e2e`.
+- [ ] `e2e/scan.spec.ts` gains a failed read that opens the empty editor, then manual entry of two Items and a total. Run `npm run e2e`.
+- [ ] `e2e/scan.spec.ts` gains an image dropped and an image pasted at 1280 px, a PDF refused with one line, and an EXIF-rotated phone photo read upright. Run `npm run e2e`.
+- [ ] `e2e/toast.spec.ts` gains the Toast timer restart, its live region, its 44 px target, and its place above the sheet. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `swarm`, per the boot recipe.
 
-- [ ] Lane 1. Regression lane against trunk. Upload SRD receipt 1040 at trunk and head. Trunk has no scan flow, so record that and gate the head flow from upload to an enabled **Continue**. Save `scan-1040.png`. Pass when head shows three Items and the Total check passes.
-- [ ] Lane 2. Upload the curled SRD receipt 1019, citing `features/scan.md`. Save `scan-1019.png`. Pass when each price sits on its own Item, or the failing rows are highlighted and one edit makes the check pass.
-- [ ] Lane 3. Edit an Item price, add a missing Item, and delete a noise row, citing `features/scan.md`. Save `scan-edit.png`. Pass when each change updates the highlight and **Continue** enables only when the check passes.
-- [ ] Lane 4. Enter a Receipt by hand and set a 20 percent tip, citing `features/scan.md`. Save `scan-manual-tip.png`. Pass when the tip equals 20 percent of the subtotal to the cent.
-- [ ] Lane 5. Reload mid-edit at 390 px with the browser offline after the model is cached, citing `features/scan.md`. Save `scan-reload-offline.png`. Pass when the draft survives the reload and OCR still runs offline.
+- [ ] Lane 1. Regression lane against trunk. Choose SRD receipt 1040 on `/` at trunk and head. Trunk shows only the static empty page, so record that and gate the head flow from the file chosen to an enabled **Create split link**. Save `scan-1040.png`. Pass when head shows five Items and the Total check passes.
+- [ ] Lane 2. Choose the curled SRD receipt 1019, citing `features/scan.md`. Save `scan-1019.png`. Pass when each price sits on its own Item, or the failing rows are highlighted and one edit makes the check pass.
+- [ ] Lane 3. Edit an Item price, add a missing Item, and delete a noise row, citing `features/scan.md`. Save `scan-edit.png`. Pass when each change updates the highlight and the reason, and **Create split link** enables only when the check passes.
+- [ ] Lane 4. Read a blank image, then type a Receipt by hand and edit the tip line, citing `features/scan.md`. Save `scan-manual-tip.png`. Pass when the empty editor opens and the Total moves by exactly the tip edit.
+- [ ] Lane 5. Record the reading state at 390 px with motion on and with reduced motion, citing `features/scan.md`. Save `scan-reading.png` and `scan-reading.mp4`. Pass when the slip's lines darken one at a time, the animation ends when the Items show, and `document.getAnimations()` is empty under reduced motion.
+- [ ] Lane 6. Reload mid-edit at 390 px with the browser offline after the model is cached, citing `features/scan.md`. Save `scan-reload-offline.png`. Pass when the draft survives the reload and OCR still runs offline.
+- [ ] Lane 7. At 1280 px, drag an image onto the drop area and drop it, paste another, and drop a PDF, citing `features/scan.md`. Save `scan-desktop-input.png`. Pass when both images read and the PDF gets one short refusal line.
+- [ ] Lane 8. Switch the app to Cash App, add Venmo with **+**, add two names, remove one, and reload, citing `features/scan.md`. Save `scan-sheet-state.png`. Pass when the placeholder follows the app, the Payment handles and names survive the reload, and with no handle the reason reads "Add how to pay you."
 
 **Feature map.**
 
-- [ ] Add `features/scan.md` in `verify-receipt-splitter`.
+- [ ] Add `features/scan.md` in `verify-receipt-splitter`. Update `features/home.md` for the wired sheet, and the test ids in `features/README.md`.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Milliseconds from file chosen to editable Items shown, with the model cached, and entry JavaScript brotli bytes.
-- [ ] Probe. A Playwright timing of the upload flow at head over the five RS-4 receipts, and `npm run size` at trunk and head, interleaved.
-- [ ] Baseline. Record the trunk entry size first. Trunk has no scan flow.
-- [ ] Rule. Fail if the median from file chosen to Items shown exceeds 2000 ms on the four-thread path, or the entry grows by more than 30 KB brotli.
+- [ ] Metric. Milliseconds from file chosen to editable Items shown with the model cached, entry JavaScript brotli bytes, and peak renderer memory over 20 scans in one tab.
+- [ ] Probe. A Playwright timing of the home page flow at head over the five RS-4 receipts, 20 scans in one tab with renderer memory sampled after each, and `npm run size` at trunk and head, interleaved.
+- [ ] Baseline. Record the trunk entry size first. Trunk has no read state. RS-4 measured renderer memory climbing about 4 MB per scan with the worker kept alive.
+- [ ] Rule. Fail if the median from file chosen to Items shown exceeds 2000 ms on the four-thread path, the entry grows by more than 30 KB brotli, or peak renderer memory over 20 scans exceeds 650 MB.
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lanes 1, 2, and 3 screenshots into `/tmp/receipt-splitter-review/RS-7-review-scan.png`, `/tmp/receipt-splitter-review/RS-7-review-curled.png`, and `/tmp/receipt-splitter-review/RS-7-review-edit.png`.
-- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of scanning and fixing a Receipt as `/tmp/receipt-splitter-review/RS-7-review.mp4`.
+- [ ] Copy lanes 1, 3, and 5 screenshots into `/tmp/receipt-splitter-review/RS-7-review-scan.png`, `/tmp/receipt-splitter-review/RS-7-review-edit.png`, and `/tmp/receipt-splitter-review/RS-7-review-reading.png`.
+- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of reading and fixing a Receipt on the home page as `/tmp/receipt-splitter-review/RS-7-review.mp4`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -613,23 +707,23 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Files.**
 
-- [ ] Create `app/new/handles.tsx`, `app/new/people.tsx`, and `src/ui/turnstile.web.tsx`.
-- [ ] Create `src/live/client.ts` and `src/device.ts`.
+- [ ] Create `src/ui/turnstile.web.tsx`, `src/live/client.ts`, and `src/device.ts`.
+- [ ] Edit `app/index.tsx` and the sheet in `src/ui/components/`.
 - [ ] Edit `app/s/[id].tsx`.
 
 **Build.**
 
-- [ ] Add the Payment handle step on `app/new/handles.tsx` for Venmo, Cash App, PayPal, and Zelle. Require at least one, and prefill from the device.
-- [ ] Add the optional names step on `app/new/people.tsx`, with the Host added as "Me".
-- [ ] Create the Split through `POST /api/splits` with an invisible Turnstile token from `src/ui/turnstile.web.tsx`. Store the creator secret with `src/device.ts`.
-- [ ] Show the share link with the system share sheet and a copy button.
+- [ ] Give **Create split link** on `/` its handler. Get an invisible Turnstile token from `src/ui/turnstile.web.tsx`, then create the Split through `POST /api/splits` with the draft's Receipt, Payment handles, and names, with the Host as "Me". Store the creator secret with `src/device.ts`.
+- [ ] Show progress on the action while the request runs. On a failure, show one short reason and enable the action again.
+- [ ] Show the link in the sheet with **Share** and **Copy**. **Share** opens the system share sheet. **Copy** puts the link on the clipboard. Where the browser has no share sheet, show **Copy** alone.
+- [ ] Lock the receipt card on `/` once the link shows, because the Split now lives at the link. Replacing the receipt starts a new draft and keeps the Payment handles.
 - [ ] Connect with partysocket in `src/live/client.ts`, and never import `src/ocr` from the `/s/[id]` route.
 - [ ] Ask "Which one are you?" on `app/s/[id].tsx`, with every name, names picked on another device marked, and a **Someone else** option that adds a Participant. Remember the choice per Split in `src/device.ts`, with a **Not Sam?** link that clears it.
 - [ ] Show "This split has expired" when the Split no longer exists.
 
 **You see.**
 
-- [ ] After the Host continues from the tip step, enters a Venmo handle, and adds two names, the share link opens on a second browser and asks "Which one are you?" with "Me" and both names.
+- [ ] After the Host reads a Receipt on `/`, enters a Venmo handle, adds two names, and taps **Create split link**, the sheet shows **Share** and **Copy**. The link opens on a second browser and asks "Which one are you?" with "Me" and both names.
 
 **Seams.**
 
@@ -637,18 +731,20 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `e2e/join.spec.ts` gains a create with no names, a join as **Someone else**, and asserts the new name appears for the Host. Run `npm run e2e`.
+- [ ] `e2e/join.spec.ts` gains a create from the home sheet with no names, a join as **Someone else**, and asserts the new name appears for the Host. Run `npm run e2e`.
 - [ ] `e2e/join.spec.ts` gains a reload of the share link that skips "Which one are you?" and shows **Not Sam?**. Run `npm run e2e`.
 - [ ] `e2e/join.spec.ts` gains a share link visit that makes no request under `/models/` or `/ort/`. Run `npm run e2e`.
+- [ ] `e2e/join.spec.ts` gains **Copy**, which puts the exact link on the clipboard, and a failed Turnstile token, which shows one reason and enables the action again. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `swarm`, per the boot recipe.
 
-- [ ] Lane 1. Regression lane against trunk. Run the scan flow to the tip step at trunk and head. Trunk stops at the tip step, so record that and gate the head flow from the tip step to a share link that a second browser opens. Save `join-end-to-end.png`. Pass when the second browser shows "Which one are you?" with every name.
+- [ ] Lane 1. Regression lane against trunk. Run the home page to an enabled **Create split link** at trunk and head. The trunk action has no handler, so record that and gate the head flow from the tap to a share link that a second browser opens. Save `join-end-to-end.png`. Pass when the second browser shows "Which one are you?" with every name.
 - [ ] Lane 2. Join from two browsers as the same name, citing `features/join.md`. Save `join-same-name.png`. Pass when the second browser shows that name as picked on another device.
 - [ ] Lane 3. Create a Split with no names, then join as **Someone else** from three browsers, citing `features/join.md`. Save `join-someone-else.png`. Pass when all three names appear on every browser.
 - [ ] Lane 4. Try to change the Venmo handle from a joined browser and from the creating browser, citing `features/join.md`. Save `join-handle-lock.png`. Pass when only the creating browser can change it.
 - [ ] Lane 5. Open an unknown Split id, citing `features/join.md`. Save `join-expired.png`. Pass when the page says "This split has expired".
 - [ ] Lane 6. Create a Split on the COOP and COEP page, citing `features/join.md`. Save `join-turnstile.png`. Pass when Turnstile returns a token under cross-origin isolation, or record the failure and confirm the one-thread fallback path creates the Split.
+- [ ] Lane 7. Tap **Share** and **Copy** in the sheet at 390 px and at 1280 px, citing `features/join.md`. Save `join-share-copy.png`. Pass when **Share** hands the link to `navigator.share` where the browser has it, and **Copy** puts the exact link on the clipboard.
 
 **Feature map.**
 
@@ -663,7 +759,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lanes 1, 2, and 4 screenshots into `/tmp/receipt-splitter-review/RS-9-review-join.png`, `/tmp/receipt-splitter-review/RS-9-review-same-name.png`, and `/tmp/receipt-splitter-review/RS-9-review-handles.png`.
+- [ ] Copy lanes 1, 2, 4, and 7 screenshots into `/tmp/receipt-splitter-review/RS-9-review-join.png`, `/tmp/receipt-splitter-review/RS-9-review-same-name.png`, `/tmp/receipt-splitter-review/RS-9-review-handles.png`, and `/tmp/receipt-splitter-review/RS-9-review-share.png`.
 - [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of creating a Split and joining it from a second browser as `/tmp/receipt-splitter-review/RS-9-review.mp4`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
@@ -688,7 +784,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 - [ ] Show every Item on `app/s/[id].tsx` with its claimers. One tap Claims or unclaims it for the chosen Participant, and a long press Claims it for anyone.
 - [ ] Show every Share live with `computeShares`, labeled as the total so far while Unclaimed items remain.
 - [ ] Show the banner "N items unclaimed. Shares may go up." with one tap to split them among everyone.
-- [ ] Let anyone edit an Item, an Adjustment, or the tip with the RS-7 editor, and block an edit that breaks the Total check.
+- [ ] Let anyone edit an Item or an Adjustment, the Tip line included, with the receipt editor from `src/ui/receipt-editor/`, and block an edit that breaks the Total check.
 - [ ] Show the recent-changes list in `src/ui/recent-changes/`, such as "Sam changed Fries $8.00 to $6.00", with **Undo** on each entry.
 
 **You see.**
@@ -819,6 +915,16 @@ One throwaway prototype answered whether one Expo codebase can run PaddleOCR in 
 
 These stay unproven. Speed on a real phone is a guess of two to four times slower than the M4. Memory with a 12 megapixel photo was not measured, since RS-4 downscales before detection. Native OCR was not tried. Turnstile under cross-origin isolation was not tried, and RS-9 lane 6 settles it.
 
+Six rounds of throwaway home page prototypes chose the design. Each round is static HTML rendered by Playwright in Chromium, not the Expo app, and none is in git. The operator approved round 6 idea 2, "Open table", on 2026-09-30, with Figma reference node 10-2 in `https://www.figma.com/design/rUCjp4g9qO5erLgaXSe5pO`.
+
+- `docs/design/home/idea2.html` is the approved design. Open its states with `?s=empty|reading|read|ready|link&t=light|dark`. Widths of 900 px and up get the desktop layout. `idea2.png` is its contact sheet.
+- `docs/design/home/tokens.md` holds the tokens, the type sizes, and the contrast table. `docs/design/home/layout.md` holds the layout, the states, the motion spec, and the reasons the tip section and the payment fields were cut.
+- At 390 by 844 the prototype sheet measured 223 px tall when empty and 253 px with the reason line. Its top sat at y 621. The camera button spanned y 283 to 347.
+- `audit.mjs` found no text below WCAG AA and no target under 44 by 44 px on any idea2 page. The lowest text ratio was 4.80 in light, muted text on the gray surface, and 5.59 in dark.
+- The two Plus Jakarta Sans files measure 11,816 and 12,312 bytes.
+
+These stay unproven. The reading animation was not built. The sheet was not tried with a long receipt or with the on-screen keyboard on a real phone. Drag, drop, and paste were not wired.
+
 ## Appendix B. Alternatives rejected
 
 - A Vite and React website lost to one Expo codebase, because the operator chose React Native for the later app. See ADR 0002.
@@ -828,6 +934,11 @@ These stay unproven. Speed on a real phone is a guess of two to four times slowe
 - A host key with special powers lost to equal access, with the Payment handle exception. See ADR 0003.
 - Plain Durable Object WebSocket code lost to partyserver with hibernation, because partysocket gives reconnect and message buffering on phones for free.
 - Firebase, Supabase, and Vercel with Pusher lost to Cloudflare, because Cloudflare serves the 14 MB OCR download from static assets at no charge.
+- The Table direction, with an orange field, Archivo, a headline, a pitch, and an example scan, lost to the white "Open table" look. The operator found the page too busy and asked for a white page like his reference.
+- A new-Split flow across `/new`, `/new/tip`, `/new/handles`, and `/new/people` lost to one page at `/`. Each step was a place to lose the Host.
+- Tip buttons for 18, 20, and 22 percent lost to a tip line read from the receipt. The buttons took space on every page for a value most receipts print.
+- Round 6 idea 1, a centered card, and idea 3, a dashed drop zone, lost to idea 2. The round 5 notes recommended idea 3, and the operator chose idea 2.
+- PDF upload lost for v1. It needs a PDF renderer such as pdf.js before OCR and a rule for multi-page PDFs.
 
 ## Appendix C. Risks
 
@@ -837,7 +948,11 @@ These stay unproven. Speed on a real phone is a guess of two to four times slowe
 - The Venmo link format is undocumented and may change. It lands in RS-11. The owner keeps the format in `src/core/pay-links.ts` alone, so a change touches one file.
 - Equal access lets anyone with the link vandalize a Split. It lands in RS-10. The recent-changes list with **Undo** is the recovery, and the per-Split rate limit in RS-8 caps the damage.
 - A WebSocket that stops hibernating multiplies the Cloudflare bill. It lands in RS-8. The perf rule greps for timers and `ws.accept(`, and lane 2 checks hibernation.
-- The verification skill cannot drive a real phone camera. Lanes upload files instead, and RS-7 lane 5 covers the offline cached path.
+- The verification skill cannot drive a real phone camera. Lanes upload files instead, and RS-7 lane 6 covers the offline cached path.
+- The bottom sheet covers about 253 of 844 px in the read state, and more after the operator's taller default. It lands in RS-6 and RS-7. RS-7 gives the sheet a max height with its own scroll, and its lanes check that no row hides under it.
+- OCR reads print, so a handwritten tip reads as $0.00. It lands in RS-7. The Tip line stays one tap from an edit, and a tip edit moves the Total with it.
+- The gray surface on white measures 1.08 to 1 and the hairline 1.26 to 1, so a fill alone marks nothing. It lands in RS-6. Every control names itself with text or an icon, and RS-6 lane 2 checks text contrast and target size.
+- The approved design lives in `docs/design/home/`, a static sketch, not app code. Appendix E copies the tokens and the type sizes into this plan.
 - The benchmark labels hold mistakes. RS-3 gates on the operator's check before the parser is judged against them.
 
 ## Appendix D. Links and reading list
@@ -847,6 +962,41 @@ These stay unproven. Speed on a real phone is a guess of two to four times slowe
 - Read `https://developers.cloudflare.com/durable-objects/best-practices/websockets/` before RS-8.
 - Read `https://developers.cloudflare.com/turnstile/troubleshooting/testing/` before RS-8 and RS-9.
 - Read `https://developers.cloudflare.com/workers/static-assets/headers/` before RS-4.
+- Read `docs/design/home/idea2.html` in all five states, `docs/design/home/idea2.png`, `docs/design/home/tokens.md`, and `docs/design/home/layout.md` before RS-6 and RS-7.
 - Run `/how` at the start of RS-7, RS-8, and RS-10, because they join modules built by earlier PRs.
 - Run `/interrogate` on RS-2 and RS-8 before their PRs open, because the Share math and the shared state are the hardest parts to change later.
 - Keep a decision trail per `/show-me-your-work` in `docs/plans/receipt-splitter-v1.trail.tsv`, and commit it with the last PR.
+
+## Appendix E. Home page design reference
+
+These values come from `docs/design/home/tokens.md` and `docs/design/home/idea2.html`. The dark ladder mirrors the light one. In light the page is white, a surface is one step darker, and a control on a surface is white again. In dark the page is the darkest step and each layer up is lighter. Every gray is neutral.
+
+| Token | Role | Light | Dark |
+| --- | --- | --- | --- |
+| `--field` | Page | `#FFFFFF` | `#121315` |
+| `--paper` | Surface for cards, fields, chips, the file row, and the slip | `#F5F6F7` | `#1C1D20` |
+| `--inset` | Control on a surface, such as the replace button or the flagged price box | `#FFFFFF` | `#2A2B2F` |
+| `--ink` | Text and icons | `#111214` | `#F2F2F3` |
+| `--muted` | Secondary text and placeholders | `#696D74` | `#A0A3A9` |
+| `--hairline` | Dividers, slip lines, and outlined chips and buttons | `#E3E5E8` | `#2F3135` |
+| `--action` | Primary button | `#111214` | `#F2F2F3` |
+| `--on-action` | Primary button label | `#FFFFFF` | `#111214` |
+| `--off` | Blocked action | `#EEEFF1` | `#26272B` |
+| `--flag-wash` | Yellow highlight behind a flagged row or a reason | `#FFEF9E` | `#463A0C` |
+| `--flag` | Text and ring on the yellow highlight | `#5A4500` | `#FFE27A` |
+| `--bar` | Frosted bar | `#FFFFFF` at 86 percent | `#121315` at 86 percent |
+| `--sheet` | Bottom sheet | `#FFFFFF` | `#1C1D20` |
+| `--sheet-in` | Fields and chips in the sheet | `#F5F6F7` | `#2A2B2F` |
+
+| Use | Size and weight |
+| --- | --- |
+| Hero line, such as **Add receipt** | 28 px, 400, tracking -0.02em |
+| Total amount | 28 px, 500, tracking -0.02em |
+| Wordmark | 18 px, 500 |
+| Merchant name | 17 px, 500 |
+| Body, Items, and inputs | 16 px, 400 |
+| Action and button labels | 16 px, 500 |
+| Chips | 15 px, 500 |
+| Secondary text | 13 to 15 px, 400, muted |
+
+Shapes. The primary action is a 54 px pill. Cards take a 20 to 28 px radius and fields 14 px. The sheet takes 28 px at its top corners. Icons use a 1.5 px stroke. Prices use tabular figures.
