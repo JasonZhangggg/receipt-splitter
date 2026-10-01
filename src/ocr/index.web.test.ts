@@ -68,6 +68,50 @@ test("a scan rejects with the worker's error for that scan, and the next scan do
   await expect(client.recognize(new Blob())).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
 });
 
+test("a scan reports its progress, and the worker is released 10 s after the last scan settles", async () => {
+  vi.useFakeTimers();
+  const progress: number[] = [];
+  const first = client.recognize(new Blob(), (fraction) => progress.push(fraction));
+  const second = client.recognize(new Blob());
+  const [worker] = FakeWorker.started;
+
+  worker.onmessage?.({ data: { id: 0, progress: 0.25 } });
+  worker.onmessage?.({ data: { id: 1, progress: 0.5 } });
+  worker.onmessage?.({ data: { id: 0, progress: 0.75 } });
+  worker.onmessage?.({ data: { id: 0, boxes: [] } });
+  vi.advanceTimersByTime(20_000);
+  const released = [worker.terminated];
+  worker.onmessage?.({ data: { id: 1, error: "unreadable" } });
+  vi.advanceTimersByTime(9_999);
+  released.push(worker.terminated);
+  vi.advanceTimersByTime(1);
+  released.push(worker.terminated);
+
+  await expect(first).resolves.toEqual([]);
+  await expect(second).rejects.toThrow("unreadable");
+  expect(progress).toEqual([0.25, 0.75]);
+  expect(released).toEqual([false, false, true]);
+  void client.recognize(new Blob());
+  expect(FakeWorker.started).toHaveLength(2);
+  vi.useRealTimers();
+});
+
+test("a scan within 10 s of the last one reuses the worker", async () => {
+  vi.useFakeTimers();
+  const first = client.recognize(new Blob());
+  const [worker] = FakeWorker.started;
+  worker.onmessage?.({ data: { id: 0, boxes: [] } });
+  await first;
+  vi.advanceTimersByTime(9_000);
+  const second = client.recognize(new Blob());
+  vi.advanceTimersByTime(9_000);
+  worker.onmessage?.({ data: { id: 1, boxes: [] } });
+  await second;
+
+  expect([FakeWorker.started.length, worker.terminated]).toEqual([1, false]);
+  vi.useRealTimers();
+});
+
 class FakePaintObserver {
   static instances: FakePaintObserver[] = [];
   observed: unknown[] = [];
@@ -143,6 +187,26 @@ describe("model prefetch", () => {
 
     expect(observer.observed).toEqual([{ type: "paint", buffered: true }]);
     expect([before, afterFirstPaint, observer.disconnected]).toEqual([false, false, true]);
+  });
+
+  test("in a tab that loads hidden, which never reports a paint, starts once the tab is shown", () => {
+    const listeners: (() => void)[] = [];
+    const tab = {
+      readyState: "complete",
+      visibilityState: "hidden",
+      addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.splice(listeners.indexOf(listener), 1),
+    };
+    vi.stubGlobal("document", tab);
+
+    client.prefetchModel();
+    const started = [FakeWorker.started.length];
+    tab.visibilityState = "visible";
+    [...listeners].forEach((listener) => listener());
+    started.push(FakeWorker.started.length);
+    [...listeners].forEach((listener) => listener());
+
+    expect([...started, FakeWorker.started.length, listeners.length]).toEqual([0, 1, 1, 0]);
   });
 
   test("is skipped without error where PerformanceObserver does not exist", () => {

@@ -5,7 +5,9 @@ import type { TextBox } from "../ocr/types";
 import { classifyLines, hasWords, type Line, type Quantity } from "./lines";
 import { groupRows } from "./rows";
 
-type DraftItem = Omit<Item, "id"> & { readonly quantity: Quantity | null };
+type DraftItem = Omit<ParsedItem, "id"> & { readonly quantity: Quantity | null };
+
+export type ParsedItem = Item & { readonly discountExceededPrice?: true };
 type DraftAdjustment = AdjustmentFields;
 
 type Draft = {
@@ -21,7 +23,7 @@ type Section = "items" | "adjustments" | "closed";
 
 const ONE_READ_AS_SEVEN = 7;
 
-export function parseReceipt(boxes: readonly TextBox[]): Receipt | null {
+export function parseReceipt(boxes: readonly TextBox[]): Receipt<ParsedItem> | null {
   const lines = classifyLines(groupRows(boxes));
   const readings = [lines, lines.map(strayMinusAsItem)].map(assemble).flatMap((draft) => {
     if (draft.items.length === 0 || draft.total === null) return [];
@@ -112,7 +114,8 @@ function foldInto(items: DraftItem[], name: string, amount: Cents): void {
     if (amount >= 0) items.push({ name, price: price(amount), quantity: null });
     return;
   }
-  items[items.length - 1] = { ...above, price: price(Math.max(0, above.price + amount)) };
+  const folded = above.price + amount;
+  items[items.length - 1] = folded < 0 ? { ...above, price: price(0), discountExceededPrice: true } : { ...above, price: price(folded) };
 }
 
 function isRunningTotal(line: DraftAdjustment, items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotals: readonly Cents[]): boolean {
@@ -132,7 +135,7 @@ function subtotalOf({ items, adjustments, subtotals, discountBeforeSubtotal }: D
   return cents(read.find((amount) => amount === itemsSum) ?? read[0]);
 }
 
-function repairs(receipt: Receipt, draft: Draft): Receipt[] {
+function repairs(receipt: Receipt<ParsedItem>, draft: Draft): Receipt<ParsedItem>[] {
   const laterTotals = draft.laterTotals.map((later) => ({ ...receipt, total: later }));
   const onesReadAsSevens = draft.items.flatMap(({ quantity }, index) => {
     if (quantity?.count !== ONE_READ_AS_SEVEN) return [];
@@ -142,8 +145,13 @@ function repairs(receipt: Receipt, draft: Draft): Receipt[] {
   return [...laterTotals, ...onesReadAsSevens];
 }
 
-function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotal: Cents, total: Cents): Receipt {
-  const [first, ...rest] = items.map(({ name, price: amount }, i) => ({ id: itemId(`i${i + 1}`), name, price: amount }));
+function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotal: Cents, total: Cents): Receipt<ParsedItem> {
+  const [first, ...rest] = items.map(({ name, price: amount, discountExceededPrice }, i) => ({
+    id: itemId(`i${i + 1}`),
+    name,
+    price: amount,
+    ...(discountExceededPrice && { discountExceededPrice }),
+  }));
   return {
     items: [first, ...rest],
     adjustments: adjustments.map(({ kind, name, amount }, i): Adjustment => ({ id: adjustmentId(`a${i + 1}`), kind, name, amount })),

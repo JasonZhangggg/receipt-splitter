@@ -6,6 +6,8 @@ const publicPath = (url: string) => new URL(url).pathname.replace(/.*\/public/, 
 
 const DICT = new URL("../../public/models/en_PP-OCRv5_rec_mobile.dict.txt", import.meta.url).href;
 const ASSETS = [
+  "/ort/ort.wasm.min.mjs",
+  "/ort/ort-wasm-simd-threaded.mjs",
   "/ort/ort-wasm-simd-threaded.wasm",
   "/models/ch_PP-OCRv5_det_mobile.onnx",
   "/models/en_PP-OCRv5_rec_mobile.onnx",
@@ -20,7 +22,10 @@ function fakeCaches() {
       stores.set(name, store);
       return {
         match: async (url: string) => store.get(url)?.clone(),
-        put: async (url: string, response: Response) => void store.set(url, response),
+        put: async (url: string, response: Response) => {
+          const body = await response.arrayBuffer();
+          store.set(url, new Response(body, { headers: response.headers }));
+        },
       };
     },
     keys: async () => [...stores.keys()],
@@ -94,6 +99,8 @@ describe("model downloads", () => {
 
     expect(await caches.keys()).toEqual(["ocr-ort-1.30.0"]);
     expect(await caches.stored("ocr-ort-1.30.0")).toEqual([
+      ["/ort/ort.wasm.min.mjs", "bytes of ort.wasm.min.mjs"],
+      ["/ort/ort-wasm-simd-threaded.mjs", "bytes of ort-wasm-simd-threaded.mjs"],
       ["/ort/ort-wasm-simd-threaded.wasm", "bytes of ort-wasm-simd-threaded.wasm"],
       ["/models/ch_PP-OCRv5_det_mobile.onnx", "bytes of ch_PP-OCRv5_det_mobile.onnx"],
       ["/models/en_PP-OCRv5_rec_mobile.onnx", "bytes of en_PP-OCRv5_rec_mobile.onnx"],
@@ -126,7 +133,51 @@ describe("model downloads", () => {
     worker = await import("../../public/ocr-worker.mjs");
     await worker.read(DICT);
 
-    expect(priorities).toEqual({ prefetch: ["low", "low", "low", "low"], scan: ["high"] });
+    expect(priorities).toEqual({ prefetch: ["low", "low", "low", "low", "low", "low"], scan: ["high"] });
+  });
+
+  test("a scan does not wait on a prefetch download that has no response yet, and fetches that asset once at high priority", async () => {
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", (url: string, init: { priority: string; signal?: AbortSignal }) => {
+      requests.push(`${init.priority} ${publicPath(url)}`);
+      if (init.priority === "high" || !url.endsWith(".dict.txt")) return Promise.resolve(serve(publicPath(url)));
+      return new Promise((_, reject) => {
+        if (init.signal?.aborted) reject(init.signal.reason);
+        init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      });
+    });
+
+    const prefetched = worker.prefetch();
+    const scanned = await (await worker.read(DICT)).text();
+    await prefetched;
+
+    expect(scanned).toBe("bytes of en_PP-OCRv5_rec_mobile.dict.txt");
+    expect(requests.filter((request) => request.endsWith(".dict.txt"))).toEqual([
+      "low /models/en_PP-OCRv5_rec_mobile.dict.txt",
+      "high /models/en_PP-OCRv5_rec_mobile.dict.txt",
+    ]);
+  });
+
+  test("a scan waits on a prefetch download that is already receiving its response instead of fetching it again", async () => {
+    const requests: string[] = [];
+    let finish = () => {};
+    vi.stubGlobal("fetch", async (url: string, init: { priority: string }) => {
+      requests.push(`${init.priority} ${publicPath(url)}`);
+      const response = serve(publicPath(url));
+      if (!url.endsWith(".dict.txt")) return response;
+      const body = new ReadableStream({ start: (controller) => void (finish = () => (controller.enqueue(new TextEncoder().encode("streamed dict")), controller.close())) });
+      return new Response(body, { headers: response.headers });
+    });
+
+    const prefetched = worker.prefetch();
+    await vi.waitFor(() => expect(requests).toContain("low /models/en_PP-OCRv5_rec_mobile.dict.txt"));
+    await new Promise((settled) => setTimeout(settled));
+    const scan = worker.read(DICT);
+    finish();
+
+    expect(await (await scan).text()).toBe("streamed dict");
+    await prefetched;
+    expect(requests.filter((request) => request.endsWith(".dict.txt"))).toEqual(["low /models/en_PP-OCRv5_rec_mobile.dict.txt"]);
   });
 
   test("read refuses a model that the server answers with the app's HTML page, and does not cache it", async () => {

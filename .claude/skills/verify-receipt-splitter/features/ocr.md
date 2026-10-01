@@ -1,6 +1,6 @@
 # OCR
 
-The site reads a receipt photo on the device. `recognize(photo)` from `src/ocr` returns text boxes, each with its text and four corner points in photo pixels. The OCR runs in a Web Worker on onnxruntime-web, with four threads when the page is cross-origin isolated and one thread otherwise. The home screen starts the model download after it paints, and the worker keeps the runtime and models in Cache Storage. The photo never leaves the device.
+The site reads a receipt photo on the device. `recognize(photo)` from `src/ocr` returns text boxes, each with its text and four corner points in photo pixels. The OCR runs in a Web Worker on onnxruntime-web, with four threads when the page is cross-origin isolated and one thread otherwise. The home screen starts the model download after it paints, or once a tab that loaded hidden is shown, and the worker keeps the runtime, its two JavaScript files, and the models in Cache Storage. The page releases the worker 10 s after the last scan settles. A scan does not wait on a prefetch download that has no response yet. It fetches that file once at high priority instead. The photo never leaves the device.
 
 ## Sub-features
 

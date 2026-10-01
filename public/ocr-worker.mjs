@@ -1,11 +1,13 @@
 const asset = (path) => new URL(path, import.meta.url).href;
 
 const ORT_DIR = asset("./ort/");
+const ORT_GLUE = asset("./ort/ort.wasm.min.mjs");
+const ORT_THREAD_GLUE = asset("./ort/ort-wasm-simd-threaded.mjs");
 const ORT_WASM = asset("./ort/ort-wasm-simd-threaded.wasm");
 const DET_MODEL = asset("./models/ch_PP-OCRv5_det_mobile.onnx");
 const REC_MODEL = asset("./models/en_PP-OCRv5_rec_mobile.onnx");
 const REC_DICT = asset("./models/en_PP-OCRv5_rec_mobile.dict.txt");
-const DOWNLOADS = [ORT_WASM, DET_MODEL, REC_MODEL, REC_DICT];
+const DOWNLOADS = [ORT_GLUE, ORT_THREAD_GLUE, ORT_WASM, DET_MODEL, REC_MODEL, REC_DICT];
 const CACHE = "ocr-ort-1.30.0";
 
 const DET_MAX_SIDE = 960;
@@ -18,6 +20,9 @@ const MIN_PIXELS = 10;
 const REC_HEIGHT = 48;
 const REC_MAX_WIDTH = REC_HEIGHT * 40;
 const REC_BATCH = 8;
+const DOWNLOADED = 0.5;
+const ENGINE_READY = 0.6;
+const DETECTED = 0.7;
 
 export function ctcDecode(scores, steps, classes, chars, offset = 0) {
   let text = "";
@@ -138,28 +143,32 @@ const downloads = new Map();
 
 function download(url, priority) {
   if (!globalThis.caches) return Promise.resolve();
-  let pending = downloads.get(url);
-  if (!pending) {
-    pending = store(url, priority).catch((error) => {
-      downloads.delete(url);
-      throw error;
-    });
-    downloads.set(url, pending);
-  }
-  return pending;
+  const current = downloads.get(url);
+  const overtakes = current && priority === "high" && current.priority === "low" && !current.responded;
+  if (current && !overtakes) return current.pending;
+  current?.controller.abort();
+  const entry = { priority, controller: new AbortController(), responded: false };
+  entry.pending = store(url, entry).catch((error) => {
+    if (downloads.get(url) === entry) downloads.delete(url);
+    throw error;
+  });
+  downloads.set(url, entry);
+  return entry.pending;
 }
 
-async function fetchAsset(url, priority) {
-  const response = await fetch(url, { priority });
+async function fetchAsset(url, priority, signal) {
+  const response = await fetch(url, { priority, signal });
   if (!response.ok) throw new Error(`OCR download ${url} returned ${response.status}`);
   if (response.headers.get("content-type")?.startsWith("text/html")) throw new Error(`OCR download ${url} returned an HTML page`);
   return response;
 }
 
-async function store(url, priority) {
+async function store(url, entry) {
   const cache = await caches.open(CACHE);
   if (await cache.match(url)) return;
-  await cache.put(url, await fetchAsset(url, priority));
+  const response = await fetchAsset(url, entry.priority, entry.controller.signal);
+  entry.responded = true;
+  await cache.put(url, response);
 }
 
 export async function read(url) {
@@ -169,7 +178,12 @@ export async function read(url) {
 }
 
 export async function prefetch() {
-  await Promise.all(DOWNLOADS.map((url) => download(url, "low")));
+  const overtaken = (url) => (error) => {
+    const next = downloads.get(url);
+    if (next) return next.pending;
+    throw error;
+  };
+  await Promise.all(DOWNLOADS.map((url) => download(url, "low").catch(overtaken(url))));
   for (const key of await caches.keys()) {
     if (key.startsWith("ocr-") && key !== CACHE) await caches.delete(key);
   }
@@ -177,21 +191,23 @@ export async function prefetch() {
 
 let engine;
 
-function loadEngine() {
-  engine ??= createEngine().catch((error) => {
+function loadEngine(report) {
+  engine ??= createEngine(report).catch((error) => {
     engine = undefined;
     throw error;
   });
   return engine;
 }
 
-async function createEngine() {
+async function createEngine(report) {
+  let ready = 0;
+  const counted = (loading) => loading.then((value) => (report((++ready / 5) * DOWNLOADED), value));
   const [ort, wasm, det, rec, dict] = await Promise.all([
-    import(`${ORT_DIR}ort.wasm.min.mjs`),
-    read(ORT_WASM).then((r) => r.arrayBuffer()),
-    read(DET_MODEL).then((r) => r.arrayBuffer()),
-    read(REC_MODEL).then((r) => r.arrayBuffer()),
-    read(REC_DICT).then((r) => r.text()),
+    counted(import(ORT_GLUE)),
+    counted(read(ORT_WASM).then((r) => r.arrayBuffer())),
+    counted(read(DET_MODEL).then((r) => r.arrayBuffer())),
+    counted(read(REC_MODEL).then((r) => r.arrayBuffer())),
+    counted(read(REC_DICT).then((r) => r.text())),
   ]);
   ort.env.wasm.wasmPaths = ORT_DIR;
   ort.env.wasm.wasmBinary = wasm;
@@ -235,7 +251,7 @@ function crop(image, box) {
   return { width, rgba: context.getImageData(0, 0, width, REC_HEIGHT).data };
 }
 
-async function readCrops({ ort, rec, chars }, crops) {
+async function readCrops({ ort, rec, chars }, crops, report) {
   const order = crops.map((_, i) => i).sort((i, j) => crops[i].width - crops[j].width);
   const texts = new Array(crops.length);
   for (let k = 0; k < order.length; k += REC_BATCH) {
@@ -262,12 +278,14 @@ async function readCrops({ ort, rec, chars }, crops) {
     batch.forEach((ci, bi) => {
       texts[ci] = ctcDecode(output.data, steps, classes, chars, bi * steps * classes);
     });
+    report(DETECTED + ((1 - DETECTED) * Math.min(k + REC_BATCH, order.length)) / order.length);
   }
   return texts;
 }
 
-async function recognize(blob) {
-  const loaded = await loadEngine();
+async function recognize(blob, report) {
+  const loaded = await loadEngine(report);
+  report(ENGINE_READY);
   const image = await createImageBitmap(blob, { imageOrientation: "from-image" });
   try {
     const { tensor, width, height } = detectionInput(loaded, image);
@@ -275,7 +293,8 @@ async function recognize(blob) {
     const boxes = dbBoxes(detected[loaded.det.outputNames[0]].data, width, height).map((box) =>
       scaleBox(box, image.width / width, image.height / height),
     );
-    const texts = await readCrops(loaded, boxes.map((box) => crop(image, box)));
+    report(DETECTED);
+    const texts = await readCrops(loaded, boxes.map((box) => crop(image, box)), report);
     return boxes
       .map((box, i) => ({ text: texts[i].trim(), corners: corners(box) }))
       .filter((box) => box.text !== "");
@@ -291,7 +310,7 @@ globalThis.onmessage = ({ data }) => {
     prefetch().catch(() => {});
     return;
   }
-  const run = queue.then(() => recognize(data.image));
+  const run = queue.then(() => recognize(data.image, (progress) => postMessage({ id: data.id, progress })));
   queue = run.catch(() => {});
   run.then(
     (boxes) => postMessage({ id: data.id, boxes }),
