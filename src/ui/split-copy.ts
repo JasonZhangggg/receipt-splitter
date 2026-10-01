@@ -38,6 +38,7 @@ export const splitCopy = {
   youOwe: "You owe",
   youPaid: "You paid",
   yourShare: "Your share",
+  receiptDifference: "Items off the subtotal",
   shareOf: (name: string) => `${name}'s share`,
   owes: (name: string) => `${name} owes`,
   paidBy: (name: string) => `${name} paid`,

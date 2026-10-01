@@ -30,7 +30,7 @@ function payUrl({ service, handle }: PaymentHandle, amount: number): string | nu
 
 export function Breakdown({ split, person, mine, onPaid }: Props) {
   const c = useColors();
-  const { items, adjustments, share } = shareBreakdown(split, person.id);
+  const { items, adjustments, difference, share } = shareBreakdown(split, person.id);
   const [host] = split.participants;
   const isHost = person.id === host.id;
   const paid = split.payments.find(({ participantId }) => participantId === person.id);
@@ -69,9 +69,9 @@ export function Breakdown({ split, person, mine, onPaid }: Props) {
           );
         })}
       </View>
-      {adjustments.length > 0 ? (
+      {adjustments.length > 0 || difference !== 0 ? (
         <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
-          {adjustments.map((row) => (
+          {[...adjustments, ...(difference === 0 ? [] : [{ id: "difference", name: say.receiptDifference, portion: difference }])].map((row) => (
             <View key={row.id} style={styles.row}>
               <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
                 {row.name}

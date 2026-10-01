@@ -90,6 +90,8 @@ export function computeShares(split: Pick<Split, "receipt" | "participants" | "p
 export type ShareBreakdown = {
   readonly items: readonly { readonly id: ItemId; readonly name: string; readonly price: Price; readonly fraction: readonly [number, number]; readonly portion: Cents }[];
   readonly adjustments: readonly { readonly id: AdjustmentId; readonly kind: AdjustmentKind; readonly name: string; readonly portion: Cents }[];
+  /** What the Share differs from the lines by when the Items disagree with the printed subtotal, and 0 when they agree. */
+  readonly difference: Cents;
   readonly share: Cents;
 };
 
@@ -99,7 +101,9 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
   const { items, adjustments } = split.receipt;
   const shareIn = (receipt: Receipt<SplitItem>) => computeShares({ ...split, receipt }).shares.find((row) => row.participantId === participantId)?.share ?? 0;
   const share = shareIn(split.receipt);
-  const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: cents(items.reduce((total, { price }) => total + price, 0)) });
+  const itemsSum = items.reduce((total, { price }) => total + price, 0);
+  const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: cents(itemsSum) });
+  const agreeingShare = shareIn({ ...split.receipt, total: cents(itemsSum + adjustments.reduce((total, { amount }) => total + amount, 0)) });
   const { all, weightOf, denominator } = weighted(items);
   const mine = items.flatMap((item, index) => {
     const units = all.filter((piece) => piece.item === index);
@@ -113,10 +117,11 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
   });
   const itemPortions = allocate(itemsPart, mine.map(({ cents }): Fraction => cents));
   const claimed = sum(all.map((piece) => weightOf(participantId, piece)));
-  const adjustmentPortions = allocate(share - itemsPart, adjustments.map(({ amount }): Fraction => [BigInt(amount) * claimed, denominator]));
+  const adjustmentPortions = allocate(agreeingShare - itemsPart, adjustments.map(({ amount }): Fraction => [BigInt(amount) * claimed, denominator]));
   return {
     items: mine.map(({ item: { id, name, price }, fraction }, index) => ({ id, name, price, fraction: reduced(fraction), portion: cents(itemPortions[index]) })),
     adjustments: adjustments.map(({ id, kind, name }, index) => ({ id, kind, name, portion: cents(adjustmentPortions[index]) })),
+    difference: cents(share - agreeingShare),
     share: cents(share),
   };
 }

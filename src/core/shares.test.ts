@@ -629,7 +629,7 @@ describe("Item quantity and split modes", () => {
 
 describe("shareBreakdown", () => {
   const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
-  const linesOf = ({ items, adjustments }: ShareBreakdown) => sum([...items, ...adjustments].map(({ portion }) => portion));
+  const linesOf = ({ items, adjustments, difference }: ShareBreakdown) => sum([...items, ...adjustments].map(({ portion }) => portion)) + difference;
 
   test("a third of a $30.00 pitcher and all of the fries, with tax and tip in proportion, add up to the Share", () => {
     const split = splitWith({ items: [["pitcher", 3000, ["ann", "bob", "cat"]], ["fries", 900, ["bob"]]], adjustments: [["tax", 390], ["tip", 780]] });
@@ -643,6 +643,7 @@ describe("shareBreakdown", () => {
         { id: "tax", kind: "tax", name: "tax", portion: 190 },
         { id: "tip", kind: "tip", name: "tip", portion: 380 },
       ],
+      difference: 0,
       share: 2470,
     });
   });
@@ -661,7 +662,7 @@ describe("shareBreakdown", () => {
   test("someone with no Claims sees no Items, no part of tax or tip, and a $0.00 Share", () => {
     const split = splitWith({ items: [["pitcher", 3000, ["ann"]]], adjustments: [["tax", 300]] });
 
-    expect(shareBreakdown(split, participantId("cat"))).toEqual({ items: [], adjustments: [{ id: "tax", kind: "tax", name: "tax", portion: 0 }], share: 0 });
+    expect(shareBreakdown(split, participantId("cat"))).toEqual({ items: [], adjustments: [{ id: "tax", kind: "tax", name: "tax", portion: 0 }], difference: 0, share: 0 });
   });
 
   test("an Unclaimed item shows in no one's breakdown, and its part of tax and tip stays out of every line", () => {
@@ -674,6 +675,7 @@ describe("shareBreakdown", () => {
           { id: "tax", kind: "tax", name: "tax", portion: 177 },
           { id: "tip", kind: "tip", name: "tip", portion: 400 },
         ],
+        difference: 0,
         share: 2577,
       },
       {
@@ -682,6 +684,7 @@ describe("shareBreakdown", () => {
           { id: "tax", kind: "tax", name: "tax", portion: 0 },
           { id: "tip", kind: "tip", name: "tip", portion: 0 },
         ],
+        difference: 0,
         share: 0,
       },
     ]);
@@ -697,14 +700,23 @@ describe("shareBreakdown", () => {
     ]);
   });
 
-  test("when the Items run over the printed subtotal, each Item line still shows its own cents and the Adjustments take the difference", () => {
+  test("when the Items run over the printed subtotal, each Item line and each Adjustment line keeps its own cents, and a difference line brings them to the Share", () => {
     const fair = splitWith({ items: [["tropic", 799, ["sam"]], ["tostones", 100, ["ann", "bob", "sam"]], ["sprite", 275, ["bob"]]], adjustments: [["tax", 100]], participants: ["ann", "bob", "sam"] });
     const over = { ...fair, receipt: { ...fair.receipt, subtotal: cents(1149), total: cents(1249) } };
     const breakdown = shareBreakdown(over, participantId("sam"));
 
     expect(breakdown.items[0].portion).toBe(799);
     expect([33, 34]).toContain(breakdown.items[1].portion);
+    expect(breakdown.adjustments.map(({ portion }) => portion)).toEqual([71]);
+    expect(breakdown.difference).toBe(-17);
     expect(linesOf(breakdown)).toBe(breakdown.share);
+  });
+
+  test("a $0.00 tip stays $0.00 on a receipt whose Items run over the subtotal", () => {
+    const fair = splitWith({ items: [["rice", 800, ["ann"]], ["sprite", 275, ["bob"]]], adjustments: [["tax", 100], ["tip", 0]], participants: ["ann", "bob"] });
+    const over = { ...fair, receipt: { ...fair.receipt, subtotal: cents(1050), total: cents(1150) } };
+
+    expect(shareBreakdown(over, participantId("ann")).adjustments.map(({ portion }) => portion)).toEqual([74, 0]);
   });
 
   test("a receipt discount shows as a negative line", () => {
