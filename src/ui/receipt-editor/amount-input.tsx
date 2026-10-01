@@ -24,7 +24,7 @@ export function AmountInput({ amount, label, onChange, allowNegative = false, pr
       inputMode="decimal"
       placeholder={`${prefix}0.00`}
       enterKeyHint="done"
-      selectTextOnFocus
+      selectTextOnFocus={amount !== 0}
       placeholderTextColor={c.muted}
       onBlur={() => setTyping(null)}
       onChangeText={(text) => {

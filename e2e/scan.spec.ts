@@ -91,7 +91,7 @@ test.describe("fixing the Example receipt", () => {
 
   test("a tip typed as 4.60 moves the Total to $32.64 and keeps the action enabled", async ({ page }) => {
     await amount(page, "Tip").click();
-    await page.keyboard.type("4.60");
+    await page.keyboard.type("4.60", { delay: 120 });
     await amount(page, "Tip").blur();
     await expect(amount(page, "Tip")).toHaveValue("$4.60");
     await expect(amount(page, "Total")).toHaveValue("$32.64");
