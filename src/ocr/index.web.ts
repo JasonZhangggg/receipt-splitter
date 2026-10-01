@@ -48,9 +48,11 @@ export const recognize: typeof Ocr.recognize = (image, onProgress) =>
     ocrWorker().postMessage({ type: "recognize", id, image });
   });
 
-const offlinePaths = (loaded: string[]) => [
-  ...new Set(["/", "/ocr-worker.mjs", ...loaded.filter((path) => !path.startsWith("/models/") && !path.endsWith(".wasm"))]),
-];
+const staticFolders = ["/_expo/static/", "/fonts/", "/assets/", "/ort/"];
+
+const isStaticFile = (path: string) => path === "/favicon.ico" || (staticFolders.some((folder) => path.startsWith(folder)) && !path.endsWith(".wasm"));
+
+const offlinePaths = (loaded: string[]) => [...new Set(["/", "/ocr-worker.mjs", ...loaded.filter(isStaticFile)])];
 
 function keepForOffline() {
   if (!globalThis.navigator?.serviceWorker) return;
