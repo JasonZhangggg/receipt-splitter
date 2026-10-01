@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "id": "golden-split-id-0000000",
+  "currency": "USD",
+  "receipt": {
+    "items": [
+      {
+        "id": "fries",
+        "name": "Fries",
+        "price": 900,
+        "claimedBy": [
+          "bob"
+        ]
+      },
+      {
+        "id": "pitcher",
+        "name": "Pitcher",
+        "price": 3000,
+        "claimedBy": [
+          "ann",
+          "bob"
+        ]
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "tip",
+        "kind": "tip",
+        "name": "Tip",
+        "amount": 500
+      }
+    ],
+    "subtotal": 3900,
+    "total": 4400
+  },
+  "participants": [
+    {
+      "id": "ann",
+      "name": "Ann"
+    },
+    {
+      "id": "bob",
+      "name": "Bob"
+    },
+    {
+      "id": "cat",
+      "name": "Cat"
+    }
+  ],
+  "payments": [],
+  "paymentHandles": [
+    {
+      "service": "venmo",
+      "handle": "ann-host"
+    }
+  ],
+  "revision": 8,
+  "recentChanges": [
+    {
+      "revision": 1,
+      "by": null,
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "participant",
+          "id": "bob",
+          "added": {
+            "index": 1,
+            "name": "Bob"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 2,
+      "by": null,
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "participant",
+          "id": "cat",
+          "added": {
+            "index": 2,
+            "name": "Cat"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 6,
+      "by": "ann",
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "item",
+          "id": "fries",
+          "edit": {
+            "price": [
+              800,
+              900
+            ]
+          }
+        },
+        {
+          "kind": "totals",
+          "subtotalDelta": 100,
+          "totalDelta": 100
+        }
+      ]
+    },
+    {
+      "revision": 7,
+      "by": "bob",
+      "undoes": null,
+      "undoneBy": 8,
+      "writes": [
+        {
+          "kind": "payment",
+          "participantId": "bob",
+          "before": null,
+          "after": 1000
+        }
+      ]
+    },
+    {
+      "revision": 8,
+      "by": "cat",
+      "undoes": 7,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "payment",
+          "participantId": "bob",
+          "before": 1000,
+          "after": null
+        }
+      ]
+    }
+  ]
+}

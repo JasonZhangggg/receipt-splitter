@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import { cents, price } from "./money";
 import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
 import { parseNewSplit, parseOperation, parseSplit } from "./parse";
@@ -394,5 +395,43 @@ describe("parseNewSplit", () => {
       ok: false,
       rejection: { reason: "totalCheckFailed" },
     });
+  });
+});
+
+describe("Splits stored by each shipped release", () => {
+  const golden = (label: string): unknown => JSON.parse(readFileSync(new URL(`./golden/${label}.json`, import.meta.url), "utf8"));
+  const read = (label: string) => {
+    const parsed = parseSplit(golden(label));
+    if (!parsed.ok) throw new Error(`${label}: ${JSON.stringify(parsed.rejection)}`);
+    return parsed.split;
+  };
+  const claimers = (split: Split) => split.receipt.items.map(({ split: { units } }) => units);
+
+  test("a row the current release writes reads back unchanged", () => {
+    expect(JSON.parse(JSON.stringify(read("rs-11")))).toEqual(golden("rs-11"));
+  });
+
+  test("RS-10 rows read with their device picks, units and original Receipt", () => {
+    const split = read("rs-10");
+
+    expect(split.picks).toEqual([{ participantId: "bob", device: "bobs-phone" }]);
+    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"], []]]);
+    expect(split.original?.items.map(({ name }) => name)).toEqual(["Fries", "Pitcher"]);
+  });
+
+  test("RS-9 rows read their joined names as picked by no one, and line claims as one unit", () => {
+    const split = read("rs-9");
+
+    expect(split.picks).toEqual([]);
+    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"]]]);
+    expect(split.participants.map(({ name }) => name)).toEqual(["Ann", "Bob", "Cat"]);
+  });
+
+  test("RS-8 rows read as picked by no one, with line claims as one unit", () => {
+    const split = read("rs-8");
+
+    expect(split.picks).toEqual([]);
+    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"]]]);
+    expect(split.recentChanges.length).toBe(5);
   });
 });
