@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: 6 },
   divided: { borderTopWidth: 1 },
   open: { marginVertical: 4, marginHorizontal: -12, paddingHorizontal: 12, borderRadius: 14 },
-  circle: { width: 44, height: 44, marginLeft: -10, paddingLeft: 10, justifyContent: "center" },
+  circle: { minWidth: 54, height: 44, marginLeft: -10, paddingLeft: 10, justifyContent: "center" },
   dots: { flexDirection: "row", alignItems: "center" },
   overlap: { marginLeft: -9 },
   empty: { width: 24, height: 24, borderRadius: 12 },

@@ -106,6 +106,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const picked = new Set(split.picks.map(({ participantId }) => participantId));
   const selectedPerson = people.find((person) => person.id === (selected ?? me)) ?? null;
   const creating = memory.creatorSecret !== undefined;
+  const unshared = creating && !memory.shared;
   const act = (op: Operation) => send(op).then((answer) => answer.ok);
 
   const choose = async (participantId: ParticipantId, takeOver: boolean) => {
@@ -187,17 +188,20 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
           <Button label={say.question} onPress={() => setPhase("pick")} outsideScroll />
         </>
-      ) : creating && !memory.shared ? (
-        <LinkLine url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
-      ) : expanded && selectedPerson ? (
-        <Breakdown
-          split={split}
-          person={selectedPerson}
-          mine={selectedPerson.id === me}
-          onPaid={(paid) => void act(paid ? { by: me, type: "recordPayment", participantId: me, amount: myShare } : { by: me, type: "clearPayment", participantId: me })}
-        />
       ) : (
-        <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
+        <>
+          {unshared ? <LinkLine url={splitUrl(splitId)} onShared={() => remember({ shared: true })} /> : null}
+          {expanded && selectedPerson ? (
+            <Breakdown
+              split={split}
+              person={selectedPerson}
+              mine={selectedPerson.id === me}
+              onPaid={(paid) => void act(paid ? { by: me, type: "recordPayment", participantId: me, amount: myShare } : { by: me, type: "clearPayment", participantId: me })}
+            />
+          ) : unshared ? null : (
+            <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
+          )}
+        </>
       )}
       </View>
     </View>
@@ -228,6 +232,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         label={phase === "pick" ? say.question : say.people}
         minHeight={phase === "pick" ? windowHeight - tallPickTop : 0}
         rises={false}
+        lowered={overlay !== null && !closing}
         onHeight={setSheetHeight}
         onClose={phase === "pick" ? () => setPhase("regular") : undefined}
         stays

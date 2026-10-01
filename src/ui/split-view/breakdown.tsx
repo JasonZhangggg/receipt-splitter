@@ -87,7 +87,7 @@ export function Breakdown({ split, person, mine, onPaid }: Props) {
           {dollars(paid ? paid.amount : share)}
         </Text>
       </View>
-      {mine && !isHost ? (
+      {mine && !isHost && (paid || share > 0) ? (
         <View style={styles.actions}>
           {!paid && url ? (
             <Button label={say.payOn(host.name, dollars(share), paymentApps[handle.service].name)} onPress={() => void Linking.openURL(url)} outsideScroll />
