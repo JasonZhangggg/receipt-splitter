@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import nodeModule from "node:module";
 import { extname } from "node:path";
 import { chromium } from "@playwright/test";
@@ -23,8 +24,19 @@ function resolveExtensionlessTs(specifier, context, next) {
 nodeModule.registerHooks({ resolve: resolveExtensionlessTs });
 const { fallbackSamples } = await import("../../src/ui/home-copy.ts");
 
+const fontDir = new URL("../../public/fonts/", import.meta.url);
+
+function hashedFace(weight) {
+  const [found, ...extra] = readdirSync(fontDir).filter((name) => name.startsWith(`plus-jakarta-sans-${weight}`) && name.endsWith(".woff2"));
+  if (!found || extra.length > 0) throw new Error(`expected one plus-jakarta-sans-${weight}*.woff2 in public/fonts`);
+  const hash = createHash("sha256").update(readFileSync(new URL(found, fontDir))).digest("hex").slice(0, 10);
+  const file = `plus-jakarta-sans-${weight}-${hash}.woff2`;
+  if (file !== found) renameSync(new URL(found, fontDir), new URL(file, fontDir));
+  return file;
+}
+
 const faces = [400, 500].map((weight) => ({
-  file: `plus-jakarta-sans-latin-${weight}-normal.woff2`,
+  file: hashedFace(weight),
   weight,
   local: "Arial",
   sample: fallbackSamples[weight],
@@ -36,8 +48,8 @@ const metrics = {};
 const data = {};
 
 for (const face of faces) {
-  const bytes = readFileSync(new URL(face.file, import.meta.url)).toString("base64");
-  data[face.weight] = bytes;
+  const bytes = readFileSync(new URL(face.file, fontDir)).toString("base64");
+  data[face.weight] = `/fonts/${face.file}`;
   const result = await page.evaluate(
     async ({ bytes, weight, local, sample }) => {
       const data = Uint8Array.from(atob(bytes), (ch) => ch.charCodeAt(0));

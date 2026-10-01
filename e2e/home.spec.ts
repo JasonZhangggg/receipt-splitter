@@ -392,6 +392,26 @@ test("the payment picker presses its inner face and leaves its field segment sti
   expect(await picker.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
 });
 
+test("the fonts load as same-origin WOFF2 files with an immutable cache header while the page stays cross-origin isolated", async ({ page }) => {
+  const fonts: { path: string; status: number; type: string | undefined; cache: string | undefined }[] = [];
+  page.on("response", (response) => {
+    const { pathname } = new URL(response.url());
+    if (!pathname.startsWith("/fonts/")) return;
+    const headers = response.headers();
+    fonts.push({ path: pathname.replace(/-[0-9a-f]{10}\./, "-<hash>."), status: response.status(), type: headers["content-type"], cache: headers["cache-control"] });
+  });
+  await page.goto("/");
+  await settle(page);
+  expect(await page.evaluate(() => self.crossOriginIsolated)).toBe(true);
+  const loaded = await page.evaluate(() => [...document.fonts].filter((f) => f.family.replaceAll('"', "") === "Plus Jakarta Sans").map((f) => f.status));
+  expect(loaded).toEqual(["loaded", "loaded"]);
+  const immutable = { status: 200, type: "font/woff2", cache: "public, max-age=31536000, immutable" };
+  expect(fonts.sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+    { path: "/fonts/plus-jakarta-sans-400-<hash>.woff2", ...immutable },
+    { path: "/fonts/plus-jakarta-sans-500-<hash>.woff2", ...immutable },
+  ]);
+});
+
 const fontWidths = [320, phone.width, 1280];
 
 for (const width of fontWidths) {

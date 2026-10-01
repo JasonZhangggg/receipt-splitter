@@ -9,7 +9,7 @@ const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans"
 function css({ light, dark }: typeof colors) {
   const webFaces = weights.map(
     (weight) =>
-      `@font-face { font-family: "Plus Jakarta Sans"; font-weight: ${weight}; font-display: swap; src: url("data:font/woff2;base64,${faces[weight]}") format("woff2"); }`,
+      `@font-face { font-family: "Plus Jakarta Sans"; font-weight: ${weight}; font-display: swap; src: url("${faces[weight]}") format("woff2"); }`,
   );
   const local = fallbackSources.map((name) => `local("${name}")`).join(", ");
   const fallbackFaces = weights.map(
@@ -40,6 +40,10 @@ function meta(name: string, content: string, media?: string) {
 
 export function installDocument(themes: typeof colors) {
   if (Platform.OS !== "web" || document.getElementById("rs-theme")) return;
+  for (const href of Object.values(faces)) {
+    const preload = Object.assign(document.createElement("link"), { rel: "preload", as: "font", type: "font/woff2", href, crossOrigin: "anonymous" });
+    document.head.appendChild(preload);
+  }
   const style = document.createElement("style");
   style.id = "rs-theme";
   style.textContent = css(themes);
