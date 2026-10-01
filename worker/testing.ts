@@ -37,7 +37,7 @@ export function stubSiteverify(): Siteverify[] {
     const call = { secret: field("secret"), response: field("response"), remoteip: field("remoteip") };
     calls.push(call);
     const success = call.response === PASSING_TOKEN;
-    return Response.json({ success, "error-codes": success ? [] : ["invalid-input-response"] });
+    return Response.json(success ? { success, "error-codes": [], hostname: "example.com" } : { success, "error-codes": ["invalid-input-response"] });
   });
   return calls;
 }

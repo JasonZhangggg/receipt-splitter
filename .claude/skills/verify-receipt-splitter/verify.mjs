@@ -75,7 +75,12 @@ async function launch() {
   }
   writeFileSync(launcherFile, launcher);
   if (!values["no-build"]) {
-    execFileSync("npm", ["run", "build"], { cwd: root, stdio: ["ignore", 2, 2], timeout: 180_000 });
+    execFileSync("npm", ["run", "build"], {
+      cwd: root,
+      env: { ...process.env, ALLOW_TEST_TURNSTILE: "1" },
+      stdio: ["ignore", 2, 2],
+      timeout: 180_000,
+    });
   }
   const log = openSync(logFile, "a");
   const child = spawn(

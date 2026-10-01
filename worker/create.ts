@@ -5,6 +5,10 @@ import { limiterKey } from "./rate-limit";
 
 const MAX_CREATE_BODY_BYTES = SPLIT_BYTE_BUDGET + 4 * 1024;
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set(["localhost", "127.0.0.1"]);
+const CLOUDFLARE_TEST_SECRET = /^[123]x/;
+
+type Site = { readonly hostnames: ReadonlySet<string>; readonly local: boolean };
 
 export async function createSplit(request: Request, env: Cloudflare.Env): Promise<Response> {
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
@@ -14,12 +18,17 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
   const parsed = parseCreateSplitRequest(parseJson(text), id);
   if (!parsed.ok) return refuse(400, { refused: "rejected", rejection: parsed.rejection });
 
+  const site = siteOf(env.ALLOWED_HOSTNAMES);
   const ip = request.headers.get("cf-connecting-ip");
+  if (ip === null && !site.local) {
+    console.error("a create arrived with no cf-connecting-ip, so it cannot be rate limited");
+    return refuse(503, { refused: "turnstileUnavailable" });
+  }
   const admission = await env.CreateLimiter.getByName(limiterKey(ip ?? "unknown")).admit();
   if (!admission.ok) {
     return refuse(429, { refused: "rateLimited" }, { "retry-after": String(Math.ceil(admission.retryAfterMs / 1000)) });
   }
-  const verdict = await verifyTurnstile(parsed.turnstileToken, ip, env.TURNSTILE_SECRET_KEY);
+  const verdict = await verifyTurnstile(parsed.turnstileToken, ip, env.TURNSTILE_SECRET_KEY, site);
   if (verdict === "failed") return refuse(403, { refused: "turnstileFailed" });
   if (verdict === "unavailable") return refuse(503, { refused: "turnstileUnavailable" });
 
@@ -67,9 +76,20 @@ function mintSplitId(): MintedSplitId {
   return id;
 }
 
-async function verifyTurnstile(token: string, ip: string | null, secret: string | undefined): Promise<"passed" | "failed" | "unavailable"> {
+function siteOf(allowed: string | undefined): Site {
+  const named = (allowed ?? "").split(",").map((hostname) => hostname.trim().toLowerCase()).filter((hostname) => hostname !== "");
+  const hostnames = named.length === 0 ? LOCAL_HOSTNAMES : new Set(named);
+  return { hostnames, local: [...hostnames].every((hostname) => LOCAL_HOSTNAMES.has(hostname)) };
+}
+
+async function verifyTurnstile(token: string, ip: string | null, secret: string | undefined, site: Site): Promise<"passed" | "failed" | "unavailable"> {
   if (!secret) {
     console.error("TURNSTILE_SECRET_KEY is not set, so no Split can be created");
+    return "unavailable";
+  }
+  const testSecret = CLOUDFLARE_TEST_SECRET.test(secret);
+  if (testSecret && !site.local) {
+    console.error("TURNSTILE_SECRET_KEY is a Cloudflare test secret but ALLOWED_HOSTNAMES names a public host, so no Split can be created");
     return "unavailable";
   }
   if (token === "") return "failed";
@@ -80,8 +100,12 @@ async function verifyTurnstile(token: string, ip: string | null, secret: string 
   try {
     const response = await fetch(SITEVERIFY_URL, { method: "POST", body: form });
     if (!response.ok) return "unavailable";
-    const result = await response.json<{ success?: unknown }>();
-    return result.success === true ? "passed" : "failed";
+    const result = await response.json<{ success?: unknown; hostname?: unknown }>();
+    if (result.success !== true) return "failed";
+    // Test secrets pass every token and always answer hostname example.com, so the hostname proves nothing for them.
+    if (testSecret || (typeof result.hostname === "string" && site.hostnames.has(result.hostname))) return "passed";
+    console.error(`siteverify passed a token from ${String(result.hostname)}, which is not in ALLOWED_HOSTNAMES`);
+    return "failed";
   } catch (error) {
     console.error("Turnstile siteverify failed", error);
     return "unavailable";

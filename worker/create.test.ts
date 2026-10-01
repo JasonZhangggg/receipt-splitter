@@ -172,3 +172,75 @@ describe("POST /api/splits", () => {
     expect(response.headers.get("allow")).toBe("POST");
   });
 });
+
+describe("the Turnstile deployment checks", () => {
+  const STAND_IN_SECRET = "stand-in-for-a-production-secret";
+  let nextHost = 1;
+
+  function post(vars: Partial<Cloudflare.Env>, { ip = `203.0.113.${100 + nextHost++}` }: { ip?: string | null } = {}): Promise<Response> {
+    const request = new Request("https://split.example/api/splits", {
+      method: "POST",
+      headers: ip === null ? {} : { "cf-connecting-ip": ip },
+      body: JSON.stringify({ turnstileToken: PASSING_TOKEN, split: newSplit }),
+    });
+    return createSplit(request, { ...env, ...vars });
+  }
+
+  function answerHostname(hostname: string | undefined): void {
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async () => Response.json({ success: true, "error-codes": [], hostname }));
+  }
+
+  it("creates only when siteverify names a hostname in ALLOWED_HOSTNAMES", async () => {
+    const deployed = { TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: "split.example, www.split.example" };
+    const outcomes: [string | undefined, number, unknown][] = [];
+    for (const hostname of ["www.split.example", "evil.example", undefined, "localhost"]) {
+      answerHostname(hostname);
+      const response = await post(deployed);
+      outcomes.push([hostname, response.status, response.status === 201 ? "created" : await response.json()]);
+    }
+    expect(outcomes).toEqual([
+      ["www.split.example", 201, "created"],
+      ["evil.example", 403, { refused: "turnstileFailed" }],
+      [undefined, 403, { refused: "turnstileFailed" }],
+      ["localhost", 403, { refused: "turnstileFailed" }],
+    ]);
+  });
+
+  it("allows only localhost and 127.0.0.1 when ALLOWED_HOSTNAMES is empty or unset", async () => {
+    const statuses: number[] = [];
+    for (const [allowed, hostname] of [[undefined, "localhost"], ["", "127.0.0.1"], [undefined, "split.example"], [" , ", "split.example"]]) {
+      answerHostname(hostname);
+      statuses.push((await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: allowed })).status);
+    }
+    expect(statuses).toEqual([201, 201, 403, 403]);
+  });
+
+  it("refuses a Cloudflare test secret with 503 when ALLOWED_HOSTNAMES names a public host, without calling siteverify", async () => {
+    const refusals: [number, unknown][] = [];
+    for (const secret of ["1x0000000000000000000000000000000AA", "2x0000000000000000000000000000000AA", "3x0000000000000000000000000000000AA"]) {
+      const response = await post({ TURNSTILE_SECRET_KEY: secret, ALLOWED_HOSTNAMES: "localhost,split.example" });
+      refusals.push([response.status, await response.json()]);
+    }
+    expect(refusals).toEqual([
+      [503, { refused: "turnstileUnavailable" }],
+      [503, { refused: "turnstileUnavailable" }],
+      [503, { refused: "turnstileUnavailable" }],
+    ]);
+    expect(siteverify).toEqual([]);
+  });
+
+  it("accepts the test secret's example.com answer when only localhost is allowed", async () => {
+    const response = await post({ TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", ALLOWED_HOSTNAMES: "localhost,127.0.0.1" });
+    expect(response.status).toBe(201);
+  });
+
+  it("refuses a create with no client IP outside localhost, and buckets it on localhost", async () => {
+    const deployed = await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: "split.example" }, { ip: null });
+    expect([deployed.status, await deployed.json()]).toEqual([503, { refused: "turnstileUnavailable" }]);
+    expect(siteverify).toEqual([]);
+
+    const local = await post({}, { ip: null });
+    expect(local.status).toBe(201);
+    expect(siteverify.map(({ remoteip }) => remoteip)).toEqual([null]);
+  });
+});
