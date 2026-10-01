@@ -1,7 +1,12 @@
+import { stubTurnstile } from "./turnstile";
 import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
 test.setTimeout(90_000);
+
+test.beforeEach(async ({ page }, testInfo) => {
+  if (!testInfo.tags.includes("@network")) await stubTurnstile(page);
+});
 
 const linkTimeout = { timeout: 30_000 };
 
@@ -43,6 +48,12 @@ test("Create split link takes the Host to the tall pick sheet, and a second brow
   const sam = await open(browser, link);
   await expect(sam.getByText("Jason invited you to split $28.04")).toBeVisible();
   await expect(rows(sam)).toHaveText(["JJasonPicked", "SSam", "PPriya"]);
+});
+
+test("Create split link works with Cloudflare's real Turnstile script", { tag: "@network" }, async ({ page }) => {
+  await readyHome(page);
+  await createLink(page);
+  await expect(question(page)).toBeVisible();
 });
 
 test("before the link is shared, the Host taps Sam's chip and sees Sam's breakdown under the link row", async ({ page }) => {
@@ -89,6 +100,10 @@ test("a browser not on the list adds itself, the Host's home sheet lists the nam
 });
 
 test("without a system share sheet the link has Copy alone", async ({ page }) => {
+  await page.addInitScript(() => {
+    Reflect.deleteProperty(Navigator.prototype, "share");
+    Reflect.deleteProperty(navigator, "share");
+  });
   await readyHome(page);
   await createLink(page);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
