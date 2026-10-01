@@ -212,6 +212,7 @@ describe("parseSplit bounds", () => {
       ...joiners.map((id) => ({ type: "addParticipant", by: null, participant: { id, name: id } })),
       ...joiners.map((id) => ({ type: "claim", by: null, itemId: "pitcher", participantId: id })),
       ...joiners.map((id) => ({ type: "recordPayment", by: null, participantId: id, amount: 100 })),
+      ...joiners.slice(0, 5).map((id) => ({ type: "recordPayment", by: null, participantId: id, amount: 200 })),
     ];
     const split = ops.reduce<Split>((current, input) => {
       const parsed = parseOperation(input);
@@ -221,7 +222,7 @@ describe("parseSplit bounds", () => {
       return result.split;
     }, storedSplit());
 
-    expect([split.participants.length, split.payments.length, split.recentChanges.length]).toEqual([30, 29, 50]);
+    expect([split.participants.length, split.payments.length, split.recentChanges.length]).toEqual([30, 29, 64]);
     expect(split.receipt.items[1].claimedBy).toHaveLength(30);
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
@@ -253,6 +254,15 @@ describe("parseNewSplit", () => {
           items: [
             { id: "fries", name: "Fries", price: 800, claimedBy: [] },
             { id: "pitcher", name: "Pitcher", price: 3000, claimedBy: [] },
+          ],
+          adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 337 }],
+          subtotal: 3800,
+          total: 4137,
+        },
+        original: {
+          items: [
+            { id: "fries", name: "Fries", price: 800 },
+            { id: "pitcher", name: "Pitcher", price: 3000 },
           ],
           adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 337 }],
           subtotal: 3800,

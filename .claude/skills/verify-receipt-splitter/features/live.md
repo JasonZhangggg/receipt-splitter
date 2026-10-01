@@ -34,7 +34,7 @@ Preconditions:
 
 ## Gotchas
 
-- Each Split allows a burst of 60 operations and then 20 a second. Unpaced scripts get `rateLimited` rejections, so keep `--pace-ms` at 50 or more for long runs. Each `rateLimited` reply carries `retryAfterMs`. A frame sent before that wait ends is early. The 100th early frame since the socket's last admitted frame gets its reply, and then the socket is closed with code 1008, so a pure flood closes at frame 101. A client that waits out `retryAfterMs` is never closed.
+- Each Split allows a burst of 60 operations and then 20 a second. Unpaced scripts get `rateLimited` rejections, so keep `--pace-ms` at 50 or more for long runs. Each `rateLimited` reply carries `retryAfterMs`. A frame sent before that wait ends is early. The 100th early frame since the socket's last admitted frame gets its reply, and then the socket is closed with code 1008, so a pure flood closes at frame 101. A client that waits out `retryAfterMs` is never closed. Recorded changes, the ones Undo can reverse, also share a history rate of 5 KB at once and then 1 KB a second per Split. A change over it gets `rateLimited` with its own ref, which is not early.
 - Each IP may create 10 Splits a minute. A lane that runs more than 10 commands without `--id` in a minute gets 429 from `POST /api/splits`. Pass `--id` from an earlier `create` to reuse a Split.
 - `drop` closes the socket cleanly. It proves that a reconnect gets the missed state, not how a phone's client library notices a lost network.
 - `cleanup` deletes `.verify/<port>/`, including the Durable Object storage, so Splits do not survive a relaunch.

@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
+  MAX_CHANGE_BYTES,
   MAX_PARTICIPANT_NAME_LENGTH,
   MAX_ROW_NAME_LENGTH,
+  RECENT_CHANGES_LIMIT,
   applyOperation,
   checkSplit,
   createSplit,
@@ -111,6 +113,16 @@ describe("createSplit", () => {
           { id: "pasta", name: "Pasta", price: 1400, claimedBy: [] },
           { id: "fries", name: "Fries", price: 800, claimedBy: [] },
           { id: "pitcher", name: "Pitcher", price: 3000, claimedBy: [] },
+        ],
+        adjustments: [],
+        subtotal: 5200,
+        total: 5200,
+      },
+      original: {
+        items: [
+          { id: "pasta", name: "Pasta", price: 1400 },
+          { id: "fries", name: "Fries", price: 800 },
+          { id: "pitcher", name: "Pitcher", price: 3000 },
         ],
         adjustments: [],
         subtotal: 5200,
@@ -644,6 +656,127 @@ describe("undo", () => {
   });
 });
 
+describe("restoring the original Receipt", () => {
+  const restore: Operation = { by: cat, type: "restoreReceipt" };
+
+  test("after a flood pushes a price change out of the recent changes, restoreReceipt puts every name and price back and keeps the Claims, and Undo reverses it", () => {
+    const rename = (index: number): Operation => ({ by: null, type: "editReceipt", items: [{ type: "edit", itemId: pasta, name: `Pasta ${index}` }] });
+    const priced = apply(withBobAndCat(), { by: bob, type: "claim", itemId: pasta, participantId: bob }, priceEdit(bob, fries, 800, 1));
+    const flooded = apply(priced, ...Array.from({ length: RECENT_CHANGES_LIMIT }, (_, index) => rename(index)));
+    const restored = apply(flooded, restore);
+    const rows = (split: Split) => split.receipt.items.map(({ id, name, price, claimedBy }) => [id, name, price, claimedBy]);
+
+    expect(reasonFor(flooded, { by: ann, type: "undo", revision: priced.revision })).toBe("changeNotFound");
+    expect([rows(restored), restored.receipt.subtotal, restored.receipt.total]).toEqual([
+      [
+        ["pasta", "Pasta", 1400, ["bob"]],
+        ["fries", "Fries", 800, []],
+        ["pitcher", "Pitcher", 3000, []],
+      ],
+      5200,
+      5200,
+    ]);
+    expect(rows(apply(restored, { by: ann, type: "undo", revision: restored.revision }))).toEqual([
+      ["pasta", "Pasta 63", 1400, ["bob"]],
+      ["fries", "Fries", 1, []],
+      ["pitcher", "Pitcher", 3000, []],
+    ]);
+  });
+
+  test("25 chained price edits after a vandal's can be undone newest first back to $8.00, and restoreReceipt gets there in one change", () => {
+    let split = apply(withBobAndCat(), priceEdit(bob, fries, 800, 1));
+    for (let cents = 1; cents <= 25; cents += 1) split = apply(split, priceEdit(bob, fries, cents, cents + 1));
+    let undone = split;
+    for (let revision = split.revision; revision > 2; revision -= 1) undone = apply(undone, { by: ann, type: "undo", revision });
+    const restored = apply(split, restore);
+
+    expect([undone.receipt.items[1].price, restored.receipt.items[1].price, restored.revision - split.revision]).toEqual([800, 800, 1]);
+  });
+
+  test("puts deleted rows back in place, drops added ones, moves a moved one back, and Undo and redo swap the two Receipts exactly", () => {
+    const junk = itemId("junk");
+    const vandalized = apply(
+      withBobAndCat(),
+      { by: bob, type: "claim", itemId: pitcher, participantId: bob },
+      {
+        by: null,
+        type: "editReceipt",
+        items: [
+          { type: "delete", itemId: pasta },
+          { type: "add", item: { id: junk, name: "Junk", price: price(500) }, index: 0 },
+          { type: "edit", itemId: fries, name: "Chips" },
+        ],
+        adjustments: [{ type: "add", adjustment: { id: adjustmentId("off"), kind: "discount", name: "Off", amount: cents(-500) }, index: 0 }],
+        subtotalDelta: cents(-900),
+        totalDelta: cents(-1400),
+      },
+      {
+        by: null,
+        type: "editReceipt",
+        items: [
+          { type: "delete", itemId: fries },
+          { type: "add", item: { id: fries, name: "Chips", price: price(800) }, index: 2 },
+        ],
+      },
+      { by: cat, type: "claim", itemId: junk, participantId: cat },
+    );
+    const restored = apply(vandalized, restore);
+    const undone = apply(restored, { by: ann, type: "undo", revision: restored.revision });
+    const redone = apply(undone, { by: ann, type: "undo", revision: undone.revision });
+
+    expect(vandalized.receipt.items.map(({ id }) => id)).toEqual(["junk", "pitcher", "fries"]);
+    expect(restored.receipt).toEqual({
+      items: [
+        { id: "pasta", name: "Pasta", price: 1400, claimedBy: [] },
+        { id: "fries", name: "Fries", price: 800, claimedBy: [] },
+        { id: "pitcher", name: "Pitcher", price: 3000, claimedBy: ["bob"] },
+      ],
+      adjustments: [],
+      subtotal: 5200,
+      total: 5200,
+    });
+    expect([undone.receipt, redone.receipt]).toEqual([vandalized.receipt, restored.receipt]);
+  });
+
+  test("changes nothing on a Receipt as created, and a Split stored before the original was kept refuses it as noOriginal", () => {
+    const split = withBobAndCat();
+    const { original, ...stored } = split;
+    const legacy = accepted(parseSplit(JSON.parse(JSON.stringify(stored))));
+
+    expect(original?.items.length).toBe(3);
+    expect(applyOperation(split, restore, anyone)).toEqual({ ok: true, split, changed: false });
+    expect(reasonFor(legacy, restore)).toBe("noOriginal");
+  });
+
+  test("a restore too large to record still lands, and leaves the recent changes as they were", () => {
+    const [first, ...rest] = Array.from({ length: 45 }, (_, index): Item => ({
+      id: itemId(`item${String(index).padStart(20, "0")}`),
+      name: `${index} `.padEnd(70, "x"),
+      price: price(100),
+    }));
+    const split = accepted(
+      createSplit({
+        id: minted,
+        receipt: { items: [first, ...rest], adjustments: [], subtotal: cents(4500), total: cents(4500) },
+        participants: [{ id: ann, name: "Ann" }],
+        paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      }),
+    );
+    const deleted = (rows: readonly Item[]): Operation => ({
+      by: null,
+      type: "editReceipt",
+      items: rows.map(({ id }) => ({ type: "delete", itemId: id })),
+      subtotalDelta: cents(-100 * rows.length),
+      totalDelta: cents(-100 * rows.length),
+    });
+    const emptied = apply(split, deleted(rest.slice(0, 22)), deleted(rest.slice(22)));
+    const restored = apply(emptied, { by: null, type: "restoreReceipt" });
+
+    expect([emptied.receipt.items.length, emptied.recentChanges.length]).toEqual([1, 2]);
+    expect([restored.receipt, restored.recentChanges, restored.revision]).toEqual([split.receipt, emptied.recentChanges, 3]);
+  });
+});
+
 describe("Participants", () => {
   test("a direct removal is refused for anyone, the creator included, and Undo of an add takes the Participant out and a redo puts them back at their row", () => {
     const split = withBobAndCat();
@@ -986,10 +1119,47 @@ describe("the 32 KB budget", () => {
     const renamed = apply(split, {
       by: null,
       type: "editReceipt",
-      items: split.receipt.items.slice(0, 25).map(({ id }, index) => ({ type: "edit", itemId: id, name: longItemName(1000 + index) })),
+      items: split.receipt.items.slice(0, 20).map(({ id }, index) => ({ type: "edit", itemId: id, name: longItemName(1000 + index) })),
     });
     expect(serializedBytes(renamed)).toBeLessThanOrEqual(SPLIT_BYTE_BUDGET);
     expect(renamed.recentChanges.at(-1)?.revision).toBe(renamed.revision);
+  });
+
+  test("a Receipt too large to keep twice is created without its original, so restoreReceipt refuses it as noOriginal", () => {
+    const split = atTheCaps();
+
+    expect(["original" in split, reasonFor(split, { by: null, type: "restoreReceipt" })]).toEqual([false, "noOriginal"]);
+  });
+
+  test("with Claims filling the Split, a change of the largest size survives a full history burst after it, so Undo still reaches it", () => {
+    let split = atTheCaps();
+    const everyone = split.participants.map(({ id }) => id);
+    for (let turn = 0; ; turn++) {
+      const result = applyOperation(
+        split,
+        { by: null, type: "claim", itemId: split.receipt.items[turn % 100].id, participantId: everyone[Math.floor(turn / 100) % 30] },
+        anyone,
+      );
+      if (!result.ok) break;
+      split = result.split;
+    }
+    const victim = apply(split, {
+      by: null,
+      type: "editReceipt",
+      items: split.receipt.items.slice(0, 20).map(({ id }, index) => ({ type: "edit", itemId: id, name: longItemName(2000 + index) })),
+    });
+    let flooded = victim;
+    let written = 0;
+    for (let turn = 0; turn < 100; turn++) {
+      const next = apply(flooded, { by: null, type: "recordPayment", participantId: everyone[1 + (turn % 29)], amount: cents(100 + turn) });
+      written += serializedBytes(next.recentChanges.at(-1));
+      if (written > MAX_CHANGE_BYTES) break;
+      flooded = next;
+    }
+
+    expect(serializedBytes(victim.recentChanges.at(-1))).toBeGreaterThan(MAX_CHANGE_BYTES - 1024);
+    expect(flooded.revision - victim.revision).toBeGreaterThan(30);
+    expect(reasonFor(flooded, { by: null, type: "undo", revision: victim.revision })).toBe("accepted");
   });
 
   test("a change too big for the history reserve is rejected, so no change lands without its record", () => {
@@ -1141,6 +1311,7 @@ describe("random operations", () => {
         ? { by, type: "addParticipant", participant: { id: participantId(fresh()), name: "Joiner" } }
         : { by, type: "removeParticipant", participantId: pick(people) };
     }
+    if (roll < 0.8) return { by, type: "restoreReceipt" };
     const target = split.recentChanges.length > 0 ? pick(split.recentChanges).revision : 0;
     return { by, type: "undo", revision: target };
   }

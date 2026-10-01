@@ -145,6 +145,8 @@ export type Split = {
   readonly id: SplitId;
   readonly currency: "USD";
   readonly receipt: Receipt<SplitItem>;
+  /** The Receipt as the Split was created, for restoreReceipt. Absent on Splits stored before it, and on a Receipt too large to keep twice. */
+  readonly original?: Receipt;
   readonly participants: readonly [host: Participant, ...others: Participant[]];
   readonly joined: readonly ParticipantId[];
   readonly payments: readonly Payment[];

@@ -284,6 +284,7 @@ const split: Parser<Split> = strict(({ read, maybe }) => ({
   id: read("id", splitId),
   currency: read("currency", literal("USD")),
   receipt: read("receipt", receipt(item)),
+  ...maybe("original", receipt(receiptItem)),
   participants: read("participants", participants),
   joined: maybe("joined", array(participantId, MAX_PARTICIPANTS)).joined ?? [],
   payments: read(
@@ -359,6 +360,7 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
   setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", paymentHandles) })),
   setJoined: op("setJoined", ({ read }) => ({ participantId: read("participantId", participantId), joined: read("joined", flag) })),
   undo: op("undo", ({ read }) => ({ revision: read("revision", count) })),
+  restoreReceipt: op("restoreReceipt", () => ({})),
 };
 
 const operation = tagged<Operation>("type", operationVariants);

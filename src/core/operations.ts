@@ -22,6 +22,7 @@ import {
   type RowWrite,
   type Split,
   type SplitId,
+  type SplitItem,
   type Write,
 } from "./split";
 import { runTotalCheck, type FailedTotalCheck } from "./total-check";
@@ -31,10 +32,12 @@ export const MAX_ADJUSTMENTS = 20;
 export const MAX_PARTICIPANTS = 30;
 export const MAX_PARTICIPANT_NAME_LENGTH = 40;
 export const MAX_ROW_NAME_LENGTH = 80;
-export const RECENT_CHANGES_LIMIT = 50;
+export const RECENT_CHANGES_LIMIT = 64;
 export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
-export const HISTORY_RESERVE_BYTES = 6 * 1024;
+export const MAX_CHANGE_BYTES = 5 * 1024;
+/** Room for one change of any size plus a full burst of the Worker's history rate, which is MAX_CHANGE_BYTES, with the commas between changes. So a burst cannot evict a change someone could still undo. */
+export const HISTORY_RESERVE_BYTES = 2 * MAX_CHANGE_BYTES + RECENT_CHANGES_LIMIT;
 
 export type ItemPatch =
   | { readonly type: "add"; readonly item: Item; readonly index: number }
@@ -70,6 +73,7 @@ export type Operation = (
   | { readonly type: "setPaymentHandles"; readonly handles: NonEmpty<PaymentHandle> }
   | { readonly type: "setJoined"; readonly participantId: ParticipantId; readonly joined: boolean }
   | { readonly type: "undo"; readonly revision: number }
+  | { readonly type: "restoreReceipt" }
 ) & { readonly by: ParticipantId | null };
 
 export type Auth = { readonly creator: boolean };
@@ -98,6 +102,7 @@ export type RejectionReason =
   | "nameTaken"
   | "namePicked"
   | "removalNotAllowed"
+  | "noOriginal"
   | "tooLarge";
 
 export type Rejection =
@@ -130,8 +135,8 @@ export function applyOperation(split: Split, op: Operation, auth: Auth): Operati
   let recentChanges = step.split.recentChanges;
   if (step.record) {
     const change: Change = { revision, by: op.by, undoes: step.record.undoes, undoneBy: null, writes: step.record.writes };
-    if (serializedBytes(change) > HISTORY_RESERVE_BYTES) return reject("tooLarge");
-    recentChanges = [...recentChanges, change];
+    if (serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
+    else if (op.type !== "restoreReceipt") return reject("tooLarge");
   }
   return { ok: true, split: { ...state, recentChanges: fitChanges(state, recentChanges) }, changed: true };
 }
@@ -199,7 +204,72 @@ function run(split: Split, op: Operation, auth: Auth): Step {
     }
     case "undo":
       return undo(split, op.revision);
+    case "restoreReceipt": {
+      const { original } = split;
+      if (!original) return reject("noOriginal");
+      return commit(split, [
+        ...restoreRows(original.items, ITEM_ROWS),
+        ...restoreRows(original.adjustments, ADJUSTMENT_ROWS),
+        ({ receipt }) => {
+          const subtotalDelta = cents(original.subtotal - receipt.subtotal);
+          const totalDelta = cents(original.total - receipt.total);
+          return subtotalDelta === 0 && totalDelta === 0 ? [] : [{ kind: "totals", subtotalDelta, totalDelta }];
+        },
+      ]);
+    }
   }
+}
+
+type RowCodec<Row extends { readonly id: string }, Original extends { readonly id: string }> = {
+  readonly rows: (split: Split) => readonly Row[];
+  readonly add: (row: Original, index: number, moved: Row | undefined) => Write;
+  readonly remove: (row: Row, index: number) => Write;
+  readonly edit: (row: Row, to: Original) => readonly Write[];
+};
+
+const ITEM_ROWS: RowCodec<SplitItem, Item> = {
+  rows: (split) => split.receipt.items,
+  add: ({ id, name, price }, index, moved) => ({ kind: "item", id, added: { index, name, price, claimedBy: moved?.claimedBy ?? [] } }),
+  remove: ({ id, name, price, claimedBy }, index) => ({ kind: "item", id, removed: { index, name, price, claimedBy } }),
+  edit: ({ id, name, price }, to) => {
+    const edit = diff({ name, price }, { name: to.name, price: to.price });
+    return edit === null || edit === "emptyEdit" ? [] : [{ kind: "item", id, edit }];
+  },
+};
+
+const ADJUSTMENT_ROWS: RowCodec<Adjustment, Adjustment> = {
+  rows: (split) => split.receipt.adjustments,
+  add: ({ id, kind, name, amount }, index) => ({ kind: "adjustment", id, added: { index, kind, name, amount } }),
+  remove: ({ id, kind, name, amount }, index) => ({ kind: "adjustment", id, removed: { index, kind, name, amount } }),
+  edit: ({ id, kind, name, amount }, to) => {
+    const edit = diff({ kind, name, amount }, { kind: to.kind, name: to.name, amount: to.amount });
+    return edit === null || edit === "emptyEdit" ? [] : [{ kind: "adjustment", id, edit }];
+  },
+};
+
+/** Rows not in the original go first while an original row remains, so the Items never run empty. Each original row then moves to its place, keeping its Claims, and rows left past the end go last. */
+function restoreRows<Row extends { readonly id: string }, Original extends { readonly id: string }>(
+  original: readonly Original[],
+  codec: RowCodec<Row, Original>,
+): MakeWrites[] {
+  const wanted = new Set(original.map(({ id }) => id));
+  const removeFrom = (split: Split, from: number, keep: (row: Row) => boolean) =>
+    codec
+      .rows(split)
+      .map((row, index) => ({ row, index }))
+      .filter(({ row, index }) => index >= from && !keep(row))
+      .reverse()
+      .map(({ row, index }) => codec.remove(row, index));
+  return [
+    (split) => (codec.rows(split).some(({ id }) => wanted.has(id)) ? removeFrom(split, 0, ({ id }) => wanted.has(id)) : []),
+    ...original.map((to, index): MakeWrites => (split) => {
+      const rows = codec.rows(split);
+      if (rows[index]?.id === to.id) return codec.edit(rows[index], to);
+      const at = indexOf(rows, to.id);
+      return at === -1 ? [codec.add(to, index, undefined)] : [codec.remove(rows[at], at), codec.add(to, index, rows[at])];
+    }),
+    (split) => removeFrom(split, original.length, () => false),
+  ];
 }
 
 function undo(split: Split, revision: number): Step {
@@ -544,7 +614,7 @@ export type WireRejection =
   | { readonly reason: "rateLimited"; readonly retryAfterMs: number }
   | { readonly reason: "messageTooLarge" };
 
-/** While the Split is live, each ClientMessage gets exactly one answer, in the order sent: a `state` or `unchanged` carrying its ref, or a `rejected` whose ref is null when the frame was refused before its ref was read. A `state` with a null ref is the snapshot on connect or someone else's change. `unavailable` ends the socket. A frame sent before the `retryAfterMs` of the socket's preceding `rateLimited` refusal has elapsed is early. The 100th early frame since the socket's last admitted frame gets its `rejected`, and then the socket is closed with code 1008 and reason `rateLimited`. A frame that waits out `retryAfterMs` neither counts nor resets the count. No frame after a close gets an answer. */
+/** While the Split is live, each ClientMessage gets exactly one answer, in the order sent: a `state` or `unchanged` carrying its ref, or a `rejected` whose ref is null when the frame was refused before its ref was read. A `state` with a null ref is the snapshot on connect or someone else's change. `unavailable` ends the socket. A recorded change that would write history faster than the Split's history rate gets a `rateLimited` refusal carrying its ref, and is not early. A frame sent before the `retryAfterMs` of the socket's preceding `rateLimited` refusal with a null ref has elapsed is early. The 100th early frame since the socket's last admitted frame gets its `rejected`, and then the socket is closed with code 1008 and reason `rateLimited`. A frame that waits out `retryAfterMs` neither counts nor resets the count. No frame after a close gets an answer. */
 export type ServerMessage =
   | { readonly type: "state"; readonly ref: string | null; readonly split: Split }
   | { readonly type: "unchanged"; readonly ref: string; readonly revision: number }
@@ -554,8 +624,9 @@ export type ServerMessage =
 export function createSplit(input: NewSplit): { readonly ok: true; readonly split: Split } | Rejected {
   const { items, adjustments, subtotal, total } = input.receipt;
   const unclaimed = ({ id, name, price }: Item) => ({ id, name, price, claimedBy: [] });
+  const plain = ({ id, name, price }: Item) => ({ id, name, price });
   const [first, ...rest] = items;
-  const split: Split = {
+  const bare: Split = {
     schemaVersion: 1,
     id: input.id,
     currency: "USD",
@@ -567,6 +638,8 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
     revision: 0,
     recentChanges: [],
   };
+  const withOriginal: Split = { ...bare, original: { items: [plain(first), ...rest.map(plain)], adjustments, subtotal, total } };
+  const split = checkSplit(withOriginal) === null ? withOriginal : bare;
   const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : checkSplit(split);
   return rejection ? { ok: false, rejection } : { ok: true, split };
 }

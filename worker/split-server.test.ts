@@ -144,6 +144,55 @@ describe("picks, edits, and Undo between clients", () => {
   });
 });
 
+describe("a flood of recorded changes", () => {
+  const op = (ref: string, operation: object): ClientMessage => JSON.parse(JSON.stringify({ ref, op: operation }));
+
+  it("is rate limited by bytes before it pushes a price change out of the recent changes, so Undo still reaches it, and restoreReceipt puts the price back", async () => {
+    const { id } = await createSplit();
+    const victim = await open(id);
+    const vandal = await open(id);
+    victim.client.send(
+      op("v1", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 1 }], subtotalDelta: -799, totalDelta: -799 }),
+    );
+    await victim.client.next();
+    await vandal.client.next();
+
+    for (let index = 0; index < 100; index += 1) {
+      vandal.client.send(op(`f${index}`, { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "pitcher", name: `Pitcher ${index}` }] }));
+    }
+    const replies: ServerMessage[] = [];
+    for (let index = 0; index < 100; index += 1) replies.push(await vandal.client.next());
+    const landed = replies.filter((reply) => reply.type === "state");
+    const byBytes = replies.filter((reply) => reply.type === "rejected" && reply.ref !== null);
+    const last = landed.at(-1);
+    if (last?.type !== "state") throw new Error("expected a state");
+
+    expect([landed.length, byBytes.length, replies.length - landed.length - byBytes.length]).toEqual([35, 24, 41]);
+    expect(byBytes[0]).toEqual({ type: "rejected", ref: "f35", rejection: { reason: "rateLimited", retryAfterMs: 99 } });
+    expect(last.split.recentChanges[0]).toMatchObject({
+      revision: 1,
+      writes: [
+        { kind: "item", id: "fries", edit: { price: [800, 1] } },
+        { kind: "totals", subtotalDelta: -799, totalDelta: -799 },
+      ],
+    });
+
+    vi.setSystemTime(T0 + 10_000);
+    victim.client.send(op("v2", { type: "undo", by: null, revision: 1 }));
+    victim.client.send(op("v3", { type: "undo", by: null, revision: last.split.revision + 1 }));
+    victim.client.send(op("v4", { type: "restoreReceipt", by: null }));
+    const answers: ServerMessage[] = [];
+    for (let index = 0; index < 38; index += 1) answers.push(await victim.client.next());
+    const mine = answers.filter((answer) => answer.type !== "state" || answer.ref !== null);
+
+    expect(mine.map((answer) => (answer.type === "state" ? [answer.ref, answer.split.receipt.items.map(({ name, price }) => [name, price])] : answer))).toEqual([
+      ["v2", [["Fries", 800], ["Pitcher 34", 3000]]],
+      ["v3", [["Fries", 1], ["Pitcher 34", 3000]]],
+      ["v4", [["Fries", 800], ["Pitcher", 3000]]],
+    ]);
+  });
+});
+
 describe("Payment handles", () => {
   const setHandles = (ref: string, creatorSecret?: string) =>
     JSON.parse(
@@ -370,6 +419,7 @@ describe("refusals leave the stored Split unchanged", () => {
     let refusedItem = "";
     for (let index = 0; rejection === null; index += 1) {
       refusedItem = `extra${index}`;
+      vi.setSystemTime(T0 + index * 10_000);
       a.client.send({
         ref: `add${index}`,
         op: JSON.parse(
