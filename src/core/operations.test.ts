@@ -606,7 +606,7 @@ describe("Item quantity and split", () => {
     expect(undone.receipt.items[2].split).toEqual({ by: "even", units: [["ann", "bob", "cat"]] });
   });
 
-  test("Undo of a quantity change puts the units back, and Cat keeps the unit she claimed since", () => {
+  test("Undo of a quantity change puts the units back, and drops the claim Cat made on the unit that went away", () => {
     const doubled = apply(withBobAndCat(), edit({ quantity: 2 }));
     const claimed = apply(doubled, claim(pitcher, cat, 1));
 

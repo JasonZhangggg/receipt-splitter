@@ -53,7 +53,6 @@ export const joinCopy = {
   nameTaken: "That name is already here.",
   nameRefused: "Couldn't add that name. Try another.",
   joinFailed: "Couldn't join. Try again.",
-  notMe: (name: string) => `Not ${name}?`,
   atTheTable: "At the table",
   newSplit: "Split a receipt",
   expired: { title: "This split has expired", hint: "A split lasts 60 days after its last change." },
