@@ -15,7 +15,6 @@ type Props = {
   selected: ParticipantId | null;
   onSelect: (id: ParticipantId) => void;
   onAdd: (name: string) => void;
-  /** Chips fade in from scale 0.96, 30 ms apart, as the pick sheet collapses. */
   entering?: boolean;
   label?: string;
 };

@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Drives the Split page main flow with four browsers and saves the round 8 frames.
-// PORT=<port> OUT=<folder> [SCHEME=dark] [REDUCE=1] [VIDEO=1] node .claude/skills/verify-receipt-splitter/split-flow.mjs
 import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium, devices } from "@playwright/test";
 

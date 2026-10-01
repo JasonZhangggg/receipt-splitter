@@ -67,13 +67,11 @@ function Gone({ reason }: { reason: GoneReason }) {
   );
 }
 
-/** pick is the tall sheet, collapsing the 80 ms check and the spring down after a pick, and regular the chips and what you owe. */
 type Phase = "pick" | "collapsing" | "regular";
 type Overlay = { readonly kind: "item"; readonly itemId: ItemId } | { readonly kind: "history" } | null;
 type Send = ReturnType<typeof useLiveSplit>["send"];
 
 const checkFor = 80;
-/** The tall sheet's top sits 170 px down the screen, so the receipt still peeks out above it. */
 const tallPickTop = 170;
 const settleFor = 420;
 
@@ -128,7 +126,6 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
     );
   };
 
-  /** Adds a typed name to the Split and returns its id, or why it was not added. */
   const addPerson = async (typed: string): Promise<{ readonly id: ParticipantId } | { readonly refused: string }> => {
     const name = newName(typed, people.map(({ name: other }) => other));
     if (!name) return { refused: typed.trim() ? say.nameTaken : say.nameNeeded };

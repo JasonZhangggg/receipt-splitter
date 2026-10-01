@@ -22,16 +22,13 @@ export type Shares = {
 
 type Party = ParticipantId | null;
 
-/** One party's part of one unit over the unit's denominator. The parts of a unit sum to the denominator, and the null party is Unclaimed. */
 type UnitParts = { readonly parts: ReadonlyMap<Party, bigint>; readonly denominator: bigint };
 
-/** The cents of each unit of a line: the price split as evenly as whole cents allow, the first units taking the extra cents. */
 export function unitPrices(price: number, units: number): number[] {
   const base = Math.floor(price / units);
   return Array.from({ length: units }, (_, index) => base + (index < price % units ? 1 : 0));
 }
 
-/** Evenly gives each claimer of the unit the same part, by shares in proportion to their weights, and by amount their cents, leaving the rest Unclaimed. A unit nobody had is Unclaimed. */
 function unitParts(split: ItemSplit, index: number, unitPrice: number): UnitParts {
   const entries: readonly (readonly [ParticipantId, bigint])[] =
     split.by === "even" ? split.units[index].map((id) => [id, 1n]) : split.units[index].map(([id, value]) => [id, BigInt(value)]);
@@ -45,7 +42,6 @@ function unitParts(split: ItemSplit, index: number, unitPrice: number): UnitPart
 
 type Piece = UnitParts & { readonly item: number; readonly weight: bigint };
 
-/** Every unit of every Item as one piece, weighted by its cents, or by 1 when every Item is $0.00. */
 function pieces(items: readonly SplitItem[]): readonly Piece[] {
   const anyPriced = items.some((item) => item.price > 0);
   return items.flatMap(({ price, split }, item) =>
@@ -92,7 +88,6 @@ export function computeShares(split: Pick<Split, "receipt" | "participants" | "p
 }
 
 export type ShareBreakdown = {
-  /** fraction is the reduced part of the Item this Participant had, counting each unit equally, so one of two pitchers is 1/2. */
   readonly items: readonly { readonly id: ItemId; readonly name: string; readonly price: Price; readonly fraction: readonly [number, number]; readonly portion: Cents }[];
   readonly adjustments: readonly { readonly id: AdjustmentId; readonly kind: AdjustmentKind; readonly name: string; readonly portion: Cents }[];
   readonly share: Cents;

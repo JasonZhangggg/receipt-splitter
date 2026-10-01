@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { cents, price } from "../../core/money";
 import { itemId, participantId, type ItemSplit, type SplitItem } from "../../core/split";
-import { circleTap, itemsGap, lineTag, shareLabel, unitAmounts } from "./model";
+import { circleTap, itemsOverSubtotal, lineTag, shareLabel, unitAmounts } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -47,10 +47,10 @@ describe("circleTap", () => {
   });
 });
 
-test("itemsGap is positive when the Items run over the printed subtotal and negative when short", () => {
+test("itemsOverSubtotal is positive when the Items run over the printed subtotal and negative when short", () => {
   const receipt = (sprite: number) => ({ items: [item({ by: "even", units: [[]] }, sprite)] as const, adjustments: [], subtotal: cents(250), total: cents(250) });
 
-  expect([itemsGap(receipt(275)), itemsGap(receipt(200)), itemsGap(receipt(250))]).toEqual([25, -50, 0]);
+  expect([itemsOverSubtotal(receipt(275)), itemsOverSubtotal(receipt(200)), itemsOverSubtotal(receipt(250))]).toEqual([25, -50, 0]);
 });
 
 test("unitAmounts divides each unit's cents by largest remainder, and shows typed cents under amount", () => {

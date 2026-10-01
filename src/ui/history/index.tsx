@@ -20,7 +20,6 @@ type Props = {
 
 type Asking = { readonly revision: number | "restore"; readonly name: string | null };
 
-/** History of frame I3: Payments and manual Receipt changes, newest first, each revertable once. Reverting a change made on another device, or restoring the Receipt, asks first. */
 export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -39,7 +38,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
     setProblem((await action()) ? null : say.revertFailed);
   };
   const revert = (entry: Entry) => {
-    if (entry.by !== null && entry.by === me) return void run(() => onRevert(entry.revision));
+    if (entry.sentAs !== null && entry.sentAs === me) return void run(() => onRevert(entry.revision));
     setAsking({ revision: entry.revision, name: entry.name });
   };
 

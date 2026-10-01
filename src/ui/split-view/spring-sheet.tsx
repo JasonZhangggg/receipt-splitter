@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,17 +16,12 @@ const grabbable = webStyle({ touchAction: "none", cursor: "grab" });
 
 type Props = {
   children: ReactNode;
-  /** Dims the page behind the sheet. It fades as the sheet is dragged down, and over the spring's time when it turns off. */
   scrim?: boolean;
-  /** A sheet with onClose answers a flick down or a scrim tap. It slides off screen and then calls it, or with `stays` calls it at once and springs to whatever content comes next. */
   onClose?: () => void;
   stays?: boolean;
-  /** The tall pick sheet reaches this high even when its content is short. */
   minHeight?: number;
-  /** Bumped by the parent to ask the sheet to leave the way a flick would. */
   closing?: boolean;
   onHeight?: (height: number) => void;
-  /** Drawn under the content without counting toward its height, such as the pick list fading out as the sheet drops. */
   extra?: ReactNode;
   label: string;
   testID?: string;
@@ -34,7 +29,6 @@ type Props = {
 
 type Drag = { pointer: number; startY: number; from: number; moved: boolean; samples: { y: number; t: number }[] };
 
-/** A bottom sheet whose height follows its content on one critically damped spring of 0.35 s, moving only transform. Under reduced motion it jumps and cross-fades over 200 ms. */
 export function SpringSheet({ children, scrim = false, onClose, stays = false, closing = false, onHeight, extra, minHeight = 0, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -80,17 +74,17 @@ export function SpringSheet({ children, scrim = false, onClose, stays = false, c
     settle(tallest, velocity, onClose);
   };
 
-  useLayoutEffect(() => {
+  const follow = useEffectEvent(() => {
     if (offset.current === null) paint(tallest);
     if (visible === 0 || drag.current || leaving.current) return;
     settle(tallest - visible, handoff.current);
     handoff.current = 0;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, tallest]);
+  });
+  useLayoutEffect(() => follow(), [visible, tallest]);
 
+  const close = useEffectEvent(() => leave(0));
   useEffect(() => {
-    if (closing) leave(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (closing) close();
   }, [closing]);
 
   useEffect(() => onHeight?.(visible), [visible, onHeight]);

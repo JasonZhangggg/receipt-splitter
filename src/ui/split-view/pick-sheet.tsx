@@ -21,7 +21,6 @@ type Props = {
   onClose: () => void;
 };
 
-/** The tall "Which one are you?" sheet of frames B, C, C2, and D. */
 export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -91,7 +90,6 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
 
 type RowsProps = Pick<Props, "rows" | "chosen" | "leaving" | "onPick">;
 
-/** The names of the tall sheet. As the sheet collapses, every row but the picked one blurs out. */
 export function PickRows({ rows, chosen, leaving, onPick }: RowsProps) {
   const c = useColors();
   const reduce = useReducedMotion();

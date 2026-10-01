@@ -11,7 +11,6 @@ export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24, xxl: 32, xxxl: 48, hug
 
 export const breakpoints = { panelFrom: 900 } as const;
 
-/** Round 8 spacing, about 2 px roomier than round 7. */
 export const layout = {
   gutter: 22,
   header: 60,

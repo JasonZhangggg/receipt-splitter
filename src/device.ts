@@ -31,7 +31,6 @@ export function rememberSplit(id: SplitId, change: { creatorSecret?: string; me?
 
 let device: DeviceId | null = null;
 
-/** This browser's id, made once and kept, so a Split can tell which device holds a picked name. */
 export function thisDevice(): DeviceId {
   if (device) return device;
   try {

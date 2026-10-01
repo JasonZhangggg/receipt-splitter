@@ -8,12 +8,11 @@ import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, itemsGap, lineTag } from "./model";
+import { claimersOfItem, itemsOverSubtotal, lineTag } from "./model";
 
 type Props = {
   split: Split;
   shares: Shares;
-  /** Whose lines the circles check. Null while browsing. */
   selected: Participant | null;
   me: ParticipantId | null;
   onCircle: (item: SplitItem) => void;
@@ -27,7 +26,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   const c = useColors();
   const { items, adjustments, subtotal, total } = split.receipt;
   const started = items.some((item) => claimersOfItem(item).length > 0);
-  const gap = itemsGap(split.receipt);
+  const gap = itemsOverSubtotal(split.receipt);
   const nameOf = (id: ParticipantId) => split.participants.find((person) => person.id === id)?.name ?? "";
 
   return (

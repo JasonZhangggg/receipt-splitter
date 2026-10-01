@@ -20,7 +20,6 @@ type Props = {
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
 
-/** The plain web link for paying a handle. RS-11 replaces it with the full pay links and the phone apps. */
 function payUrl({ service, handle }: PaymentHandle, amount: number): string | null {
   const value = plainAmount(amount);
   if (service === "venmo") return `https://venmo.com/${encodeURIComponent(handle)}?txn=pay&amount=${value}`;
@@ -29,7 +28,6 @@ function payUrl({ service, handle }: PaymentHandle, amount: number): string | nu
   return null;
 }
 
-/** One person's Items, their part of each Adjustment, and their total, per frames G and H. Each person's lines add up to their own Share. */
 export function Breakdown({ split, person, mine, onPaid }: Props) {
   const c = useColors();
   const { items, adjustments, share } = shareBreakdown(split, person.id);

@@ -7,7 +7,6 @@ import { type, useColors } from "../theme";
 
 const copiedFor = 1600;
 
-/** "Link ready" with Share and Copy, which the creating device sees until it shares the link, per frame E. */
 export function LinkLine({ url, onShared }: { url: string; onShared: () => void }) {
   const c = useColors();
   const [copied, setCopied] = useState(false);

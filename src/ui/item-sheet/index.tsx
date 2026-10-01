@@ -27,7 +27,6 @@ type Props = {
 const saveAfter = 600;
 const tabular = { fontVariant: ["tabular-nums" as const] };
 
-/** Merges a newer edit into a pending one, so a run of steps becomes one recorded change. */
 function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   const values = [...(pending.values ?? []), ...(next.values ?? [])].filter(
     (value, index, all) => all.findLastIndex((other) => other.unit === value.unit && other.participantId === value.participantId) === index,
@@ -36,7 +35,6 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   return { ...pending, ...next, values: reshaped ? (next.values ?? []) : values };
 }
 
-/** The Item sheet of frames I1 and I2. Edits save as you go: a burst of them waits 600 ms and goes as one change, and closing sends what is left. */
 export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -202,7 +200,6 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
 
 type SplitRowsProps = { item: SplitItem; me: ParticipantId | null; nameOf: (id: ParticipantId) => string; edit: (next: ItemEdit) => void };
 
-/** One row per person on each unit: their share count, their cents field, or what evenly gives them. */
 function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
   const c = useColors();
   const amounts = unitAmounts(item);

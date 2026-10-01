@@ -195,18 +195,19 @@ function units<T>(parser: Parser<T>) {
   return nonEmpty(array(parser, MAX_PARTICIPANTS), MAX_QUANTITY);
 }
 
+/** Items stored before per-unit claims list who had the whole line, which is one even unit. */
+const lineClaimersAsOneUnit: Parser<ItemSplit> = (input, path) => ({ by: "even", units: [array(participantId, MAX_PARTICIPANTS)(input, path)] });
+
 const itemSplit = tagged<ItemSplit>("by", {
   even: strict(({ read }) => ({ by: read("by", literal("even")), units: read("units", units(participantId)) })),
   shares: strict(({ read }) => ({ by: read("by", literal("shares")), units: read("units", units(part(count))) })),
   amount: strict(({ read }) => ({ by: read("by", literal("amount")), units: read("units", units(part(cents))) })),
 });
 
-/** A stored Item has a split, or the line-level claimedBy written before per-unit claims, which reads as one even unit. */
 const itemFields = ({ read, has, fail }: Fields) => {
   const head = { name: read("name", text), price: read("price", price) };
   if (has("claimedBy") === has("split")) return fail("split");
-  if (has("split")) return { ...head, split: read("split", itemSplit) };
-  return { ...head, split: { by: "even" as const, units: [read("claimedBy", array(participantId, MAX_PARTICIPANTS))] as const } };
+  return { ...head, split: has("split") ? read("split", itemSplit) : read("claimedBy", lineClaimersAsOneUnit) };
 };
 const itemEdit = ({ maybe }: Fields) => ({
   ...maybe("name", pair(text)),

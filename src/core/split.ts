@@ -8,7 +8,6 @@ export type SplitId = Id<"SplitId">;
 export type ParticipantId = Id<"ParticipantId">;
 export type ItemId = Id<"ItemId">;
 export type AdjustmentId = Id<"AdjustmentId">;
-/** Names the browser that picked a name, so a browser can see that "That's me" on another phone took its name. */
 export type DeviceId = Id<"DeviceId">;
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,24}$/;
@@ -77,7 +76,6 @@ export type Receipt<I extends Item = Item> = {
   readonly total: Cents;
 };
 
-/** One claimer of one unit, with a whole-number weight under shares or the cents they pay under amount. */
 export type Part<Value extends number> = readonly [participantId: ParticipantId, value: Value];
 
 /** How an Item divides. Each entry of `units` is one unit of the line and lists who had it, sorted by id, so the quantity is `units.length`. */
@@ -92,7 +90,6 @@ export type SplitMode = (typeof SPLIT_MODES)[number];
 
 export type SplitItem = ItemRow & { readonly split: ItemSplit };
 
-/** A name a device picked as itself, and the device holding it. A pick stored before devices has none. */
 export type NamePick = { readonly participantId: ParticipantId; readonly device?: DeviceId };
 
 export type Participant = {
@@ -147,7 +144,6 @@ export type Write =
       readonly after: Cents | null;
     };
 
-/** Writes that Splits stored before per-unit claims and device picks may still hold. They parse and show, and Undo refuses them. */
 export type LegacyWrite =
   | { readonly kind: "joined"; readonly participantId: ParticipantId; readonly joined: boolean }
   | {
@@ -163,7 +159,6 @@ export type Change = {
   readonly undoes: number | null;
   readonly undoneBy: number | null;
   readonly writes: NonEmpty<Write | LegacyWrite>;
-  /** Milliseconds since 1970 when the server recorded it. Absent on changes stored before it. */
   readonly at?: number;
 };
 
@@ -172,7 +167,6 @@ export type Split = {
   readonly id: SplitId;
   readonly currency: "USD";
   readonly receipt: Receipt<SplitItem>;
-  /** The Receipt as the Split was created, for restoreReceipt. Absent on Splits stored before it, and on a Receipt too large to keep twice. */
   readonly original?: Receipt;
   readonly participants: readonly [host: Participant, ...others: Participant[]];
   /** Sorted by id, one per picked name. */

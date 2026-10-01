@@ -8,7 +8,6 @@ import { Button } from "./button";
 type Props = {
   names: readonly string[];
   onAdd: (name: string) => void;
-  /** Absent once the link exists, since people can only be added to a Split. */
   onRemove?: (name: string) => void;
   outsideScroll?: boolean;
 };

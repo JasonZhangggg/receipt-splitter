@@ -15,7 +15,6 @@ type TargetProps = {
   disabled?: boolean;
   busy?: boolean;
   describedBy?: string;
-  /** Makes the target a toggle button with aria-pressed. */
   toggled?: boolean;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;

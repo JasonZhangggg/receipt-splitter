@@ -7,7 +7,6 @@ import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
 
-/** "You owe $12.05" with a chevron that opens your breakdown, per frame F. */
 export function OweLine({ label, amount, onPress }: { label: string; amount: number; onPress: () => void }) {
   const c = useColors();
   const reduce = useReducedMotion();

@@ -242,7 +242,6 @@ function totalCheck(receipt: DraftReceipt) {
 export const filledHandles = (handles: readonly HandleRow[]): PaymentHandle[] =>
   handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
 
-/** The first name is the Host's, since the Host types their own name first. */
 export function splitRequest({ scan, handles, names }: Draft, newId: () => ParticipantId): Omit<NewSplit, "id"> | null {
   const receipt = scan.status === "read" ? receiptOf(scan.receipt) : null;
   const [first, ...rest] = filledHandles(handles);

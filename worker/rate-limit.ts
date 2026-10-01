@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { MAX_CHANGE_BYTES } from "../src/core/operations";
+import { HISTORY_BURST_BYTES } from "../src/core/operations";
 
 export type Bucket = { readonly tokens: number; readonly at: number };
 
@@ -11,7 +11,7 @@ export type Admission<State> =
 
 export const OPERATION_LIMIT: BucketLimit = { burst: 60, perSecond: 20 };
 
-export const HISTORY_LIMIT: BucketLimit = { burst: MAX_CHANGE_BYTES, perSecond: 1024 };
+export const HISTORY_LIMIT: BucketLimit = { burst: HISTORY_BURST_BYTES, perSecond: 1024 };
 
 export function takeToken(bucket: Bucket | null, now: number, limit: BucketLimit, cost = 1): Admission<Bucket> {
   const refilled = bucket

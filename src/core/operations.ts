@@ -44,8 +44,10 @@ export const RECENT_CHANGES_LIMIT = 64;
 export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
 export const MAX_CHANGE_BYTES = 5 * 1024;
-/** Room for one change of any size plus a full burst of the Worker's history rate, which is MAX_CHANGE_BYTES, with the commas between changes. So a burst cannot evict a change someone could still undo. */
-export const HISTORY_RESERVE_BYTES = 2 * MAX_CHANGE_BYTES + RECENT_CHANGES_LIMIT;
+/** Bytes of recorded changes a Split may write in one burst before the Worker's history rate refuses more. */
+export const HISTORY_BURST_BYTES = MAX_CHANGE_BYTES;
+const COMMAS_BETWEEN_CHANGES = RECENT_CHANGES_LIMIT;
+export const HISTORY_RESERVE_BYTES = MAX_CHANGE_BYTES + HISTORY_BURST_BYTES + COMMAS_BETWEEN_CHANGES;
 
 export type ItemPatch =
   | { readonly type: "add"; readonly item: Item; readonly index: number }
@@ -142,7 +144,6 @@ type Step = { readonly ok: true; readonly split: Split; readonly record: Recorde
 
 type MakeWrites = (split: Split) => readonly Write[] | RejectionReason;
 
-/** `at` is when the server took the operation, kept on the change it records. */
 export function applyOperation(split: Split, op: Operation, auth: Auth, at?: number): OperationResult {
   const step = run(split, op, auth);
   if (!step.ok) return step;
@@ -256,11 +257,11 @@ const ITEM_ROWS: RowCodec<SplitItem, Item> = {
   add: ({ id, name, price, quantity = 1 }, index, moved) => ({
     kind: "item",
     id,
-    added: { index, name, price, split: fitPrice(resize(moved?.split ?? evenUnits(1), quantity), price) },
+    added: { index, name, price, split: evenIfOverPrice(resize(moved?.split ?? evenUnits(1), quantity), price) },
   }),
   remove: ({ id, name, price, split }, index) => ({ kind: "item", id, removed: { index, name, price, split } }),
   edit: ({ id, name, price, split }, to) => {
-    const edit = diff({ name, price, split }, { name: to.name, price: to.price, split: fitPrice(resize(split, to.quantity ?? 1), to.price) });
+    const edit = diff({ name, price, split }, { name: to.name, price: to.price, split: evenIfOverPrice(resize(split, to.quantity ?? 1), to.price) });
     return edit === null || edit === "emptyEdit" ? [] : [{ kind: "item", id, edit }];
   },
 };
@@ -279,7 +280,6 @@ function unitsOf(split: ItemSplit): (readonly ParticipantId[])[] {
 
 const STARTING_VALUE = { shares: 1, amount: 0 } as const;
 
-/** Builds a split from who had each unit, taking each claimer's value from `valueOf` or the mode's starting value. */
 function withClaimers(by: SplitMode, claimers: readonly (readonly ParticipantId[])[], valueOf: (unit: number, id: ParticipantId) => number | undefined): ItemSplit {
   const [first = [], ...rest] = claimers;
   if (by === "even") return { by, units: [first, ...rest] };
@@ -301,14 +301,12 @@ function toggleClaimer(split: ItemSplit, unit: number, id: ParticipantId, claime
   return withClaimers(split.by, units, (at, claimer) => valueIn(split, at, claimer));
 }
 
-/** Adds empty units or drops the last ones. */
 function resize(split: ItemSplit, quantity: number): ItemSplit {
   const now = unitsOf(split);
   return withClaimers(split.by, Array.from({ length: quantity }, (_, unit) => now[unit] ?? []), (unit, id) => valueIn(split, unit, id));
 }
 
-/** Restoring a price can leave an amount split over it, so that split goes back to even rather than block the restore. */
-function fitPrice(split: ItemSplit, price: number): ItemSplit {
+function evenIfOverPrice(split: ItemSplit, price: number): ItemSplit {
   return overPrice(split, price) ? withClaimers("even", unitsOf(split), () => undefined) : split;
 }
 
@@ -318,7 +316,6 @@ function overPrice(split: ItemSplit, price: number): boolean {
   return split.units.some((unit, index) => unit.reduce((total, [, cents]) => total + cents, 0) > prices[index]);
 }
 
-/** The split an edit asks for: resized, then switched to its new mode, then each value set. */
 function editedSplit(split: ItemSplit, { quantity, by, values }: Extract<ItemPatch, { type: "edit" }>): ItemSplit | RejectionReason {
   if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY)) return "amountOutOfRange";
   let next = quantity === undefined ? split : resize(split, quantity);
@@ -332,8 +329,7 @@ function editedSplit(split: ItemSplit, { quantity, by, values }: Extract<ItemPat
   return next;
 }
 
-/** Undo puts back the mode, the quantity, and the values of `target`, and keeps who has each unit now, so claims made since do not block it. */
-function rebase(target: ItemSplit, current: ItemSplit): ItemSplit {
+function keepClaimersRestoreShape(target: ItemSplit, current: ItemSplit): ItemSplit {
   const now = unitsOf(current);
   return withClaimers(target.by, unitsOf(target).map((ids, unit) => now[unit] ?? ids), (unit, id) => valueIn(target, unit, id));
 }
@@ -348,7 +344,6 @@ const ADJUSTMENT_ROWS: RowCodec<Adjustment, Adjustment> = {
   },
 };
 
-/** Rows not in the original go first while an original row remains, so the Items never run empty. Each original row then moves to its place, keeping its Claims, and rows left past the end go last. */
 function restoreRows<Row extends { readonly id: string }, Original extends { readonly id: string }>(
   original: readonly Original[],
   codec: RowCodec<Row, Original>,
@@ -397,7 +392,7 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] {
       if ("added" in write && current) return [{ kind: "item", id: write.id, removed: { index: at, name: current.name, price: current.price, split: current.split } }];
       const inverted = invertRow(write, at);
       if (!("edit" in inverted) || !("edit" in write) || !write.edit.split || !current) return [{ kind: "item", ...inverted }];
-      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, rebase(write.edit.split[0], current.split)] } }];
+      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, keepClaimersRestoreShape(write.edit.split[0], current.split)] } }];
     }
     case "adjustment":
       return [{ kind: "adjustment", ...invertRow(write, indexOf(split.receipt.adjustments, write.id)) }];

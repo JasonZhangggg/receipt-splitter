@@ -14,7 +14,6 @@ const fills: Record<Tone, (c: Colors) => { fill: string; ink: string }> = {
   none: (c) => ({ fill: "transparent", ink: c.muted }),
 };
 
-/** A person's initial in a circle. */
 export function Dot({ name, size = 24, tone = "dot", ring }: { name: string; size?: number; tone?: Tone; ring?: string }) {
   const c = useColors();
   const { fill, ink } = fills[tone](c);
