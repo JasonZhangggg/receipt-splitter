@@ -95,9 +95,15 @@ test("Create split link shows the blocked look, draws no press, and eases to bla
       return [style.backgroundColor, style.transitionProperty, style.transitionDuration, style.transitionTimingFunction];
     });
   expect(await look()).toEqual(["rgb(238, 239, 241)", "background-color", "0.18s", "ease"]);
-  await pressAndHold(action(page));
+  const cdp = await pressAndHold(action(page));
   await page.waitForTimeout(300);
-  expect(await pressLook(page, action)).toEqual(restLook);
+  const afterTouch = await pressLook(page, action);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await action(page).click({ force: true });
+  await page.keyboard.down(" ");
+  await page.waitForTimeout(300);
+  expect({ afterTouch, afterClickAndSpace: await pressLook(page, action) }).toEqual({ afterTouch: restLook, afterClickAndSpace: restLook });
+  await page.keyboard.up(" ");
 });
 
 test("the sheet stands taller than the 223 px prototype at 390 by 844", async ({ page }) => {
@@ -383,7 +389,7 @@ for (const pointerType of ["mouse", "pen"] as const) {
   test(`a ${pointerType} press shows and activates the hero only when it starts on it`, async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 500 }, hasTouch: false, isMobile: false });
     const page = await context.newPage();
-    await watchHero(page);
+    await watchPress(page);
     const box = (await hero(page).boundingBox())!;
     const on = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const off = { x: on.x, y: box.y - 40 };
@@ -444,7 +450,7 @@ const glide = (from: At, to: At) => [1, 2, 3, 4, 5, 6].map((step) => ({ x: from.
 async function desktopHeroPress(browser: Browser) {
   const context = await browser.newContext({ viewport: shortDesktop, hasTouch: false, isMobile: false });
   const page = await context.newPage();
-  await watchHero(page);
+  await watchPress(page);
   const box = (await hero(page).boundingBox())!;
   const on = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   const cdp = await context.newCDPSession(page);
@@ -609,13 +615,13 @@ test("a mouse press on the hero shows within 50 ms on a touch-first device", asy
 
 type PressLog = { start: number; end: number; clicks: number; scrollTop: number; scrolled: number; frames: { at: number; pressed: boolean }[] };
 
-async function watchHero(page: Page) {
+async function watchPress(page: Page, target: Target = hero) {
   await page.goto("/");
   await settle(page);
-  await hero(page).evaluate((target) => {
+  await target(page).evaluate((target) => {
     const button = target.querySelector("[data-press-face]") ?? target;
     let scroller = target.parentElement!;
-    while (!/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement!;
+    while (scroller.parentElement && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
     const log: PressLog = { start: 0, end: 0, clicks: 0, scrollTop: scroller.scrollTop, scrolled: 0, frames: [] };
     addEventListener(
       "click",
@@ -627,6 +633,7 @@ async function watchHero(page: Page) {
     );
     addEventListener("pointerdown", (event) => (log.start ||= event.timeStamp), { capture: true });
     addEventListener("pointerup", (event) => (log.end = event.timeStamp), { capture: true });
+    addEventListener("keyup", (event) => (log.end = event.timeStamp), { capture: true });
     const sample = () => {
       const style = getComputedStyle(button);
       const pressed = style.transform !== "none" || style.opacity !== "1" || button.getAnimations().length > 0;
@@ -642,11 +649,11 @@ async function watchHero(page: Page) {
 async function watchShortPhoneHero(page: Page, reducedMotion: "no-preference" | "reduce") {
   await page.setViewportSize(shortPhone);
   await page.emulateMedia({ reducedMotion });
-  await watchHero(page);
+  await watchPress(page);
 }
 
-async function touchHero(page: Page, { moves = [] as number[], gap = 8, hold = 400, release = true } = {}) {
-  const box = (await hero(page).boundingBox())!;
+async function touchPress(page: Page, { moves = [] as number[], gap = 8, hold = 400, release = true } = {}, target: Target = hero) {
+  const box = (await target(page).boundingBox())!;
   const at = (dy: number) => [{ x: box.x + box.width / 2, y: box.y + box.height / 2 + dy }];
   const cdp = await page.context().newCDPSession(page);
   await page.evaluate(() => {
@@ -663,7 +670,7 @@ async function touchHero(page: Page, { moves = [] as number[], gap = 8, hold = 4
   await page.waitForTimeout(300);
   const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
   const pressedAt = log.frames.filter((frame) => frame.pressed).map((frame) => Math.round(frame.at - log.start));
-  return { scrolled: log.scrolled, pressedAt };
+  return { scrolled: log.scrolled, pressedAt, cdp };
 }
 
 const scrollsFromHero = [
@@ -676,7 +683,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
   for (const { start, moves, gap } of scrollsFromHero) {
     test(`a scroll from the hero that starts with ${start} never shows the press, motion ${reducedMotion}`, async ({ page }) => {
       await watchShortPhoneHero(page, reducedMotion);
-      const { scrolled, pressedAt } = await touchHero(page, { moves, gap, hold: 50 });
+      const { scrolled, pressedAt } = await touchPress(page, { moves, gap, hold: 50 });
       expect(scrolled, "the page scrolled under the touch").toBeGreaterThan(50);
       expect(pressedAt).toEqual([]);
     });
@@ -684,7 +691,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
 
   test(`a key press on the hero after a touch scroll still shows the press, motion ${reducedMotion}`, async ({ page }) => {
     await watchShortPhoneHero(page, reducedMotion);
-    await touchHero(page, { moves: [-40, -80, -120], hold: 50 });
+    await touchPress(page, { moves: [-40, -80, -120], hold: 50 });
     await hero(page).focus();
     await page.keyboard.down(" ");
     await expect.poll(() => pressLook(page)).toEqual(pressedLook(reducedMotion));
@@ -692,7 +699,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
 
   test(`the hero presses on a held touch after the scroll-view delay, motion ${reducedMotion}`, async ({ page }) => {
     await watchShortPhoneHero(page, reducedMotion);
-    const { scrolled, pressedAt } = await touchHero(page, { release: false });
+    const { scrolled, pressedAt } = await touchPress(page, { release: false });
     expect(scrolled).toBe(0);
     expectScrollViewDelay(pressedAt);
     expect(pressedAt.at(-1), "still pressed 700 ms after touch-down").toBeGreaterThan(650);
@@ -700,9 +707,9 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
 
   test(`a held touch after a touch scroll still presses after the delay, motion ${reducedMotion}`, async ({ page }) => {
     await watchShortPhoneHero(page, reducedMotion);
-    expect((await touchHero(page, { moves: [-40, -80, -120], hold: 50 })).pressedAt).toEqual([]);
+    expect((await touchPress(page, { moves: [-40, -80, -120], hold: 50 })).pressedAt).toEqual([]);
     await hero(page).scrollIntoViewIfNeeded();
-    const { pressedAt } = await touchHero(page, { release: false });
+    const { pressedAt } = await touchPress(page, { release: false });
     expectScrollViewDelay(pressedAt);
     expect(pressedAt.at(-1), "still pressed 700 ms after touch-down").toBeGreaterThan(650);
   });
@@ -712,7 +719,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     const pressOut = reducedMotion === "reduce" ? 0 : 200;
     const taps: Record<number, { heldAfterRelease: boolean; restsInTime: boolean }> = {};
     for (const hold of [60, 100, 140]) {
-      await touchHero(page, { hold });
+      await touchPress(page, { hold });
       await page.waitForTimeout(400);
       const log = await page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
       const lastPressed = (log.frames.filter((frame) => frame.pressed).at(-1)?.at ?? log.end) - log.end;
@@ -787,7 +794,7 @@ async function mouseFirstPageWithTouch(browser: Browser, reducedMotion: "no-pref
   const context = await browser.newContext({ viewport: shortDesktop, hasTouch: false, isMobile: false, reducedMotion });
   const page = await context.newPage();
   const reloadWithTouch = async () => {
-    await watchHero(page);
+    await watchPress(page);
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
   };
@@ -800,7 +807,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     const seen = [];
     for (const { moves, gap } of scrollsFromHero) {
       await reloadWithTouch();
-      const { scrolled, pressedAt } = await touchHero(page, { moves, gap, hold: 50 });
+      const { scrolled, pressedAt } = await touchPress(page, { moves, gap, hold: 50 });
       seen.push({ scrolled: scrolled > 50, pressedAt });
     }
     expect(seen).toEqual(Array(3).fill({ scrolled: true, pressedAt: [] }));
@@ -810,7 +817,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
   test(`with touch turned on after a mouse-first load, a held touch waits and a mouse presses at once, motion ${reducedMotion}`, async ({ browser }) => {
     const { context, page, reloadWithTouch } = await mouseFirstPageWithTouch(browser, reducedMotion);
     await reloadWithTouch();
-    const { pressedAt } = await touchHero(page, { release: false });
+    const { pressedAt } = await touchPress(page, { release: false });
     expectScrollViewDelay(pressedAt);
     await reloadWithTouch();
     const box = (await hero(page).boundingBox())!;
@@ -845,6 +852,148 @@ test("the hero takes keyboard focus with a visible ring on its slip at 1280 px",
   await expect(button).toBeFocused();
   expect(await focusRing(button)).toEqual(["solid", "2px"]);
   await context.close();
+});
+
+const readPressLog = (page: Page) => page.evaluate(() => (window as unknown as { pressLog: PressLog }).pressLog);
+
+const clearPressLog = (page: Page) =>
+  page.evaluate(() => Object.assign((window as unknown as { pressLog: PressLog }).pressLog, { start: 0, end: 0, clicks: 0, frames: [] }));
+
+async function lastPressedAfterRelease(page: Page) {
+  const log = await readPressLog(page);
+  const pressed = log.frames.filter((frame) => frame.pressed);
+  return { shown: pressed.length > 0, afterRelease: (pressed.at(-1)?.at ?? log.end) - log.end };
+}
+
+const pressOutFor = (reducedMotion: "no-preference" | "reduce") => (reducedMotion === "reduce" ? 0 : 200);
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`a quick Space tap on the hero rests at key-up with no tap look, motion ${reducedMotion}`, async ({ page }) => {
+    await watchShortPhoneHero(page, reducedMotion);
+    await hero(page).focus();
+    await clearPressLog(page);
+    await page.keyboard.down(" ");
+    await page.waitForTimeout(40);
+    await page.keyboard.up(" ");
+    await page.waitForTimeout(500);
+    const { shown, afterRelease } = await lastPressedAfterRelease(page);
+    expect(shown, "the key press showed").toBe(true);
+    expect(afterRelease, "last pressed frame after key-up").toBeLessThan(pressOutFor(reducedMotion) + 70);
+  });
+
+  test(`a mouse click on the hero rests at release with no tap look, motion ${reducedMotion}`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false, reducedMotion });
+    const page = await context.newPage();
+    await watchPress(page);
+    const box = (await hero(page).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await clearPressLog(page);
+    await page.mouse.down();
+    await page.waitForTimeout(60);
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    const { shown, afterRelease } = await lastPressedAfterRelease(page);
+    expect(shown, "the click showed").toBe(true);
+    expect(afterRelease, "last pressed frame after mouse-up").toBeLessThan(pressOutFor(reducedMotion) + 70);
+    await context.close();
+  });
+
+  test(`a quick tap on a sheet button rests at release with no tap look, motion ${reducedMotion}`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await watchPress(page, sheetButton);
+    await touchPress(page, { hold: 60 }, sheetButton);
+    await page.waitForTimeout(300);
+    const { shown, afterRelease } = await lastPressedAfterRelease(page);
+    expect(shown, "the tap showed").toBe(true);
+    expect(afterRelease, "last pressed frame after touch-up").toBeLessThan(pressOutFor(reducedMotion) + 70);
+  });
+}
+
+test("a touch on a sheet button that turns into a drag lets the press go once the browser takes the gesture", async ({ page }) => {
+  await watchPress(page, sheetButton);
+  const { pressedAt, cdp } = await touchPress(page, { moves: [-10, -25, -45, -70, -100], gap: 16, hold: 300, release: false }, sheetButton);
+  const log = await readPressLog(page);
+  expect(pressedAt[0], "the press showed on touch-down").toBeLessThan(50);
+  expect(log.frames.at(-1)!.pressed, "pressed while the finger still drags").toBe(false);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(300);
+  expect((await readPressLog(page)).clicks, "activations").toBe(0);
+});
+
+test("an Enter press after a Space press blurred while held still shows the press until key-up", async ({ page }) => {
+  await watchShortPhoneHero(page, "no-preference");
+  const button = hero(page);
+  await button.focus();
+  await page.keyboard.down(" ");
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await button.blur();
+  await page.keyboard.up(" ");
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+  await button.focus();
+  await page.keyboard.down("Enter");
+  await expect.poll(() => pressLook(page), "Enter after the blurred Space").toEqual(pressedLook("no-preference"));
+  await page.keyboard.up("Enter");
+  await expect.poll(() => pressLook(page)).toEqual(restLook);
+});
+
+test("keys other than Space and Enter, and Cmd+Enter, draw no press on the focused hero", async ({ page }) => {
+  await watchShortPhoneHero(page, "no-preference");
+  await hero(page).focus();
+  await clearPressLog(page);
+  const seen: Record<string, number> = {};
+  for (const keys of [["a"], ["Shift"], ["Tab"], ["Meta", "Enter"]]) {
+    await hero(page).focus();
+    await clearPressLog(page);
+    for (const key of keys) await page.keyboard.down(key);
+    await page.waitForTimeout(200);
+    seen[keys.join("+")] = (await readPressLog(page)).frames.filter((frame) => frame.pressed).length;
+    for (const key of keys.toReversed()) await page.keyboard.up(key);
+  }
+  expect(seen).toEqual({ a: 0, Shift: 0, Tab: 0, "Meta+Enter": 0 });
+});
+
+test("a mouse with its left button down passing over the hero leaves a held Space press pressed", async ({ browser }) => {
+  const { context, page, on, off, mouse, move, clearLog, readLog } = await desktopHeroPress(browser);
+  await mouse("mouseMoved", on, { buttons: 0 });
+  await mouse("mousePressed", on, { button: "left", buttons: 1 });
+  await mouse("mouseReleased", on, { button: "left", buttons: 0 });
+  await move(on, off, { buttons: 0 });
+  await hero(page).focus();
+  await page.keyboard.down(" ");
+  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+  await clearLog();
+  await move(off, on, { buttons: 1 });
+  await move(on, off, { buttons: 1 });
+  await page.waitForTimeout(300);
+  const frames = (await readLog()).frames.map((frame) => frame.pressed);
+  await page.keyboard.up(" ");
+  expect(frames.length, "frames sampled while Space was held").toBeGreaterThan(20);
+  expect(frames.filter((pressed) => !pressed)).toEqual([]);
+  await context.close();
+});
+
+test("a mouse with its left button down passing over a held touch leaves it to press after the delay and stay pressed", async ({ page }) => {
+  await watchShortPhoneHero(page, "no-preference");
+  const box = (await hero(page).boundingBox())!;
+  const finger = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  const pass = async () => {
+    for (const dy of [-60, 0, 60]) {
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: finger.x - 40, y: finger.y + dy, button: "none", buttons: 1 });
+    }
+  };
+  await clearPressLog(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger] });
+  await pass();
+  await page.waitForTimeout(400);
+  await pass();
+  await page.waitForTimeout(300);
+  const log = await readPressLog(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  const pressedAt = log.frames.filter((frame) => frame.pressed).map((frame) => Math.round(frame.at - log.start));
+  expectScrollViewDelay(pressedAt);
+  const firstPressed = log.frames.findIndex((frame) => frame.pressed);
+  expect(log.frames.slice(firstPressed).filter((frame) => !frame.pressed), "frames that let go while the finger held").toEqual([]);
 });
 
 const matrix = [320, 375, phone.width, 900, 1024, 1280].flatMap((width) =>

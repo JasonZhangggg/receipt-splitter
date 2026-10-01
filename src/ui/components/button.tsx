@@ -31,9 +31,12 @@ const primaryHeld = ({ nativeEvent }: PointerEvent) => (nativeEvent.buttons & 1)
 
 const inputOf = ({ nativeEvent }: GestureResponderEvent) => ("type" in nativeEvent ? nativeEvent.type : undefined);
 
+const withCommand = ({ nativeEvent }: GestureResponderEvent) => "metaKey" in nativeEvent && nativeEvent.metaKey === true;
+
 function usePressLook(outsideScroll: boolean) {
   const [look, setLook] = useState<Look>("rest");
   const tapUntil = useRef(0);
+  const pointer = useRef<number | null>(null);
   useEffect(() => {
     const timed = timedLooks[look];
     if (!timed) return;
@@ -47,6 +50,7 @@ function usePressLook(outsideScroll: boolean) {
     pressProps: {
       delayPressIn: 0,
       onPressIn: (event: GestureResponderEvent) => {
+        if (withCommand(event)) return;
         const touch = inputOf(event) === "touchstart";
         if (touch && event.nativeEvent.touches.length > 1) return;
         const waits = touch && !outsideScroll;
@@ -57,14 +61,19 @@ function usePressLook(outsideScroll: boolean) {
         const tap = performance.now() < tapUntil.current;
         setLook((current) => (current !== "rest" && tap ? "tapped" : "rest"));
       },
+      onPointerDown: (event: PointerEvent) => {
+        pointer.current = event.nativeEvent.pointerId;
+      },
       onPointerLeave: (event: PointerEvent) => {
-        if (primaryHeld(event)) move("pressed", "away");
+        if (event.nativeEvent.pointerId === pointer.current && primaryHeld(event)) move("pressed", "away");
       },
       onPointerEnter: () => move("away", "pressed"),
       onPointerCancel: rest,
       onBlur: rest,
-      onKeyDown: (event: { key: string }) => {
-        if (pressKeys.has(event.key)) setLook("pressed");
+      onKeyDown: (event: { key: string; metaKey: boolean }) => {
+        if (!pressKeys.has(event.key) || event.metaKey) return;
+        pointer.current = null;
+        setLook("pressed");
       },
     },
   };
@@ -83,7 +92,7 @@ type TargetProps = {
 export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, describedBy, style, children }: TargetProps) {
   const look = usePressLook(outsideScroll);
   const web = Platform.OS === "web";
-  const webProps = web ? { dataSet: { pressable: "" }, ...(disabled ? {} : look.pressProps) } : {};
+  const webProps = web ? { dataSet: { pressable: "" }, ...look.pressProps } : {};
   return (
     <Pressable
       role="button"
