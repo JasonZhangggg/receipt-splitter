@@ -139,14 +139,15 @@ describe("parseSplit", () => {
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });
 
-  test("reads a Split stored before joins as picked by no one, joined ids as picks with no device, and refuses picks out of order, twice, or for someone not in the Split", () => {
+  test("reads a Split stored before joins, with joined ids, or with picks that have no device, as picked by no one for those names, and refuses picks out of order, twice, or for someone not in the Split", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
     const { picks, ...beforeJoins } = stored;
     const pick = (participantId: string) => ({ participantId, device: `${participantId}-phone` });
 
     expect(picks).toEqual([{ participantId: "bob", device: "bobs-phone" }]);
     expect(parseSplit(beforeJoins)).toMatchObject({ ok: true, split: { picks: [] } });
-    expect(parseSplit({ ...beforeJoins, joined: ["ann", "bob"] })).toMatchObject({ ok: true, split: { picks: [{ participantId: "ann" }, { participantId: "bob" }] } });
+    expect(parseSplit({ ...beforeJoins, joined: ["ann", "bob"] })).toMatchObject({ ok: true, split: { picks: [] } });
+    expect(parseSplit({ ...stored, picks: [{ participantId: "ann" }, pick("bob")] })).toMatchObject({ ok: true, split: { picks: [{ participantId: "bob", device: "bob-phone" }] } });
     expect(parseSplit({ ...stored, joined: ["ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
     expect(parseSplit({ ...stored, picks: [pick("bob"), pick("ann")] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "picks" } });
     expect(parseSplit({ ...stored, picks: [pick("bob"), pick("bob")] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "picks" } });

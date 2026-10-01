@@ -446,12 +446,10 @@ describe("Payments", () => {
     expect(apply(paid, clear(bobsPhone)).payments).toEqual([]);
   });
 
-  test("a Payment for a name nobody picked, or picked with no device, is refused, and the Host cannot record one", () => {
+  test("a Payment for a name nobody picked is refused, and the Host cannot record one", () => {
     const unpicked = apply(withBobAndCat(), { by: bob, type: "pick", participantId: bob, device: bobsPhone, takeOver: false });
-    const legacy: Split = { ...unpicked, picks: [{ participantId: cat }] };
 
     expect(reasonFor(unpicked, pay(cat, 2400))).toBe("payerOnly");
-    expect(reasonFor(legacy, pay(cat, 2400))).toBe("payerOnly");
     expect(reasonFor(claimedDinner(), pay(ann, 1000))).toBe("host");
   });
 
@@ -1044,7 +1042,7 @@ describe("changes stored before per-unit claims and device picks", () => {
     return parsed.split;
   }
 
-  test("read a line's claimedBy as one even unit, and joined as picks with no device", () => {
+  test("read a line's claimedBy as one even unit, and joined as picked by no one", () => {
     const split = stored({ joined: ["bob"] }, [{ kind: "claims", itemIds: [pasta, pitcher], participantIds: [ann, bob, cat], claimed: true }]);
 
     expect(split.receipt.items.map(({ split: shape }) => shape)).toEqual([
@@ -1052,7 +1050,7 @@ describe("changes stored before per-unit claims and device picks", () => {
       { by: "even", units: [[]] },
       { by: "even", units: [["ann", "bob", "cat"]] },
     ]);
-    expect(split.picks).toEqual([{ participantId: "bob" }]);
+    expect(split.picks).toEqual([]);
   });
 
   test("a stored Claims change or unmark stays in the recent changes, and Undo refuses it as a conflict", () => {

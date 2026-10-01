@@ -86,7 +86,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
     setMemory(splitOnDevice(splitId));
   };
   const held = split.picks.find((pick) => pick.participantId === memory.me);
-  const me = memory.me && held && (held.device === undefined || held.device === device) ? memory.me : null;
+  const me = memory.me && held?.device === device ? memory.me : null;
   const [phase, setPhase] = useState<Phase>(me ? "regular" : "pick");
   const [chosen, setChosen] = useState<ParticipantId | null>(null);
   const [pickProblem, setPickProblem] = useState<string | null>(null);
