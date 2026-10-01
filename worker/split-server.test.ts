@@ -90,6 +90,59 @@ describe("two clients on one Split", () => {
   });
 });
 
+describe("picks, edits, and Undo between clients", () => {
+  const op = (ref: string, operation: object): ClientMessage => JSON.parse(JSON.stringify({ ref, op: operation }));
+
+  async function stateFrom(client: Client): Promise<Split> {
+    const message = await client.next();
+    if (message.type !== "state") throw new Error(`expected state, got ${JSON.stringify(message)}`);
+    return message.split;
+  }
+
+  it("a cleared pick and a price fix reach every client, survive a wake from storage, and a third client's Undo reverses both", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    const b = await open(id);
+    a.client.send(op("a1", { type: "addParticipant", by: "bob", participant: { id: "bob", name: "Bob" } }));
+    a.client.send(op("a2", { type: "setJoined", by: "bob", participantId: "bob", joined: true }));
+    b.client.send(op("b1", { type: "setJoined", by: "bob", participantId: "bob", joined: true }));
+    for (let n = 0; n < 3; n += 1) await stateFrom(a.client);
+    for (let n = 0; n < 3; n += 1) await stateFrom(b.client);
+
+    b.client.send(op("b2", { type: "setJoined", by: null, participantId: "bob", joined: false }));
+    b.client.send(
+      op("b3", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 600 }], subtotalDelta: -200, totalDelta: -200 }),
+    );
+    await stateFrom(a.client);
+    const seenByA = await stateFrom(a.client);
+    expect(await stateFrom(b.client)).toMatchObject({ joined: ["ann", "bob"] });
+    expect(await stateFrom(b.client)).toEqual(seenByA);
+    expect([seenByA.joined, seenByA.receipt.items[0].price, seenByA.recentChanges.map(({ revision, writes }) => [revision, writes[0].kind])]).toEqual([
+      ["ann", "bob"],
+      600,
+      [
+        [1, "participant"],
+        [4, "joined"],
+        [5, "item"],
+      ],
+    ]);
+
+    await evictDurableObject(env.SplitServer.getByName(id));
+    const c = await open(id);
+    expect(c.hello).toMatchObject({ type: "state", split: { revision: 5, joined: ["ann", "bob"] } });
+    c.client.send(op("c1", { type: "undo", by: null, revision: 5 }));
+    c.client.send(op("c2", { type: "undo", by: null, revision: 4 }));
+    await stateFrom(c.client);
+    const final = await stateFrom(c.client);
+
+    expect([final.joined, final.receipt.items[0].price, final.receipt.total]).toEqual([["ann", "bob", "bob"], 800, 4137]);
+    for (const client of [a.client, b.client]) {
+      await stateFrom(client);
+      expect(await stateFrom(client)).toEqual(final);
+    }
+  });
+});
+
 describe("Payment handles", () => {
   const setHandles = (ref: string, creatorSecret?: string) =>
     JSON.parse(
