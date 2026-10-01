@@ -18,10 +18,21 @@ export const pickPhoto: typeof Photo.pickPhoto = (onFile) => {
 
 const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
 
-export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile) => {
+export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile, accepting) => {
   const [over, setOver] = useState(false);
   const deliver = useEffectEvent(onFile);
   useEffect(() => {
+    if (!accepting) {
+      const keepThePage = (event: DragEvent) => {
+        if (carriesFiles(event)) event.preventDefault();
+      };
+      document.addEventListener("dragover", keepThePage);
+      document.addEventListener("drop", keepThePage);
+      return () => {
+        document.removeEventListener("dragover", keepThePage);
+        document.removeEventListener("drop", keepThePage);
+      };
+    }
     let depth = 0;
     const enter = (event: DragEvent) => {
       if (!carriesFiles(event)) return;
@@ -62,8 +73,8 @@ export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile) => {
       document.removeEventListener("drop", drop);
       document.removeEventListener("paste", paste);
     };
-  }, []);
-  return over;
+  }, [accepting]);
+  return accepting && over;
 };
 
 const thumb = { width: 80, height: 104 };

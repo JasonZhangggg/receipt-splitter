@@ -23,7 +23,5 @@ async function keep(urls) {
 }
 
 async function fromCache(request) {
-  const navigation = request.mode === "navigate";
-  const cached = await caches.match(navigation ? new URL("/", location.origin).href : request);
-  return cached ?? fetch(request);
+  return (await caches.match(request, { ignoreSearch: request.mode === "navigate" })) ?? fetch(request);
 }

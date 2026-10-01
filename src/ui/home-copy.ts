@@ -9,7 +9,6 @@ export const copy = {
   },
   reading: "Reading receipt",
   notPhoto: "That file is not a photo.",
-  unreadablePhoto: "This browser cannot open that photo.",
   formats: "JPEG, PNG, or WebP",
   pastedPhoto: "Pasted photo",
   paymentApp: "Payment app",

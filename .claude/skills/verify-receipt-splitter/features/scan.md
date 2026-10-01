@@ -1,6 +1,6 @@
 # Scan
 
-The Host reads a Receipt on the home page `/` and fixes it there. A tap on the hero opens the photo picker. On a desktop, an image dropped anywhere on the page or pasted from the clipboard is read too, a file that is not an image gets the one line "That file is not a photo.", and an image the browser cannot decode gets "This browser cannot open that photo." While OCR runs, the slip turns into a skeleton with seven lines that darken one at a time over a progress bar, under the title **Reading receipt**. The read state shows the file row (thumbnail, file name, Item count, and **Replace receipt**) and the receipt card with editable Items, Subtotal, the other Adjustments, one Tip line, and the Total. **Create split link** stays off with one short reason until the Total check passes and one Payment handle is filled in. The draft lives in local storage, so a reload keeps it. RS-9 gives the enabled action its handler.
+The Host reads a Receipt on the home page `/` and fixes it there. A tap on the hero opens the photo picker. On a desktop, an image dropped anywhere on the page or pasted from the clipboard is read too, and a file that is not an image gets the one line "That file is not a photo." Drop and paste read a photo only on the empty page. On the read state a dropped file changes nothing, and a Host replaces the Receipt with the camera button on the file row. While OCR runs, the slip turns into a skeleton with seven lines that darken one at a time over a progress bar, under the title **Reading receipt**. The read state shows the file row (thumbnail, file name, Item count, and **Replace receipt**) and the receipt card with editable Items, Subtotal, the other Adjustments, one Tip line, and the Total. **Create split link** stays off with one short reason until the Total check passes and one Payment handle is filled in. The draft lives in local storage, so a reload keeps it. RS-9 gives the enabled action its handler.
 
 ## Sub-features
 
@@ -45,6 +45,6 @@ Preconditions:
 - OCR takes about 0.4 to 1 s once the models are cached, so the reading state can be gone before a slow assertion runs. Hold a model download with `page.route` to keep it on screen.
 - `react-native-web` compiles `animationKeyframes` only inside `StyleSheet.create`. An inline keyframe style renders with `animation-name: none`.
 - The OCR worker stays alive for 10 s after the last scan, then the page terminates it. A scan inside that window reuses the engine.
-- The service worker answers only while `navigator.onLine` is false, so Playwright routes still see every online request.
+- The service worker answers only while `navigator.onLine` is false, so Playwright routes still see every online request. Offline it serves only what its caches hold, so a route it never kept, such as `/s/<id>`, fails as it would without it.
 - Local storage carries the draft between loads in one browser context. Start each check in a fresh context, as Playwright does per test.
 - The Example has no photo, so its file row shows the receipt glyph instead of a thumbnail.

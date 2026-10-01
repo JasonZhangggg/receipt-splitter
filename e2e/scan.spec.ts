@@ -146,7 +146,7 @@ test.describe("at 1280 px", () => {
   test.use({ viewport: { width: 1280, height: 820 }, isMobile: false, hasTouch: false });
   test.setTimeout(120_000);
 
-  test("an image dropped on the page and an image pasted both read, and a PDF or an unreadable image gets one refusal line", async ({ page }) => {
+  test("an image dropped on the page and an image pasted both read, a PDF gets one refusal line, and a drop on the read state changes nothing", async ({ page }) => {
     await page.goto("/");
     const zone = page.getByRole("button", { name: /^Drop a receipt/ });
 
@@ -154,18 +154,22 @@ test.describe("at 1280 px", () => {
     await expect(page.getByText("That file is not a photo.")).toBeVisible();
     await expect(zone).toBeVisible();
 
-    await dropFile(page, { name: "broken.png", mimeType: "image/png", buffer: Buffer.from("not an image") });
-    await expect(page.getByText("This browser cannot open that photo.")).toBeVisible();
-    await expect(zone).toBeVisible();
+    await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
+    await expect(page.getByText("blank.png")).toBeVisible(scanTimeout);
+    await expect(page.getByText("0 items")).toBeVisible();
 
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
     await dropFile(page, photo(receipt1040));
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
     expect(await readItems(page)).toHaveLength(5);
     await expect(page.getByText("srd-1040.jpg")).toBeVisible();
 
+    await dropFile(page, photo("e2e/fixtures/blank.png", "image/png"));
     await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
-    await expect(page.getByText("blank.png")).toBeVisible(scanTimeout);
-    await expect(page.getByText("0 items")).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(page.getByText("srd-1040.jpg")).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/");
   });
 });
 

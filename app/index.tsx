@@ -38,16 +38,14 @@ export default function Home() {
   const read = useCallback(async (photo: File) => {
     if (!isPhoto(photo)) return setNotice(copy.notPhoto);
     const scan = ++scanning.current;
-    const thumbnail = await thumbnailOf(photo).catch(() => undefined);
+    const file: ReceiptFile = { name: photo.name || copy.pastedPhoto, thumbnail: await thumbnailOf(photo).catch(() => null) };
     if (scan !== scanning.current) return;
-    if (thumbnail === undefined) return setNotice(copy.unreadablePhoto);
-    const file: ReceiptFile = { name: photo.name || copy.pastedPhoto, thumbnail };
     setProgress(0);
     dispatch({ type: "reading", file });
     const receipt = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction)).then(parseReceipt, () => null);
     if (scan === scanning.current) dispatch({ type: "read", file, receipt });
   }, []);
-  const dragging = usePhotoDrop(read);
+  const dragging = usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);
   const example = () => {
     scanning.current++;
