@@ -21,10 +21,11 @@ import { LinkLine } from "../../src/ui/split-view/link-line";
 import { OweLine } from "../../src/ui/split-view/owe-line";
 import { circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
-import { PickSheet } from "../../src/ui/split-view/pick-sheet";
+import { PickRows, PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { SpringSheet } from "../../src/ui/split-view/spring-sheet";
-import { type, useColors } from "../../src/ui/theme";
+import { useReducedMotion, webStyle } from "../../src/ui/motion";
+import { motion, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -96,6 +97,8 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [closing, setClosing] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(0);
+  const [chipsHeight, setChipsHeight] = useState(44);
+  const reduce = useReducedMotion();
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -171,6 +174,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
   const regular = (
     <View style={styles.regular}>
+      <View onLayout={({ nativeEvent }) => setChipsHeight(nativeEvent.layout.height)}>
       <PeopleChips
         people={people}
         picked={picked}
@@ -180,6 +184,8 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
         onAdd={(typed) => void addPerson(typed)}
       />
+      </View>
+      <View style={[styles.regular, phase === "collapsing" ? styles.waiting : phase === "regular" && !reduce ? bodyEnter : null]}>
       {!me ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
@@ -197,13 +203,14 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
       ) : (
         <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
       )}
+      </View>
     </View>
   );
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView
-        style={styles.screen}
+        style={styles.page}
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: sheetHeight + 16, paddingLeft: 22 + insets.left, paddingRight: 22 + insets.right }}
       >
         <View style={styles.column}>
@@ -229,7 +236,9 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         stays
         extra={
           phase === "collapsing" ? (
-            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} leaving onPick={() => {}} onAdd={async () => null} onClose={() => {}} />
+            <View style={[styles.leaving, { top: chipsHeight + 14 }]}>
+              <PickRows rows={pickRows(split, device)} chosen={chosen} leaving onPick={() => {}} />
+            </View>
           ) : null
         }
         testID="split-sheet"
@@ -277,14 +286,23 @@ function intro(split: Split, creating: boolean) {
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
 
+const bodyEnter = webStyle({
+  animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
+  animationDuration: "180ms",
+  animationTimingFunction: motion.easeOut,
+});
+
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
+  screen: { flex: 1, overflow: "hidden" },
+  page: { flex: 1 },
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   doc: { paddingTop: 6 },
   opening: { paddingTop: 24 },
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   regular: { gap: 14 },
+  waiting: { opacity: 0 },
+  leaving: { position: "absolute", left: 0, right: 0 },
   prompt: { marginHorizontal: 2 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

@@ -25,7 +25,6 @@ type Props = {
 export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const [asking, setAsking] = useState<ParticipantId | null>(null);
   const [typing, setTyping] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const fadeOut = leaving && !reduce ? listLeaving : null;
@@ -50,7 +49,56 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
       <Text role="heading" aria-level={1} style={[type.hero, styles.ask, { color: c.ink }, fadeOut]}>
         {say.question}
       </Text>
-      <View role="list" style={styles.rows}>
+      <PickRows rows={rows} chosen={chosen} leaving={leaving} onPick={onPick} />
+      {typing === null ? (
+        <View style={fadeOut}>
+          <PressTarget name={`${say.notHere} ${say.addYourself}`} outsideScroll onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
+            {() => (
+              <View style={[styles.row, styles.notHere, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
+                <View style={[styles.ring, { backgroundColor: c.sheetIn }]}>
+                  <Icon name="plus" size={16} color={c.ink} />
+                </View>
+                <Text style={[type.body, { color: c.ink }]}>
+                  {say.notHere}
+                  <Text style={{ color: c.muted }}>{`  ${say.addYourself}`}</Text>
+                </Text>
+              </View>
+            )}
+          </PressTarget>
+        </View>
+      ) : (
+        <View style={styles.adding}>
+          <TextInput
+            autoFocus
+            aria-label={say.yourName}
+            placeholder={say.yourName}
+            placeholderTextColor={c.muted}
+            value={typing}
+            autoCapitalize="words"
+            enterKeyHint="go"
+            onChangeText={setTyping}
+            onSubmitEditing={join}
+            submitBehavior="submit"
+            style={[type.input, styles.field, { color: c.ink, backgroundColor: c.sheetIn, boxShadow: `inset 0 0 0 1.5px ${c.ink}` }]}
+          />
+          {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
+          <Button label={typing.trim() ? say.joinAs(typing.trim()) : say.yourName} disabled={!typing.trim()} onPress={join} outsideScroll />
+        </View>
+      )}
+    </View>
+  );
+}
+
+type RowsProps = Pick<Props, "rows" | "chosen" | "leaving" | "onPick">;
+
+/** The names of the tall sheet. As the sheet collapses, every row but the picked one blurs out. */
+export function PickRows({ rows, chosen, leaving, onPick }: RowsProps) {
+  const c = useColors();
+  const reduce = useReducedMotion();
+  const [asking, setAsking] = useState<ParticipantId | null>(null);
+  const fadeOut = leaving && !reduce ? listLeaving : null;
+  return (
+    <View role="list" style={styles.rows}>
         {rows.map(({ person, picked }) =>
           person.id === asking ? (
             <View key={person.id} role="listitem" style={[styles.claimback, { boxShadow: `inset 0 0 0 1.5px ${c.ink}` }]}>
@@ -98,42 +146,6 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
           ),
         )}
       </View>
-      {typing === null ? (
-        <View style={fadeOut}>
-          <PressTarget name={`${say.notHere} ${say.addYourself}`} outsideScroll onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
-            {() => (
-              <View style={[styles.row, styles.notHere, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
-                <View style={[styles.ring, { backgroundColor: c.sheetIn }]}>
-                  <Icon name="plus" size={16} color={c.ink} />
-                </View>
-                <Text style={[type.body, { color: c.ink }]}>
-                  {say.notHere}
-                  <Text style={{ color: c.muted }}>{`  ${say.addYourself}`}</Text>
-                </Text>
-              </View>
-            )}
-          </PressTarget>
-        </View>
-      ) : (
-        <View style={styles.adding}>
-          <TextInput
-            autoFocus
-            aria-label={say.yourName}
-            placeholder={say.yourName}
-            placeholderTextColor={c.muted}
-            value={typing}
-            autoCapitalize="words"
-            enterKeyHint="go"
-            onChangeText={setTyping}
-            onSubmitEditing={join}
-            submitBehavior="submit"
-            style={[type.input, styles.field, { color: c.ink, backgroundColor: c.sheetIn, boxShadow: `inset 0 0 0 1.5px ${c.ink}` }]}
-          />
-          {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
-          <Button label={typing.trim() ? say.joinAs(typing.trim()) : say.yourName} disabled={!typing.trim()} onPress={join} outsideScroll />
-        </View>
-      )}
-    </View>
   );
 }
 

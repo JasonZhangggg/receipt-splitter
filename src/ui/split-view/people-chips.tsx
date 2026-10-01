@@ -100,7 +100,7 @@ const chipEnter = webStyle({
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", columnGap: 8, rowGap: 10 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, paddingHorizontal: 15, borderRadius: 22 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, paddingHorizontal: 14, borderRadius: 22 },
   you: { opacity: 0.7 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
