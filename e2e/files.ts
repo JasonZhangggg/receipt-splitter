@@ -18,6 +18,8 @@ const transfer = (page: Page, { name, mimeType, buffer }: FilePayload) =>
     { name, mimeType, base64: buffer.toString("base64") },
   );
 
+export const dropZone = (page: Page) => page.getByRole("button", { name: /^(Add|Drop a) receipt/ });
+
 export async function dropFile(page: Page, file: FilePayload, target = "body") {
   const dataTransfer = await transfer(page, file);
   await page.dispatchEvent(target, "dragenter", { dataTransfer });

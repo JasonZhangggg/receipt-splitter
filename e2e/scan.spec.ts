@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { dropFile, pasteFile, photo } from "./files";
+import { dropFile, dropZone, pasteFile, photo } from "./files";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -150,6 +150,7 @@ test.describe("at 1280 px", () => {
     await page.goto("/");
     const zone = page.getByRole("button", { name: /^Drop a receipt/ });
 
+    await expect(dropZone(page)).toBeVisible();
     await dropFile(page, { name: "menu.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") });
     await expect(page.getByText("That file is not a photo.")).toBeVisible();
     await expect(zone).toBeVisible();
@@ -160,6 +161,7 @@ test.describe("at 1280 px", () => {
 
     await page.evaluate(() => localStorage.clear());
     await page.reload();
+    await expect(dropZone(page)).toBeVisible();
     await dropFile(page, photo(receipt1040));
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
     expect(await readItems(page)).toHaveLength(5);

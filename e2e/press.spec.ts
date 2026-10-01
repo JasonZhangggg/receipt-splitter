@@ -84,13 +84,12 @@ test("a disabled Button neither presses nor activates, even when it turns disabl
   await page.keyboard.down(" ");
   await expect.poll(() => drawn(button)).toBe(true);
   await setDisabled(page, button, true);
-  const drawnAfterDisable = await drawn(button);
+  await expect.poll(() => drawn(button)).toBe(false);
   await page.keyboard.up(" ");
   const touchRelease = await touchDown(button);
   await touchRelease();
   await setDisabled(page, button, false);
-  expect({ drawnAfterDisable, drawnAfterEnable: await drawn(button), presses: await presses(page) }).toEqual({
-    drawnAfterDisable: false,
+  expect({ drawnAfterEnable: await drawn(button), presses: await presses(page) }).toEqual({
     drawnAfterEnable: false,
     presses: 0,
   });

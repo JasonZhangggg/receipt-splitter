@@ -18,21 +18,19 @@ export const pickPhoto: typeof Photo.pickPhoto = (onFile) => {
 
 const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
 
+const keepThePage = (event: DragEvent) => {
+  if (carriesFiles(event)) event.preventDefault();
+};
+if (typeof document !== "undefined") {
+  document.addEventListener("dragover", keepThePage);
+  document.addEventListener("drop", keepThePage);
+}
+
 export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile, accepting) => {
   const [over, setOver] = useState(false);
   const deliver = useEffectEvent(onFile);
   useEffect(() => {
-    if (!accepting) {
-      const keepThePage = (event: DragEvent) => {
-        if (carriesFiles(event)) event.preventDefault();
-      };
-      document.addEventListener("dragover", keepThePage);
-      document.addEventListener("drop", keepThePage);
-      return () => {
-        document.removeEventListener("dragover", keepThePage);
-        document.removeEventListener("drop", keepThePage);
-      };
-    }
+    if (!accepting) return;
     let depth = 0;
     const enter = (event: DragEvent) => {
       if (!carriesFiles(event)) return;
@@ -43,9 +41,6 @@ export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile, accepting) => {
     const leave = () => {
       depth = Math.max(0, depth - 1);
       if (depth === 0) setOver(false);
-    };
-    const hover = (event: DragEvent) => {
-      if (carriesFiles(event)) event.preventDefault();
     };
     const drop = (event: DragEvent) => {
       if (!carriesFiles(event)) return;
@@ -63,13 +58,11 @@ export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile, accepting) => {
     };
     document.addEventListener("dragenter", enter);
     document.addEventListener("dragleave", leave);
-    document.addEventListener("dragover", hover);
     document.addEventListener("drop", drop);
     document.addEventListener("paste", paste);
     return () => {
       document.removeEventListener("dragenter", enter);
       document.removeEventListener("dragleave", leave);
-      document.removeEventListener("dragover", hover);
       document.removeEventListener("drop", drop);
       document.removeEventListener("paste", paste);
     };
