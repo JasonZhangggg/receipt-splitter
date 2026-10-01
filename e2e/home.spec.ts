@@ -11,6 +11,8 @@ const shortDesktop = { width: 1280, height: 340 };
 
 type Target = (page: Page) => Locator;
 
+type Motion = "no-preference" | "reduce";
+
 const hero: Target = (page) => page.getByRole("button", { name: /^(Add|Drop a) receipt/ });
 const sheetButton: Target = (page) => page.getByRole("button", { name: "Add a name", exact: true });
 
@@ -85,15 +87,20 @@ test("Add receipt takes keyboard focus with a visible ring at 390 px", async ({ 
   expect(await focusRing(button)).toEqual(["solid", "2px"]);
 });
 
-test("Create split link shows the blocked look, draws no press, and eases to black over 180 ms", async ({ page }) => {
-  await page.goto("/");
-  await settle(page);
+test("Create split link shows the blocked look with a 180 ms ease color transition, and draws no press", async ({ page }) => {
   const face = action(page).locator(":scope > div");
   const look = () =>
     face.evaluate((el) => {
       const style = getComputedStyle(el);
       return [style.backgroundColor, style.transitionProperty, style.transitionDuration, style.transitionTimingFunction];
     });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await settle(page);
+  expect(await look(), "under reduced motion").toEqual(["rgb(238, 239, 241)", "all", "0s", "ease"]);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.reload();
+  await settle(page);
   expect(await look()).toEqual(["rgb(238, 239, 241)", "background-color", "0.18s", "ease"]);
   const cdp = await pressAndHold(action(page));
   await page.waitForTimeout(300);
@@ -281,7 +288,7 @@ const pressLook = (page: Page, target: Target = hero) =>
 
 const restLook = { transform: "none", opacity: "1", transitions: [] };
 const isRest = (look: Awaited<ReturnType<typeof pressLook>>) => JSON.stringify(look) === JSON.stringify(restLook);
-const pressedLook = (reducedMotion: "no-preference" | "reduce", target: Target = hero) => {
+const pressedLook = (reducedMotion: Motion, target: Target = hero) => {
   const scale = pressedScale(target);
   return reducedMotion === "reduce"
     ? { transform: "none", opacity: "0.7", transitions: [] }
@@ -537,26 +544,31 @@ test("selecting the page text during a held mouse press lets the press go", asyn
   await context.close();
 });
 
-test("a mouse passing over the hero leaves a held Space press pressed", async ({ browser }) => {
-  const { context, page, on, off, mouse, move, clearLog, readLog } = await desktopHeroPress(browser);
-  await mouse("mouseMoved", on, { buttons: 0 });
-  await mouse("mousePressed", on, { button: "left", buttons: 1 });
-  await mouse("mouseReleased", on, { button: "left", buttons: 0 });
-  await move(on, off, { buttons: 0 });
-  await hero(page).focus();
-  await page.keyboard.down(" ");
-  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
-  await clearLog();
-  await move(off, on, { buttons: 0 });
-  await move(on, off, { buttons: 0 });
-  await page.waitForTimeout(300);
-  const frames = (await readLog()).frames.map((frame) => frame.pressed);
-  await page.keyboard.up(" ");
-  expect(frames.length, "frames sampled while Space was held").toBeGreaterThan(20);
-  expect(frames.filter((pressed) => !pressed)).toEqual([]);
-  await expect.poll(() => pressLook(page)).toEqual(restLook);
-  await context.close();
-});
+for (const [buttons, who] of [
+  [0, "a mouse"],
+  [1, "a mouse with its left button down"],
+] as const) {
+  test(`${who} passing over the hero leaves a held Space press pressed`, async ({ browser }) => {
+    const { context, page, on, off, mouse, move, clearLog, readLog } = await desktopHeroPress(browser);
+    await mouse("mouseMoved", on, { buttons: 0 });
+    await mouse("mousePressed", on, { button: "left", buttons: 1 });
+    await mouse("mouseReleased", on, { button: "left", buttons: 0 });
+    await move(on, off, { buttons: 0 });
+    await hero(page).focus();
+    await page.keyboard.down(" ");
+    await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
+    await clearLog();
+    await move(off, on, { buttons });
+    await move(on, off, { buttons });
+    await page.waitForTimeout(300);
+    const frames = (await readLog()).frames.map((frame) => frame.pressed);
+    await page.keyboard.up(" ");
+    expect(frames.length, "frames sampled while Space was held").toBeGreaterThan(20);
+    expect(frames.filter((pressed) => !pressed)).toEqual([]);
+    await expect.poll(() => pressLook(page)).toEqual(restLook);
+    await context.close();
+  });
+}
 
 test("a cancelled touch lets a sheet button's press go", async ({ page }) => {
   await page.goto("/");
@@ -646,7 +658,7 @@ async function watchPress(page: Page, target: Target = hero) {
   });
 }
 
-async function watchShortPhoneHero(page: Page, reducedMotion: "no-preference" | "reduce") {
+async function watchShortPhoneHero(page: Page, reducedMotion: Motion) {
   await page.setViewportSize(shortPhone);
   await page.emulateMedia({ reducedMotion });
   await watchPress(page);
@@ -790,7 +802,7 @@ test("a pen press on the hero shows within 50 ms", async ({ browser }) => {
   await context.close();
 });
 
-async function mouseFirstPageWithTouch(browser: Browser, reducedMotion: "no-preference" | "reduce") {
+async function mouseFirstPageWithTouch(browser: Browser, reducedMotion: Motion) {
   const context = await browser.newContext({ viewport: shortDesktop, hasTouch: false, isMobile: false, reducedMotion });
   const page = await context.newPage();
   const reloadWithTouch = async () => {
@@ -865,7 +877,7 @@ async function lastPressedAfterRelease(page: Page) {
   return { shown: pressed.length > 0, afterRelease: (pressed.at(-1)?.at ?? log.end) - log.end };
 }
 
-const pressOutFor = (reducedMotion: "no-preference" | "reduce") => (reducedMotion === "reduce" ? 0 : 200);
+const pressOutFor = (reducedMotion: Motion) => (reducedMotion === "reduce" ? 0 : 200);
 
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
   test(`a quick Space tap on the hero rests at key-up with no tap look, motion ${reducedMotion}`, async ({ page }) => {
@@ -950,26 +962,6 @@ test("keys other than Space and Enter, and Cmd+Enter, draw no press on the focus
     for (const key of keys.toReversed()) await page.keyboard.up(key);
   }
   expect(seen).toEqual({ a: 0, Shift: 0, Tab: 0, "Meta+Enter": 0 });
-});
-
-test("a mouse with its left button down passing over the hero leaves a held Space press pressed", async ({ browser }) => {
-  const { context, page, on, off, mouse, move, clearLog, readLog } = await desktopHeroPress(browser);
-  await mouse("mouseMoved", on, { buttons: 0 });
-  await mouse("mousePressed", on, { button: "left", buttons: 1 });
-  await mouse("mouseReleased", on, { button: "left", buttons: 0 });
-  await move(on, off, { buttons: 0 });
-  await hero(page).focus();
-  await page.keyboard.down(" ");
-  await expect.poll(() => pressLook(page)).toEqual(pressedLook("no-preference"));
-  await clearLog();
-  await move(off, on, { buttons: 1 });
-  await move(on, off, { buttons: 1 });
-  await page.waitForTimeout(300);
-  const frames = (await readLog()).frames.map((frame) => frame.pressed);
-  await page.keyboard.up(" ");
-  expect(frames.length, "frames sampled while Space was held").toBeGreaterThan(20);
-  expect(frames.filter((pressed) => !pressed)).toEqual([]);
-  await context.close();
 });
 
 test("a mouse with its left button down passing over a held touch leaves it to press after the delay and stay pressed", async ({ page }) => {

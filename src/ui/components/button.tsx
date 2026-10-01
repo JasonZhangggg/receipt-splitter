@@ -8,9 +8,11 @@ import {
   type GestureResponderEvent,
   type PointerEvent,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from "react-native";
 
+import type { Colors } from "../colors";
 import { pressStyle, useReducedMotion } from "../motion";
 import { motion, type, useColors } from "../theme";
 import { Icon, type IconName } from "./icon";
@@ -108,28 +110,45 @@ export function PressTarget({ onPress, name, outsideScroll = false, disabled = f
   );
 }
 
-type Kind = "primary" | "outline" | "chip" | "link" | "icon";
+type Tone = { fill?: string; ink: string; ring?: string };
+
+const kinds = {
+  primary: {
+    face: { height: 54, paddingHorizontal: 24, borderRadius: 27 },
+    stretch: true,
+    label: type.button,
+    icon: 20,
+    tone: (c: Colors, disabled: boolean): Tone => (disabled ? { fill: c.off, ink: c.onOff } : { fill: c.action, ink: c.onAction }),
+  },
+  outline: { face: { width: 52, height: 52, borderRadius: 14 }, stretch: false, label: type.button, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
+  chip: {
+    face: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
+    stretch: false,
+    label: type.label,
+    icon: 16,
+    tone: (c: Colors): Tone => ({ ink: c.muted, ring: c.hairline }),
+  },
+  link: { face: { minHeight: 44, paddingHorizontal: 2 }, stretch: false, label: type.small, icon: 16, tone: (c: Colors): Tone => ({ ink: c.muted }) },
+  icon: { face: { width: 44, height: 44 }, stretch: false, label: type.small, icon: 18, tone: (c: Colors): Tone => ({ ink: c.muted }) },
+} satisfies Record<string, { face: ViewStyle; stretch: boolean; label: TextStyle; icon: number; tone: (c: Colors, disabled: boolean) => Tone }>;
 
 type Props = ({ label: string; name?: string } | { label?: undefined; name: string }) & {
   onPress: () => void;
-  kind?: Kind;
+  kind?: keyof typeof kinds;
   icon?: IconName;
   outsideScroll?: boolean;
   disabled?: boolean;
   reason?: string;
 };
 
+const colorChange = { transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" } as ViewStyle;
+
 export function Button({ label, onPress, kind = "primary", icon, name, outsideScroll, disabled = false, reason }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const reasonId = useId();
-  const tone: { fill?: string; ink: string; ring?: string } = {
-    primary: disabled ? { fill: c.off, ink: c.onOff } : { fill: c.action, ink: c.onAction },
-    outline: { ink: c.ink, ring: c.hairline },
-    chip: { ink: c.muted, ring: c.hairline },
-    link: { ink: c.muted },
-    icon: { ink: c.muted },
-  }[kind];
+  const variant = kinds[kind];
+  const tone = variant.tone(c, disabled);
   const target = (
     <PressTarget
       onPress={onPress}
@@ -137,12 +156,19 @@ export function Button({ label, onPress, kind = "primary", icon, name, outsideSc
       outsideScroll={outsideScroll}
       disabled={disabled}
       describedBy={reason ? reasonId : undefined}
-      style={(pressed) => [styles.target, kind === "primary" && styles.wide, pressStyle(pressed, reduce)]}
+      style={(pressed) => [styles.target, variant.stretch && styles.stretch, pressStyle(pressed, reduce)]}
     >
       {() => (
-        <View style={[styles.face, faces[kind], { backgroundColor: tone.fill, boxShadow: tone.ring && `inset 0 0 0 1px ${tone.ring}` }]}>
-          {icon ? <Icon name={icon} size={iconSizes[kind]} color={tone.ink} /> : null}
-          {label ? <Text style={[labels[kind], { color: tone.ink }]}>{label}</Text> : null}
+        <View
+          style={[
+            styles.face,
+            variant.face,
+            Platform.OS === "web" && !reduce && colorChange,
+            { backgroundColor: tone.fill, boxShadow: tone.ring && `inset 0 0 0 1px ${tone.ring}` },
+          ]}
+        >
+          {icon ? <Icon name={icon} size={variant.icon} color={tone.ink} /> : null}
+          {label ? <Text style={[variant.label, { color: tone.ink }]}>{label}</Text> : null}
         </View>
       )}
     </PressTarget>
@@ -158,23 +184,9 @@ export function Button({ label, onPress, kind = "primary", icon, name, outsideSc
   );
 }
 
-const colorChange = Platform.OS === "web" ? ({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" } as ViewStyle) : {};
-
-const iconSizes: Record<Kind, number> = { primary: 20, outline: 20, chip: 16, link: 16, icon: 18 };
-
-const labels = { primary: type.button, outline: type.button, chip: type.label, link: type.small, icon: type.small };
-
-const faces = StyleSheet.create({
-  primary: { height: 54, paddingHorizontal: 24, borderRadius: 27, ...colorChange },
-  outline: { width: 52, height: 52, borderRadius: 14 },
-  chip: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
-  link: { minHeight: 44, paddingHorizontal: 2 },
-  icon: { width: 44, height: 44 },
-});
-
 const styles = StyleSheet.create({
   target: { alignSelf: "flex-start" },
-  wide: { alignSelf: "stretch" },
+  stretch: { alignSelf: "stretch" },
   face: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   withReason: { alignSelf: "stretch", gap: 10 },
   reason: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },

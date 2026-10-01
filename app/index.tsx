@@ -6,7 +6,7 @@ import { prefetchModel } from "../src/ocr";
 import { Button, PressTarget } from "../src/ui/components/button";
 import { NameChips } from "../src/ui/components/name-chips";
 import { PaymentRow } from "../src/ui/components/payment-row";
-import { panelTop, Sheet } from "../src/ui/components/sheet";
+import { panel, Sheet } from "../src/ui/components/sheet";
 import { Slip } from "../src/ui/components/slip";
 import { copy } from "../src/ui/home-copy";
 import { breakpoints, type, useColors } from "../src/ui/theme";
@@ -70,13 +70,13 @@ export default function Home() {
   );
 }
 
-const panelSpace = 32 + 380 + 28;
+const panelSpace = panel.right + panel.width + 28;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 56 },
-  headerWide: { minHeight: panelTop },
+  headerWide: { minHeight: panel.top },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
   heroWide: { marginBottom: 32, paddingTop: 24, paddingBottom: 48, paddingHorizontal: 32, borderRadius: 32 },
   action: { marginTop: 8 },

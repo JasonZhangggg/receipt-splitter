@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "../theme";
 
-export const panelTop = 64;
+export const panel = { top: 64, width: 380, right: 32 };
 
 export function Sheet({ wide, children }: { wide: boolean; children: ReactNode }) {
   const c = useColors();
@@ -14,7 +14,7 @@ export function Sheet({ wide, children }: { wide: boolean; children: ReactNode }
       <View
         style={[
           styles.panel,
-          { backgroundColor: c.sheet, boxShadow: c.panelShadow, top: panelTop + insets.top, right: 32 + insets.right },
+          { backgroundColor: c.sheet, boxShadow: c.panelShadow, top: panel.top + insets.top, right: panel.right + insets.right, width: panel.width },
         ]}
       >
         {children}
@@ -44,5 +44,5 @@ const styles = StyleSheet.create({
   sheet: { paddingTop: 10, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   grab: { alignSelf: "center", width: 36, height: 5, marginBottom: 18, borderRadius: 3 },
   content: { alignSelf: "center", width: "100%", maxWidth: 440, gap: 16 },
-  panel: { position: "absolute", width: 380, padding: 20, gap: 12, borderRadius: 28 },
+  panel: { position: "absolute", padding: 20, gap: 12, borderRadius: 28 },
 });
