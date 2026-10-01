@@ -10,9 +10,9 @@ Every push to `main` that passes CI deploys to production. `.github/workflows/de
 4. In GitHub, open Settings, Secrets and variables, Actions. Add these repository secrets.
 	- `CLOUDFLARE_API_TOKEN` holds the token from step 3.
 	- `CLOUDFLARE_ACCOUNT_ID` holds the account ID from step 1.
-5. On the same page, add these repository variables. Use repository scope, not environment scope, because the workflow reads the site key in a job-level condition that cannot see environment variables.
-	- `EXPO_PUBLIC_TURNSTILE_SITE_KEY` holds the Turnstile site key. The workflow skips the deploy until you set it.
-	- `ALLOWED_HOSTNAMES` holds the hostnames that serve the app, in the format the Worker reads. If it is empty, the deploy fails before it uploads anything.
+5. On the same page, add these repository variables. Use repository scope, not environment scope, because the workflow reads them in a job-level condition that cannot see environment variables. Deploys start once both are set. Until then the workflow skips the job, and the run stays green.
+	- `EXPO_PUBLIC_TURNSTILE_SITE_KEY` holds the Turnstile site key.
+	- `ALLOWED_HOSTNAMES` holds the hostnames that serve the app, in the format the Worker reads.
 6. Optional. Under Settings, Environments, open `production` and add required reviewers or a branch rule. Every deploy job uses that environment.
 
 ## Run the first deploy
@@ -31,8 +31,9 @@ Every push to `main` that passes CI deploys to production. `.github/workflows/de
 
 1. A commit lands on `main` and the CI workflow runs.
 2. When CI finishes, GitHub starts the Deploy workflow. It continues only if CI succeeded on a `push` event. Pull request runs never deploy.
-3. The job checks out the exact commit CI tested, runs `npm ci` and `npm run build`, then deploys with `cloudflare/wrangler-action@v3`.
-4. Deploys run one at a time. A deploy that is already running is never cancelled.
+3. The job checks out the exact commit CI tested, runs `npm ci` and `npm run build`, then deploys with `cloudflare/wrangler-action@v4`.
+4. Before it builds, the job compares that commit with the current tip of `main`. If `main` has moved on, the job skips the build and the deploy with a notice, because the newer commit's CI run deploys instead.
+5. Deploys run one at a time. A deploy that is already running is never cancelled.
 
 ## Redeploy manually
 
