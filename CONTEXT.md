@@ -57,7 +57,7 @@ How each unit of an Item divides among the people who had it: evenly, by whole-n
 _Avoid_: Split type, method
 
 **Pick**:
-A device saying which Participant it is. One device holds a name at a time, and **That's me** moves a picked name to the device that asks. A Pick is not a Claim.
+A device saying which Participant it is. One device holds a name at a time, and **That's me** moves a picked name to the device that asks, with no check and no History entry. A Pick is not a Claim.
 _Avoid_: Join, login
 
 **Unclaimed item**:
@@ -69,5 +69,5 @@ One Participant's part of the bill: their Claimed Items plus a part of the Adjus
 _Avoid_: Portion, amount owed, balance
 
 **Payment**:
-A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer. History shows a Payment but cannot revert it.
+A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer. Only the device that picked the name records or clears its Payment. That rule stops honest mistakes and is not a security check, because **That's me** lets any device take a name. History shows a Payment but cannot revert it.
 _Avoid_: Settlement, transaction

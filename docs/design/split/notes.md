@@ -52,7 +52,7 @@ The chip row on the split page keeps an 8 px gap. At 10 px, four names plus "+" 
 
 **History opens from a clock icon in the header**, beside Share. It is a sheet listing each change with who made it and when. Each manual Receipt change can be reverted once. A Payment has no Revert. Reverted changes stay in the list, dimmed, marked "Reverted". "Created the split" can't be reverted.
 
-**Losing a pick.** A picked name can't be tapped straight through. Tapping it opens "Picked on another phone." with "That's me" and Cancel (C2). "That's me" moves the name to this phone, and the old phone drops back to browsing. The move is a History entry, so a wrong takeover is one Revert away. That is the only protection. There are no accounts, so anyone could press "That's me".
+**Losing a pick.** A picked name can't be tapped straight through. Tapping it opens "Picked on another phone." with "That's me" and Cancel (C2). "That's me" moves the name to this phone, and the old phone drops back to browsing. The move is not a History entry, and nothing checks who asks. There are no accounts, so any device can take any name. A Split is between friends, and the real person fixes a wrong takeover by tapping "That's me" again.
 
 **Closing without picking.** The tall sheet has a ✕, and a flick down also closes it. The page then shows K: no chip selected, no "you" mark, and the sheet asks "Pick your name to check off what you had." with a "Which one are you?" pill that reopens the tall sheet. Lines still open their Item. Tapping a circle reopens the tall sheet.
 
@@ -68,7 +68,7 @@ The chip row on the split page keeps an 8 px gap. At 10 px, four names plus "+" 
 2. The hint text changed from "Tap what you had" to "Check what you had".
 3. The clock icon for History sits in the header, left of Share.
 4. Reverted History entries stay in the list, dimmed, with a "Reverted" label. Each manual Receipt change reverts once, and a Payment has no Revert. "Created the split" has no Revert.
-5. "That's me" with Cancel, inline in the picked row, plus a History entry for the move.
+5. "That's me" with Cancel, inline in the picked row. The move is not a History entry.
 6. In K, the line "Pick your name to check off what you had." and a "Which one are you?" pill.
 7. Tapping a circle in K reopens the pick sheet.
 8. In the Item sheet: "Who had it" chips with a "+", the split labels "Evenly", "By shares" and "By amount", a share count line, and the "Adds up" or "$X left" line.
