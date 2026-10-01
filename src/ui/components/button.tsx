@@ -1,10 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, type GestureResponderEvent, type PointerEvent } from "react-native";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type PointerEvent,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 
 import { pressStyle, useReducedMotion } from "../motion";
 import { motion, type, useColors } from "../theme";
-
-type Props = { label: string; onPress: () => void; outsideScroll?: boolean };
+import { Icon, type IconName } from "./icon";
 
 type Look = "rest" | "waiting" | "pressed" | "away" | "tapped";
 
@@ -61,24 +70,103 @@ function usePressLook(outsideScroll: boolean) {
   };
 }
 
-export function Button({ label, onPress, outsideScroll = false }: Props) {
-  const c = useColors();
-  const reduce = useReducedMotion();
+type TargetProps = {
+  onPress: () => void;
+  name?: string;
+  outsideScroll?: boolean;
+  disabled?: boolean;
+  describedBy?: string;
+  style: (pressed: boolean) => StyleProp<ViewStyle>;
+  children: (pressed: boolean) => ReactNode;
+};
+
+export function PressTarget({ onPress, name, outsideScroll = false, disabled = false, describedBy, style, children }: TargetProps) {
   const look = usePressLook(outsideScroll);
   const web = Platform.OS === "web";
-  const webProps = web ? { dataSet: { pressable: "" }, ...look.pressProps } : {};
+  const webProps = web ? { dataSet: { pressable: "" }, ...(disabled ? {} : look.pressProps) } : {};
   return (
     <Pressable
       role="button"
+      aria-label={name}
+      aria-describedby={describedBy}
+      disabled={disabled}
       onPress={onPress}
       {...webProps}
-      style={({ pressed }) => [styles.solid, { backgroundColor: c.action }, pressStyle(web ? look.pressed : pressed, reduce)]}
+      style={({ pressed }) => style(web ? look.pressed : pressed)}
     >
-      <Text style={[type.button, { color: c.onAction }]}>{label}</Text>
+      {({ pressed }) => children(web ? look.pressed : pressed)}
     </Pressable>
   );
 }
 
+type Kind = "primary" | "outline" | "chip" | "link" | "icon";
+
+type Props = ({ label: string; name?: string } | { label?: undefined; name: string }) & {
+  onPress: () => void;
+  kind?: Kind;
+  icon?: IconName;
+  outsideScroll?: boolean;
+  disabled?: boolean;
+  reason?: string;
+};
+
+export function Button({ label, onPress, kind = "primary", icon, name, outsideScroll, disabled = false, reason }: Props) {
+  const c = useColors();
+  const reduce = useReducedMotion();
+  const reasonId = useId();
+  const tone: { fill?: string; ink: string; ring?: string } = {
+    primary: disabled ? { fill: c.off, ink: c.onOff } : { fill: c.action, ink: c.onAction },
+    outline: { ink: c.ink, ring: c.hairline },
+    chip: { ink: c.muted, ring: c.hairline },
+    link: { ink: c.muted },
+    icon: { ink: c.muted },
+  }[kind];
+  const target = (
+    <PressTarget
+      onPress={onPress}
+      name={name}
+      outsideScroll={outsideScroll}
+      disabled={disabled}
+      describedBy={reason ? reasonId : undefined}
+      style={(pressed) => [styles.target, kind === "primary" && styles.wide, pressStyle(pressed, reduce)]}
+    >
+      {() => (
+        <View style={[styles.face, faces[kind], { backgroundColor: tone.fill, boxShadow: tone.ring && `inset 0 0 0 1px ${tone.ring}` }]}>
+          {icon ? <Icon name={icon} size={iconSizes[kind]} color={tone.ink} /> : null}
+          {label ? <Text style={[labels[kind], { color: tone.ink }]}>{label}</Text> : null}
+        </View>
+      )}
+    </PressTarget>
+  );
+  if (!reason) return target;
+  return (
+    <View style={styles.withReason}>
+      <Text id={reasonId} style={[type.small, styles.reason, { backgroundColor: c.flagWash, color: c.flag }]}>
+        {reason}
+      </Text>
+      {target}
+    </View>
+  );
+}
+
+const colorChange = Platform.OS === "web" ? ({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" } as ViewStyle) : {};
+
+const iconSizes: Record<Kind, number> = { primary: 20, outline: 20, chip: 16, link: 16, icon: 18 };
+
+const labels = { primary: type.button, outline: type.button, chip: type.label, link: type.small, icon: type.small };
+
+const faces = StyleSheet.create({
+  primary: { height: 54, paddingHorizontal: 24, borderRadius: 27, ...colorChange },
+  outline: { width: 52, height: 52, borderRadius: 14 },
+  chip: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
+  link: { minHeight: 44, paddingHorizontal: 2 },
+  icon: { width: 44, height: 44 },
+});
+
 const styles = StyleSheet.create({
-  solid: { height: 56, paddingHorizontal: 28, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  target: { alignSelf: "flex-start" },
+  wide: { alignSelf: "stretch" },
+  face: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  withReason: { alignSelf: "stretch", gap: 10 },
+  reason: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

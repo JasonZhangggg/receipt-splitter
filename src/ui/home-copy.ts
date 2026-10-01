@@ -26,6 +26,6 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, phone.title, phone.hint, desktop.title, desktop.hint],
-  500: [copy.wordmark, paymentApps.venmo.glyph, paymentApps.venmo.name, copy.me, copy.addName.label, copy.action],
+  400: [copy.example, phone.title, phone.hint, desktop.title, desktop.hint, paymentApps.venmo.name],
+  500: [copy.wordmark, paymentApps.venmo.glyph, copy.me, copy.addName.label, copy.action],
 };

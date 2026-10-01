@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, Platform, StyleSheet, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Platform, type ViewStyle } from "react-native";
 
 import { motion } from "./theme";
 
@@ -20,19 +20,23 @@ type WebOnly = Partial<Record<"transitionProperty" | "transitionDuration" | "tra
 
 const webStyle = (style: WebOnly) => style as ViewStyle;
 
-const press = StyleSheet.create({
-  scaled: { transform: [{ scale: 0.96 }] },
-  dimmed: { opacity: 0.7 },
-});
+type PressFeel = { scale: number; pressIn: number };
 
-export function pressStyle(pressed: boolean, reduce: boolean) {
-  if (reduce) return pressed && press.dimmed;
+export const pressFeel: Record<"button" | "slip", PressFeel> = {
+  button: { scale: 0.96, pressIn: motion.pressIn },
+  slip: { scale: 0.97, pressIn: motion.slipPressIn },
+};
+
+const dimmed = { opacity: 0.7 };
+
+export function pressStyle(pressed: boolean, reduce: boolean, feel: PressFeel = pressFeel.button) {
+  if (reduce) return pressed && dimmed;
   return [
-    pressed && press.scaled,
+    pressed && { transform: [{ scale: feel.scale }] },
     web &&
       webStyle({
         transitionProperty: "transform",
-        transitionDuration: `${pressed ? motion.pressIn : motion.pressOut}ms`,
+        transitionDuration: `${pressed ? feel.pressIn : motion.pressOut}ms`,
         transitionTimingFunction: motion.easeOut,
       }),
   ];
