@@ -9,7 +9,7 @@ The PRs, in stack order, are RS-1, RS-2, RS-3, RS-4, RS-5, RS-6, RS-7, RS-8, RS-
 
 One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
 
-The program runs `~/.claude/skills/poteto-mode/playbooks/autopilot-stack.md`. The root builds and verifies one linear stack on `main`. The operator reviews and lands every PR bottom-up. No owner merges. RS-3, RS-6, RS-7, RS-9, RS-10, and RS-11 stop at merge-ready for the operator's review gate.
+The program runs `~/.claude/skills/poteto-mode/playbooks/autopilot-stack.md`. The root builds and verifies one linear stack on `main`, bottom-up. No owner merges. The root merges a PR on a clean verdict at its exact head plus green CI, under the merge rules in **Verdict and merge**. RS-3, RS-9, RS-10, and RS-11 also stop at merge-ready for the operator's review gate. RS-6 and RS-7 merged without one, on the operator's ruling of 2026-10-01.
 
 Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -17,7 +17,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 **Problem.** Splitting a restaurant bill takes too long and goes wrong. Splitwise charges for receipt scanning. Lily Split uploads receipt photos to a public bucket, asks for every name before showing any Items, supports only Venmo, and never checks the Items against the receipt total. Friends overpay or underpay and nobody notices.
 
-**Solution.** The Host does everything on the home page, with no steps to move between. The Host takes or uploads a photo of the Receipt. The site reads it on the phone in about a second, checks that the Items add up to the total, and highlights any row that does not. The tip comes from the receipt as one Adjustment line the Host can edit. In a bottom sheet on the same page, the Host enters a Payment handle, optionally adds names, and creates a share link. Anyone who opens the link picks their name, Claims their Items, watches every Share update live, and pays the Host with one tap on Venmo, Cash App, or PayPal, or copies the Zelle details.
+**Solution.** The Host does everything on the home page, with no steps to move between. The Host takes or uploads a photo of the Receipt. The site reads it on the phone in about a second, checks that the Items add up to the total, and highlights any row that does not. The tip comes from the receipt as one Adjustment line the Host can edit. In a bottom sheet on the same page, the Host enters a Payment handle, optionally types the names at the table, their own included, and creates a share link. Everyone who opens the link, the Host included, picks their name from a tall sheet over the Split page, or closes it to look. They check off their Items, watch every Share update live, fix the Receipt in place, and pay the Host with one tap on Venmo, Cash App, or PayPal, or copy the Zelle details.
 
 **User stories.**
 
@@ -26,14 +26,19 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 3. As a Host, I want to type Items by hand when the photo is unreadable, so that I can still split the bill.
 4. As a Host, I want the tip read from the receipt as one line I can edit, so that a handwritten tip still counts without a separate step.
 5. As a Host, I want to share one link without typing names first, so that I can send it to the group chat at once.
-6. As a Participant, I want to pick my name from a list or add it, so that I can start claiming in one tap.
-7. As a Participant, I want to Claim my Items and see my Share update live, so that I know what I owe before I pay.
-8. As a Participant, I want to split a shared Item evenly with the others who Claimed it, so that a shared pitcher costs each of us the same.
-9. As any Participant, I want to fix a price or undo someone's mistake, so that the Split stays right without waiting for the Host.
+6. As a Participant, I want to pick my name from a tall sheet or add it, so that I can start claiming in one tap.
+7. As a Participant, I want to check off my Items and see my Share update live, so that I know what I owe before I pay.
+8. As a Participant, I want to split a shared Item evenly, by shares, or by amount, and split each unit of a line with a quantity, so that a shared pitcher or two of three dumplings costs each of us the right amount.
+9. As any Participant, I want to fix a price in the Item's detail sheet or revert someone's change from History, so that the Split stays right without waiting for the Host.
 10. As a Participant, I want one tap to pay the Host on the app they use, so that I do not have to type a handle or an amount.
-11. As a Participant, I want to record that I paid and what I paid, so that a later change shows exactly what is still owed.
+11. As a Participant, I want to mark myself paid and record what I paid, so that a later change shows exactly what is still owed.
 12. As a Host, I want to see who has paid, so that I know whom to remind.
 13. As a Host, I want to read the Receipt, fix it, and create the link on one page, so that I never lose my place between steps.
+14. As a Host, I want to type my own name with the others and pick it like everyone else, so that the page needs no special "Me".
+15. As a Participant, I want to close the pick sheet and look at the Split without picking, so that I can check the bill before I commit to a name.
+16. As a Participant, I want my name to belong to my phone alone, and to take it back with **That's me** on a new phone, so that nobody else checks off Items as me by accident.
+17. As any Participant, I want to see what nobody has claimed and know that nobody pays for it yet, so that the table can sort it out.
+18. As any Participant, I want a warning when the Items stop adding up to the total, so that a bad edit does not go unnoticed.
 
 **Out of scope.** Sign-in, saved groups, and history of past Splits. Any LLM fallback. The iOS and Android apps, although every module keeps them possible. Currencies other than USD. Debt netting across Splits. Long receipts taken in several photos. PDF receipts. WebGPU. A production deploy, which the operator runs after the stack lands.
 
@@ -46,7 +51,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - `docs/adr/0004-one-durable-object-per-split.md` stores each Split as one JSON record in one Durable Object, and lists the four cost rules.
 - Adjustments divide in proportion to each Participant's Claimed Items. A shared Item divides evenly among its claimers. Leftover cents go to claimers in a fixed order so Shares sum to the total exactly.
 - Amounts are integer cents, and each Split carries `currency: "USD"`.
-- The Total check must pass before a Split can be created. Unclaimed items never block paying. The Split shows a banner and offers one tap to split them among everyone.
+- The Total check must pass before a Split can be created. Unclaimed items never block paying. The redesign below drops the banner that split them among everyone.
 - Payment handles are entered at creation, at least one is required, the device remembers them, and only the creating device can change them.
 - The OCR model starts downloading in the background on the home page. A share link never downloads it.
 - A Split is deleted 60 days after its last change.
@@ -62,12 +67,29 @@ The operator's home redesign of 2026-09-30 settled these. They supersede earlier
 - The line "The photo stays on this phone" is left out of the page.
 - Owners commit locally and never push. The root pushes once on a clean verdict, per the push rule in `~/.claude/orchestrate/receipt-splitter/preferences.md`. This replaces opening the PR ready and pushing early.
 
+The operator's split page redesign of 2026-10-01 settled these, in the "Split page redesign", "Split redesign answers", and "Round 8 approved" sections of `~/.claude/orchestrate/receipt-splitter/preferences.md`. They supersede earlier plan text wherever the two differ, RS-9 included. The approved design is round 8 in `docs/design/split/`.
+
+- There is no "Me". The Host types names only, their own included, on the home page.
+- Everyone, the Host included, picks their name from a tall bottom sheet over the Split page, not a full page. The sheet shows an invite line, the people list, and **Not here? Add yourself**. A ✕ or a flick down closes it without a pick, and the page then shows a browse state. After a pick, the sheet springs down to its regular height and shows the people chips with yours marked "you".
+- One device holds one name. A picked name shows as picked on another phone. Tapping it asks **That's me**, which moves the name to this device and drops the old device back to browsing.
+- Participants can add people. Nobody can remove or rename a person.
+- Everyone with the link can view and edit the Receipt, after the link exists too. This reverses RS-9's lock. Every Receipt edit is one change that anyone can revert.
+- Tapping a Receipt line opens its Item sheet, with the name, the price, a quantity, and **Who had it**. A circle on the left of the line checks it off for the selected person instead.
+- With quantity above 1, **Who had it** splits each unit, not the line total.
+- An Item splits **Evenly**, **By shares**, or **By amount**. A remainder that a **By amount** split leaves counts as Unclaimed.
+- Nobody pays for an Unclaimed item. It stays Unclaimed and flagged in yellow, and the Unclaimed figure under the Total includes its part of tax, fee, and tip. There is no "split among everyone" action.
+- History opens from a clock icon in the header. It lists Payments and manual Receipt changes only. It lists no picks, joins, added people, or Claims. Each change reverts once. Reverting a change made on another device asks for confirmation first. There is no Undo toast and no "someone edited" toast.
+- The Split page warns in home's style, such as "Items are $0.25 over.", when the Items stop adding up to the subtotal.
+- The payer marks themselves paid, with **I already paid** on their own breakdown. Other people's breakdowns show Paid or Not paid with no buttons.
+- Spacing grows by about 2 px and type shrinks by about 1 px app-wide, the home page included. Inputs stay at 16 px. Appendix E lists the values.
+- RS-9, RS-10, and RS-11 still wait for the operator's review before merge.
+
 ## Program checklist
 
 ### Arm the program
 
 - [ ] State the protocol and this plan to the operator, then stop. Start execution only on the operator's explicit go.
-- [ ] On the operator's go, write this exact text into the standing objective and restate it in your todolist. "Run docs/plans/receipt-splitter-v1.md under autopilot-stack. Build RS-1 through RS-11 as one linear stack on main, in that order. A PR is verified only when its unit, live, and perf boxes are all checked, and tests alone are not sufficient verification. The operator reviews and lands every PR. RS-3, RS-6, RS-7, RS-9, RS-10, and RS-11 wait at merge-ready for the operator's review gate. Done when every PR is verified, rebased on current main, and handed to the operator as one stack."
+- [ ] On the operator's go, write this exact text into the standing objective and restate it in your todolist. "Run docs/plans/receipt-splitter-v1.md under autopilot-stack. Build RS-1 through RS-11 as one linear stack on main, in that order. A PR is verified only when its unit, live, and perf boxes are all checked, and tests alone are not sufficient verification. The root merges each PR bottom-up on a clean verdict at its exact head plus green CI. RS-3, RS-9, RS-10, and RS-11 also wait at merge-ready for the operator's review gate. Each PR's test runs fit in 30 minutes. Done when every PR is verified, rebased on current main, and merged."
 - [ ] Read these at program start. Re-read them at every tick.
   - [ ] `~/.claude/skills/poteto-mode/playbooks/autopilot-stack.md`
   - [ ] `~/.claude/skills/swarm/SKILL.md`
@@ -107,7 +129,7 @@ The operator's home redesign of 2026-09-30 settled these. They supersede earlier
   - [ ] RS-6 touches only `src/ui/**`, `assets/fonts/**`, `app/index.tsx`, `e2e/home.spec.ts`, and `features/home.md` and `features/README.md` in `verify-receipt-splitter`.
   - [ ] RS-7 touches only `app/index.tsx`, `src/ui/**`, `src/draft.ts`, `src/draft.test.ts`, `src/ocr/**`, `public/ocr-worker.mjs`, `e2e/**`, `package.json`, and `features/**` in `verify-receipt-splitter`. RS-7 may also edit `src/parse/index.ts`, only to report an Item that `foldInto` set to 0. No PR creates a route under `app/new/`.
   - [ ] RS-8 touches only `worker/**`, `src/core/**` for the shared operation types, and `wrangler.jsonc`.
-- [ ] Hold the review gate. RS-6, RS-7, RS-9, RS-10, and RS-11 change an interaction, and RS-3 needs the operator to check the benchmark labels. They wait for the operator's review in chat with screenshots, and a video where the PR changes an interaction, before merge.
+- [ ] Hold the review gate. RS-9, RS-10, and RS-11 change an interaction, and RS-3 needs the operator to check the benchmark labels. They wait for the operator's review in chat with screenshots, and a video where the PR changes an interaction, before merge. RS-6 and RS-7 merged without the gate, on the operator's ruling of 2026-10-01.
 
 ### PR mechanics, for every PR
 
@@ -119,6 +141,8 @@ The operator's home redesign of 2026-09-30 settled these. They supersede earlier
 - [ ] Force-push with lease only for a restack, and restack only when `main` moves.
 - [ ] Run `npm run lint` and `npm run typecheck` before the verdict. Commit with hooks on.
 - [ ] Write tests through `/tdd` at the PR's **Seams**.
+- [ ] Hold the CI-robustness rule in every new e2e case. Take no action before the page hydrates. Never assert a value that is already on screen before the action that should change it. Run each new case under a 4x CPU throttle, with `Emulation.setCPUThrottlingRate` at rate 4 through a Playwright CDP session, before the verdict.
+- [ ] Test logic, not looks. No test pins a style value, such as a color, a size, or a duration. The screenshot matrix and the operator's review prove the UI.
 - [ ] Run `/deslop` before each commit and `/no-comments` before review.
 - [ ] Run `/spec-review` against this plan's PR section before the code-ready report. Fix every Spec finding.
 - [ ] Triage every Bugbot and security-reviewer comment per `../references/bugbot-triage.md`.
@@ -126,11 +150,17 @@ The operator's home redesign of 2026-09-30 settled these. They supersede earlier
 
 ### Verdict and merge, for every PR
 
-- [ ] At the owner's merge-ready local head SHA, run the swarm per `~/.claude/skills/swarm/SKILL.md`. One gates lane. The live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. One audit lane that reads the diff and the receipts and distrusts the PR body.
-- [ ] Lanes return `PASS`, `PASS+NOTES`, or `FAIL`. `FAIL` is a blocking issue, a defect, or new code without a test that fails for it. Clean when no lane fails. `FAIL` findings go back to the owner.
+- [ ] Hold the verification budget of 2026-10-01 from `~/.claude/orchestrate/receipt-splitter/preferences.md`. Each PR gets 30 minutes of test runs at most. The budget overrides any heavier lane list in a PR section.
+  - [ ] The gates are lint, typecheck, unit, worker, and e2e, about 4 minutes in total.
+  - [ ] Mutants cover logic only, such as money math, `src/core`, `src/parse`, `src/draft.ts`, `worker/`, and OCR plumbing. They run against the unit and worker tests, at most about 15 per PR. Each mutant runs only the test files that cover its file, and a survivor counts only after it also survives the full unit suite. No mutant touches UI, style values, or e2e.
+  - [ ] The live check is the PR's **Verify, live** lanes, run in one pass of 15 minutes or less. Lane 1 drives the main user flow. Lane 2 is the screenshot matrix. A press check is a smoke test.
+  - [ ] Perf is `npm run size` plus LCP over 3 loads each at trunk and head, interleaved, in about 5 minutes.
+- [ ] At the owner's merge-ready local head SHA, run the swarm per `~/.claude/skills/swarm/SKILL.md`, with all lanes in parallel and done within 30 minutes. One gates and perf lane. One live lane that runs the PR's **Verify, live** block. One audit lane that reads the diff and the receipts, distrusts the PR body, and runs no UI mutant.
+- [ ] Lanes return `PASS`, `PASS+NOTES`, or `FAIL`. `FAIL` is a real defect or new logic without a test that fails for it. A missing test on a visual or a rare edge case is a note. Clean when no lane fails. `FAIL` findings go back to the owner.
 - [ ] Each note names its fixer, the next PR touching those files or the cleanup PR, and goes in `~/.claude/orchestrate/receipt-splitter/notes.md`. A PR sent back fixes its own notes too.
-- [ ] The first verdict runs every lane. A fix round reruns gates, an audit of the new commits, and the lanes whose surface changed. Perf reuses deterministic trunk values (build bytes) at the same trunk SHA and keeps timings interleaved.
-- [ ] Append each clean PR to the stack on `main` in order. After any restack, compare `git patch-id` of each PR's base-to-head diff against its value at the verdict SHA, per `~/.claude/skills/poteto-mode/playbooks/shipping.md`. An unchanged patch-id keeps the verdict. A changed one gets a fresh swarm. The operator lands the stack bottom-up.
+- [ ] The first verdict runs every lane. The root checks a fix round itself, with the gates plus the check that failed, and starts no new swarm. Perf reuses deterministic trunk values (build bytes) at the same trunk SHA and keeps timings interleaved.
+- [ ] Append each clean PR to the stack on `main` in order. After any restack, compare `git patch-id` of each PR's base-to-head diff against its value at the verdict SHA, per `~/.claude/skills/poteto-mode/playbooks/shipping.md`. An unchanged patch-id keeps the verdict. A changed one gets a fresh swarm.
+- [ ] Merge bottom-up. A PR merges on a clean verdict at its exact head, green CI on the required check `check`, and, for a review-gated PR, the operator's approval in chat. The root then arms GitHub auto-merge with a merge commit, or merges with `--match-head-commit` pinned to that head. Never weaken a test to get CI green.
 
 ### Boot recipe, for every live lane
 
@@ -703,6 +733,8 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 ## Create a Split and join it by link (RS-9)
 
+RS-9 is built as PR 13 at `2e8d6d5` and waits for the operator's review. Its boxes below record what it built. RS-10 replaces three parts of it under the split page redesign. The full-page "Which one are you?" becomes the tall pick sheet. The Host's "Me" Participant goes away, and the Host types their own name like any other. The Receipt stops being locked once the link exists, because everyone can edit it on the Split page.
+
 **Depends on.** RS-7 and RS-8.
 
 **Files.**
@@ -774,102 +806,160 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Depends on.** RS-9.
 
+RS-10 builds the Split page of round 8 in `docs/design/split/`. Read its `README.md` first. The operator's decisions there win over the board. The core and server half is built on the local branch `rs-10-claims` at `187798a`, and its boxes below are checked with their commits. The UI half starts from that head.
+
 **Files.**
 
-- [ ] Create `src/ui/split-view/` and `src/ui/recent-changes/`.
-- [ ] Edit `app/s/[id].tsx`.
+- [x] Edit `src/core/operations.ts`, `src/core/split.ts`, `src/core/shares.ts`, `worker/rate-limit.ts`, and their tests. Edit `e2e/join.spec.ts`. Done in `eb1899c` through `187798a`.
+- [ ] Edit `src/core/split.ts`, `src/core/operations.ts`, `src/core/shares.ts`, `src/core/operations.test.ts`, and `src/core/shares.test.ts` again for quantity, split modes, and **That's me**.
+- [ ] Edit `src/ui/theme.ts` and the home components in `src/ui/components/` for the new spacing and type.
+- [ ] Create `src/ui/split-view/`, `src/ui/item-sheet/`, and `src/ui/history/`.
+- [ ] Edit `app/s/[id].tsx`, `app/index.tsx`, and `src/device.ts`.
+- [ ] Create `e2e/claim.spec.ts`. Edit `e2e/join.spec.ts` where RS-9's full page goes away.
 
 **Build.**
 
-- [ ] Show every Item on `app/s/[id].tsx` with its claimers. One tap Claims or unclaims it for the chosen Participant, and a long press Claims it for anyone.
-- [ ] Show every Share live with `computeShares`, labeled as the total so far while Unclaimed items remain.
-- [ ] Show the banner "N items unclaimed. Shares may go up." with one tap to split them among everyone.
-- [ ] Let anyone edit an Item or an Adjustment, the Tip line included, with the receipt editor from `src/ui/receipt-editor/`, and block an edit that breaks the Total check.
-- [ ] Show the recent-changes list in `src/ui/recent-changes/`, such as "Sam changed Fries $8.00 to $6.00", with **Undo** on each entry.
+- [x] Refuse a change or a new Split that leaves two Participants with one name, as `nameTaken`, ignoring case and outer spaces. A stored Split that already repeats a name takes no further repeat. Done in `eb1899c` and `7d69511`.
+- [x] Hold one device per name. A second device's pick, and an Undo of an unmark after someone else took the name, are refused as `namePicked`. An unmark is a recorded change that Undo reverses. Done in `4e9b050` and `ab4f8d8`.
+- [x] Start every name unpicked in `createSplit`, so the Host picks like everyone else. Done in `ab4f8d8`.
+- [x] Make Participants add-only. `removeParticipant` is refused as `removalNotAllowed` for every client. Done in `ab4f8d8`.
+- [x] Make every Receipt edit by any Participant one recorded change that Undo reverses, and carry it between clients and across a Durable Object wake. Done in `195fffe` and `02daed8`.
+- [x] Keep the Receipt as created in `original`, and add `restoreReceipt`, one recorded change that puts every Item and Adjustment back and keeps the Claims on rows that stayed. Done in `84680f8`, `82d6225`, and `187798a`.
+- [x] Charge each recorded change's bytes to a per-Split history bucket of 5 KB that refills at 1 KB a second in `worker/rate-limit.ts`. Keep 64 recent changes and cap one change at 5 KB, so a burst cannot push a change out of reach of Undo. Done in `84680f8`.
+- [x] Add `shareBreakdown(split, participantId)` in `src/core/shares.ts`, whose Item and Adjustment lines add up to the Share from `computeShares`. Done in `4798fae`.
+- [x] Drive the 4500 close test in `e2e/join.spec.ts` with the page clock instead of a 3 second wait. Done in `17fdc9d`.
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`. Build motion with `animate`. Read `review-animations` by hand and fix each finding. Run `unslop` on every UI string.
+- [ ] Run `/architect` on the core changes below before code, and name the data shape first.
+- [ ] Add quantity and split modes to the model in `src/core/split.ts`, with `computeShares` and `shareBreakdown` following.
+  - [ ] Give each Item a quantity of 1 or more. With quantity above 1, **Who had it** splits each unit, not the line total. Each unit takes its own claimers.
+  - [ ] Give each Item one split mode, `even`, `shares`, or `amount`, as a discriminated union. `shares` holds a whole-number weight per claimer. `amount` holds cents per claimer.
+  - [ ] Count the cents that an `amount` split leaves unassigned as Unclaimed. Refuse an `amount` split whose parts exceed the price.
+  - [ ] Keep Adjustments in proportion to each Participant's claimed cents. Unclaimed cents, and their part of each Adjustment, stay out of every Share.
+  - [ ] Make a change to the quantity, the split mode, the shares, or the amounts one recorded change that Undo reverses.
+- [ ] Add a core operation for **That's me** that moves a picked name to the sending device, and drops the old device back to browsing. Record it outside History.
+- [ ] Delete the `splitUnclaimed` operation and its tests, since nobody pays for Unclaimed items and no page sends it. Close the RS-2 note on its `tooLarge` rejection with it.
+- [ ] Change the spacing and type tokens app-wide in `src/ui/theme.ts`, per Appendix E, so the home page moves too. Inputs stay at 16 px. The chip row on the Split page keeps an 8 px gap.
+- [ ] Build the tall pick sheet in `src/ui/split-view/`, per frames B, C, C2, D, and J-C.
+  - [ ] Open it over `app/s/[id].tsx` on every visit with no pick stored for this device. Show the invite line, such as "Jason invited you to split Sukhothai Sushi · $32.64", or "Link ready." for the creating device. Below it, show every name with the creator first, and **Not here? Add yourself** at the bottom.
+  - [ ] Mark a name picked on another phone. Tapping it shows "Picked on another phone." with **That's me** and **Cancel** inline in the row.
+  - [ ] Close the sheet with a ✕ or a flick down, without a pick.
+  - [ ] Remember the pick per Split in `src/device.ts`. Delete RS-9's full page and its **Not Sam?** link.
+  - [ ] Collapse to the regular sheet after a pick, per the spec beside frame E. Show the filled check for 80 ms, then run one critically damped spring of 0.35 s on `transform`. Fade the list out with a 2 px blur over 120 ms, and fade the chips in from scale 0.96 over 180 ms, 30 ms apart. A drag picks the sheet up where it is and keeps the finger's velocity. Under reduced motion, cross-fade over 200 ms.
+- [ ] Build the browse state of frame K. No chip is selected and no "you" mark shows. The sheet says "Pick your name to check off what you had." with a **Which one are you?** pill that reopens the tall sheet. Lines still open their Item. A tap on a line's circle reopens the tall sheet.
+- [ ] Show the people chips in the regular sheet. Mark your own chip "you", outline names nobody has picked, sort the creator first, and end the row with a **+** chip that adds a person.
+- [ ] Claim through the line's circle, per frame F. The left 44 px of each line toggles it for the selected chip, and the rest of the line opens the Item sheet. The hint reads "Check what you had". Initial dots show the claimers. Once claiming starts, Unclaimed lines turn yellow.
+- [ ] Show one person's breakdown on a chip tap, from `shareBreakdown`, per frames G and H. Show their Items, such as "½ of 1.00", their parts of tax, fee, and tip, their total, and Paid or Not paid. Your own breakdown reads "You owe" and holds the pay action that RS-11 wires. Decide how per-person lines show when they do not sum across people, per note N-a.
+- [ ] Build the Item sheet in `src/ui/item-sheet/`, per frames I1 and I2.
+  - [ ] Edit the name, the price, and the quantity in place. Save as you go, with no Save button. The ✕ closes the sheet.
+  - [ ] Show **Who had it** as chips with a **+** that adds a person to this Item.
+  - [ ] Switch the split with a three-way control, **Evenly**, **By shares**, and **By amount**. Show a stepper per person for shares and a dollar field per person for amounts. Under **By amount**, show "Adds up" or how much is left.
+  - [ ] Draw quantity above 1 per unit. The board draws quantity 1 only, so show the operator the quantity-2 sheet in the review gate.
+  - [ ] Show a shares split's ratio beside the line name on the receipt, such as "2:1", and "split" for an amount split.
+  - [ ] Slide the segment over 200 ms ease-out and cross-fade the rows below over 150 ms, with no height animation.
+- [ ] Build History in `src/ui/history/`, per frame I3. It replaces the recent-changes list and the Undo toast.
+  - [ ] Open it from a clock icon in the header, left of Share.
+  - [ ] List Payments and manual Receipt changes only, newest first, with the name picked on the sending device and the time. List no picks, joins, added people, Claims, or **That's me** moves. Word the name so that it claims no identity that `by` cannot prove, per notes N-c and N-d.
+  - [ ] Revert each change once, through Undo. Keep a reverted row in the list, dimmed over 150 ms, labeled "Reverted". "Created the split" has no Revert.
+  - [ ] Ask for confirmation before a revert of a change made on another device.
+  - [ ] Offer `restoreReceipt` on the "Created the split" row, with the same confirmation. The board draws no place for it, so show the operator this row in the review gate.
+- [ ] Show the mismatch warning under the Items in home's style, such as "Items are $0.25 over.", from the Total check in `src/core/total-check.ts`. The Subtotal row keeps the printed value.
+- [ ] Show the Unclaimed figure under the Total in yellow, with the Items' part of tax, fee, and tip, as $4.98 in the board. Remove the "split among everyone" banner.
+- [ ] Drop the remove buttons on the home sheet's name chips after the link exists, in `app/index.tsx`.
+- [ ] Drop "Me" from Split creation on `/`. The Host types their own name with the others.
+- [ ] Give a reloaded device that forgot its pick the **That's me** path, so it no longer stops at `namePicked` on its own name.
+- [ ] Re-run hibernation and reconnect, which RS-9's live lane skipped, inside lane 1.
+- [ ] Split the `/s/[id]` route from the home bundle if the page's transfer passes 400 KB. It was 355 KB at RS-9.
 
 **You see.**
 
-- [ ] When one browser Claims the fries for Sam, a second browser shows Sam on the fries and Sam's new Share within one second.
+- [ ] When the Host creates a Split with "Jason", "Sam", and "Priya", each of three browsers opens the tall pick sheet. After Priya picks Priya and checks Sprite, the other browsers show Priya on Sprite and Priya's new Share within one second.
+- [ ] Changing Sprite to $2.75 in its Item sheet shows "Items are $0.25 over." on every browser, and History lists the change.
 
 **Seams.**
 
-- [ ] The Split view as users drive it from two browsers, through Playwright in `e2e/claim.spec.ts`.
+- [ ] `applyOperation` and `computeShares` and `shareBreakdown` as the page calls them, in `src/core/operations.test.ts` and `src/core/shares.test.ts`.
+- [ ] The Split page as users drive it from several browsers, through Playwright in `e2e/claim.spec.ts` against `wrangler dev`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `e2e/claim.spec.ts` gains three browsers Claiming a $30.00 pitcher and asserts $10.00 each on every browser. Run `npm run e2e`.
-- [ ] `e2e/claim.spec.ts` gains a price change followed by **Undo** from another browser, and asserts the old price everywhere. Run `npm run e2e`.
-- [ ] `e2e/claim.spec.ts` gains a split of Unclaimed items among everyone that clears the banner. Run `npm run e2e`.
+- [x] `src/core/operations.test.ts` and `src/core/shares.test.ts` gain the core half's cases, and `worker/split-server.test.ts` gains a 100-edit flood and a refused second pick. Gates at `187798a` passed 469 unit, 47 worker, and 93 e2e tests. 24 of 25 mutants were killed. Run `npm test` and `npm run test:worker`.
+- [ ] `src/core/shares.test.ts` gains the board's Split, and asserts each person's literal cents and an Unclaimed figure that brings the sum to $32.64. Run `npm test -- src/core`.
+- [ ] `src/core/shares.test.ts` gains Tostones at $1.00 split 2:1, which gives $0.67 and $0.33, and split by amount at $0.75 and $0.25. It also gains an amount split that leaves $0.10, and asserts the $0.10 and its Adjustment parts in Unclaimed. Run `npm test -- src/core`.
+- [ ] `src/core/shares.test.ts` gains two pitchers at $12.00 each, with Jason and Sam on one unit and Priya on the other, and asserts $6.00, $6.00, and $12.00 before Adjustments. Run `npm test -- src/core`.
+- [ ] `src/core/operations.test.ts` gains **That's me**, which moves a name to a second device and leaves the first unpicked, and a split mode change that Undo reverses. Run `npm test -- src/core`.
+- [ ] Run at most 15 mutants on the new core logic against the unit tests, per **Verdict and merge**. No mutant touches UI or e2e.
+- [ ] `e2e/claim.spec.ts` gains two browsers that pick, check a line, and see each other's Shares, a closed pick sheet that browses, **That's me** on a second browser, and a revert from another browser that asks for confirmation. Every case holds the CI-robustness rule in **PR mechanics** and passes under a 4x CPU throttle. Run `npm run e2e`.
 
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `swarm`, per the boot recipe.
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe. Both lanes run in one live pass of 15 minutes or less, per the verification budget.
 
-- [ ] Lane 1. Regression lane against trunk. Create a Split and join it from two browsers at trunk and head. Trunk stops at "Which one are you?", so record that and gate a Claim on one browser showing on the other with updated Shares. Save `claim-two-browsers.png`. Pass when both browsers agree on every Share.
-- [ ] Lane 2. Claim one Item from four browsers at the same moment, citing `features/claim.md`. Save `claim-race.png`. Pass when every browser settles on the same four claimers and the Shares sum to the total.
-- [ ] Lane 3. Change a price, then **Undo** from a different browser, citing `features/claim.md`. Save `claim-undo.png`. Pass when the recent-changes list shows both entries and every browser shows the old price.
-- [ ] Lane 4. Leave two Items Unclaimed and tap split among everyone, citing `features/claim.md`. Save `claim-unclaimed.png`. Pass when the banner clears and the Shares sum to the total.
-- [ ] Lane 5. Claim on a 390 px touch emulation with reduced motion on, citing `features/claim.md`. Save `claim-mobile.png`. Pass when every tap target is at least 44 px and no animation runs under reduced motion.
+- [ ] Lane 1. Regression lane against trunk. Run the main multi-browser flow at trunk and head, citing `features/claim.md`. The Host creates a Split with three names, and three browsers open the link. One browser closes the pick sheet and browses, then picks. The others pick, check Items, open a breakdown, split Tostones 2:1, and change Sprite to $2.75. A fourth browser takes Sam with **That's me**, and one browser reverts the price from History after the confirmation. One browser drops its network for 10 seconds and reconnects. Trunk stops at RS-9's full-page join, so record that and gate the head flow. Save `claim-flow.png`. Pass when every browser agrees on every Share and the Unclaimed figure, the Shares plus Unclaimed equal the Total, and the warning shows only while the Items disagree with the subtotal.
+- [ ] Lane 2. Shoot the screenshot matrix at 390 px, citing `features/claim.md`. Capture each board frame from A to K in light, J-C and J-F in dark, the quantity-2 Item sheet, the restore row in History, and the home page at the new tokens, with reduced motion on and off for the collapse. Save `split-matrix/<frame>.png`. Pass when each frame has its screenshot, no text overflows at 390 px, every target is at least 44 px, and `document.getAnimations()` is empty under reduced motion.
 
 **Feature map.**
 
-- [ ] Add `features/claim.md` in `verify-receipt-splitter`.
+- [ ] Add `features/claim.md` in `verify-receipt-splitter`, with how to open several browsers on one Split and reach each board frame. Update `features/join.md` and `features/home.md`.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Milliseconds from a Claim tap on one browser to the updated Share painted on another, and entry JavaScript brotli bytes.
-- [ ] Probe. A 50-Claim Playwright script across two browsers against `wrangler dev` at head, and `npm run size` at trunk and head, interleaved.
-- [ ] Baseline. Record the trunk entry size first. Trunk has no Claiming.
-- [ ] Rule. Fail if the p95 tap-to-paint exceeds 300 ms locally or the entry grows by more than 20 KB brotli.
+- [ ] Metric. Brotli bytes of every script `dist/index.html` loads, bytes transferred on `/s/<id>`, and LCP on `/s/<id>` and on `/` under Playwright mobile emulation.
+- [ ] Probe. `npm run size` at trunk and head, and 3 loads of each route at trunk and head, interleaved.
+- [ ] Baseline. Record the trunk sizes first. Trunk has RS-9's join page at `/s/<id>`.
+- [ ] Rule. Fail if the scripts grow by more than 25 KB brotli, `/s/<id>` transfers more than 400 KB, or the head LCP median on either route is more than 10 percent over trunk's.
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lanes 1, 3, and 5 screenshots into `/tmp/receipt-splitter-review/RS-10-review-claim.png`, `/tmp/receipt-splitter-review/RS-10-review-undo.png`, and `/tmp/receipt-splitter-review/RS-10-review-mobile.png`.
-- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of two browsers Claiming side by side as `/tmp/receipt-splitter-review/RS-10-review.mp4`.
-- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
+- [ ] Copy lane 1's `claim-flow.png` and lane 2's frames B, K, F, G, I2, and I3, the quantity-2 sheet, and the restore row into `/tmp/receipt-splitter-review/RS-10-review-<frame>.png`.
+- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of the pick sheet collapsing and two browsers claiming side by side as `/tmp/receipt-splitter-review/RS-10-review.mp4`.
+- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's approval.
 
 **Merge.**
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The root appends RS-10 to the stack, and the operator lands it bottom-up.
+- [ ] The root merges RS-10 after RS-9, under the merge rules in **Verdict and merge**.
 
 ## Pay the Host and record the Payment (RS-11)
 
 **Depends on.** RS-10.
 
+RS-11 wires the pay action and the paid status that RS-10 draws on the breakdowns. Build from frames G and H in `docs/design/split/`, and read its `README.md` first.
+
 **Files.**
 
 - [ ] Create `src/core/pay-links.ts` and `src/core/pay-links.test.ts`.
 - [ ] Create `src/ui/pay/`.
-- [ ] Edit `app/s/[id].tsx`.
+- [ ] Edit `src/core/operations.ts`, `src/core/operations.test.ts`, and `app/s/[id].tsx`.
+- [ ] Create `e2e/pay.spec.ts`.
 
 **Build.**
 
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`. Build motion with `animate`. Read `review-animations` by hand. Run `unslop` on every UI string.
 - [ ] Build the payment links in `src/core/pay-links.ts`. PayPal is `https://paypal.me/<user>/<amount>USD`. Cash App is `https://cash.app/$<tag>/<amount>`. Venmo is `https://venmo.com/<user>?txn=pay&amount=<amt>&note=<note>` on the web, and `venmo://paycharge` on a phone.
-- [ ] Show one button for each Payment handle the Host entered, in `src/ui/pay/`. Zelle shows a card that copies the handle and the amount.
-- [ ] Add **I paid** after the handoff. It records a Payment with the amount.
+- [ ] Put the pay pill on your own breakdown in `src/ui/pay/`, per frame G, such as "Pay Jason $12.05 on Venmo". Show one pill for each Payment handle the Host entered. Zelle shows a card that copies the handle and the amount.
+- [ ] Add **I already paid** under the pay pill, on your own breakdown only. It records a Payment with the amount, and shows in History.
+- [ ] Let only the payer mark or unmark themselves paid. Refuse `recordPayment` and `clearPayment` from a device that has not picked that name, per note N-f.
+- [ ] Show Paid or Not paid on every other person's breakdown, with no buttons, per frame H. Once someone has paid, their label reads "Priya paid $3.56" instead of "owes".
 - [ ] Show the difference when a Share changes after a Payment, as "You paid $22.00. The Host owes you $8.00." or "You owe $4.00 more."
-- [ ] Show the Host who has paid and who has not. Let the Host mark or unmark anyone.
 
 **You see.**
 
-- [ ] Sam's view shows a Venmo button that opens `https://venmo.com/<host>?txn=pay&amount=14.20&note=...` for a $14.20 Share.
+- [ ] Sam's own breakdown shows a Venmo pill that opens `https://venmo.com/<host>?txn=pay&amount=14.20&note=...` for a $14.20 Share. Priya's breakdown on Sam's phone shows Not paid and no buttons.
 
 **Seams.**
 
-- [ ] `payLink(handle, cents, note)` in `src/core/pay-links.test.ts`, and the pay flow through Playwright in `e2e/pay.spec.ts`.
+- [ ] `payLink(handle, cents, note)` in `src/core/pay-links.test.ts`, `applyOperation` for Payments in `src/core/operations.test.ts`, and the pay flow through Playwright in `e2e/pay.spec.ts`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] `src/core/pay-links.test.ts` gains the exact URL for each service at $14.20, and a note with spaces and an ampersand encoded. Run `npm test -- src/core`.
-- [ ] `e2e/pay.spec.ts` gains **I paid** at $22.00, then a Claim that drops the Share to $14.00, and asserts "The Host owes you $8.00." Run `npm run e2e`.
+- [ ] `src/core/operations.test.ts` gains a Payment from the payer's device that lands and one from another device that is refused. Run `npm test -- src/core`.
+- [ ] `e2e/pay.spec.ts` gains **I already paid** at $22.00, then a Claim that drops the Share to $14.00, and asserts "The Host owes you $8.00." The case holds the CI-robustness rule in **PR mechanics**. Run `npm run e2e`.
 
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `swarm`, per the boot recipe.
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe. Both lanes run in one live pass of 15 minutes or less, per the verification budget.
 
-- [ ] Lane 1. Regression lane against trunk. Claim Items and open the pay step at trunk and head. Trunk has no pay step, so record that and gate that head shows one button per Payment handle with the right amount. Save `pay-buttons.png`. Pass when each button's URL carries the Share to the cent.
-- [ ] Lane 2. Tap the Zelle card on desktop width, citing `features/pay.md`. Save `pay-zelle.png`. Pass when the clipboard holds the Zelle handle and the amount.
-- [ ] Lane 3. Tap **I paid**, then change a Claim from another browser, citing `features/pay.md`. Save `pay-difference.png`. Pass when the payer sees the exact difference and the Host sees the same.
-- [ ] Lane 4. Open the Host's view with two paid and one unpaid Participant, citing `features/pay.md`. Save `pay-host-view.png`. Pass when the Host sees who has paid and can unmark one.
+- [ ] Lane 1. Regression lane against trunk. From two browsers, claim Items, open your own breakdown, tap the pay pill, tap **I already paid**, then change a Claim from the other browser, citing `features/pay.md`. Trunk has no pay pill, so record that and gate the head flow. Save `pay-flow.png`. Pass when each pill's URL carries the Share to the cent, the other browser shows Paid with no buttons, and both browsers show the exact difference.
+- [ ] Lane 2. Shoot the screenshot matrix at 390 px, citing `features/pay.md`. Capture frames G and H in light and dark, the Zelle card at 1280 px, and History with a Payment. Save `pay-matrix/<frame>.png`. Pass when each frame has its screenshot, no text overflows, and every target is at least 44 px.
 
 **Feature map.**
 
@@ -877,23 +967,23 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Entry JavaScript brotli bytes, and milliseconds from the pay step opening to the buttons painted.
-- [ ] Probe. `npm run size` and a Playwright timing of the pay step at trunk and head, interleaved.
-- [ ] Baseline. Record the trunk entry size first. Trunk has no pay step.
-- [ ] Rule. Fail if the entry grows by more than 10 KB brotli or the buttons take more than 100 ms to paint after the step opens.
+- [ ] Metric. Brotli bytes of every script `dist/index.html` loads, and LCP on `/s/<id>` under Playwright mobile emulation.
+- [ ] Probe. `npm run size` at trunk and head, and 3 loads of `/s/<id>` at trunk and head, interleaved.
+- [ ] Baseline. Record the trunk sizes first. Trunk has no pay pill.
+- [ ] Rule. Fail if the scripts grow by more than 10 KB brotli, `/s/<id>` transfers more than 400 KB, or the head LCP median is more than 10 percent over trunk's.
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lanes 1, 3, and 4 screenshots into `/tmp/receipt-splitter-review/RS-11-review-buttons.png`, `/tmp/receipt-splitter-review/RS-11-review-difference.png`, and `/tmp/receipt-splitter-review/RS-11-review-host.png`.
-- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of paying and recording a Payment as `/tmp/receipt-splitter-review/RS-11-review.mp4`.
-- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
+- [ ] Copy lane 1's `pay-flow.png` and lane 2's frames G and H into `/tmp/receipt-splitter-review/RS-11-review-<frame>.png`.
+- [ ] If `verify-receipt-splitter` can record, save a 30 to 60 second video of paying and marking yourself paid as `/tmp/receipt-splitter-review/RS-11-review.mp4`.
+- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's approval.
 
 **Merge.**
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The root appends RS-11 to the stack, and the operator lands it bottom-up.
+- [ ] The root merges RS-11 after RS-10, under the merge rules in **Verdict and merge**.
 
 ## Close the program
 
