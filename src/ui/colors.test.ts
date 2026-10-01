@@ -36,6 +36,8 @@ const text: [fg: keyof Colors, bg: keyof Colors][] = [
 ];
 
 const shapes: [fg: keyof Colors, bg: keyof Colors][] = [
+  ["dash", "field"],
+  ["dash", "paper"],
   ["action", "field"],
   ["action", "sheet"],
   ["focus", "field"],

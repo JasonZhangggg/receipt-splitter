@@ -61,6 +61,7 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "Example",
     "Add receipt",
     "Take or upload a photo",
+    "JPEG, PNG, or WebP",
     "V",
     "Venmo",
     "Me",
@@ -160,14 +161,15 @@ test("the camera button and Add receipt sit fully above the sheet at 375 by 667"
   expect(await bottom(page.getByText("Add receipt", { exact: true })), "Add receipt bottom").toBeLessThanOrEqual(sheet.top);
 });
 
-test("the whole hero, subline included, sits above the sheet at 375 by 667 with both safe-area insets", async ({ page }) => {
+test("the whole upload box sits above the sheet at 375 by 667 with both safe-area insets", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 47, bottom: 34, left: 0, right: 0 } });
   await page.goto("/");
   await settle(page);
   const sheet = await sheetOf(action(page));
-  const subline = (await page.getByText("Take or upload a photo", { exact: true }).boundingBox())!;
+  const box = page.getByText("JPEG, PNG, or WebP", { exact: true }).locator("..");
+  const subline = (await box.boundingBox())!;
   const wordmark = (await page.getByRole("heading", { name: "Receipt Splitter" }).boundingBox())!;
   const slip = (await hero(page).locator("[data-press-face]").boundingBox())!;
   expect({ sublineAboveSheet: subline.y + subline.height <= sheet.top, slipBelowHeader: slip.y >= wordmark.y + wordmark.height }).toEqual({
@@ -218,7 +220,7 @@ test("at 1280 px the drop area sits left of the 380 px panel with the upload gly
   await settle(page);
   const zone = (await hero(page).boundingBox())!;
   const panel = await sheetOf(action(page));
-  expect(await hero(page).innerText()).toBe("Drop a receipt\nChoose a photo, or paste one");
+  expect(await hero(page).innerText()).toBe("Drop a receipt\nChoose a photo, or paste one\nJPEG, PNG, or WebP");
   expect(panel.width).toBe(380);
   expect(zone.x + zone.width).toBeLessThan(panel.left);
   expect(zone.y).toBe(panel.top);
@@ -227,14 +229,12 @@ test("at 1280 px the drop area sits left of the 380 px panel with the upload gly
     slip: getComputedStyle(document.querySelector("[data-press-face]")!).backgroundColor,
     cameraButton: getComputedStyle(document.querySelector("[data-press-face] > div:last-child")!).backgroundColor,
     glyph: document.querySelector("[data-press-face] [data-icon]")!.getAttribute("data-icon"),
-    dropArea: getComputedStyle(document.querySelector("[data-pressable]:has([data-press-face])")!).boxShadow,
   }));
   expect(colors).toEqual({
     page: "rgb(18, 19, 21)",
     slip: "rgb(28, 29, 32)",
     cameraButton: "rgb(242, 242, 243)",
     glyph: "upload",
-    dropArea: "rgb(47, 49, 53) 0px 0px 0px 1.5px inset",
   });
   await context.close();
 });

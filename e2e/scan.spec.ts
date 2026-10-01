@@ -145,12 +145,16 @@ test.describe("at 1280 px", () => {
   test.use({ viewport: { width: 1280, height: 820 }, isMobile: false, hasTouch: false });
   test.setTimeout(120_000);
 
-  test("an image dropped on the page and an image pasted both read, and a PDF gets one refusal line", async ({ page }) => {
+  test("an image dropped on the page and an image pasted both read, and a PDF or an unreadable image gets one refusal line", async ({ page }) => {
     await page.goto("/");
     const zone = page.getByRole("button", { name: /^Drop a receipt/ });
 
     await dropFile(page, { name: "menu.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") });
     await expect(page.getByText("That file is not a photo.")).toBeVisible();
+    await expect(zone).toBeVisible();
+
+    await dropFile(page, { name: "broken.png", mimeType: "image/png", buffer: Buffer.from("not an image") });
+    await expect(page.getByText("This browser cannot open that photo.")).toBeVisible();
     await expect(zone).toBeVisible();
 
     await dropFile(page, photo(receipt1040));

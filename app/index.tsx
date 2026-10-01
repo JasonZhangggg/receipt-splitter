@@ -21,7 +21,7 @@ import { breakpoints, motion, type, useColors } from "../src/ui/theme";
 
 const createLater = () => {};
 
-const ringChange = webStyle({ transitionProperty: "box-shadow", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
+const ringChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 
 export default function Home() {
   const c = useColors();
@@ -38,8 +38,10 @@ export default function Home() {
   const read = useCallback(async (photo: File) => {
     if (!isPhoto(photo)) return setNotice(copy.notPhoto);
     const scan = ++scanning.current;
-    const file: ReceiptFile = { name: photo.name || copy.pastedPhoto, thumbnail: await thumbnailOf(photo).catch(() => null) };
+    const thumbnail = await thumbnailOf(photo).catch(() => undefined);
     if (scan !== scanning.current) return;
+    if (thumbnail === undefined) return setNotice(copy.unreadablePhoto);
+    const file: ReceiptFile = { name: photo.name || copy.pastedPhoto, thumbnail };
     setProgress(0);
     dispatch({ type: "reading", file });
     const receipt = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction)).then(parseReceipt, () => null);
@@ -58,6 +60,7 @@ export default function Home() {
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
   const reason = blockedReason(draft);
+  const compact = !wide && height - insets.top - insets.bottom < shortScreen;
   const besidePanel = wide ? { marginLeft: gutter + insets.left, marginRight: panelSpace + insets.right } : sides;
 
   return (
@@ -79,17 +82,18 @@ export default function Home() {
                     styles.heroWide,
                     ringChange,
                     besidePanel,
-                    { backgroundColor: c.paper, boxShadow: `inset 0 0 0 ${dragging ? 2 : 1.5}px ${dragging ? c.ink : c.hairline}` },
+                    { backgroundColor: c.paper, borderColor: dragging ? c.ink : c.dash },
                   ]
-                : sides,
+                : [sides, compact && styles.heroCompact],
             ]}
           >
             {(pressed) => (
-              <>
-                <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={!wide && height - insets.top - insets.bottom < shortScreen} />
+              <View style={[styles.drop, !wide && [styles.dashed, compact && styles.dropCompact, { borderColor: dragging ? c.ink : c.dash }]]}>
+                <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact} />
                 <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
                 <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text>
-              </>
+                <Text style={[type.caption, { color: c.muted }]}>{copy.formats}</Text>
+              </View>
             )}
           </PressTarget>
         ) : scan.status === "reading" ? (
@@ -129,14 +133,18 @@ export default function Home() {
 
 const panelSpace = panel.right + panel.width + 28;
 
-const shortScreen = 600;
+const shortScreen = 700;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
-  heroWide: { marginBottom: 32, paddingTop: 24, paddingBottom: 48, paddingHorizontal: 32, borderRadius: 32 },
+  heroWide: { marginBottom: 32, paddingTop: 24, paddingBottom: 48, paddingHorizontal: 32, borderRadius: 32, borderWidth: 1.5, borderStyle: "dashed" },
+  drop: { alignItems: "center", gap: 6 },
+  dashed: { alignSelf: "stretch", paddingVertical: 28, paddingHorizontal: 16, borderRadius: 28, borderWidth: 1.5, borderStyle: "dashed" },
+  dropCompact: { paddingVertical: 14 },
+  heroCompact: { paddingVertical: 4 },
   doc: { paddingTop: 12, paddingBottom: 20 },
   column: { alignSelf: "center", width: "100%", maxWidth: 480, gap: 12 },
   columnWide: { maxWidth: 560 },
