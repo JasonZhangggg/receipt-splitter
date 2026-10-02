@@ -104,3 +104,6 @@ export async function leftovers(id: string): Promise<{ tables: unknown[]; keys: 
     alarm: await state.storage.getAlarm(),
   }));
 }
+
+/** Durable Object alarms run on the real clock, so a fake now in the past would fire every 60-day expiry alarm mid-test. */
+export const T0 = Date.parse("2100-01-01T12:00:00Z");

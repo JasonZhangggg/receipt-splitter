@@ -2,12 +2,12 @@ import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "c
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSplit } from "./create";
-import { connect, newSplit, PASSING_TOKEN, postSplit, stubSiteverify, type Siteverify } from "./testing";
+import { connect, newSplit, PASSING_TOKEN, postSplit, stubSiteverify, T0, type Siteverify } from "./testing";
 
 let siteverify: Siteverify[];
 
 beforeEach(() => {
-  vi.setSystemTime(Date.parse("2030-10-01T12:00:00Z"));
+  vi.setSystemTime(T0);
   siteverify = stubSiteverify();
 });
 
@@ -58,7 +58,7 @@ describe("POST /api/splits", () => {
 
     const elsewhere = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.45" });
     expect(elsewhere.status).toBe(201);
-    vi.setSystemTime(Date.parse("2030-10-01T12:01:00Z"));
+    vi.setSystemTime(T0 + 60_000);
     const nextMinute = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.44" });
     expect(nextMinute.status).toBe(201);
   });
@@ -76,14 +76,14 @@ describe("POST /api/splits", () => {
     const limiter = env.CreateLimiter.getByName("192.0.2.91");
     const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
     await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.91" });
-    vi.setSystemTime(Date.parse("2030-10-01T12:00:30Z"));
+    vi.setSystemTime(T0 + 30_000);
     await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.91" });
 
-    vi.setSystemTime(Date.parse("2030-10-01T12:01:00Z"));
+    vi.setSystemTime(T0 + 60_000);
     expect(await runDurableObjectAlarm(limiter)).toBe(true);
-    expect((await stored()).alarm).toBe(Date.parse("2030-10-01T12:01:30Z"));
+    expect((await stored()).alarm).toBe(T0 + 90_000);
 
-    vi.setSystemTime(Date.parse("2030-10-01T12:01:30Z"));
+    vi.setSystemTime(T0 + 90_000);
     expect(await runDurableObjectAlarm(limiter)).toBe(true);
     expect(await stored()).toEqual({ keys: [], alarm: null });
   });

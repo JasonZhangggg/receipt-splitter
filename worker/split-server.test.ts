@@ -3,10 +3,9 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
 import type { Split } from "../src/core/split";
-import { connect, createSplit, leftovers, stubSiteverify, type Client } from "./testing";
+import { connect, createSplit, leftovers, stubSiteverify, T0, type Client } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
-const T0 = Date.parse("2026-10-01T12:00:00Z");
 
 beforeEach(() => {
   vi.setSystemTime(T0);
