@@ -10,8 +10,8 @@ type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quan
 export type ParsedItem = Item & { readonly discountExceededPrice?: true };
 type ReceiptLevelDraft = Exclude<AdjustmentFields, { readonly kind: "bundleDiscount" }>;
 /** A Bundle's discount, naming its Items by their index in the draft's Items. */
-type BundleDraft = { readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: { readonly name: string; readonly items: NonEmpty<number> } };
-type DraftAdjustment = ReceiptLevelDraft | BundleDraft;
+type BundleDiscountDraft = { readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: { readonly name: string; readonly items: NonEmpty<number> } };
+type DraftAdjustment = ReceiptLevelDraft | BundleDiscountDraft;
 
 type Draft = {
   readonly items: DraftItem[];

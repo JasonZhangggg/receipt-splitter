@@ -203,12 +203,12 @@ function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
     return [{ id: item.id, name, price: item.price, ...quantity, ...flags }];
   });
   const tip = receipt.adjustments.filter((row) => row.kind === "tip").reduce((sum, row) => sum + row.amount, 0);
-  const read = new Set(items.map((item) => item.id));
+  const kept = new Set(items.map((item) => item.id));
   const adjustments = receipt.adjustments.flatMap((row): DraftAdjustment[] => {
     const name = clip(row.name.trim());
     if (row.kind === "tip") return [];
     if (row.kind !== "bundleDiscount") return [{ id: row.id, kind: row.kind, name, amount: row.amount }];
-    const [first, ...rest] = row.bundle.items.filter((id) => read.has(id));
+    const [first, ...rest] = row.bundle.items.filter((id) => kept.has(id));
     return first === undefined ? [] : [{ id: row.id, kind: row.kind, name, amount: row.amount, bundle: { name: clip(row.bundle.name.trim()), items: [first, ...rest] } }];
   });
   return {
@@ -386,11 +386,11 @@ function parseScan(scan: unknown): Scan | null {
   const linked = scan.status === "linked" && typeof scan.splitId === "string" && isRoutableSplitId(scan.splitId);
   if ((scan.status !== "read" && !linked) || !isFile(scan.file) || !isObject(scan.receipt)) return null;
   const { items, adjustments, subtotal, tip, totalBeforeTip, nextId } = scan.receipt;
+  const itemIds = Array.isArray(items) && items.every(isItem) ? new Set(items.map((item) => item.id)) : null;
   const valid =
-    Array.isArray(items) &&
-    items.every(isItem) &&
+    itemIds !== null &&
     Array.isArray(adjustments) &&
-    adjustments.every((row) => isAdjustment(row, new Set(items.map((item) => item.id)))) &&
+    adjustments.every((row) => isAdjustment(row, itemIds)) &&
     (subtotal === null || isAmount(subtotal)) &&
     isPrice(tip) &&
     isAmount(totalBeforeTip) &&
