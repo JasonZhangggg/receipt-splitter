@@ -35,6 +35,8 @@ const nameStart = circleColumn + columnGap;
 const priceGap = 10;
 const dotCenter = dotSize / 2;
 const bleed = 12;
+const chevronSize = 16;
+const chevronTip = chevronSize / 8;
 
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: Props) {
   const c = useColors();
@@ -165,6 +167,9 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
       >
         {() => (
           <>
+            <View style={[styles.chevron, { transform: [{ translateX: open ? 0 : -chevronTip }, { rotate: open ? "0deg" : "-90deg" }] }, !reduce && turn]}>
+              <Icon name="chevron" size={chevronSize} color={c.muted} />
+            </View>
             <View style={styles.headerLead}>
               <View style={styles.name}>
                 <Text numberOfLines={1} style={[type.body, styles.strong, { color: c.ink }]}>
@@ -186,9 +191,6 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
               </View>
             </View>
             <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
-            <View style={[styles.chevron, { transform: [{ rotate: open ? "180deg" : "0deg" }] }, !reduce && turn]}>
-              <Icon name="chevron" size={16} color={c.muted} />
-            </View>
           </>
         )}
       </PressTarget>
@@ -365,10 +367,10 @@ const styles = StyleSheet.create({
   body: { flex: 1, minWidth: 0, minHeight: layout.row, paddingVertical: 8, justifyContent: "center" },
   bodyRow: { flexDirection: "row", alignItems: "center", gap: priceGap },
   name: { flex: 1, minWidth: 0 },
-  header: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 60, paddingVertical: 8, paddingLeft: nameStart },
+  header: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 60, paddingVertical: 8 },
   headerLead: { flex: 1, minWidth: 0, flexDirection: "row" },
   inside: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
-  chevron: { width: 16, marginLeft: -4 },
+  chevron: { width: dotSize, height: dotSize, marginRight: nameStart - dotSize - priceGap, alignItems: "center", justifyContent: "center" },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
