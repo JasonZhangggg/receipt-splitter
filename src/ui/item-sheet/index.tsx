@@ -217,7 +217,7 @@ type SplitRowsProps = { item: SplitItem; unit: number; me: ParticipantId | null;
 
 function SplitRows({ item, unit, me, nameOf, edit }: SplitRowsProps) {
   const c = useColors();
-  const amounts = unitAmounts(item)[unit] ?? [];
+  const amounts = unitAmounts(item)[unit];
   return (
     <>
     {amounts.map(({ participantId, cents: amount }, index) => {
