@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round 2</title>
+<style>
+@font-face { font-family: "Plus Jakarta Sans"; font-weight: 400; font-display: block; src: url("fonts/jakarta-400.woff2") format("woff2"); }
+@font-face { font-family: "Plus Jakarta Sans"; font-weight: 500; font-display: block; src: url("fonts/jakarta-500.woff2") format("woff2"); }
+
+:root {
+  --sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --board: #E6E7EA;
+  --board-ink: #111214;
+  --board-muted: #5C6067;
+}
+.light, :root {
+  --field: #FFFFFF; --paper: #F5F6F7; --inset: #FFFFFF; --ink: #111214; --muted: #696D74; --faint: #9A9DA3;
+  --hairline: #E3E5E8; --dash: #8A8E95; --ring: #C5C8CD; --action: #111214; --on-action: #FFFFFF;
+  --off: #EEEFF1; --on-off: #696D74; --flag-wash: #FFEF9E; --flag: #5A4500; --sheet: #FFFFFF; --sheet-in: #F5F6F7;
+  --dot: #E3E5E8; --scrim: rgba(17, 18, 20, 0.32); --danger: #C4352B; --picked: #EAEBED; --qty: #E9EAEC;
+  --sheet-shadow: 0 -1px 0 #E3E5E8, 0 -12px 32px rgba(17, 18, 20, 0.06);
+  --panel-shadow: 0 0 0 1px #E3E5E8, 0 12px 32px rgba(17, 18, 20, 0.06);
+  --pop-shadow: 0 0 0 1px rgba(17, 18, 20, 0.06), 0 2px 4px rgba(17, 18, 20, 0.04), 0 18px 40px rgba(17, 18, 20, 0.14);
+  --kb: #D3D5DB; --key: #FFFFFF; --key2: #ABB0BA; --key-shadow: 0 1px 0 #898A8D;
+  --bar: rgba(255, 255, 255, 0.86); --paper-photo: #FBFAF6; --photo-ink: #2B2B2B; --photo-bg: #3B3936;
+}
+.dark {
+  --field: #121315; --paper: #1C1D20; --inset: #2A2B2F; --ink: #F2F2F3; --muted: #A0A3A9; --faint: #74777E;
+  --hairline: #2F3135; --dash: #6B6E75; --ring: #55585E; --action: #F2F2F3; --on-action: #111214;
+  --off: #26272B; --on-off: #A0A3A9; --flag-wash: #463A0C; --flag: #FFE27A; --sheet: #1C1D20; --sheet-in: #2A2B2F;
+  --dot: #3A3C41; --scrim: rgba(0, 0, 0, 0.5); --danger: #FF6B5E; --picked: #2A2B2F; --qty: #2F3135;
+  --sheet-shadow: 0 -1px 0 #2F3135, 0 -14px 36px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --panel-shadow: 0 0 0 1px #2F3135, 0 12px 32px rgba(0, 0, 0, 0.3);
+  --pop-shadow: 0 0 0 1px #34363B, 0 18px 40px rgba(0, 0, 0, 0.5);
+  --bar: rgba(18, 19, 21, 0.86); --kb: #2B2C2F; --key: #6B6C70; --key2: #46474A; --key-shadow: 0 1px 0 #0E0E0F;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { background: var(--board); color: var(--board-ink); font-family: var(--sans); font-size: 15px; line-height: 22px; font-feature-settings: "tnum" 1; -webkit-font-smoothing: antialiased; text-wrap: pretty; }
+svg { display: block; flex: none; }
+button { font: inherit; color: inherit; background: none; border: 0; }
+
+/* Board chrome */
+.board { padding: 56px 64px 80px; width: max-content; min-width: 100%; }
+.board > h1 { font-size: 34px; line-height: 40px; font-weight: 500; letter-spacing: -0.68px; }
+.board > .lede { margin-top: 8px; font-size: 16px; line-height: 24px; color: var(--board-muted); max-width: 980px; }
+.direction { margin-top: 64px; }
+.direction > header { display: flex; align-items: baseline; gap: 16px; }
+.direction h2 { font-size: 26px; line-height: 30px; font-weight: 500; letter-spacing: -0.52px; }
+.direction .why { margin-top: 6px; font-size: 16px; line-height: 24px; color: var(--board-ink); max-width: 1100px; }
+.direction .cost { margin-top: 2px; font-size: 15px; line-height: 22px; color: var(--board-muted); max-width: 1100px; }
+.letter { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--board-ink); color: #fff; font-size: 17px; font-weight: 500; }
+.frames { margin-top: 28px; display: flex; gap: 40px; align-items: flex-start; }
+.frames.wrap { flex-wrap: wrap; }
+.shot > .cap { width: 100%; max-width: 390px; margin-bottom: 14px; }
+.shot.wide > .cap { max-width: 640px; }
+.cap b { display: block; font-size: 15px; line-height: 20px; font-weight: 500; }
+.cap span { display: block; margin-top: 3px; font-size: 13px; line-height: 19px; color: var(--board-muted); }
+
+/* Device frames */
+.phone { position: relative; width: 390px; height: 844px; border-radius: 48px; overflow: hidden; background: var(--field); color: var(--ink); box-shadow: 0 0 0 1px rgba(17, 18, 20, 0.08), 0 24px 60px rgba(17, 18, 20, 0.12); }
+.desk { position: relative; overflow: hidden; border-radius: 14px; background: var(--field); color: var(--ink); box-shadow: 0 0 0 1px rgba(17, 18, 20, 0.08), 0 24px 60px rgba(17, 18, 20, 0.12); }
+.desk.d1440 { width: 1440px; height: 900px; }
+.desk.d1024 { width: 1024px; height: 768px; }
+.status { position: absolute; z-index: 30; top: 0; left: 0; right: 0; height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 6px 30px 0 46px; font-size: 16px; font-weight: 500; letter-spacing: -0.2px; color: var(--ink); pointer-events: none; }
+.status .icons { display: flex; gap: 6px; align-items: center; }
+.homebar { position: absolute; z-index: 40; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: var(--ink); }
+.screen { position: absolute; inset: 0; overflow: hidden; }
+.topbar { position: absolute; z-index: 10; top: 0; left: 0; right: 0; padding-top: 50px; background: var(--bar); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
+.scrollc { position: absolute; left: 0; right: 0; top: 110px; padding: 0 22px; }
+
+/* App type */
+.wordmark { font-size: 17px; line-height: 21px; font-weight: 500; letter-spacing: -0.26px; }
+.t-hero { font-size: 26px; line-height: 29px; font-weight: 400; letter-spacing: -0.52px; }
+.t-total { font-size: 26px; line-height: 30px; font-weight: 500; letter-spacing: -0.52px; }
+.t-title { font-size: 16px; line-height: 20px; font-weight: 500; letter-spacing: -0.16px; }
+.t-body { font-size: 15px; line-height: 22px; }
+.t-label { font-size: 14px; line-height: 19px; font-weight: 500; }
+.t-sec { font-size: 14px; line-height: 21px; color: var(--muted); }
+.t-small { font-size: 13px; line-height: 19px; color: var(--muted); }
+.t-cap { font-size: 12.5px; line-height: 17px; color: var(--muted); }
+.muted { color: var(--muted); }
+.num { font-feature-settings: "tnum" 1; white-space: nowrap; }
+
+/* App header */
+.apphead { height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+.apphead .tools { display: flex; gap: 4px; margin-right: -10px; }
+.iconbtn { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 22px; color: var(--ink); }
+.linkbtn { display: inline-flex; align-items: center; gap: 6px; height: 44px; font-size: 14px; color: var(--muted); }
+
+/* Receipt card (Split page) */
+.rcard { background: var(--paper); border-radius: 22px; padding: 18px 20px 20px; }
+.rcard .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+.rows { display: flex; flex-direction: column; }
+
+.claim { width: 54px; min-width: 54px; height: 44px; margin-left: -10px; padding-left: 10px; display: flex; align-items: center; }
+.circle { width: 24px; height: 24px; border-radius: 12px; border: 1.5px solid var(--ring); flex: none; }
+.dots { display: flex; align-items: center; }
+.dotp { width: 24px; height: 24px; border-radius: 12px; display: grid; place-items: center; font-size: 11px; line-height: 1; font-weight: 500; background: var(--dot); color: var(--ink); box-shadow: 0 0 0 2px var(--paper); flex: none; }
+.dotp.me { background: var(--ink); color: var(--field); }
+.dotp + .dotp { margin-left: -9px; }
+.dotp.more { font-size: 10.5px; letter-spacing: -0.3px; margin-left: -4px; }
+.flagged { background: var(--flag-wash); color: var(--flag); }
+.flagged .muted, .flagged .qtyn { color: var(--flag); }
+.flagged .circle { border-color: var(--flag); opacity: 0.7; }
+.picked { background: var(--picked); }
+.mark { display: inline-block; padding: 2px 6px; border-radius: 5px; background: var(--flag-wash); color: var(--flag); font-weight: 500; }
+
+.adj { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--hairline); }
+.adj .r { display: flex; justify-content: space-between; align-items: center; min-height: 34px; font-size: 14px; color: var(--muted); }
+.adj .r .num { color: var(--ink); }
+.totalrow { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.unclaimedrow { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 14px; color: var(--muted); }
+
+/* Chips and controls */
+.chiprow { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { height: 44px; padding: 0 16px; border-radius: 22px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; line-height: 19px; font-weight: 500; background: var(--sheet-in); color: var(--ink); white-space: nowrap; }
+.chip.sel { background: var(--action); color: var(--on-action); }
+.chip.sel small { font-weight: 400; opacity: 0.7; font-size: 12.5px; }
+.chip.ghost { background: transparent; box-shadow: inset 0 0 0 1px var(--hairline); color: var(--muted); }
+.chip.round { width: 44px; padding: 0; justify-content: center; }
+.chip .x { color: var(--muted); margin-right: -4px; }
+.chip.input { background: var(--sheet-in); font-weight: 400; font-size: 16px; color: var(--ink); padding: 0 18px; }
+.chip.input.focus { box-shadow: inset 0 0 0 1.5px var(--ink), 0 0 0 4px rgba(17, 18, 20, 0.07); background: var(--field); }
+.dark .chip.input.focus { box-shadow: inset 0 0 0 1.5px var(--ink), 0 0 0 4px rgba(242, 242, 243, 0.1); }
+.chip.input .ph { color: var(--muted); }
+.caret { display: inline-block; width: 2px; height: 20px; background: var(--ink); border-radius: 1px; margin: 0 1px; vertical-align: -4px; }
+.field { height: 54px; border-radius: 16px; background: var(--sheet-in); display: flex; align-items: center; padding: 0 16px; font-size: 16px; color: var(--ink); gap: 10px; }
+.field .ph { color: var(--muted); }
+.payrow { display: flex; gap: 10px; }
+.payrow .pick { display: flex; align-items: center; height: 54px; border-radius: 16px; background: var(--sheet-in); flex: 1; min-width: 0; }
+.payrow .app { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 12px; height: 100%; font-size: 15px; font-weight: 400; border-right: 1px solid var(--hairline); white-space: nowrap; }
+.payrow .glyph { width: 26px; height: 26px; border-radius: 13px; background: var(--ink); color: var(--field); display: grid; place-items: center; font-size: 12px; font-weight: 500; }
+.dark .payrow .glyph { background: var(--ink); color: var(--field); }
+.payrow .handle { padding: 0 14px; font-size: 16px; white-space: nowrap; overflow: hidden; }
+.payrow .add { width: 54px; height: 54px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--hairline); display: grid; place-items: center; flex: none; }
+.btn { height: 54px; border-radius: 27px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; font-weight: 500; background: var(--action); color: var(--on-action); white-space: nowrap; }
+.btn.off { background: var(--off); color: var(--on-off); }
+.btn.soft { background: var(--sheet-in); color: var(--ink); }
+.btn.danger { background: var(--sheet-in); color: var(--danger); }
+.btn.slim { height: 44px; border-radius: 22px; padding: 0 18px; font-size: 14px; }
+.btn .v { width: 24px; height: 24px; border-radius: 12px; background: var(--on-action); color: var(--action); display: grid; place-items: center; font-size: 11px; }
+.stepper { display: inline-flex; align-items: center; height: 44px; border-radius: 22px; background: var(--sheet-in); }
+.stepper span { width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink); }
+.stepper b { min-width: 28px; text-align: center; font-size: 16px; font-weight: 500; }
+.seg { display: flex; padding: 3px; border-radius: 14px; background: var(--sheet-in); }
+.seg span { flex: 1; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 14px; font-weight: 500; color: var(--muted); }
+.seg span.on { background: var(--inset); color: var(--ink); box-shadow: 0 1px 2px rgba(17, 18, 20, 0.08), 0 0 0 0.5px rgba(17, 18, 20, 0.06); }
+.dark .seg span.on { background: #3A3C41; box-shadow: none; }
+.flagline { display: inline-block; padding: 2px 6px; border-radius: 5px; font-size: 13px; line-height: 19px; background: var(--flag-wash); color: var(--flag); }
+
+/* Sheets */
+.scrim { position: absolute; inset: 0; background: var(--scrim); z-index: 15; }
+.sheet { position: absolute; z-index: 20; left: 0; right: 0; bottom: 0; background: var(--sheet); border-radius: 28px 28px 0 0; box-shadow: var(--sheet-shadow); padding: 10px 22px 42px; }
+.grab { width: 36px; height: 5px; border-radius: 3px; background: var(--dot); margin: 0 auto 14px; }
+.sheet .stack > * + * { margin-top: 14px; }
+.owe { display: flex; justify-content: space-between; align-items: baseline; }
+.closex { width: 32px; height: 32px; border-radius: 16px; background: var(--sheet-in); display: grid; place-items: center; color: var(--muted); }
+
+/* Panels (desktop) */
+.panel { background: var(--sheet); border-radius: 24px; box-shadow: var(--panel-shadow); padding: 20px; }
+.panel .stack > * + * { margin-top: 14px; }
+.pop { position: absolute; z-index: 25; background: var(--sheet); border-radius: 20px; box-shadow: var(--pop-shadow); padding: 18px 20px 20px; }
+
+/* Receipt thumbnail and photo */
+.thumb { position: relative; flex: none; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg, #4A4743, #2E2C2A); }
+.thumb .slip { position: absolute; left: 18%; right: 14%; top: 10%; bottom: -4%; background: var(--paper-photo); transform: rotate(-2deg); border-radius: 1px; padding: 12% 10%; display: flex; flex-direction: column; gap: 9%; }
+.thumb .slip i { display: block; height: 2px; border-radius: 1px; background: #B9B7B1; }
+.thumb .slip i.s { width: 60%; }
+.thumb .slip i.m { width: 80%; }
+.thumb .expand { position: absolute; right: 4px; bottom: 4px; width: 18px; height: 18px; border-radius: 9px; background: rgba(17, 18, 20, 0.55); color: #fff; display: grid; place-items: center; }
+.photo { position: relative; overflow: hidden; background: radial-gradient(120% 80% at 30% 20%, #57534D 0%, #34312E 60%, #24221F 100%); }
+.photo .paper { position: absolute; padding: 1.8em 1.6em 1.4em; background: var(--paper-photo); color: var(--photo-ink); font-family: var(--mono); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); transform: rotate(-1.4deg); }
+.photo .paper .pl { display: flex; justify-content: space-between; gap: 10px; white-space: nowrap; }
+.photo .paper .ind { padding-left: 1.2em; }
+.photo .paper .gap { height: 0.9em; }
+.photo .paper .tear { position: absolute; left: 0; right: 0; bottom: -10px; height: 12px; background: linear-gradient(-45deg, transparent 6px, var(--paper-photo) 0) 0 0 / 12px 12px repeat-x, linear-gradient(45deg, transparent 6px, var(--paper-photo) 0) 0 0 / 12px 12px repeat-x; }
+
+/* Drop zone slip (home) */
+.zone { border-radius: 26px; border: 1.5px dashed var(--dash); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.zone.fill { background: var(--paper); }
+.slipart { position: relative; width: 148px; height: 188px; border-radius: 14px; background: var(--paper); box-shadow: 0 1px 1px rgba(17, 18, 20, 0.04), 0 14px 28px rgba(17, 18, 20, 0.07); padding: 26px 22px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
+.zone.fill .slipart { background: var(--inset); }
+.dark .slipart { background: #1C1D20; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.4), 0 14px 28px rgba(0, 0, 0, 0.35); }
+.slipart i { display: block; height: 4px; border-radius: 2px; background: var(--hairline); }
+.slipart .cam { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -14px 0 0 -32px; border-radius: 32px; background: var(--action); color: var(--on-action); display: grid; place-items: center; }
+
+/* Keyboard */
+.kb { position: absolute; z-index: 35; left: 0; right: 0; bottom: 0; height: 336px; background: var(--kb); padding: 8px 3px 0; }
+.kb .row { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.kb .row:first-child { margin-top: 0; }
+.kb .k { height: 42px; flex: 0 0 32px; border-radius: 5px; background: var(--key); box-shadow: var(--key-shadow); display: grid; place-items: center; font-size: 22px; font-weight: 400; color: var(--ink); font-family: system-ui, -apple-system, sans-serif; }
+.kb .k.fn { background: var(--key2); font-size: 15px; }
+.kb .k.w { flex-basis: 42px; }
+.kb .k.space { flex: 1 1 auto; font-size: 15px; }
+.kb .k.ret { flex: 0 0 88px; font-size: 15px; }
+.kb .sugg { height: 40px; display: flex; align-items: center; justify-content: space-around; font-size: 15px; color: var(--ink); font-family: system-ui, -apple-system, sans-serif; margin: -2px 0 6px; }
+.kb .sugg span + span { border-left: 1px solid rgba(128, 128, 128, 0.35); padding-left: 0; }
+
+/* Shared row skeleton */
+.ln { position: relative; display: flex; align-items: center; gap: 6px; min-height: 52px; }
+.ln + .ln::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--hairline); }
+.ln .nm { flex: 1; min-width: 0; padding: 14px 0; }
+.ln .pr { margin-left: 12px; }
+.ln.picked, .ln.flagged { margin: 4px -12px; padding: 0 12px; border-radius: 14px; }
+.ln.picked::before, .ln.flagged::before, .ln.picked + .ln::before, .ln.flagged + .ln::before { display: none; }
+.ln.picked .claim, .ln.flagged .claim { margin-left: -10px; }
+.ln.disc { min-height: 34px; font-size: 14px; color: var(--muted); }
+.ln.disc .nm { padding: 6px 0; }
+.ln.disc .pr { color: var(--muted); }
+.slot { width: 44px; min-width: 44px; height: 44px; }
+
+/* A. Indented rows */
+.a .ln { gap: 4px; }
+.a .qtyn { width: 18px; text-align: right; margin-right: 6px; font-size: 14px; color: var(--faint); }
+.a .qtyn.many { color: var(--ink); font-weight: 500; }
+.a .ln.bh .nm { font-weight: 500; }
+.a .ln.bh .pr { color: var(--muted); }
+.a .kids { position: relative; }
+.a .kids::after { content: ""; position: absolute; left: 52px; top: 2px; bottom: 14px; width: 1.5px; border-radius: 1px; background: var(--hairline); }
+.a .kids .ln { min-height: 48px; }
+.a .kids .ln .qtyn { margin-left: 10px; }
+.a .kids .ln .nm { padding: 12px 0; }
+.a .kids .ln + .ln::before { left: 58px; }
+.a .kids + .ln::before { left: 0; }
+
+/* B. Collapsible group */
+.b .qp { min-width: 26px; height: 24px; padding: 0 7px; border-radius: 8px; background: var(--qty); display: grid; place-items: center; font-size: 13px; font-weight: 500; color: var(--ink); margin-right: 6px; }
+.b .qp.one { color: var(--muted); font-weight: 400; }
+.b .nm .sub { display: block; font-size: 12.5px; line-height: 17px; color: var(--muted); margin-top: 1px; }
+.b .chev { color: var(--muted); margin-left: 8px; margin-right: -2px; }
+.b .grp { margin: 6px -10px; padding: 0 10px; border-radius: 18px; background: var(--inset); box-shadow: 0 0 0 1px var(--hairline); }
+.b .grp + .ln::before, .b .ln + .grp::before { display: none; }
+.b .grp .ln.bh .nm { font-weight: 500; }
+.b .grp .ln { min-height: 56px; }
+.b .grp .ln.disc { min-height: 40px; }
+.b .grp .ln.disc .qp { visibility: hidden; }
+.b .ln.bhc .nm { font-weight: 500; }
+.b .ln.bhc .nm .sub { font-weight: 400; }
+.b .grp .ln.picked { margin: 4px -6px; padding: 0 6px; }
+.b .sub .mark { margin-top: 3px; }
+.b .grp .ln.picked .claim { margin-left: -10px; }
+.b .grp .qp { background: var(--paper); }
+.b .open { margin: 6px -6px 8px; padding: 0 12px 14px; border-radius: 16px; background: var(--sheet); box-shadow: var(--pop-shadow); }
+.b .open .ln::before { display: none; }
+.b .open .ctrl { display: flex; gap: 10px; align-items: center; }
+.b .open .ctrl .field { flex: 1; height: 44px; border-radius: 14px; }
+.b .open .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 6px; border-top: 1px solid var(--hairline); }
+.b .open .who { margin-top: 12px; }
+.b .open .who .chip { height: 36px; padding: 0 12px; font-size: 13px; }
+.b .open .who .chip.round { width: 36px; padding: 0; }
+
+/* C. Group card */
+.c .cols { display: flex; align-items: center; gap: 6px; height: 28px; font-size: 12.5px; color: var(--muted); }
+.c .qtyn { width: 26px; font-size: 15px; color: var(--ink); }
+.c .qtyn.one { color: var(--muted); }
+.c .bcard { margin: 8px -10px 10px; padding: 2px 10px 4px; border-radius: 16px; background: var(--inset); box-shadow: 0 0 0 1px var(--hairline); }
+.c .bcard + .ln::before, .c .ln + .bcard::before { display: none; }
+.c .bcard .ln.bh { min-height: 48px; }
+.c .bcard .ln.bh .nm { font-weight: 500; padding: 12px 0; }
+.c .bcard .ln.bh .nm .t-cap { font-weight: 400; margin-left: 6px; }
+.c .bcard .ln.bh + .ln::before { left: 0; }
+.c .bcard .ln.disc { min-height: 40px; }
+.c .bcard .ln.picked, .c .bcard .ln.flagged { margin: 4px -6px; padding: 0 6px; }
+.c .bcard .ln.picked .claim, .c .bcard .ln.flagged .claim { margin-left: -10px; }
+.c .bcard .ln.disc::before { left: 0; }
+.c .bcard .bucket { width: 44px; color: var(--muted); display: grid; place-items: center start; padding-left: 4px; }
+.c .ln.sel { box-shadow: inset 0 0 0 1.5px var(--ink); margin: 4px -6px; padding: 0 6px; border-radius: 14px; }
+.c .ln.sel::before, .c .ln.sel + .ln::before { display: none; }
+.c .ln.sel .claim { margin-left: -10px; }
+
+/* Detail sheet */
+.detail .dh { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.detail .lbl { font-size: 12.5px; line-height: 17px; color: var(--muted); margin-bottom: 6px; }
+.detail .pair { display: flex; gap: 10px; align-items: flex-end; }
+.detail .pair .stepper { height: 54px; border-radius: 16px; }
+.detail .pair .stepper span { height: 54px; }
+.detail .inb { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 19px; color: var(--muted); }
+.detail > * + * { margin-top: 16px; }
+.detail .dh + * { margin-top: 0; }
+
+/* Desktop split pages */
+.dhead { height: 76px; display: flex; align-items: center; justify-content: space-between; }
+.dhead .tools { display: flex; gap: 4px; margin-right: -10px; }
+.dwrap { margin: 0 auto; }
+.youbox .r { display: flex; justify-content: space-between; min-height: 32px; align-items: center; font-size: 14px; color: var(--muted); }
+.youbox .r .num { color: var(--ink); }
+.fade-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 80px; background: linear-gradient(to bottom, transparent, var(--field)); pointer-events: none; }
+.hhead { position: absolute; top: 0; left: 0; right: 0; height: 76px; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 5; }
+.center { position: absolute; inset: 76px 0 0; display: flex; align-items: center; justify-content: center; padding-bottom: 76px; }
+.col > * + * { margin-top: 14px; }
+.zone h3 { font-weight: 400; }
+.zone .t-cap { margin-top: 6px; }
+.zone .t-sec { margin-top: 6px; }
+.rcompact { display: flex; align-items: center; gap: 14px; padding: 12px 12px 12px 12px; border-radius: 20px; background: var(--paper); }
+.rcompact .meta { flex: 1; min-width: 0; }
+.rcompact .tot { text-align: right; }
+.rcompact .swap { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; color: var(--muted); }
+.lab { font-size: 12.5px; line-height: 17px; color: var(--muted); margin-bottom: 8px; }
+.fold { margin-top: 0; }
+/* Phone extras */
+.ticket { position: absolute; left: 22px; right: 22px; top: 150px; border-radius: 26px; background: var(--paper); padding: 28px 24px 26px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.ticket .swap { position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; color: var(--muted); }
+.viewer { position: absolute; inset: 0; z-index: 25; background: #0B0B0C; }
+.viewer .vtop { position: absolute; z-index: 2; top: 50px; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 22px; color: #F2F2F3; }
+.viewer .vbtn { width: 40px; height: 40px; border-radius: 20px; background: rgba(255, 255, 255, 0.14); display: grid; place-items: center; color: #fff; }
+
+/* Round 2 board */
+.board { width: 3104px; }
+.frames.wrap { flex-wrap: wrap; row-gap: 56px; width: 2920px; }
+.direction .why { color: var(--board-muted); }
+.cap { white-space: nowrap; }
+.cap b { display: inline; }
+.cap span { display: inline; margin: 0 0 0 8px; font-size: 15px; line-height: 20px; }
+
+/* Combined receipt: C's bucket card, B's collapsing */
+.r2 .cols { display: flex; align-items: center; gap: 6px; height: 28px; font-size: 12.5px; color: var(--muted); }
+.r2 .qtyn { width: 26px; min-width: 26px; font-size: 15px; color: var(--ink); }
+.r2 .qtyn.one { color: var(--muted); }
+.r2 .nm .sub { display: block; font-size: 12.5px; line-height: 17px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+.r2 .flagged .nm .sub { color: var(--flag); }
+.r2 .bcard { border-top: 1px solid var(--hairline); }
+.r2 .bcard.open { padding-bottom: 6px; }
+.r2 .bcard .ln + .ln::before { left: 44px; }
+.r2 .bcard .ln.bh { min-height: 62px; }
+.r2 .bcard .ln.bh .nm { font-weight: 500; padding: 11px 0; }
+.r2 .bcard .ln .nm { padding: 10px 0; }
+.r2 .bcard .ln.disc { min-height: 40px; }
+.r2 .bcard .ln.disc .nm { padding: 6px 0; }
+.r2 .bcard .ln.bh .slot { height: auto; align-self: stretch; }
+.r2 .chev { color: var(--muted); margin-left: 8px; margin-right: -2px; }
+.r2 .ln.sel { box-shadow: inset 0 0 0 1.5px var(--ink); margin: 4px -12px; padding: 0 12px; border-radius: 14px; }
+.r2 .ln.sel::before, .r2 .ln.sel + .ln::before { display: none; }
+.r2 .ln.sel .claim { margin-left: -10px; }
+.r2 .whoin { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.r2 .whoin .dotp { width: 20px; height: 20px; border-radius: 10px; font-size: 9.5px; box-shadow: 0 0 0 2px var(--paper); }
+.r2 .ln.picked .whoin .dotp { box-shadow: 0 0 0 2px var(--picked); }
+
+/* View receipt on the Split page */
+.viewrc { display: inline-flex; align-items: center; gap: 6px; height: 32px; margin: -4px -6px 0 0; padding: 0 12px 0 10px; border-radius: 16px; font-size: 13px; line-height: 19px; font-weight: 500; color: var(--muted); box-shadow: inset 0 0 0 1px var(--hairline); white-space: nowrap; }
+
+/* Home drop box */
+.zone.fill { padding: 32px 40px; }
+.zone .t-hero { text-wrap: balance; }
+.slipart.sm { width: 112px; height: 140px; padding: 20px 17px; gap: 10px; margin-bottom: 24px; border-radius: 12px; }
+.slipart.sm i { height: 3px; }
+.slipart.sm .cam { width: 52px; height: 52px; margin: -10px 0 0 -26px; border-radius: 26px; }
+.r2 .whoin .dotp + .dotp { margin-left: 3px; }
+.r2 .whoin .dotp.me { position: relative; z-index: 1; }
+.desk .r2 .ln { min-height: 48px; }
+.desk .r2 .bcard .ln.bh { min-height: 58px; }
+.r2 .whoin .mark { padding: 0 5px; font-size: 12px; line-height: 18px; }
+.desk .r2 .nm { white-space: nowrap; }
+
+/* Pick sheet and pick pane */
+.picksheet .stack > .wholist { margin-top: 18px; }
+.topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.invite { font-size: 12.5px; line-height: 18px; color: var(--muted); margin: 2px 2px 0; }
+.invite b { color: var(--ink); font-weight: 500; }
+.ask { font-size: 26px; line-height: 29px; font-weight: 400; letter-spacing: -0.52px; margin: 0 2px; }
+.wholist { display: flex; flex-direction: column; gap: 10px; }
+.wholist .p { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 0 18px 0 13px; border-radius: 16px; background: var(--sheet-in); font-size: 15px; font-weight: 500; }
+.wholist .p .l { display: flex; align-items: center; gap: 12px; }
+.wholist .p .ini { width: 32px; height: 32px; border-radius: 16px; display: grid; place-items: center; font-size: 12px; font-weight: 500; background: var(--sheet); }
+.wholist .p .amt { font-size: 14px; font-weight: 400; color: var(--muted); }
+.notyet { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 0 13px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--hairline); font-size: 15px; }
+.notyet .ring { width: 32px; height: 32px; border-radius: 16px; display: grid; place-items: center; background: var(--sheet-in); }
+.notyet .m { color: var(--muted); }
+.prompt { font-size: 14px; line-height: 21px; color: var(--muted); margin: 0 2px; }
+
+/* Phone home, empty */
+.emptyhome { position: absolute; left: 22px; right: 22px; top: 126px; bottom: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.emptyhome .slipart { margin-bottom: 26px; }
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const dark = new URLSearchParams(location.search).get("t") === "dark";
+
+const stroke = (d, size = 20, w = 1.5) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const icon = {
+  camera: (s) => stroke('<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.4-2h6.2l1.4 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.3"/>', s),
+  upload: (s) => stroke('<path d="M12 15V4.5M7.5 9 12 4.5 16.5 9"/><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/>', s),
+  history: (s) => stroke('<path d="M3.8 12a8.2 8.2 0 1 0 2.4-5.8"/><path d="M3.5 4.5v3.7h3.7"/><path d="M12 8v4.3l2.8 1.7"/>', s),
+  share: (s) => stroke('<path d="M12 14.5V3.8M8.3 7.2 12 3.6l3.7 3.6"/><path d="M8 10.5H6.8A1.8 1.8 0 0 0 5 12.3v6.4a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8v-6.4a1.8 1.8 0 0 0-1.8-1.8H16"/>', s),
+  plus: (s = 18) => stroke('<path d="M12 5v14M5 12h14"/>', s),
+  minus: (s = 18) => stroke('<path d="M5 12h14"/>', s),
+  x: (s = 14) => stroke('<path d="M6 6l12 12M18 6 6 18"/>', s, 1.8),
+  chevDown: (s = 14) => stroke('<path d="m6 9 6 6 6-6"/>', s, 1.8),
+  chevRight: (s = 14) => stroke('<path d="m9 6 6 6-6 6"/>', s, 1.8),
+  chevUp: (s = 14) => stroke('<path d="m6 15 6-6 6 6"/>', s, 1.8),
+  trash: (s = 18) => stroke('<path d="M4.5 6.5h15M9.5 6.5V4.8c0-.7.6-1.3 1.3-1.3h2.4c.7 0 1.3.6 1.3 1.3v1.7"/><path d="M6.5 6.5l.8 12.3A1.8 1.8 0 0 0 9.1 20.5h5.8a1.8 1.8 0 0 0 1.8-1.7l.8-12.3"/>', s),
+  copy: (s = 18) => stroke('<rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.2a1.7 1.7 0 0 0-1.7-1.7H6.2a1.7 1.7 0 0 0-1.7 1.7v7.6a1.7 1.7 0 0 0 1.7 1.7h2.3"/>', s),
+  expand: (s = 11) => stroke('<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>', s, 2),
+  receipt: (s = 16) => stroke('<path d="M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/>', s),
+  check: (s = 14) => stroke('<path d="m5 12.5 4.2 4.2L19 7"/>', s, 2),
+  bucket: (s = 16) => stroke('<path d="M4.5 8h15l-1.6 11a1.8 1.8 0 0 1-1.8 1.5H7.9a1.8 1.8 0 0 1-1.8-1.5z"/><path d="M8 8a4 4 0 0 1 8 0"/>', s),
+};
+
+const statusBar = () => `<div class="status"><span>9:41</span><span class="icons">
+  <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+  <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 2.3c2.3 0 4.4.9 6 2.4l1.1-1.2A10.2 10.2 0 0 0 8 .6C5.3.6 2.8 1.6.9 3.5L2 4.7a8.5 8.5 0 0 1 6-2.4Zm0 3.4c1.4 0 2.6.5 3.6 1.4l1.1-1.2A6.9 6.9 0 0 0 8 4c-1.8 0-3.4.7-4.7 1.9l1.1 1.2c1-.9 2.2-1.4 3.6-1.4Zm0 3.4c.5 0 1 .2 1.3.5L8 11 6.7 9.6c.3-.3.8-.5 1.3-.5Z"/></svg>
+  <svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x="0.5" y="0.5" width="23" height="12" rx="3.8" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="20" height="9" rx="2.5" fill="currentColor"/><path d="M25 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2Z" fill="currentColor" opacity="0.45"/></svg>
+</span></div>`;
+
+const phone = (inner, { theme } = {}) =>
+  `<div class="phone ${theme ?? (dark ? "dark" : "light")}">${statusBar()}<div class="screen">${inner}</div><div class="homebar"></div></div>`;
+const desk = (inner, size = 1440, { theme } = {}) => `<div class="desk d${size} ${theme ?? (dark ? "dark" : "light")}">${inner}</div>`;
+const shot = (title, note, frame, wide = false) =>
+  `<div class="shot${wide ? " wide" : ""}"><div class="cap"><b>${title}</b>${note ? `<span>${note}</span>` : ""}</div>${frame}</div>`;
+const section = (letter, name, why, cost, frames) =>
+  `<section class="direction"><header><span class="letter">${letter}</span><h2>${name}</h2></header><p class="why">${why}</p><p class="cost">${cost}</p>${frames}</section>`;
+
+const money = (n) => (n < 0 ? "−" : "") + Math.abs(n).toFixed(2);
+const dollars = (n) => (n < 0 ? "−$" : "$") + Math.abs(n).toFixed(2);
+
+const people = { J: "Jason", S: "Sam", P: "Priya" };
+
+const receipt = {
+  merchant: "Topgolf",
+  file: "IMG_2452.jpg",
+  lines: [
+    { id: "g", qty: 1, name: "Gameplay", price: 87.75 },
+    {
+      id: "b1", qty: 1, name: "Beer Bucket", bundle: true, receiptPrice: 0,
+      items: [
+        { id: "b1m", qty: 1, name: "Michelob Ultra 16oz Aluminum Bottle", short: "Michelob Ultra", size: "16oz Aluminum Bottle", price: 6.29 },
+        { id: "b1g", qty: 3, name: "Guinness Draught 14.9oz Can", short: "Guinness Draught", size: "14.9oz Can", price: 21.87 },
+        { id: "b1p", qty: 1, name: "High Noon Pineapple 12oz Can", short: "High Noon Pineapple", size: "12oz Can", price: 8.49 },
+        { id: "b1w", qty: 1, name: "High Noon Watermelon 12oz Can", short: "High Noon Watermelon", size: "12oz Can", price: 8.49 },
+      ],
+      discount: { label: "Discount (10%)", amount: -4.51 },
+    },
+    {
+      id: "b2", qty: 1, name: "Beer Bucket", bundle: true, receiptPrice: 0,
+      items: [
+        { id: "b2m", qty: 1, name: "Michelob Ultra 16oz Aluminum Bottle", short: "Michelob Ultra", size: "16oz Aluminum Bottle", price: 6.29 },
+        { id: "b2g", qty: 2, name: "Guinness Draught 14.9oz Can", short: "Guinness Draught", size: "14.9oz Can", price: 14.58 },
+        { id: "b2p", qty: 1, name: "High Noon Pineapple 12oz Can", short: "High Noon Pineapple", size: "12oz Can", price: 8.49 },
+        { id: "b2w", qty: 2, name: "High Noon Watermelon 12oz Can", short: "High Noon Watermelon", size: "12oz Can", price: 16.98 },
+      ],
+      discount: { label: "Discount (10%)", amount: -4.63 },
+    },
+  ],
+  subtotal: 170.09,
+  tax: 4.94,
+  tip: 32.26,
+  total: 207.29,
+};
+const bundleNet = (b) => b.items.reduce((s, i) => s + i.price, 0) + b.discount.amount;
+const itemCount = receipt.lines.reduce((n, l) => n + 1 + (l.items?.length ?? 0), 0);
+
+const claims = { g: ["J", "S", "P"], b1m: ["J"], b1g: ["S"], b1p: ["P"], b1w: ["P"], b2m: ["J"], b2g: ["S"], b2p: [], b2w: ["J", "P"] };
+
+function shares() {
+  const nets = [];
+  for (const line of receipt.lines) {
+    if (!line.bundle) nets.push({ id: line.id, net: line.price });
+    else {
+      const gross = line.items.reduce((s, i) => s + i.price, 0);
+      for (const i of line.items) nets.push({ id: i.id, net: i.price + (line.discount.amount * i.price) / gross });
+    }
+  }
+  const per = { J: 0, S: 0, P: 0, none: 0 };
+  for (const { id, net } of nets) {
+    const who = claims[id];
+    if (who.length === 0) per.none += net;
+    else for (const p of who) per[p] += net / who.length;
+  }
+  const extra = receipt.tax + receipt.tip;
+  const out = {};
+  for (const [p, items] of Object.entries(per)) {
+    const tax = (items / receipt.subtotal) * receipt.tax;
+    const tip = (items / receipt.subtotal) * receipt.tip;
+    out[p] = { items, tax, tip, total: items + (items / receipt.subtotal) * extra };
+  }
+  return out;
+}
+const owed = shares();
+
+const dotsFor = (who, me = "S") => {
+  if (!who || who.length === 0) return `<span class="circle"></span>`;
+  const sorted = [...who].sort((a, b) => (a === me) - (b === me));
+  const shown = sorted.length > 2 ? [sorted.at(-1), `+${sorted.length - 1}`] : sorted;
+  return `<span class="dots">${shown.map((p) => `<span class="dotp${p === me ? " me" : ""}${p.startsWith("+") ? " more" : ""}">${p}</span>`).join("")}</span>`;
+};
+const claimDots = (id, me = "S") => dotsFor(claims[id], me);
+
+const splitHeader = () => `<div class="apphead"><span class="wordmark">Receipt Splitter</span><span class="tools"><span class="iconbtn">${icon.history(20)}</span><span class="iconbtn">${icon.share(20)}</span></span></div>`;
+
+const peopleChips = (sel, { add = true } = {}) =>
+  `<div class="chiprow">${Object.entries(people)
+    .map(([k, n]) => `<span class="chip${k === sel ? " sel" : ""}">${n}${k === sel ? " <small>you</small>" : ""}</span>`)
+    .join("")}${add ? `<span class="chip ghost round">${icon.plus(18)}</span>` : ""}</div>`;
+
+const oweLine = (p = "S") => `<div class="owe"><span class="t-body">You owe</span><span style="display:flex;align-items:center;gap:6px"><span class="t-total num">${dollars(owed[p].total)}</span><span class="muted">${icon.chevUp(16)}</span></span></div>`;
+
+const linkReady = () => `<div style="display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden"><span class="t-label">Link ready</span><span class="t-cap">app.splitwith.workers.dev/s/k7Qm2x</span></div>
+  <div style="display:flex;gap:10px"><span class="btn" style="flex:1">${icon.share(18)} Share</span><span class="btn soft" style="flex:1">${icon.copy(18)} Copy</span></div>`;
+
+const adjustments = ({ unclaimed = false } = {}) => `<div class="adj">
+  <div class="r"><span>Subtotal</span><span class="num">${dollars(receipt.subtotal)}</span></div>
+  <div class="r"><span>Tax</span><span class="num">${dollars(receipt.tax)}</span></div>
+  <div class="r"><span>Tip</span><span class="num">${dollars(receipt.tip)}</span></div>
+</div>
+<div class="totalrow"><span class="t-body">Total</span><span class="t-total num">${dollars(receipt.total)}</span></div>
+${unclaimed ? `<div class="unclaimedrow"><span>Unclaimed</span><span class="mark num">${dollars(owed.none.total)}</span></div>` : ""}`;
+
+const thumb = (w, h, { expand = false } = {}) =>
+  `<span class="thumb" style="width:${w}px;height:${h}px"><span class="slip"><i class="s"></i><i></i><i class="m"></i><i></i><i class="s"></i><i class="m"></i><i></i></span>${expand ? `<span class="expand">${icon.expand(10)}</span>` : ""}</span>`;
+
+const photoLines = () => {
+  const L = (q, n, p, ind = false) => `<div class="pl${ind ? " ind" : ""}"><span>${q}${n}</span><span>${p}</span></div>`;
+  const rows = [L("1 ", "Gameplay", "$87.75")];
+  for (const b of receipt.lines.filter((l) => l.bundle)) {
+    rows.push(L("1 ", "Beer Bucket", "$0.00"));
+    for (const i of b.items) rows.push(L(i.qty > 1 ? `${i.qty}x ` : "", i.name.replace("Aluminum ", "Alum. "), "$" + i.price.toFixed(2), true));
+    rows.push(L("", "Beer Bucket Discount (10%)", "- $" + Math.abs(b.discount.amount).toFixed(2), true));
+  }
+  rows.push('<div class="gap"></div>', L("", "Pre-discount Subtotal", "$179.23"), L("", "Discount Total", "- $9.14"), '<div class="gap"></div>');
+  rows.push(L("", "Subtotal", "$170.09"), L("", "Tax", "$4.94"), L("", "Tip", "$32.26"), L("", "Total", "$207.29"));
+  return rows.join("");
+};
+
+const keyboard = (ret = "next", sugg = ["", "", ""]) => {
+  const row = (keys) => `<div class="row">${keys.map((k) => `<span class="k">${k}</span>`).join("")}</div>`;
+  return `<div class="kb"><div class="sugg">${sugg.map((w) => `<span>${w}</span>`).join("")}</div>
+  ${row("qwertyuiop".split(""))}
+  ${row("asdfghjkl".split(""))}
+  <div class="row"><span class="k fn w">${stroke('<path d="M12 4 4.5 12H9v7h6v-7h4.5z"/>', 20)}</span>${"zxcvbnm".split("").map((k) => `<span class="k">${k}</span>`).join("")}<span class="k fn w">${stroke('<path d="M9 6h10.5a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-6-6z"/><path d="m11 9.5 5 5M16 9.5l-5 5"/>', 20)}</span></div>
+  <div class="row"><span class="k fn" style="flex-basis:88px">123</span><span class="k space">space</span><span class="k fn ret">${ret}</span></div></div>`;
+};
+
+const render = (html) => {
+  document.body.className = dark ? "dark-board" : "";
+  document.getElementById("root").innerHTML = html;
+};
+
+const ME = "S";
+const bundles = receipt.lines.filter((l) => l.bundle);
+const guinness = bundles[0].items[1];
+const guinnessOff = (bundles[0].discount.amount * guinness.price) / bundles[0].items.reduce((s, i) => s + i.price, 0);
+const splitPhone = (content, sheet, offset = 0, overlay = "") =>
+  phone(`<div class="scrollc" style="transform:translateY(${-offset}px)">${content}<div style="height:280px"></div></div><div class="topbar">${splitHeader()}</div>${sheet}${overlay}`);
+const deskHead = () => `<div class="dhead"><span class="wordmark">Receipt Splitter</span><span class="tools"><span class="iconbtn">${icon.history(20)}</span><span class="iconbtn">${icon.share(20)}</span></span></div>`;
+const nameChips = (filled) =>
+  filled
+    ? `<div class="chiprow">${["Jason", "Sam", "Priya"].map((n) => `<span class="chip">${n}<span class="x">${icon.x(12)}</span></span>`).join("")}<span class="chip ghost">${icon.plus(16)} Add</span></div>`
+    : `<div class="chiprow"><span class="chip ghost">${icon.plus(16)} Your name</span></div>`;
+const pay = (filled) =>
+  `<div class="payrow"><div class="pick"><span class="app"><span class="glyph">V</span>Venmo<span class="muted">${icon.chevDown(13)}</span></span><span class="handle${filled ? "" : " muted"}">${filled ? "@sam-example" : "@username"}</span></div><span class="add">${icon.plus(20)}</span></div>`;
+const action = (on, style = "") => `<span class="btn${on ? "" : " off"}" style="${style}">Create split link</span>`;
+const compact = () =>
+  `<div class="rcompact">${thumb(52, 64, { expand: true })}<div class="meta"><div class="t-title">${receipt.merchant}</div><div class="t-small">${itemCount} items</div></div><div class="tot"><div class="t-title num">${dollars(receipt.total)}</div><div class="t-cap">Total</div></div><span class="swap">${icon.camera(20)}</span></div>`;
+const hhead = (empty) => `<div class="hhead"><span class="wordmark">Receipt Splitter</span>${empty ? `<span class="linkbtn">${icon.receipt(16)} Example</span>` : ""}</div>`;
+const paper = (style, font) =>
+  `<div class="paper" style="${style};font-size:${font}px;line-height:1.55"><div style="text-align:center;letter-spacing:0.2em;margin-bottom:1.2em">TOPGOLF</div>${photoLines()}<div class="tear"></div></div>`;
+const phoneHome = () =>
+  phone(`<div style="padding-top:50px">${`<div class="apphead"><span class="wordmark">Receipt Splitter</span></div>`}</div>
+  <div class="ticket"><span class="swap">${icon.camera(20)}</span>${thumb(116, 148, { expand: true })}<div class="t-title" style="margin-top:18px">${receipt.merchant}</div><div class="t-small">${itemCount} items</div><div class="t-total num" style="margin-top:12px">${dollars(receipt.total)}</div></div>
+  <div class="sheet"><div class="grab"></div><div class="stack">${pay(true)}${nameChips(true)}${action(true)}</div></div>`);
+const phoneViewer = () =>
+  phone(
+    `<div class="viewer"><div class="photo" style="position:absolute;inset:0">${paper("left:9%;width:82%;top:150px", 11)}</div>
+    <div class="vtop"><span class="vbtn">${icon.x(15)}</span><span style="font-size:14px;font-weight:500">${receipt.file}</span><span class="vbtn">${icon.camera(18)}</span></div></div>`,
+    { theme: "dark" },
+  );
+
+/* Round 2: claims are per frame, so every helper takes the claim map. */
+const NOBODY = Object.fromEntries(Object.keys(claims).map((k) => [k, []]));
+const SAM = { g: ["J", "S", "P"], b1m: ["J"], b1g: ["S"], b1p: ["P"], b1w: ["S"], b2m: ["J"], b2g: ["J"], b2p: [], b2w: ["J", "P"] };
+
+function sharesFor(cl) {
+  const per = { J: 0, S: 0, P: 0, none: 0 };
+  const lines = { J: 0, S: 0, P: 0 };
+  for (const line of receipt.lines) {
+    const nets = line.bundle
+      ? line.items.map((i) => ({ id: i.id, net: i.price + (line.discount.amount * i.price) / line.items.reduce((s, x) => s + x.price, 0) }))
+      : [{ id: line.id, net: line.price }];
+    for (const { id, net } of nets) {
+      const who = cl[id];
+      if (who.length === 0) per.none += net;
+      else for (const p of who) { per[p] += net / who.length; lines[p] += 1; }
+    }
+  }
+  const extra = receipt.tax + receipt.tip;
+  const out = {};
+  for (const [p, items] of Object.entries(per))
+    out[p] = { items, lines: lines[p] ?? 0, tax: (items / receipt.subtotal) * receipt.tax, tip: (items / receipt.subtotal) * receipt.tip, total: items + (items / receipt.subtotal) * extra };
+  return out;
+}
+const drinks = (b) => b.items.reduce((n, i) => n + i.qty, 0);
+
+/* v: { mode: "browse" | "mine" | "claim", cl, open: [bundle ids], sel: line id, pop: html } */
+const R = {
+  rowState(id, v) {
+    if (v.mode !== "claim") return "";
+    const who = v.cl[id];
+    if (who.length === 0) return " flagged";
+    return who.includes(ME) ? " picked" : "";
+  },
+  cell: (id, v) => `<span class="claim">${v.mode === "claim" ? dotsFor(v.cl[id], ME) : `<span class="circle"></span>`}</span>`,
+  line: (it, v) =>
+    `<div class="ln${R.rowState(it.id, v)}${v.sel === it.id ? " sel" : ""}">${R.cell(it.id, v)}<span class="qtyn${it.qty === 1 ? " one" : ""}">${it.qty}</span><span class="nm">${v.full ? it.name : it.short ?? it.name}${it.size && !v.full ? `<span class="sub">${it.size}</span>` : ""}</span><span class="pr num">${money(it.price)}</span>${v.sel === it.id && v.pop ? v.pop : ""}</div>`,
+  whoIn(b, v) {
+    if (v.mode !== "claim") return "";
+    const who = [...new Set(b.items.flatMap((i) => v.cl[i.id]))];
+    const left = b.items.filter((i) => v.cl[i.id].length === 0).length;
+    if (!who.length && !left) return "";
+    const ordered = [...who].sort((a, b) => (b === ME) - (a === ME));
+    const dots = ordered.map((p) => `<span class="dotp${p === ME ? " me" : ""}">${p}</span>`).join("");
+    return `<span class="whoin">${who.length ? `<span class="dots">${dots}</span>` : ""}${left ? `<span class="mark">${left} unclaimed</span>` : ""}</span>`;
+  },
+  bundle(b, v) {
+    const open = v.open.includes(b.id);
+    const head = `<div class="ln bh"><span class="slot"></span><span class="qtyn one">1</span><span class="nm">${b.name}<span class="sub">${drinks(b)} drinks · 10% off</span>${open ? "" : R.whoIn(b, v)}</span><span class="pr num">${money(bundleNet(b))}</span><span class="chev">${open ? icon.chevUp(16) : icon.chevDown(16)}</span></div>`;
+    if (!open) return `<div class="bcard">${head}</div>`;
+    return `<div class="bcard open">${head}${b.items.map((i) => R.line(i, v)).join("")}
+      <div class="ln disc"><span class="slot"></span><span class="qtyn"></span><span class="nm">${b.discount.label}</span><span class="pr num">${money(b.discount.amount)}</span></div></div>`;
+  },
+  list: (v) =>
+    `<div class="rows r2"><div class="cols"><span class="slot" style="height:auto"></span><span style="width:26px">Qty</span><span style="flex:1">Item</span><span>Price</span></div>${receipt.lines
+      .map((l) => (l.bundle ? R.bundle(l, v) : R.line(l, v)))
+      .join("")}</div>`,
+  card(v) {
+    const sub = v.mode === "browse" ? "" : `<div class="t-cap">Check what you had</div>`;
+    const started = v.mode === "claim";
+    return `<div class="rcard"><div class="head"><div><div class="t-title">${receipt.merchant}</div>${sub}</div><span class="viewrc">${icon.receipt(15)}View receipt</span></div>
+      ${R.list(v)}
+      <div class="adj">
+        <div class="r"><span>Subtotal</span><span class="num">${dollars(receipt.subtotal)}</span></div>
+        <div class="r"><span>Tax</span><span class="num">${dollars(receipt.tax)}</span></div>
+        <div class="r"><span>Tip</span><span class="num">${dollars(receipt.tip)}</span></div>
+      </div>
+      <div class="totalrow"><span class="t-body">Total</span><span class="t-total num">${dollars(receipt.total)}</span></div>
+      ${started ? `<div class="unclaimedrow"><span>Unclaimed</span><span class="mark num">${dollars(sharesFor(v.cl).none.total)}</span></div>` : ""}</div>`;
+  },
+};
+
+const allItems = receipt.lines.flatMap((l) => (l.bundle ? l.items.map((i) => ({ ...i, bundle: l })) : [l]));
+const find = (id) => allItems.find((i) => i.id === id);
+
+const itemDetail = (id, cl, { sheet = true } = {}) => {
+  const it = find(id);
+  const who = cl[id];
+  const b = it.bundle;
+  const off = b ? (b.discount.amount * it.price) / b.items.reduce((s, i) => s + i.price, 0) : 0;
+  return `<div class="detail">
+  ${sheet ? '<div class="grab"></div>' : ""}
+  <div class="dh"><span class="t-title">Item</span><span class="closex">${icon.x(13)}</span></div>
+  <div><div class="lbl">Name</div><div class="field">${it.name}</div></div>
+  <div class="pair"><div><div class="lbl">Quantity</div><span class="stepper"><span>${icon.minus(16)}</span><b>${it.qty}</b><span>${icon.plus(16)}</span></span></div>
+    <div style="flex:1;min-width:0"><div class="lbl">Price</div><div class="field num">${money(it.price)}<span class="t-cap" style="margin-left:auto">${money(it.price / it.qty)} each</span></div></div></div>
+  ${b ? `<div class="inb">${icon.bucket(15)}<span>In Beer Bucket. Its 10% off takes ${money(-off)} off this line.</span></div>` : ""}
+  <div><div class="lbl">Who had it</div><div class="chiprow">${Object.entries(people).map(([k, n]) => `<span class="chip${who.includes(k) ? " sel" : ""}">${n}</span>`).join("")}<span class="chip ghost round">${icon.plus(18)}</span></div></div>
+  <div><div class="seg"><span class="on">Evenly</span><span>By shares</span><span>By amount</span></div>${who.length > 1 ? `<div class="t-cap" style="margin:8px 2px 0">Split ${who.length} ways, ${dollars(it.price / who.length)} each</div>` : ""}</div>
+  <span class="btn danger">${icon.trash(18)} Delete item</span>
+</div>`;
+};
+
+/* Sheets on the phone Split page */
+const chipsNone = () => `<div class="chiprow">${Object.values(people).map((n) => `<span class="chip">${n}</span>`).join("")}<span class="chip ghost round">${icon.plus(18)}</span></div>`;
+const sheetBrowse = () => `<div class="sheet"><div class="grab"></div><div class="stack">${chipsNone()}<p class="prompt">Pick your name to check off what you had.</p><span class="btn">Which one are you?</span></div></div>`;
+const sheetMine = (cl) =>
+  `<div class="sheet"><div class="grab"></div><div class="stack">${peopleChips(ME)}<div class="owe"><span class="t-body">You owe</span><span style="display:flex;align-items:center;gap:6px"><span class="t-total num">${dollars(sharesFor(cl)[ME].total)}</span><span class="muted">${icon.chevUp(16)}</span></span></div></div></div>`;
+const pickRows = (amounts) =>
+  `<div class="wholist">${Object.entries(people).map(([k, n]) => `<div class="p"><span class="l"><span class="ini">${k}</span>${n}</span>${amounts ? `<span class="amt num">${dollars(amounts[k].total)}</span>` : ""}</div>`).join("")}</div>
+  <div class="notyet"><span class="ring">${icon.plus(16)}</span>Not here?<span class="m">Add yourself</span></div>`;
+const invite = () => `<p class="invite"><b>Jason</b> invited you to split <b>${receipt.merchant}</b> · ${dollars(receipt.total)}</p>`;
+const pickSheet = () =>
+  `<div class="scrim"></div><div class="sheet picksheet"><div class="grab"></div><div class="stack"><div class="topline">${invite()}<span class="closex">${icon.x(13)}</span></div><h2 class="ask">Which one are you?</h2>${pickRows()}</div></div>`;
+
+const page = (v, sheet, offset = 0, overlay = "") => splitPhone(R.card(v), sheet, offset, overlay);
+const detailOver = (id, cl) => `<div class="scrim"></div><div class="sheet">${itemDetail(id, cl)}</div>`;
+
+/* Desktop Split page: A's centered pair */
+const pickPane = () => `<div class="panel"><div class="stack">${invite()}<h2 class="ask">Which one are you?</h2><p class="prompt">Pick your name to check off what you had.</p>${pickRows(sharesFor(NOBODY))}</div></div>`;
+const youPane = (cl) => {
+  const s = sharesFor(cl)[ME];
+  return `<div class="panel youbox"><div class="stack">
+  ${peopleChips(ME)}
+  <div><div class="t-cap" style="margin-bottom:4px">${s.lines} items</div>
+    <div class="r"><span>Items</span><span class="num">${dollars(s.items)}</span></div>
+    <div class="r"><span>Tax</span><span class="num">${dollars(s.tax)}</span></div>
+    <div class="r"><span>Tip</span><span class="num">${dollars(s.tip)}</span></div></div>
+  <div class="owe" style="padding-top:12px;border-top:1px solid var(--hairline)"><span class="t-body">You owe</span><span class="t-total num">${dollars(s.total)}</span></div>
+  <span class="btn"><span class="v">V</span>Pay Jason ${dollars(s.total)} on Venmo</span>
+  <div class="t-sec" style="text-align:center">I already paid</div>
+</div></div>`;
+};
+const deskSplit = (v, pane) =>
+  desk(`<div class="dwrap" style="width:1064px">${deskHead()}
+    <div style="display:flex;gap:40px;align-items:flex-start">
+      <div style="width:624px">${R.card({ ...v, full: true })}</div>
+      <div style="width:400px">${pane}</div>
+    </div></div>`);
+const popover = (id, cl) => `<div class="pop" style="top:calc(100% + 6px);right:-14px;width:380px;transform-origin:top right">${itemDetail(id, cl, { sheet: false })}</div>`;
+
+/* Web home photo viewer, any size */
+const zone = (w, h) =>
+  `<div class="zone fill" style="width:${w}px;height:${h}px"><div class="slipart${w < 480 ? " sm" : ""}"><i></i><i style="width:70%"></i><i></i><i style="width:60%"></i><span class="cam">${icon.upload(w < 480 ? 22 : 24)}</span></div><div class="t-hero">Drop a receipt</div><div class="t-sec">Choose a photo, or paste one</div><div class="t-cap">JPEG, PNG, or WebP</div></div>`;
+const layoutA = (size, scanned) => {
+  const w = size === 1440 ? 480 : 440;
+  return desk(
+    `${hhead(!scanned)}<div class="center"><div class="col" style="width:${w}px">
+      ${scanned ? compact() : zone(w, size === 1440 ? 380 : 336)}
+      <div style="height:14px"></div>${pay(scanned)}${nameChips(scanned)}
+      <div style="padding-top:14px">${action(scanned)}</div></div></div>`,
+    size,
+  );
+};
+
+/* The home page's photo viewer, laid over any desktop frame */
+const withPhoto = (frame, size) => {
+  const [w, h, top] = size === 1440 ? [540, 640, 130] : [420, 520, 124];
+  return frame.replace(/<\/div>$/, `<div class="scrim" style="z-index:20"></div>
+    <div class="photo" style="position:absolute;z-index:21;left:50%;top:${top}px;margin-left:${-w / 2}px;width:${w}px;height:${h}px;border-radius:20px">${paper("left:8%;width:84%;top:30px", size === 1440 ? 14 : 11)}</div>
+    <span style="position:absolute;z-index:22;left:calc(50% + ${w / 2 + 16}px);top:${top}px;width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,0.9);color:#111214;display:grid;place-items:center">${icon.x(15)}</span></div>`);
+};
+
+const phoneEmpty = () =>
+  phone(`<div style="padding-top:50px"><div class="apphead"><span class="wordmark">Receipt Splitter</span></div></div>
+  <div class="emptyhome"><div class="slipart"><i></i><i style="width:70%"></i><i></i><i style="width:60%"></i><span class="cam">${icon.camera(24)}</span></div><div class="t-hero">Add receipt</div><div class="t-cap" style="margin-top:6px">JPEG, PNG, or WebP</div></div>
+  <div class="sheet"><div class="grab"></div><div class="stack">${pay(false)}${nameChips(false)}${action(false)}</div></div>`);
+
+const deskViewer = (size) => withPhoto(layoutA(size, true), size);
+const splitViewer = () =>
+  phone(
+    `<div class="viewer"><div class="photo" style="position:absolute;inset:0">${paper("left:9%;width:82%;top:150px", 11)}</div>
+    <div class="vtop"><span class="vbtn">${icon.x(15)}</span><span style="font-size:14px;font-weight:500">${receipt.file}</span><span style="width:40px"></span></div></div>`,
+    { theme: "dark" },
+  );
+
+const one = (title, note, frame, wide = false) => shot(title, note, frame, wide);
+const part = (name, why, frames) => `<section class="direction"><header><h2>${name}</h2></header><p class="why">${why}</p>${frames}</section>`;
+
+const browse = { mode: "browse", cl: NOBODY, open: [] };
+const mine = { mode: "mine", cl: NOBODY, open: [] };
+
+render(`<main class="board">
+  <h1>Round 3</h1>
+  <p class="lede">Round 2 with the operator's fixes. Bucket headers have no control in the select column and share the rows' surface. The home drop box has more room at 1024. The Split page gets View receipt. Every first frame is the default state.</p>
+
+  ${part("Receipt, phone", "A bucket is a group of rows set off by hairlines. Closed, it reads as one line with its drink count. Open, its drinks sit under it with inset hairlines, then its discount. View receipt sits beside the store name.", `<div class="frames">
+    ${one("1. Default.", "The pick sheet opens first.", page(browse, sheetBrowse(), 0, pickSheet()))}
+    ${one("1b. Pick sheet closed.", "Buckets collapsed.", page(browse, sheetBrowse()))}
+    ${one("2. Sam picked.", "Nothing checked yet.", page(mine, sheetMine(NOBODY)))}
+    ${one("3. First bucket open.", "", page({ ...mine, open: ["b1"] }, sheetMine(NOBODY), 0))}
+    ${one("4. Tap a line.", "The item sheet with its split options.", page({ mode: "claim", cl: SAM, open: ["b1"], sel: "b1g" }, sheetMine(SAM), 60, detailOver("b1g", SAM)))}
+    ${one("5. Sam's drinks.", "Bucket 2 shows who and 1 unclaimed.", page({ mode: "claim", cl: SAM, open: ["b1"] }, sheetMine(SAM), 150))}
+    ${one("6. View receipt.", "Home's photo viewer.", splitViewer())}
+  </div>`)}
+
+  ${part("Receipt, desktop", "A's centered pair. The receipt on the left, the people and your share on the right, and a line's detail as a popover from the line.", `<div class="frames wrap">
+    ${one("1. Default.", "Nobody picked, buckets collapsed. The right pane lists the people.", deskSplit(browse, pickPane()), true)}
+    ${one("2. Gameplay tapped.", "The popover hangs from the line. Your share stays in view.", deskSplit({ mode: "claim", cl: SAM, open: [], sel: "g", pop: popover("g", SAM) }, youPane(SAM)), true)}
+    ${one("3. Bucket 2 open.", "The can nobody checked is yellow.", deskSplit({ mode: "claim", cl: SAM, open: ["b2"] }, youPane(SAM)), true)}
+    ${one("4. View receipt clicked.", "The home page's photo viewer over the Split page.", withPhoto(deskSplit(browse, pickPane()), 1440), true)}
+  </div>`)}
+
+  ${part("Web home, centered column", "Before the link exists, home shows a compact receipt card, the pay handle and the names. The item list waits for the Split page.", `<div class="frames wrap">
+    ${one("1440, empty.", "", layoutA(1440, false), true)}
+    ${one("1024, empty.", "", layoutA(1024, false), true)}
+    ${one("1440, scanned.", "The thumbnail opens the photo. The camera replaces it.", layoutA(1440, true), true)}
+    ${one("1024, scanned.", "", layoutA(1024, true), true)}
+    ${one("1440, photo open.", "", deskViewer(1440), true)}
+  </div>`)}
+
+  ${part("Phone home", "The Example button is gone. After a scan, the compact card takes the empty state's place.", `<div class="frames">
+    ${one("Empty.", "No Example button.", phoneEmpty())}
+    ${one("Scanned.", "The compact receipt card.", phoneHome())}
+    ${one("Photo open.", "", phoneViewer())}
+  </div>`)}
+</main>`);
+
+</script>
+</body>
+</html>

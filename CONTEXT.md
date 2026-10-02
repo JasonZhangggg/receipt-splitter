@@ -36,8 +36,16 @@ One priced row on the receipt, such as a dish or drink. Its price includes its q
 _Avoid_: Line, entry, product
 
 **Adjustment**:
-A charge or credit on the receipt that is not an Item: tax, tip, or a receipt-level discount.
+A charge or credit on the receipt that is not an Item: tax, tip, a service charge, a receipt-level discount, or a Bundle's discount.
 _Avoid_: Fee, extra
+
+**Bundle**:
+A group of Items the receipt prints under one $0.00 header, such as a Beer Bucket, with a discount that covers only those Items. The header is the Bundle's name, not an Item.
+_Avoid_: Bucket, combo, group, package
+
+**Receipt photo**:
+The downscaled copy of the Host's photo that the Split keeps, so everyone in it can view the receipt. It is deleted with the Split.
+_Avoid_: Image, scan, attachment
 
 **Total check**:
 The test that the Items add up to the subtotal, and the subtotal plus Adjustments equals the total.
@@ -65,7 +73,7 @@ An Item with a unit no Participant has Claimed, or cents an amount split leaves.
 _Avoid_: Unassigned item
 
 **Share**:
-One Participant's part of the bill: their Claimed Items plus a part of the Adjustments proportional to those Items.
+One Participant's part of the bill: their Claimed Items, a part of each Bundle discount proportional to their Items in that Bundle, and a part of the other Adjustments proportional to their Items after Bundle discounts.
 _Avoid_: Portion, amount owed, balance
 
 **Payment**:
