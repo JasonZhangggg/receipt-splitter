@@ -661,7 +661,7 @@ export type CreateSplitRequest = { readonly split: Omit<NewSplit, "id"> };
 export type CreateSplitResponse = { readonly id: SplitId; readonly creatorSecret: string };
 
 export type CreateSplitRefusal =
-  | { readonly refused: "bodyTooLarge" | "unavailable" | "rateLimited" }
+  | { readonly refused: "bodyTooLarge" | "unavailable" | "rateLimited" | "dailyLimit" }
   | { readonly refused: "rejected"; readonly rejection: Rejection };
 
 export type ClientMessage = {

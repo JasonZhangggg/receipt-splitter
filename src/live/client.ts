@@ -105,13 +105,15 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
     return { ok: true, id, creatorSecret };
   }
   const refusal: CreateSplitRefusal | null = await response.json().catch(() => null);
-  return { ok: false, reason: refusalReason(refusal) };
+  return { ok: false, reason: refusalReason(refusal, Number(response.headers.get("retry-after"))) };
 }
 
-function refusalReason(refusal: CreateSplitRefusal | null): string {
+function refusalReason(refusal: CreateSplitRefusal | null, retryAfterSeconds: number): string {
   switch (refusal?.refused) {
     case "rateLimited":
       return createCopy.busy;
+    case "dailyLimit":
+      return createCopy.daily(new Date(Date.now() + retryAfterSeconds * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
     case "unavailable":
     case undefined:
       return createCopy.network;

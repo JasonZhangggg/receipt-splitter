@@ -42,10 +42,43 @@ export function limiterKey(ip: string): string {
   return `${groups.slice(0, 4).map((group) => group.padStart(4, "0")).join(":")}::/64`;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A UTC day, counted in days since the epoch. */
+export type DayTally = { readonly day: number; readonly count: number };
+
+/**
+ * Cloudflare's free plan allows 100,000 Durable Object row writes a day, and a full day at this cap should spend at most a quarter of them.
+ * worker/create-cost.test.ts measures 12 row writes per create, from the create through its first connect to its expiry.
+ * Budgeting 15 covers the unmeasured table drop at expiry: 1,500 creates × 15 = 22,500, under 25,000.
+ */
+export const DAILY_CREATE_CAP = 1500;
+
+export function admitToDay(tally: DayTally | undefined, now: number, cap: number): Admission<DayTally> {
+  const day = Math.floor(now / DAY_MS);
+  const count = tally?.day === day ? tally.count : 0;
+  if (count < cap) return { ok: true, state: { day, count: count + 1 } };
+  return { ok: false, state: { day, count }, retryAfterMs: (day + 1) * DAY_MS - now };
+}
+
+export const DAILY_CAP_NAME = "daily-cap";
+
 const TIMES_KEY = "times";
+const TALLY_KEY = "today";
+
+type Verdict = { readonly ok: true } | { readonly ok: false; readonly retryAfterMs: number };
 
 export class CreateLimiter extends DurableObject<Cloudflare.Env> {
-  async admit(): Promise<{ readonly ok: true } | { readonly ok: false; readonly retryAfterMs: number }> {
+  async admitToday(): Promise<Verdict> {
+    const storage = this.ctx.storage;
+    const admission = admitToDay(await storage.get<DayTally>(TALLY_KEY), Date.now(), DAILY_CREATE_CAP);
+    if (!admission.ok) return { ok: false, retryAfterMs: admission.retryAfterMs };
+    await storage.put(TALLY_KEY, admission.state);
+    if ((await storage.getAlarm()) === null) await storage.setAlarm((admission.state.day + 1) * DAY_MS);
+    return { ok: true };
+  }
+
+  async admit(): Promise<Verdict> {
     const storage = this.ctx.storage;
     const admission = admitToWindow((await storage.get<number[]>(TIMES_KEY)) ?? [], Date.now(), CREATE_LIMIT);
     if (!admission.ok) return { ok: false, retryAfterMs: admission.retryAfterMs };
@@ -57,6 +90,9 @@ export class CreateLimiter extends DurableObject<Cloudflare.Env> {
   async alarm(): Promise<void> {
     const storage = this.ctx.storage;
     const now = Date.now();
+    const tally = await storage.get<DayTally>(TALLY_KEY);
+    // A late alarm can fire after the new day's first create, so it keeps that count.
+    if (tally?.day === Math.floor(now / DAY_MS)) return storage.setAlarm((tally.day + 1) * DAY_MS);
     const recent = ((await storage.get<number[]>(TIMES_KEY)) ?? []).filter((time) => now - time < CREATE_LIMIT.windowMs);
     if (recent.length === 0) return storage.deleteAll();
     await storage.put(TIMES_KEY, recent);

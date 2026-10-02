@@ -1,6 +1,7 @@
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DAILY_CAP_NAME } from "./rate-limit";
 import { connect, newSplit, postSplit, T0 } from "./testing";
 
 beforeEach(() => {
@@ -157,5 +158,61 @@ describe("POST /api/splits", () => {
     const response = await exports.default.fetch("http://localhost/api/splits");
     expect(response.status).toBe(405);
     expect(response.headers.get("allow")).toBe("POST");
+  });
+});
+
+describe("the daily create cap", { timeout: 60_000 }, () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  let nextHost = 0;
+
+  async function createFromNewAddresses(count: number): Promise<number[]> {
+    const statuses: number[] = [];
+    for (let made = 0; made < count; made += 1) {
+      nextHost += 1;
+      statuses.push((await postSplit({ split: newSplit }, { ip: `10.${nextHost >> 16}.${(nextHost >> 8) & 255}.${nextHost & 255}` })).status);
+    }
+    return statuses;
+  }
+
+  it("refuses the next create once 1,500 Splits were made in one UTC day, until the next UTC midnight, and leaves existing Splits working", async () => {
+    vi.setSystemTime(T0 + 2 * DAY);
+    const { id } = await postSplit({ split: newSplit }).then((response) => response.json<{ id: string }>());
+    expect(new Set(await createFromNewAddresses(1499))).toEqual(new Set([201]));
+
+    const refused = await postSplit({ split: newSplit });
+    expect([refused.status, refused.headers.get("retry-after"), await refused.json()]).toEqual([429, String(12 * 60 * 60), { refused: "dailyLimit" }]);
+    const client = await connect(id);
+    expect(await client.next()).toMatchObject({ type: "state", split: { id, participants: [{ id: "ann" }] } });
+  });
+
+  it("keeps the day's count after the cap's Durable Object is evicted", async () => {
+    vi.setSystemTime(T0 + 3 * DAY);
+    await createFromNewAddresses(1500);
+    await evictDurableObject(env.CreateLimiter.getByName(DAILY_CAP_NAME));
+    expect((await postSplit({ split: newSplit })).status).toBe(429);
+  });
+
+  it("starts a new count at the next UTC midnight and clears the old day's count", async () => {
+    vi.setSystemTime(T0 + 4 * DAY);
+    await createFromNewAddresses(1500);
+    expect((await postSplit({ split: newSplit })).status).toBe(429);
+
+    const cap = env.CreateLimiter.getByName(DAILY_CAP_NAME);
+    vi.setSystemTime(T0 + 4 * DAY + 12 * 60 * 60 * 1000);
+    expect(await runDurableObjectAlarm(cap)).toBe(true);
+    expect(await runInDurableObject(cap, async (_, state) => [...(await state.storage.list()).keys()])).toEqual([]);
+    expect((await postSplit({ split: newSplit })).status).toBe(201);
+  });
+
+  it("keeps the new day's count when the old day's alarm runs after the new day's first create", async () => {
+    const cap = env.CreateLimiter.getByName(DAILY_CAP_NAME);
+    vi.setSystemTime(T0 + 5 * DAY);
+    await createFromNewAddresses(1);
+    vi.setSystemTime(T0 + 5 * DAY + 13 * 60 * 60 * 1000);
+    await createFromNewAddresses(1);
+
+    expect(await runDurableObjectAlarm(cap)).toBe(true);
+    const stored = await runInDurableObject(cap, async (_, state) => ({ today: await state.storage.get("today"), alarm: await state.storage.getAlarm() }));
+    expect(stored).toEqual({ today: { day: (T0 + 6 * DAY - 12 * 60 * 60 * 1000) / DAY, count: 1 }, alarm: T0 + 6 * DAY + 12 * 60 * 60 * 1000 });
   });
 });
