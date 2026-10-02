@@ -19,7 +19,6 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
     return refuse(503, { refused: "unavailable" });
   }
   const cap = env.CreateLimiter.getByName(DAILY_CAP_NAME);
-  // Peeking first keeps a create the cap refuses from writing to its address's limiter.
   const room = await cap.peekToday();
   if (!room.ok) return tooMany("dailyLimit", room.retryAfterMs);
   const admission = await env.CreateLimiter.getByName(limiterKey(ip)).admit();

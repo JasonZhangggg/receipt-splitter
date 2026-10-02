@@ -52,11 +52,6 @@ const nextMidnight = (day: UtcDay): number => (day + 1) * DAY_MS;
 
 type DayTally = { readonly day: UtcDay; readonly count: number };
 
-/**
- * Cloudflare's free plan allows 100,000 Durable Object row writes a day, and a full day at this cap should spend at most a quarter of them.
- * worker/create-cost.test.ts measures 12 row writes per create, from the create through its first connect to its expiry.
- * Budgeting 15 covers the unmeasured table drop at expiry, so 1,500 creates use 22,500 writes, under 25,000.
- */
 export const DAILY_CREATE_CAP = 1500;
 
 function admitToDay(tally: DayTally | undefined, now: number, cap: number): Admission<DayTally> {
@@ -101,7 +96,6 @@ export class CreateLimiter extends DurableObject<Cloudflare.Env> {
     const storage = this.ctx.storage;
     const now = Date.now();
     const tally = await storage.get<DayTally>(TALLY_KEY);
-    // A late alarm can fire after the new day's first create, so it keeps that count.
     if (tally?.day === utcDay(now)) return storage.setAlarm(nextMidnight(tally.day));
     const recent = ((await storage.get<number[]>(TIMES_KEY)) ?? []).filter((time) => now - time < CREATE_LIMIT.windowMs);
     if (recent.length === 0) return storage.deleteAll();

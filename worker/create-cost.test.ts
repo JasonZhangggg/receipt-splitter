@@ -3,13 +3,12 @@ import { env, exports } from "cloudflare:workers";
 import { expect, it, vi } from "vitest";
 import { parseCreateSplitRequest } from "../src/core/parse";
 import { isRoutableSplitId, randomId, SPLIT_ID_LENGTH } from "../src/core/split";
-import { DAILY_CAP_NAME } from "./rate-limit";
+import { DAILY_CAP_NAME, DAILY_CREATE_CAP } from "./rate-limit";
 import { newSplit, postSplit, T0 } from "./testing";
 
 type Meter = () => number;
 
-/** Counts row writes the way Cloudflare bills them: SQL rows written, one per put key, one per setAlarm, and one per row deleteAll removes. */
-function meter(storage: DurableObjectStorage): Meter {
+function billedRowWrites(storage: DurableObjectStorage): Meter {
   const counts: Meter[] = [];
   const { sql } = storage;
   const exec = sql.exec.bind(sql);
@@ -44,9 +43,9 @@ it("one create writes 12 rows from its POST through its first connect to its exp
   const ip = "192.0.2.200";
   const limiter = env.CreateLimiter.getByName(ip);
   const cap = env.CreateLimiter.getByName(DAILY_CAP_NAME);
-  const limiterWrites = await runInDurableObject(limiter, (_, state) => meter(state.storage));
+  const limiterWrites = await runInDurableObject(limiter, (_, state) => billedRowWrites(state.storage));
   expect((await postSplit({ split: newSplit })).status).toBe(201);
-  const capWrites = await runInDurableObject(cap, (_, state) => meter(state.storage));
+  const capWrites = await runInDurableObject(cap, (_, state) => billedRowWrites(state.storage));
   expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
   vi.setSystemTime(T0 - 30 * 24 * 60 * 60 * 1000 + 60_000);
   await runDurableObjectAlarm(limiter);
@@ -56,7 +55,7 @@ it("one create writes 12 rows from its POST through its first connect to its exp
   if (!parsed?.ok) throw new Error(`could not build a Split for ${id}`);
   const server = env.SplitServer.getByName(id);
   const serverWrites = await runInDurableObject(server, async (instance, state) => {
-    const writes = meter(state.storage);
+    const writes = billedRowWrites(state.storage);
     await instance.create(parsed.split);
     return writes;
   });
@@ -67,4 +66,10 @@ it("one create writes 12 rows from its POST through its first connect to its exp
   await runDurableObjectAlarm(server);
 
   expect({ limiter: limiterWrites(), cap: capWrites(), server: serverWrites() }).toEqual({ limiter: 3, cap: 1, server: 8 });
+});
+
+it("a full day of capped creates spends at most a quarter of the free plan's 100,000 daily row writes, budgeting 15 per create for the table drop no test sees", () => {
+  const budgetedWritesPerCreate = 15;
+  expect(DAILY_CREATE_CAP * budgetedWritesPerCreate).toBe(22_500);
+  expect(DAILY_CREATE_CAP * budgetedWritesPerCreate).toBeLessThanOrEqual(100_000 / 4);
 });
