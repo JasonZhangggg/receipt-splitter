@@ -79,7 +79,11 @@ test("computeShares on 60 Items and 12 Participants, with every claimer count fr
   expect(result.latency.p50).toBeLessThan(1);
 });
 
-test("applyOperation claims an Unclaimed Item on the same 60-Item, 12-Participant Split with a median under 0.1 ms", async ({ bench }) => {
+// Measured ratio is about 4 on any one machine, and replacing checkState with checkSplit in applyOperation gives about 18.
+// A fixed millisecond bound cannot give 3x headroom for slower CI hardware and still catch that, so the bound is relative.
+const CLAIM_TO_SERIALIZE_RATIO_BOUND = 13;
+
+test("applyOperation claims an Unclaimed Item on the same 60-Item, 12-Participant Split in under 13 times the time to JSON.stringify that Split", async ({ bench }) => {
   const stored = parseSplit({
     ...bigDinner,
     schemaVersion: 1,
@@ -96,10 +100,14 @@ test("applyOperation claims an Unclaimed Item on the same 60-Item, 12-Participan
   if (!claimed.ok) throw new Error(JSON.stringify(claimed.rejection));
   expect([claimed.split.revision, computeShares(claimed.split).unclaimed.itemIds]).toEqual([1, ["i13", "i14", "i15"]]);
 
+  const reference = await bench("JSON.stringify Split", () => {
+    JSON.stringify(stored.split);
+  }).run();
   const result = await bench("applyOperation claim", () => {
     applyOperation(stored.split, claim, anyone);
   }).run();
 
-  console.log(JSON.stringify({ bench: "applyOperation claim", medianMs: result.latency.p50, samples: result.latency.samplesCount }));
-  expect(result.latency.p50).toBeLessThan(0.1);
+  const ratio = result.latency.p50 / reference.latency.p50;
+  console.log(JSON.stringify({ bench: "applyOperation claim", medianMs: result.latency.p50, referenceMs: reference.latency.p50, ratio, samples: result.latency.samplesCount }));
+  expect(ratio).toBeLessThan(CLAIM_TO_SERIALIZE_RATIO_BOUND);
 });
