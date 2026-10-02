@@ -4,8 +4,13 @@ import { expect, newContext, test, type Browser, type Page } from "./without-ocr
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
 test.setTimeout(90_000);
 
-test.beforeEach(async ({ page }, testInfo) => {
+let tests = 0;
+
+test.beforeEach(async ({ page, context }, testInfo) => {
   if (!testInfo.tags.includes("@network")) await stubTurnstile(page);
+  tests += 1;
+  const ip = `198.52.${testInfo.workerIndex}.${tests}`;
+  await context.route("**/api/splits", (route) => route.continue({ headers: { ...route.request().headers(), "cf-connecting-ip": ip } }));
 });
 
 const linkTimeout = { timeout: 30_000 };
@@ -150,7 +155,7 @@ test("a failed Turnstile token shows one reason and enables Create split link ag
   const held = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/api/splits", async (route) => {
     await held;
-    await route.continue({ postData: JSON.stringify({ ...route.request().postDataJSON(), turnstileToken: "" }) });
+    await route.fallback({ postData: JSON.stringify({ ...route.request().postDataJSON(), turnstileToken: "" }) });
   });
   const action = page.getByRole("button", { name: /Create split link|Creating link/ });
 
