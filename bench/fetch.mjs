@@ -379,12 +379,14 @@ async function main() {
         writeFileSync(imagePath, shrunk(original));
       }
       if (!sourceSha256) throw new Error(`${candidate.name} has no pinned source sha256; delete ${imagePath} to fetch and pin it`);
+      const committedSha256 = createHash("sha256").update(readFileSync(imagePath)).digest("hex");
       const label = {
         image,
         source: candidate.source,
         sourceId: candidate.sourceId,
         region: candidate.region,
         sourceSha256,
+        committedSha256,
         tags: [...new Set([...candidate.features, ...SELECTED[candidate.source][candidate.sourceId]])],
         checked: reviewed.checked ?? false,
         ...(reviewed.note ? { note: reviewed.note } : {}),

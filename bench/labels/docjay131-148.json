@@ -4,6 +4,7 @@
   "sourceId": "148",
   "region": "US",
   "sourceSha256": "e35d6784c43aad5565dc3d2df2f4186c50fb092cb8013510c66f7a8003c9192f",
+  "committedSha256": "e35d6784c43aad5565dc3d2df2f4186c50fb092cb8013510c66f7a8003c9192f",
   "tags": [
     "modifiers",
     "signatureSlip"

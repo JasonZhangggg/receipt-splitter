@@ -1,8 +1,9 @@
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { parseNewSplit } from "../src/core/parse";
-import { isMintedSplitId } from "../src/core/split";
+import { mintedId } from "../src/core/test-ids";
 import { runTotalCheck } from "../src/core/total-check";
 import { readLabels } from "./read-labels.mjs";
 
@@ -11,8 +12,7 @@ const labels = readLabels(join(BENCH, "labels"));
 const SPLIT_ID = "benchlabelreceipt";
 
 function asReceipt(receipt: unknown) {
-  if (!isMintedSplitId(SPLIT_ID)) throw new RangeError(`${SPLIT_ID} is too short for a minted Split id`);
-  const parsed = parseNewSplit({ receipt, participants: [{ id: "host", name: "Host" }], paymentHandles: [{ service: "venmo", handle: "bench" }] }, SPLIT_ID);
+  const parsed = parseNewSplit({ receipt, participants: [{ id: "host", name: "Host" }], paymentHandles: [{ service: "venmo", handle: "bench" }] }, mintedId(SPLIT_ID));
   return parsed.ok ? parsed.split.receipt : parsed.rejection;
 }
 
@@ -26,6 +26,12 @@ describe("bench labels", () => {
 
   test("pin every source image by sha256", () => {
     expect(labels.filter(({ sourceSha256 }) => !/^[0-9a-f]{64}$/.test(sourceSha256)).map(({ name }) => name)).toEqual([]);
+  });
+
+  test("pin every committed image by sha256, so an edited image fails with no network", () => {
+    const changed = labels.filter(({ image, committedSha256 }) => createHash("sha256").update(readFileSync(join(BENCH, "data", image))).digest("hex") !== committedSha256);
+
+    expect(changed.map(({ name }) => name)).toEqual([]);
   });
 
   test("keep no EXIF, IPTC, or comment segment in any image", () => {

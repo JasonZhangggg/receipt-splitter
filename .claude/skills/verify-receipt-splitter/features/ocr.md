@@ -38,4 +38,4 @@ Preconditions:
 - `run-ocr.mjs` without `--out` rewrites `bench/ocr/`, which is the parser bench's input. Pass `--out <out>/boxes` in a lane unless the lane is meant to refresh those files.
 - Only `/` and `/debug/ocr` send the isolation headers. A direct load of any other route runs one thread.
 - Every run starts a fresh browser profile, so the first scan always downloads the runtime and models.
-- The worker keeps a model in Cache Storage under the name `ocr-ort-1.30.0`. Change that name when you replace a runtime or model file without renaming it.
+- The worker keeps the runtime and models in Cache Storage under `ocr-` plus the first 12 hex digits of the SHA-256 of those files. When you replace one, `src/ocr/worker.test.ts` fails and shows the new name. Paste it into `CACHE` in `public/ocr-worker.mjs`.

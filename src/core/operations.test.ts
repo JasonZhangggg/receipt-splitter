@@ -21,16 +21,15 @@ import {
   SPLIT_BYTE_BUDGET,
   adjustmentId,
   deviceId,
-  isMintedSplitId,
   itemId,
   participantId,
   serializedBytes,
   type Item,
-  type MintedSplitId,
   type ParticipantId,
   type Receipt,
   type Split,
 } from "./split";
+import { mintedId } from "./test-ids";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -40,11 +39,6 @@ const pasta = itemId("pasta");
 const fries = itemId("fries");
 const pitcher = itemId("pitcher");
 const anyone: Auth = { creator: false };
-
-function mintedId(value: string): MintedSplitId {
-  if (!isMintedSplitId(value)) throw new RangeError(`${value} is not a minted Split id`);
-  return value;
-}
 
 const minted = mintedId("q7Xv0Lr9_aZ-3mKp");
 

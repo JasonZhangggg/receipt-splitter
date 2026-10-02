@@ -15,4 +15,12 @@ const brotli = brotliCompressSync(raw, {
   params: { [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY },
 });
 
-console.log(JSON.stringify({ file, entryBytes: raw.length, entryBrotliBytes: brotli.length }));
+const { baselineBrotliBytes, growthBrotliBytes } = JSON.parse(readFileSync("scripts/size-budget.json", "utf8"));
+const limit = baselineBrotliBytes + growthBrotliBytes;
+
+console.log(JSON.stringify({ file, entryBytes: raw.length, entryBrotliBytes: brotli.length, limitBrotliBytes: limit }));
+
+if (brotli.length > limit) {
+  console.error(`entry is ${brotli.length - limit} bytes over its ${limit} byte brotli limit; trim it, or raise baselineBrotliBytes in scripts/size-budget.json in a PR that says why`);
+  process.exit(1);
+}

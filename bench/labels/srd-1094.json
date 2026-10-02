@@ -4,6 +4,7 @@
   "sourceId": "1094",
   "region": "US",
   "sourceSha256": "2a937a6cd8be5cc207df77664181eef9987237f007d2c346f4a593873fbafa18",
+  "committedSha256": "2a937a6cd8be5cc207df77664181eef9987237f007d2c346f4a593873fbafa18",
   "tags": [
     "tip",
     "skew"

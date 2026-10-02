@@ -4,6 +4,7 @@
   "sourceId": "1151",
   "region": "US",
   "sourceSha256": "2a69fb0a2fe315c06c44e2d74448c5bc97247ecb84857bffc2ca060d97e8b6dd",
+  "committedSha256": "8304242c32917dbe6f2a8cf9e324e56163b45236493c12cbdf5b49d1957c42eb",
   "tags": [
     "tipBlock",
     "serviceCharge"

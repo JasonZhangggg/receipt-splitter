@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 type OcrWorker = typeof import("../../public/ocr-worker.mjs");
@@ -13,6 +15,11 @@ const ASSETS = [
   "/models/en_PP-OCRv5_rec_mobile.onnx",
   "/models/en_PP-OCRv5_rec_mobile.dict.txt",
 ];
+
+const cacheName = `ocr-${createHash("sha256")
+  .update(Buffer.concat(ASSETS.map((asset) => readFileSync(new URL(`../../public${asset}`, import.meta.url)))))
+  .digest("hex")
+  .slice(0, 12)}`;
 
 function fakeCaches() {
   const stores = new Map<string, Map<string, Response>>();
@@ -97,8 +104,8 @@ describe("model downloads", () => {
 
     await worker.prefetch();
 
-    expect(await caches.keys()).toEqual(["ocr-ort-1.30.0"]);
-    expect(await caches.stored("ocr-ort-1.30.0")).toEqual([
+    expect(await caches.keys()).toEqual([cacheName]);
+    expect(await caches.stored(cacheName)).toEqual([
       ["/ort/ort.wasm.min.mjs", "bytes of ort.wasm.min.mjs"],
       ["/ort/ort-wasm-simd-threaded.mjs", "bytes of ort-wasm-simd-threaded.mjs"],
       ["/ort/ort-wasm-simd-threaded.wasm", "bytes of ort-wasm-simd-threaded.wasm"],
@@ -115,7 +122,7 @@ describe("model downloads", () => {
     serve = assetBytes;
     await worker.prefetch();
 
-    expect((await caches.stored("ocr-ort-1.30.0")).map(([path]) => path).sort()).toEqual([...ASSETS].sort());
+    expect((await caches.stored(cacheName)).map(([path]) => path).sort()).toEqual([...ASSETS].sort());
   });
 
   test("prefetch downloads at low priority and a scan's own download at high priority", async () => {
@@ -128,7 +135,7 @@ describe("model downloads", () => {
 
     await worker.prefetch();
     phase = "scan";
-    await caches.delete("ocr-ort-1.30.0");
+    await caches.delete(cacheName);
     vi.resetModules();
     worker = await import("../../public/ocr-worker.mjs");
     await worker.read(DICT);
@@ -184,7 +191,7 @@ describe("model downloads", () => {
     serve = (path) => (path.endsWith(".dict.txt") ? spaFallback(path) : assetBytes(path));
 
     await expect(worker.read(DICT)).rejects.toThrow(/en_PP-OCRv5_rec_mobile\.dict\.txt returned an HTML page$/);
-    expect(await caches.stored("ocr-ort-1.30.0")).toEqual([]);
+    expect(await caches.stored(cacheName)).toEqual([]);
   });
 
   test("read refuses the HTML page without Cache Storage too", async () => {
@@ -196,6 +203,6 @@ describe("model downloads", () => {
 
   test("read returns the cached asset", async () => {
     expect(await (await worker.read(DICT)).text()).toBe("bytes of en_PP-OCRv5_rec_mobile.dict.txt");
-    expect(await caches.stored("ocr-ort-1.30.0")).toEqual([["/models/en_PP-OCRv5_rec_mobile.dict.txt", "bytes of en_PP-OCRv5_rec_mobile.dict.txt"]]);
+    expect(await caches.stored(cacheName)).toEqual([["/models/en_PP-OCRv5_rec_mobile.dict.txt", "bytes of en_PP-OCRv5_rec_mobile.dict.txt"]]);
   });
 });

@@ -4,7 +4,10 @@ import { parseReceipt } from "../../src/parse/index.ts";
 
 const OCR = join(import.meta.dirname, "..", "ocr");
 
-export default function parse({ name }) {
-  const { boxes } = JSON.parse(readFileSync(join(OCR, `${name}.json`), "utf8"));
+export function load({ name }) {
+  return JSON.parse(readFileSync(join(OCR, `${name}.json`), "utf8")).boxes;
+}
+
+export default function parse(boxes) {
   return parseReceipt(boxes);
 }

@@ -23,6 +23,9 @@ const { positionals, values } = parseArgs({
     height: { type: "string" },
     "color-scheme": { type: "string" },
     "reduced-motion": { type: "string" },
+    click: { type: "string", multiple: true, default: [] },
+    "touch-scroll": { type: "string", multiple: true, default: [] },
+    video: { type: "string" },
     out: { type: "string" },
   },
 });
@@ -56,7 +59,9 @@ async function launch() {
         : `port ${p} is held by pid ${pids.join(", ")}, which is outside this worktree's recorded launch group for port ${port}, so cleanup will not stop it; pick another port`,
     );
   }
-  const launcher = `${process.pid}\n${startTime(process.pid)}`;
+  const started = startTime(process.pid);
+  if (!started) fail(`ps reported no start time for this launch (pid ${process.pid}), so doctor and cleanup could not tell it from a reused pid; nothing was started`);
+  const launcher = `${process.pid}\n${started}`;
   mkdirSync(dirname(runDir), { recursive: true });
   try {
     mkdirSync(runDir);
@@ -128,12 +133,18 @@ async function drive() {
   const viewport = { width: width ?? device.viewport.width, height: pixels("height") ?? device.viewport.height };
   const colorScheme = choice("color-scheme", ["light", "dark"]);
   const reducedMotion = choice("reduced-motion", ["reduce", "no-preference"]);
+  const scrolls = values["touch-scroll"].map((raw) => {
+    const [, selector, dy] = raw.match(/^(.+):(-?\d+)$/) ?? fail(`--touch-scroll must be <selector>:<dy> with a whole number dy, not ${JSON.stringify(raw)}`);
+    return { selector, dy: Number(dy) };
+  });
+  const video = values.video && { dir: resolve(values.video) };
   const browser = await chromium.launch();
-  const page = await browser.newPage({ ...device, viewport, colorScheme, reducedMotion });
+  const page = await browser.newPage({ ...device, viewport, colorScheme, reducedMotion, recordVideo: video });
   const consoleErrors = [];
   page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
   page.on("pageerror", (e) => consoleErrors.push(e.message));
   const failures = [];
+  const touchScrolled = [];
   let media;
   try {
     const response = await page.goto(`${baseUrl}${values.path}`, { waitUntil: "networkidle" });
@@ -145,6 +156,32 @@ async function drive() {
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches ? "reduce" : "no-preference",
       pointer: matchMedia("(pointer: coarse)").matches ? "coarse" : "fine",
     }));
+    for (const selector of values.click) {
+      await page.locator(selector).first().click({ timeout: 5000 }).catch((error) => failures.push(`click ${selector} failed: ${error.message.split("\n")[0]}`));
+    }
+    for (const { selector, dy } of scrolls) {
+      const box = await page.locator(selector).first().boundingBox({ timeout: 5000 }).catch(() => null);
+      if (!box) {
+        failures.push(`touch-scroll ${selector} found nothing visible`);
+        continue;
+      }
+      const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const scrollTop = () =>
+        page.evaluate(({ x, y }) => {
+          let el = document.elementFromPoint(x, y);
+          while (el && el.scrollHeight <= el.clientHeight) el = el.parentElement;
+          return Math.round((el ?? document.scrollingElement).scrollTop);
+        }, at);
+      const before = await scrollTop();
+      const cdp = await page.context().newCDPSession(page);
+      try {
+        await cdp.send("Input.synthesizeScrollGesture", { ...at, yDistance: dy, gestureSourceType: "touch" });
+      } catch (error) {
+        failures.push(`touch-scroll ${selector} failed: ${error.message.split("\n")[0]}; the element's center must be inside the viewport`);
+        continue;
+      }
+      touchScrolled.push({ selector, dy, scrollTop: [before, await scrollTop()] });
+    }
     if (values["expect-heading"]) {
       const heading = page.getByRole("heading", { name: values["expect-heading"] });
       if (!(await becomesVisible(heading))) failures.push(`heading "${values["expect-heading"]}" not visible`);
@@ -165,6 +202,7 @@ async function drive() {
   } finally {
     await browser.close();
   }
+  const videoPath = values.video ? await page.video()?.path() : undefined;
   failures.push(...consoleErrors.map((e) => `console error: ${e}`));
   print({
     ok: failures.length === 0,
@@ -172,6 +210,8 @@ async function drive() {
     media,
     shot: values.shot,
     aria: values.aria,
+    touchScrolled: touchScrolled.length ? touchScrolled : undefined,
+    video: videoPath,
     failures,
     error: failures.length ? failures.join("; ") : undefined,
   });
@@ -249,6 +289,10 @@ async function cleanup() {
       `port ${port} or ${inspectorPort} is still held by pid ${held().join(", ")}, which this run did not start, so cleanup left ${runDir}; if that pid is this worktree's wrangler and its record is lost, follow "Recover a lost record" in SKILL.md, otherwise pick another port`,
     );
   }
+  const latest = recordedGroup();
+  if (latest?.raw !== record?.raw || held().length) {
+    fail(`the pgid record or the listeners on port ${port} changed while the group stopped, so cleanup left ${runDir}; run doctor --port ${port}`);
+  }
   rmSync(runDir, { recursive: true, force: true });
   print({ ok: true, port, stoppedGroup: record?.pgid ?? null, portFree: true });
 }
@@ -268,7 +312,7 @@ function liveLauncher() {
 }
 
 function startTime(pid) {
-  const [started = ""] = lines("ps", ["-o", "lstart=", "-p", String(pid)]);
+  const [started = ""] = lines("ps", ["-o", "lstart=", "-p", String(pid)], { ...process.env, LC_ALL: "C", TZ: "UTC" });
   return started.trim();
 }
 
@@ -302,9 +346,9 @@ function groupMembers(pgid) {
     .map(([, pid, , command]) => ({ pid: Number(pid), command }));
 }
 
-function lines(cmd, args) {
+function lines(cmd, args, env = process.env) {
   try {
-    return execFileSync(cmd, args, { encoding: "utf8" }).split("\n").filter(Boolean);
+    return execFileSync(cmd, args, { encoding: "utf8", env }).split("\n").filter(Boolean);
   } catch {
     return [];
   }

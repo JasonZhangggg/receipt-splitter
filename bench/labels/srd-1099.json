@@ -4,6 +4,7 @@
   "sourceId": "1099",
   "region": "US",
   "sourceSha256": "36b005aa17a425ea8a990626856fb39ff77675f46de3392edc9dfc5c62706e82",
+  "committedSha256": "36b005aa17a425ea8a990626856fb39ff77675f46de3392edc9dfc5c62706e82",
   "tags": [
     "tip",
     "modifiers"

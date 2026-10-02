@@ -4,6 +4,7 @@
   "sourceId": "015",
   "region": "US",
   "sourceSha256": "98d9bb043d11de8baac507322710c14f8e896f5c2285393f00db79061b87ef93",
+  "committedSha256": "98d9bb043d11de8baac507322710c14f8e896f5c2285393f00db79061b87ef93",
   "tags": [
     "handwritten"
   ],
