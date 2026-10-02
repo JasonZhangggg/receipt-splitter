@@ -7,6 +7,7 @@ import { HISTORY_LIMIT, OPERATION_LIMIT, takeToken, type Bucket } from "./rate-l
 const MAX_MESSAGE_BYTES = 40 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPLIT_TTL_MS = 60 * DAY_MS;
+const PHOTO_TTL_MS = 14 * DAY_MS;
 const EXPIRY_RETRY_MS = DAY_MS;
 const MAX_EARLY_FRAMES = 100;
 const HEARTBEAT = { ping: "ping", pong: "pong" } as const;
@@ -24,6 +25,9 @@ type Stored =
       readonly changedAt: number;
       readonly secret: Uint8Array;
       readonly rate: Rate;
+      /** Null for a Split created before photos, which never takes one. */
+      readonly photoUntil: number | null;
+      readonly photo: boolean;
     };
 
 type Rate = { readonly operations: Bucket | null; readonly history: Bucket | null };
@@ -37,6 +41,7 @@ type Pacing = { readonly retryAt: number; readonly early: number };
 type Row = {
   json: string;
   changed_at: number;
+  created_at?: number | null;
   creator_secret: ArrayBuffer;
   bytes: number;
   operations_tokens: number | null;
@@ -60,14 +65,23 @@ export class SplitServer extends Server<Cloudflare.Env> {
     if (split.id !== this.name) throw new Error(`SplitServer ${this.name} cannot hold Split ${split.id}`);
     const sql = this.ctx.storage.sql;
     sql.exec(
-      "CREATE TABLE IF NOT EXISTS split (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), json TEXT NOT NULL, changed_at INTEGER NOT NULL, creator_secret BLOB NOT NULL, operations_tokens REAL, operations_at INTEGER, history_tokens REAL, history_at INTEGER)",
+      "CREATE TABLE IF NOT EXISTS split (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), json TEXT NOT NULL, changed_at INTEGER NOT NULL, created_at INTEGER, creator_secret BLOB NOT NULL, operations_tokens REAL, operations_at INTEGER, history_tokens REAL, history_at INTEGER)",
     );
     if (sql.exec("SELECT 1 FROM split").toArray().length > 0) return { created: false };
     const secret = crypto.getRandomValues(new Uint8Array(SECRET_BYTES));
     const json = JSON.stringify(split);
     const now = Date.now();
-    sql.exec("INSERT INTO split (singleton, json, changed_at, creator_secret) VALUES (1, ?, ?, ?)", json, now, secret);
-    this.#stored = { kind: "live", split, json, changedAt: now, secret, rate: { operations: null, history: null } };
+    sql.exec("INSERT INTO split (singleton, json, changed_at, created_at, creator_secret) VALUES (1, ?, ?, ?, ?)", json, now, now, secret);
+    this.#stored = {
+      kind: "live",
+      split,
+      json,
+      changedAt: now,
+      secret,
+      rate: { operations: null, history: null },
+      photoUntil: now + PHOTO_TTL_MS,
+      photo: false,
+    };
     await this.ctx.storage.setAlarm(now + SPLIT_TTL_MS);
     return { created: true, creatorSecret: toBase64Url(secret) };
   }
@@ -81,7 +95,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
   async onConnect(connection: Connection): Promise<void> {
     const stored = this.#stored;
     if (stored.kind === "live") {
-      connection.send(stateMessage(null, stored.json));
+      connection.send(stateMessage(null, stored.photo, stored.json));
       return;
     }
     endConnection(connection, stored);
@@ -123,8 +137,30 @@ export class SplitServer extends Server<Cloudflare.Env> {
       rate.history?.at ?? null,
     );
     this.#stored = { ...stored, split: result.split, json, changedAt: now, rate };
-    this.broadcast(stateMessage(null, json), [connection.id]);
-    connection.send(stateMessage(frame.ref, json));
+    this.broadcast(stateMessage(null, stored.photo, json), [connection.id]);
+    connection.send(stateMessage(frame.ref, stored.photo, json));
+  }
+
+  async onRequest(request: Request): Promise<Response> {
+    const jpeg = request.method === "PUT" ? await request.arrayBuffer() : null;
+    const stored = this.#stored;
+    if (stored.kind !== "live") {
+      if (stored.kind === "missing") await this.ctx.storage.deleteAll();
+      return new Response(null, { status: 404 });
+    }
+    if (jpeg === null) {
+      if (!stored.photo) return new Response(null, { status: 404 });
+      return new Response(this.ctx.storage.sql.exec<{ jpeg: ArrayBuffer }>("SELECT jpeg FROM photo").one().jpeg);
+    }
+    if (!isCreator(bearer(request), stored.secret)) return new Response(null, { status: 403 });
+    if (stored.photoUntil === null || Date.now() >= stored.photoUntil) return new Response(null, { status: 410 });
+    const sql = this.ctx.storage.sql;
+    sql.exec("CREATE TABLE IF NOT EXISTS photo (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), jpeg BLOB NOT NULL)");
+    sql.exec("INSERT INTO photo (singleton, jpeg) VALUES (1, ?) ON CONFLICT (singleton) DO UPDATE SET jpeg = excluded.jpeg", jpeg);
+    this.#stored = { ...stored, photo: true };
+    if (!stored.photo) await this.ctx.storage.setAlarm(stored.photoUntil);
+    this.broadcast(stateMessage(null, true, stored.json));
+    return new Response(null, { status: 204 });
   }
 
   async onAlarm(): Promise<void> {
@@ -132,6 +168,12 @@ export class SplitServer extends Server<Cloudflare.Env> {
     if (stored.kind !== "missing") {
       const due = stored.changedAt + SPLIT_TTL_MS;
       if (Date.now() < due) {
+        if (stored.kind === "live" && stored.photo && stored.photoUntil !== null) {
+          if (Date.now() < stored.photoUntil) return this.ctx.storage.setAlarm(stored.photoUntil);
+          this.ctx.storage.sql.exec("DELETE FROM photo");
+          this.#stored = { ...stored, photo: false };
+          this.broadcast(stateMessage(null, false, stored.json));
+        }
         await this.ctx.storage.setAlarm(due);
         return;
       }
@@ -160,7 +202,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
     }
     const [row] = sql
       .exec<Row>(
-        "SELECT json, changed_at, creator_secret, length(CAST(json AS BLOB)) AS bytes, operations_tokens, operations_at, history_tokens, history_at FROM split",
+        "SELECT *, length(CAST(json AS BLOB)) AS bytes FROM split",
       )
       .toArray();
     if (!row) return { kind: "missing" };
@@ -179,6 +221,8 @@ export class SplitServer extends Server<Cloudflare.Env> {
       changedAt: row.changed_at,
       secret: new Uint8Array(row.creator_secret),
       rate: { operations: bucketOf(row.operations_tokens, row.operations_at), history: bucketOf(row.history_tokens, row.history_at) },
+      photoUntil: row.created_at == null ? null : row.created_at + PHOTO_TTL_MS,
+      photo: sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'photo'").toArray().length > 0 && sql.exec("SELECT 1 FROM photo").toArray().length > 0,
     };
   }
 }
@@ -215,8 +259,12 @@ function send(connection: Connection, message: ServerMessage): void {
   connection.send(JSON.stringify(message));
 }
 
-function stateMessage(ref: string | null, json: string): string {
-  return `{"type":"state","ref":${JSON.stringify(ref)},"split":${json}}`;
+function stateMessage(ref: string | null, photo: boolean, json: string): string {
+  return `{"type":"state","ref":${JSON.stringify(ref)},"photo":${photo},"split":${json}}`;
+}
+
+function bearer(request: Request): string | undefined {
+  return /^Bearer (\S+)$/.exec(request.headers.get("authorization") ?? "")?.[1];
 }
 
 function parseJson(text: string): unknown {

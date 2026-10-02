@@ -9,7 +9,7 @@ export type GoneReason = "notFound" | "unreadable";
 
 export type Live =
   | { readonly status: "connecting" }
-  | { readonly status: "live"; readonly split: Split }
+  | { readonly status: "live"; readonly split: Split; readonly photo: boolean }
   | { readonly status: "gone"; readonly reason: GoneReason };
 
 export type Answer = { readonly ok: true } | { readonly ok: false; readonly rejection: WireRejection | { readonly reason: "disconnected" } };
@@ -52,7 +52,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
       const message: ServerMessage = JSON.parse(data);
       switch (message.type) {
         case "state":
-          setLive({ status: "live", split: message.split });
+          setLive({ status: "live", split: message.split, photo: message.photo });
           return settle(message.ref, { ok: true });
         case "unchanged":
           return settle(message.ref, { ok: true });
