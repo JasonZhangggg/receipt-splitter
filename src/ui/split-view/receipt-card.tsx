@@ -191,7 +191,6 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   );
 }
 
-/** Springs its height open and closed from wherever it is, and cross-fades under reduced motion. Closed, its children are gone from the page. */
 function Collapse({ open, id, label, children }: { open: boolean; id: string; label: string; children: ReactNode }) {
   const reduce = useReducedMotion();
   const [shown, setShown] = useState(open);

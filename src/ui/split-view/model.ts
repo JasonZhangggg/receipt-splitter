@@ -50,7 +50,6 @@ export function circleTap(item: SplitItem, participantId: ParticipantId): Operat
 
 const SIZE = /^\d+(?:\.\d+)?(?:oz|ml|cl|l|lb|g|kg)$/i;
 
-/** Splits a printed name at its first size, such as "16oz", so the size reads as a quieter second line. */
 export function nameParts(name: string): readonly [title: string, detail: string | null] {
   const words = name.split(" ");
   const at = words.findIndex((word, index) => index > 0 && SIZE.test(word));
@@ -73,7 +72,6 @@ type BundleDiscount = Extract<Adjustment, { readonly kind: "bundleDiscount" }>;
 const isBundle = (row: Adjustment): row is BundleDiscount => row.kind === "bundleDiscount";
 const percentOff = (name: string) => /(\d+(?:\.\d+)?)\s*%/.exec(name)?.[1] ?? null;
 
-/** Groups each Bundle's Items under it, at the place of its first Item, and leaves the receipt-level Adjustments as the charges. */
 export function receiptRows(receipt: Receipt<SplitItem>): { readonly rows: readonly ReceiptRow[]; readonly charges: readonly Adjustment[] } {
   const bundles = receipt.adjustments.filter(isBundle).flatMap((row) => {
     const [first, ...rest] = receipt.items.filter(({ id }) => row.bundle.items.includes(id));
@@ -105,7 +103,6 @@ export function unclaimedUnits(bundle: BundleRow): number {
   return bundle.items.reduce((total, { split }) => total + split.units.filter((_, unit) => claimersOf(split, unit).length === 0).length, 0);
 }
 
-/** What a Bundle's discount takes off one of its Items, in proportion to the Item's price. */
 export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId): string | null {
   const row = receipt.adjustments.filter(isBundle).find(({ bundle }) => bundle.items.includes(itemId));
   const item = receipt.items.find(({ id }) => id === itemId);
@@ -115,7 +112,6 @@ export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId): string 
   return say.inBundle(row.bundle.name, percentOff(row.name), `$${plainAmount(off)}`);
 }
 
-/** The Adjustments in a breakdown that apply to its person: every receipt-level one, and the discount of each Bundle they had an Item in. */
 export function breakdownCharges(receipt: Receipt<SplitItem>, breakdown: ShareBreakdown): ShareBreakdown["adjustments"] {
   const had = new Set(breakdown.items.map(({ id }) => id));
   return breakdown.adjustments.filter(({ id }) => {
