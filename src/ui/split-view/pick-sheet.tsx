@@ -4,7 +4,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { Participant, ParticipantId } from "../../core/split";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { pressStyle, useReducedMotion, webAnimation } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
@@ -154,7 +154,7 @@ export function PickRows({ rows, chosen, leaving, onPick }: RowsProps) {
   );
 }
 
-const listLeaving = webStyle({
+const listLeaving = webAnimation({
   animationKeyframes: [{ from: { opacity: 1, filter: "blur(0px)" }, to: { opacity: 0, filter: "blur(2px)" } }],
   animationDuration: "120ms",
   animationTimingFunction: motion.easeOut,

@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 
 import type { Colors } from "../colors";
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { motion, type, useColors } from "../theme";
 import { openWithFallback } from "../open-link";
 import { Icon, type IconName } from "./icon";
@@ -145,7 +145,7 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
   );
 }
 
-const spin = webStyle({
+const spin = webAnimation({
   animationKeyframes: [{ from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } }],
   animationDuration: `${motion.spinnerTurn}ms`,
   animationTimingFunction: "linear",

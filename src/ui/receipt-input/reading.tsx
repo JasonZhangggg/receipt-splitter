@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { useReducedMotion, webStyle } from "../motion";
+import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { motion, type, useColors } from "../theme";
 
 const lines = [0, 1, 2, 3, 4, 5, 6];
@@ -12,7 +12,7 @@ const at = (ms: number) => `${((ms / motion.readingCycle) * 100).toFixed(2)}%`;
 const darken = (index: number) => {
   const start = index * motion.readingStagger;
   const done = start + motion.readingStagger;
-  return webStyle({
+  return webAnimation({
     animationKeyframes: [
       {
         "0%": { opacity: 0 },
@@ -29,7 +29,7 @@ const darken = (index: number) => {
   });
 };
 
-const darkening = StyleSheet.create(Object.fromEntries(lines.map((line) => [line, darken(line)])));
+const darkening = Object.fromEntries(lines.map((line) => [line, darken(line)]));
 
 export function Reading({ progress, title }: { progress: number; title: string }) {
   const c = useColors();

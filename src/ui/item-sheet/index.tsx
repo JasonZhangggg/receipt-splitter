@@ -8,7 +8,7 @@ import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitIte
 import { parseAmount, plainAmount } from "../../draft";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
@@ -329,12 +329,12 @@ function Stepper({ value, min, max, onChange, names }: StepperProps) {
 
 const slide = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
 const rowsFade = 150;
-const rowsEnter = webStyle({
+const rowsEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
   animationDuration: `${rowsFade}ms`,
   animationTimingFunction: "ease",
 });
-const rowsLeave = webStyle({
+const rowsLeave = webAnimation({
   animationKeyframes: [{ from: { opacity: 1 }, to: { opacity: 0 } }],
   animationDuration: `${rowsFade}ms`,
   animationTimingFunction: "ease",

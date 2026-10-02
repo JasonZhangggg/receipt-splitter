@@ -5,7 +5,7 @@ import { totalOf, type DraftAction, type DraftReceipt } from "../../draft";
 import { Button } from "../components/button";
 import { Icon } from "../components/icon";
 import { editorCopy } from "../home-copy";
-import { useReducedMotion, webStyle } from "../motion";
+import { useReducedMotion, webAnimation } from "../motion";
 import { layout, motion, type, useColors } from "../theme";
 import { AmountInput } from "./amount-input";
 
@@ -14,16 +14,16 @@ type Props = { receipt: DraftReceipt; flagged: readonly string[]; dispatch: (act
 const tabular = { fontVariant: ["tabular-nums" as const] };
 
 const enter = (from: Record<string, string | number>, duration: number) =>
-  webStyle({
+  webAnimation({
     animationKeyframes: [{ from, to: { opacity: 1, transform: "none" } }],
     animationDuration: `${duration}ms`,
     animationTimingFunction: motion.easeOut,
   });
 
-const entrance = StyleSheet.create({
+const entrance = {
   risen: enter({ opacity: 0, transform: "translateY(8px)" }, motion.receiptIn),
   faded: enter({ opacity: 0 }, motion.reducedFade),
-});
+};
 
 export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Props) {
   const c = useColors();

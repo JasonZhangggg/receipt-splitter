@@ -4,7 +4,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { Participant, ParticipantId } from "../../core/split";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 
@@ -90,7 +90,7 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
   );
 }
 
-const chipEnter = webStyle({
+const chipEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.96)" }, to: { opacity: 1, transform: "none" } }],
   animationDuration: "180ms",
   animationTimingFunction: motion.easeOut,

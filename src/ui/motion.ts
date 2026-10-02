@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, Platform, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Platform, StyleSheet, type ViewStyle } from "react-native";
 
 import { motion } from "./theme";
 
@@ -32,10 +32,15 @@ type WebOnly = Partial<
     | "willChange"
     | "cursor",
     string
-  > & { animationKeyframes: Record<string, Record<string, number | string>>[] }
+  >
 >;
 
+type Keyframes = { animationKeyframes: Record<string, Record<string, number | string>>[] };
+
 export const webStyle = (style: WebOnly) => style as ViewStyle;
+
+/** React Native Web drops animationKeyframes from inline styles, so a keyframe animation only runs once StyleSheet.create compiles it. */
+export const webAnimation = (style: WebOnly & Keyframes) => StyleSheet.create({ animation: style as ViewStyle }).animation;
 
 type PressFeel = { scale: number; pressIn: number };
 

@@ -24,7 +24,7 @@ import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickRows, PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
-import { useReducedMotion, webStyle } from "../../src/ui/motion";
+import { useReducedMotion, webAnimation, webStyle } from "../../src/ui/motion";
 import { layout, motion, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
@@ -245,8 +245,8 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onUp={phase === "regular" && me && !expanded ? () => setExpanded(true) : undefined}
         stays
         extra={
-          phase === "collapsing" ? (
-            <View pointerEvents="none" style={[styles.leaving, { top: chipsHeight + 14 }]}>
+          phase === "collapsing" && !reduce ? (
+            <View pointerEvents="none" style={[styles.leaving, { top: chipsHeight + 14 }, rowsLeave]}>
               <PickRows rows={pickRows(split, device)} chosen={chosen} leaving onPick={() => {}} />
             </View>
           ) : null
@@ -297,7 +297,14 @@ function intro(split: Split, creating: boolean) {
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
 
-const bodyEnter = webStyle({
+const rowsLeave = webAnimation({
+  animationKeyframes: [{ from: { opacity: 1 }, to: { opacity: 0 } }],
+  animationDuration: `${crossFadeFor}ms`,
+  animationTimingFunction: motion.easeOut,
+  animationFillMode: "forwards",
+});
+
+const bodyEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
   animationDuration: "180ms",
   animationTimingFunction: motion.easeOut,
