@@ -72,7 +72,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   );
 
   return (
-    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper, filter: c.lift }]}>
+    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper, boxShadow: c.cardLift }]}>
       {selected ? (
         <Text style={[type.caption, styles.hint, { color: c.muted }]}>{selected.id === me ? say.checkYours : say.checkTheirs(selected.name)}</Text>
       ) : null}
