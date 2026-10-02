@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { cents, price } from "./money";
 import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
-import { parseNewSplit, parseOperation, parseSplit } from "./parse";
+import { parseCreateSplitRequest, parseNewSplit, parseOperation, parseSplit } from "./parse";
 import { computeShares } from "./shares";
 import { adjustmentId, itemId, participantId, type Split } from "./split";
 import { mintedId } from "./test-ids";
@@ -400,6 +400,68 @@ describe("parseNewSplit", () => {
   });
 });
 
+describe("parseCreateSplitRequest with Bundles", () => {
+  const { receipt } = topgolf();
+  const request = (adjustments: readonly unknown[] = receipt.adjustments) => ({
+    split: {
+      receipt: {
+        items: receipt.items.map(({ id, name, price, split: { units } }) => (units.length === 1 ? { id, name, price } : { id, name, price, quantity: units.length })),
+        adjustments,
+        subtotal: receipt.subtotal,
+        total: receipt.total,
+      },
+      participants: [
+        { id: "jason", name: "Jason" },
+        { id: "priya", name: "Priya" },
+      ],
+      paymentHandles: [{ service: "venmo", handle: "jason-host" }],
+    },
+  });
+  const claimAll = (split: Split, claims: Record<string, readonly string[]>) =>
+    Object.entries(claims).reduce<Split>((current, [item, [who]]) => {
+      const units = current.receipt.items.find(({ id }) => id === item)?.split.units.length ?? 0;
+      return Array.from({ length: units }).reduce<Split>((next, _, unit) => {
+        const parsed = parseOperation({ type: "claim", by: who, itemId: item, participantId: who, unit });
+        if (!parsed.ok) throw new Error(JSON.stringify(parsed.rejection));
+        const result = applyOperation(next, parsed.op, { creator: true });
+        if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+        return result.split;
+      }, current);
+    }, split);
+
+  test("stores the Topgolf request with its two Beer Bucket Bundles at version 2, and Priya on the first Bundle owes $49.52", () => {
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify(request())), minted);
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+
+    expect(created.split.schemaVersion).toBe(2);
+    expect(created.split.original?.adjustments).toEqual([
+      { id: "bucket1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["ultra1", "guinness1", "pineapple1", "watermelon1"] } },
+      { id: "bucket2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: { name: "Beer Bucket", items: ["ultra2", "guinness2", "pineapple2", "watermelon2"] } },
+      { id: "tax", kind: "tax", name: "Tax", amount: 494 },
+      { id: "tip", kind: "tip", name: "Tip", amount: 3226 },
+    ]);
+    const claimed = claimAll(created.split, { ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
+    expect(computeShares(claimed).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
+      ["jason", 15777],
+      ["priya", 4952],
+    ]);
+    expect(parseSplit(JSON.parse(JSON.stringify(created.split)))).toEqual({ ok: true, split: created.split });
+  });
+
+  test("stores the same request without its Bundles at version 1", () => {
+    const plain = receipt.adjustments.map((row) => (row.kind === "bundleDiscount" ? { id: row.id, kind: "discount", name: row.name, amount: row.amount } : row));
+
+    expect(parseCreateSplitRequest(request(plain), minted)).toMatchObject({ ok: true, split: { schemaVersion: 1 } });
+  });
+
+  test("refuses a Bundle that names an Item the request does not hold", () => {
+    const [first, ...rest] = receipt.adjustments;
+    const stray = first.kind === "bundleDiscount" ? { ...first, bundle: { ...first.bundle, items: [...first.bundle.items, "nachos"] } } : first;
+
+    expect(parseCreateSplitRequest(request([stray, ...rest]), minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments[0].bundle.items" } });
+  });
+});
+
 describe("Splits stored by each shipped release", () => {
   const golden = (label: string): unknown => JSON.parse(readFileSync(new URL(`./golden/${label}.json`, import.meta.url), "utf8"));
   const read = (label: string) => {
@@ -495,12 +557,9 @@ describe("Bundles in a stored Split", () => {
     expect(parseSplit(withBundle(stored(), 0, () => ({ kind: "discount" })))).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments[0].bundle" } });
   });
 
-  test("refuses a Bundle discount in a new Split and in an Operation, since nothing writes one yet", () => {
-    const { receipt, participants, paymentHandles } = stored();
-    const original = { ...receipt, items: receipt.items.map(({ id, name, price }: { id: string; name: string; price: number }) => ({ id, name, price })) };
-    const bucket = receipt.adjustments[0];
+  test("refuses an Operation that adds a Bundle discount or turns a row into one, since only a new Split writes one", () => {
+    const bucket = stored().receipt.adjustments[0];
 
-    expect(parseNewSplit({ receipt: original, participants, paymentHandles }, minted)).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments[0].kind" } });
     expect(parseOperation({ by: null, type: "editReceipt", adjustments: [{ type: "add", adjustment: bucket, index: 0 }] })).toEqual({
       ok: false,
       rejection: { reason: "malformed", path: "adjustments[0].adjustment.kind" },
