@@ -712,6 +712,36 @@ describe("Item quantity and split", () => {
     ]).toEqual(["badIndex", "badIndex", "badIndex", "conflict", "conflict"]);
   });
 
+  test("in shares mode a dropped unit takes its own share with it, so dropping unit 0 or unit 1 of [ann:1],[ann:2],[ann:5] leaves the other two with their shares", () => {
+    const shares = apply(withBobAndCat(), edit({ quantity: 3, by: "shares" }), claim(pitcher, ann, 0), claim(pitcher, ann, 1), claim(pitcher, ann, 2), edit({ values: [{ unit: 1, participantId: ann, value: 2 }, { unit: 2, participantId: ann, value: 5 }] }));
+    expect(shares.receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 1]], [["ann", 2]], [["ann", 5]]] });
+
+    expect(apply(shares, edit({ quantity: 2, drop: 0 })).receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 2]], [["ann", 5]]] });
+    expect(apply(shares, edit({ quantity: 2, drop: 1 })).receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 1]], [["ann", 5]]] });
+  });
+
+  test("a stale drop of the old last unit is a conflict, not badIndex", () => {
+    const two = apply(withBobAndCat(), edit({ quantity: 2 }));
+
+    expect(reasonFor(two, edit({ quantity: 2, drop: 2 }))).toBe("conflict");
+  });
+
+  test("Undo of a drop between units with the same claimers but different shares puts the shares back on the right units after a later claim", () => {
+    const priced = apply(withBobAndCat(), edit({ quantity: 3, by: "shares", price: price(1000) }), claim(pitcher, ann, 0), claim(pitcher, ann, 1), edit({ values: [{ unit: 1, participantId: ann, value: 2 }] }));
+    const dropped = apply(priced, edit({ quantity: 2, price: price(666), drop: 0 }));
+    const claimedSince = apply(dropped, claim(pitcher, bob, 0));
+
+    expect(apply(claimedSince, { by: cat, type: "undo", revision: dropped.revision }).receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 1]], [["ann", 2], ["bob", 1]], []] });
+  });
+
+  test("Undo of a drop between identical units puts the unit back after the last identical one, deterministically", () => {
+    const priced = apply(withBobAndCat(), edit({ quantity: 3, price: price(1000) }), claim(pitcher, ann, 0), claim(pitcher, ann, 1));
+    const dropped = apply(priced, edit({ quantity: 2, price: price(666), drop: 0 }));
+    const claimedSince = apply(dropped, claim(pitcher, bob, 0));
+
+    expect(apply(claimedSince, { by: cat, type: "undo", revision: dropped.revision }).receipt.items[2].split).toEqual({ by: "even", units: [["ann", "bob"], ["ann"], []] });
+  });
+
   test("a dropped unit is stored as the plain split and price edit that the deployed parser already reads", () => {
     const three = apply(withBobAndCat(), edit({ quantity: 3 }), claim(pitcher, bob, 1));
     const dropped = apply(three, edit({ quantity: 2, price: price(2000), drop: 1 }));

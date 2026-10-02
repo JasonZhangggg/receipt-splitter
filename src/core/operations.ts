@@ -329,8 +329,8 @@ function overPrice(split: ItemSplit, price: number): boolean {
 
 function editedSplit(split: ItemSplit, { quantity, drop, by, values }: Extract<ItemPatch, { type: "edit" }>): ItemSplit | RejectionReason {
   if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY)) return "amountOutOfRange";
-  if (drop !== undefined && (!Number.isInteger(drop) || drop < 0 || drop >= split.units.length)) return "badIndex";
   if (drop !== undefined && quantity !== split.units.length - 1) return "conflict";
+  if (drop !== undefined && (!Number.isInteger(drop) || drop < 0 || drop >= split.units.length)) return "badIndex";
   let next = quantity === undefined ? split : drop === undefined ? resize(split, quantity) : withoutUnit(split, drop);
   if (by !== undefined && by !== next.by) next = withClaimers(by, unitsOf(next), () => undefined);
   for (const { unit, participantId, value } of values ?? []) {
@@ -344,14 +344,15 @@ function editedSplit(split: ItemSplit, { quantity, drop, by, values }: Extract<I
 
 function keepClaimersRestoreShape(target: ItemSplit, edited: ItemSplit, current: ItemSplit): ItemSplit {
   const now = unitsOf(current);
-  const gone = droppedUnit(unitsOf(target), unitsOf(edited));
+  const gone = droppedUnit(target, edited);
   const kept = (unit: number) => (gone === null || unit < gone ? now[unit] : unit === gone ? undefined : now[unit - 1]);
   return withClaimers(target.by, unitsOf(target).map((ids, unit) => kept(unit) ?? ids), (unit, id) => valueIn(target, unit, id));
 }
 
-function droppedUnit(before: readonly (readonly ParticipantId[])[], after: readonly (readonly ParticipantId[])[]): number | null {
-  if (before.length !== after.length + 1) return null;
-  const moved = after.findIndex((ids, unit) => ids.join() !== before[unit].join());
+function droppedUnit(before: ItemSplit, after: ItemSplit): number | null {
+  if (before.units.length !== after.units.length + 1) return null;
+  const claims = before.by === after.by ? (split: ItemSplit, unit: number) => JSON.stringify(split.units[unit]) : (split: ItemSplit, unit: number) => claimersOf(split, unit).join();
+  const moved = after.units.findIndex((_, unit) => claims(after, unit) !== claims(before, unit));
   return moved === -1 ? null : moved;
 }
 
