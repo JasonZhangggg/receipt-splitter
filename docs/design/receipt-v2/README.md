@@ -79,3 +79,7 @@ The operator removed the quantity column after round 3. This wins over the board
 - The sheet shows the unit price, with "each" when the Item has more than one unit. A price edit sets the Item's total to that price times the quantity. **Delete item** removes that unit and keeps the claims on the others. The sheet has no quantity stepper.
 - The column heads read Item and Price. The header keeps an empty leading slot as wide as the circle column.
 - Inside a bucket, the whole child row indents so the child's circle lines up with the left edge of the parent's name text. The light vertical line runs from under the header's leading slot, at the center of the circles above it.
+
+## Amendment: smaller rows
+
+On 2026-10-02 the operator asked for each Item's text and circle a little smaller. Item names and prices, Bundle headers and Bundle children use 14 px on a 20.5 px line, down from 15 on 22. The select circle is 16 px, down from 18, inside the same 44 px tap target. The indent rule and the chevron on the rule still hold.

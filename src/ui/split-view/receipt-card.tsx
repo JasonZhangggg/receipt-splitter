@@ -27,7 +27,9 @@ type Props = {
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
-const dotSize = 18;
+const dotSize = 16;
+// One step under type.body on the same leading ratio, so the receipt reads denser without going under 14 px.
+const itemType = { ...type.body, fontSize: 14, lineHeight: 20.5 };
 const tapSize = 44;
 const tapBleed = 13;
 const circleColumn = tapSize - tapBleed;
@@ -173,7 +175,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
             </View>
             <View style={styles.headerLead}>
               <View style={styles.name}>
-                <Text numberOfLines={1} style={[type.body, styles.strong, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[itemType, styles.strong, { color: c.ink }]}>
                   {bundle.name}
                 </Text>
                 <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
@@ -191,7 +193,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                 ) : null}
               </View>
             </View>
-            <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
+            <Text style={[itemType, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
           </>
         )}
       </PressTarget>
@@ -322,7 +324,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
         {() => (
           <View style={styles.bodyRow}>
             <View style={styles.name}>
-              <Text numberOfLines={2} style={[type.body, { color: ink }]}>
+              <Text numberOfLines={2} style={[itemType, { color: ink }]}>
                 {title}
                 {tag ? <Text style={[type.caption, { color: flagged ? c.flag : c.muted }]}>{`  ${tag}`}</Text> : null}
               </Text>
@@ -332,7 +334,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
                 </Text>
               ) : null}
             </View>
-            <Text style={[type.body, tabular, { color: ink }]}>{price}</Text>
+            <Text style={[itemType, tabular, { color: ink }]}>{price}</Text>
           </View>
         )}
       </PressTarget>
@@ -363,7 +365,7 @@ const styles = StyleSheet.create({
   flagged: { marginVertical: 4, marginHorizontal: -bleed, paddingHorizontal: bleed, borderRadius: 14 },
   circle: { minWidth: tapSize, height: tapSize, marginLeft: -tapBleed, paddingLeft: tapBleed, justifyContent: "center" },
   dots: { flexDirection: "row", alignItems: "center" },
-  overlap: { marginLeft: -7 },
+  overlap: { marginLeft: -6 },
   empty: { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
   body: { flex: 1, minWidth: 0, minHeight: layout.row, paddingVertical: 8, justifyContent: "center" },
   bodyRow: { flexDirection: "row", alignItems: "center", gap: priceGap },
