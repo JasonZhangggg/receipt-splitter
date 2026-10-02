@@ -24,6 +24,10 @@ type Draft = {
 
 type DiscountTotals = "drop" | "keep";
 
+type Header = { readonly name: string; readonly at: number };
+
+const PERCENT = /(\d{1,2}(?:\.\d{1,2})?)\s?%/;
+
 type Section = "items" | "adjustments" | "closed";
 
 const ONE_READ_AS_SEVEN = 7;
@@ -59,7 +63,7 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
   let total: Cents | null = null;
   let section: Section = "items";
   let previous: Line | null = null;
-  let header: { readonly name: string; readonly at: number } | null = null;
+  let header: Header | null = null;
 
   for (const line of lines) {
     if (section === "closed") {
@@ -76,7 +80,7 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
     switch (line.kind) {
       case "item":
         if (section !== "items") break;
-        if (line.price === 0 && hasWords(line.name)) header = { name: line.name, at: items.length };
+        if (line.price === 0) header = { name: line.name, at: items.length };
         items.push(line);
         break;
       case "modifier":
@@ -90,13 +94,14 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
           items[items.length - 1] = { ...items[items.length - 1], price: line.price, quantity: line.quantity };
         }
         break;
-      case "discount":
+      case "discount": {
+        const size = header && section === "items" ? bundleSize(items, header, line) : null;
         if (line.appliesTo === "item" && section === "items" && items.length > 0) {
           foldInto(items, line.name, line.amount);
-        } else if (header && section === "items" && items[header.at].price === 0 && items.length > header.at + 1 && echoes(line.name, header.name)) {
+        } else if (header && size) {
           const { name, at } = header;
           items.splice(at, 1);
-          const [first, ...rest] = items.slice(at).map((_, i) => at + i);
+          const [first, ...rest] = Array.from({ length: size }, (_, i) => at + i);
           adjustments.push({ kind: "bundleDiscount", name: line.name, amount: line.amount, bundle: { name, itemIndexes: [first, ...rest] } });
           if (subtotals.length === 0) discountBeforeSubtotal = cents(discountBeforeSubtotal + line.amount);
           header = null;
@@ -107,6 +112,7 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
           if (subtotals.length === 0) discountBeforeSubtotal = cents(discountBeforeSubtotal + line.amount);
         }
         break;
+      }
       case "subtotal":
         subtotals.push(line.amount);
         section = "adjustments";
@@ -129,6 +135,18 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
     previous = line;
   }
   return { items, adjustments, subtotals, discountBeforeSubtotal, total, laterTotals, droppedDiscountTotal };
+}
+
+/** How many Items under the header the discount covers: the run whose sum its printed percent turns into the discount, or null when no run does. */
+function bundleSize(items: readonly DraftItem[], header: Header, discount: { readonly name: string; readonly amount: Cents }): number | null {
+  const percent = Number(PERCENT.exec(discount.name)?.[1]);
+  if (!percent || items[header.at].price !== 0 || !echoes(discount.name, header.name)) return null;
+  let covered = 0;
+  for (let end = header.at + 1; end < items.length; end++) {
+    covered += items[end].price;
+    if (Math.abs((covered * percent) / 100 + discount.amount) < 1) return end - header.at;
+  }
+  return null;
 }
 
 function foldInto(items: DraftItem[], name: string, amount: Cents): void {

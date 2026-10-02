@@ -93,10 +93,10 @@ describe("parseReceipt", () => {
       receiptRows([
         ["Beer Bucket", "$0.00"],
         ["3x Guinness", "$20.00"],
-        ["Beer Bucket Discount", "-$2.00"],
+        ["Beer Bucket Discount (10%)", "-$2.00"],
         ["Beer Bucket", "$0.00"],
         ["3x Guinness", "$20.00"],
-        ["Beer Bucket Discount", "-$2.00"],
+        ["Beer Bucket Discount (10%)", "-$2.00"],
         ["Discount Total", "-$4.00"],
         ["Subtotal", "$36.00"],
         ["Total", "$36.00"],
@@ -108,8 +108,8 @@ describe("parseReceipt", () => {
       { id: "i2", name: "Guinness", price: 2000, quantity: 3 },
     ]);
     expect(receipt?.adjustments).toEqual([
-      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount", amount: -200, bundle: { name: "Beer Bucket", items: ["i1"] } },
-      { id: "a2", kind: "bundleDiscount", name: "Beer Bucket Discount", amount: -200, bundle: { name: "Beer Bucket", items: ["i2"] } },
+      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -200, bundle: { name: "Beer Bucket", items: ["i1"] } },
+      { id: "a2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -200, bundle: { name: "Beer Bucket", items: ["i2"] } },
     ]);
     expect(runTotalCheck(receipt!)).toEqual({ ok: true });
   });
@@ -162,7 +162,7 @@ describe("parseReceipt", () => {
       receiptRows([
         ["Beer Bucket", "$0.00"],
         ["3x Guinness", "$20.00"],
-        ["Beer Bucket Discount", "-$2.00"],
+        ["Beer Bucket Discount (10%)", "-$2.00"],
         ["Nachos", "$8.00"],
         ["Beer Bucket Discount", "-$1.00"],
         ["Subtotal", "$25.00"],
@@ -175,7 +175,7 @@ describe("parseReceipt", () => {
       { id: "i2", name: "Nachos", price: 800 },
     ]);
     expect(receipt?.adjustments).toEqual([
-      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount", amount: -200, bundle: { name: "Beer Bucket", items: ["i1"] } },
+      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -200, bundle: { name: "Beer Bucket", items: ["i1"] } },
       { id: "a2", kind: "discount", name: "Beer Bucket Discount", amount: -100 },
     ]);
   });
@@ -214,6 +214,84 @@ describe("parseReceipt", () => {
         { id: "i2", name: "Guinness", price: 2000 },
       ],
       [{ id: "a1", kind: "discount", name: "Beer Bucket Discount", amount: -200 }],
+    ]);
+  });
+
+  test.each([
+    {
+      probe: "a discount after unrelated Items, with no percent to prove its group",
+      rows: [["Beer Bucket", "$0.00"], ["Bud Light", "$5.00"], ["Coors Light", "$5.00"], ["Nachos", "$9.00"], ["Wings", "$12.00"], ["Beer Bucket Discount", "-$1.00"], ["Total", "$30.00"]],
+      items: ["Beer Bucket", "Bud Light", "Coors Light", "Nachos", "Wings"],
+    },
+    {
+      probe: "a free Item mid-receipt sharing a word with a receipt-wide discount",
+      rows: [["Steak", "$30.00"], ["Kids Meal", "$0.00"], ["Wine", "$12.00"], ["Kids Meal Promo Discount", "-$4.00"], ["Total", "$38.00"]],
+      items: ["Steak", "Kids Meal", "Wine"],
+    },
+    {
+      probe: "a free dessert and a Birthday Discount",
+      rows: [["Birthday Dessert", "$0.00"], ["Pasta", "$15.00"], ["Salad", "$9.00"], ["Birthday Discount", "-$2.40"], ["Total", "$21.60"]],
+      items: ["Birthday Dessert", "Pasta", "Salad"],
+    },
+    {
+      probe: "a kitchen note, as on SRD receipt 1019, and a discount that shares its word",
+      rows: [["APPS OUT FIRST", "$0.00"], ["Caprese", "$7.00"], ["Apps Happy Hour Discount", "-$2.00"], ["Total", "$5.00"]],
+      items: ["APPS OUT FIRST", "Caprese"],
+    },
+    {
+      probe: "a percent discount that no run of Items under the header matches",
+      rows: [["Kids Meal", "$0.00"], ["Wine", "$12.00"], ["Kids Meal Promo Discount (10%)", "-$4.00"], ["Total", "$8.00"]],
+      items: ["Kids Meal", "Wine"],
+    },
+  ])("reads no Bundle from $probe", ({ rows, items }) => {
+    const receipt = parseReceipt(receiptRows(rows as [string, string][]));
+
+    expect(receipt?.items.map(({ name }) => name)).toEqual(items);
+    expect(receipt?.adjustments.map(({ kind }) => kind)).toEqual(["discount"]);
+  });
+
+  test("keeps a Bundle whole across a $0.00 line with no words inside it", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Beer Bucket", "$0.00"],
+        ["Bud Light", "$5.00"],
+        ["**", "$0.00"],
+        ["Coors Light", "$5.00"],
+        ["Beer Bucket Discount (10%)", "-$1.00"],
+        ["Total", "$9.00"],
+      ]),
+    );
+
+    expect(receipt?.items.map(({ id, name }) => [id, name])).toEqual([
+      ["i1", "Bud Light"],
+      ["i2", "Coors Light"],
+    ]);
+    expect(receipt?.adjustments).toEqual([
+      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -100, bundle: { name: "Beer Bucket", items: ["i1", "i2"] } },
+    ]);
+  });
+
+  test("ends a Bundle at the Items its printed percent covers, so Items after them stay out", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Beer Bucket", "$0.00"],
+        ["Bud Light", "$5.00"],
+        ["Coors Light", "$5.00"],
+        ["Nachos", "$9.00"],
+        ["Wings", "$12.00"],
+        ["Beer Bucket Discount (10%)", "-$1.00"],
+        ["Total", "$30.00"],
+      ]),
+    );
+
+    expect(receipt?.items.map(({ id, name }) => [id, name])).toEqual([
+      ["i1", "Bud Light"],
+      ["i2", "Coors Light"],
+      ["i3", "Nachos"],
+      ["i4", "Wings"],
+    ]);
+    expect(receipt?.adjustments).toEqual([
+      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -100, bundle: { name: "Beer Bucket", items: ["i1", "i2"] } },
     ]);
   });
 
