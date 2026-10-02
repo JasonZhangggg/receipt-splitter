@@ -56,6 +56,26 @@ test("a name already in the draft is refused with a note, and editing it clears 
   await expect(people.getByText("Sami", { exact: true })).toHaveCount(1);
 });
 
+test("a name that draws nothing adds no chip and no note, and removing the chip a note is about clears the note", async ({ page }) => {
+  await readyHome(page, ["Sam"]);
+  const people = page.getByRole("group", { name: "People at the table" });
+  const add = async (name: string) => {
+    await page.getByRole("button", { name: "Add a name" }).click();
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+    await page.keyboard.press("Enter");
+  };
+
+  await add("\u200B");
+  await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(2);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+
+  await add("sam");
+  await expect(page.getByRole("alert")).toHaveText("That name is already here.");
+  await people.getByRole("button", { name: "Remove Sam" }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(1);
+});
+
 test("Create split link takes the Host to the tall pick sheet, and a second browser sees the Host's name as picked", async ({ page, browser }) => {
   await readyHome(page, ["Sam", "Priya"]);
   const link = await createLink(page);

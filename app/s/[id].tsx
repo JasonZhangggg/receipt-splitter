@@ -129,9 +129,9 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   };
 
   const addPerson = async (typed: string): Promise<{ readonly id: ParticipantId } | { readonly refused: string }> => {
-    const name = newName(typed, people.map(({ name: other }) => other));
-    if (!name) return { refused: typed.trim() ? say.nameTaken : say.nameNeeded };
-    const participant = { id: newParticipantId(), name };
+    const named = newName(typed, people.map(({ name }) => name));
+    if (!named.ok) return { refused: named.reason === "nameTaken" ? say.nameTaken : say.nameNeeded };
+    const participant = { id: newParticipantId(), name: named.name };
     return (await act({ by: me, type: "addParticipant", participant })) ? { id: participant.id } : { refused: say.nameRefused };
   };
 

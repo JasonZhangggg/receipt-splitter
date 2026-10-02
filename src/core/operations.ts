@@ -774,7 +774,7 @@ const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u
 const MAX_UNITS_PER_GRAPHEME = 32;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
-function isName(name: string, maxLength: number): boolean {
+export function isName(name: string, maxLength: number): boolean {
   if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name) || nameKey(name) === "") return false;
   const characters = [...graphemes.segment(name)];
   return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_UNITS_PER_GRAPHEME);
