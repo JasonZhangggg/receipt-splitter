@@ -208,6 +208,24 @@ describe("classifyLines", () => {
     ]);
   });
 
+  test("reads a leading 3x as the Item's count and keeps the line total as its price", () => {
+    expect(
+      linesOf(
+        receiptRows([
+          ["3x Guinness Draught 14.9oz Can", "$21.87"],
+          ["2X High Noon Watermelon 12oz Can", "$16.98"],
+          ["1x Gameplay", "$87.75"],
+          ["25x Wings", "$50.00"],
+        ]),
+      ),
+    ).toEqual([
+      { kind: "item", name: "Guinness Draught 14.9oz Can", price: 2187, quantity: null, count: 3 },
+      { kind: "item", name: "High Noon Watermelon 12oz Can", price: 1698, quantity: null, count: 2 },
+      { kind: "item", name: "Gameplay", price: 8775, quantity: null },
+      { kind: "item", name: "25x Wings", price: 5000, quantity: null },
+    ]);
+  });
+
   test("takes the printed extended price over count times unit price", () => {
     expect(linesOf(receiptRows([["Bagels 3 @ 1.67", "5.00"]]))).toEqual([
       { kind: "item", name: "Bagels", price: 500, quantity: { count: 3, unitPrice: 167 } },

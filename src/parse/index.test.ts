@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { runTotalCheck } from "../core/total-check";
 import { parseReceipt } from ".";
@@ -49,6 +50,65 @@ describe("parseReceipt", () => {
     ]);
     expect(receipt?.adjustments).toEqual([{ id: "a1", kind: "tax", name: "Tax 1", amount: 258 }]);
     expect([receipt?.subtotal, receipt?.total]).toEqual([4300, 4558]);
+    expect(runTotalCheck(receipt!)).toEqual({ ok: true });
+  });
+
+  test("counts each Beer Bucket discount once on the Topgolf receipt, not again as its Discount Total", () => {
+    const boxes = readFileSync(new URL("./fixtures/topgolf.tsv", import.meta.url), "utf8")
+      .trim()
+      .split("\n")
+      .flatMap((line, row) => {
+        const [label, amount] = line.split("\t");
+        return [box(label, 20, row), box(amount, 600, row)];
+      });
+
+    const receipt = parseReceipt(boxes);
+
+    expect(receipt).toEqual({
+      items: [
+        { id: "i1", name: "Gameplay", price: 8775 },
+        { id: "i2", name: "Beer Bucket", price: 0 },
+        { id: "i3", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
+        { id: "i4", name: "Guinness Draught 14.9oz Can", price: 2187, quantity: 3 },
+        { id: "i5", name: "High Noon Pineapple 12oz Can", price: 849 },
+        { id: "i6", name: "High Noon Watermelon 12oz Can", price: 849 },
+        { id: "i7", name: "Beer Bucket", price: 0 },
+        { id: "i8", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
+        { id: "i9", name: "Guinness Draught 14.9oz Can", price: 1458, quantity: 2 },
+        { id: "i10", name: "High Noon Pineapple 12oz Can", price: 849 },
+        { id: "i11", name: "High Noon Watermelon 12oz Can", price: 1698, quantity: 2 },
+      ],
+      adjustments: [
+        { id: "a1", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -451 },
+        { id: "a2", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -463 },
+        { id: "a3", kind: "tax", name: "Tax", amount: 494 },
+        { id: "a4", kind: "tip", name: "Tip", amount: 3226 },
+      ],
+      subtotal: 17923,
+      total: 20729,
+    });
+    expect(runTotalCheck(receipt!)).toEqual({ ok: true });
+  });
+
+  test("keeps two equal discounts and drops the Discount Total that sums them", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Beer Bucket", "$0.00"],
+        ["3x Guinness", "$20.00"],
+        ["Beer Bucket Discount", "-$2.00"],
+        ["Beer Bucket", "$0.00"],
+        ["3x Guinness", "$20.00"],
+        ["Beer Bucket Discount", "-$2.00"],
+        ["Discount Total", "-$4.00"],
+        ["Subtotal", "$36.00"],
+        ["Total", "$36.00"],
+      ]),
+    );
+
+    expect(receipt?.adjustments).toEqual([
+      { id: "a1", kind: "discount", name: "Beer Bucket Discount", amount: -200 },
+      { id: "a2", kind: "discount", name: "Beer Bucket Discount", amount: -200 },
+    ]);
     expect(runTotalCheck(receipt!)).toEqual({ ok: true });
   });
 
