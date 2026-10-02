@@ -31,6 +31,7 @@ import {
 } from "./split";
 import { mintedId } from "./test-ids";
 import { runTotalCheck } from "./total-check";
+import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -1613,5 +1614,70 @@ describe("random operations", () => {
     expect(tally.undone).toBeGreaterThan(3);
     expect(worstDrift.nonClaimer).toBeLessThanOrEqual(1);
     expect(worstDrift.claimer).toBeLessThan(2);
+  });
+});
+
+describe("Bundles", () => {
+  const claimed = () => topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
+  const bundleItems = (split: Split) => split.receipt.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? [[row.id, ...row.bundle.items]] : []));
+  const deleteItem = (id: string): Operation => {
+    const amount = topgolf().receipt.items.find((row) => row.id === id)?.price ?? 0;
+    return { by: jason, type: "editReceipt", items: [{ type: "delete", itemId: itemId(id) }], subtotalDelta: cents(-amount), totalDelta: cents(-amount) };
+  };
+
+  test("deleting a Bundle's Item drops it from the Bundle in the same Change, and one Revert brings both back", () => {
+    const start = claimed();
+
+    const deleted = apply(start, deleteItem("guinness1"));
+
+    expect(bundleItems(deleted)).toEqual([
+      ["bucket1", "ultra1", "pineapple1", "watermelon1"],
+      ["bucket2", "ultra2", "guinness2", "pineapple2", "watermelon2"],
+    ]);
+    expect(deleted.recentChanges.map(({ revision }) => revision)).toEqual([1]);
+    expect(shareOf(deleted, priya)?.share).toBe(2347);
+
+    const reverted = apply(deleted, { by: priya, type: "undo", revision: 1 });
+
+    expect(reverted.receipt).toEqual(start.receipt);
+  });
+
+  test("deleting a Bundle's last Item removes its discount in the same Change, and one Revert brings both back", () => {
+    const start = apply(claimed(), deleteItem("guinness1"), deleteItem("pineapple1"), deleteItem("watermelon1"));
+
+    const emptied = apply(start, deleteItem("ultra1"));
+
+    expect(emptied.receipt.adjustments.map(({ id }) => id)).toEqual(["bucket2", "tax", "tip"]);
+    expect(emptied.recentChanges.at(-1)?.writes.map(({ kind }) => kind)).toEqual(["item", "adjustment", "totals"]);
+
+    const reverted = apply(emptied, { by: priya, type: "undo", revision: emptied.revision });
+
+    expect(reverted.receipt).toEqual(start.receipt);
+    expect(bundleItems(reverted)[0]).toEqual(["bucket1", "ultra1"]);
+  });
+
+  test("restoring the original Receipt brings back a Bundle whose Items were all deleted", () => {
+    const start = claimed();
+    const [first, ...rest] = start.receipt.items.map(({ id, name, price, split }): Item => ({ id, name, price, quantity: split.units.length }));
+    const original = { ...start.receipt, items: [first, ...rest] as const };
+    const emptied = apply({ ...start, original }, ...bucketOne.map(deleteItem));
+
+    const restored = apply(emptied, { by: priya, type: "restoreReceipt" });
+
+    expect(emptied.receipt.adjustments.map(({ id }) => id)).toEqual(["bucket2", "tax", "tip"]);
+    expect(bundleItems(restored)).toEqual(bundleItems(start));
+    expect(restored.receipt.total).toBe(20729);
+  });
+
+  test("a Bundle discount keeps its kind, stays at or below $0.00, and its Split keeps version 2", () => {
+    const start = claimed();
+    const bucket = adjustmentId("bucket1");
+
+    expect(reasonFor(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, kind: "discount" }] })).toBe("conflict");
+    expect(reasonFor(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, amount: cents(451) }], totalDelta: cents(902) })).toBe("amountOutOfRange");
+
+    const renamed = apply(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, name: "Bucket" }] });
+
+    expect([renamed.schemaVersion, bundleItems(renamed)]).toEqual([2, bundleItems(start)]);
   });
 });

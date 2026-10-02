@@ -19,6 +19,7 @@ import {
 import {
   ADJUSTMENT_KINDS,
   PAYMENT_SERVICES,
+  RECEIPT_LEVEL_KINDS,
   SPLIT_MODES,
   isId,
   type Change,
@@ -28,6 +29,7 @@ import {
   type NamePick,
   type NonEmpty,
   type Part,
+  type SchemaVersion,
   type Split,
   type Write,
 } from "./split";
@@ -182,7 +184,8 @@ const itemId = check(isId<"ItemId">);
 const adjustmentId = check(isId<"AdjustmentId">);
 const participantId = check(isId<"ParticipantId">);
 const deviceId = check(isId<"DeviceId">);
-const adjustmentKind = oneOf(ADJUSTMENT_KINDS);
+const receiptLevelKind = oneOf(RECEIPT_LEVEL_KINDS);
+const schemaVersion = check((input): input is SchemaVersion => input === 1 || input === 2);
 
 function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
   return (input, path) => {
@@ -221,16 +224,27 @@ const itemEdit = ({ maybe }: Fields) => ({
   ...maybe("price", pair(price)),
   ...maybe("split", pair(itemSplit)),
 });
-const adjustmentFields = ({ read }: Fields) => ({
-  kind: read("kind", adjustmentKind),
-  name: read("name", text),
-  amount: read("amount", cents),
-});
-const adjustmentEdit = ({ maybe }: Fields) => ({
-  ...maybe("kind", pair(adjustmentKind)),
-  ...maybe("name", pair(text)),
-  ...maybe("amount", pair(cents)),
-});
+const bundle = strict(({ read }) => ({ name: read("name", text), items: read("items", nonEmpty(itemId, MAX_ITEMS)) }));
+
+const receiptLevelFields = ({ read }: Fields) => ({ kind: read("kind", receiptLevelKind), name: read("name", text), amount: read("amount", cents) });
+const anyAdjustmentFields = ({ read }: Fields) => {
+  const kind = read("kind", oneOf(ADJUSTMENT_KINDS));
+  const head = { name: read("name", text), amount: read("amount", cents) };
+  return kind === "bundleDiscount" ? { kind, ...head, bundle: read("bundle", bundle) } : { kind, ...head };
+};
+const adjustmentFields = (bundles: boolean) => (bundles ? anyAdjustmentFields : receiptLevelFields);
+
+function adjustmentEdit(bundles: boolean) {
+  return ({ maybe, has, fail }: Fields) => {
+    if (has("bundle") && (!bundles || has("kind"))) return fail("bundle");
+    return {
+      ...maybe("kind", pair(receiptLevelKind)),
+      ...maybe("name", pair(text)),
+      ...maybe("amount", pair(cents)),
+      ...maybe("bundle", pair(bundle)),
+    };
+  };
+}
 const participantFields = ({ read }: Fields) => ({ name: read("name", text) });
 
 function placed<T>(build: (fields: Fields) => T) {
@@ -251,58 +265,64 @@ function rowWrite<const Kind extends string, RowId, Full, Edit>(
   });
 }
 
-const writeVariants: { readonly [Kind in (Write | LegacyWrite)["kind"]]: Parser<Extract<Write | LegacyWrite, { kind: Kind }>> } = {
-  item: rowWrite("item", itemId, itemFields, itemEdit),
-  adjustment: rowWrite("adjustment", adjustmentId, adjustmentFields, adjustmentEdit),
-  participant: strict((fields) => {
-    const head = { kind: fields.read("kind", literal("participant")), id: fields.read("id", participantId) };
-    if (fields.has("added")) return { ...head, added: fields.read("added", placed(participantFields)) };
-    return { ...head, removed: fields.read("removed", placed(participantFields)) };
-  }),
-  totals: strict(({ read }) => ({
-    kind: read("kind", literal("totals")),
-    subtotalDelta: read("subtotalDelta", cents),
-    totalDelta: read("totalDelta", cents),
-  })),
-  payment: strict(({ read }) => ({
-    kind: read("kind", literal("payment")),
-    participantId: read("participantId", participantId),
-    before: read("before", nullable(cents)),
-    after: read("after", nullable(cents)),
-  })),
-  joined: strict(({ read }) => ({
-    kind: read("kind", literal("joined")),
-    participantId: read("participantId", participantId),
-    joined: read("joined", flag),
-  })),
-  claims: strict(({ read }) => ({
-    kind: read("kind", literal("claims")),
-    itemIds: read("itemIds", nonEmpty(itemId, MAX_ITEMS)),
-    participantIds: read("participantIds", nonEmpty(participantId, MAX_PARTICIPANTS)),
-    claimed: read("claimed", flag),
-  })),
-};
+function writeVariants(bundles: boolean): { readonly [Kind in (Write | LegacyWrite)["kind"]]: Parser<Extract<Write | LegacyWrite, { kind: Kind }>> } {
+  return {
+    item: rowWrite("item", itemId, itemFields, itemEdit),
+    adjustment: rowWrite("adjustment", adjustmentId, adjustmentFields(bundles), adjustmentEdit(bundles)),
+    participant: strict((fields) => {
+      const head = { kind: fields.read("kind", literal("participant")), id: fields.read("id", participantId) };
+      if (fields.has("added")) return { ...head, added: fields.read("added", placed(participantFields)) };
+      return { ...head, removed: fields.read("removed", placed(participantFields)) };
+    }),
+    totals: strict(({ read }) => ({
+      kind: read("kind", literal("totals")),
+      subtotalDelta: read("subtotalDelta", cents),
+      totalDelta: read("totalDelta", cents),
+    })),
+    payment: strict(({ read }) => ({
+      kind: read("kind", literal("payment")),
+      participantId: read("participantId", participantId),
+      before: read("before", nullable(cents)),
+      after: read("after", nullable(cents)),
+    })),
+    joined: strict(({ read }) => ({
+      kind: read("kind", literal("joined")),
+      participantId: read("participantId", participantId),
+      joined: read("joined", flag),
+    })),
+    claims: strict(({ read }) => ({
+      kind: read("kind", literal("claims")),
+      itemIds: read("itemIds", nonEmpty(itemId, MAX_ITEMS)),
+      participantIds: read("participantIds", nonEmpty(participantId, MAX_PARTICIPANTS)),
+      claimed: read("claimed", flag),
+    })),
+  };
+}
 
-const change: Parser<Change> = strict(({ read, maybe }) => ({
-  revision: read("revision", count),
-  by: read("by", nullable(participantId)),
-  undoes: read("undoes", nullable(count)),
-  undoneBy: read("undoneBy", nullable(count)),
-  writes: read("writes", nonEmpty(tagged<Write | LegacyWrite>("kind", writeVariants), MAX_WRITES_PER_CHANGE)),
-  ...maybe("at", count),
-}));
+function change(bundles: boolean): Parser<Change> {
+  const write = tagged<Write | LegacyWrite>("kind", writeVariants(bundles));
+  return strict(({ read, maybe }) => ({
+    revision: read("revision", count),
+    by: read("by", nullable(participantId)),
+    undoes: read("undoes", nullable(count)),
+    undoneBy: read("undoneBy", nullable(count)),
+    writes: read("writes", nonEmpty(write, MAX_WRITES_PER_CHANGE)),
+    ...maybe("at", count),
+  }));
+}
 
 const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));
 const receiptItem = strict(({ read, maybe }) => ({ id: read("id", itemId), name: read("name", text), price: read("price", price), ...maybe("quantity", quantity) }));
-const adjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...adjustmentFields(fields) }));
+const receiptLevelAdjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...receiptLevelFields(fields) }));
+const anyAdjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...anyAdjustmentFields(fields) }));
 const participant = strict((fields) => ({ id: fields.read("id", participantId), ...participantFields(fields) }));
 const paymentHandle = strict(({ read }) => ({ service: read("service", oneOf(PAYMENT_SERVICES)), handle: read("handle", text) }));
 const paymentHandles = nonEmpty(paymentHandle, PAYMENT_SERVICES.length);
 
-function receipt<I>(itemParser: Parser<I>) {
+function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>) {
   return strict((fields) => ({
     items: fields.read("items", nonEmpty(itemParser, MAX_ITEMS)),
-    adjustments: fields.read("adjustments", array(adjustment, MAX_ADJUSTMENTS)),
+    adjustments: fields.read("adjustments", array(adjustmentParser, MAX_ADJUSTMENTS)),
     subtotal: fields.read("subtotal", cents),
     total: fields.read("total", cents),
   }));
@@ -311,7 +331,7 @@ function receipt<I>(itemParser: Parser<I>) {
 const participants = nonEmpty(participant, MAX_PARTICIPANTS);
 
 const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read }) => ({
-  receipt: read("receipt", receipt(receiptItem)),
+  receipt: read("receipt", receipt(receiptItem, receiptLevelAdjustment)),
   participants: read("participants", participants),
   paymentHandles: read("paymentHandles", paymentHandles),
 }));
@@ -322,29 +342,40 @@ const createRequest: Parser<CreateSplitRequest> = strict(({ read }) => ({
 
 const pick = strict(({ read, maybe }) => ({ participantId: read("participantId", participantId), ...maybe("device", deviceId) }));
 
-const split: Parser<Split> = strict(({ read, maybe, has, fail }) => ({
-  schemaVersion: read("schemaVersion", literal(1)),
-  id: read("id", splitId),
-  currency: read("currency", literal("USD")),
-  receipt: read("receipt", receipt(item)),
-  ...maybe("original", receipt(receiptItem)),
-  participants: read("participants", participants),
-  picks: has("joined")
-    ? has("picks")
-      ? fail("joined")
-      : (read("joined", array(participantId, MAX_PARTICIPANTS)), [])
-    : (maybe("picks", array(pick, MAX_PARTICIPANTS)).picks ?? []).filter((held): held is NamePick => held.device !== undefined),
-  payments: read(
-    "payments",
-    array(
-      strict((fields) => ({ participantId: fields.read("participantId", participantId), amount: fields.read("amount", cents) })),
-      MAX_PARTICIPANTS,
+function storedRows(bundles: boolean) {
+  const adjustmentRow = bundles ? anyAdjustment : receiptLevelAdjustment;
+  return { receipt: receipt(item, adjustmentRow), original: receipt(receiptItem, adjustmentRow), change: change(bundles) };
+}
+
+const STORED_ROWS: { readonly [Version in SchemaVersion]: ReturnType<typeof storedRows> } = { 1: storedRows(false), 2: storedRows(true) };
+
+const split: Parser<Split> = strict(({ read, maybe, has, fail }) => {
+  const version = read("schemaVersion", schemaVersion);
+  const rows = STORED_ROWS[version];
+  return {
+    schemaVersion: version,
+    id: read("id", splitId),
+    currency: read("currency", literal("USD")),
+    receipt: read("receipt", rows.receipt),
+    ...maybe("original", rows.original),
+    participants: read("participants", participants),
+    picks: has("joined")
+      ? has("picks")
+        ? fail("joined")
+        : (read("joined", array(participantId, MAX_PARTICIPANTS)), [])
+      : (maybe("picks", array(pick, MAX_PARTICIPANTS)).picks ?? []).filter((held): held is NamePick => held.device !== undefined),
+    payments: read(
+      "payments",
+      array(
+        strict((fields) => ({ participantId: fields.read("participantId", participantId), amount: fields.read("amount", cents) })),
+        MAX_PARTICIPANTS,
+      ),
     ),
-  ),
-  paymentHandles: read("paymentHandles", paymentHandles),
-  revision: read("revision", count),
-  recentChanges: read("recentChanges", array(change, RECENT_CHANGES_LIMIT)),
-}));
+    paymentHandles: read("paymentHandles", paymentHandles),
+    revision: read("revision", count),
+    recentChanges: read("recentChanges", array(rows.change, RECENT_CHANGES_LIMIT)),
+  };
+});
 
 const itemPatch = tagged<ItemPatch>("type", {
   add: strict(({ read }) => ({
@@ -367,13 +398,13 @@ const itemPatch = tagged<ItemPatch>("type", {
 const adjustmentPatch = tagged<AdjustmentPatch>("type", {
   add: strict(({ read }) => ({
     type: read("type", literal("add")),
-    adjustment: read("adjustment", adjustment),
+    adjustment: read("adjustment", receiptLevelAdjustment),
     index: read("index", count),
   })),
   edit: strict(({ read, maybe }) => ({
     type: read("type", literal("edit")),
     adjustmentId: read("adjustmentId", adjustmentId),
-    ...maybe("kind", adjustmentKind),
+    ...maybe("kind", receiptLevelKind),
     ...maybe("name", text),
     ...maybe("amount", cents),
   })),

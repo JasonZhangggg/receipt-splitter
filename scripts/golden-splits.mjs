@@ -6,9 +6,9 @@ import { build } from "esbuild";
 
 const releases = process.argv.length > 2
   ? process.argv.slice(2).map((pair) => pair.split("="))
-  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"]];
+  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"]];
 
-const driver = `
+const dinner = `
 import { applyOperation, createSplit } from "./src/core/operations";
 const host = { id: "ann", name: "Ann" };
 const created = createSplit({
@@ -51,15 +51,76 @@ if (last) {
 process.stdout.write(JSON.stringify(split, null, 2) + "\\n");
 `;
 
+const bucketOne = ["ultra1", "guinness1", "pineapple1", "watermelon1"];
+const bucketTwo = ["ultra2", "guinness2", "pineapple2", "watermelon2"];
+
+const topgolf = `
+import { applyOperation, createSplit } from "./src/core/operations";
+const items = [
+  ["gameplay", "Gameplay", 8775, 1],
+  ["ultra1", "Michelob Ultra 16oz Aluminum Bottle", 629, 1],
+  ["guinness1", "Guinness Draught 14.9oz Can", 2187, 3],
+  ["pineapple1", "High Noon Pineapple 12oz Can", 849, 1],
+  ["watermelon1", "High Noon Watermelon 12oz Can", 849, 1],
+  ["ultra2", "Michelob Ultra 16oz Aluminum Bottle", 629, 1],
+  ["guinness2", "Guinness Draught 14.9oz Can", 1458, 2],
+  ["pineapple2", "High Noon Pineapple 12oz Can", 849, 1],
+  ["watermelon2", "High Noon Watermelon 12oz Can", 1698, 2],
+];
+const created = createSplit({
+  id: "golden-topgolf-split-0",
+  participants: [{ id: "jason", name: "Jason" }, { id: "priya", name: "Priya" }],
+  paymentHandles: [{ service: "venmo", handle: "jason-host" }],
+  receipt: {
+    items: items.map(([id, name, price, quantity]) => (quantity === 1 ? { id, name, price } : { id, name, price, quantity })),
+    adjustments: [
+      { id: "bucket1", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -451 },
+      { id: "bucket2", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -463 },
+      { id: "tax", kind: "tax", name: "Tax", amount: 494 },
+      { id: "tip", kind: "tip", name: "Tip", amount: 3226 },
+    ],
+    subtotal: 17923,
+    total: 20729,
+  },
+});
+if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+const owner = (id) => (${JSON.stringify(bucketOne)}.includes(id) ? "priya" : "jason");
+let split = created.split;
+const ops = [
+  { by: "priya", type: "pick", participantId: "priya", device: "priyas-phone", takeOver: false },
+  ...items.flatMap(([id, , , quantity]) => Array.from({ length: quantity }, (_, unit) => ({ by: owner(id), type: "claim", itemId: id, participantId: owner(id), unit }))),
+  { by: "jason", type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: "tip", name: "Tip (18%)" }] },
+];
+for (const op of ops) {
+  const result = applyOperation(split, op, { creator: true }, 1767225600000);
+  if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+  split = result.split;
+}
+process.stdout.write(JSON.stringify(split) + "\\n");
+`;
+
+/** No release before V2-2 writes a Bundle, so this row is what V2-2's writer stores: the same Split with its two Beer Bucket discounts as Bundles at version 2. */
+function withBundles(json) {
+  const bundles = { bucket1: bucketOne, bucket2: bucketTwo };
+  const bundled = (receipt) => ({
+    ...receipt,
+    adjustments: receipt.adjustments.map((row) => (bundles[row.id] ? { ...row, kind: "bundleDiscount", bundle: { name: "Beer Bucket", items: bundles[row.id] } } : row)),
+  });
+  const split = JSON.parse(json);
+  return JSON.stringify({ ...split, schemaVersion: 2, receipt: bundled(split.receipt), original: bundled(split.original) }, null, 2) + "\n";
+}
+
+const drivers = { dinner: { source: dinner, finish: (json) => json }, topgolf: { source: topgolf, finish: withBundles } };
+
 const root = resolve(import.meta.dirname, "..");
 const out = join(root, "src/core/golden");
 mkdirSync(out, { recursive: true });
-for (const [label, rev] of releases) {
+for (const [label, rev, driver = "dinner"] of releases) {
   const work = mkdtempSync(join(tmpdir(), `golden-${label}-`));
   execFileSync("sh", ["-c", `git -C "${root}" archive ${rev} src/core | tar -x -C "${work}"`]);
-  writeFileSync(join(work, "driver.ts"), driver);
+  writeFileSync(join(work, "driver.ts"), drivers[driver].source);
   await build({ entryPoints: [join(work, "driver.ts")], bundle: true, platform: "node", format: "esm", outfile: join(work, "driver.mjs"), logLevel: "error" });
-  writeFileSync(join(out, `${label}.json`), execFileSync("node", [join(work, "driver.mjs")]));
+  writeFileSync(join(out, `${label}.json`), drivers[driver].finish(execFileSync("node", [join(work, "driver.mjs")], { encoding: "utf8" })));
   rmSync(work, { recursive: true, force: true });
   console.log(`${label} (${rev}) -> src/core/golden/${label}.json`);
 }

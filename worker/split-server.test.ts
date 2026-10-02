@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
 import type { Split } from "../src/core/split";
+import topgolfRow from "../src/core/golden/v2-1.json";
 import { connect, createSplit, leftovers, T0, type Client } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -300,6 +301,25 @@ describe("loading a stored Split", () => {
     vi.setSystemTime(T0 + 60 * DAY);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
+  });
+
+  it("reads the V2-1 golden row with two Bundles after a wake, and stores it back at version 2 after a Claim", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify({ ...topgolfRow, id })));
+    await evictDurableObject(stub);
+    const kinds = (split: Split) => split.receipt.adjustments.map(({ kind }) => kind);
+
+    const a = await open(id);
+    a.client.send(claim("g1", "gameplay", "priya"));
+    const claimed = await a.client.next();
+    await evictDurableObject(stub);
+    const again = await open(id);
+
+    if (a.hello.type !== "state" || claimed.type !== "state" || again.hello.type !== "state") throw new Error("expected state");
+    expect([a.hello.split.schemaVersion, kinds(a.hello.split)]).toEqual([2, ["bundleDiscount", "bundleDiscount", "tax", "tip"]]);
+    expect(again.hello.split).toEqual(claimed.split);
+    expect([again.hello.split.schemaVersion, again.hello.split.receipt.items[0].split.units]).toEqual([2, [["jason", "priya"]]]);
   });
 
   it("refuses a stored row over 32 KB after a wake without parsing it", async () => {
