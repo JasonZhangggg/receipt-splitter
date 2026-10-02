@@ -1,9 +1,14 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 
 import { cents, MAX_CENTS, price } from "./core/money";
-import { MAX_QUANTITY } from "./core/operations";
+import { applyOperation, MAX_QUANTITY } from "./core/operations";
+import { parseCreateSplitRequest } from "./core/parse";
+import { computeShares } from "./core/shares";
+import { mintedId } from "./core/test-ids";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
-import type { ParsedItem } from "./parse";
+import { parseReceipt, type ParsedItem } from "./parse";
+import { box } from "./parse/fixtures/boxes";
 import { blocker, emptyDraft, mismatchNote, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
@@ -458,6 +463,74 @@ const counter = () => {
   let next = 0;
   return () => participantId(`p${next++}`);
 };
+
+describe("Bundles", () => {
+  const topgolfBoxes = readFileSync(new URL("./parse/fixtures/topgolf.tsv", import.meta.url), "utf8")
+    .trim()
+    .split("\n")
+    .flatMap((line, row) => {
+      const [label, amount] = line.split("\t");
+      return [box(label, 20, row), box(amount, 600, row)];
+    });
+  const topgolf = parseReceipt(topgolfBoxes)!;
+  const readTopgolf = (draft = emptyDraft) => run(withVenmo(draft), { type: "addName", name: "Priya" }, { type: "read", file, receipt: topgolf });
+  const adjustmentsOf = (draft: Draft) => splitRequest(draft, counter())?.receipt.adjustments;
+  const bucketOne = { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] };
+  const bucketTwo = { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] };
+
+  test("carry the Topgolf Bundles from the read, through a price edit and a reload, into the create body, where Priya on the first owes $49.52", () => {
+    const storage = new MemoryStorage();
+    saveDraft(run(readTopgolf(), { type: "editItem", id: "i3", price: price(2190) }, { type: "editItem", id: "i3", price: price(2187) }), storage);
+
+    const request = splitRequest(loadDraft(storage), counter());
+
+    expect(request?.receipt.adjustments).toEqual([
+      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: bucketOne },
+      { id: "a2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: bucketTwo },
+      { id: "a3", kind: "tax", name: "Tax", amount: 494 },
+      { id: "tip", kind: "tip", name: "Tip", amount: 3226 },
+    ]);
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("topgolf-draft-000000"));
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+    const owner = (id: string) => (bucketOne.items.includes(id) ? "p1" : "p0");
+    const claimed = created.split.receipt.items.reduce((split, { id, split: { units } }) =>
+      units.reduce((next, _, unit) => {
+        const result = applyOperation(next, { type: "claim", by: null, itemId: id, participantId: participantId(owner(id)), unit }, { creator: true });
+        if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+        return result.split;
+      }, split),
+    created.split);
+    expect(created.split.schemaVersion).toBe(2);
+    expect(computeShares(claimed).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
+      ["p0", 15777],
+      ["p1", 4952],
+    ]);
+  });
+
+  test("deleting a Bundle's Item drops it from its Bundle, and deleting its last Item drops its discount", () => {
+    const draft = run(readTopgolf(), { type: "removeItem", id: "i2" });
+
+    expect(adjustmentsOf(draft)?.slice(0, 2)).toEqual([
+      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["i3", "i4", "i5"] } },
+      { id: "a2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: bucketTwo },
+    ]);
+    expect(adjustmentsOf(run(draft, ...["i3", "i4", "i5"].map((id): DraftAction => ({ type: "removeItem", id }))))?.map(({ id }) => id)).toEqual(["a2", "a3", "tip"]);
+  });
+
+  test("a stored Bundle that names an Item the Receipt does not hold loads the empty Receipt and keeps the handles and names", () => {
+    const storage = new MemoryStorage();
+    saveDraft(readTopgolf(), storage);
+    const stored = JSON.parse(storage.getItem("receipt-splitter:draft")!);
+    const [first, ...rest] = stored.draft.scan.receipt.adjustments;
+    stored.draft.scan.receipt.adjustments = [{ ...first, bundle: { ...first.bundle, items: [...first.bundle.items, "i99"] } }, ...rest];
+    storage.setItem("receipt-splitter:draft", JSON.stringify(stored));
+
+    const loaded = loadDraft(storage);
+
+    expect(loaded.scan).toEqual({ status: "empty" });
+    expect([loaded.handles, loaded.names]).toEqual([[{ service: "venmo", handle: "@jason-z" }], ["Jason", "Priya"]]);
+  });
+});
 
 describe("the Split link", () => {
   test("the create body carries the Receipt with its tip as an Adjustment, the Host first as the first name typed, and every handle the Host filled in", () => {
