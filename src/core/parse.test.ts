@@ -390,10 +390,10 @@ describe("parseNewSplit", () => {
     expect(named("Josie")).toMatchObject({ ok: true });
   });
 
-  test("refuses a Receipt that fails the Total check, as parseSplit does", () => {
+  test("accepts a Receipt that fails the Total check, since the gap is only a note", () => {
     expect(parseNewSplit({ ...body, receipt: { ...body.receipt, total: 4000 } }, minted)).toMatchObject({
-      ok: false,
-      rejection: { reason: "totalCheckFailed" },
+      ok: true,
+      split: { receipt: { total: 4000 } },
     });
   });
 });

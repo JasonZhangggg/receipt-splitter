@@ -32,6 +32,14 @@ async function addName(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
+async function noteLook(page: Page) {
+  const described = await action(page).getAttribute("aria-describedby");
+  return page.locator(`[id="${described}"]`).evaluate((note) => {
+    const style = getComputedStyle(note);
+    return [style.backgroundColor, style.color];
+  });
+}
+
 async function blockedBy(page: Page) {
   const button = action(page);
   const described = await button.getAttribute("aria-describedby");
@@ -89,14 +97,15 @@ test.describe("fixing the Example receipt", () => {
     await addName(page, "Jason");
   });
 
-  test("a price edit that breaks the Total check highlights the row and names the gap until the numbers add up again", async ({ page }) => {
+  test("a price edit that breaks the Total check highlights the row and notes the gap, unhighlighted, without blocking Create split link", async ({ page }) => {
     const perrier = page.getByRole("textbox", { name: /^Price of Perrier Sparkling Water/ });
     await perrier.click();
     await page.keyboard.type("3.00");
     const flagged = () => items(page).evaluateAll((rows) => rows.filter((row) => row.dataset.flagged === "true").map((row) => row.querySelector("input")!.value));
     await expect.poll(flagged).toEqual(["Perrier Sparkling Water"]);
     await expect(page.getByRole("textbox", { name: "Price of Perrier Sparkling Water, check this price" })).toBeVisible();
-    await expect.poll(() => blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $0.50 short." });
+    await expect.poll(() => blockedBy(page)).toEqual({ disabled: null, reason: "Items are $0.50 short of the subtotal." });
+    expect(await noteLook(page)).toEqual(["rgba(0, 0, 0, 0)", "rgb(105, 109, 116)"]);
 
     await perrier.fill("3.50");
     expect(await flagged()).toEqual([]);
@@ -112,11 +121,11 @@ test.describe("fixing the Example receipt", () => {
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   });
 
-  test("adding a missing Item and deleting a row each update the reason in one step", async ({ page }) => {
+  test("adding a missing Item and deleting a row each update the note in one step", async ({ page }) => {
     await page.getByRole("button", { name: "Remove Sprite" }).click();
-    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $2.50 short." });
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
     await page.getByRole("button", { name: "Add item" }).click();
-    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $2.50 short." });
+    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Name every item." });
     await page.getByRole("textbox", { name: "Name of item 5" }).fill("Sprite");
     await page.getByRole("textbox", { name: "Price of Sprite" }).fill("2.50");
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
@@ -148,7 +157,7 @@ test("a failed read opens the empty editor with the file row, and two typed Item
     await page.getByRole("textbox", { name: `Name of item ${n}` }).fill(String(name));
     await page.getByRole("textbox", { name: `Price of ${name}` }).fill(String(price));
   }
-  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $18.00 over." });
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $18.00 over the total." });
   await amount(page, "Total").fill("18.00");
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
@@ -270,7 +279,7 @@ test("a reload keeps the draft, and once the model is cached a reload and a new 
   await expect(amount(page, "Tip")).toHaveValue("$4.60");
   await expect(page.getByRole("textbox", { name: /^Price of Sprite/ })).toHaveValue("3.00");
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
-  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Items are $0.50 over." });
+  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
 
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Replace receipt" }).click();

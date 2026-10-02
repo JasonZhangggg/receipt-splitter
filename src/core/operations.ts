@@ -31,7 +31,6 @@ import {
   type Write,
 } from "./split";
 import { unitPrices } from "./shares";
-import { runTotalCheck, type FailedTotalCheck } from "./total-check";
 
 export const MAX_ITEMS = 100;
 export const MAX_ADJUSTMENTS = 20;
@@ -133,7 +132,6 @@ export type RejectionReason =
 
 export type Rejection =
   | { readonly reason: RejectionReason }
-  | { readonly reason: "totalCheckFailed"; readonly check: FailedTotalCheck }
   | { readonly reason: "malformed"; readonly path: string };
 
 export type Rejected = { readonly ok: false; readonly rejection: Rejection };
@@ -701,8 +699,7 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
   };
   const withOriginal: Split = { ...bare, original: { items: [plain(first), ...rest.map(plain)], adjustments, subtotal, total } };
   const split = checkSplit(withOriginal) === null ? withOriginal : bare;
-  const check = runTotalCheck(split.receipt);
-  const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : (checkSplit(split) ?? (check.ok ? null : { reason: "totalCheckFailed" as const, check }));
+  const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : checkSplit(split);
   return rejection ? { ok: false, rejection } : { ok: true, split };
 }
 

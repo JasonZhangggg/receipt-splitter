@@ -15,7 +15,7 @@ import {
   type Receipt,
   type SplitId,
 } from "./core/split";
-import { runTotalCheck } from "./core/total-check";
+import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 import type { ParsedItem } from "./parse";
 
 export type ReceiptFile = { readonly name: string; readonly thumbnail: string | null };
@@ -278,7 +278,18 @@ function hasAmountOverLimit(receipt: DraftReceipt): boolean {
   return amounts.some((amount) => Math.abs(amount) > MAX_CENTS);
 }
 
-const gapReason = (what: string, gap: number) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short" : "over"}.`;
+const gapText = (what: string, gap: number, against: string) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short of" : "over"} the ${against}.`;
+
+export function gapNote({ subtotalGap, totalGap }: FailedTotalCheck, subtotalPrinted: boolean): string {
+  if (subtotalGap !== 0) return gapText("Items are", subtotalGap, "subtotal");
+  return gapText(subtotalPrinted ? "Tax and charges are" : "Items are", totalGap, "total");
+}
+
+export function mismatchNote({ scan }: Draft): string | null {
+  if (scan.status !== "read") return null;
+  const check = totalCheck(scan.receipt);
+  return check && !check.ok ? gapNote(check, scan.receipt.subtotal !== null) : null;
+}
 
 export type Blocker = { readonly kind: "note"; readonly note: string } | { readonly kind: "noHandle" };
 
@@ -288,12 +299,7 @@ export function blocker({ scan, handles, names }: Draft): Blocker | null {
   if (scan.status === "empty") return note("Add a receipt.");
   if (scan.status === "reading") return note("Reading the receipt.");
   if (hasAmountOverLimit(scan.receipt)) return note(`An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`);
-  const check = totalCheck(scan.receipt);
-  if (!check) return note("Add an item.");
-  if (!check.ok) {
-    if (check.subtotalGap !== 0) return note(gapReason("Items are", check.subtotalGap));
-    return note(gapReason(scan.receipt.subtotal === null ? "Items are" : "Tax and charges are", check.totalGap));
-  }
+  if (!receiptOf(scan.receipt)) return note("Add an item.");
   if (scan.receipt.items.some((item) => !item.name.trim())) return note("Name every item.");
   if (!handles.some((row) => row.handle.trim())) return { kind: "noHandle" };
   if (names.length === 0) return note("Add your name.");

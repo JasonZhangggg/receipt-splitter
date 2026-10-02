@@ -197,7 +197,7 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await sam.getByRole("button", { name: /^Open Sprite/ }).click();
   await sam.getByRole("textbox", { name: "Price" }).fill("2.75");
   await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
-  await expect(jason.getByText("Items are $0.25 over.")).toBeVisible(live);
+  await expect(jason.getByText("Items are $0.25 over the subtotal.")).toBeVisible(live);
 
   await jason.getByRole("button", { name: "History" }).click();
   await expect.poll(async () => (await jason.getByTestId("split-sheet").boundingBox())?.y, live).toBeGreaterThanOrEqual(844);
@@ -207,7 +207,7 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await confirm.click();
 
   await expect(jason.getByText("Reverted")).toBeVisible(live);
-  await expect(sam.getByText("Items are $0.25 over.")).toHaveCount(0, live);
+  await expect(sam.getByText("Items are $0.25 over the subtotal.")).toHaveCount(0, live);
   await expect(sam.getByRole("button", { name: /^Open Sprite, \$2\.50/ })).toBeVisible(live);
 });
 

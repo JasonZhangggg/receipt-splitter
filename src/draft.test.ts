@@ -4,7 +4,7 @@ import { cents, MAX_CENTS, price } from "./core/money";
 import { MAX_QUANTITY } from "./core/operations";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import type { ParsedItem } from "./parse";
-import { blocker, emptyDraft, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
+import { blocker, emptyDraft, mismatchNote, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -51,16 +51,12 @@ describe("blocker", () => {
     expect({
       noReceipt: reasonOf(withVenmo(emptyDraft)),
       reading: reasonOf(withVenmo(run(emptyDraft, { type: "reading", file }))),
-      short: reasonOf(run(ready, { type: "editItem", id: "i5", price: price(300) })),
-      over: reasonOf(run(ready, { type: "editItem", id: "i5", price: price(400) })),
       noHandle: reasonOf(read1040()),
       noName: reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
       ready: reasonOf(ready),
     }).toEqual({
       noReceipt: "Add a receipt.",
       reading: "Reading the receipt.",
-      short: "Items are $0.50 short.",
-      over: "Items are $0.50 over.",
       noHandle: { kind: "noHandle" },
       noName: "Add your name.",
       ready: null,
@@ -84,15 +80,29 @@ describe("blocker", () => {
     expect(reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt })))).toBeNull();
   });
 
-  test("blames tax and charges when the Items match the subtotal but the total does not", () => {
-    const draft = withVenmo(read1040());
-    expect(reasonOf(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and charges are $0.61 short.");
-    expect(reasonOf(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and charges are $0.39 over.");
+  test("a failed Total check blocks nothing and reads as a note against the subtotal", () => {
+    const ready = withVenmo(read1040());
+    const short = run(ready, { type: "editItem", id: "i5", price: price(300) });
+    const over = run(ready, { type: "editItem", id: "i5", price: price(400) });
+    expect({ blocker: reasonOf(short), short: mismatchNote(short), over: mismatchNote(over), ready: mismatchNote(ready), reading: mismatchNote(run(emptyDraft, { type: "reading", file })) }).toEqual({
+      blocker: null,
+      short: "Items are $0.50 short of the subtotal.",
+      over: "Items are $0.50 over the subtotal.",
+      ready: null,
+      reading: null,
+    });
   });
 
-  test("blames the Items for a typed receipt, which has no subtotal to check them against", () => {
+  test("notes tax and charges when the Items match the subtotal but the total does not", () => {
+    const draft = withVenmo(read1040());
+    expect(mismatchNote(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and charges are $0.61 short of the total.");
+    expect(mismatchNote(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and charges are $0.39 over the total.");
+  });
+
+  test("notes the Items against the total for a typed receipt, which has no subtotal", () => {
     const typed = run(emptyDraft, { type: "read", file, receipt: null }, { type: "addItem" }, { type: "editItem", id: "i1", name: "Pad thai", price: price(1800) });
-    expect(reasonOf(withVenmo(typed))).toBe("Items are $18.00 over.");
+    expect(mismatchNote(withVenmo(typed))).toBe("Items are $18.00 over the total.");
+    expect(reasonOf(withVenmo(typed))).toBeNull();
   });
 
   test("a handle of only spaces is no way to pay the Host", () => {

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { NonEmpty, PaymentHandle } from "../src/core/split";
 import { rememberSplit, splitOnDevice } from "../src/device";
-import { blocker, filledHandles, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
+import { blocker, filledHandles, mismatchNote, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, splitUrl, useLiveSplit } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
@@ -179,6 +179,7 @@ export default function Home() {
               busy={creating}
               disabled={reason !== null}
               reason={failure ?? (scan.status === "read" ? (reason ?? undefined) : undefined)}
+              note={mismatchNote(draft) ?? undefined}
             />
           ) : (
             <LinkBox url={splitUrl(splitId)} onCopyFailed={() => setNotice(linkCopy.copyFailed)} />

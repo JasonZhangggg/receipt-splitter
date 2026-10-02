@@ -34,7 +34,6 @@ export const splitCopy = {
   subtotal: "Subtotal",
   total: "Total",
   unclaimed: "Unclaimed",
-  mismatch: (gap: string, over: boolean) => `Items are ${gap} ${over ? "over" : "short"}.`,
   youOwe: "You owe",
   youPaid: "You paid",
   yourShare: "Your share",

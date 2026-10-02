@@ -30,6 +30,7 @@ import {
   type Split,
 } from "./split";
 import { mintedId } from "./test-ids";
+import { runTotalCheck } from "./total-check";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -173,7 +174,7 @@ describe("createSplit", () => {
     expect(result).toEqual({ ok: false, rejection: { reason: "duplicateId" } });
   });
 
-  test("refuses a Receipt that fails the Total check", () => {
+  test("creates a Split whose Receipt fails the Total check, and the check still reports the gap", () => {
     const result = createSplit({
       id: minted,
       receipt: { ...dinner, subtotal: cents(5300), total: cents(5300) },
@@ -181,13 +182,10 @@ describe("createSplit", () => {
       paymentHandles: [{ service: "venmo", handle: "ann-host" }],
     });
 
-    expect(result).toEqual({
-      ok: false,
-      rejection: {
-        reason: "totalCheckFailed",
-        check: { ok: false, subtotalGap: 100, totalGap: 0, itemIds: [], adjustmentIds: [], suspects: [] },
-      },
-    });
+    expect(result.ok && [result.split.receipt.total, runTotalCheck(result.split.receipt)]).toEqual([
+      5300,
+      { ok: false, subtotalGap: 100, totalGap: 0, itemIds: [], adjustmentIds: [], suspects: [] },
+    ]);
   });
 
   test("refuses a total above MAX_CENTS, so Share math never leaves the exact range", () => {

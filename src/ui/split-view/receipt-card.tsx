@@ -8,7 +8,7 @@ import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, itemsOverSubtotal, lineTag } from "./model";
+import { claimersOfItem, lineTag, totalNote } from "./model";
 
 type Props = {
   split: Split;
@@ -26,7 +26,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   const c = useColors();
   const { items, adjustments, subtotal, total } = split.receipt;
   const started = items.some((item) => claimersOfItem(item).length > 0);
-  const gap = itemsOverSubtotal(split.receipt);
+  const note = totalNote(split.receipt);
   const nameOf = (id: ParticipantId) => split.participants.find((person) => person.id === id)?.name ?? "";
 
   return (
@@ -54,9 +54,9 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
           );
         })}
       </View>
-      {gap !== 0 ? (
-        <Text role="status" style={[type.caption, styles.why]}>
-          <Text style={[styles.mark, { backgroundColor: c.flagWash, color: c.flag }]}>{say.mismatch(dollars(Math.abs(gap)), gap > 0)}</Text>
+      {note ? (
+        <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
+          {note}
         </Text>
       ) : null}
       <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { cents, price } from "../../core/money";
 import { itemId, participantId, type ItemSplit, type SplitItem } from "../../core/split";
-import { circleTap, itemsOverSubtotal, lineTag, shareLabel, unitAmounts } from "./model";
+import { circleTap, lineTag, shareLabel, totalNote, unitAmounts } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -47,10 +47,15 @@ describe("circleTap", () => {
   });
 });
 
-test("itemsOverSubtotal is positive when the Items run over the printed subtotal and negative when short", () => {
-  const receipt = (sprite: number) => ({ items: [item({ by: "even", units: [[]] }, sprite)] as const, adjustments: [], subtotal: cents(250), total: cents(250) });
+test("totalNote says how far the Items or the charges are from the printed subtotal and total", () => {
+  const receipt = (sprite: number, total = 250) => ({ items: [item({ by: "even", units: [[]] }, sprite)] as const, adjustments: [], subtotal: cents(250), total: cents(total) });
 
-  expect([itemsOverSubtotal(receipt(275)), itemsOverSubtotal(receipt(200)), itemsOverSubtotal(receipt(250))]).toEqual([25, -50, 0]);
+  expect([totalNote(receipt(275)), totalNote(receipt(200)), totalNote(receipt(250, 300)), totalNote(receipt(250))]).toEqual([
+    "Items are $0.25 over the subtotal.",
+    "Items are $0.50 short of the subtotal.",
+    "Tax and charges are $0.50 short of the total.",
+    null,
+  ]);
 });
 
 test("unitAmounts divides each unit's cents by largest remainder, and shows typed cents under amount", () => {
