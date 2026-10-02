@@ -89,8 +89,13 @@ export class SplitServer extends Server<Cloudflare.Env> {
     return { created: true, creatorSecret: toBase64Url(secret) };
   }
 
-  onStart(): void {
-    this.#stored = this.#load();
+  async onStart(): Promise<void> {
+    const stored = this.#load();
+    this.#stored = stored;
+    if (stored.kind === "live" && stored.photo.kind === "held") {
+      const alarm = await this.ctx.storage.getAlarm();
+      if (alarm === null || alarm > stored.photo.until) await this.ctx.storage.setAlarm(stored.photo.until);
+    }
     const sockets = this.ctx.getWebSockets().length;
     if (sockets > 0) console.log(`SplitServer ${this.name} woke from hibernation with ${sockets} open sockets`);
   }
@@ -153,7 +158,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
     }
     const { photo } = stored;
     if (jpeg === null) {
-      if (photo.kind !== "held") return new Response(null, { status: 404 });
+      if (!showing(photo)) return new Response(null, { status: 404 });
       return new Response(this.ctx.storage.sql.exec<{ jpeg: ArrayBuffer }>("SELECT jpeg FROM photo").one().jpeg);
     }
     if (!isCreator(bearer(request), stored.secret)) return new Response(null, { status: 403 });
@@ -274,8 +279,12 @@ function send(connection: Connection, message: ServerMessage): void {
   connection.send(JSON.stringify(message));
 }
 
+function showing(photo: Photo): boolean {
+  return photo.kind === "held" && Date.now() < photo.until;
+}
+
 function stateMessage(ref: string | null, photo: Photo, json: string): string {
-  return `{"type":"state","ref":${JSON.stringify(ref)},"photo":${photo.kind === "held"},"split":${json}}`;
+  return `{"type":"state","ref":${JSON.stringify(ref)},"photo":${showing(photo)},"split":${json}}`;
 }
 
 function bearer(request: Request): string | undefined {

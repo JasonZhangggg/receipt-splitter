@@ -527,6 +527,25 @@ describe("the receipt photo's 14-day delete", () => {
     expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
   });
 
+  it("treats a photo past 14 days as gone when its delete alarm was moved later, and moves the alarm back on wake", async () => {
+    const { id, creatorSecret } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    expect(await putPhoto(id, creatorSecret)).toBe(204);
+    const warm = await open(id);
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(T0 + 60 * DAY));
+
+    vi.setSystemTime(T0 + 20 * DAY);
+    expect(await photoStatus(id)).toBe(404);
+    expect((await open(id)).hello).toMatchObject({ type: "state", photo: false });
+    warm.client.send(claim("w1", "fries"));
+    expect(await warm.client.next()).toMatchObject({ type: "state", ref: "w1", photo: false });
+
+    await evictDurableObject(stub);
+    expect(await photoStatus(id)).toBe(404);
+    expect((await open(id)).hello).toMatchObject({ type: "state", photo: false });
+    expect((await leftovers(id)).alarm).toBe(T0 + 14 * DAY);
+  });
+
   it("keeps a Split without a photo on its single 60-day alarm", async () => {
     const { id } = await createSplit();
 
