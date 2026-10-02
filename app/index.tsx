@@ -3,20 +3,18 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { NonEmpty, PaymentHandle } from "../src/core/split";
-import { rememberSplit, splitOnDevice } from "../src/device";
-import { blocker, editsOnHome, filledHandles, mismatchNote, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, totalOf, type DraftAction, type ReceiptFile } from "../src/draft";
-import { createSplitLink, newParticipantId, splitUrl, useLiveSplit } from "../src/live/client";
+import { rememberSplit } from "../src/device";
+import { blocker, editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, totalOf, type DraftAction, type ReceiptFile } from "../src/draft";
+import { createSplitLink, newParticipantId } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
 import { Button, PressTarget } from "../src/ui/components/button";
-import { LinkBox } from "../src/ui/components/link-box";
 import { NameChips } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
 import { Sheet } from "../src/ui/components/sheet";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
-import { copy, createCopy, joinCopy, linkCopy } from "../src/ui/home-copy";
+import { copy, joinCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
@@ -24,8 +22,6 @@ import { isPhoto, photoUri, pickPhoto, releasePhotoUri, thumbnailOf, usePhotoDro
 import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
 import { Reading } from "../src/ui/receipt-input/reading";
 import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
-
-const handleEdits = 700;
 
 
 const ringChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
@@ -44,9 +40,6 @@ export default function Home() {
   const [viewing, setViewing] = useState(false);
   const scanning = useRef(0);
   const handleInput = useRef<TextInput>(null);
-  const splitId = draft.scan.status === "linked" ? draft.scan.splitId : null;
-  const { live, send } = useLiveSplit(splitId);
-  const sentHandles = useRef(JSON.stringify(filledHandles(draft.handles)));
   useEffect(prefetchModel, []);
   useEffect(() => saveDraft(draft), [draft]);
 
@@ -54,23 +47,6 @@ export default function Home() {
     setFailure(null);
     apply(action);
   }, []);
-
-  useEffect(() => {
-    if (live.status === "gone") apply({ type: "unlinked" });
-  }, [live.status]);
-
-  useEffect(() => {
-    const [first, ...rest] = filledHandles(draft.handles);
-    const json = JSON.stringify([first, ...rest]);
-    if (splitId === null || first === undefined || json === sentHandles.current) return;
-    const timer = setTimeout(async () => {
-      sentHandles.current = json;
-      const handles: NonEmpty<PaymentHandle> = [first, ...rest];
-      const answer = await send({ type: "setPaymentHandles", by: null, handles }, splitOnDevice(splitId).creatorSecret);
-      if (!answer.ok) setNotice(answer.rejection.reason === "creatorRequired" ? linkCopy.handleLocked : createCopy.handle);
-    }, handleEdits);
-    return () => clearTimeout(timer);
-  }, [draft.handles, splitId, send]);
 
   const read = useCallback(async (photo: File) => {
     if (!isPhoto(photo)) return setNotice(copy.notPhoto);
@@ -111,20 +87,20 @@ export default function Home() {
     setCreating(false);
     if (!created.ok) return setFailure(created.reason);
     rememberSplit(created.id, { creatorSecret: created.creatorSecret });
-    sentHandles.current = JSON.stringify(request.paymentHandles);
-    apply({ type: "linked", splitId: created.id });
+    scanning.current++;
+    setPhoto(null);
+    apply({ type: "created" });
     router.push(`/s/${created.id}`);
   };
 
-  const people = live.status === "live" ? live.split.participants.map(({ name }) => name) : draft.names;
+  const people = draft.names;
   const addName = (typed: string): string | null => {
     const named = newName(typed, people);
     if (!named.ok) return named.reason === "nameTaken" ? joinCopy.nameTaken : null;
-    if (splitId === null) dispatch({ type: "addName", name: typed });
-    else void send({ type: "addParticipant", by: null, participant: { id: newParticipantId(), name: named.name } });
+    dispatch({ type: "addName", name: typed });
     return null;
   };
-  const removeName = splitId === null ? (name: string) => dispatch({ type: "removeName", name }) : undefined;
+  const removeName = (name: string) => dispatch({ type: "removeName", name });
   const compact = !wide && height - insets.top - insets.bottom < shortScreen;
   const editor = editsOnHome(draft);
   const ticket = !wide && !editor;
@@ -132,20 +108,17 @@ export default function Home() {
   const view = photo ? () => setViewing(true) : undefined;
   const zoneHeight = roomy ? 380 : 336;
 
-  const action =
-    splitId === null ? (
-      <Button
-        label={creating ? copy.creating : copy.action}
-        onPress={blocked?.kind === "noHandle" ? () => handleInput.current?.focus() : create}
-        outsideScroll={!wide}
-        busy={creating}
-        disabled={reason !== null}
-        reason={failure ?? (scan.status === "read" ? (reason ?? undefined) : undefined)}
-        note={mismatchNote(draft) ?? undefined}
-      />
-    ) : (
-      <LinkBox url={splitUrl(splitId)} onCopyFailed={() => setNotice(linkCopy.copyFailed)} />
-    );
+  const action = (
+    <Button
+      label={creating ? copy.creating : copy.action}
+      onPress={blocked?.kind === "noHandle" ? () => handleInput.current?.focus() : create}
+      outsideScroll={!wide}
+      busy={creating}
+      disabled={reason !== null}
+      reason={failure ?? (scan.status === "read" ? (reason ?? undefined) : undefined)}
+      note={mismatchNote(draft) ?? undefined}
+    />
+  );
   const details = (
     <>
       <PaymentRows handles={draft.handles} dispatch={dispatch} firstHandle={handleInput} outsideScroll={!wide} />
@@ -187,7 +160,7 @@ export default function Home() {
             onReplace={choose}
             stacked={ticket}
           />
-          {editor ? <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} locked={creating || scan.status === "linked"} /> : null}
+          {editor ? <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} locked={creating} /> : null}
         </View>
       </View>
     );

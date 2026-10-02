@@ -654,37 +654,29 @@ describe("the Split link", () => {
     expect(splitRequest(unnamed, counter())?.receipt.adjustments[0]).toEqual({ id: "a1", kind: "discount", name: "Discount", amount: -100 });
   });
 
-  test("once the link exists the Receipt is locked, and replacing it starts a new draft that keeps only the Payment handles", () => {
-    const linked = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "linked", splitId });
-    const edited = run(linked, { type: "editItem", id: "i1", price: price(100) }, { type: "removeItem", id: "i2" }, { type: "editTip", amount: cents(500) });
-    const replaced = run(linked, { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
+  test("creating the Split starts a fresh draft that keeps only the Payment handles", () => {
+    const created = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "created" });
 
-    expect(linked.scan).toMatchObject({ status: "linked", splitId });
-    expect(edited).toEqual(linked);
-    expect(replaced).toEqual({
-      scan: { status: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } },
-      handles: [{ service: "venmo", handle: "@jason-z" }],
-      names: [],
-    });
+    expect(created).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] });
   });
 
-  test("a link to a Split that no longer exists unlocks the same Receipt, so a new link can be made", () => {
-    const read = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) });
-
-    expect(run(read, { type: "linked", splitId }, { type: "unlinked" })).toEqual(read);
-  });
-
-  test("a link arriving after the Receipt was replaced is dropped, so the new Receipt stays editable", () => {
+  test("a Split created after the Receipt was replaced leaves the new Receipt in place", () => {
     const replacing = run(withVenmo(read1040()), { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
 
-    expect(run(replacing, { type: "linked", splitId })).toEqual(replacing);
+    expect(run(replacing, { type: "created" })).toEqual(replacing);
   });
 
-  test("a reload keeps the link", () => {
+  test("a reload after creating opens a fresh draft, and one saved while linked to a Split by an older build does too", () => {
     const storage = new MemoryStorage();
-    const linked = run(withVenmo(read1040()), { type: "linked", splitId });
-    saveDraft(linked, storage);
+    saveDraft(run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "created" }), storage);
+    const fresh = loadDraft(storage);
+    const older = new MemoryStorage();
+    const read = run(withVenmo(read1040()), { type: "addName", name: "Sam" });
+    older.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: { ...read, names: [], scan: { ...read.scan, status: "linked", splitId } } }));
 
-    expect(loadDraft(storage)).toEqual(linked);
+    expect([fresh, loadDraft(older)]).toEqual([
+      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] },
+      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] },
+    ]);
   });
 });

@@ -106,7 +106,7 @@ test("before the link is shared, the Host taps Sam's chip and sees Sam's breakdo
   await expect(sheet.getByRole("button", { name: "Copy" })).toBeVisible();
 });
 
-test("a browser not on the list adds itself, the Host's home sheet lists the name with no remove button, and a reload remembers the pick", async ({ page, browser }) => {
+test("a browser not on the list adds itself, the Host's home opens fresh with only the Venmo handle kept, and a reload remembers the pick", async ({ page, browser }) => {
   await readyHome(page);
   const link = await createLink(page);
 
@@ -122,10 +122,14 @@ test("a browser not on the list adds itself, the Host's home sheet lists the nam
   await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
 
   await page.goBack();
+  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
   const people = page.getByRole("group", { name: "People at the table" });
-  await expect(people.getByText("Lee", { exact: true })).toBeVisible();
-  await expect(people.getByRole("button", { name: "Remove Lee" })).toHaveCount(0);
-  await expect(people.getByRole("button", { name: "Remove Jason" })).toHaveCount(0);
+  await expect(people.getByText("Jason", { exact: true })).toHaveCount(0);
+  await expect(people.getByText("Lee", { exact: true })).toHaveCount(0);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
 
   await lee.reload();
   await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
@@ -221,8 +225,22 @@ test("only the browser that made the link can change the Venmo handle", async ({
   }, id);
   expect(answers).toEqual({ type: "rejected", ref: "steal", rejection: { reason: "creatorRequired" } });
 
-  await page.goBack();
-  await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-zh");
+  const accepted = await page.evaluate(async (id) => {
+    const { creatorSecret } = JSON.parse(localStorage.getItem(`receipt-splitter:split:${id}`) ?? "{}");
+    const socket = new WebSocket(`ws://${location.host}/parties/split-server/${id}`);
+    let sent = false;
+    return new Promise<unknown>((resolve) => {
+      socket.onmessage = ({ data }) => {
+        const message = JSON.parse(data);
+        if (message.type === "state" && !sent) {
+          sent = true;
+          socket.send(JSON.stringify({ ref: "mine", creatorSecret, op: { type: "setPaymentHandles", by: null, handles: [{ service: "venmo", handle: "jason-zh" }] } }));
+        }
+        if (message.ref === "mine") resolve(message.type);
+      };
+    });
+  }, id);
+  expect(accepted).not.toBe("rejected");
   expect(await other.evaluate(() => (window as unknown as { nextHandles: () => Promise<unknown> }).nextHandles())).toEqual([{ service: "venmo", handle: "jason-zh" }]);
 });
 

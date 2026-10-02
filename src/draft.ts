@@ -4,7 +4,6 @@ import {
   RECEIPT_LEVEL_KINDS,
   adjustmentId,
   isId,
-  isRoutableSplitId,
   itemId,
   PAYMENT_SERVICES,
   type ReceiptLevelKind,
@@ -14,7 +13,6 @@ import {
   type PaymentHandle,
   type PaymentService,
   type Receipt,
-  type SplitId,
 } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 import type { ParsedItem } from "./parse";
@@ -49,8 +47,7 @@ export type DraftReceipt = {
 type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
-  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: DraftReceipt; readonly fixOnHome?: true }
-  | { readonly status: "linked"; readonly file: ReceiptFile; readonly receipt: DraftReceipt; readonly fixOnHome?: true; readonly splitId: SplitId };
+  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: DraftReceipt; readonly fixOnHome?: true };
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
 
@@ -60,8 +57,7 @@ export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
   | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt<ParsedItem> | null }
   | { readonly type: "example" }
-  | { readonly type: "linked"; readonly splitId: SplitId }
-  | { readonly type: "unlinked" }
+  | { readonly type: "created" }
   | { readonly type: "editItem"; readonly id: string; readonly name?: string; readonly price?: Price }
   | { readonly type: "addItem" }
   | { readonly type: "removeItem"; readonly id: string }
@@ -105,24 +101,18 @@ export function newName(
 }
 
 export function reduceDraft(draft: Draft, action: DraftAction): Draft {
-  const names = draft.scan.status === "linked" ? [] : draft.names;
   switch (action.type) {
     case "reading":
-      return { ...draft, names, scan: { status: "reading", file: action.file } };
+      return { ...draft, scan: { status: "reading", file: action.file } };
     case "read": {
       const receipt = action.receipt ? fromReceipt(action.receipt) : typedReceipt;
       const fixOnHome = itemProblem(receipt) ? { fixOnHome: true as const } : {};
       return { ...draft, scan: { status: "read", file: action.file, receipt, ...fixOnHome } };
     }
     case "example":
-      return { ...draft, names, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: fromReceipt(example1040) } };
-    case "linked":
-      return draft.scan.status === "read" ? { ...draft, scan: { ...draft.scan, status: "linked", splitId: action.splitId } } : draft;
-    case "unlinked": {
-      if (draft.scan.status !== "linked") return draft;
-      const { splitId: _, ...read } = draft.scan;
-      return { ...draft, scan: { ...read, status: "read" } };
-    }
+      return { ...draft, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: fromReceipt(example1040) } };
+    case "created":
+      return draft.scan.status === "read" ? { ...emptyDraft, handles: draft.handles } : draft;
     case "setService":
       return { ...draft, handles: draft.handles.map((row, i) => (i === action.index ? { ...row, service: action.service } : row)) };
     case "setHandle":
@@ -327,7 +317,7 @@ function itemProblem(receipt: DraftReceipt): Blocker | null {
   return null;
 }
 
-export const editsOnHome = ({ scan }: Draft): boolean => (scan.status === "read" || scan.status === "linked") && scan.fixOnHome === true;
+export const editsOnHome = ({ scan }: Draft): boolean => scan.status === "read" && scan.fixOnHome === true;
 
 export function blocker({ scan, handles, names }: Draft): Blocker | null {
   if (scan.status === "empty") return note("Add a receipt.");
@@ -394,9 +384,9 @@ const isHandle = (row: unknown): row is HandleRow =>
 
 function parseScan(scan: unknown): Scan | null {
   if (!isObject(scan)) return null;
-  if (scan.status === "empty" || scan.status === "reading") return { status: "empty" };
-  const linked = scan.status === "linked" && typeof scan.splitId === "string" && isRoutableSplitId(scan.splitId);
-  if ((scan.status !== "read" && !linked) || !isFile(scan.file) || !isObject(scan.receipt)) return null;
+  // A draft an older build left linked to its Split was already sent, so it opens fresh.
+  if (scan.status === "empty" || scan.status === "reading" || scan.status === "linked") return { status: "empty" };
+  if (scan.status !== "read" || !isFile(scan.file) || !isObject(scan.receipt)) return null;
   const { items, adjustments, subtotal, tip, totalBeforeTip, nextId } = scan.receipt;
   const itemIds = Array.isArray(items) && items.every(isItem) ? new Set(items.map((item) => item.id)) : null;
   const valid =
@@ -413,8 +403,7 @@ function parseScan(scan: unknown): Scan | null {
   const receipt = scan.receipt as DraftReceipt;
   // Drafts saved before fixOnHome existed lack the flag, and an Item problem with no editor on home leaves the Host stuck.
   const fixOnHome = scan.fixOnHome === true || itemProblem(receipt) !== null;
-  const read = { status: "read" as const, file: scan.file, receipt, ...(fixOnHome && { fixOnHome: true as const }) };
-  return linked ? { ...read, status: "linked", splitId: scan.splitId as SplitId } : read;
+  return { status: "read", file: scan.file, receipt, ...(fixOnHome && { fixOnHome: true as const }) };
 }
 
 const isItem = (item: unknown) =>
