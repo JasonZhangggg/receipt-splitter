@@ -83,8 +83,9 @@ it("one create with a photo writes 19 rows from its POST through its photo uploa
   expect({ limiter: limiterWrites(), cap: capWrites(), server: serverWrites() }).toEqual(measuredRowWrites);
 });
 
-it("DAILY_CREATE_CAP is the floor of a quarter of the free plan's 100,000 daily row writes over the budgeted writes per create, which adds 3 for the table drop no test sees", () => {
-  const budgetedWritesPerCreate = Object.values(measuredRowWrites).reduce((sum, writes) => sum + writes, 0) + 3;
-  expect(budgetedWritesPerCreate).toBe(22);
+it("DAILY_CREATE_CAP is the floor of a quarter of the free plan's 100,000 daily row writes over the budgeted writes per create, which adds 3 for each of the split and photo tables dropped at expiry, which no test sees", () => {
+  const tablesDroppedAtExpiry = ["split", "photo"];
+  const budgetedWritesPerCreate = Object.values(measuredRowWrites).reduce((sum, writes) => sum + writes, 0) + 3 * tablesDroppedAtExpiry.length;
+  expect(budgetedWritesPerCreate).toBe(25);
   expect(DAILY_CREATE_CAP).toBe(Math.floor(100_000 / 4 / budgetedWritesPerCreate));
 });
