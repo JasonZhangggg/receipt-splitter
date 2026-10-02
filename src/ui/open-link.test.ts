@@ -26,3 +26,15 @@ test("settles with false when both links fail or there is no web link", async ()
   expect(await openWithFallback(neither.open, "venmo://paycharge")).toBe(false);
   expect(neither.tried).toEqual(["venmo://paycharge", "https://venmo.com/ann", "venmo://paycharge"]);
 });
+
+test("tries the web link when opening the app link throws before it returns a promise", async () => {
+  const tried: string[] = [];
+  const open = (url: string) => {
+    tried.push(url);
+    if (url.startsWith("venmo:")) throw new Error("Linking is not available");
+    return Promise.resolve();
+  };
+
+  expect(await openWithFallback(open, "venmo://paycharge", "https://venmo.com/ann")).toBe(true);
+  expect(tried).toEqual(["venmo://paycharge", "https://venmo.com/ann"]);
+});
