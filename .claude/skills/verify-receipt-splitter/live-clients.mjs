@@ -137,7 +137,12 @@ async function openClients(id, count) {
   return clients;
 }
 
-const holds = (split, itemId) => split.receipt.items.find(({ id }) => id === itemId).claimedBy.includes("ann");
+const claimers = (split, itemId) => {
+  const { by, units } = split.receipt.items.find(({ id }) => id === itemId).split;
+  return by === "even" ? units[0] : units[0].map(([participantId]) => participantId);
+};
+
+const holds = (split, itemId) => claimers(split, itemId).includes("ann");
 
 const claim = (ref, itemId, claimed) => ({
   ref,
@@ -191,7 +196,7 @@ const commands = {
       for (const other of rotated.slice(1)) received.get(other.name)[claimed ? "claims" : "unclaims"] += 1;
       times.push(roundTripMs);
       if (divergedAfter === null && !converged(clients)) divergedAfter = revision;
-      if (count <= 20) note({ event: "claim seen by every client", sender: rotated[0].name, revision, roundTripMs, fries: clients.map((client) => client.split.receipt.items[0].claimedBy) });
+      if (count <= 20) note({ event: "claim seen by every client", sender: rotated[0].name, revision, roundTripMs, fries: clients.map((client) => claimers(client.split, "fries")) });
       await sleep(Number(values["pace-ms"]));
     }
     const sorted = [...times].sort((a, b) => a - b);
@@ -237,7 +242,7 @@ const commands = {
     await sleep(Number(values["drop-s"]) * 1000);
     const back = new Client("client-1-reconnected", id);
     await back.open();
-    const claimedBy = back.split.receipt.items.find(({ id: itemId }) => itemId === "pitcher").claimedBy;
+    const claimedBy = claimers(back.split, "pitcher");
     note({ event: "reconnected", client: back.name, revision: back.split.revision, pitcherClaimedBy: claimedBy });
     sender.close();
     back.close();

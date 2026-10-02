@@ -115,8 +115,9 @@ function refusalReason(refusal: CreateSplitRefusal | null): string {
     case "rateLimited":
       return createCopy.busy;
     case "dailyLimit": {
-      const nextUtcMidnight = new Date(Math.ceil((Date.now() + 1) / DAY_MS) * DAY_MS);
-      return createCopy.daily(nextUtcMidnight.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+      const now = new Date();
+      const opens = new Date(Math.ceil((now.getTime() + 1) / DAY_MS) * DAY_MS);
+      return createCopy.daily(opens.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), opens.toDateString() !== now.toDateString());
     }
     case "unavailable":
     case undefined:

@@ -21,16 +21,6 @@ export function takeToken(bucket: Bucket | null, now: number, limit: BucketLimit
   return { ok: false, state: { tokens: refilled, at: now }, retryAfterMs: Math.ceil(((cost - refilled) * 1000) / limit.perSecond) };
 }
 
-export type WindowLimit = { readonly count: number; readonly windowMs: number };
-
-export const CREATE_LIMIT: WindowLimit = { count: 10, windowMs: 60_000 };
-
-export function admitToWindow(times: readonly number[], now: number, limit: WindowLimit): Admission<readonly number[]> {
-  const recent = times.filter((time) => now - time < limit.windowMs);
-  if (recent.length < limit.count) return { ok: true, state: [...recent, now] };
-  return { ok: false, state: recent, retryAfterMs: recent[0] + limit.windowMs - now };
-}
-
 export function limiterKey(ip: string): string {
   const mappedIpv4 = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip)?.[1];
   if (mappedIpv4 !== undefined) return mappedIpv4;
@@ -50,6 +40,32 @@ const utcDay = (time: number): UtcDay => Math.floor(time / DAY_MS);
 
 const nextMidnight = (day: UtcDay): number => (day + 1) * DAY_MS;
 
+const CREATE_LIMIT = { perMinute: 10, perDay: 50 } as const;
+
+const MINUTE_MS = 60_000;
+
+type CreateTimes = readonly number[];
+
+const stillCounted = (times: CreateTimes, now: number): CreateTimes =>
+  times.filter((time) => utcDay(time) === utcDay(now) || now - time < MINUTE_MS);
+
+type IpAdmission =
+  | { readonly ok: true; readonly state: CreateTimes }
+  | { readonly ok: false; readonly refused: "rateLimited" | "dailyLimit"; readonly retryAfterMs: number };
+
+function admitFromIp(times: CreateTimes, now: number): IpAdmission {
+  const counted = stillCounted(times, now);
+  const day = utcDay(now);
+  if (counted.filter((time) => utcDay(time) === day).length >= CREATE_LIMIT.perDay) {
+    return { ok: false, refused: "dailyLimit", retryAfterMs: nextMidnight(day) - now };
+  }
+  const lastMinute = counted.filter((time) => now - time < MINUTE_MS);
+  if (lastMinute.length >= CREATE_LIMIT.perMinute) {
+    return { ok: false, refused: "rateLimited", retryAfterMs: lastMinute[0] + MINUTE_MS - now };
+  }
+  return { ok: true, state: [...counted, now] };
+}
+
 type DayTally = { readonly day: UtcDay; readonly count: number };
 
 export const DAILY_CREATE_CAP = 1000;
@@ -68,6 +84,8 @@ const TALLY_KEY = "tally";
 
 type Verdict = { readonly ok: true } | { readonly ok: false; readonly retryAfterMs: number };
 
+type IpVerdict = { readonly ok: true } | Extract<IpAdmission, { readonly ok: false }>;
+
 export class CreateLimiter extends DurableObject<Cloudflare.Env> {
   async peekToday(): Promise<Verdict> {
     const admission = admitToDay(await this.ctx.storage.get<DayTally>(TALLY_KEY), Date.now(), DAILY_CREATE_CAP);
@@ -83,23 +101,26 @@ export class CreateLimiter extends DurableObject<Cloudflare.Env> {
     return { ok: true };
   }
 
-  async admit(): Promise<Verdict> {
+  async admit(): Promise<IpVerdict> {
     const storage = this.ctx.storage;
-    const admission = admitToWindow((await storage.get<number[]>(TIMES_KEY)) ?? [], Date.now(), CREATE_LIMIT);
-    if (!admission.ok) return { ok: false, retryAfterMs: admission.retryAfterMs };
+    const now = Date.now();
+    const admission = admitFromIp((await storage.get<number[]>(TIMES_KEY)) ?? [], now);
+    if (!admission.ok) return admission;
     await storage.put(TIMES_KEY, admission.state);
-    if ((await storage.getAlarm()) === null) await storage.setAlarm(admission.state[0] + CREATE_LIMIT.windowMs);
+    if ((await storage.getAlarm()) === null) await storage.setAlarm(nextMidnight(utcDay(now)));
     return { ok: true };
   }
 
   async alarm(): Promise<void> {
     const storage = this.ctx.storage;
     const now = Date.now();
+    const today = utcDay(now);
     const tally = await storage.get<DayTally>(TALLY_KEY);
-    if (tally?.day === utcDay(now)) return storage.setAlarm(nextMidnight(tally.day));
-    const recent = ((await storage.get<number[]>(TIMES_KEY)) ?? []).filter((time) => now - time < CREATE_LIMIT.windowMs);
-    if (recent.length === 0) return storage.deleteAll();
-    await storage.put(TIMES_KEY, recent);
-    await storage.setAlarm(recent[0] + CREATE_LIMIT.windowMs);
+    if (tally?.day === today) return storage.setAlarm(nextMidnight(today));
+    const counted = stillCounted((await storage.get<number[]>(TIMES_KEY)) ?? [], now);
+    if (counted.length === 0) return storage.deleteAll();
+    await storage.put(TIMES_KEY, counted);
+    const last = counted[counted.length - 1];
+    await storage.setAlarm(utcDay(last) === today ? nextMidnight(today) : last + MINUTE_MS);
   }
 }

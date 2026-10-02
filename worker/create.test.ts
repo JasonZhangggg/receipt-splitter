@@ -1,6 +1,7 @@
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSplit } from "./create";
 import { DAILY_CAP_NAME } from "./rate-limit";
 import { connect, newSplit, postSplit, T0 } from "./testing";
 
@@ -51,20 +52,84 @@ describe("POST /api/splits", () => {
     expect([eleventh.status, eleventh.headers.get("retry-after")]).toEqual([429, "60"]);
   });
 
-  it("forgets an IP's creates once a minute has passed since the last one", async () => {
+  it("refuses the 51st create from one IP in one UTC day with dailyLimit until the next UTC midnight, while other IPs still create", async () => {
+    const ip = "192.0.2.60";
+    const statuses: number[] = [];
+    let last = new Response();
+    for (let attempt = 0; attempt < 51; attempt += 1) {
+      vi.setSystemTime(T0 + Math.floor(attempt / 10) * 60_000);
+      last = await postSplit({ split: newSplit }, { ip });
+      statuses.push(last.status);
+    }
+    expect(statuses.filter((status) => status === 201)).toHaveLength(50);
+    expect([last.status, last.headers.get("retry-after"), await last.json()]).toEqual([429, String(12 * 60 * 60 - 5 * 60), { refused: "dailyLimit" }]);
+
+    expect((await postSplit({ split: newSplit }, { ip: "192.0.2.61" })).status).toBe(201);
+    vi.setSystemTime(T0 + 12 * 60 * 60 * 1000 - 1);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(429);
+    vi.setSystemTime(T0 + 12 * 60 * 60 * 1000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+  });
+
+  it("forgets an IP's creates at the next UTC midnight, keeping until a minute has passed the ones made in the minute before it", async () => {
+    const midnight = T0 + 12 * 60 * 60 * 1000;
     const limiter = env.CreateLimiter.getByName("192.0.2.91");
     const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
     await postSplit({ split: newSplit }, { ip: "192.0.2.91" });
-    vi.setSystemTime(T0 + 30_000);
+    expect((await stored()).alarm).toBe(midnight);
+    vi.setSystemTime(midnight - 30_000);
     await postSplit({ split: newSplit }, { ip: "192.0.2.91" });
 
-    vi.setSystemTime(T0 + 60_000);
+    vi.setSystemTime(midnight);
     expect(await runDurableObjectAlarm(limiter)).toBe(true);
-    expect((await stored()).alarm).toBe(T0 + 90_000);
+    expect(await stored()).toEqual({ keys: ["times"], alarm: midnight + 30_000 });
 
-    vi.setSystemTime(T0 + 90_000);
+    vi.setSystemTime(midnight + 30_000);
     expect(await runDurableObjectAlarm(limiter)).toBe(true);
     expect(await stored()).toEqual({ keys: [], alarm: null });
+  });
+
+  it("keeps an IP's alarm on the next UTC midnight when it creates just after midnight, before the carry alarm", async () => {
+    const midnight = T0 + 12 * 60 * 60 * 1000;
+    const ip = "192.0.2.199";
+    const limiter = env.CreateLimiter.getByName(ip);
+    const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
+    vi.setSystemTime(midnight - 30_000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    vi.setSystemTime(midnight);
+    await runDurableObjectAlarm(limiter);
+    expect((await stored()).alarm).toBe(midnight + 30_000);
+
+    vi.setSystemTime(midnight + 10_000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    vi.setSystemTime(midnight + 30_000);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect(await stored()).toEqual({ keys: ["times"], alarm: midnight + 24 * 60 * 60 * 1000 });
+  });
+
+  it("keeps an IP's create made on the new day when its alarm fires late, and waits for the next UTC midnight", async () => {
+    const midnight = T0 + 12 * 60 * 60 * 1000;
+    const ip = "192.0.2.198";
+    const limiter = env.CreateLimiter.getByName(ip);
+    const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    vi.setSystemTime(midnight + 5 * 60_000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+
+    vi.setSystemTime(midnight + 10 * 60_000);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect(await stored()).toEqual({ keys: ["times"], alarm: midnight + 24 * 60 * 60 * 1000 });
+  });
+
+  it("tells an IP over the minute limit to retry when its oldest create in the window leaves it", async () => {
+    const ip = "192.0.2.92";
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      vi.setSystemTime(T0 + attempt * 5_000);
+      expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    }
+    vi.setSystemTime(T0 + 50_000);
+    const eleventh = await postSplit({ split: newSplit }, { ip });
+    expect([eleventh.status, eleventh.headers.get("retry-after"), await eleventh.json()]).toEqual([429, "10", { refused: "rateLimited" }]);
   });
 
   it("counts every IPv6 address in one /64 as one client", async () => {
@@ -121,21 +186,25 @@ describe("POST /api/splits", () => {
     expect(performance.now() - started).toBeLessThan(250);
   });
 
-  it("refuses a streamed body over the byte cap that declares no length", async () => {
+  it("refuses a streamed body over the byte cap that declares no length, and stops reading it", async () => {
     const bytes = new TextEncoder().encode(
-      JSON.stringify({ split: { ...newSplit, pad: "x".repeat(40 * 1024) } }),
+      JSON.stringify({ split: { ...newSplit, pad: "x".repeat(80 * 1024) } }),
     );
+    const chunks: Uint8Array[] = [];
+    for (let offset = 0; offset < bytes.length; offset += 4096) chunks.push(bytes.slice(offset, offset + 4096));
+    let pulled = 0;
     const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        for (let offset = 0; offset < bytes.length; offset += 4096) controller.enqueue(bytes.slice(offset, offset + 4096));
-        controller.close();
+      pull(controller) {
+        if (pulled < chunks.length) controller.enqueue(chunks[pulled++]);
+        else controller.close();
       },
     });
     const request = new Request("http://localhost/api/splits", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.250" }, body });
     expect(request.headers.get("content-length")).toBe(null);
-    const response = await exports.default.fetch(request);
+    const response = await createSplit(request, env);
     expect(response.status).toBe(413);
     expect(await response.json()).toEqual({ refused: "bodyTooLarge" });
+    expect(pulled).toBeLessThan(chunks.length);
   });
 
   it("refuses an unknown top-level key", async () => {

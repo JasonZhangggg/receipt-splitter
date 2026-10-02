@@ -45,7 +45,8 @@ A single `drive` cannot tap through the sheet, so these flows run as Playwright 
 ## Gotchas
 
 - Each IP may create 10 Splits a minute. A lane that creates more gets 429, and the action shows `Too many links from here. Try again in a minute.`
-- All IPs together may create 1,000 Splits per UTC day. Past that a create gets 429 with `refused: "dailyLimit"`, and the action shows `Too many new splits today. Try again after <time>.`, where `<time>` is the next UTC midnight in the browser's time zone. `cleanup` resets the count.
+- Each IP may create 50 Splits per UTC day. The 51st gets 429 with `refused: "dailyLimit"` and the same message as the global cap below. The count lives in the run's Durable Object storage, so `cleanup` resets it for a `launch` port, and deleting `.wrangler/state/` resets it for `npm run e2e`, whose specs reuse the same addresses on every run.
+- All IPs together may create 1,000 Splits per UTC day. Past that a create gets 429 with `refused: "dailyLimit"`, and the action shows `Too many new splits today. Try again after <time>.`, where `<time>` is the next UTC midnight in the browser's time zone. When that falls on the browser's next calendar day, it reads `Try again tomorrow after <time>.` `cleanup` resets the count.
 - `cleanup` deletes the Durable Object storage, so links from an earlier launch show the expired page.
 - The home page keeps the link in its saved draft. Start each drive in a fresh browser context, or the sheet opens on the old link.
 - The Host is the first name typed on `/`. Creating the Split picks no name, so other browsers see the Host's name as free until a device picks it. One device at a time holds a name, and **That's me** moves it.

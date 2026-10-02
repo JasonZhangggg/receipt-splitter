@@ -51,7 +51,7 @@ it("one create with a photo writes 19 rows from its POST through its photo uploa
   expect((await postSplit({ split: newSplit })).status).toBe(201);
   const capWrites = await runInDurableObject(cap, (_, state) => billedRowWrites(state.storage));
   expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
-  vi.setSystemTime(T0 - 30 * DAY + 60_000);
+  vi.setSystemTime(T0 - 30 * DAY + DAY / 2);
   await runDurableObjectAlarm(limiter);
 
   const id = randomId(SPLIT_ID_LENGTH);

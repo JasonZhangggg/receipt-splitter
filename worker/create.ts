@@ -22,7 +22,7 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
   const room = await cap.peekToday();
   if (!room.ok) return tooMany("dailyLimit", room.retryAfterMs);
   const admission = await env.CreateLimiter.getByName(limiterKey(ip)).admit();
-  if (!admission.ok) return tooMany("rateLimited", admission.retryAfterMs);
+  if (!admission.ok) return tooMany(admission.refused, admission.retryAfterMs);
   const today = await cap.admitToday();
   if (!today.ok) return tooMany("dailyLimit", today.retryAfterMs);
 

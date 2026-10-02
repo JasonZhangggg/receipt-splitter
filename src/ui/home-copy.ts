@@ -39,7 +39,7 @@ export const linkCopy = {
 
 export const createCopy = {
   busy: "Too many links from here. Try again in a minute.",
-  daily: (opensAt: string) => `Too many new splits today. Try again after ${opensAt}.`,
+  daily: (opensAt: string, tomorrow: boolean) => `Too many new splits today. Try again ${tomorrow ? "tomorrow " : ""}after ${opensAt}.`,
   network: "Couldn't reach the server. Try again.",
   handle: "Check how to pay you.",
   other: "Couldn't create the link. Try again.",
