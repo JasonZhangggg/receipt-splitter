@@ -295,6 +295,63 @@ describe("parseReceipt", () => {
     ]);
   });
 
+  describe("the percent-run rule for a Bundle", () => {
+    const bucket = (discountLabel: string, discount: string, first = "$22.55", second = "$22.50") =>
+      parseReceipt(
+        receiptRows([
+          ["Beer Bucket", "$0.00"],
+          ["Bud Light", first],
+          ["Coors Light", second],
+          [discountLabel, discount],
+          ["Total", "$40.55"],
+        ]),
+      );
+
+    test.each([["-$4.50", -450], ["-$4.51", -451]])("bundles a 10%% discount of %s over a run of $45.05", (discount, cents) => {
+      const receipt = bucket("Beer Bucket Discount (10%)", discount);
+
+      expect(receipt?.adjustments.map(({ kind, amount }) => [kind, amount])).toEqual([["bundleDiscount", cents]]);
+      expect(receipt?.items.map(({ name }) => name)).toEqual(["Bud Light", "Coors Light"]);
+    });
+
+    test("leaves a 10% discount of -$4.52 receipt-wide, since it is 1.5 cents off the run", () => {
+      const receipt = bucket("Beer Bucket Discount (10%)", "-$4.52");
+
+      expect(receipt?.adjustments).toEqual([{ id: "a1", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -452 }]);
+      expect(receipt?.items.map(({ name }) => name)).toEqual(["Beer Bucket", "Bud Light", "Coors Light"]);
+    });
+
+    test.each([
+      ["(12.5%)", "-$1.25", -125],
+      ["(10 %)", "-$1.00", -100],
+    ])("reads the printed percent %s", (percent, discount, cents) => {
+      const receipt = bucket(`Beer Bucket Discount ${percent}`, discount, "$5.00", "$5.00");
+
+      expect(receipt?.adjustments).toEqual([
+        { id: "a1", kind: "bundleDiscount", name: `Beer Bucket Discount ${percent}`, amount: cents, bundle: { name: "Beer Bucket", items: ["i1", "i2"] } },
+      ]);
+    });
+
+    test("keeps a discount receipt-wide when it does not echo the $0.00 line, even when its run matches", () => {
+      const receipt = parseReceipt(
+        receiptRows([
+          ["Free Water", "$0.00"],
+          ["Burger", "$12.00"],
+          ["Fries", "$4.00"],
+          ["Coupon -10%", "-$1.60"],
+          ["Total", "$14.40"],
+        ]),
+      );
+
+      expect(receipt?.items.map(({ name, price }) => [name, price])).toEqual([
+        ["Free Water", 0],
+        ["Burger", 1200],
+        ["Fries", 400],
+      ]);
+      expect(receipt?.adjustments).toEqual([{ id: "a1", kind: "discount", name: "Coupon -10%", amount: -160 }]);
+    });
+  });
+
   test("keeps a real discount whose label says total when only keeping it passes the Total check", () => {
     const receipt = parseReceipt(
       receiptRows([

@@ -14,3 +14,4 @@ Some receipts print a group of Items under a $0.00 header, then a discount for t
 - The part of the receipt-level Adjustments, such as tax and tip, that a Participant pays is proportional to their Claimed Items net of their Bundle discount portions.
 - Deleting an Item drops it from its Bundle in the same Change. Deleting a Bundle's last Item removes its discount in the same Change, so a Bundle never names a missing Item, and one Revert brings both back.
 - A stored Split that holds a Bundle is `schemaVersion: 2`, per ADR 0004's rule. A Worker that reads version 2 ships one deploy before any Worker writes it, so rolling back the writer never makes a live Split unreadable.
+- Bundle detection is conservative. A discount that echoes the header but prints no percent, or a garbled one, stays receipt-wide. A coincidental run can pull a nearby Item into a Bundle. A $0.00 modifier inside a group drops the Bundle, which fails safe to receipt-wide.
