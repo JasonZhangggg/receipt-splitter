@@ -370,7 +370,8 @@ test.describe("the sheet", () => {
     await touch("touchStart");
     await touch("touchMove", 70);
     await touch("touchEnd");
-    await expect.poll(offset).toBeGreaterThan(0);
+    const released = await offset();
+    await expect.poll(offset).not.toBe(released);
     await touch("touchStart");
     const caught = await offset();
     await page.waitForTimeout(200);
