@@ -199,8 +199,8 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
         ) : null}
       </View>
       <SumLine item={item} unit={unit} price={unitPrice} />
-      {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.overPrice}</Text> : null}
-      {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
+      {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{say.overPrice}</Text> : null}
+      {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
       <PressTarget name={say.deleteItem} outsideScroll onPress={remove} style={(pressed) => pressStyle(pressed, reduce)}>
         {() => (
           <View style={[styles.delete, { backgroundColor: c.sheetIn }]}>

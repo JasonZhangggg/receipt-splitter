@@ -84,7 +84,7 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
             blurOnSubmit={false}
             style={[type.input, styles.field, { color: c.ink, backgroundColor: c.sheetIn, boxShadow: `inset 0 0 0 1.5px ${c.ink}` }]}
           />
-          {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
+          {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
           <Button label={typing.trim() ? say.joinAs(typing.trim()) : say.yourName} disabled={!typing.trim()} onPress={join} outsideScroll />
         </View>
       )}

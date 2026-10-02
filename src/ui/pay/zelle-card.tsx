@@ -26,7 +26,7 @@ export function ZelleCard({ host, handle, amount }: { host: string; handle: stri
         <CopyRow shown={handle} value={handle} onFail={() => setProblem(true)} />
         <CopyRow shown={dollars(amount)} value={plainAmount(amount)} onFail={() => setProblem(true)} />
       </View>
-      {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.copyValueFailed}</Text> : null}
+      {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );
 }

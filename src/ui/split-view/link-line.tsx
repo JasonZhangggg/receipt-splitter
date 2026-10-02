@@ -51,7 +51,7 @@ export function LinkLine({ url, onShared }: { url: string; onShared: () => void 
         <Button kind="icon" icon={copied ? "check" : "copy"} name={copied ? say.copied : say.copy} onPress={() => void copy()} outsideScroll />
         {sharable ? <Button kind="icon" icon="share" name={say.share} onPress={() => void share()} outsideScroll /> : null}
       </View>
-      {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.copyFailed}</Text> : null}
+      {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{say.copyFailed}</Text> : null}
     </View>
   );
 }

@@ -79,7 +79,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       </View>
       {refusal ? (
         <View style={styles.refusalLine}>
-          <Text role="alert" style={[type.small, styles.refusal, { backgroundColor: c.flagWash, color: c.flag }]}>
+          <Text role="alert" style={[type.small, styles.refusal, { color: c.muted }]}>
             {refusal}
           </Text>
         </View>

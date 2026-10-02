@@ -32,7 +32,6 @@ const text: [fg: keyof Colors, bg: keyof Colors][] = [
   ["muted", "sheetIn"],
   ["onAction", "action"],
   ["onOff", "off"],
-  ["flag", "flagWash"],
   ["danger", "sheetIn"],
 ];
 

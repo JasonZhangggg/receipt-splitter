@@ -203,7 +203,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           {expanded && selectedPerson ? (
             <View>
               <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} />
-              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{payProblem}</Text> : null}
+              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
             </View>
           ) : unshared ? null : (
             <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
@@ -256,7 +256,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         {phase === "pick" ? (
           <>
             <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} leaving={false} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
-            {pickProblem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{pickProblem}</Text> : null}
+            {pickProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
           </>
         ) : (
           regular

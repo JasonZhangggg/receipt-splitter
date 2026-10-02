@@ -66,6 +66,7 @@ export const editorCopy = {
   priceOf: (name: string, flagged: boolean) => `Price of ${name}${flagged ? ", check this price" : ""}`,
   remove: (name: string) => `Remove ${name}`,
   addItem: "Add item",
+  check: "Check",
   subtotal: "Subtotal",
   tip: "Tip",
   total: "Total",

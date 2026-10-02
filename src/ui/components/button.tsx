@@ -137,7 +137,7 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
   if (!reason && !note) return target;
   return (
     <View style={styles.withReason}>
-      <Text id={reasonId} style={[type.small, styles.reason, reason ? { backgroundColor: c.flagWash, color: c.flag } : { color: c.muted }]}>
+      <Text id={reasonId} style={[type.small, styles.reason, { color: c.muted }]}>
         {reason || note}
       </Text>
       {target}
