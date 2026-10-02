@@ -1,4 +1,4 @@
-import { judge, record, scenarios } from "./motion";
+import { addLatency, judge, record, scenarios } from "./motion";
 import { expect, test } from "./without-ocr";
 
 test.setTimeout(60_000);
@@ -8,8 +8,9 @@ const fast = ["pick-handoff", "open-tap", "collapse-tap", "collapse-flick", "bun
 
 for (const scenario of scenarios.filter(({ id }) => fast.includes(id))) {
   test(`${scenario.name}: no long frame, no jump, no reversal`, { tag: "@frame-timing" }, async ({ page }) => {
+    if (scenario.latencyMs) await addLatency(page, scenario.latencyMs);
     await scenario.setup(page);
-    const trace = await record(page, scenario.probes, () => scenario.act(page));
+    const trace = await record(page, scenario.probes, () => scenario.act(page), { quietMs: scenario.quietMs });
     expect(judge(trace, scenario.probes, { instant: scenario.instant }).failures).toEqual([]);
   });
 }
