@@ -49,6 +49,14 @@ async function addName(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
+async function noteLook(page: Page) {
+  const described = await action(page).getAttribute("aria-describedby");
+  return page.locator(`[id="${described}"]`).evaluate((note) => {
+    const style = getComputedStyle(note);
+    return [style.backgroundColor, style.color];
+  });
+}
+
 async function blockedBy(page: Page) {
   const button = action(page);
   const described = await button.getAttribute("aria-describedby");
@@ -116,6 +124,63 @@ test.describe("reading SRD receipt 1040", () => {
   });
 });
 
+test.describe("fixing the Example receipt in the home editor", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await openExample(page);
+    await page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("receipt-splitter:draft")!);
+      saved.draft.scan.fixOnHome = true;
+      localStorage.setItem("receipt-splitter:draft", JSON.stringify(saved));
+    });
+    await page.reload();
+    await expect(page.getByRole("list", { name: "Items" })).toBeVisible();
+    await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+    await addName(page, "Jason");
+  });
+
+  test("a price edit that breaks the Total check highlights the row and notes the gap, unhighlighted, without blocking Create split link", async ({ page }) => {
+    const perrier = page.getByRole("textbox", { name: /^Price of Perrier Sparkling Water/ });
+    await perrier.click();
+    await page.keyboard.type("3.00");
+    const flagged = () => items(page).evaluateAll((rows) => rows.filter((row) => row.dataset.flagged === "true").map((row) => row.querySelector("input")!.value));
+    await expect.poll(flagged).toEqual(["Perrier Sparkling Water"]);
+    await expect(page.getByRole("textbox", { name: "Price of Perrier Sparkling Water, check this price" })).toBeVisible();
+    await expect.poll(() => blockedBy(page)).toEqual({ disabled: null, reason: "Items are $0.50 short of the subtotal." });
+    expect(await noteLook(page)).toEqual(["rgba(0, 0, 0, 0)", "rgb(105, 109, 116)"]);
+
+    await perrier.fill("3.50");
+    expect(await flagged()).toEqual([]);
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
+  });
+
+  test("a tip typed as 4.60 moves the Total to $32.64 and keeps the action enabled", async ({ page }) => {
+    await amount(page, "Tip").click();
+    await page.keyboard.type("4.60");
+    await amount(page, "Tip").blur();
+    await expect(amount(page, "Tip")).toHaveValue("$4.60");
+    await expect(amount(page, "Total")).toHaveValue("$32.64");
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
+  });
+
+  test("adding a missing Item and deleting a row each update the note in one step", async ({ page }) => {
+    await page.getByRole("button", { name: "Remove Sprite" }).click();
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
+    await page.getByRole("button", { name: "Add item" }).click();
+    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Name every item." });
+    await page.getByRole("textbox", { name: "Name of item 5" }).fill("Sprite");
+    await page.getByRole("textbox", { name: "Price of Sprite" }).fill("2.50");
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
+    expect(await readItems(page)).toEqual([
+      "Chicken Fried Rice And Egg 7.99",
+      "California Tropic And Miso 7.99",
+      "Add Two Tostones 1.00",
+      "Perrier Sparkling Water 3.50",
+      "Sprite 2.50",
+    ]);
+  });
+});
+
 test("a failed read opens the empty editor with the file row, and two typed Items and a total pass the check", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("/");
@@ -140,6 +205,15 @@ test("a failed read opens the empty editor with the file row, and two typed Item
   await addName(page, "Jason");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   await expect(page.getByText("2 items")).toBeVisible();
+
+  await amount(page, "Tip").fill("4.60");
+  await page.getByRole("textbox", { name: /^Price of Iced tea/ }).fill("3.00");
+  await expect(amount(page, "Total")).toHaveValue("$22.60");
+  await page.reload();
+  await expect(amount(page, "Tip")).toHaveValue("$4.60");
+  await expect(page.getByRole("textbox", { name: /^Price of Iced tea/ })).toHaveValue("3.00");
+  await expect(amount(page, "Total")).toHaveValue("$22.60");
+  expect(await readItems(page)).toEqual(["Pad thai 14.00", "Iced tea 3.00"]);
 });
 
 test("a scan that fails the Total check shows the card, a quiet note, and still creates the link", async ({ page }, testInfo) => {
@@ -154,6 +228,7 @@ test("a scan that fails the Total check shows the card, a quiet note, and still 
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
+  expect(await noteLook(page)).toEqual(["rgba(0, 0, 0, 0)", "rgb(105, 109, 116)"]);
 
   await action(page).click();
   await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
@@ -328,6 +403,7 @@ test("a reload keeps the draft, and once the model is cached a reload and a new 
   await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
   await expect(card(page)).toContainText("srd-1040-no-sprite.jpg", scanTimeout);
   await expect(card(page)).toContainText("4 items");
+  await expect(card(page)).toContainText("$28.04");
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
 });
 
