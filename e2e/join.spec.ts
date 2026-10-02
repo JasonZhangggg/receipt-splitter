@@ -157,6 +157,7 @@ test("Copy puts the exact link on the clipboard, and Share in the header hands i
   await readyHome(page);
   const link = await createLink(page);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(question(page)).toBeHidden();
 
   await page.getByRole("button", { name: "Copy" }).click();
   await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
