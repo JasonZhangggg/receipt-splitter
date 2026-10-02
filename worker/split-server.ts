@@ -29,8 +29,10 @@ type Stored =
       readonly photo: Photo;
     };
 
-/** Null for a Split created before photos, which never takes one. `puts` counts the stored PUTs, and 0 means no photo is held. */
-type Photo = { readonly until: number; readonly puts: number } | null;
+type Photo =
+  | { readonly kind: "beforePhotos" }
+  | { readonly kind: "empty"; readonly until: number }
+  | { readonly kind: "held"; readonly until: number; readonly puts: number };
 
 type Rate = { readonly operations: Bucket | null; readonly history: Bucket | null };
 
@@ -81,7 +83,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
       changedAt: now,
       secret,
       rate: { operations: null, history: null },
-      photo: { until: now + PHOTO_TTL_MS, puts: 0 },
+      photo: { kind: "empty", until: now + PHOTO_TTL_MS },
     };
     await this.ctx.storage.setAlarm(now + SPLIT_TTL_MS);
     return { created: true, creatorSecret: toBase64Url(secret) };
@@ -151,18 +153,19 @@ export class SplitServer extends Server<Cloudflare.Env> {
     }
     const { photo } = stored;
     if (jpeg === null) {
-      if (!held(photo)) return new Response(null, { status: 404 });
+      if (photo.kind !== "held") return new Response(null, { status: 404 });
       return new Response(this.ctx.storage.sql.exec<{ jpeg: ArrayBuffer }>("SELECT jpeg FROM photo").one().jpeg);
     }
     if (!isCreator(bearer(request), stored.secret)) return new Response(null, { status: 403 });
-    if (photo === null || Date.now() >= photo.until) return new Response(null, { status: 410 });
-    if (photo.puts >= PHOTO_PUT_LIMIT) return new Response(null, { status: 429 });
+    if (photo.kind === "beforePhotos" || Date.now() >= photo.until) return new Response(null, { status: 410 });
+    const puts = photo.kind === "held" ? photo.puts + 1 : 1;
+    if (puts > PHOTO_PUT_LIMIT) return new Response(null, { status: 429 });
     const sql = this.ctx.storage.sql;
     sql.exec("CREATE TABLE IF NOT EXISTS photo (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), jpeg BLOB NOT NULL, puts INTEGER NOT NULL)");
     sql.exec("INSERT INTO photo (singleton, jpeg, puts) VALUES (1, ?, 1) ON CONFLICT (singleton) DO UPDATE SET jpeg = excluded.jpeg, puts = puts + 1", jpeg);
-    const next = { ...photo, puts: photo.puts + 1 };
+    const next: Photo = { kind: "held", until: photo.until, puts };
     this.#stored = { ...stored, photo: next };
-    if (photo.puts === 0) await this.ctx.storage.setAlarm(photo.until);
+    if (photo.kind === "empty") await this.ctx.storage.setAlarm(photo.until);
     this.broadcast(stateMessage(null, next, stored.json));
     return new Response(null, { status: 204 });
   }
@@ -172,11 +175,11 @@ export class SplitServer extends Server<Cloudflare.Env> {
     if (stored.kind !== "missing") {
       const due = stored.changedAt + SPLIT_TTL_MS;
       if (Date.now() < due) {
-        if (stored.kind === "live" && held(stored.photo)) {
+        if (stored.kind === "live" && stored.photo.kind === "held") {
           const { until } = stored.photo;
           if (Date.now() < until) return this.ctx.storage.setAlarm(until);
           this.ctx.storage.sql.exec("DELETE FROM photo");
-          const gone = { until, puts: 0 };
+          const gone: Photo = { kind: "empty", until };
           this.#stored = { ...stored, photo: gone };
           this.broadcast(stateMessage(null, gone, stored.json));
         }
@@ -201,10 +204,11 @@ export class SplitServer extends Server<Cloudflare.Env> {
     connection.close(1008, "rateLimited");
   }
 
-  #photoPuts(): number {
+  #photo(until: number): Photo {
     const sql = this.ctx.storage.sql;
-    if (sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'photo'").toArray().length === 0) return 0;
-    return sql.exec<{ puts: number }>("SELECT puts FROM photo").toArray()[0]?.puts ?? 0;
+    if (sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'photo'").toArray().length === 0) return { kind: "empty", until };
+    const [row] = sql.exec<{ puts: number }>("SELECT puts FROM photo").toArray();
+    return row ? { kind: "held", until, puts: row.puts } : { kind: "empty", until };
   }
 
   #load(): Stored {
@@ -233,7 +237,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
       changedAt: row.changed_at,
       secret: new Uint8Array(row.creator_secret),
       rate: { operations: bucketOf(row.operations_tokens, row.operations_at), history: bucketOf(row.history_tokens, row.history_at) },
-      photo: row.created_at == null ? null : { until: row.created_at + PHOTO_TTL_MS, puts: this.#photoPuts() },
+      photo: row.created_at == null ? { kind: "beforePhotos" } : this.#photo(row.created_at + PHOTO_TTL_MS),
     };
   }
 }
@@ -270,12 +274,8 @@ function send(connection: Connection, message: ServerMessage): void {
   connection.send(JSON.stringify(message));
 }
 
-function held(photo: Photo): photo is NonNullable<Photo> {
-  return photo !== null && photo.puts > 0;
-}
-
 function stateMessage(ref: string | null, photo: Photo, json: string): string {
-  return `{"type":"state","ref":${JSON.stringify(ref)},"photo":${held(photo)},"split":${json}}`;
+  return `{"type":"state","ref":${JSON.stringify(ref)},"photo":${photo.kind === "held"},"split":${json}}`;
 }
 
 function bearer(request: Request): string | undefined {

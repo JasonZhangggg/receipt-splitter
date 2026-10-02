@@ -114,7 +114,7 @@ describe("PUT /api/splits/<id>/photo", () => {
     const noScan = new Uint8Array([...SOI, ...APP0_JFIF, ...EOI]);
     const zeroLength = new Uint8Array([...SOI, 0xff, 0xe0, 0x00, 0x00, ...SOS, ...EOI]);
     const notAMarker = new Uint8Array([...SOI, 0x00, 0xe0, 0x00, 0x04, 0x00, 0x00, ...SOS, ...EOI]);
-    const noStartOfImage = new Uint8Array([0xff, 0xe0, ...APP0_JFIF.slice(2), ...SOS, ...EOI]);
+    const noStartOfImage = new Uint8Array([0xff, 0xe0, ...SOS, ...EOI]);
     const cutAtScan = new Uint8Array([...SOI, ...APP0_JFIF, 0xff, 0xda]);
 
     for (const body of [png, html, exifAfterJfif, xmp, lengthPastEnd, noScan, zeroLength, notAMarker, noStartOfImage, cutAtScan, new Uint8Array(0)]) {
