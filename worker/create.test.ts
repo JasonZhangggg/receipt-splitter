@@ -89,6 +89,49 @@ describe("POST /api/splits", () => {
     expect(await stored()).toEqual({ keys: [], alarm: null });
   });
 
+  it("keeps an IP's alarm on the next UTC midnight when it creates just after midnight, before the carry alarm", async () => {
+    const midnight = T0 + 12 * 60 * 60 * 1000;
+    const ip = "192.0.2.199";
+    const limiter = env.CreateLimiter.getByName(ip);
+    const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
+    vi.setSystemTime(midnight - 30_000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    vi.setSystemTime(midnight);
+    await runDurableObjectAlarm(limiter);
+    expect((await stored()).alarm).toBe(midnight + 30_000);
+
+    vi.setSystemTime(midnight + 10_000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    vi.setSystemTime(midnight + 30_000);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect(await stored()).toEqual({ keys: ["times"], alarm: midnight + 24 * 60 * 60 * 1000 });
+  });
+
+  it("keeps an IP's create made on the new day when its alarm fires late, and waits for the next UTC midnight", async () => {
+    const midnight = T0 + 12 * 60 * 60 * 1000;
+    const ip = "192.0.2.198";
+    const limiter = env.CreateLimiter.getByName(ip);
+    const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    vi.setSystemTime(midnight + 5 * 60_000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+
+    vi.setSystemTime(midnight + 10 * 60_000);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect(await stored()).toEqual({ keys: ["times"], alarm: midnight + 24 * 60 * 60 * 1000 });
+  });
+
+  it("tells an IP over the minute limit to retry when its oldest create in the window leaves it", async () => {
+    const ip = "192.0.2.92";
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      vi.setSystemTime(T0 + attempt * 5_000);
+      expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+    }
+    vi.setSystemTime(T0 + 50_000);
+    const eleventh = await postSplit({ split: newSplit }, { ip });
+    expect([eleventh.status, eleventh.headers.get("retry-after"), await eleventh.json()]).toEqual([429, "10", { refused: "rateLimited" }]);
+  });
+
   it("counts every IPv6 address in one /64 as one client", async () => {
     const statuses: number[] = [];
     for (let host = 1; host <= 11; host += 1) {
