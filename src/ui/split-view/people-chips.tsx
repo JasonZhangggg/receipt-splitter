@@ -82,6 +82,7 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
           onChangeText={setTyping}
           onSubmitEditing={commit}
           submitBehavior="submit"
+          blurOnSubmit={false}
           onBlur={commit}
           style={[type.input, styles.input, { color: c.ink, backgroundColor: c.sheetIn }]}
         />

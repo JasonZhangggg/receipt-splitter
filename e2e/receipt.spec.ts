@@ -1,0 +1,141 @@
+import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
+
+test.use({ viewport: { width: 390, height: 844 } });
+test.setTimeout(90_000);
+
+const live = { timeout: 15_000 };
+
+const bucket = (run: 1 | 2, guinness: number, watermelon: number) => [
+  { id: `ultra${run}`, name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
+  { id: `guinness${run}`, name: "Guinness Draught 14.9oz Can", price: 729 * guinness, quantity: guinness },
+  { id: `pineapple${run}`, name: "High Noon Pineapple 12oz Can", price: 849 },
+  { id: `watermelon${run}`, name: "High Noon Watermelon 12oz Can", price: 849 * watermelon, ...(watermelon > 1 ? { quantity: watermelon } : {}) },
+];
+
+const topgolf = {
+  items: [{ id: "gameplay", name: "Gameplay", price: 8775 }, ...bucket(1, 3, 1), ...bucket(2, 2, 2)],
+  adjustments: [
+    { id: "bucket1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["ultra1", "guinness1", "pineapple1", "watermelon1"] } },
+    { id: "bucket2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: { name: "Beer Bucket", items: ["ultra2", "guinness2", "pineapple2", "watermelon2"] } },
+    { id: "tax", kind: "tax", name: "Tax", amount: 494 },
+    { id: "tip", kind: "tip", name: "Tip", amount: 3226 },
+  ],
+  subtotal: 17923,
+  total: 20729,
+};
+
+let creates = 0;
+
+async function createSplit(request: APIRequestContext, workerIndex: number): Promise<string> {
+  creates += 1;
+  const response = await request.post("/api/splits", {
+    headers: { "cf-connecting-ip": `198.52.${100 + workerIndex}.${creates}` },
+    data: {
+      split: {
+        receipt: topgolf,
+        participants: [
+          { id: "jason", name: "Jason" },
+          { id: "sam", name: "Sam" },
+          { id: "priya", name: "Priya" },
+        ],
+        paymentHandles: [{ service: "venmo", handle: "jason-z" }],
+      },
+    },
+  });
+  expect(response.status()).toBe(201);
+  const { id } = await response.json();
+  return new URL(`/s/${id}`, response.url()).href;
+}
+
+const pickSheet = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" });
+
+async function open(browser: Browser, link: string): Promise<Page> {
+  const page = await (await newContext(browser)).newPage();
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+  return page;
+}
+
+async function pick(page: Page, name: string) {
+  await pickSheet(page).getByRole("button", { name, exact: true }).click();
+  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+}
+
+const firstBucket = (page: Page) => page.getByRole("button", { name: /^Beer Bucket, / }).first();
+const guinness = (page: Page) => page.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, quantity 3, \$21\.87/ });
+
+test("a Beer Bucket opens and closes from the keyboard in place, says so through aria-expanded, and keeps focus on its header", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+
+  await expect(page.getByRole("button", { name: "Beer Bucket, 6 items, 10% off, collapsed" })).toHaveCount(2);
+  await firstBucket(page).focus();
+  await page.keyboard.press("Enter");
+
+  await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "true");
+  await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, expanded");
+  await expect(firstBucket(page)).toBeFocused();
+  await expect(guinness(page)).toBeVisible();
+  const region = await firstBucket(page).getAttribute("aria-controls");
+  await expect(page.locator(`[id="${region}"]`).getByRole("button", { name: /^Open Guinness/ })).toBeVisible();
+
+  await page.keyboard.press("Space");
+  await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(firstBucket(page)).toBeFocused();
+  await expect(guinness(page)).toHaveCount(0);
+});
+
+test("a Bundle Item's sheet names its Bundle's discount, and Delete item takes it off the receipt for everyone", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+
+  await firstBucket(sam).click();
+  await guinness(sam).click();
+  const sheet = sam.getByRole("dialog", { name: "Item" });
+  await expect(sheet.getByText("In Beer Bucket. Its 10% off takes $2.19 off this line.")).toBeVisible();
+  await sheet.getByRole("button", { name: "Delete item" }).click();
+
+  await expect(sheet).toHaveCount(0, live);
+  await expect(guinness(sam)).toHaveCount(0);
+  await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, expanded");
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, collapsed", live);
+});
+
+test("a name already on the Split keeps the cursor in Add yourself after Enter, so the next keys fix it", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pickSheet(page).getByRole("button", { name: "Not here? Add yourself" }).click();
+  const field = page.getByRole("textbox", { name: "Your name" });
+  await field.fill("Sam");
+  await field.press("Enter");
+
+  await expect(page.getByText("That name is already here.")).toBeVisible(live);
+  await expect(field).toBeFocused();
+  await page.keyboard.type(" K");
+  await expect(field).toHaveValue("Sam K");
+});
+
+test("the pick sheet takes no taps while it leaves, so its Copy cannot fire after a name is picked", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const page = await (await newContext(browser)).newPage();
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => {
+    const server = socket.connectToServer();
+    socket.onMessage((message) => {
+      if (typeof message === "string" && JSON.parse(message).op?.type === "pick") void held.then(() => server.send(message));
+      else server.send(message);
+    });
+  });
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+  const copy = pickSheet(page).getByRole("button", { name: "Copy" });
+  await copy.click({ trial: true });
+
+  await pickSheet(page).getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(copy.click({ trial: true, timeout: 1_000 })).rejects.toThrow(/pointer events/);
+  release();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
+});

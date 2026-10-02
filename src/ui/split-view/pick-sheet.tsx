@@ -37,7 +37,7 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
   };
 
   return (
-    <View style={styles.sheet}>
+    <View pointerEvents={chosen === null ? "auto" : "none"} style={styles.sheet}>
       <View style={[styles.topline, fadeOut]}>
         <Text style={[type.secondary, styles.invite, { color: c.muted }]}>
           <Text style={[styles.strong, { color: c.ink }]}>{intro.lead}</Text>
@@ -81,6 +81,7 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
             onChangeText={setTyping}
             onSubmitEditing={join}
             submitBehavior="submit"
+            blurOnSubmit={false}
             style={[type.input, styles.field, { color: c.ink, backgroundColor: c.sheetIn, boxShadow: `inset 0 0 0 1.5px ${c.ink}` }]}
           />
           {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}

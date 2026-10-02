@@ -243,7 +243,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         stays
         extra={
           phase === "collapsing" ? (
-            <View style={[styles.leaving, { top: chipsHeight + 14 }]}>
+            <View pointerEvents="none" style={[styles.leaving, { top: chipsHeight + 14 }]}>
               <PickRows rows={pickRows(split, device)} chosen={chosen} leaving onPick={() => {}} />
             </View>
           ) : null

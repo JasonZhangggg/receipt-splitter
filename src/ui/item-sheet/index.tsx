@@ -11,7 +11,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
-import { unitAmounts } from "../split-view/model";
+import { bundleNote, unitAmounts } from "../split-view/model";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
 
@@ -89,6 +89,11 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
     flush();
     onClose();
   };
+  const remove = () => {
+    flushRef.current = () => {};
+    void send({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }).then((ok) => (ok ? onClose() : setProblem(say.saveFailed)));
+  };
+  const note = bundleNote(split.receipt, itemId);
 
   return (
     <View style={styles.sheet}>
@@ -129,6 +134,12 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
         </View>
         <Stepper label={say.quantity} value={quantity} min={1} max={MAX_QUANTITY} onChange={(next) => edit({ quantity: next })} names={[say.fewer, say.more]} large />
       </View>
+      {note ? (
+        <View style={styles.note}>
+          <Icon name="bag" size={15} color={c.muted} />
+          <Text style={[type.caption, styles.noteText, { color: c.muted }]}>{note}</Text>
+        </View>
+      ) : null}
       <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.whoHadIt}</Text>
       {item.split.units.map((_, unit) => {
         const had = claimersOf(item.split, unit);
@@ -163,6 +174,7 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
                     setAdding(null);
                   }}
                   submitBehavior="submit"
+                  blurOnSubmit={false}
                   onBlur={() => setAdding(null)}
                   style={[type.input, styles.chipInput, { color: c.ink, backgroundColor: c.sheetIn }]}
                 />
@@ -194,6 +206,14 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
       <SumLine item={item} />
       {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.overPrice}</Text> : null}
       {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
+      <PressTarget name={say.deleteItem} outsideScroll onPress={remove} style={(pressed) => pressStyle(pressed, reduce)}>
+        {() => (
+          <View style={[styles.delete, { backgroundColor: c.sheetIn }]}>
+            <Icon name="trash" size={18} color={c.danger} />
+            <Text style={[type.button, { color: c.danger }]}>{say.deleteItem}</Text>
+          </View>
+        )}
+      </PressTarget>
     </View>
   );
 }
@@ -368,6 +388,9 @@ const styles = StyleSheet.create({
   sum: { marginHorizontal: 2 },
   sumRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 2 },
   sumEnd: { flexDirection: "row", alignItems: "center", gap: 4 },
+  note: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 2 },
+  noteText: { flexShrink: 1 },
+  delete: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: layout.field, marginTop: 4, borderRadius: layout.fieldRadius },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
 
