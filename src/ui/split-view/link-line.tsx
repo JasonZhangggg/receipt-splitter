@@ -7,7 +7,7 @@ import { type, useColors } from "../theme";
 
 const copiedFor = 1600;
 
-export function LinkLine({ url, onShared }: { url: string; onShared: () => void }) {
+export function LinkLine({ url, onShared, quiet = false }: { url: string; onShared: () => void; quiet?: boolean }) {
   const c = useColors();
   const [copied, setCopied] = useState(false);
   const [problem, setProblem] = useState(false);
@@ -31,19 +31,18 @@ export function LinkLine({ url, onShared }: { url: string; onShared: () => void 
   return (
     <View style={styles.box}>
       <Text numberOfLines={1} style={[type.caption, styles.line, { color: c.muted }]}>
-        <Text style={[type.button, { color: c.ink }]}>{say.linkReady.replace(".", "")}</Text>
-        {"  "}
+        {quiet ? null : <Text style={[type.button, { color: c.ink }]}>{`${say.linkReady.replace(".", "")}  `}</Text>}
         <Text testID="split-link">{url.replace(/^https?:\/\//, "")}</Text>
       </Text>
       {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.copyFailed}</Text> : null}
       <View style={styles.two}>
         {sharable ? (
           <View style={styles.half}>
-            <Button icon="share" label={say.share} onPress={() => void share()} outsideScroll />
+            <Button kind={quiet ? "soft" : "primary"} icon="share" label={say.share} onPress={() => void share()} outsideScroll />
           </View>
         ) : null}
         <View style={styles.half}>
-          <Button kind={sharable ? "soft" : "primary"} icon={copied ? "check" : "copy"} label={copied ? say.copied : say.copy} onPress={() => void copy()} outsideScroll />
+          <Button kind={sharable || quiet ? "soft" : "primary"} icon={copied ? "check" : "copy"} label={copied ? say.copied : say.copy} onPress={() => void copy()} outsideScroll />
         </View>
       </View>
     </View>

@@ -42,4 +42,14 @@ describe("animateSpring", () => {
     expect(values.at(-1)).toBe(0);
     expect(Math.min(...values)).toBeGreaterThan(-12);
   });
+
+  test("paints its first step on the call, so the frame that changes the sheet already shows it moving", () => {
+    vi.stubGlobal("performance", { now: () => 1000 });
+    frames([]);
+    const values: number[] = [];
+    animateSpring(0, 300, 0, (value) => values.push(value), () => {});
+    expect(values).toHaveLength(1);
+    expect(values[0]).toBeGreaterThan(0);
+    expect(values[0]).toBeLessThan(300);
+  });
 });

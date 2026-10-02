@@ -4,7 +4,7 @@ import { cents, MAX_CENTS, price } from "./core/money";
 import { MAX_QUANTITY } from "./core/operations";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import type { ParsedItem } from "./parse";
-import { blockedReason, emptyDraft, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
+import { blocker, emptyDraft, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -28,6 +28,11 @@ const run = (draft: Draft, ...actions: DraftAction[]) => actions.reduce(reduceDr
 
 const read1040 = (draft = emptyDraft) => run(draft, { type: "reading", file }, { type: "read", file, receipt: receipt1040 });
 
+const reasonOf = (draft: Draft) => {
+  const found = blocker(draft);
+  return found?.kind === "note" ? found.note : found;
+};
+
 const withVenmo = (draft: Draft) => run(draft, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addName", name: "Jason" });
 
 class MemoryStorage {
@@ -40,23 +45,23 @@ class MemoryStorage {
   }
 }
 
-describe("blockedReason", () => {
+describe("blocker", () => {
   test("names the one thing that keeps Create split link off", () => {
     const ready = withVenmo(read1040());
     expect({
-      noReceipt: blockedReason(withVenmo(emptyDraft)),
-      reading: blockedReason(withVenmo(run(emptyDraft, { type: "reading", file }))),
-      short: blockedReason(run(ready, { type: "editItem", id: "i5", price: price(300) })),
-      over: blockedReason(run(ready, { type: "editItem", id: "i5", price: price(400) })),
-      noHandle: blockedReason(read1040()),
-      noName: blockedReason(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
-      ready: blockedReason(ready),
+      noReceipt: reasonOf(withVenmo(emptyDraft)),
+      reading: reasonOf(withVenmo(run(emptyDraft, { type: "reading", file }))),
+      short: reasonOf(run(ready, { type: "editItem", id: "i5", price: price(300) })),
+      over: reasonOf(run(ready, { type: "editItem", id: "i5", price: price(400) })),
+      noHandle: reasonOf(read1040()),
+      noName: reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
+      ready: reasonOf(ready),
     }).toEqual({
       noReceipt: "Add a receipt.",
       reading: "Reading the receipt.",
       short: "Items are $0.50 short.",
       over: "Items are $0.50 over.",
-      noHandle: "Add how to pay you.",
+      noHandle: { kind: "noHandle" },
       noName: "Add your name.",
       ready: null,
     });
@@ -66,40 +71,40 @@ describe("blockedReason", () => {
     const withAdjustment = (amount: number): Receipt => ({ ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(amount) }] });
     const reason = "An amount is over $100,000.";
     expect({
-      adjustment: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(99_999_999) }))),
-      negativeAdjustment: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(-99_999_999) }))),
-      total: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, total: cents(MAX_CENTS + 1) } }))),
-      subtotal: blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, subtotal: cents(MAX_CENTS + 1) } }))),
-      tipOnTop: blockedReason(withVenmo(run(read1040(), { type: "editTip", amount: cents(MAX_CENTS) }))),
+      adjustment: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(99_999_999) }))),
+      negativeAdjustment: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(-99_999_999) }))),
+      total: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, total: cents(MAX_CENTS + 1) } }))),
+      subtotal: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, subtotal: cents(MAX_CENTS + 1) } }))),
+      tipOnTop: reasonOf(withVenmo(run(read1040(), { type: "editTip", amount: cents(MAX_CENTS) }))),
     }).toEqual({ adjustment: reason, negativeAdjustment: reason, total: reason, subtotal: reason, tipOnTop: reason });
   });
 
   test("lets an amount of exactly MAX_CENTS through", () => {
     const receipt: Receipt = { items: [{ id: itemId("i1"), name: "Car", price: price(MAX_CENTS) }], adjustments: [], subtotal: cents(MAX_CENTS), total: cents(MAX_CENTS) };
-    expect(blockedReason(withVenmo(run(emptyDraft, { type: "read", file, receipt })))).toBeNull();
+    expect(reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt })))).toBeNull();
   });
 
   test("blames tax and charges when the Items match the subtotal but the total does not", () => {
     const draft = withVenmo(read1040());
-    expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and charges are $0.61 short.");
-    expect(blockedReason(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and charges are $0.39 over.");
+    expect(reasonOf(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and charges are $0.61 short.");
+    expect(reasonOf(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and charges are $0.39 over.");
   });
 
   test("blames the Items for a typed receipt, which has no subtotal to check them against", () => {
     const typed = run(emptyDraft, { type: "read", file, receipt: null }, { type: "addItem" }, { type: "editItem", id: "i1", name: "Pad thai", price: price(1800) });
-    expect(blockedReason(withVenmo(typed))).toBe("Items are $18.00 over.");
+    expect(reasonOf(withVenmo(typed))).toBe("Items are $18.00 over.");
   });
 
   test("a handle of only spaces is no way to pay the Host", () => {
-    expect(blockedReason(run(read1040(), { type: "setHandle", index: 0, handle: "   " }))).toBe("Add how to pay you.");
+    expect(reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "   " }))).toEqual({ kind: "noHandle" });
   });
 
   test("needs a named Item before a typed receipt can go out", () => {
     const typed = withVenmo(run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt: null }));
-    expect(blockedReason(typed)).toBe("Add an item.");
+    expect(reasonOf(typed)).toBe("Add an item.");
     const blank = run(typed, { type: "addItem" }, { type: "editItem", id: "i1", price: price(1000) }, { type: "editTotal", amount: cents(1000) });
-    expect(blockedReason(blank)).toBe("Name every item.");
-    expect(blockedReason(run(blank, { type: "editItem", id: "i1", name: "Pad thai" }))).toBeNull();
+    expect(reasonOf(blank)).toBe("Name every item.");
+    expect(reasonOf(run(blank, { type: "editItem", id: "i1", name: "Pad thai" }))).toBeNull();
   });
 });
 
@@ -109,7 +114,7 @@ describe("the tip", () => {
     expect(draft.scan.status === "read" && [draft.scan.receipt.tip, totalOf(draft)]).toEqual([0, 2804]);
     const tipped = run(draft, { type: "editTip", amount: cents(460) });
     expect(tipped.scan.status === "read" && [tipped.scan.receipt.tip, totalOf(tipped)]).toEqual([460, 3264]);
-    expect(blockedReason(tipped)).toBeNull();
+    expect(reasonOf(tipped)).toBeNull();
   });
 
   test("comes from the receipt's tip lines", () => {
@@ -433,7 +438,7 @@ describe("the Example", () => {
       "Perrier Sparkling Water 350",
     ]);
     expect([draft.scan.receipt.subtotal, draft.scan.receipt.tip, totalOf(draft)]).toEqual([2298, 0, 2804]);
-    expect(blockedReason(draft)).toBeNull();
+    expect(reasonOf(draft)).toBeNull();
   });
 });
 

@@ -252,7 +252,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
       >
         {phase === "pick" ? (
           <>
-            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} leaving={false} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} />
+            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} leaving={false} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
             {pickProblem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{pickProblem}</Text> : null}
           </>
         ) : (

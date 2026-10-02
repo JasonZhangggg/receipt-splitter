@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent, type PointerEvent } from "react-native";
+import { ScrollView, StyleSheet, useWindowDimensions, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { animateSpring, project, rubberband } from "../components/sheet-motion";
@@ -42,6 +42,7 @@ export function SpringSheet({ children, scrim = false, onClose, stays = false, c
   const [content, setContent] = useState(0);
   const visible = content === 0 ? 0 : Math.min(Math.max(content + grabHeight + 30 + insets.bottom, minHeight), tallest);
   const surface = useRef<View>(null);
+  const body = useRef<View>(null);
   const shade = useRef<View>(null);
   const offset = useRef<number | null>(null);
   const stop = useRef<() => void>(() => {});
@@ -134,7 +135,11 @@ export function SpringSheet({ children, scrim = false, onClose, stays = false, c
     settle(rest, velocity);
   };
 
-  const measure = ({ nativeEvent }: LayoutChangeEvent) => setContent(Math.ceil(nativeEvent.layout.height));
+  const measure = () => {
+    const element = body.current as unknown as HTMLElement | null;
+    if (element) setContent(Math.ceil(element.getBoundingClientRect().height));
+  };
+  useLayoutEffect(measure);
 
   return (
     <>
@@ -160,7 +165,7 @@ export function SpringSheet({ children, scrim = false, onClose, stays = false, c
             <View style={[styles.grab, { backgroundColor: c.hairline }]} />
           </View>
           <ScrollView style={[{ maxHeight: tallest - grabHeight }, contain]} contentContainerStyle={{ paddingBottom: 30 + insets.bottom }}>
-            <View onLayout={measure}>{children}</View>
+            <View ref={body} onLayout={measure}>{children}</View>
             {extra}
           </ScrollView>
         </View>

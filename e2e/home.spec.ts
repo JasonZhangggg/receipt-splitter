@@ -130,6 +130,18 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
   await page.keyboard.up(" ");
 });
 
+test("with no way to pay, Create split link shows no note and a tap puts the cursor in the Venmo handle", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Example" }).click();
+  await settle(page);
+  await expect(action(page)).not.toHaveAttribute("aria-describedby");
+  await expect(action(page)).not.toHaveAttribute("aria-disabled");
+  await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
+  await action(page).click();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeFocused();
+  await expect(page).toHaveURL(/\/$/);
+});
+
 test("a keydown on the disabled Create split link draws no press", async ({ page }) => {
   await page.goto("/");
   await settle(page);

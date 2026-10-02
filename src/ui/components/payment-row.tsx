@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
 
 import { PAYMENT_SERVICES } from "../../core/split";
@@ -7,9 +8,9 @@ import { layout, type, useColors } from "../theme";
 import { AppPicker } from "./app-picker";
 import { Button } from "./button";
 
-type Props = { handles: readonly HandleRow[]; dispatch: (action: DraftAction) => void; outsideScroll?: boolean };
+type Props = { handles: readonly HandleRow[]; dispatch: (action: DraftAction) => void; firstHandle?: RefObject<TextInput | null>; outsideScroll?: boolean };
 
-export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
+export function PaymentRows({ handles, dispatch, firstHandle, outsideScroll }: Props) {
   const c = useColors();
   const roomForMore = handles.length < PAYMENT_SERVICES.length;
   return (
@@ -22,6 +23,7 @@ export function PaymentRows({ handles, dispatch, outsideScroll }: Props) {
             <View style={[styles.field, { backgroundColor: c.sheetIn }]}>
               <AppPicker service={service} choices={choices} onPick={(next) => dispatch({ type: "setService", index, service: next })} />
               <TextInput
+                ref={index === 0 ? firstHandle : undefined}
                 aria-label={`${app.name} handle`}
                 value={handle}
                 placeholder={app.hint}

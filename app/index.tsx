@@ -1,11 +1,11 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { NonEmpty, PaymentHandle } from "../src/core/split";
 import { rememberSplit, splitOnDevice } from "../src/device";
-import { blockedReason, filledHandles, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
+import { blocker, filledHandles, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, splitUrl, useLiveSplit } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
@@ -40,6 +40,7 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const scanning = useRef(0);
+  const handleInput = useRef<TextInput>(null);
   const splitId = draft.scan.status === "linked" ? draft.scan.splitId : null;
   const { live, send } = useLiveSplit(splitId);
   const sentHandles = useRef(JSON.stringify(filledHandles(draft.handles)));
@@ -90,7 +91,8 @@ export default function Home() {
   const gutter = wide ? 32 : layout.gutter;
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
-  const reason = blockedReason(draft);
+  const blocked = blocker(draft);
+  const reason = blocked?.kind === "note" ? blocked.note : null;
 
   const create = async () => {
     const request = splitRequest(draft, newParticipantId);
@@ -172,7 +174,7 @@ export default function Home() {
           splitId === null ? (
             <Button
               label={creating ? copy.creating : copy.action}
-              onPress={create}
+              onPress={blocked?.kind === "noHandle" ? () => handleInput.current?.focus() : create}
               outsideScroll
               busy={creating}
               disabled={reason !== null}
@@ -183,7 +185,7 @@ export default function Home() {
           )
         }
       >
-        <PaymentRows handles={draft.handles} dispatch={dispatch} outsideScroll />
+        <PaymentRows handles={draft.handles} dispatch={dispatch} firstHandle={handleInput} outsideScroll />
         <NameChips names={people} onAdd={addName} onRemove={removeName} outsideScroll />
       </Sheet>
       <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 0 : sheetHeight} />

@@ -44,7 +44,7 @@ async function blockedBy(page: Page) {
 test.describe("reading SRD receipt 1040", () => {
   test.setTimeout(120_000);
 
-  test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and a Venmo handle enables Create split link", async ({ page }) => {
+  test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and Create split link with no handle goes to the Venmo handle", async ({ page }) => {
     await page.goto("/");
     await choose(page, receipt1040);
     await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
@@ -69,7 +69,10 @@ test.describe("reading SRD receipt 1040", () => {
     }
     await expect(amount(page, "Tip")).toHaveValue("");
     await expect(amount(page, "Tip")).toHaveAttribute("placeholder", "$0.00");
-    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
+    await action(page).click();
+    await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeFocused();
+    await expect(page).toHaveURL(/\/$/);
 
     await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
     expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
@@ -287,7 +290,7 @@ test("the payment apps and names follow the Host's choices and survive a reload"
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
   for (const name of ["Jason", "Sam", "Priya"]) await addName(page, name);
   await page.getByRole("button", { name: "Remove Sam" }).click();
-  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
 
   await page.reload();
@@ -301,7 +304,7 @@ test("the payment apps and names follow the Host's choices and survive a reload"
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("");
-  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
 });
 
 test.describe("the sheet", () => {
