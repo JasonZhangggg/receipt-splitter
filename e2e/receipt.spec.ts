@@ -85,7 +85,7 @@ test("a Beer Bucket opens and closes from the keyboard in place, says so through
   await expect(guinness(page)).toHaveCount(0);
 });
 
-test("a Bundle Item's sheet names its Bundle's discount, and Delete item takes it off the receipt for everyone", async ({ browser, request }, { workerIndex }) => {
+test("a Bundle Item's sheet names its Bundle's discount, Delete item takes it off the receipt for everyone, and Revert brings it back", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -102,6 +102,11 @@ test("a Bundle Item's sheet names its Bundle's discount, and Delete item takes i
   await expect(guinness(sam)).toHaveCount(0);
   await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, expanded");
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, collapsed", live);
+
+  await sam.getByRole("button", { name: "History" }).click();
+  await sam.getByRole("button", { name: "Revert Removed Guinness Draught 14.9oz Can" }).click();
+  await expect(sam.getByText("Reverted")).toBeVisible(live);
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, collapsed", live);
 });
 
 test("a name already on the Split keeps the cursor in Add yourself after Enter, so the next keys fix it", async ({ browser, request }, { workerIndex }) => {
