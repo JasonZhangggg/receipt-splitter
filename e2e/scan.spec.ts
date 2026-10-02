@@ -70,9 +70,11 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
   test.setTimeout(120_000);
   await page.goto("/");
   await choose(page, "e2e/fixtures/topgolf-synthetic.png");
-  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+  await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect(await readItems(page)).toEqual([
+  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["topgolf-synthetic.png", "9 items", "$207.29"]);
+  await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
+  expect(await draftItems(page)).toEqual([
     "Gameplay 87.75",
     "Michelob Ultra 16oz Aluminum Bottle 6.29",
     "Guinness Draught 14.9oz Can 21.87",
@@ -83,8 +85,11 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
     "High Noon Pineapple 12oz Can 8.49",
     "High Noon Watermelon 12oz Can 16.98",
   ]);
-  expect(await amount(page, "Beer Bucket Discount (10%)").evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value))).toEqual(["-$4.51", "-$4.63"]);
-  await expect(amount(page, "Total")).toHaveValue("$207.29");
+  expect(
+    await page.evaluate(() =>
+      (JSON.parse(localStorage.getItem("receipt-splitter:draft")!).draft.scan.receipt.adjustments as { name: string; amount: number }[]).map(({ name, amount }) => `${name} ${amount}`),
+    ),
+  ).toEqual(["Beer Bucket Discount (10%) -451", "Beer Bucket Discount (10%) -463", "Tax 494"]);
 
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await addName(page, "Jason");
