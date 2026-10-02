@@ -218,8 +218,7 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
     };
     if (reduce) {
       box.style.height = "";
-      const fade = box.animate?.([{ opacity: open ? 0 : 1 }, { opacity: open ? 1 : 0 }], { duration: motion.reducedFade, easing: "ease", fill: "forwards" });
-      if (!fade) return settled();
+      const fade = box.animate([{ opacity: open ? 0 : 1 }, { opacity: open ? 1 : 0 }], { duration: motion.reducedFade, easing: "ease", fill: "forwards" });
       fade.onfinish = () => {
         fade.cancel();
         settled();
