@@ -89,7 +89,7 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
         </View>
       )}
       <View style={[styles.link, fadeOut]}>
-        <LinkLine url={url} onShared={onShared} quiet />
+        <LinkLine url={url} onShared={onShared} />
       </View>
     </View>
   );

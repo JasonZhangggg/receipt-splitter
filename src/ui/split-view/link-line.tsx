@@ -3,18 +3,23 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { Button } from "../components/button";
 import { splitCopy as say } from "../split-copy";
-import { type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 
 const copiedFor = 1600;
+const keptEnd = 6;
 
-export function LinkLine({ url, onShared, quiet = false }: { url: string; onShared: () => void; quiet?: boolean }) {
+/** The link on one line, cut in the middle so its host and the end of its id both show, with Copy and, where the phone can share, Share. */
+export function LinkLine({ url, onShared }: { url: string; onShared: () => void }) {
   const c = useColors();
   const [copied, setCopied] = useState(false);
   const [problem, setProblem] = useState(false);
   const done = useEffectEvent(onShared);
   useEffect(() => {
     if (!copied) return;
-    const timer = setTimeout(() => done(), copiedFor);
+    const timer = setTimeout(() => {
+      setCopied(false);
+      done();
+    }, copiedFor);
     return () => clearTimeout(timer);
   }, [copied]);
   const sharable = typeof navigator !== "undefined" && typeof navigator.share === "function";
@@ -25,34 +30,36 @@ export function LinkLine({ url, onShared, quiet = false }: { url: string; onShar
     );
   const copy = () =>
     navigator.clipboard.writeText(url).then(
-      () => setCopied(true),
+      () => {
+        setProblem(false);
+        setCopied(true);
+      },
       () => setProblem(true),
     );
+  const shown = url.replace(/^https?:\/\//, "");
   return (
     <View style={styles.box}>
-      <Text numberOfLines={1} style={[type.caption, styles.line, { color: c.muted }]}>
-        {quiet ? null : <Text style={[type.button, { color: c.ink }]}>{`${say.linkReady.replace(".", "")}  `}</Text>}
-        <Text testID="split-link">{url.replace(/^https?:\/\//, "")}</Text>
-      </Text>
-      {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.copyFailed}</Text> : null}
-      <View style={styles.two}>
-        {sharable ? (
-          <View style={styles.half}>
-            <Button kind={quiet ? "soft" : "primary"} icon="share" label={say.share} onPress={() => void share()} outsideScroll />
-          </View>
-        ) : null}
-        <View style={styles.half}>
-          <Button kind={sharable || quiet ? "soft" : "primary"} icon={copied ? "check" : "copy"} label={copied ? say.copied : say.copy} onPress={() => void copy()} outsideScroll />
+      <View style={[styles.row, { backgroundColor: c.sheetIn }]}>
+        <View testID="split-link" style={styles.link}>
+          <Text numberOfLines={1} style={[type.caption, styles.head, { color: c.ink }]}>
+            {shown.slice(0, -keptEnd)}
+          </Text>
+          <Text numberOfLines={1} style={[type.caption, { color: c.ink }]}>
+            {shown.slice(-keptEnd)}
+          </Text>
         </View>
+        <Button kind="icon" icon={copied ? "check" : "copy"} name={copied ? say.copied : say.copy} onPress={() => void copy()} outsideScroll />
+        {sharable ? <Button kind="icon" icon="share" name={say.share} onPress={() => void share()} outsideScroll /> : null}
       </View>
+      {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.copyFailed}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  box: { gap: 10 },
-  line: { marginHorizontal: 4 },
-  two: { flexDirection: "row", gap: 10 },
-  half: { flex: 1 },
+  box: { gap: 8 },
+  row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingLeft: 16, paddingRight: 4, borderRadius: layout.fieldRadius },
+  link: { flex: 1, flexDirection: "row", minWidth: 0, marginRight: 4 },
+  head: { flexShrink: 1 },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
