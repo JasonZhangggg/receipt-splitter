@@ -254,7 +254,7 @@ type RowCodec<Row extends { readonly id: string }, Original extends { readonly i
   readonly rows: (split: Split) => readonly Row[];
   readonly add: (row: Original, index: number, moved: Row | undefined) => Write;
   readonly remove: (row: Row, index: number) => Write;
-  readonly edit: (row: Row, to: Original) => readonly Write[];
+  readonly edit: (row: Row, to: Original, index: number) => readonly Write[];
 };
 
 const ITEM_ROWS: RowCodec<SplitItem, Item> = {
@@ -347,7 +347,9 @@ const ADJUSTMENT_ROWS: RowCodec<Adjustment, Adjustment> = {
   rows: (split) => split.receipt.adjustments,
   add: (row, index) => ({ kind: "adjustment", id: row.id, added: { index, ...fieldsOf(row) } }),
   remove: (row, index) => ({ kind: "adjustment", id: row.id, removed: { index, ...fieldsOf(row) } }),
-  edit: (row, to) => {
+  edit: (row, to, index) => {
+    // parseSplit refuses an edit that turns a row into or out of a Bundle, so replace the row.
+    if ((row.kind === "bundleDiscount") !== (to.kind === "bundleDiscount")) return [ADJUSTMENT_ROWS.remove(row, index), ADJUSTMENT_ROWS.add(to, index, undefined)];
     const edit = diff<AdjustmentFields>(fieldsOf(row), fieldsOf(to));
     return edit === null || edit === "emptyEdit" ? [] : [{ kind: "adjustment", id: row.id, edit }];
   },
@@ -369,7 +371,7 @@ function restoreRows<Row extends { readonly id: string }, Original extends { rea
     (split) => (codec.rows(split).some(({ id }) => wanted.has(id)) ? removeFrom(split, 0, ({ id }) => wanted.has(id)) : []),
     ...original.map((to, index): MakeWrites => (split) => {
       const rows = codec.rows(split);
-      if (rows[index]?.id === to.id) return codec.edit(rows[index], to);
+      if (rows[index]?.id === to.id) return codec.edit(rows[index], to, index);
       const at = indexOf(rows, to.id);
       return at === -1 ? [codec.add(to, index, undefined)] : [codec.remove(rows[at], at), codec.add(to, index, rows[at])];
     }),
