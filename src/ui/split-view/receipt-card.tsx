@@ -13,7 +13,8 @@ import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
 import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow, type UnitRow } from "./model";
-import { sheetSpring } from "./spring-sheet";
+
+const sheetSpring = { response: 0.35, damping: 1 };
 
 type Props = {
   split: Split;

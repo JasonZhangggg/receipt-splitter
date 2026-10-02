@@ -29,6 +29,7 @@ type WebOnly = Partial<
     | "overflow"
     | "overscrollBehavior"
     | "touchAction"
+    | "willChange"
     | "cursor",
     string
   > & { animationKeyframes: Record<string, Record<string, number | string>>[] }

@@ -23,7 +23,7 @@ import { circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickRows, PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
-import { SpringSheet } from "../../src/ui/split-view/spring-sheet";
+import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
 import { useReducedMotion, webStyle } from "../../src/ui/motion";
 import { layout, motion, type, useColors } from "../../src/ui/theme";
 
@@ -73,7 +73,7 @@ type Send = ReturnType<typeof useLiveSplit>["send"];
 
 const checkFor = 80;
 const tallPickTop = 170;
-const settleFor = 420;
+const crossFadeFor = 200;
 
 function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; send: Send }) {
   const c = useColors();
@@ -124,7 +124,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
       setTimeout(() => {
         setPhase("regular");
         setChosen(null);
-      }, checkFor + settleFor),
+      }, checkFor + crossFadeFor),
     );
   };
 
@@ -147,11 +147,13 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
     for (const op of circleTap(item, unit, selectedPerson.id)) await act({ ...op, by: me });
   };
 
+  const collapse = () => {
+    setExpanded(false);
+    setSelected(me);
+  };
+
   const onChip = (participantId: ParticipantId) => {
-    if (participantId === selected && expanded) {
-      setExpanded(false);
-      return setSelected(me);
-    }
+    if (participantId === selected && expanded) return collapse();
     setSelected(participantId);
     setExpanded(true);
   };
@@ -189,7 +191,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onAdd={(typed) => void addPerson(typed)}
       />
       </View>
-      <View style={[styles.regular, phase === "collapsing" ? styles.waiting : phase === "regular" && !reduce ? bodyEnter : null]}>
+      <View style={[styles.regular, phase === "collapsing" && !reduce ? bodyEnter : null]}>
       {!me ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
@@ -232,14 +234,15 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           </View>
         </View>
       </ScrollView>
-      <SpringSheet
-        scrim={phase !== "regular"}
+      <BottomSheet
+        scrim={phase === "pick"}
         label={phase === "pick" ? say.question : say.people}
         minHeight={phase === "pick" ? windowHeight - tallPickTop : 0}
         rises={false}
         lowered={overlay !== null && !closing}
         onHeight={setSheetHeight}
-        onClose={phase === "pick" ? () => setPhase("regular") : undefined}
+        onDown={phase === "pick" ? () => setPhase("regular") : expanded ? collapse : undefined}
+        onUp={phase === "regular" && me && !expanded ? () => setExpanded(true) : undefined}
         stays
         extra={
           phase === "collapsing" ? (
@@ -258,9 +261,9 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         ) : (
           regular
         )}
-      </SpringSheet>
+      </BottomSheet>
       {overlay ? (
-        <SpringSheet scrim label={overlay.kind === "item" ? say.item : say.history} onClose={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
+        <BottomSheet scrim label={overlay.kind === "item" ? say.item : say.history} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlay.kind === "item" ? (
             <ItemSheet
               split={split}
@@ -276,7 +279,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           ) : (
             <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
           )}
-        </SpringSheet>
+        </BottomSheet>
       ) : null}
     </View>
   );
@@ -309,7 +312,6 @@ const styles = StyleSheet.create({
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   regular: { gap: layout.blockGap },
-  waiting: { opacity: 0 },
   leaving: { position: "absolute", left: 0, right: 0 },
   prompt: { marginHorizontal: 2 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
