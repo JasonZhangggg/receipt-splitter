@@ -51,18 +51,39 @@ describe("POST /api/splits", () => {
     expect([eleventh.status, eleventh.headers.get("retry-after")]).toEqual([429, "60"]);
   });
 
-  it("forgets an IP's creates once a minute has passed since the last one", async () => {
+  it("refuses the 51st create from one IP in one UTC day with dailyLimit until the next UTC midnight, while other IPs still create", async () => {
+    const ip = "192.0.2.60";
+    const statuses: number[] = [];
+    let last = new Response();
+    for (let attempt = 0; attempt < 51; attempt += 1) {
+      vi.setSystemTime(T0 + Math.floor(attempt / 10) * 60_000);
+      last = await postSplit({ split: newSplit }, { ip });
+      statuses.push(last.status);
+    }
+    expect(statuses.filter((status) => status === 201)).toHaveLength(50);
+    expect([last.status, last.headers.get("retry-after"), await last.json()]).toEqual([429, String(12 * 60 * 60 - 5 * 60), { refused: "dailyLimit" }]);
+
+    expect((await postSplit({ split: newSplit }, { ip: "192.0.2.61" })).status).toBe(201);
+    vi.setSystemTime(T0 + 12 * 60 * 60 * 1000 - 1);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(429);
+    vi.setSystemTime(T0 + 12 * 60 * 60 * 1000);
+    expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
+  });
+
+  it("forgets an IP's creates at the next UTC midnight, keeping until a minute has passed the ones made in the minute before it", async () => {
+    const midnight = T0 + 12 * 60 * 60 * 1000;
     const limiter = env.CreateLimiter.getByName("192.0.2.91");
     const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
     await postSplit({ split: newSplit }, { ip: "192.0.2.91" });
-    vi.setSystemTime(T0 + 30_000);
+    expect((await stored()).alarm).toBe(midnight);
+    vi.setSystemTime(midnight - 30_000);
     await postSplit({ split: newSplit }, { ip: "192.0.2.91" });
 
-    vi.setSystemTime(T0 + 60_000);
+    vi.setSystemTime(midnight);
     expect(await runDurableObjectAlarm(limiter)).toBe(true);
-    expect((await stored()).alarm).toBe(T0 + 90_000);
+    expect(await stored()).toEqual({ keys: ["times"], alarm: midnight + 30_000 });
 
-    vi.setSystemTime(T0 + 90_000);
+    vi.setSystemTime(midnight + 30_000);
     expect(await runDurableObjectAlarm(limiter)).toBe(true);
     expect(await stored()).toEqual({ keys: [], alarm: null });
   });
