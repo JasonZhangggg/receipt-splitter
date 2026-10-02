@@ -7,31 +7,30 @@ Production is the Worker `app` on the account subdomain `splitwith`, so the addr
 ## Set up once
 
 1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com). Copy your account ID from the Workers & Pages overview.
-2. Create a Turnstile widget (Turnstile, then Add widget). Set the widget hostname to `app.splitwith.workers.dev`, then copy the site key and the secret key.
-3. Create an API token (My Profile, API Tokens, Create Token) from the "Edit Cloudflare Workers" template.
-4. In GitHub, open Settings, Secrets and variables, Actions. Add these repository secrets.
-	- `CLOUDFLARE_API_TOKEN` holds the token from step 3.
+2. Create an API token (My Profile, API Tokens, Create Token) from the "Edit Cloudflare Workers" template.
+3. In GitHub, open Settings, Secrets and variables, Actions. Add these repository secrets.
+	- `CLOUDFLARE_API_TOKEN` holds the token from step 2.
 	- `CLOUDFLARE_ACCOUNT_ID` holds the account ID from step 1.
-5. On the same page, add these repository variables. Use repository scope, not environment scope, because the workflow reads them in a job-level condition that cannot see environment variables. Deploys start once both are set. Until then the workflow skips the job, and the run stays green.
-	- `EXPO_PUBLIC_TURNSTILE_SITE_KEY` holds the Turnstile site key.
-	- `ALLOWED_HOSTNAMES` holds the hostnames that serve the app, as a comma-separated list. Matching is case-insensitive and spaces are allowed. Write each hostname without a scheme, port, or path. For example, `app.splitwith.workers.dev`.
-6. Optional. Under Settings, Environments, open `production` and add required reviewers or a branch rule. Every deploy job uses that environment.
+4. Optional. Under Settings, Environments, open `production` and add required reviewers or a branch rule. Every deploy job uses that environment.
 
-## Run the first deploy
+The Worker needs no secrets or variables. To run the first deploy, open Actions, select Deploy, and choose Run workflow on `main`.
 
-1. Open Actions, select Deploy, and choose Run workflow on `main`.
-2. When the run succeeds, log in from your machine with `npx wrangler login`.
-3. Store the Turnstile secret key on the Worker. Wrangler prompts for the value, so it never lands in your shell history.
+## Remove the Turnstile setup
+
+The app used Cloudflare Turnstile until 2026-10-01. Nothing reads its settings now, so you can delete them.
+
+1. In GitHub, open Settings, Secrets and variables, Actions, Variables. Delete `EXPO_PUBLIC_TURNSTILE_SITE_KEY` and `ALLOWED_HOSTNAMES`.
+2. Delete the Worker secret. Wrangler deploys a new version without it.
 
 	```sh
-	npx wrangler secret put TURNSTILE_SECRET_KEY
+	npx wrangler secret delete TURNSTILE_SECRET_KEY --name app
 	```
 
-`wrangler secret put` creates a new version and deploys it at once. Run it again whenever you rotate the key.
+3. In the Cloudflare dashboard, open Turnstile and delete the widget for `app.splitwith.workers.dev`.
 
 ## Rename the Worker
 
-The `name` in `wrangler.jsonc` is the Worker's identity and the first label of its address. If you change it after the first deploy, the next deploy creates a new Worker and leaves the old one running. Stored Splits stay on the old Worker, so the new one starts empty. Update the Turnstile widget hostname and `ALLOWED_HOSTNAMES` to the new address, and set `TURNSTILE_SECRET_KEY` again on the new Worker.
+The `name` in `wrangler.jsonc` is the Worker's identity and the first label of its address. If you change it after the first deploy, the next deploy creates a new Worker and leaves the old one running. Stored Splits stay on the old Worker, so the new one starts empty.
 
 ## How a deploy happens
 
@@ -43,7 +42,7 @@ The `name` in `wrangler.jsonc` is the Worker's identity and the first label of i
 
 ## Redeploy manually
 
-Open Actions, select Deploy, and choose Run workflow on `main`. Use this after you change a variable or secret, because changing one does not trigger a deploy. A manual run deploys the tip of `main` and skips the CI check, so confirm that CI passed on that commit first.
+Open Actions, select Deploy, and choose Run workflow on `main`. Use this after you change a repository secret, because changing one does not trigger a deploy. A manual run deploys the tip of `main` and skips the CI check, so confirm that CI passed on that commit first.
 
 ## Roll back
 

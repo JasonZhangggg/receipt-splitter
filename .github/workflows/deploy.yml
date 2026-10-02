@@ -18,14 +18,9 @@ jobs:
   deploy:
     # The branch filter matches the head branch name, so a pull request branch named main
     # also triggers this workflow. The event check keeps those runs from deploying.
-    # A job-level `if` sees repository variables only, so set both variables at repository level.
     if: >-
-      vars.EXPO_PUBLIC_TURNSTILE_SITE_KEY != '' &&
-      vars.ALLOWED_HOSTNAMES != '' &&
-      (
-        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-        (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-      )
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -56,16 +51,8 @@ jobs:
         run: npm ci
       - if: steps.tip.outputs.current == 'true'
         run: npm run build
-        env:
-          EXPO_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.EXPO_PUBLIC_TURNSTILE_SITE_KEY }}
-      # `vars` lists variable names. The action reads each value from this step's env
-      # and passes it to `wrangler deploy` as `--var NAME:value`. It fails if a value is empty.
       - if: steps.tip.outputs.current == 'true'
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          vars: |
-            ALLOWED_HOSTNAMES
-        env:
-          ALLOWED_HOSTNAMES: ${{ vars.ALLOWED_HOSTNAMES }}
