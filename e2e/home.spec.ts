@@ -1,7 +1,7 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
-
 import { fallbackSamples } from "../src/ui/home-copy";
+import { openExample } from "./files";
 import { mountHarness } from "./harness";
+import { expect, test, type Locator, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
 
@@ -58,9 +58,7 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
   await page.locator("#root select").evaluateAll((pickers) => pickers.forEach((picker) => ((picker as HTMLElement).style.display = "none")));
   expect((await page.locator("#root").innerText()).split("\n").filter(Boolean)).toEqual([
     "Receipt Splitter",
-    "Example",
     "Add receipt",
-    "Take or upload a photo",
     "JPEG, PNG, or WebP",
     "V",
     "Venmo",
@@ -132,8 +130,8 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
 
 test("with no way to pay, Create split link shows no note and a tap puts the cursor in the Venmo handle", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Example" }).click();
   await settle(page);
+  await openExample(page);
   await expect(action(page)).not.toHaveAttribute("aria-describedby");
   await expect(action(page)).not.toHaveAttribute("aria-disabled");
   await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
@@ -223,17 +221,32 @@ test("side safe-area insets keep the header and the sheet clear of a landscape n
   expect(right).toBeLessThanOrEqual(landscape.width - 47 - 22);
 });
 
-test("at 1280 px the drop area sits left of the 380 px panel with the upload glyph, and dark mode puts the page and the camera button on the charcoal ladder", async ({ browser }) => {
+const centerOf = async (target: Locator) => {
+  const box = (await target.boundingBox())!;
+  return { x: Math.round(box.x + box.width / 2), left: Math.round(box.x), width: Math.round(box.width) };
+};
+
+for (const width of [1024, 1440]) {
+  test(`at ${width} px the drop area, the payment row, and Create split link share one centered column`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await settle(page);
+    const zone = await centerOf(hero(page));
+    const pay = await centerOf(page.getByRole("textbox", { name: "Venmo handle" }).locator("xpath=../.."));
+    const create = await centerOf(action(page));
+    expect(zone.x).toBe(width / 2);
+    expect([pay.left, pay.width]).toEqual([zone.left, zone.width]);
+    expect([create.left, create.width]).toEqual([zone.left, zone.width]);
+    await expect(page.locator("[data-sheet]")).toHaveCount(0);
+    expect(await hero(page).innerText()).toBe("Drop a receipt\nChoose a photo, or paste one\nJPEG, PNG, or WebP");
+  });
+}
+
+test("at 1280 px in dark mode the page and the camera button sit on the charcoal ladder", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 }, colorScheme: "dark" });
   const page = await context.newPage();
   await page.goto("/");
   await settle(page);
-  const zone = (await hero(page).boundingBox())!;
-  const panel = await sheetOf(action(page));
-  expect(await hero(page).innerText()).toBe("Drop a receipt\nChoose a photo, or paste one\nJPEG, PNG, or WebP");
-  expect(panel.width).toBe(380);
-  expect(zone.x + zone.width).toBeLessThan(panel.left);
-  expect(zone.y).toBe(panel.top);
   const colors = await page.evaluate(() => ({
     page: getComputedStyle(document.body).backgroundColor,
     slip: getComputedStyle(document.querySelector("[data-press-face]")!).backgroundColor,
@@ -329,6 +342,7 @@ test("the hero fills the space between the header and the sheet, and the header 
 });
 
 test("Example lines up with the wordmark", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
   await page.goto("/");
   await settle(page);
   const middle = async (target: Locator) => {
@@ -340,18 +354,50 @@ test("Example lines up with the wordmark", async ({ page }) => {
   expect(Math.abs(example - wordmark)).toBeLessThanOrEqual(1);
 });
 
-for (const [width, wide] of [
-  [899, false],
-  [900, true],
+for (const [width, sheet] of [
+  [899, 1],
+  [900, 0],
 ] as const) {
-  test(`at ${width} px the sheet ${wide ? "is" : "is not"} the 380 px panel`, async ({ page }) => {
+  test(`at ${width} px the payment row and the names ${sheet ? "sit in the bottom sheet" : "sit in the page column"}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
     await settle(page);
-    const sheet = await sheetOf(action(page));
-    expect(sheet.width === 380).toBe(wide);
+    await expect(page.locator("[data-sheet]")).toHaveCount(sheet);
+    await expect(page.getByRole("group", { name: "People at the table" })).toBeVisible();
   });
 }
+
+test("Example shows from 768 px and not below", async ({ page }) => {
+  await page.setViewportSize({ width: 767, height: 800 });
+  await page.goto("/");
+  await settle(page);
+  await page.setViewportSize({ width: 768, height: 800 });
+  await expect(page.getByRole("button", { name: "Example" })).toBeVisible();
+  await page.setViewportSize(phone);
+  await expect(page.getByRole("button", { name: "Example" })).toHaveCount(0);
+});
+
+test("names go in by keyboard alone: Enter adds the chip and leaves a fresh field focused for the next", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const people = page.getByRole("group", { name: "People at the table" });
+  await people.getByRole("button", { name: "Your name" }).click();
+  await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
+  await expect(people.getByRole("button", { name: "Add a name" })).toHaveText("Add");
+
+  for (const name of ["Sam", "Priya"]) {
+    await page.keyboard.type(name);
+    await page.keyboard.press("Enter");
+  }
+  await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(2);
+  expect(await people.getByRole("button", { name: /^Remove / }).evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")))).toEqual([
+    "Remove Sam",
+    "Remove Priya",
+  ]);
+  const next = page.getByRole("textbox", { name: "Name", exact: true });
+  await expect(next).toBeFocused();
+  await expect(next).toHaveValue("");
+});
 
 test("the handle placeholder fits its field at 320 px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
@@ -369,7 +415,6 @@ test("the handle placeholder fits its field at 320 px", async ({ page }) => {
 });
 
 const glyphs = {
-  receipt: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z"/><path d="M9 8h6M9 12h6"/>',
   camera:
     '<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.5"/>',
   chevron: '<path d="M6 9l6 6 6-6"/>',
@@ -394,7 +439,7 @@ test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from 
     }),
   );
   const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", alt: "", stroke, width: "1.5", glyph: glyphs[name] });
-  expect(icons).toEqual([icon("receipt", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
+  expect(icons).toEqual([icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
 });
 
 for (const [width, named] of [
@@ -574,15 +619,17 @@ const componentHarness = `
   import { View } from "react-native";
   import { SafeAreaProvider } from "react-native-safe-area-context";
   import { Button } from "./src/ui/components/button";
-  import { FileRow } from "./src/ui/components/file-row";
+  import { ReceiptSummary } from "./src/ui/receipt-input/receipt-summary";
   const thumbnail = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='52'><rect width='40' height='52' fill='%23c8a'/></svg>";
   window.presses = 0;
+  window.views = 0;
+  window.replaces = 0;
   createRoot(document.getElementById("root")).render(
     <SafeAreaProvider>
       <View style={{ width: 350, padding: 20, gap: 16 }}>
         <Button label="Create split link" onPress={() => window.presses++} reason="Items are $0.50 short." />
-        <FileRow name="IMG_4127.jpg" items={5} thumbnail={thumbnail} onReplace={() => {}} />
-        <FileRow name="IMG_4128.jpg" items={1} thumbnail={thumbnail} onReplace={() => {}} />
+        <ReceiptSummary name="IMG_4127.jpg" items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
+        <ReceiptSummary name="Example receipt" items={1} total={1599} thumbnail={null} onReplace={() => {}} stacked />
       </View>
     </SafeAreaProvider>,
   );
@@ -624,25 +671,16 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
-test("the file row shows the thumbnail, the file name, the item count, and a replace button", async ({ page }) => {
+test("the receipt card shows the file name, the item count, and the total, and opens the photo only when there is one", async ({ page }) => {
   await mountHarness(page, componentHarness);
-  await expect(page.getByRole("button", { name: "Replace receipt" })).toHaveCount(2);
-  const rows = await page.getByRole("button", { name: "Replace receipt" }).evaluateAll((buttons) =>
-    buttons.map((button) => {
-      const row = button.parentElement!;
-      const thumbnail = row.firstElementChild!;
-      const box = (el: Element) => [Math.round(el.getBoundingClientRect().width), Math.round(el.getBoundingClientRect().height)];
-      return {
-        text: row.innerText.split("\n"),
-        thumbnail: [box(thumbnail), thumbnail.querySelector("img")?.getAttribute("src")?.startsWith("data:image/svg+xml") ?? false],
-        replace: [box(button), button.querySelector("[data-icon]")?.getAttribute("data-icon")],
-      };
-    }),
-  );
-  const thumbnail = [[40, 52], true];
-  const replace = [[44, 44], "camera"];
-  expect(rows).toEqual([
-    { text: ["IMG_4127.jpg", "5 items"], thumbnail, replace },
-    { text: ["IMG_4128.jpg", "1 item"], thumbnail, replace },
+  const cards = page.getByTestId("receipt");
+  await expect(cards).toHaveCount(2);
+  expect(await cards.evaluateAll((els) => els.map((el) => (el as HTMLElement).innerText.split("\n").filter(Boolean)))).toEqual([
+    ["IMG_4127.jpg", "5 items", "$28.04", "Total"],
+    ["Example receipt", "1 item", "$15.99"],
   ]);
+  await expect(page.getByRole("button", { name: "View receipt photo" })).toHaveCount(1);
+  await page.getByRole("button", { name: "View receipt photo" }).click();
+  await cards.first().getByRole("button", { name: "Replace receipt" }).click();
+  expect(await page.evaluate(() => [(window as unknown as { views: number }).views, (window as unknown as { replaces: number }).replaces])).toEqual([1, 1]);
 });

@@ -5,22 +5,23 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { NonEmpty, PaymentHandle } from "../src/core/split";
 import { rememberSplit, splitOnDevice } from "../src/device";
-import { blocker, filledHandles, mismatchNote, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, type DraftAction, type ReceiptFile } from "../src/draft";
+import { blocker, editsOnHome, filledHandles, mismatchNote, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, totalOf, type DraftAction, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, splitUrl, useLiveSplit } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
 import { Button, PressTarget } from "../src/ui/components/button";
-import { FileRow } from "../src/ui/components/file-row";
 import { LinkBox } from "../src/ui/components/link-box";
 import { NameChips } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
-import { panel, Sheet } from "../src/ui/components/sheet";
+import { Sheet } from "../src/ui/components/sheet";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
 import { copy, createCopy, joinCopy, linkCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
+import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
-import { isPhoto, pickPhoto, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
+import { isPhoto, photoUri, pickPhoto, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
+import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
 import { Reading } from "../src/ui/receipt-input/reading";
 import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
 
@@ -39,6 +40,8 @@ export default function Home() {
   const [sheetHeight, setSheetHeight] = useState(0);
   const [creating, setCreating] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [viewing, setViewing] = useState(false);
   const scanning = useRef(0);
   const handleInput = useRef<TextInput>(null);
   const splitId = draft.scan.status === "linked" ? draft.scan.splitId : null;
@@ -74,6 +77,8 @@ export default function Home() {
     const scan = ++scanning.current;
     const file: ReceiptFile = { name: photo.name || copy.pastedPhoto, thumbnail: await thumbnailOf(photo).catch(() => null) };
     if (scan !== scanning.current) return;
+    const uri = photoUri(photo);
+    setPhoto(uri === null ? null : { uri, name: file.name });
     setProgress(0);
     dispatch({ type: "reading", file });
     const receipt = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction)).then(parseReceipt, () => null);
@@ -83,12 +88,15 @@ export default function Home() {
   const choose = () => pickPhoto(read);
   const example = () => {
     scanning.current++;
+    setPhoto(null);
     dispatch({ type: "example" });
   };
+  useEffect(() => (photo ? () => releasePhotoUri(photo.uri) : undefined), [photo]);
 
-  const wide = width >= breakpoints.panelFrom;
+  const wide = width >= breakpoints.columnFrom;
+  const roomy = width >= breakpoints.roomyFrom;
   const hero = wide ? copy.hero.desktop : copy.hero.phone;
-  const gutter = wide ? 32 : layout.gutter;
+  const gutter = wide ? 40 : layout.gutter;
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
   const blocked = blocker(draft);
@@ -118,83 +126,106 @@ export default function Home() {
   };
   const removeName = splitId === null ? (name: string) => dispatch({ type: "removeName", name }) : undefined;
   const compact = !wide && height - insets.top - insets.bottom < shortScreen;
-  const besidePanel = wide ? { marginLeft: gutter + insets.left, marginRight: panelSpace + insets.right } : sides;
+  const editor = editsOnHome(draft);
+  const ticket = !wide && !editor;
+  const columnWidth = roomy ? 480 : 440;
+  const view = photo ? () => setViewing(true) : undefined;
+  const zoneHeight = roomy ? 380 : 336;
+
+  const action =
+    splitId === null ? (
+      <Button
+        label={creating ? copy.creating : copy.action}
+        onPress={blocked?.kind === "noHandle" ? () => handleInput.current?.focus() : create}
+        outsideScroll={!wide}
+        busy={creating}
+        disabled={reason !== null}
+        reason={failure ?? (scan.status === "read" ? (reason ?? undefined) : undefined)}
+        note={mismatchNote(draft) ?? undefined}
+      />
+    ) : (
+      <LinkBox url={splitUrl(splitId)} onCopyFailed={() => setNotice(linkCopy.copyFailed)} />
+    );
+  const details = (
+    <>
+      <PaymentRows handles={draft.handles} dispatch={dispatch} firstHandle={handleInput} outsideScroll={!wide} />
+      <NameChips names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
+    </>
+  );
+
+  const receipt =
+    scan.status === "empty" ? (
+      <PressTarget
+        onPress={choose}
+        style={() => [
+          styles.hero,
+          wide ? [styles.zone, ringChange, { minHeight: zoneHeight, backgroundColor: c.paper, borderColor: dragging ? c.ink : c.dash }] : [sides, compact && styles.heroCompact],
+        ]}
+      >
+        {(pressed) => (
+          <View style={[styles.drop, !wide && [styles.dashed, compact && styles.dropCompact, { borderColor: dragging ? c.ink : c.dash }]]}>
+            <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact || (wide && !roomy)} />
+            <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
+            {hero.hint ? <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text> : null}
+            <Text style={[type.caption, { color: c.muted }]}>{copy.formats}</Text>
+          </View>
+        )}
+      </PressTarget>
+    ) : scan.status === "reading" ? (
+      <View style={[styles.hero, wide ? [styles.zone, styles.reading, { minHeight: zoneHeight }] : sides]}>
+        <Reading progress={progress} title={copy.reading} />
+      </View>
+    ) : (
+      <View style={[!wide && (editor ? [styles.doc, sides] : [styles.hero, sides]), styles.stack]}>
+        <View style={[styles.cardColumn, ticket && styles.ticketColumn]}>
+          <ReceiptSummary
+            name={scan.file.name}
+            items={scan.receipt.items.length}
+            total={totalOf(scan.receipt)}
+            thumbnail={scan.file.thumbnail}
+            onView={view}
+            onReplace={choose}
+            stacked={ticket}
+          />
+          {editor ? <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} locked={creating || scan.status === "linked"} /> : null}
+        </View>
+      </View>
+    );
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: wide ? 0 : sheetHeight }]}>
-        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? panel.top : layout.header) + insets.top }]}>
+        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? wideHeader : layout.header) + insets.top }]}>
           <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
             {copy.wordmark}
           </Text>
-          {scan.status === "empty" ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
+          {scan.status === "empty" && width >= breakpoints.exampleFrom ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
         </View>
-        {scan.status === "empty" ? (
-          <PressTarget
-            onPress={choose}
-            style={() => [
-              styles.hero,
-              wide
-                ? [
-                    styles.heroWide,
-                    ringChange,
-                    besidePanel,
-                    { backgroundColor: c.paper, borderColor: dragging ? c.ink : c.dash },
-                  ]
-                : [sides, compact && styles.heroCompact],
-            ]}
-          >
-            {(pressed) => (
-              <View style={[styles.drop, !wide && [styles.dashed, compact && styles.dropCompact, { borderColor: dragging ? c.ink : c.dash }]]}>
-                <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact} />
-                <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
-                <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text>
-                <Text style={[type.caption, { color: c.muted }]}>{copy.formats}</Text>
-              </View>
-            )}
-          </PressTarget>
-        ) : scan.status === "reading" ? (
-          <View style={[styles.hero, wide ? [styles.heroWide, besidePanel] : sides]}>
-            <Reading progress={progress} title={copy.reading} />
-          </View>
-        ) : (
-          <View style={[styles.doc, besidePanel]}>
-            <View style={[styles.column, wide && styles.columnWide]}>
-              <FileRow name={scan.file.name} items={scan.receipt.items.length} thumbnail={scan.file.thumbnail} onReplace={choose} />
-              <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} locked={creating || scan.status === "linked"} />
+        {wide ? (
+          <View style={[styles.center, sides, { paddingBottom: wideHeader }]}>
+            <View style={[styles.column, { maxWidth: columnWidth }]}>
+              {receipt}
+              {details}
+              <View style={styles.wideAction}>{action}</View>
             </View>
           </View>
+        ) : (
+          receipt
         )}
       </ScrollView>
 
-      <Sheet
-        wide={wide}
-        onHeight={setSheetHeight}
-        action={
-          splitId === null ? (
-            <Button
-              label={creating ? copy.creating : copy.action}
-              onPress={blocked?.kind === "noHandle" ? () => handleInput.current?.focus() : create}
-              outsideScroll
-              busy={creating}
-              disabled={reason !== null}
-              reason={failure ?? (scan.status === "read" ? (reason ?? undefined) : undefined)}
-              note={mismatchNote(draft) ?? undefined}
-            />
-          ) : (
-            <LinkBox url={splitUrl(splitId)} onCopyFailed={() => setNotice(linkCopy.copyFailed)} />
-          )
-        }
-      >
-        <PaymentRows handles={draft.handles} dispatch={dispatch} firstHandle={handleInput} outsideScroll />
-        <NameChips names={people} onAdd={addName} onRemove={removeName} outsideScroll />
-      </Sheet>
+      {wide ? null : (
+        <Sheet onHeight={setSheetHeight} action={action}>
+          {details}
+        </Sheet>
+      )}
+      {viewing && photo ? <PhotoViewer photo={photo} onExited={() => setViewing(false)} onReplace={choose} /> : null}
       <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 0 : sheetHeight} />
     </View>
   );
 }
 
-const panelSpace = panel.right + panel.width + 28;
+const wideHeader = 76;
 
 const shortScreen = 700;
 
@@ -203,12 +234,17 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
-  heroWide: { marginBottom: 32, paddingTop: 24, paddingBottom: 48, paddingHorizontal: 32, borderRadius: 32, borderWidth: 2, borderStyle: "dashed" },
+  zone: { flexGrow: 0, paddingVertical: 32, paddingHorizontal: 40, borderRadius: 26, borderWidth: 1.5, borderStyle: "dashed" },
+  reading: { borderColor: "transparent" },
   drop: { alignItems: "center", gap: 6 },
   dashed: { alignSelf: "stretch", paddingVertical: 28, paddingHorizontal: 16, borderRadius: 28, borderWidth: 2, borderStyle: "dashed" },
   dropCompact: { paddingVertical: 14 },
   heroCompact: { paddingVertical: 4 },
   doc: { paddingTop: 12, paddingBottom: 20 },
-  column: { alignSelf: "center", width: "100%", maxWidth: 480, gap: layout.blockGap },
-  columnWide: { maxWidth: 560 },
+  stack: { alignSelf: "stretch" },
+  cardColumn: { alignSelf: "center", width: "100%", maxWidth: 480, gap: layout.blockGap },
+  ticketColumn: { maxWidth: 440 },
+  center: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
+  column: { width: "100%", gap: layout.blockGap },
+  wideAction: { paddingTop: layout.blockGap },
 });

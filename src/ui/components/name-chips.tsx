@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { copy } from "../home-copy";
@@ -18,6 +18,8 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
+  const pressing = usePressing(adding);
+  const first = names.length === 0;
   const commit = () => {
     if (typed.trim()) setRefusal(onAdd(typed));
     setTyped("");
@@ -44,8 +46,8 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       {adding ? (
         <TextInput
           autoFocus
-          aria-label={names.length === 0 ? copy.yourName : copy.newName}
-          placeholder={names.length === 0 ? copy.yourName : copy.newName}
+          aria-label={first ? copy.yourName : copy.newName}
+          placeholder={first ? copy.yourName : copy.newName}
           placeholderTextColor={c.muted}
           value={typed}
           enterKeyHint="done"
@@ -56,14 +58,25 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
           }}
           onSubmitEditing={commit}
           submitBehavior="submit"
-          onBlur={() => {
-            commit();
-            setAdding(false);
-          }}
+          blurOnSubmit={false}
+          onBlur={() =>
+            afterPress(pressing.current, () => {
+              commit();
+              setAdding(false);
+            })
+          }
           style={[type.input, styles.input, { color: c.ink, backgroundColor: c.sheetIn }]}
         />
       ) : null}
-      <Button kind="chip" icon="plus" label={names.length === 0 ? copy.addYourName : copy.addName.label} name={names.length === 0 ? copy.addYourName : copy.addName.name} onPress={() => setAdding(true)} outsideScroll={outsideScroll} />
+      <View {...(adding && keepFocus)}>
+        <Button
+          kind="chip"
+          icon="plus"
+          {...(first && !adding ? { label: copy.addYourName } : { label: copy.addName.label, name: copy.addName.name })}
+          onPress={adding ? commit : () => setAdding(true)}
+          outsideScroll={outsideScroll}
+        />
+      </View>
       {refusal ? (
         <View style={styles.refusalLine}>
           <Text role="alert" style={[type.small, styles.refusal, { backgroundColor: c.flagWash, color: c.flag }]}>
@@ -73,6 +86,36 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       ) : null}
     </View>
   );
+}
+
+const keepFocus = { onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() };
+
+const pressEnds = ["pointerup", "pointercancel"] as const;
+
+function usePressing(listening: boolean) {
+  const pressing = useRef(false);
+  useEffect(() => {
+    if (!listening || typeof document === "undefined") return;
+    const down = () => (pressing.current = true);
+    const up = () => (pressing.current = false);
+    document.addEventListener("pointerdown", down, true);
+    for (const end of pressEnds) document.addEventListener(end, up, true);
+    return () => {
+      pressing.current = false;
+      document.removeEventListener("pointerdown", down, true);
+      for (const end of pressEnds) document.removeEventListener(end, up, true);
+    };
+  }, [listening]);
+  return pressing;
+}
+
+function afterPress(pressing: boolean, run: () => void) {
+  if (!pressing) return run();
+  const release = () => {
+    for (const end of pressEnds) document.removeEventListener(end, release);
+    setTimeout(run);
+  };
+  for (const end of pressEnds) document.addEventListener(end, release);
 }
 
 const styles = StyleSheet.create({

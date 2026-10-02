@@ -30,7 +30,7 @@ export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Pr
   const reduce = useReducedMotion();
   const amountText = [type.input, tabular, styles.amount, { color: c.ink }];
   return (
-    <View testID="receipt" style={[styles.card, locked && styles.lockedCard, { backgroundColor: c.paper }, reduce ? entrance.faded : entrance.risen]}>
+    <View style={[styles.card, locked && styles.lockedCard, { backgroundColor: c.paper }, reduce ? entrance.faded : entrance.risen]}>
       <View role="list" aria-label={editorCopy.items}>
         {receipt.items.map((item, index) => {
           const flag = flagged.includes(item.id);

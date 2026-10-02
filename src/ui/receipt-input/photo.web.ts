@@ -70,7 +70,7 @@ export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile, accepting) => {
   return accepting && over;
 };
 
-const thumb = { width: 80, height: 104 };
+const thumb = { width: 232, height: 296 };
 
 export const thumbnailOf: typeof Photo.thumbnailOf = async (file) => {
   const image = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -87,3 +87,7 @@ export const thumbnailOf: typeof Photo.thumbnailOf = async (file) => {
     image.close();
   }
 };
+
+export const photoUri: typeof Photo.photoUri = (file) => URL.createObjectURL(file);
+
+export const releasePhotoUri: typeof Photo.releasePhotoUri = (uri) => URL.revokeObjectURL(uri);

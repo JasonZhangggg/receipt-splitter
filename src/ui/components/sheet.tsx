@@ -7,9 +7,7 @@ import { useReducedMotion, webStyle } from "../motion";
 import { layout, useColors } from "../theme";
 import { animateSpring, rubberband, snapTarget } from "./sheet-motion";
 
-export const panel = { top: 64, width: 380, right: 32 };
-
-type Props = { wide: boolean; children: ReactNode; action: ReactNode; onHeight: (height: number) => void };
+type Props = { children: ReactNode; action: ReactNode; onHeight: (height: number) => void };
 
 const contain = webStyle({ overscrollBehavior: "contain" });
 const grabbable = webStyle({ touchAction: "none", cursor: "grab" });
@@ -19,26 +17,8 @@ const sheetMarker = { dataSet: { sheet: "" } };
 const surfaceMarker = { dataSet: { sheetSurface: "" } };
 
 
-export function Sheet({ wide, children, action, onHeight }: Props) {
-  const c = useColors();
-  const insets = useSafeAreaInsets();
+export function Sheet({ children, action, onHeight }: Props) {
   const { height: windowHeight } = useWindowDimensions();
-  if (wide) {
-    return (
-      <View
-        {...sheetMarker}
-        style={[
-          styles.panel,
-          { backgroundColor: c.sheet, boxShadow: c.panelShadow, top: panel.top + insets.top, right: panel.right + insets.right, width: panel.width },
-        ]}
-      >
-        <ScrollView style={[{ maxHeight: windowHeight - panel.top - insets.top - 140 }, contain]} contentContainerStyle={styles.panelContent}>
-          {children}
-        </ScrollView>
-        <View style={styles.panelAction}>{action}</View>
-      </View>
-    );
-  }
   return (
     <PhoneSheet maxContent={Math.round(windowHeight * 0.45)} action={action} onHeight={onHeight}>
       {children}
@@ -48,7 +28,7 @@ export function Sheet({ wide, children, action, onHeight }: Props) {
 
 type Drag = { pointer: number; startY: number; from: number; moved: boolean; samples: { y: number; t: number }[] };
 
-function PhoneSheet({ children, action, onHeight, maxContent }: Omit<Props, "wide"> & { maxContent: number }) {
+function PhoneSheet({ children, action, onHeight, maxContent }: Props & { maxContent: number }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
@@ -181,7 +161,4 @@ const styles = StyleSheet.create({
   content: { alignSelf: "center", width: "100%", maxWidth: 440, gap: layout.blockGap, paddingBottom: 8 },
   action: { position: "relative", zIndex: 1, paddingTop: layout.blockGap },
   actionInner: { alignSelf: "center", width: "100%", maxWidth: 440 },
-  panel: { position: "absolute", padding: 20, gap: 12, borderRadius: 28 },
-  panelContent: { gap: 12 },
-  panelAction: { marginTop: 8 },
 });

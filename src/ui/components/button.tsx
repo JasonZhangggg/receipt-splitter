@@ -75,6 +75,8 @@ const kinds = {
   },
   link: { face: { minHeight: 44, paddingHorizontal: 2 }, label: type.small, icon: 16, tone: (c: Colors): Tone => ({ ink: c.muted }) },
   icon: { face: { width: 44, height: 44 }, label: type.small, icon: 18, tone: (c: Colors): Tone => ({ ink: c.muted }) },
+  onPhoto: { face: { width: 44, height: 44, borderRadius: 22 }, label: type.small, icon: 18, tone: (): Tone => ({ fill: "rgba(255, 255, 255, 0.14)", ink: "#FFFFFF" }) },
+  overPhoto: { face: { width: 44, height: 44, borderRadius: 22 }, label: type.small, icon: 18, tone: (): Tone => ({ fill: "rgba(255, 255, 255, 0.9)", ink: "#111214" }) },
 } satisfies Record<string, { face: ViewStyle; label: TextStyle; icon: number; tone: (c: Colors, disabled: boolean) => Tone }>;
 
 type Props = ({ label: string; name?: string } | { label?: undefined; name: string }) &

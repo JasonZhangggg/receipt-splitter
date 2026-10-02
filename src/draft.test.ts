@@ -9,7 +9,7 @@ import { mintedId } from "./core/test-ids";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import { parseReceipt, type ParsedItem } from "./parse";
 import { box } from "./parse/fixtures/boxes";
-import { blocker, emptyDraft, mismatchNote, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
+import { blocker, editsOnHome, emptyDraft, mismatchNote, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -336,6 +336,7 @@ describe("reading OCR into the draft", () => {
       status: "read",
       file,
       receipt: { items: [], adjustments: [{ id: "a1", kind: "tax", name: "Tax", amount: 0 }], subtotal: null, tip: 0, totalBeforeTip: 0, nextId: 1 },
+      fixOnHome: true,
     });
   });
 });
@@ -436,6 +437,43 @@ describe("the Payment handles and names", () => {
     const draft = run(emptyDraft, { type: "addName", name: " Sam " }, { type: "addName", name: "" }, { type: "addName", name: "sam" }, { type: "addName", name: "Me" }, { type: "addName", name: "Priya" });
     expect(draft.names).toEqual(["Sam", "Me", "Priya"]);
     expect(run(draft, { type: "removeName", name: "Sam" }).names).toEqual(["Me", "Priya"]);
+  });
+});
+
+describe("where the Host fixes Items", () => {
+  test("a read the Split can take as it is leaves the Items to the Split page", () => {
+    expect(editsOnHome(read1040())).toBe(false);
+    expect(editsOnHome(run(emptyDraft, { type: "example" }))).toBe(false);
+  });
+
+  test("a failed read keeps the editor on home while the Host types Items, and through a reload", () => {
+    const typing = run(emptyDraft, { type: "read", file, receipt: null }, { type: "addItem" }, { type: "editItem", id: "i1", name: "Pad thai", price: price(1400) });
+    expect(editsOnHome(typing)).toBe(true);
+    const storage = new MemoryStorage();
+    saveDraft(typing, storage);
+    expect(editsOnHome(loadDraft(storage))).toBe(true);
+  });
+
+  test("a draft saved before the flag existed keeps the editor on home only if its Items still need fixing", () => {
+    const storage = new MemoryStorage();
+    const saveWithoutFlag = (draft: Draft) => {
+      saveDraft(draft, storage);
+      const saved = JSON.parse(storage.getItem("receipt-splitter:draft")!);
+      delete saved.draft.scan.fixOnHome;
+      storage.setItem("receipt-splitter:draft", JSON.stringify(saved));
+      return loadDraft(storage);
+    };
+    expect(editsOnHome(saveWithoutFlag(run(emptyDraft, { type: "read", file, receipt: null })))).toBe(true);
+    expect(editsOnHome(saveWithoutFlag(read1040()))).toBe(false);
+  });
+
+  test("a read with a priced Item it could not name keeps the editor on home", () => {
+    const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: " ", price: price(150) }] };
+    expect(editsOnHome(run(emptyDraft, { type: "read", file, receipt }))).toBe(true);
+  });
+
+  test("replacing a failed read with a good one leaves the Items to the Split page", () => {
+    expect(editsOnHome(run(emptyDraft, { type: "read", file, receipt: null }, { type: "read", file, receipt: receipt1040 }))).toBe(false);
   });
 });
 

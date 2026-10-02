@@ -18,3 +18,8 @@ for row, (label, amount) in enumerate(lines):
     draw.text((40, y), label, fill="black", font=font)
     draw.text((860, y), amount, fill="black", font=font, anchor="ra")
 receipt.save(root / "e2e/fixtures/topgolf-synthetic.png")
+
+short = Image.open(root / "bench/data/srd-1040.jpg").convert("RGB")
+paper = short.getpixel((480, 700))
+short.paste(paper, (95, 662, 640, 688))
+short.save(root / "e2e/fixtures/srd-1040-no-sprite.jpg", quality=90)
