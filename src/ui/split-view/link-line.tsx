@@ -44,7 +44,7 @@ export function LinkLine({ url, onShared }: { url: string; onShared: () => void 
           <Text numberOfLines={1} style={[type.caption, styles.head, { color: c.ink }]}>
             {shown.slice(0, -keptEnd)}
           </Text>
-          <Text numberOfLines={1} style={[type.caption, { color: c.ink }]}>
+          <Text numberOfLines={1} style={[type.caption, styles.tail, { color: c.ink }]}>
             {shown.slice(-keptEnd)}
           </Text>
         </View>
@@ -61,5 +61,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingLeft: 16, paddingRight: 4, borderRadius: layout.fieldRadius },
   link: { flex: 1, flexDirection: "row", minWidth: 0, marginRight: 4 },
   head: { flexShrink: 1 },
+  tail: { flexShrink: 0 },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
