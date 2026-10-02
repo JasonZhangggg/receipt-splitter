@@ -3,7 +3,7 @@
 The approved design for the post-launch redesign of the Split page receipt and the home page, round 3 of the operator's mockups, approved on 2026-10-01. It is a static sketch, not app code. `docs/plans/receipt-splitter-v2.md` builds from it.
 
 - `round3.html` is the design. Open it in a browser. It loads its fonts from `fonts/` beside it, so this folder works on its own.
-- `round3.png` is its contact sheet, at 2x.
+- `round3.png` is its contact sheet, at 1x.
 - In Figma, round 3 is node 50-2, the target design.
 - The receipt photo in the frames is drawn in HTML from made-up lines. No real receipt photo is in this folder.
 
