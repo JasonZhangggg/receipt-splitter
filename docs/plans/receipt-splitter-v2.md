@@ -2,7 +2,7 @@
 
 This program rebuilds how the live site shows a Receipt, after launch, from round 3 of the operator's mockups.
 Friends read a receipt by quantity and Bundle instead of a flat list, the Host's home page asks only for what the link needs, and everyone can view the Receipt photo.
-The rules it enforces are that no deploy makes a live Split unreadable and that no Share goes out until the Total check passes.
+The rules it enforces are that no deploy makes a live Split unreadable and that a failing Total check blocks nothing.
 The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, and V2-6.
 
 ## How to read this
@@ -40,6 +40,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - `docs/adr/0004-one-durable-object-per-split.md`, section **Stored Split versions**, makes the `schemaVersion` bump and migration mandatory. V2-1 ships the reader of version 2 one deploy before V2-2 writes it.
 - `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md` sets the row-write budget that V2-6 measures again.
 - `CONTEXT.md` gains **Bundle** and **Receipt photo** and redefines **Adjustment** and **Share**.
+- A failing Total check blocks nothing, not creating the link and not any operation. Home and the Split page show it as a quiet note with no highlight. A separate bug-fix PR builds that rule, and every PR here keeps it.
 - The operator's rulings of 2026-10-01 in `~/.claude/orchestrate/receipt-splitter/preferences.md`, from "Turnstile removed" on, bind every PR.
 
 ## Program checklist
@@ -386,7 +387,7 @@ Build from the home frames in `docs/design/receipt-v2/round3.html`.
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
 - [ ] Center the web home in one column, per A, at 1024 px and 1440 px.
 - [ ] After a scan, show the compact receipt card with the thumbnail, the merchant, the Item count, and the total. Remove the Item list from home.
-- [ ] When the Total check fails, show its reason on the card with a **Fix items** button that opens the receipt editor in a sheet. **Create split link** stays blocked until the check passes.
+- [ ] When the Total check fails, show its reason as a quiet note under the card, with no highlight. **Create split link** stays enabled. Items are fixed on the Split page by tapping a line, so home has no editor and no **Fix items** button.
 - [ ] Remove the **Example** button under 768 px.
 - [ ] After a name is added, open a new name input with focus, so that type, Enter, type, Enter adds names with no click. With no names and the first input focused, the next chip says **+ Add**.
 - [ ] Open the photo viewer when the thumbnail is tapped. The camera button replaces the photo. The viewer closes on Escape, a tap on the scrim, and its close button. Build it in `src/ui/photo-viewer/` so that V2-6 reuses it.
@@ -402,16 +403,16 @@ Build from the home frames in `docs/design/receipt-v2/round3.html`.
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] `e2e/home.spec.ts` gains the names flow by keyboard alone, the **+ Add** chip, and no **Example** button at 390 px. The cases hold the CI-robustness rule. Run `npm run e2e`.
-- [ ] `e2e/scan.spec.ts` gains a scan that fails the Total check, a fix through **Fix items**, and the thumbnail opening the viewer. Run `npm run e2e`.
+- [ ] `e2e/scan.spec.ts` gains a scan that fails the Total check, which shows the quiet note and still creates the link, and the thumbnail opening the viewer. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
 
 - [ ] Lane 1. Regression lane against trunk. At 390 px and 1440 px, scan `e2e/fixtures/srd-1040-exif-rotated.jpg`, enter a Venmo handle and three names by keyboard, and create the link, citing `features/home.md` and `features/scan.md`, at trunk and head. Save `home-flow.png`. Pass when head reaches the link with no click between names and the Split page shows the same Receipt trunk would create.
-- [ ] Lane 2. Shoot the web home frames and the phone home frames in light and dark, plus a failing Total check, citing `features/home.md`. Save `home-matrix/<frame>.png`. Pass when the column is centered at 1024 px and 1440 px, every frame matches the board, and every target is at least 44 px.
+- [ ] Lane 2. Shoot the web home frames and the phone home frames in light and dark, plus a failing Total check with its quiet note, citing `features/home.md`. Save `home-matrix/<frame>.png`. Pass when the column is centered at 1024 px and 1440 px, every frame matches the board, and every target is at least 44 px.
 
 **Feature map.**
 
-- [ ] Update `features/home.md` and `features/scan.md` in `verify-receipt-splitter` with the compact card, **Fix items**, the names flow, and the viewer.
+- [ ] Update `features/home.md` and `features/scan.md` in `verify-receipt-splitter` with the compact card, the quiet Total check note, the names flow, and the viewer.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -452,34 +453,34 @@ Read ADR 0007 first. It sets the size, the transport, the checks, and the deleti
 **Build.**
 
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
-- [ ] In `src/ui/receipt-input/photo.web.ts`, downscale the photo at scan time to at most 1600 px on its long edge as a JPEG. Lower the quality in steps until it fits 300 KB. Keep the copy with the draft so that a reload before **Create split link** keeps it.
+- [ ] In `src/ui/receipt-input/photo.web.ts`, downscale the photo at scan time to at most 1280 px on its long edge as a JPEG. Lower the quality in steps until it fits 150 KB. Keep the copy with the draft so that a reload before **Create split link** keeps it.
 - [ ] After `POST /api/splits` returns, send the copy with `PUT /api/splits/<id>/photo` and the Creator secret. Show the link at once. Retry a failed upload twice, then give up without a message.
-- [ ] In `worker/photo.ts`, refuse a missing or wrong Creator secret, a body over 300 KB, a body without the JPEG start marker, and a JPEG with an EXIF segment. Store the bytes in a `photo` table in the Split's Durable Object. A second PUT replaces the first.
+- [ ] In `worker/photo.ts`, refuse a missing or wrong Creator secret, a body over 150 KB, a body without the JPEG start marker, and a JPEG with an EXIF segment. Store the bytes in a `photo` table in the Split's Durable Object. A second PUT replaces the first.
 - [ ] Serve `GET /api/splits/<id>/photo` with `content-type: image/jpeg`, `x-content-type-options: nosniff`, and `cache-control: private, max-age=3600`. Return 404 when there is no photo or no Split.
 - [ ] Add a photo flag to the live snapshot, and broadcast it when the photo lands.
-- [ ] Show **View receipt** beside the merchant name on the Split page, phone and desktop, only when the flag is set. It opens the V2-5 viewer.
-- [ ] Add one line under **Create split link** on home that says everyone with the link can see the photo. Run `unslop` on it.
+- [ ] Delete the photo 14 days after the Split is created. The Split's one alarm fires first at that time, deletes the `photo` table, clears the flag, broadcasts it, and then reschedules itself for the Split's expiry. The Split stays.
+- [ ] Show **View receipt** beside the merchant name on the Split page, phone and desktop, only when the flag is set. It opens the V2-5 viewer, and it hides when the photo is deleted.
 - [ ] Measure the new row writes per create in `worker/create-cost.test.ts`, and update the arithmetic in ADR 0005 if the per-create budget of 15 no longer holds.
 
 **You see.**
 
-- [ ] A Split created from `e2e/fixtures/topgolf-synthetic.png` shows **View receipt** within 2 seconds of the link. Tapping it on a second browser opens the photo. `PUT` with a wrong Creator secret returns 403, and a 400 KB body returns 413.
+- [ ] A Split created from `e2e/fixtures/topgolf-synthetic.png` shows **View receipt** within 2 seconds of the link. Tapping it on a second browser opens the photo. `PUT` with a wrong Creator secret returns 403, and a 200 KB body returns 413.
 
 **Seams.**
 
-- [ ] The photo routes through the worker test harness in `worker/photo.test.ts`, expiry in `worker/split-server.test.ts`, row writes in `worker/create-cost.test.ts`, and the flow through Playwright in `e2e/photo.spec.ts`.
+- [ ] The photo routes through the worker test harness in `worker/photo.test.ts`, the 14-day delete and expiry in `worker/split-server.test.ts`, row writes in `worker/create-cost.test.ts`, and the flow through Playwright in `e2e/photo.spec.ts`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] `worker/photo.test.ts` gains each refusal with its status, a replace, and a GET of the stored bytes. Run `npm run test:worker`.
-- [ ] `worker/split-server.test.ts` gains the expiry alarm deleting the photo with the Split. Run `npm run test:worker`.
+- [ ] `worker/split-server.test.ts` gains the alarm deleting the photo at 14 days while the Split stays readable, and the expiry alarm after it. Run `npm run test:worker`.
 - [ ] `worker/create-cost.test.ts` gains the row writes of a create with a photo, as a literal count. Run `npm run test:worker`.
 - [ ] `e2e/photo.spec.ts` gains create, **View receipt** on a second browser, and a reload of home before create that keeps the photo. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
 
-- [ ] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and open it on a second browser, citing `features/join.md`, at trunk and head. Trunk has no stored photo, so record that and gate the head. Save `view-receipt.png`. Pass when the link shows as fast as trunk's, **View receipt** opens the photo on the second browser, and the uploaded body is at most 300 KB.
-- [ ] Lane 2. Upload a 12 MP synthetic photo and `e2e/fixtures/srd-1040-exif-rotated.jpg`, send a forged PUT without the Creator secret, and advance the expiry alarm, citing `features/photo.md`. Save `photo-matrix/<case>.png`. Pass when the stored photo is at most 300 KB with no EXIF segment, the forged PUT gets 403, and GET returns 404 after expiry.
+- [ ] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and open it on a second browser, citing `features/join.md`, at trunk and head. Trunk has no stored photo, so record that and gate the head. Save `view-receipt.png`. Pass when the link shows as fast as trunk's, **View receipt** opens the photo on the second browser, and the uploaded body is at most 150 KB.
+- [ ] Lane 2. Upload a 12 MP synthetic photo and `e2e/fixtures/srd-1040-exif-rotated.jpg`, send a forged PUT without the Creator secret, and advance the alarm past 14 days, citing `features/photo.md`. Save `photo-matrix/<case>.png`. Pass when the stored photo is at most 150 KB with no EXIF segment, the forged PUT gets 403, and after 14 days GET returns 404, **View receipt** is gone, and the Split still opens.
 
 **Feature map.**
 
@@ -490,7 +491,7 @@ Read ADR 0007 first. It sets the size, the transport, the checks, and the deleti
 - [ ] Metric. Time from the **Create split link** tap to the link on screen, the downscale time at scan, and the uploaded bytes.
 - [ ] Probe. Five creates at trunk and head, interleaved, under Playwright mobile emulation with a 4x CPU throttle, timing each step from the page's performance marks.
 - [ ] Baseline. Record the trunk create-to-link time first. Trunk has no upload, so the downscale and the bytes get absolute budgets.
-- [ ] Rule. Fail if the head create-to-link median is more than 100 ms over trunk's, the downscale median is over 400 ms, or any upload is over 300 KB.
+- [ ] Rule. Fail if the head create-to-link median is more than 100 ms over trunk's, the downscale median is over 400 ms, or any upload is over 150 KB.
 
 **Review gate.** The operator reviews before merge.
 
@@ -518,7 +519,7 @@ The design questions were settled by three rounds of mockups, not by code protot
 - PR 22 (`fix/discount-total`) measured the Topgolf receipt through the real OCR pipeline. Its reading after the fix has the two Bundle discounts, Tax $4.94, Tip $32.26, and a passing Total check, so V2-2 starts from a correct amount and changes only the structure.
 - The Share figures in V2-1's **You see** come from the arithmetic in ADR 0006 and are not yet produced by code. V2-1's tests prove them.
 - Unproven. The indent rule has no frame on the board. V2-3's review gate is its first picture.
-- Unproven. The 300 KB cap at 1600 px is an estimate for a receipt photo. V2-6 lane 2 measures it on a 12 MP photo.
+- Unproven. The 150 KB cap at 1280 px is an estimate for a readable receipt photo. V2-6 lane 2 measures it on a 12 MP photo.
 
 ## Appendix B. Alternatives rejected
 
@@ -527,18 +528,19 @@ The design questions were settled by three rounds of mockups, not by code protot
 - A `bundles` list on the Receipt, folding the discount into Item prices, an optional `items?` on every Adjustment, and keeping the header as an Item. ADR 0006 records why each lost.
 - R2 for the photo. ADR 0007 records why.
 - Uploading the photo inside `POST /api/splits`. The link would wait on the upload over a slow phone connection, and the 32 KB create body cap would have to grow.
-- Showing the full Item list on home only when the Total check fails, in place of **Fix items**. It brings back the long home page in the case where the Host most needs focus.
+- A **Fix items** button on the compact card, and showing the Item list on home when the Total check fails. The operator ruled that a failing Total check blocks nothing and that Items are fixed on the Split page.
+- Keeping the photo for the Split's whole life on the Workers Paid plan. The operator chose the Free plan, so ADR 0007 deletes the photo after 14 days.
 
 ## Appendix C. Risks
 
 - A schema change on live data. It lands in V2-1 and V2-2. Production holds real Splits at version 1, and every merge deploys at once. The owners watch the golden rows, lane 2 of V2-2 reads both versions with the V2-1 Worker, and the root opens live Splits after each deploy. A rollback past V2-1 makes every version 2 Split unreadable, so after V2-2 deploys the fix is a roll forward.
-- The photo's size against the Durable Object's limits. It lands in V2-6. A SQLite-backed Durable Object allows a 2 MB row, and the cap is 300 KB. The larger risk is storage, about 27 GB at the daily cap over 60 days, which the Free plan's 5 GB cannot hold. The owner reports the measured bytes per photo, and the operator confirms the plan.
+- The photo's size against the Durable Object's limits and the Free plan. It lands in V2-6. A SQLite-backed Durable Object allows a 2 MB row, and the cap is 150 KB. At the daily cap of 1,500 creates, photos kept 14 days hold about 3.2 GB, and the Splits at their measured size about 0.4 GB, under the Free plan's 5 GB. If the 14-day delete fails, storage grows toward the 5 GB limit, where writes fail, so lane 2 checks the delete. The owner reports the measured bytes per photo.
 - The photo adds row writes to every create. It lands in V2-6. `worker/create-cost.test.ts` fails if the count passes its budget, and the owner redoes ADR 0005's arithmetic.
 - Accessibility of the collapsible Bundles. It lands in V2-3. A header that is not a real button, or a region that stays in the tab order while closed, hides Items from screen reader and keyboard users. The owner tests the header by keyboard in `e2e/receipt.spec.ts` and records the accessibility tree in lane 2.
 - A closed Bundle can hide an unclaimed unit. It lands in V2-3. The closed summary carries the flag, so a missing claim shows without opening it.
-- Moving the Item list off home hides a failing Total check. It lands in V2-5. **Fix items** keeps the v1 rule that no Share goes out until the check passes. The operator confirms this choice in the review gate.
+- A Host may create a link from a misread receipt, because a failing Total check blocks nothing. It lands in V2-5. The quiet note on home and on the Split page names the gap, and anyone fixes a line on the Split page. No PR here adds a block or a highlight for a mismatch.
 - The Bundle detector misreads a $0.00 line, such as a free refill, as a header. It lands in V2-2. A group forms only when a discount echoes the header, so a lone $0.00 line stays an Item. The bench run reports any change.
-- The photo shows card digits and anything else the receipt prints. It lands in V2-6. The operator accepted it. The home line says the photo is shared, and the server refuses EXIF.
+- The photo shows card digits and anything else the receipt prints. It lands in V2-6. The operator accepted it, with no extra line on home. The server refuses EXIF, and the photo is deleted after 14 days.
 
 ## Appendix D. Links and reading list
 
