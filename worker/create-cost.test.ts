@@ -40,9 +40,9 @@ function billedRowWrites(storage: DurableObjectStorage): Meter {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-const measuredRowWrites = { limiter: 3, cap: 1, server: 14 };
+const measuredRowWrites = { limiter: 3, cap: 1, server: 15 };
 
-it("one create with a photo writes 18 rows from its POST through its photo upload, its first connect, the photo's delete, and its expiry, as DAILY_CREATE_CAP assumes", async () => {
+it("one create with a photo writes 19 rows from its POST through its photo upload and the one replace it allows, its first connect, the photo's delete, and its expiry, as DAILY_CREATE_CAP assumes", async () => {
   vi.setSystemTime(T0 - 30 * DAY);
   const ip = "192.0.2.200";
   const limiter = env.CreateLimiter.getByName(ip);
@@ -64,12 +64,14 @@ it("one create with a photo writes 18 rows from its POST through its photo uploa
     if (!created.created) throw new Error(`Split ${id} already exists`);
     return { writes, created };
   });
-  const upload = await exports.default.fetch(`http://localhost/api/splits/${id}/photo`, {
-    method: "PUT",
-    headers: { "content-type": "image/jpeg", authorization: `Bearer ${created.creatorSecret}` },
-    body: new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0xff, 0xd9]),
-  });
-  expect(upload.status).toBe(204);
+  for (const fill of [0x11, 0x22]) {
+    const upload = await exports.default.fetch(`http://localhost/api/splits/${id}/photo`, {
+      method: "PUT",
+      headers: { "content-type": "image/jpeg", authorization: `Bearer ${created.creatorSecret}` },
+      body: new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, fill, 0xff, 0xd9]),
+    });
+    expect(upload.status).toBe(204);
+  }
   const socket = (await exports.default.fetch(`http://localhost/parties/split-server/${id}`, { headers: { upgrade: "websocket" } })).webSocket;
   socket?.accept();
   socket?.close();
@@ -83,6 +85,6 @@ it("one create with a photo writes 18 rows from its POST through its photo uploa
 
 it("DAILY_CREATE_CAP is the floor of a quarter of the free plan's 100,000 daily row writes over the budgeted writes per create, which adds 3 for the table drop no test sees", () => {
   const budgetedWritesPerCreate = Object.values(measuredRowWrites).reduce((sum, writes) => sum + writes, 0) + 3;
-  expect(budgetedWritesPerCreate).toBe(21);
+  expect(budgetedWritesPerCreate).toBe(22);
   expect(DAILY_CREATE_CAP).toBe(Math.floor(100_000 / 4 / budgetedWritesPerCreate));
 });

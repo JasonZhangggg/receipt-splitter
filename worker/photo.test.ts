@@ -1,4 +1,4 @@
-import { runDurableObjectAlarm } from "cloudflare:test";
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { connect, createSplit, leftovers, T0 } from "./testing";
@@ -68,6 +68,17 @@ describe("PUT /api/splits/<id>/photo", () => {
     expect(new Uint8Array(await (await get(id)).arrayBuffer())).toEqual(jpeg({ fill: 0x22, size: 3 * KB }));
   });
 
+  it("refuses a third PUT with 429 and keeps the second photo, so one Host cannot spend the day's row writes", async () => {
+    const { id, creatorSecret } = await createSplit();
+    expect(await status(put(id, jpeg({ fill: 0x11 }), { secret: creatorSecret }))).toBe(204);
+    expect(await status(put(id, jpeg({ fill: 0x22 }), { secret: creatorSecret }))).toBe(204);
+
+    expect(await status(put(id, jpeg({ fill: 0x33 }), { secret: creatorSecret }))).toBe(429);
+    await evictDurableObject(env.SplitServer.getByName(id));
+    expect(await status(put(id, jpeg({ fill: 0x33 }), { secret: creatorSecret }))).toBe(429);
+    expect(new Uint8Array(await (await get(id)).arrayBuffer())).toEqual(jpeg({ fill: 0x22 }));
+  });
+
   it("refuses a PUT without the secret, with another Split's secret, or with a malformed secret, and stores nothing", async () => {
     const { id } = await createSplit();
     const other = await createSplit();
@@ -103,8 +114,10 @@ describe("PUT /api/splits/<id>/photo", () => {
     const noScan = new Uint8Array([...SOI, ...APP0_JFIF, ...EOI]);
     const zeroLength = new Uint8Array([...SOI, 0xff, 0xe0, 0x00, 0x00, ...SOS, ...EOI]);
     const notAMarker = new Uint8Array([...SOI, 0x00, 0xe0, 0x00, 0x04, 0x00, 0x00, ...SOS, ...EOI]);
+    const noStartOfImage = new Uint8Array([0xff, 0xe0, ...APP0_JFIF.slice(2), ...SOS, ...EOI]);
+    const cutAtScan = new Uint8Array([...SOI, ...APP0_JFIF, 0xff, 0xda]);
 
-    for (const body of [png, html, exifAfterJfif, xmp, lengthPastEnd, noScan, zeroLength, notAMarker, new Uint8Array(0)]) {
+    for (const body of [png, html, exifAfterJfif, xmp, lengthPastEnd, noScan, zeroLength, notAMarker, noStartOfImage, cutAtScan, new Uint8Array(0)]) {
       expect(await status(put(id, body, { secret: creatorSecret }))).toBe(400);
     }
     expect(await status(get(id))).toBe(404);
@@ -152,6 +165,17 @@ describe("PUT /api/splits/<id>/photo", () => {
     expect(await status(put(id, jpeg(), { secret: creatorSecret }))).toBe(410);
     expect(await status(get(id))).toBe(404);
   });
+});
+
+it("refuses a photo for a Split stored before photos, which has no creation time, and keeps the Split open", async () => {
+  const { id, creatorSecret } = await createSplit();
+  const stub = env.SplitServer.getByName(id);
+  await runInDurableObject(stub, (_, state) => state.storage.sql.exec("ALTER TABLE split DROP COLUMN created_at"));
+  await evictDurableObject(stub);
+
+  expect(await status(put(id, jpeg(), { secret: creatorSecret }))).toBe(410);
+  expect(await status(get(id))).toBe(404);
+  expect(await (await connect(id)).next()).toMatchObject({ type: "state", ref: null, photo: false, split: { id } });
 });
 
 describe("the photo flag", () => {

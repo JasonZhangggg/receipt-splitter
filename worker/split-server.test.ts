@@ -459,6 +459,7 @@ describe("the receipt photo's 14-day delete", () => {
     vi.setSystemTime(T0 + 14 * DAY);
     await evictDurableObject(stub);
     expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await evictDurableObject(stub);
 
     expect(await photoStatus(id)).toBe(404);
     expect(await leftovers(id)).toMatchObject({ alarm: T0 + 60 * DAY });

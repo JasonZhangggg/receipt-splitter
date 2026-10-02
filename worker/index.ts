@@ -17,9 +17,9 @@ export default {
       response.headers.set("x-content-type-options", "nosniff");
       return response;
     }
-    const photoOf = PHOTO_PATH.exec(url.pathname)?.[1];
-    if (photoOf !== undefined) {
-      const response = await servePhoto(request, env, photoOf);
+    const photoSplitId = PHOTO_PATH.exec(url.pathname)?.[1];
+    if (photoSplitId !== undefined) {
+      const response = await servePhoto(request, env, photoSplitId);
       response.headers.set("x-content-type-options", "nosniff");
       return response;
     }

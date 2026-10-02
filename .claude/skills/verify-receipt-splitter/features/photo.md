@@ -4,7 +4,7 @@ The Host's device sends one downscaled JPEG of the receipt after the Split is cr
 
 ## Sub-features
 
-- `photo-put` stores a JPEG sent by the Creator with `PUT /api/splits/<id>/photo`, and a second PUT replaces it.
+- `photo-put` stores a JPEG sent with the Creator secret by `PUT /api/splits/<id>/photo`. A second PUT replaces it, and a third gets 429.
 - `photo-get` serves it with `GET /api/splits/<id>/photo`.
 - `photo-refusals` answers 403 without the Creator secret, 413 over 150 KB, 415 for a `content-type` other than `image/jpeg`, 400 for bytes that do not start with the JPEG marker or that hold an APP1 (EXIF or XMP) segment before the scan, 404 for a Split that does not exist, and 410 from 14 days after the create.
 - `photo-flag` turns the snapshot's `photo` flag on for every connected client when the photo lands, and off when it goes.
@@ -31,4 +31,4 @@ Preconditions:
 
 - The Worker checks the `content-type`, the size, and the JPEG segments before it reaches the Durable Object, so a request with bad bytes and no secret gets 400 or 413, not 403.
 - `GET` answers 404 for a missing photo and for a missing Split alike.
-- Each create with a photo costs 18 row writes. `DAILY_CREATE_CAP` follows from that count, as ADR 0005 explains. A new write on the create path fails `worker/create-cost.test.ts` until the cap moves.
+- Each create with a photo and its one replace costs 19 row writes. `DAILY_CREATE_CAP` follows from that count, as ADR 0005 explains. A new write on the create path fails `worker/create-cost.test.ts` until the cap moves.
