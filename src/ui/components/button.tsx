@@ -18,13 +18,15 @@ type TargetProps = Action & {
   busy?: boolean;
   describedBy?: string;
   toggled?: boolean;
+  expanded?: boolean;
+  controls?: string;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;
 };
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, style, children }: TargetProps) {
+export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, controls, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   if (disabled && held) setHeld(false);
   const web = Platform.OS === "web" ? { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay, ...(href === undefined ? {} : { href, hrefAttrs: newTab }) } : {};
@@ -35,6 +37,8 @@ export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll =
       aria-describedby={describedBy}
       aria-busy={busy}
       aria-pressed={toggled}
+      aria-expanded={expanded}
+      aria-controls={controls}
       disabled={disabled}
       onPressIn={() => setHeld(!disabled)}
       onPressOut={() => setHeld(false)}

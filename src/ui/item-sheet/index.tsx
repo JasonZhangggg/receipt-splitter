@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { price as toPrice } from "../../core/money";
-import { MAX_QUANTITY, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
+import { MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
+import { unitPrices } from "../../core/shares";
 import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem, type SplitMode } from "../../core/split";
 import { parseAmount, plainAmount } from "../../draft";
 import { Button, PressTarget } from "../components/button";
@@ -11,16 +12,17 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
-import { unitAmounts } from "../split-view/model";
+import { bundleNote, unitAmounts } from "../split-view/model";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
 
 type Props = {
   split: Split;
   itemId: ItemId;
+  unit: number;
   me: ParticipantId | null;
   send: (op: Operation) => Promise<boolean>;
-  onAddPerson: (name: string, unit: number) => void;
+  onAddPerson: (name: string) => void;
   onClose: () => void;
 };
 
@@ -35,12 +37,12 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   return { ...pending, ...next, values: reshaped ? (next.values ?? []) : values };
 }
 
-export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Props) {
+export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [pending, setPending] = useState<ItemEdit>({});
   const [problem, setProblem] = useState<string | null>(null);
-  const [adding, setAdding] = useState<{ unit: number; name: string } | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
   const flushRef = useRef<() => void>(() => {});
   const [shown, setShown] = useState<SplitItem | undefined>(() => split.receipt.items.find(({ id }) => id === itemId));
   const [leaving, setLeaving] = useState<SplitItem | null>(null);
@@ -77,18 +79,27 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
     setLeaving(shown);
     setShown(item);
   }
-  if (!item) return null;
+  if (!item || unit >= item.split.units.length) return null;
   const edit = (next: ItemEdit) => setPending((was) => merge(was, next));
   const quantity = item.split.units.length;
+  const unitPrice = unitPrices(item.price, quantity)[unit];
+  const had = claimersOf(item.split, unit);
   const nameOf = (id: ParticipantId) => split.participants.find((person) => person.id === id)?.name ?? "";
-  const toggle = (participantId: ParticipantId, unit: number, had: boolean) => {
+  const toggle = (participantId: ParticipantId, on: boolean) => {
     flush();
-    void send({ by: me, type: had ? "unclaim" : "claim", itemId, participantId, unit });
+    void send({ by: me, type: on ? "unclaim" : "claim", itemId, participantId, unit });
   };
   const close = () => {
     flush();
     onClose();
   };
+  const remove = () => {
+    flushRef.current = () => {};
+    const drop: ItemPatch =
+      quantity > 1 ? { type: "edit", itemId, quantity: quantity - 1, price: toPrice(item.price - unitPrice), drop: unit } : { type: "delete", itemId };
+    void send({ by: me, type: "editReceipt", items: [drop] }).then((ok) => (ok ? onClose() : setProblem(say.saveFailed)));
+  };
+  const note = bundleNote(split.receipt, itemId, unitPrice);
 
   return (
     <View style={styles.sheet}>
@@ -111,106 +122,109 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
         enterKeyHint="done"
         style={[type.input, styles.field, styles.strong, { color: c.ink, backgroundColor: c.sheetIn }]}
       />
-      <View style={styles.priceRow}>
-        <View style={[styles.priceField, { backgroundColor: c.sheetIn }]}>
-          <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.price}</Text>
-          <Text style={[type.input, { color: c.ink }]}>$</Text>
-          <TextInput
-            aria-label={say.price}
-            inputMode="decimal"
-            defaultValue={plainAmount(item.price)}
-            onChangeText={(text) => {
-              const amount = parseAmount(text);
-              if (amount !== null && amount >= 0) edit({ price: toPrice(amount) });
-            }}
-            enterKeyHint="done"
-            style={[type.input, tabular, styles.priceInput, styles.strong, { color: c.ink }]}
-          />
-        </View>
-        <Stepper label={say.quantity} value={quantity} min={1} max={MAX_QUANTITY} onChange={(next) => edit({ quantity: next })} names={[say.fewer, say.more]} large />
+      <View style={[styles.priceField, { backgroundColor: c.sheetIn }]}>
+        <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.price}</Text>
+        <Text style={[type.input, { color: c.ink }]}>$</Text>
+        <TextInput
+          aria-label={say.price}
+          inputMode="decimal"
+          defaultValue={plainAmount(unitPrice)}
+          onChangeText={(text) => {
+            const amount = parseAmount(text);
+            if (amount !== null && amount >= 0) edit({ price: toPrice(amount * quantity) });
+          }}
+          enterKeyHint="done"
+          style={[type.input, tabular, styles.priceInput, styles.strong, { color: c.ink }]}
+        />
+        {quantity > 1 ? <Text style={[type.caption, { color: c.muted }]}>{say.each}</Text> : null}
       </View>
+      {note ? (
+        <View style={styles.note}>
+          <Icon name="bag" size={15} color={c.muted} />
+          <Text style={[type.caption, styles.noteText, { color: c.muted }]}>{note}</Text>
+        </View>
+      ) : null}
       <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.whoHadIt}</Text>
-      {item.split.units.map((_, unit) => {
-        const had = claimersOf(item.split, unit);
-        return (
-          <View key={unit} style={styles.unit}>
-            {quantity > 1 ? <Text style={[type.caption, { color: c.muted }]}>{say.unit(unit + 1, quantity)}</Text> : null}
-            <View role="group" aria-label={quantity > 1 ? `${say.whoHadIt}, ${say.unit(unit + 1, quantity)}` : say.whoHadIt} style={styles.chips}>
-              {split.participants.map((person) => {
-                const on = had.includes(person.id);
-                return (
-                  <PressTarget key={person.id} name={person.name} toggled={on} outsideScroll onPress={() => toggle(person.id, unit, on)} style={(pressed) => pressStyle(pressed, reduce)}>
-                    {() => (
-                      <View style={[styles.chip, { backgroundColor: on ? c.action : c.sheetIn }]}>
-                        <Text style={[type.label, { color: on ? c.onAction : c.ink }]}>{person.name}</Text>
-                      </View>
-                    )}
-                  </PressTarget>
-                );
-              })}
-              {adding?.unit === unit ? (
-                <TextInput
-                  autoFocus
-                  aria-label={say.newPerson}
-                  placeholder={say.newPerson}
-                  placeholderTextColor={c.muted}
-                  value={adding.name}
-                  autoCapitalize="words"
-                  enterKeyHint="done"
-                  onChangeText={(name) => setAdding({ unit, name })}
-                  onSubmitEditing={() => {
-                    if (adding.name.trim()) onAddPerson(adding.name, unit);
-                    setAdding(null);
-                  }}
-                  submitBehavior="submit"
-                  onBlur={() => setAdding(null)}
-                  style={[type.input, styles.chipInput, { color: c.ink, backgroundColor: c.sheetIn }]}
-                />
-              ) : (
-                <PressTarget name={say.addPerson} outsideScroll onPress={() => setAdding({ unit, name: "" })} style={(pressed) => pressStyle(pressed, reduce)}>
-                  {() => (
-                    <View style={[styles.chip, styles.add, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
-                      <Icon name="plus" size={18} color={c.muted} />
-                    </View>
-                  )}
-                </PressTarget>
+      <View role="group" aria-label={say.whoHadIt} style={styles.chips}>
+        {split.participants.map((person) => {
+          const on = had.includes(person.id);
+          return (
+            <PressTarget key={person.id} name={person.name} toggled={on} outsideScroll onPress={() => toggle(person.id, on)} style={(pressed) => pressStyle(pressed, reduce)}>
+              {() => (
+                <View style={[styles.chip, { backgroundColor: on ? c.action : c.sheetIn }]}>
+                  <Text style={[type.label, { color: on ? c.onAction : c.ink }]}>{person.name}</Text>
+                </View>
               )}
-            </View>
-          </View>
-        );
-      })}
+            </PressTarget>
+          );
+        })}
+        {adding !== null ? (
+          <TextInput
+            autoFocus
+            aria-label={say.newPerson}
+            placeholder={say.newPerson}
+            placeholderTextColor={c.muted}
+            value={adding}
+            autoCapitalize="words"
+            enterKeyHint="done"
+            onChangeText={setAdding}
+            onSubmitEditing={() => {
+              if (adding.trim()) onAddPerson(adding);
+              setAdding(null);
+            }}
+            submitBehavior="submit"
+            onBlur={() => setAdding(null)}
+            style={[type.input, styles.chipInput, { color: c.ink, backgroundColor: c.sheetIn }]}
+          />
+        ) : (
+          <PressTarget name={say.addPerson} outsideScroll onPress={() => setAdding("")} style={(pressed) => pressStyle(pressed, reduce)}>
+            {() => (
+              <View style={[styles.chip, styles.add, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
+                <Icon name="plus" size={18} color={c.muted} />
+              </View>
+            )}
+          </PressTarget>
+        )}
+      </View>
       <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.split}</Text>
       <Segments value={item.split.by} onChange={(by) => edit({ by })} />
       <View>
         <View key={item.split.by} style={reduce ? null : rowsEnter}>
-          <SplitRows item={item} me={me} nameOf={nameOf} edit={edit} />
+          <SplitRows item={item} unit={unit} me={me} nameOf={nameOf} edit={edit} />
         </View>
         {leaving && !reduce ? (
           <View key={`${leaving.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, rowsLeave]}>
-            <SplitRows item={leaving} me={me} nameOf={nameOf} edit={() => {}} />
+            <SplitRows item={leaving} unit={unit} me={me} nameOf={nameOf} edit={() => {}} />
           </View>
         ) : null}
       </View>
-      <SumLine item={item} />
+      <SumLine item={item} unit={unit} price={unitPrice} />
       {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.overPrice}</Text> : null}
       {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
+      <PressTarget name={say.deleteItem} outsideScroll onPress={remove} style={(pressed) => pressStyle(pressed, reduce)}>
+        {() => (
+          <View style={[styles.delete, { backgroundColor: c.sheetIn }]}>
+            <Icon name="trash" size={18} color={c.danger} />
+            <Text style={[type.button, { color: c.danger }]}>{say.deleteItem}</Text>
+          </View>
+        )}
+      </PressTarget>
     </View>
   );
 }
 
-type SplitRowsProps = { item: SplitItem; me: ParticipantId | null; nameOf: (id: ParticipantId) => string; edit: (next: ItemEdit) => void };
+type SplitRowsProps = { item: SplitItem; unit: number; me: ParticipantId | null; nameOf: (id: ParticipantId) => string; edit: (next: ItemEdit) => void };
 
-function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
+function SplitRows({ item, unit, me, nameOf, edit }: SplitRowsProps) {
   const c = useColors();
-  const amounts = unitAmounts(item);
+  const amounts = unitAmounts(item)[unit];
   return (
     <>
-    {item.split.units.map((_, unit) =>
-      amounts[unit].map(({ participantId, cents: amount }, index) => {
+    {amounts.map(({ participantId, cents: amount }, index) => {
         const shares = item.split.by === "shares" ? (item.split.units[unit][index]?.[1] ?? 1) : 0;
         const value = (next: number): ItemValue => ({ unit, participantId, value: next });
         return (
-          <View key={`${unit}-${participantId}`} style={[styles.splitRow, (unit > 0 || index > 0) && [styles.divided, { borderTopColor: c.hairline }]]}>
+          <View key={participantId} style={[styles.splitRow, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
             <View style={styles.who}>
               <Dot name={nameOf(participantId)} tone={participantId === me ? "me" : "dot"} />
               <Text numberOfLines={1} style={[type.button, styles.whoName, { color: c.ink }]}>
@@ -239,25 +253,23 @@ function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
             )}
           </View>
         );
-      }),
-    )}
+      })}
     </>
   );
 }
 
-function SumLine({ item }: { item: SplitItem }) {
+function SumLine({ item: { split }, unit, price }: { item: SplitItem; unit: number; price: number }) {
   const c = useColors();
-  const { split } = item;
   if (split.by === "even") return null;
   if (split.by === "shares") {
-    const count = split.units.reduce((sum, unit) => sum + unit.reduce((total, [, weight]) => total + weight, 0), 0);
+    const count = split.units[unit].reduce((total, [, weight]) => total + weight, 0);
     return <Text style={[type.caption, styles.sum, { color: c.muted }]}>{say.shares(count)}</Text>;
   }
-  const counted = split.units.reduce((sum, unit) => sum + unit.reduce((total, [, amount]) => total + amount, 0), 0);
-  const left = item.price - counted;
+  const counted = split.units[unit].reduce((total, [, amount]) => total + amount, 0);
+  const left = price - counted;
   return (
     <View style={styles.sumRow}>
-      <Text style={[type.caption, { color: c.muted }]}>{say.ofTotal(`$${plainAmount(counted)}`, `$${plainAmount(item.price)}`)}</Text>
+      <Text style={[type.caption, { color: c.muted }]}>{say.ofTotal(`$${plainAmount(counted)}`, `$${plainAmount(price)}`)}</Text>
       <View style={styles.sumEnd}>
         {left === 0 ? <Icon name="check" size={14} color={c.ink} /> : null}
         <Text style={[type.caption, styles.strong, { color: c.ink }]}>{left === 0 ? say.addsUp : say.left(`$${plainAmount(left)}`)}</Text>
@@ -296,17 +308,16 @@ function Segments({ value, onChange }: { value: SplitMode; onChange: (mode: Spli
   );
 }
 
-type StepperProps = { label?: string; value: number; min: number; max: number; onChange: (value: number) => void; names: readonly [string, string]; large?: boolean };
+type StepperProps = { value: number; min: number; max: number; onChange: (value: number) => void; names: readonly [string, string] };
 
-function Stepper({ label, value, min, max, onChange, names, large = false }: StepperProps) {
+function Stepper({ value, min, max, onChange, names }: StepperProps) {
   const c = useColors();
   const step = (by: number) => {
     const next = Math.min(max, Math.max(min, value + by));
     if (next !== value) onChange(next);
   };
   return (
-    <View style={[styles.stepper, large && styles.stepperLarge, { backgroundColor: c.sheetIn }]}>
-      {label ? <Text style={[type.caption, styles.stepperLabel, { color: c.muted }]}>{label}</Text> : null}
+    <View style={[styles.stepper, { backgroundColor: c.sheetIn }]}>
       <Button kind="icon" icon="minus" name={names[0]} disabled={value <= min} onPress={() => step(-1)} outsideScroll />
       <Text aria-live="polite" style={[type.button, tabular, styles.count, { color: c.ink }]}>
         {value}
@@ -338,8 +349,7 @@ const styles = StyleSheet.create({
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
   strong: { fontWeight: "500" },
-  priceRow: { flexDirection: "row", gap: layout.pairGap },
-  priceField: { flex: 1, flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
+  priceField: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
   fieldLabel: { marginRight: "auto" },
   priceInput: { width: 80, textAlign: "right", minHeight: 44 },
   label: { marginHorizontal: 2, marginTop: 4, marginBottom: -4 },
@@ -362,12 +372,13 @@ const styles = StyleSheet.create({
   amountField: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 44, paddingHorizontal: 10, borderRadius: 12 },
   amountInput: { width: 56, textAlign: "right", minHeight: 44 },
   stepper: { flexDirection: "row", alignItems: "center", borderRadius: 14 },
-  stepperLarge: { borderRadius: 16, minHeight: 54 },
-  stepperLabel: { paddingLeft: 14 },
   count: { minWidth: 18, textAlign: "center" },
   sum: { marginHorizontal: 2 },
   sumRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 2 },
   sumEnd: { flexDirection: "row", alignItems: "center", gap: 4 },
+  note: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 2 },
+  noteText: { flexShrink: 1 },
+  delete: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: layout.field, marginTop: 4, borderRadius: layout.fieldRadius },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
 

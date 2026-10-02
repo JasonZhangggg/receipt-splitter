@@ -8,7 +8,7 @@ import { differenceNote, payState } from "../pay/model";
 import { PayBlock } from "../pay/pay-block";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
-import { shareLabel } from "./model";
+import { breakdownCharges, shareLabel } from "./model";
 
 type Props = {
   split: Split;
@@ -22,7 +22,9 @@ const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math
 
 export function Breakdown({ split, person, viewer, onPaid }: Props) {
   const c = useColors();
-  const { items, adjustments, difference, share } = shareBreakdown(split, person.id);
+  const breakdown = shareBreakdown(split, person.id);
+  const { items, difference, share } = breakdown;
+  const adjustments = breakdownCharges(split.receipt, breakdown);
   const [host] = split.participants;
   const isHost = person.id === host.id;
   const mine = person.id === viewer;

@@ -68,3 +68,14 @@ The operator approved round 3 with one change that the board does not draw. This
 
 - The math in `round3.html` is a sketch. `computeShares` and `shareBreakdown` in `src/core/shares.ts` set the real cents.
 - The board does not draw a failing Total check on the home page. `docs/plans/receipt-splitter-v2.md` says how home shows it.
+
+## Amendment: no quantity column
+
+The operator removed the quantity column after round 3. This wins over the board and over the indent rule above where they disagree.
+
+- An Item with quantity N shows N rows, one per unit. Each row has its own circle, the Item's name, and the unit price. Guinness x3 at 21.87 shows three rows at 7.29. No row says "1 of 3".
+- A line that does not divide evenly gives the extra cents to the first rows: 10.00 for three shows 3.34, 3.33, 3.33.
+- A circle claims that unit only. Tapping a row opens the Item sheet for that unit.
+- The sheet shows the unit price, with "each" when the Item has more than one unit. A price edit sets the Item's total to that price times the quantity. **Delete item** removes that unit and keeps the claims on the others. The sheet has no quantity stepper.
+- The column heads read Item and Price. The header keeps an empty leading slot as wide as the circle column.
+- Inside a bucket, the whole child row indents so the child's circle lines up with the left edge of the parent's name text. The light vertical line runs from under the header's leading slot, at the center of the circles above it.

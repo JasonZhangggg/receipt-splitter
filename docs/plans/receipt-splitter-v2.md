@@ -251,6 +251,8 @@ V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to
 
 Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read its `README.md` first. The README's indent rule wins over the board. Desktop keeps today's layout until V2-4.
 
+**Amendment: one row per unit.** The operator dropped the quantity column after round 3. An Item with quantity N shows N rows, one per unit, each with its own circle, the Item's name, and the unit price. The README's "Amendment: no quantity column" wins over the Build and You see lines below where they mention quantity.
+
 **Files.**
 
 - [ ] Edit `src/ui/split-view/receipt-card.tsx`, `src/ui/split-view/model.ts`, and `src/ui/split-view/model.test.ts`.
@@ -260,21 +262,21 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 **Build.**
 
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code, per `CLAUDE.md`. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
-- [ ] Start every Item row with a quantity column, with tabular figures. Remove the quantity from the name.
+- [ ] Show one row per unit, with no quantity column. Guinness x3 at 21.87 reads as three "Guinness Draught 14.9oz Can" rows at 7.29. Uneven lines split by `unitPrices`, the first rows taking the extra cents, so the rows and the Shares agree to the cent. A circle claims that unit only.
 - [ ] Remove the × from every row. A row tap opens the Item sheet.
 - [ ] Draw a Bundle as C's card with B's collapse. Its header shows the Bundle's name, a summary such as "6 drinks · 10% off", and its net price. The header has no claim circle. Closed, it shows who had what inside it. Open, it lists its Items and then its discount.
 - [ ] Draw the Bundle card on the same surface as the rows, per round 3.
-- [ ] Hold the indent rule. Each child's quantity lines up with the left edge of the header's name text. A light vertical line runs from under the header's quantity down beside the children.
+- [ ] Hold the indent rule. Each child's circle lines up with the left edge of the header's name text. A light vertical line runs from under the header's leading slot down beside the children.
 - [ ] Make the header a button with `aria-expanded` and `aria-controls` naming the region of its Items. Its label reads the name, the summary, and the state, such as "Beer Bucket, 6 drinks, 10% off, collapsed". Enter and Space toggle it. Focus stays on the header.
 - [ ] Animate the open and close with the sheet's spring from v1, and cross-fade under reduced motion.
-- [ ] Build C's Item sheet on the phone, with the name, the quantity stepper, the price, a line such as "In Beer Bucket. Its 10% off takes $2.19 off this line." for a Bundle Item, **Who had it**, **Evenly**, **By shares**, **By amount**, and **Delete item**.
+- [ ] Build C's Item sheet on the phone for the unit tapped, with the name, the unit price marked "each" when the Item has more than one, a line such as "In Beer Bucket. Its 10% off takes $0.73 off this line." for a Bundle Item, **Who had it** for that unit, **Evenly**, **By shares**, **By amount**, and **Delete item**, which removes that unit only. Name and price edits apply to the whole Item. No quantity stepper.
 - [ ] Keep **Copy** and **Share** on the pick sheet, as the bug-fix PR on `fix/pay-note-sheet-flash` builds them.
 - [ ] Set the default states. The pick sheet opens first, every Bundle is collapsed, and nothing is selected.
 - [ ] Show the yellow flag on an unclaimed unit inside an open Bundle, and on a closed Bundle's summary when it holds one.
 
 **You see.**
 
-- [ ] On a 390 px phone, the Topgolf Split shows Gameplay and two collapsed rows reading "Beer Bucket, 6 drinks · 10% off" and "Beer Bucket, 6 drinks · 10% off". Tapping one opens it in place, with "3 Guinness Draught 14.9oz Can" indented under "Beer Bucket".
+- [ ] On a 390 px phone, the Topgolf Split shows Gameplay and two collapsed rows reading "Beer Bucket, 6 drinks · 10% off" and "Beer Bucket, 6 drinks · 10% off". Tapping one opens it in place, with three "Guinness Draught 14.9oz Can" rows at 7.29 indented under "Beer Bucket".
 
 **Seams.**
 
@@ -317,6 +319,8 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 ## Center the Split page on desktop with a popover and a right pane (V2-4)
 
 **Depends on.** V2-3.
+
+**Amendment: one row per unit.** Desktop rows follow V2-3's amendment. Each unit is its own row with its own circle and unit price, and the popover opens on the unit clicked.
 
 Build from the desktop frames in `docs/design/receipt-v2/round3.html`.
 
