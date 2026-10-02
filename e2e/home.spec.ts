@@ -146,6 +146,55 @@ test("with no way to pay, Create split link shows no note until a tap, which put
   await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
 });
 
+const iphoneKeyboard = 336;
+
+async function simulateKeyboard(page: Page) {
+  await page.evaluate((keyboard) => {
+    const viewport = window.visualViewport!;
+    const height = Object.getOwnPropertyDescriptor(VisualViewport.prototype, "height")!.get!;
+    let shown = 0;
+    Object.defineProperty(viewport, "height", { configurable: true, get: () => height.call(viewport) - shown });
+    const show = (px: number) => {
+      if (shown === px) return;
+      shown = px;
+      viewport.dispatchEvent(new Event("resize"));
+    };
+    const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+    document.addEventListener("focusin", (event) => typing(event.target) && setTimeout(() => show(keyboard), 60));
+    document.addEventListener("focusout", () => setTimeout(() => !typing(document.activeElement) && show(0), 60));
+  }, iphoneKeyboard);
+}
+
+const aboveKeyboard = (field: Locator) =>
+  field.evaluate((el) => {
+    const { top, bottom } = el.getBoundingClientRect();
+    return top >= 0 && bottom <= window.visualViewport!.height;
+  });
+
+test.describe("with the iPhone keyboard up", () => {
+  test("the focused handle field and name field sit above the keyboard, and the panel returns to rest when it goes down", async ({ page }) => {
+    await page.goto("/");
+    await settle(page);
+    const rest = await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
+    await simulateKeyboard(page);
+
+    const handle = page.getByRole("textbox", { name: "Venmo handle" });
+    await handle.tap();
+    await expect(handle).toBeFocused();
+    await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height - iphoneKeyboard);
+    await expect.poll(() => aboveKeyboard(handle)).toBe(true);
+
+    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
+    const name = page.getByRole("textbox", { name: "Your name", exact: true });
+    await expect(name).toBeFocused();
+    await expect.poll(() => aboveKeyboard(name)).toBe(true);
+
+    await page.locator("h1").tap();
+    await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height);
+    await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top)).toBe(rest);
+  });
+});
+
 test.describe("the phone panel", () => {
   const panelTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
   const actionTop = async (page: Page) => (await action(page).boundingBox())!.y;
