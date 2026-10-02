@@ -866,6 +866,13 @@ describe("Bundles", () => {
     });
   });
 
+  test("a Bundle discount past its Items takes them to $0.00 and spreads the rest over everyone's Items", () => {
+    const split = splitWith({ items: [["a", 500, ["ann"]], ["b", 1000, ["bob"]], ["c", 500, ["cat"]]] });
+    const bundled = { ...split, receipt: { ...split.receipt, adjustments: [{ ...bundleOf("a", "a", -800), bundle: { name: "Bundle", items: [itemId("a")] as const } }], total: cents(1200) } };
+
+    expect(computeShares(bundled).shares.map(({ share }) => share)).toEqual([0, 800, 400]);
+  });
+
   test("Priya's breakdown shows the first Beer Bucket's whole discount and none of the second's", () => {
     const split = topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
 
