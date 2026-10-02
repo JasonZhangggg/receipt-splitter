@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, MAX_CENTS, price } from "./core/money";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import type { ParsedItem } from "./parse";
-import { blockedReason, emptyDraft, flaggedRows, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
+import { blockedReason, emptyDraft, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -357,6 +357,13 @@ describe("the Payment handles and names", () => {
       { type: "addName", name: "Jo \u2764\uFE0F" },
     );
     expect(draft.names).toEqual(["Jos\u00E9", "Sam", "Mary Ann", "Bob", "Lee Ann", "\u{1F469}\u200D\u{1F373} Kim", "Jo \u2764\uFE0F"]);
+  });
+
+  test("refuses a name that repeats one in the draft but for an invisible format character or case folding, and takes a different one", () => {
+    const lookalikes = ["Sam\u00AD", "Sa\u200Cm", "Sam\u200D", "Sam\u180E", "Sam\u206A", "Sam\u{E0041}", "Sam\uFFF9", "Sam\uFE0F", "Sam\u3164", "STRAU\u1E9E", "\u039F\u0394\u039F\u03A3"];
+
+    expect(lookalikes.map((typed) => newName(typed, ["Sam", "Strauss", "\u03BF\u03B4\u03BF\u03C3"]))).toEqual(lookalikes.map(() => null));
+    expect(newName("Sbm", ["Sam"])).toBe("Sbm");
   });
 
   test("adds trimmed names, skips blanks and repeats, and removes one", () => {

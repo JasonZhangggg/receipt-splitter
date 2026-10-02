@@ -795,9 +795,11 @@ export function canonicalName(typed: string): string {
   return typed.normalize("NFC").replace(STRIPPED, "").replace(/\s+/gu, " ").trim();
 }
 
-/** Two names are the same name when their keys match, so "José" in either Unicode form, "Ｓam" and "sam" all collide with "Sam". */
+const IGNORABLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+
+/** Two names are the same name when their keys match: NFKC, no format or default-ignorable characters, and a full case fold, so "Ｓam", "Sam" with a soft hyphen, and "STRAUẞ" against "Strauss" all collide. */
 export function nameKey(name: string): string {
-  return canonicalName(name).normalize("NFKC").toLowerCase();
+  return canonicalName(name).replace(IGNORABLE, "").normalize("NFKC").toLowerCase().toUpperCase().toLowerCase();
 }
 
 function hasUniqueIds(rows: readonly { readonly id: string }[]): boolean {

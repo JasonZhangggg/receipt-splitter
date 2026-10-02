@@ -995,6 +995,16 @@ describe("Participants", () => {
     expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: "Bobby" } })).toBe("accepted");
   });
 
+  test("a name that differs from one at the table only by an invisible format character or by case folding is refused, and an emoji family is a name", () => {
+    const join = (id: string, name: string): Operation => ({ by: null, type: "addParticipant", participant: { id: participantId(id), name } });
+    const table = apply(withBobAndCat(), join("strauss", "Strauss"), join("odos", "\u03BF\u03B4\u03BF\u03C3"), join("sam", "Sam"));
+    const lookalikes = ["Ann\u00AD", "A\u200Cnn", "An\u200Dn", "Ann\u180E", "Ann\u206A", "Ann\uFFF9", "Ann\u{E0020}", "Ann\uFE0F", "An\u034Fn", "Ann\u3164", "STRAU\u1E9E", "Strau\u00DF", "\u039F\u0394\u039F\u03A3"];
+
+    expect(lookalikes.map((name) => reasonFor(table, join("dan", name)))).toEqual(lookalikes.map(() => "nameTaken"));
+    expect(reasonFor(table, join("dan", "Sbm"))).toBe("accepted");
+    expect(reasonFor(table, join("dan", "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}"))).toBe("accepted");
+  });
+
   test("a name that differs from one at the table only in Unicode form, width, inner spacing, or a hidden character is refused", () => {
     const join = (split: Split, id: string, name: string): Operation => ({ by: null, type: "addParticipant", participant: { id: participantId(id), name } });
     const withJose = apply(withBobAndCat(), join(withBobAndCat(), "jose", "Jos\u00E9"), join(withBobAndCat(), "mary", "Mary Ann"));
