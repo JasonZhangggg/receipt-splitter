@@ -108,13 +108,17 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
   return { ok: false, reason: refusalReason(refusal) };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function refusalReason(refusal: CreateSplitRefusal | null): string {
   switch (refusal?.refused) {
-    case "turnstileFailed":
-      return createCopy.turnstile;
     case "rateLimited":
       return createCopy.busy;
-    case "turnstileUnavailable":
+    case "dailyLimit": {
+      const nextUtcMidnight = new Date(Math.ceil((Date.now() + 1) / DAY_MS) * DAY_MS);
+      return createCopy.daily(nextUtcMidnight.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+    }
+    case "unavailable":
     case undefined:
       return createCopy.network;
     case "rejected":

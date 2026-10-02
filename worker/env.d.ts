@@ -7,7 +7,5 @@ declare namespace Cloudflare {
   interface Env {
     SplitServer: DurableObjectNamespace<import("./split-server").SplitServer>;
     CreateLimiter: DurableObjectNamespace<import("./rate-limit").CreateLimiter>;
-    TURNSTILE_SECRET_KEY?: string;
-    ALLOWED_HOSTNAMES?: string;
   }
 }

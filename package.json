@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "expo start --web",
-    "build": "node scripts/check-turnstile.mjs && expo export -p web",
+    "build": "expo export -p web",
     "serve": "wrangler dev",
     "test": "vitest run",
     "lint": "eslint .",

@@ -77,7 +77,6 @@ async function launch() {
   if (!values["no-build"]) {
     execFileSync("npm", ["run", "build"], {
       cwd: root,
-      env: { ...process.env, ALLOW_TEST_TURNSTILE: "1" },
       stdio: ["ignore", 2, 2],
       timeout: 180_000,
     });
@@ -91,7 +90,6 @@ async function launch() {
       "--inspector-port", String(inspectorPort),
       "--persist-to", join(runDir, "state"),
       "--show-interactive-dev-session=false",
-      "--var", "TURNSTILE_SECRET_KEY:1x0000000000000000000000000000000AA",
     ],
     { cwd: root, detached: true, stdio: ["ignore", log, log] },
   );

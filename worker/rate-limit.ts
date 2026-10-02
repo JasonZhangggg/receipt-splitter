@@ -42,10 +42,48 @@ export function limiterKey(ip: string): string {
   return `${groups.slice(0, 4).map((group) => group.padStart(4, "0")).join(":")}::/64`;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type UtcDay = number;
+
+const utcDay = (time: number): UtcDay => Math.floor(time / DAY_MS);
+
+const nextMidnight = (day: UtcDay): number => (day + 1) * DAY_MS;
+
+type DayTally = { readonly day: UtcDay; readonly count: number };
+
+export const DAILY_CREATE_CAP = 1500;
+
+function admitToDay(tally: DayTally | undefined, now: number, cap: number): Admission<DayTally> {
+  const day = utcDay(now);
+  const count = tally?.day === day ? tally.count : 0;
+  if (count < cap) return { ok: true, state: { day, count: count + 1 } };
+  return { ok: false, state: { day, count }, retryAfterMs: nextMidnight(day) - now };
+}
+
+export const DAILY_CAP_NAME = "daily-cap";
+
 const TIMES_KEY = "times";
+const TALLY_KEY = "tally";
+
+type Verdict = { readonly ok: true } | { readonly ok: false; readonly retryAfterMs: number };
 
 export class CreateLimiter extends DurableObject<Cloudflare.Env> {
-  async admit(): Promise<{ readonly ok: true } | { readonly ok: false; readonly retryAfterMs: number }> {
+  async peekToday(): Promise<Verdict> {
+    const admission = admitToDay(await this.ctx.storage.get<DayTally>(TALLY_KEY), Date.now(), DAILY_CREATE_CAP);
+    return admission.ok ? { ok: true } : { ok: false, retryAfterMs: admission.retryAfterMs };
+  }
+
+  async admitToday(): Promise<Verdict> {
+    const storage = this.ctx.storage;
+    const admission = admitToDay(await storage.get<DayTally>(TALLY_KEY), Date.now(), DAILY_CREATE_CAP);
+    if (!admission.ok) return { ok: false, retryAfterMs: admission.retryAfterMs };
+    await storage.put(TALLY_KEY, admission.state);
+    if ((await storage.getAlarm()) === null) await storage.setAlarm(nextMidnight(admission.state.day));
+    return { ok: true };
+  }
+
+  async admit(): Promise<Verdict> {
     const storage = this.ctx.storage;
     const admission = admitToWindow((await storage.get<number[]>(TIMES_KEY)) ?? [], Date.now(), CREATE_LIMIT);
     if (!admission.ok) return { ok: false, retryAfterMs: admission.retryAfterMs };
@@ -57,6 +95,8 @@ export class CreateLimiter extends DurableObject<Cloudflare.Env> {
   async alarm(): Promise<void> {
     const storage = this.ctx.storage;
     const now = Date.now();
+    const tally = await storage.get<DayTally>(TALLY_KEY);
+    if (tally?.day === utcDay(now)) return storage.setAlarm(nextMidnight(tally.day));
     const recent = ((await storage.get<number[]>(TIMES_KEY)) ?? []).filter((time) => now - time < CREATE_LIMIT.windowMs);
     if (recent.length === 0) return storage.deleteAll();
     await storage.put(TIMES_KEY, recent);

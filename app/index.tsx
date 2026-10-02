@@ -23,7 +23,6 @@ import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { isPhoto, pickPhoto, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
 import { Reading } from "../src/ui/receipt-input/reading";
 import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
-import { prepareTurnstile, turnstileToken } from "../src/ui/turnstile";
 
 const handleEdits = 700;
 
@@ -92,17 +91,13 @@ export default function Home() {
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
   const reason = blockedReason(draft);
-  useEffect(() => {
-    if (reason === null) prepareTurnstile();
-  }, [reason]);
 
   const create = async () => {
     const request = splitRequest(draft, newParticipantId);
     if (!request) return;
     setCreating(true);
     setFailure(null);
-    const token = await turnstileToken().catch(() => null);
-    const created = token === null ? { ok: false as const, reason: createCopy.turnstile } : await createSplitLink({ turnstileToken: token, split: request });
+    const created = await createSplitLink({ split: request });
     setCreating(false);
     if (!created.ok) return setFailure(created.reason);
     rememberSplit(created.id, { creatorSecret: created.creatorSecret });

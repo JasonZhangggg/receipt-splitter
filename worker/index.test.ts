@@ -1,10 +1,6 @@
 import { exports } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
-import { createSplit, leftovers, stubSiteverify } from "./testing";
-
-beforeEach(() => {
-  stubSiteverify();
-});
+import { describe, expect, it } from "vitest";
+import { createSplit, leftovers } from "./testing";
 
 describe("routing", () => {
   it("answers an unknown API path with 404", async () => {

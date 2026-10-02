@@ -29,7 +29,7 @@ async function createSplit(request: APIRequestContext, workerIndex: number): Pro
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.51.${100 + workerIndex}.${creates}` },
-    data: { turnstileToken: "XXXX.DUMMY.TOKEN.XXXX", split: { receipt: dinner, participants: people, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
+    data: { split: { receipt: dinner, participants: people, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
