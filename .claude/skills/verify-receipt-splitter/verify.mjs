@@ -77,7 +77,6 @@ async function launch() {
   if (!values["no-build"]) {
     execFileSync("npm", ["run", "build"], {
       cwd: root,
-      env: { ...process.env, ALLOW_TEST_TURNSTILE: "1" },
       stdio: ["ignore", 2, 2],
       timeout: 180_000,
     });
