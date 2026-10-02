@@ -152,7 +152,8 @@ const round = (value: number) => Math.round(value * 10) / 10;
 export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = false } = {}): Verdict {
   const inside = trace.frames.filter((frame) => frame.t > trace.start && frame.t <= trace.end);
   const before = trace.frames.filter((frame) => frame.t <= trace.start).at(-1);
-  const window = before ? [before, ...inside] : inside;
+  // WebKit sometimes runs two rAF callbacks a millisecond apart for one frame, so those count as one.
+  const window = (before ? [before, ...inside] : inside).filter((frame, i, all) => i === all.length - 1 || all[i + 1].t - frame.t > 4);
   const gaps = window.slice(1).map((frame, i) => frame.t - window[i].t);
   const sorted = [...gaps].sort((a, b) => a - b);
   const maxGap = sorted.at(-1) ?? 0;
@@ -180,7 +181,8 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
     const tolerance = probe.kind === "opacity" || probe.kind === "scale" ? limits.reverseOpacity : limits.reversePx;
     const perFrame = series.slice(1).map((point, i) => (Math.abs(point.v - series[i].v) * vsync) / Math.max(vsync, point.t - series[i].t));
     if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") {
-      spikes += perFrame.filter((step, i) => step > limits.spikeMinPx && step > limits.spikeRatio * Math.max(perFrame[i - 1] ?? 0, perFrame[i + 1] ?? 0)).length;
+      // Before release a synthetic finger sets the pace, so only the motion the page drives is judged.
+      spikes += perFrame.filter((step, i) => series[i + 1].t > trace.release && step > limits.spikeMinPx && step > limits.spikeRatio * Math.max(perFrame[i - 1] ?? 0, perFrame[i + 1] ?? 0)).length;
     }
     for (let i = 1; i < series.length; i += 1) {
       const step = series[i].v - series[i - 1].v;
