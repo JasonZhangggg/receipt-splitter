@@ -7,7 +7,7 @@ test.setTimeout(60_000);
 const fast = ["pick-handoff", "open-tap", "collapse-tap", "collapse-flick", "bundle-expand", "item-open", "reduced-open-tap", "reduced-collapse-drag"];
 
 for (const scenario of scenarios.filter(({ id }) => fast.includes(id))) {
-  test(`${scenario.name}: no long frame, no jump, no reversal`, async ({ page }) => {
+  test(`${scenario.name}: no long frame, no jump, no reversal`, { tag: "@frame-timing" }, async ({ page }) => {
     await scenario.setup(page);
     const trace = await record(page, scenario.probes, () => scenario.act(page));
     expect(judge(trace, scenario.probes, { instant: scenario.instant }).failures).toEqual([]);

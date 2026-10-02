@@ -160,7 +160,7 @@ test("a swipe up on the share bar opens your breakdown, a swipe down closes it, 
   await expect(page.getByTestId("breakdown")).toBeVisible(live);
 });
 
-test("a finger that catches the sheet mid-glide moves it from where it is, with no jump", async ({ browser, request, browserName }, { workerIndex }) => {
+test("a finger that catches the sheet mid-glide moves it from where it is, with no jump", { tag: "@frame-timing" }, async ({ browser, request, browserName }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
   await pickJason(page);
   const sheet = page.getByTestId("split-sheet");

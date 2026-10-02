@@ -10,7 +10,13 @@ export default defineConfig({
   projects: [
     { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
     // The Split page's sheet is where iOS Safari has differed; the rest of the suite stays on one engine to keep CI short.
-    { name: "mobile-safari", use: { ...devices["iPhone 15"] }, testMatch: ["sheet.spec.ts", "claim.spec.ts", "motion.spec.ts"] },
+    // On the Linux CI runner WebKit frames gap 150-330 ms where Chromium's pass, so frame timing there measures the runner; motion.mjs judges WebKit timing on macOS before each UI PR.
+    {
+      name: "mobile-safari",
+      use: { ...devices["iPhone 15"] },
+      testMatch: ["sheet.spec.ts", "claim.spec.ts", "motion.spec.ts"],
+      grepInvert: process.platform === "linux" ? /@frame-timing/ : undefined,
+    },
   ],
   webServer: {
     command: `npm run build && npx wrangler dev --port ${port} --inspector-port ${port + 10000}`,
