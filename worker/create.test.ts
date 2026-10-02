@@ -1,6 +1,7 @@
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSplit } from "./create";
 import { DAILY_CAP_NAME } from "./rate-limit";
 import { connect, newSplit, postSplit, T0 } from "./testing";
 
@@ -142,21 +143,25 @@ describe("POST /api/splits", () => {
     expect(performance.now() - started).toBeLessThan(250);
   });
 
-  it("refuses a streamed body over the byte cap that declares no length", async () => {
+  it("refuses a streamed body over the byte cap that declares no length, and stops reading it", async () => {
     const bytes = new TextEncoder().encode(
-      JSON.stringify({ split: { ...newSplit, pad: "x".repeat(40 * 1024) } }),
+      JSON.stringify({ split: { ...newSplit, pad: "x".repeat(80 * 1024) } }),
     );
+    const chunks: Uint8Array[] = [];
+    for (let offset = 0; offset < bytes.length; offset += 4096) chunks.push(bytes.slice(offset, offset + 4096));
+    let pulled = 0;
     const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        for (let offset = 0; offset < bytes.length; offset += 4096) controller.enqueue(bytes.slice(offset, offset + 4096));
-        controller.close();
+      pull(controller) {
+        if (pulled < chunks.length) controller.enqueue(chunks[pulled++]);
+        else controller.close();
       },
     });
     const request = new Request("http://localhost/api/splits", { method: "POST", headers: { "cf-connecting-ip": "198.51.100.250" }, body });
     expect(request.headers.get("content-length")).toBe(null);
-    const response = await exports.default.fetch(request);
+    const response = await createSplit(request, env);
     expect(response.status).toBe(413);
     expect(await response.json()).toEqual({ refused: "bodyTooLarge" });
+    expect(pulled).toBeLessThan(chunks.length);
   });
 
   it("refuses an unknown top-level key", async () => {
