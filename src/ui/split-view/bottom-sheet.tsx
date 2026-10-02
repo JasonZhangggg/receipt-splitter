@@ -12,7 +12,6 @@ const fadeOut = 150;
 const tapSlop = 10;
 const maxVelocity = 3000;
 const grabHeight = 29;
-const frame = 16;
 const contain = webStyle({ overscrollBehavior: "contain" });
 const holdsGesture = webStyle({ touchAction: "none" });
 
@@ -78,8 +77,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     offset.current = to;
     const sheet = element();
     const dim = shade.current as unknown as HTMLElement | null;
-    // Starting a frame in means the frame that swaps the content already shows the sheet moving.
-    const transition = `${ms}ms ${glide.easing} -${frame}ms`;
+    const transition = `${ms}ms ${glide.easing}`;
     if (sheet) {
       sheet.style.transition = ms > 0 ? `transform ${transition}` : "none";
       sheet.style.transform = `translateY(${to}px)`;
