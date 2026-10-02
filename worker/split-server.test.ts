@@ -3,10 +3,9 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
 import type { Split } from "../src/core/split";
-import { connect, createSplit, leftovers, stubSiteverify, type Client } from "./testing";
+import { connect, createSplit, leftovers, stubSiteverify, T0, type Client } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
-const T0 = Date.parse("2026-10-01T12:00:00Z");
 
 beforeEach(() => {
   vi.setSystemTime(T0);
@@ -200,6 +199,24 @@ describe("a flood of recorded changes", () => {
       ["v3", [["Fries", 1], ["Pitcher 29", 3000]]],
       ["v4", [["Fries", 800], ["Pitcher", 3000]]],
     ]);
+  });
+});
+
+describe("history rate after an eviction", () => {
+  it("still refuses a recorded change by bytes after the Split is evicted", async () => {
+    const { id } = await createSplit();
+    const vandal = await open(id);
+    const rename = (ref: string, name: string): ClientMessage =>
+      JSON.parse(JSON.stringify({ ref, op: { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "pitcher", name }] } }));
+    for (let index = 0; index < 40; index += 1) vandal.client.send(rename(`f${index}`, `Pitcher ${index}`));
+    const replies: ServerMessage[] = [];
+    for (let index = 0; index < 40; index += 1) replies.push(await vandal.client.next());
+    expect(replies.at(-1)).toMatchObject({ type: "rejected", ref: "f39", rejection: { reason: "rateLimited" } });
+
+    await evictDurableObject(env.SplitServer.getByName(id));
+    const after = await open(id);
+    after.client.send(rename("again", "Pitcher again"));
+    expect(await after.client.next()).toMatchObject({ type: "rejected", ref: "again", rejection: { reason: "rateLimited" } });
   });
 });
 
@@ -506,6 +523,21 @@ describe("refusals leave the stored Split unchanged", () => {
     expect(replies.filter(({ type }) => type === "state")).toHaveLength(2);
     expect(replies.filter(({ type }) => type === "unchanged")).toHaveLength(58);
     expect(replies[60]).toEqual({ type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs: 50 } });
+  });
+
+  it("keeps an exhausted operation bucket across an eviction", async () => {
+    const { id } = await createSplit();
+    const a = await open(id);
+    for (let index = 0; index < 59; index += 1) a.client.send(claim(`c${index}`, "fries"));
+    a.client.send(claim("c59", "pitcher"));
+    const kinds: string[] = [];
+    for (let index = 0; index < 60; index += 1) kinds.push((await a.client.next()).type);
+    expect(kinds.filter((kind) => kind === "rejected")).toEqual([]);
+
+    await evictDurableObject(env.SplitServer.getByName(id));
+    const b = await open(id);
+    b.client.send(claim("after", "fries", "ann"));
+    expect(await b.client.next()).toEqual({ type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs: 50 } });
   });
 
   it("refills the bucket at 20 operations a second", async () => {

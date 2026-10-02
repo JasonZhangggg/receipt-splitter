@@ -90,7 +90,7 @@ export type SplitMode = (typeof SPLIT_MODES)[number];
 
 export type SplitItem = ItemRow & { readonly split: ItemSplit };
 
-export type NamePick = { readonly participantId: ParticipantId; readonly device?: DeviceId };
+export type NamePick = { readonly participantId: ParticipantId; readonly device: DeviceId };
 
 export type Participant = {
   readonly id: ParticipantId;

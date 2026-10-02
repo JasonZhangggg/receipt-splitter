@@ -446,12 +446,10 @@ describe("Payments", () => {
     expect(apply(paid, clear(bobsPhone)).payments).toEqual([]);
   });
 
-  test("a Payment for a name nobody picked, or picked with no device, is refused, and the Host cannot record one", () => {
+  test("a Payment for a name nobody picked is refused, and the Host cannot record one", () => {
     const unpicked = apply(withBobAndCat(), { by: bob, type: "pick", participantId: bob, device: bobsPhone, takeOver: false });
-    const legacy: Split = { ...unpicked, picks: [{ participantId: cat }] };
 
     expect(reasonFor(unpicked, pay(cat, 2400))).toBe("payerOnly");
-    expect(reasonFor(legacy, pay(cat, 2400))).toBe("payerOnly");
     expect(reasonFor(claimedDinner(), pay(ann, 1000))).toBe("host");
   });
 
@@ -490,6 +488,14 @@ describe("Payment handles", () => {
     const parsed = parseOperation(JSON.parse(`${wire}}`));
     if (!parsed.ok) throw new Error(`parse rejected: ${JSON.stringify(parsed.rejection)}`);
     expect(applyOperation(withBobAndCat(), parsed.op, anyone)).toEqual({ ok: false, rejection: { reason: "creatorRequired" } });
+  });
+
+  test("a Zelle handle with a bidi override or a zero-width character is rejected", () => {
+    const zelle = (handle: string): Operation => ({ by: null, type: "setPaymentHandles", handles: [{ service: "zelle", handle }] });
+
+    expect(reasonFor(withBobAndCat(), zelle("ann\u202Emoc.elpmaxe@x.com"), { creator: true })).toBe("badHandle");
+    expect(reasonFor(withBobAndCat(), zelle("ann\u200B@example.com"), { creator: true })).toBe("badHandle");
+    expect(reasonFor(withBobAndCat(), zelle("ann@example.com"), { creator: true })).toBe("accepted");
   });
 
   test("a handle that could break out of a payment link is rejected even for the creator", () => {
@@ -606,7 +612,7 @@ describe("Item quantity and split", () => {
     expect(undone.receipt.items[2].split).toEqual({ by: "even", units: [["ann", "bob", "cat"]] });
   });
 
-  test("Undo of a quantity change puts the units back, and Cat keeps the unit she claimed since", () => {
+  test("Undo of a quantity change puts the units back, and drops the claim Cat made on the unit that went away", () => {
     const doubled = apply(withBobAndCat(), edit({ quantity: 2 }));
     const claimed = apply(doubled, claim(pitcher, cat, 1));
 
@@ -989,6 +995,28 @@ describe("Participants", () => {
     expect(reasonFor(split, { by: null, type: "addParticipant", participant: { id: dan, name: "Bobby" } })).toBe("accepted");
   });
 
+  test("a name that differs from one at the table only by an invisible format character or by case folding is refused, and an emoji family is a name", () => {
+    const join = (id: string, name: string): Operation => ({ by: null, type: "addParticipant", participant: { id: participantId(id), name } });
+    const table = apply(withBobAndCat(), join("strauss", "Strauss"), join("odos", "\u03BF\u03B4\u03BF\u03C3"), join("sam", "Sam"));
+    const lookalikes = ["Ann\u00AD", "A\u200Cnn", "An\u200Dn", "Ann\u180E", "Ann\u206A", "Ann\uFFF9", "Ann\u{E0020}", "Ann\uFE0F", "An\u034Fn", "Ann\u3164", "STRAU\u1E9E", "Strau\u00DF", "\u039F\u0394\u039F\u03A3"];
+
+    expect(lookalikes.map((name) => reasonFor(table, join("dan", name)))).toEqual(lookalikes.map(() => "nameTaken"));
+    expect(reasonFor(table, join("dan", "Sbm"))).toBe("accepted");
+    expect(reasonFor(table, join("dan", "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}"))).toBe("accepted");
+  });
+
+  test("a name that differs from one at the table only in Unicode form, width, inner spacing, or a hidden character is refused", () => {
+    const join = (split: Split, id: string, name: string): Operation => ({ by: null, type: "addParticipant", participant: { id: participantId(id), name } });
+    const withJose = apply(withBobAndCat(), join(withBobAndCat(), "jose", "Jos\u00E9"), join(withBobAndCat(), "mary", "Mary Ann"));
+
+    expect(reasonFor(withJose, join(withJose, "dan", "Jose\u0301"))).toBe("nameTaken");
+    expect(reasonFor(withJose, join(withJose, "dan", "\uFF22ob"))).toBe("nameTaken");
+    expect(reasonFor(withJose, join(withJose, "dan", "Mary \u00A0Ann"))).toBe("nameTaken");
+    expect(reasonFor(withJose, join(withJose, "dan", "Bob\u200B"))).toBe("badName");
+    expect(reasonFor(withJose, join(withJose, "dan", "\u202EboB"))).toBe("badName");
+    expect(reasonFor(withJose, join(withJose, "dan", "Josie"))).toBe("accepted");
+  });
+
   test("a redo of an undone add is refused once someone else has taken the name", () => {
     const removed = apply(withBobAndCat(), { by: cat, type: "undo", revision: 1 });
     const retaken = apply(removed, { by: null, type: "addParticipant", participant: { id: dan, name: "BOB" } });
@@ -1044,7 +1072,7 @@ describe("changes stored before per-unit claims and device picks", () => {
     return parsed.split;
   }
 
-  test("read a line's claimedBy as one even unit, and joined as picks with no device", () => {
+  test("read a line's claimedBy as one even unit, and joined as picked by no one", () => {
     const split = stored({ joined: ["bob"] }, [{ kind: "claims", itemIds: [pasta, pitcher], participantIds: [ann, bob, cat], claimed: true }]);
 
     expect(split.receipt.items.map(({ split: shape }) => shape)).toEqual([
@@ -1052,7 +1080,7 @@ describe("changes stored before per-unit claims and device picks", () => {
       { by: "even", units: [[]] },
       { by: "even", units: [["ann", "bob", "cat"]] },
     ]);
-    expect(split.picks).toEqual([{ participantId: "bob" }]);
+    expect(split.picks).toEqual([]);
   });
 
   test("a stored Claims change or unmark stays in the recent changes, and Undo refuses it as a conflict", () => {

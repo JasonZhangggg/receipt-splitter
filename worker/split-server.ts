@@ -25,7 +25,10 @@ type Stored =
       readonly json: string;
       readonly changedAt: number;
       readonly secret: Uint8Array;
+      readonly rate: Rate;
     };
+
+type Rate = { readonly operations: Bucket | null; readonly history: Bucket | null };
 
 type Frame =
   | { readonly ok: true; readonly ref: string; readonly op: Operation; readonly creatorSecret: string | undefined }
@@ -33,14 +36,21 @@ type Frame =
 
 type Pacing = { readonly retryAt: number; readonly early: number };
 
-type Row = { json: string; changed_at: number; creator_secret: ArrayBuffer; bytes: number };
+type Row = {
+  json: string;
+  changed_at: number;
+  creator_secret: ArrayBuffer;
+  bytes: number;
+  operations_tokens: number | null;
+  operations_at: number | null;
+  history_tokens: number | null;
+  history_at: number | null;
+};
 
 export class SplitServer extends Server<Cloudflare.Env> {
   static options = { hibernate: true };
 
   #stored: Stored = { kind: "missing" };
-  #bucket: Bucket | null = null;
-  #history: Bucket | null = null;
   #pacing = new Map<string, Pacing>();
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
@@ -52,14 +62,14 @@ export class SplitServer extends Server<Cloudflare.Env> {
     if (split.id !== this.name) throw new Error(`SplitServer ${this.name} cannot hold Split ${split.id}`);
     const sql = this.ctx.storage.sql;
     sql.exec(
-      "CREATE TABLE IF NOT EXISTS split (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), json TEXT NOT NULL, changed_at INTEGER NOT NULL, creator_secret BLOB NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS split (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), json TEXT NOT NULL, changed_at INTEGER NOT NULL, creator_secret BLOB NOT NULL, operations_tokens REAL, operations_at INTEGER, history_tokens REAL, history_at INTEGER)",
     );
     if (sql.exec("SELECT 1 FROM split").toArray().length > 0) return { created: false };
     const secret = crypto.getRandomValues(new Uint8Array(SECRET_BYTES));
     const json = JSON.stringify(split);
     const now = Date.now();
     sql.exec("INSERT INTO split (singleton, json, changed_at, creator_secret) VALUES (1, ?, ?, ?)", json, now, secret);
-    this.#stored = { kind: "live", split, json, changedAt: now, secret };
+    this.#stored = { kind: "live", split, json, changedAt: now, secret, rate: { operations: null, history: null } };
     await this.ctx.storage.setAlarm(now + SPLIT_TTL_MS);
     return { created: true, creatorSecret: toBase64Url(secret) };
   }
@@ -85,8 +95,9 @@ export class SplitServer extends Server<Cloudflare.Env> {
     const stored = this.#stored;
     if (stored.kind !== "live") return endConnection(connection, stored);
     const now = Date.now();
-    const admission = takeToken(this.#bucket, now, OPERATION_LIMIT);
-    this.#bucket = admission.state;
+    const admission = takeToken(stored.rate.operations, now, OPERATION_LIMIT);
+    let rate: Rate = { ...stored.rate, operations: admission.state };
+    this.#stored = { ...stored, rate };
     if (!admission.ok) return this.#refuse(connection, now, admission.retryAfterMs);
     this.#pacing.delete(connection.id);
     const frame = readFrame(message);
@@ -96,15 +107,24 @@ export class SplitServer extends Server<Cloudflare.Env> {
     if (!result.changed) return send(connection, { type: "unchanged", ref: frame.ref, revision: stored.split.revision });
     const recorded = result.split.recentChanges.at(-1);
     if (recorded?.revision === result.split.revision) {
-      const charge = takeToken(this.#history, now, HISTORY_LIMIT, serializedBytes(recorded));
-      this.#history = charge.state;
+      const charge = takeToken(rate.history, now, HISTORY_LIMIT, serializedBytes(recorded));
+      rate = { ...rate, history: charge.state };
+      this.#stored = { ...stored, rate };
       if (!charge.ok) {
         return send(connection, { type: "rejected", ref: frame.ref, rejection: { reason: "rateLimited", retryAfterMs: charge.retryAfterMs } });
       }
     }
     const json = JSON.stringify(result.split);
-    this.ctx.storage.sql.exec("UPDATE split SET json = ?, changed_at = ?", json, now);
-    this.#stored = { ...stored, split: result.split, json, changedAt: now };
+    this.ctx.storage.sql.exec(
+      "UPDATE split SET json = ?, changed_at = ?, operations_tokens = ?, operations_at = ?, history_tokens = ?, history_at = ?",
+      json,
+      now,
+      rate.operations?.tokens ?? null,
+      rate.operations?.at ?? null,
+      rate.history?.tokens ?? null,
+      rate.history?.at ?? null,
+    );
+    this.#stored = { ...stored, split: result.split, json, changedAt: now, rate };
     this.broadcast(stateMessage(null, json), [connection.id]);
     connection.send(stateMessage(frame.ref, json));
   }
@@ -146,7 +166,9 @@ export class SplitServer extends Server<Cloudflare.Env> {
       return { kind: "missing" };
     }
     const [row] = sql
-      .exec<Row>("SELECT json, changed_at, creator_secret, length(CAST(json AS BLOB)) AS bytes FROM split")
+      .exec<Row>(
+        "SELECT json, changed_at, creator_secret, length(CAST(json AS BLOB)) AS bytes, operations_tokens, operations_at, history_tokens, history_at FROM split",
+      )
       .toArray();
     if (!row) return { kind: "missing" };
     const unreadable = (why: string): Stored => {
@@ -157,8 +179,19 @@ export class SplitServer extends Server<Cloudflare.Env> {
     const parsed = parseSplit(parseJson(row.json));
     if (!parsed.ok) return unreadable(JSON.stringify(parsed.rejection));
     if (parsed.split.id !== this.name) return unreadable(`it belongs to ${parsed.split.id}`);
-    return { kind: "live", split: parsed.split, json: row.json, changedAt: row.changed_at, secret: new Uint8Array(row.creator_secret) };
+    return {
+      kind: "live",
+      split: parsed.split,
+      json: row.json,
+      changedAt: row.changed_at,
+      secret: new Uint8Array(row.creator_secret),
+      rate: { operations: bucketOf(row.operations_tokens, row.operations_at), history: bucketOf(row.history_tokens, row.history_at) },
+    };
   }
+}
+
+function bucketOf(tokens: number | null, at: number | null): Bucket | null {
+  return tokens === null || at === null ? null : { tokens, at };
 }
 
 function readFrame(message: string | ArrayBuffer): Frame {

@@ -37,7 +37,7 @@ export function stubSiteverify(): Siteverify[] {
     const call = { secret: field("secret"), response: field("response"), remoteip: field("remoteip") };
     calls.push(call);
     const success = call.response === PASSING_TOKEN;
-    return Response.json({ success, "error-codes": success ? [] : ["invalid-input-response"] });
+    return Response.json(success ? { success, "error-codes": [], hostname: "example.com" } : { success, "error-codes": ["invalid-input-response"] });
   });
   return calls;
 }
@@ -104,3 +104,6 @@ export async function leftovers(id: string): Promise<{ tables: unknown[]; keys: 
     alarm: await state.storage.getAlarm(),
   }));
 }
+
+/** Durable Object alarms run on the real clock, so a fake now in the past would fire every 60-day expiry alarm mid-test. */
+export const T0 = Date.parse("2100-01-01T12:00:00Z");

@@ -24,6 +24,7 @@ import {
   type ItemSplit,
   type LegacyWrite,
   type MintedSplitId,
+  type NamePick,
   type NonEmpty,
   type Part,
   type Split,
@@ -327,8 +328,8 @@ const split: Parser<Split> = strict(({ read, maybe, has, fail }) => ({
   picks: has("joined")
     ? has("picks")
       ? fail("joined")
-      : (read("joined", array(participantId, MAX_PARTICIPANTS)).map((id) => ({ participantId: id })))
-    : (maybe("picks", array(pick, MAX_PARTICIPANTS)).picks ?? []),
+      : (read("joined", array(participantId, MAX_PARTICIPANTS)), [])
+    : (maybe("picks", array(pick, MAX_PARTICIPANTS)).picks ?? []).filter((held): held is NamePick => held.device !== undefined),
   payments: read(
     "payments",
     array(

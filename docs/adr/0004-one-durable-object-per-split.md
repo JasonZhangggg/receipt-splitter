@@ -9,4 +9,10 @@ Live Splits are stored in one SQLite-backed Cloudflare Durable Object each, with
 
 Free-plan limits fail with errors rather than bills, so the account moves to the $5 Paid plan before public launch.
 
-A stored Split outlives the Worker that wrote it. From launch, any change to `parseSplit` that a stored row could fail bumps `schemaVersion` and ships a migration in the same change, so a deploy never turns a live Split unreadable. A rolled-back Worker refuses a row with a newer `schemaVersion` as unreadable and does not read it with fields dropped. Until launch no real Split exists, so `schemaVersion` stays 1.
+## Stored Split versions
+
+A stored Split outlives the Worker that wrote it. The record carries `schemaVersion: 1`, and `parseSplit` marks any row it refuses as unreadable (close code 4500), so a rule change can lock people out of a live Split. From launch, any change to `parseSplit` that a stored row could fail bumps `schemaVersion` and ships a migration from the old version in the same change, so a deploy never turns a live Split unreadable. `src/core/golden/` holds one row per shipped release, written by `node scripts/golden-splits.mjs`, and `src/core/parse.test.ts` reads each one. Add a row when a release changes the stored shape.
+
+A Worker rolled back to an older release refuses a row with a newer `schemaVersion` as unreadable. It does not read the row with fields dropped and write the rest away.
+
+Until launch no real Split exists, so nothing stored has to survive and `schemaVersion` stays 1. Rules and reads of older shapes may still change inside version 1, as the hidden-character check on Zelle handles did, and the migration rule above applies from launch on.

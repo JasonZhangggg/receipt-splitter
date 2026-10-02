@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import { cents, price } from "./money";
 import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
 import { parseNewSplit, parseOperation, parseSplit } from "./parse";
@@ -139,14 +140,15 @@ describe("parseSplit", () => {
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });
 
-  test("reads a Split stored before joins as picked by no one, joined ids as picks with no device, and refuses picks out of order, twice, or for someone not in the Split", () => {
+  test("reads a Split stored before joins, with joined ids, or with picks that have no device, as picked by no one for those names, and refuses picks out of order, twice, or for someone not in the Split", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
     const { picks, ...beforeJoins } = stored;
     const pick = (participantId: string) => ({ participantId, device: `${participantId}-phone` });
 
     expect(picks).toEqual([{ participantId: "bob", device: "bobs-phone" }]);
     expect(parseSplit(beforeJoins)).toMatchObject({ ok: true, split: { picks: [] } });
-    expect(parseSplit({ ...beforeJoins, joined: ["ann", "bob"] })).toMatchObject({ ok: true, split: { picks: [{ participantId: "ann" }, { participantId: "bob" }] } });
+    expect(parseSplit({ ...beforeJoins, joined: ["ann", "bob"] })).toMatchObject({ ok: true, split: { picks: [] } });
+    expect(parseSplit({ ...stored, picks: [{ participantId: "ann" }, pick("bob")] })).toMatchObject({ ok: true, split: { picks: [{ participantId: "bob", device: "bob-phone" }] } });
     expect(parseSplit({ ...stored, joined: ["ann"] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "joined" } });
     expect(parseSplit({ ...stored, picks: [pick("bob"), pick("ann")] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "picks" } });
     expect(parseSplit({ ...stored, picks: [pick("bob"), pick("bob")] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "picks" } });
@@ -380,10 +382,56 @@ describe("parseNewSplit", () => {
     expect(hosted("   ")).toEqual(badName);
   });
 
+  test("refuses a Split whose names repeat once Unicode form and width are set aside", () => {
+    const named = (second: string) => parseNewSplit({ ...body, participants: [{ id: "ann", name: "Jos\u00E9" }, { id: "bob", name: second }] }, minted);
+
+    expect(named("jose\u0301")).toEqual({ ok: false, rejection: { reason: "nameTaken" } });
+    expect(named("\uFF2A\uFF4F\uFF53\u00E9")).toEqual({ ok: false, rejection: { reason: "nameTaken" } });
+    expect(named("Josie")).toMatchObject({ ok: true });
+  });
+
   test("refuses a Receipt that fails the Total check, as parseSplit does", () => {
     expect(parseNewSplit({ ...body, receipt: { ...body.receipt, total: 4000 } }, minted)).toMatchObject({
       ok: false,
       rejection: { reason: "totalCheckFailed" },
     });
+  });
+});
+
+describe("Splits stored by each shipped release", () => {
+  const golden = (label: string): unknown => JSON.parse(readFileSync(new URL(`./golden/${label}.json`, import.meta.url), "utf8"));
+  const read = (label: string) => {
+    const parsed = parseSplit(golden(label));
+    if (!parsed.ok) throw new Error(`${label}: ${JSON.stringify(parsed.rejection)}`);
+    return parsed.split;
+  };
+  const claimers = (split: Split) => split.receipt.items.map(({ split: { units } }) => units);
+
+  test("a row the current release writes reads back unchanged", () => {
+    expect(JSON.parse(JSON.stringify(read("rs-11")))).toEqual(golden("rs-11"));
+  });
+
+  test("RS-10 rows read with their device picks, units and original Receipt", () => {
+    const split = read("rs-10");
+
+    expect(split.picks).toEqual([{ participantId: "bob", device: "bobs-phone" }]);
+    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"], []]]);
+    expect(split.original?.items.map(({ name }) => name)).toEqual(["Fries", "Pitcher"]);
+  });
+
+  test("RS-9 rows read their joined names as picked by no one, and line claims as one unit", () => {
+    const split = read("rs-9");
+
+    expect(split.picks).toEqual([]);
+    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"]]]);
+    expect(split.participants.map(({ name }) => name)).toEqual(["Ann", "Bob", "Cat"]);
+  });
+
+  test("RS-8 rows read as picked by no one, with line claims as one unit", () => {
+    const split = read("rs-8");
+
+    expect(split.picks).toEqual([]);
+    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"]]]);
+    expect(split.recentChanges.length).toBe(5);
   });
 });

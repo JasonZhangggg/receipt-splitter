@@ -30,6 +30,9 @@ yarn-error.*
 /android
 
 .wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 test-results/
 playwright-report/
 .verify/

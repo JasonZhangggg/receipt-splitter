@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "id": "golden-split-id-0000000",
+  "currency": "USD",
+  "receipt": {
+    "items": [
+      {
+        "id": "fries",
+        "name": "Fries",
+        "price": 900,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "bob"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "pitcher",
+        "name": "Pitcher",
+        "price": 3000,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "ann",
+              "bob"
+            ],
+            []
+          ]
+        }
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "tip",
+        "kind": "tip",
+        "name": "Tip",
+        "amount": 500
+      }
+    ],
+    "subtotal": 3900,
+    "total": 4400
+  },
+  "participants": [
+    {
+      "id": "ann",
+      "name": "Ann"
+    },
+    {
+      "id": "bob",
+      "name": "Bob"
+    },
+    {
+      "id": "cat",
+      "name": "Cat"
+    }
+  ],
+  "picks": [
+    {
+      "participantId": "bob",
+      "device": "bobs-phone"
+    }
+  ],
+  "payments": [
+    {
+      "participantId": "bob",
+      "amount": 1000
+    }
+  ],
+  "paymentHandles": [
+    {
+      "service": "venmo",
+      "handle": "ann-host"
+    }
+  ],
+  "revision": 9,
+  "recentChanges": [
+    {
+      "revision": 1,
+      "by": null,
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "participant",
+          "id": "bob",
+          "added": {
+            "index": 1,
+            "name": "Bob"
+          }
+        }
+      ],
+      "at": 1767225600000
+    },
+    {
+      "revision": 2,
+      "by": null,
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "participant",
+          "id": "cat",
+          "added": {
+            "index": 2,
+            "name": "Cat"
+          }
+        }
+      ],
+      "at": 1767225600000
+    },
+    {
+      "revision": 7,
+      "by": "ann",
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "item",
+          "id": "fries",
+          "edit": {
+            "price": [
+              800,
+              900
+            ]
+          }
+        },
+        {
+          "kind": "totals",
+          "subtotalDelta": 100,
+          "totalDelta": 100
+        }
+      ],
+      "at": 1767225600000
+    },
+    {
+      "revision": 8,
+      "by": "ann",
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "item",
+          "id": "pitcher",
+          "edit": {
+            "split": [
+              {
+                "by": "even",
+                "units": [
+                  [
+                    "ann",
+                    "bob"
+                  ]
+                ]
+              },
+              {
+                "by": "even",
+                "units": [
+                  [
+                    "ann",
+                    "bob"
+                  ],
+                  []
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "at": 1767225600000
+    },
+    {
+      "revision": 9,
+      "by": "bob",
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "payment",
+          "participantId": "bob",
+          "before": null,
+          "after": 1000
+        }
+      ],
+      "at": 1767225600000
+    }
+  ],
+  "original": {
+    "items": [
+      {
+        "id": "fries",
+        "name": "Fries",
+        "price": 800
+      },
+      {
+        "id": "pitcher",
+        "name": "Pitcher",
+        "price": 3000
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "tip",
+        "kind": "tip",
+        "name": "Tip",
+        "amount": 500
+      }
+    ],
+    "subtotal": 3800,
+    "total": 4300
+  }
+}

@@ -22,6 +22,7 @@ Each lane picks its own port. The helper derives everything else from it, so lan
 - The site listens on `http://localhost:<port>`.
 - The wrangler inspector listens on `<port> + 10000`. The port must be below 55000, so the inspector stays below 65535. Every command rejects any other port with a usage failure.
 - Run state (the launch pid, the process group id, `wrangler.log`, Durable Object storage) lives in `.verify/<port>/` in the worktree.
+- A Split stored before the rate-limit columns were added to the `split` table (commit `b42ed35`) fails to load, and its socket gets an error instead of a state frame. Nothing deployed holds one. Cleanup deletes `.verify/<port>/` with its storage, so run cleanup on any port launched before that commit. `npm run e2e` keeps its storage in `.wrangler/state/`, so delete that folder once as well.
 - Two lanes in the same worktree share `dist/`. Do not rebuild while another lane in that worktree is driving.
 
 ## Launch

@@ -1,12 +1,13 @@
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSplit } from "./create";
-import { connect, newSplit, PASSING_TOKEN, postSplit, stubSiteverify, type Siteverify } from "./testing";
+import { connect, newSplit, PASSING_TOKEN, postSplit, stubSiteverify, T0, type Siteverify } from "./testing";
 
 let siteverify: Siteverify[];
 
 beforeEach(() => {
-  vi.setSystemTime(Date.parse("2026-10-01T12:00:00Z"));
+  vi.setSystemTime(T0);
   siteverify = stubSiteverify();
 });
 
@@ -57,9 +58,34 @@ describe("POST /api/splits", () => {
 
     const elsewhere = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.45" });
     expect(elsewhere.status).toBe(201);
-    vi.setSystemTime(Date.parse("2026-10-01T12:01:00Z"));
+    vi.setSystemTime(T0 + 60_000);
     const nextMinute = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.44" });
     expect(nextMinute.status).toBe(201);
+  });
+
+  it("keeps counting creates from one IP after its limiter is evicted", async () => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect((await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.90" })).status).toBe(201);
+    }
+    await evictDurableObject(env.CreateLimiter.getByName("192.0.2.90"));
+    const eleventh = await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.90" });
+    expect([eleventh.status, eleventh.headers.get("retry-after")]).toEqual([429, "60"]);
+  });
+
+  it("forgets an IP's creates once a minute has passed since the last one", async () => {
+    const limiter = env.CreateLimiter.getByName("192.0.2.91");
+    const stored = () => runInDurableObject(limiter, async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
+    await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.91" });
+    vi.setSystemTime(T0 + 30_000);
+    await postSplit({ turnstileToken: PASSING_TOKEN, split: newSplit }, { ip: "192.0.2.91" });
+
+    vi.setSystemTime(T0 + 60_000);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect((await stored()).alarm).toBe(T0 + 90_000);
+
+    vi.setSystemTime(T0 + 90_000);
+    expect(await runDurableObjectAlarm(limiter)).toBe(true);
+    expect(await stored()).toEqual({ keys: [], alarm: null });
   });
 
   it("counts every IPv6 address in one /64 as one client", async () => {
@@ -170,5 +196,107 @@ describe("POST /api/splits", () => {
     const response = await exports.default.fetch("http://localhost/api/splits");
     expect(response.status).toBe(405);
     expect(response.headers.get("allow")).toBe("POST");
+  });
+});
+
+describe("the Turnstile deployment checks", () => {
+  const STAND_IN_SECRET = "stand-in-for-a-production-secret";
+  let nextHost = 1;
+
+  function post(vars: Partial<Cloudflare.Env>, { ip = `203.0.113.${100 + nextHost++}`, origin = "https://split.example" }: { ip?: string | null; origin?: string } = {}): Promise<Response> {
+    const request = new Request(`${origin}/api/splits`, {
+      method: "POST",
+      headers: ip === null ? {} : { "cf-connecting-ip": ip },
+      body: JSON.stringify({ turnstileToken: PASSING_TOKEN, split: newSplit }),
+    });
+    return createSplit(request, { ...env, ...vars });
+  }
+
+  function answerHostname(hostname: string | undefined): void {
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async () => Response.json({ success: true, "error-codes": [], hostname }));
+  }
+
+  it("creates only when siteverify names a hostname in ALLOWED_HOSTNAMES", async () => {
+    const deployed = { TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: "split.example, www.split.example" };
+    const outcomes: [string | undefined, number, unknown][] = [];
+    for (const hostname of ["www.split.example", "evil.example", undefined, "localhost"]) {
+      answerHostname(hostname);
+      const response = await post(deployed);
+      outcomes.push([hostname, response.status, response.status === 201 ? "created" : await response.json()]);
+    }
+    expect(outcomes).toEqual([
+      ["www.split.example", 201, "created"],
+      ["evil.example", 403, { refused: "turnstileFailed" }],
+      [undefined, 403, { refused: "turnstileFailed" }],
+      ["localhost", 403, { refused: "turnstileFailed" }],
+    ]);
+  });
+
+  it("on a request to localhost, 127.0.0.1 or [::1] with ALLOWED_HOSTNAMES empty or unset, allows only local hostnames", async () => {
+    const statuses: number[] = [];
+    const cases: [string, string | undefined, string][] = [
+      ["http://localhost:8787", undefined, "localhost"],
+      ["http://127.0.0.1:8787", "", "127.0.0.1"],
+      ["http://[::1]:8787", " , ", "localhost"],
+      ["http://localhost:8787", undefined, "split.example"],
+    ];
+    for (const [origin, allowed, hostname] of cases) {
+      answerHostname(hostname);
+      statuses.push((await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: allowed }, { origin })).status);
+    }
+    expect(statuses).toEqual([201, 201, 201, 403]);
+  });
+
+  it("refuses with 503 a public request when ALLOWED_HOSTNAMES is unset, empty or blank, whatever the secret or client IP", async () => {
+    const refusals: [number, unknown][] = [];
+    for (const allowed of [undefined, "", " , "]) {
+      for (const [secret, ip] of [["1x0000000000000000000000000000000AA", null], [STAND_IN_SECRET, "203.0.113.7"]] as const) {
+        const response = await post({ TURNSTILE_SECRET_KEY: secret, ALLOWED_HOSTNAMES: allowed }, { ip });
+        refusals.push([response.status, await response.json()]);
+      }
+    }
+    expect(refusals).toEqual(Array.from({ length: 6 }, () => [503, { refused: "turnstileUnavailable" }]));
+    expect(siteverify).toEqual([]);
+  });
+
+  it("matches an ALLOWED_HOSTNAMES entry written with a trailing dot or in capitals, and logs and skips an entry with a port", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const statuses: number[] = [];
+    for (const hostname of ["split.example", "www.split.example"]) {
+      answerHostname(hostname);
+      statuses.push((await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: "Split.Example., www.split.example:443" })).status);
+    }
+    expect(statuses).toEqual([201, 403]);
+    expect(logged.mock.calls.flat().join("\n")).toContain("www.split.example:443");
+    logged.mockRestore();
+  });
+
+  it("refuses a Cloudflare test secret with 503 when ALLOWED_HOSTNAMES names a public host, without calling siteverify", async () => {
+    const refusals: [number, unknown][] = [];
+    for (const secret of ["1x0000000000000000000000000000000AA", "2x0000000000000000000000000000000AA", "3x0000000000000000000000000000000AA"]) {
+      const response = await post({ TURNSTILE_SECRET_KEY: secret, ALLOWED_HOSTNAMES: "localhost,split.example" });
+      refusals.push([response.status, await response.json()]);
+    }
+    expect(refusals).toEqual([
+      [503, { refused: "turnstileUnavailable" }],
+      [503, { refused: "turnstileUnavailable" }],
+      [503, { refused: "turnstileUnavailable" }],
+    ]);
+    expect(siteverify).toEqual([]);
+  });
+
+  it("accepts the test secret's example.com answer on a localhost request when only localhost is allowed", async () => {
+    const response = await post({ TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", ALLOWED_HOSTNAMES: "localhost,127.0.0.1" }, { origin: "http://localhost:8787" });
+    expect(response.status).toBe(201);
+  });
+
+  it("refuses a create with no client IP outside localhost, and buckets it on localhost", async () => {
+    const deployed = await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: "split.example" }, { ip: null });
+    expect([deployed.status, await deployed.json()]).toEqual([503, { refused: "turnstileUnavailable" }]);
+    expect(siteverify).toEqual([]);
+
+    const local = await post({}, { ip: null, origin: "http://localhost:8787" });
+    expect(local.status).toBe(201);
+    expect(siteverify.map(({ remoteip }) => remoteip)).toEqual([null]);
   });
 });

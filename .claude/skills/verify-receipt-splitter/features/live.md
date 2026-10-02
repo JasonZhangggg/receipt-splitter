@@ -20,7 +20,7 @@ A Split lives in one Durable Object that `wrangler dev` runs beside the site. `P
 
 Preconditions:
 
-- `verify.mjs doctor --port 8811` reports `"ok":true`. `.dev.vars` gives `wrangler dev` the Turnstile test secret `1x0000000000000000000000000000000AA`, so the test token `XXXX.DUMMY.TOKEN.XXXX` passes siteverify. The machine needs network access to `challenges.cloudflare.com`.
+- `verify.mjs doctor --port 8811` reports `"ok":true`. `launch` passes `wrangler dev` the Turnstile test secret `1x0000000000000000000000000000000AA`, so the test token `XXXX.DUMMY.TOKEN.XXXX` passes siteverify. The machine needs network access to `challenges.cloudflare.com`.
 - `<out>` is the lane's output folder, as defined in [README.md](./README.md).
 - `live-clients` means `node .claude/skills/verify-receipt-splitter/live-clients.mjs`. Every command prints one JSON line with `"ok"` on stdout and exits 0 on success, and writes its transcript to stderr. `--log <file>` saves the report and the transcript. Without `--id`, each command creates a fresh Split first.
 

@@ -9,7 +9,8 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${port}` },
   projects: [{ name: "mobile-chrome", use: { ...devices["Pixel 7"] } }],
   webServer: {
-    command: `npm run build && npx wrangler dev --port ${port} --inspector-port ${port + 10000}`,
+    command: `npm run build && npx wrangler dev --port ${port} --inspector-port ${port + 10000} --var TURNSTILE_SECRET_KEY:1x0000000000000000000000000000000AA`,
+    env: { ALLOW_TEST_TURNSTILE: "1" },
     url: `http://localhost:${port}/`,
     reuseExistingServer: false,
     timeout: 180_000,

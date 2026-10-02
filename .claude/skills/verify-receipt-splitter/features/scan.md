@@ -11,7 +11,7 @@ The Host reads a Receipt on the home page `/` and fixes it there. A tap on the h
 - `scan-manual` opens the same editor empty, with the file row, a Tax line at $0.00, and an editable Total, when OCR fails or finds no Items.
 - `scan-reason` puts one reason above a disabled **Create split link** in the read state: "Items are $0.50 short.", "Items are $0.50 over.", "Tax and charges are $0.61 short.", "Add an item.", "Name every item.", or "Add how to pay you.". The empty and reading states show no reason.
 - `scan-draft` keeps the Receipt, the tip, the Payment handles, and the names in local storage under `receipt-splitter:draft`. A reload during a read starts the Receipt over and keeps the handles and names. Replacing the Receipt keeps the handles and names.
-- `scan-offline` keeps a scan working offline once the model is cached. `public/sw.js` answers from Cache Storage only while the browser is offline, and the page asks it to keep `/`, the entry, the fonts, and the worker script. The OCR worker keeps the ORT JavaScript files with the runtime and the models.
+- `scan-offline` keeps a scan working offline once the model is cached. `public/sw.js` answers from Cache Storage only while the browser is offline, and the page asks it to keep `/`, the entry, the fonts, and the worker script. `sw.js` keeps only same-origin files on its own allowlist, never `/api`, `/parties`, or `/s/`. The OCR worker keeps the ORT JavaScript files with the runtime and the models.
 - `scan-example` fills the draft with SRD receipt 1040 as its checked label reads, named "Example receipt", and keeps the Payment handles.
 
 ## How to get to it (user POV)
@@ -46,5 +46,6 @@ Preconditions:
 - `react-native-web` compiles `animationKeyframes` only inside `StyleSheet.create`. An inline keyframe style renders with `animation-name: none`.
 - The OCR worker stays alive for 10 s after the last scan, then the page terminates it. A scan inside that window reuses the engine.
 - The service worker answers only while `navigator.onLine` is false, so Playwright routes still see every online request. Offline it serves only what its caches hold, so a route it never kept, such as `/s/<id>`, fails as it would without it.
+- To switch the service worker off in production, set `KILL = true` at the top of `public/sw.js` and deploy. Browsers fetch `sw.js` past the HTTP cache (`_headers` serves it `no-cache`), and the new worker deletes every cache and unregisters. The page registers it again on each load and it removes itself again, so keep `KILL` set until a fixed worker ships.
 - Local storage carries the draft between loads in one browser context. Start each check in a fresh context, as Playwright does per test.
 - The Example has no photo, so its file row shows the receipt glyph instead of a thumbnail.
