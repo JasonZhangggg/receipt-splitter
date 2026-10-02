@@ -4,6 +4,7 @@ import { Linking, Platform, Pressable, StyleSheet, Text, View, type StyleProp, t
 import type { Colors } from "../colors";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { motion, type, useColors } from "../theme";
+import { openWithFallback } from "../open-link";
 import { Icon, type IconName } from "./icon";
 
 const scrollViewTouchDelay = 150;
@@ -40,7 +41,7 @@ export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll =
       onPress={() => {
         if (disabled) return;
         if (href === undefined) onPress();
-        else if (Platform.OS !== "web") void Linking.openURL(href).catch(() => fallbackHref && Linking.openURL(fallbackHref));
+        else if (Platform.OS !== "web") void openWithFallback((url) => Linking.openURL(url), href, fallbackHref);
       }}
       {...web}
       style={() => style(held)}
