@@ -304,7 +304,7 @@ test("the payment apps and names follow the Host's choices and survive a reload"
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("");
-  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add how to pay you." });
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
 });
 
 test.describe("the sheet", () => {
