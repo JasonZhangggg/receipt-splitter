@@ -94,6 +94,37 @@ test("a closed pick sheet browses with no name, and a tap on a circle asks again
   await expect(lee.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
 });
 
+async function framesAfter(page: Page, act: () => Promise<void>) {
+  await page.evaluate(() => {
+    const frames: { top: number; asking: boolean }[] = [];
+    Object.assign(window, { sheetFrames: frames });
+    const sample = () => {
+      const sheet = document.querySelector('[data-testid="split-sheet"]');
+      if (sheet) frames.push({ top: Math.round(sheet.getBoundingClientRect().top), asking: [...sheet.querySelectorAll('[role="heading"]')].some((heading) => heading.textContent === "Which one are you?") });
+      if (frames.length < 120) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await act();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { sheetFrames: unknown[] }).sheetFrames.length), live).toBe(120);
+  return page.evaluate(() => (window as unknown as { sheetFrames: { top: number; asking: boolean }[] }).sheetFrames);
+}
+
+for (const [how, act] of [
+  ["picking a name", (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click()],
+  ["closing", (page: Page) => page.getByRole("button", { name: "Close, just look" }).click()],
+] as const) {
+  test(`${how} lowers the pick sheet from the frame its rows go, with no frame of the short sheet still up`, async ({ browser, request }, { workerIndex }) => {
+    const page = await open(browser, await createSplit(request, workerIndex));
+    await settled(page.getByTestId("split-sheet"));
+    const frames = await framesAfter(page, () => act(page));
+    const up = frames[0].top;
+    const swap = frames.findIndex((frame) => !frame.asking);
+    expect(swap).toBeGreaterThan(0);
+    expect(frames.slice(swap).filter((frame) => frame.top <= up)).toEqual([]);
+  });
+}
+
 test("That's me on a second browser takes the name, and the first browser drops back to browsing", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const first = await open(browser, link);
