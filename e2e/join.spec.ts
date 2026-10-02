@@ -41,6 +41,23 @@ async function open(browser: Browser, link: string) {
 const question = (page: Page) => page.getByRole("heading", { name: "Which one are you?" });
 const rows = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("listitem");
 
+test("a name already in the draft is refused with a note, and editing it clears the note", async ({ page }) => {
+  await readyHome(page, ["Sam"]);
+  const people = page.getByRole("group", { name: "People at the table" });
+
+  await page.getByRole("button", { name: "Add a name" }).click();
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("sam ");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("alert")).toHaveText("That name is already here.");
+  await expect(people.getByText("Sam", { exact: true })).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Add a name" }).click();
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Sami");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(people.getByText("Sami", { exact: true })).toHaveCount(1);
+});
+
 test("Create split link takes the Host to the tall pick sheet, and a second browser sees the Host's name as picked", async ({ page, browser }) => {
   await readyHome(page, ["Sam", "Priya"]);
   const link = await createLink(page);

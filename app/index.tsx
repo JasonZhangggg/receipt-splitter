@@ -17,7 +17,7 @@ import { PaymentRows } from "../src/ui/components/payment-row";
 import { panel, Sheet } from "../src/ui/components/sheet";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
-import { copy, createCopy, linkCopy } from "../src/ui/home-copy";
+import { copy, createCopy, joinCopy, linkCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { isPhoto, pickPhoto, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
@@ -112,10 +112,12 @@ export default function Home() {
   };
 
   const people = live.status === "live" ? live.split.participants.map(({ name }) => name) : draft.names;
-  const addName = (typed: string) => {
-    if (splitId === null) return dispatch({ type: "addName", name: typed });
+  const addName = (typed: string): string | null => {
     const name = newName(typed, people);
-    if (name) void send({ type: "addParticipant", by: null, participant: { id: newParticipantId(), name } });
+    if (!name) return typed.trim() ? joinCopy.nameTaken : null;
+    if (splitId === null) dispatch({ type: "addName", name: typed });
+    else void send({ type: "addParticipant", by: null, participant: { id: newParticipantId(), name } });
+    return null;
   };
   const removeName = splitId === null ? (name: string) => dispatch({ type: "removeName", name }) : undefined;
   const compact = !wide && height - insets.top - insets.bottom < shortScreen;

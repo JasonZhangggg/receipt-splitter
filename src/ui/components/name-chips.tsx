@@ -7,7 +7,8 @@ import { Button } from "./button";
 
 type Props = {
   names: readonly string[];
-  onAdd: (name: string) => void;
+  /** Returns why the name was not added, or null. */
+  onAdd: (name: string) => string | null;
   onRemove?: (name: string) => void;
   outsideScroll?: boolean;
 };
@@ -16,8 +17,9 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
   const c = useColors();
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
+  const [refusal, setRefusal] = useState<string | null>(null);
   const commit = () => {
-    onAdd(typed);
+    if (typed.trim()) setRefusal(onAdd(typed));
     setTyped("");
   };
   return (
@@ -37,7 +39,10 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
           value={typed}
           enterKeyHint="done"
           autoCapitalize="words"
-          onChangeText={setTyped}
+          onChangeText={(text) => {
+            setTyped(text);
+            setRefusal(null);
+          }}
           onSubmitEditing={commit}
           submitBehavior="submit"
           onBlur={() => {
@@ -48,6 +53,13 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
         />
       ) : null}
       <Button kind="chip" icon="plus" label={names.length === 0 ? copy.addYourName : copy.addName.label} name={names.length === 0 ? copy.addYourName : copy.addName.name} onPress={() => setAdding(true)} outsideScroll={outsideScroll} />
+      {refusal ? (
+        <View style={styles.refusalLine}>
+          <Text role="alert" style={[type.small, styles.refusal, { backgroundColor: c.flagWash, color: c.flag }]}>
+            {refusal}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -57,4 +69,6 @@ const styles = StyleSheet.create({
   chip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: "center" },
   named: { flexDirection: "row", alignItems: "center", paddingRight: 0 },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
+  refusalLine: { flexBasis: "100%" },
+  refusal: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
