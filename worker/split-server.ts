@@ -51,7 +51,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
   static options = { hibernate: true };
 
   #stored: Stored = { kind: "missing" };
-  #pacing = new Map<string, Pacing>();
+  #pacing = new WeakMap<Connection, Pacing>();
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -99,7 +99,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
     let rate: Rate = { ...stored.rate, operations: admission.state };
     this.#stored = { ...stored, rate };
     if (!admission.ok) return this.#refuse(connection, now, admission.retryAfterMs);
-    this.#pacing.delete(connection.id);
+    this.#pacing.delete(connection);
     const frame = readFrame(message);
     if (!frame.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: frame.rejection });
     const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) }, now);
@@ -129,10 +129,6 @@ export class SplitServer extends Server<Cloudflare.Env> {
     connection.send(stateMessage(frame.ref, json));
   }
 
-  onClose(connection: Connection): void {
-    this.#pacing.delete(connection.id);
-  }
-
   async onAlarm(): Promise<void> {
     const stored = this.#stored;
     if (stored.kind !== "missing") {
@@ -150,13 +146,12 @@ export class SplitServer extends Server<Cloudflare.Env> {
 
   #refuse(connection: Connection, now: number, retryAfterMs: number): void {
     send(connection, { type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs } });
-    const pacing = this.#pacing.get(connection.id);
+    const pacing = this.#pacing.get(connection);
     const early = pacing === undefined ? 0 : pacing.early + (now < pacing.retryAt ? 1 : 0);
     if (early < MAX_EARLY_FRAMES) {
-      this.#pacing.set(connection.id, { retryAt: now + retryAfterMs, early });
+      this.#pacing.set(connection, { retryAt: now + retryAfterMs, early });
       return;
     }
-    this.#pacing.delete(connection.id);
     connection.close(1008, "rateLimited");
   }
 
