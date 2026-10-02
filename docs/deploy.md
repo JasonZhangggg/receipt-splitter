@@ -2,17 +2,19 @@
 
 Every push to `main` that passes CI deploys to production. `.github/workflows/deploy.yml` builds `dist/` and runs `wrangler deploy` against `wrangler.jsonc`.
 
+Production is the Worker `app` on the account subdomain `splitwith`, so the address is `app.splitwith.workers.dev`.
+
 ## Set up once
 
 1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com). Copy your account ID from the Workers & Pages overview.
-2. Create a Turnstile widget (Turnstile, then Add widget). Add the production hostnames and copy the site key and the secret key.
+2. Create a Turnstile widget (Turnstile, then Add widget). Set the widget hostname to `app.splitwith.workers.dev`, then copy the site key and the secret key.
 3. Create an API token (My Profile, API Tokens, Create Token) from the "Edit Cloudflare Workers" template.
 4. In GitHub, open Settings, Secrets and variables, Actions. Add these repository secrets.
 	- `CLOUDFLARE_API_TOKEN` holds the token from step 3.
 	- `CLOUDFLARE_ACCOUNT_ID` holds the account ID from step 1.
 5. On the same page, add these repository variables. Use repository scope, not environment scope, because the workflow reads them in a job-level condition that cannot see environment variables. Deploys start once both are set. Until then the workflow skips the job, and the run stays green.
 	- `EXPO_PUBLIC_TURNSTILE_SITE_KEY` holds the Turnstile site key.
-	- `ALLOWED_HOSTNAMES` holds the hostnames that serve the app, in the format the Worker reads.
+	- `ALLOWED_HOSTNAMES` holds the hostnames that serve the app, as a comma-separated list. Matching is case-insensitive and spaces are allowed. Write each hostname without a scheme, port, or path. For example, `app.splitwith.workers.dev`.
 6. Optional. Under Settings, Environments, open `production` and add required reviewers or a branch rule. Every deploy job uses that environment.
 
 ## Run the first deploy
@@ -26,6 +28,10 @@ Every push to `main` that passes CI deploys to production. `.github/workflows/de
 	```
 
 `wrangler secret put` creates a new version and deploys it at once. Run it again whenever you rotate the key.
+
+## Rename the Worker
+
+The `name` in `wrangler.jsonc` is the Worker's identity and the first label of its address. If you change it after the first deploy, the next deploy creates a new Worker and leaves the old one running. Stored Splits stay on the old Worker, so the new one starts empty. Update the Turnstile widget hostname and `ALLOWED_HOSTNAMES` to the new address, and set `TURNSTILE_SECRET_KEY` again on the new Worker.
 
 ## How a deploy happens
 
