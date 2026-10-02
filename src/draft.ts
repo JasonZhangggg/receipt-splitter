@@ -410,7 +410,10 @@ function parseScan(scan: unknown): Scan | null {
   if (!valid) return null;
   const bundled = (adjustments as DraftAdjustment[]).flatMap((row) => (row.kind === "bundleDiscount" ? row.bundle.items : []));
   if (new Set(bundled).size !== bundled.length) return null;
-  const read = { status: "read" as const, file: scan.file, receipt: scan.receipt as DraftReceipt, ...(scan.fixOnHome === true && { fixOnHome: true as const }) };
+  const receipt = scan.receipt as DraftReceipt;
+  // Drafts saved before fixOnHome existed lack the flag, and an Item problem with no editor on home leaves the Host stuck.
+  const fixOnHome = scan.fixOnHome === true || itemProblem(receipt) !== null;
+  const read = { status: "read" as const, file: scan.file, receipt, ...(fixOnHome && { fixOnHome: true as const }) };
   return linked ? { ...read, status: "linked", splitId: scan.splitId as SplitId } : read;
 }
 

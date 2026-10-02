@@ -454,6 +454,19 @@ describe("where the Host fixes Items", () => {
     expect(editsOnHome(loadDraft(storage))).toBe(true);
   });
 
+  test("a draft saved before the flag existed keeps the editor on home only if its Items still need fixing", () => {
+    const storage = new MemoryStorage();
+    const saveWithoutFlag = (draft: Draft) => {
+      saveDraft(draft, storage);
+      const saved = JSON.parse(storage.getItem("receipt-splitter:draft")!);
+      delete saved.draft.scan.fixOnHome;
+      storage.setItem("receipt-splitter:draft", JSON.stringify(saved));
+      return loadDraft(storage);
+    };
+    expect(editsOnHome(saveWithoutFlag(run(emptyDraft, { type: "read", file, receipt: null })))).toBe(true);
+    expect(editsOnHome(saveWithoutFlag(read1040()))).toBe(false);
+  });
+
   test("a read with a priced Item it could not name keeps the editor on home", () => {
     const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: " ", price: price(150) }] };
     expect(editsOnHome(run(emptyDraft, { type: "read", file, receipt }))).toBe(true);
