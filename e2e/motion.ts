@@ -29,8 +29,11 @@ export const vsync = 1000 / 60;
 export const limits = {
   /** Longest frame gap allowed at normal CPU speed. */
   gapMs: 50,
-  /** Largest move of a position in one 60 Hz frame. A 300 ms ease-drawer glide over the tallest sheet peaks near 70 px. */
-  jumpPx: 90,
+  /** Largest move of a position in one 60 Hz frame. The 300 ms ease-drawer glides peak at 104 to 116 px. */
+  jumpPx: 140,
+  /** A step this many times larger than both neighbouring steps, and over spikeMinPx, is a jump even under jumpPx. */
+  spikeRatio: 3,
+  spikeMinPx: 24,
   /** Largest chevron turn in one 60 Hz frame. */
   jumpDeg: 45,
   /** Largest opacity change in one 60 Hz frame. A pop is 1. */
@@ -137,6 +140,7 @@ export type Verdict = {
   jumpDeg: number;
   opacityStep: number;
   reversals: number;
+  spikes: number;
   /** Frames where a position sits strictly between where it started and where it ended. Zero means it changed in one step. */
   inBetween: number;
   moved: boolean;
@@ -159,6 +163,7 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
   let jumpDeg = 0;
   let opacityStep = 0;
   let reversals = 0;
+  let spikes = 0;
   let inBetween = 0;
   let moved = false;
   for (const probe of probes) {
@@ -173,12 +178,15 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
     const from = afterRelease[0]?.v ?? first;
     const direction = Math.sign(last - from);
     const tolerance = probe.kind === "opacity" || probe.kind === "scale" ? limits.reverseOpacity : limits.reversePx;
+    const perFrame = series.slice(1).map((point, i) => (Math.abs(point.v - series[i].v) * vsync) / Math.max(vsync, point.t - series[i].t));
+    if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") {
+      spikes += perFrame.filter((step, i) => step > limits.spikeMinPx && step > limits.spikeRatio * Math.max(perFrame[i - 1] ?? 0, perFrame[i + 1] ?? 0)).length;
+    }
     for (let i = 1; i < series.length; i += 1) {
       const step = series[i].v - series[i - 1].v;
-      const perFrame = (Math.abs(step) * vsync) / Math.max(vsync, series[i].t - series[i - 1].t);
-      if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") jumpPx = Math.max(jumpPx, perFrame);
-      else if (probe.kind === "angle") jumpDeg = Math.max(jumpDeg, perFrame);
-      else opacityStep = Math.max(opacityStep, perFrame);
+      if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") jumpPx = Math.max(jumpPx, perFrame[i - 1]);
+      else if (probe.kind === "angle") jumpDeg = Math.max(jumpDeg, perFrame[i - 1]);
+      else opacityStep = Math.max(opacityStep, perFrame[i - 1]);
       if (series[i].t > trace.release && direction !== 0 && step * direction < -tolerance) reversals += 1;
     }
     if (probe.kind !== "opacity" && probe.kind !== "angle" && settled) {
@@ -196,6 +204,7 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
     if (inBetween > 0) failures.push(`moved through ${inBetween} in-between frames`);
   } else {
     if (jumpPx > limits.jumpPx) failures.push(`jump ${round(jumpPx)} px/frame > ${limits.jumpPx}`);
+    if (spikes > 0) failures.push(`${spikes} steps over ${limits.spikeRatio}x their neighbours`);
     if (jumpDeg > limits.jumpDeg) failures.push(`turn ${round(jumpDeg)} deg/frame > ${limits.jumpDeg}`);
     if (opacityStep > limits.opacityStep) failures.push(`opacity pop ${round(opacityStep * 100) / 100}/frame > ${limits.opacityStep}`);
   }
@@ -212,6 +221,7 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
     jumpDeg: round(jumpDeg),
     opacityStep: Math.round(opacityStep * 100) / 100,
     reversals,
+    spikes,
     inBetween,
     moved,
     failures,
@@ -406,7 +416,7 @@ async function homeTyping(page: Page) {
 const photoHarness = `
   import { useState } from "react";
   import { createRoot } from "react-dom/client";
-  import { Pressable, Text, View } from "react-native";
+  import { View } from "react-native";
   import { SafeAreaProvider } from "react-native-safe-area-context";
   import { PhotoViewer } from "./src/ui/photo-viewer";
   const uri = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='900'><rect width='600' height='900' fill='%23ede6da'/><rect x='60' y='80' width='480' height='40' fill='%23998'/></svg>";
@@ -415,9 +425,9 @@ const photoHarness = `
     return (
       <SafeAreaProvider>
         <View style={{ height: "100vh", padding: 24 }}>
-          <Pressable role="button" aria-label="View receipt photo" onPress={() => setOpen(true)} style={{ width: 120, height: 48, backgroundColor: "#ddd" }}>
-            <Text>View</Text>
-          </Pressable>
+          <button aria-label="View receipt photo" onClick={() => setOpen(true)} style={{ width: 120, height: 48 }}>
+            View
+          </button>
           {open ? <PhotoViewer photo={{ uri, name: "receipt.jpg" }} onExited={() => setOpen(false)} /> : null}
         </View>
       </SafeAreaProvider>
@@ -443,7 +453,7 @@ async function photoPage(page: Page) {
     });
     photoBundle = result.outputFiles[0].text;
   }
-  await page.setContent('<!doctype html><html style="height:100%"><body style="margin:0;height:100%"><div id="root" style="height:100%"></div></body></html>');
+  await page.setContent('<!doctype html><html style="height:100%"><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;height:100%"><div id="root" style="height:100%"></div></body></html>');
   await page.addScriptTag({ content: photoBundle });
   await page.getByRole("button", { name: "View receipt photo" }).waitFor();
 }

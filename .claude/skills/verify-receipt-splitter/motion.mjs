@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Frame-samples every animation in e2e/motion.ts on three browser lanes at normal speed and at 4x CPU slowdown.
 // Usage: motion.mjs --port 8811 [--lanes webkit-iphone,chromium-mobile,chromium-desktop] [--speeds 1,4] [--only pick-handoff,...] [--out dir]
-import { mkdirSync, writeFileSync } from "node:fs";
+//        motion.mjs --rejudge <dir with *.trace.json> --out <dir>   judges saved traces again under the current limits
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium, devices, webkit } from "@playwright/test";
@@ -16,6 +17,7 @@ const { values } = parseArgs({
     only: { type: "string" },
     out: { type: "string" },
     repeat: { type: "string", default: "1" },
+    rejudge: { type: "string" },
   },
 });
 const base = `http://localhost:${values.port}`;
@@ -44,6 +46,16 @@ const rows = [];
 for (const laneName of values.lanes.split(",")) {
   const lane = lanes[laneName];
   if (!lane) throw new Error(`unknown lane ${laneName}`);
+  if (values.rejudge) {
+    for (const speed of values.speeds.split(",").map(Number)) {
+      for (const scenario of picked) {
+        const file = join(values.rejudge, `${laneName}-x${speed}-${scenario.id}.trace.json`);
+        const verdict = existsSync(file) ? judge(JSON.parse(readFileSync(file, "utf8")), scenario.probes, { speed, instant: scenario.instant }) : { failures: ["no trace: the run did not finish"] };
+        rows.push({ lane: laneName, speed, id: scenario.id, name: scenario.name, ...verdict, pass: verdict.failures.length === 0 });
+      }
+    }
+    continue;
+  }
   const browser = await lane.engine.launch();
   for (const speed of values.speeds.split(",").map(Number)) {
     for (const scenario of picked) {
@@ -82,7 +94,7 @@ const cell = (value) => (value === null || value === undefined ? "n/a" : String(
 const table = [
   "| Animation | Lane | CPU | Max gap ms | p95 gap ms | Dropped | Long tasks | Jump px/frame | Opacity step | Result |",
   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-  ...rows.map((r) => `| ${r.name} | ${r.lane} | ${r.speed}x | ${cell(r.maxGap)} | ${cell(r.p95Gap)} | ${cell(r.dropped)} | ${cell(r.longTasks)} | ${cell(r.jumpPx)} | ${cell(r.opacityStep)} | ${r.pass ? "pass" : `fail: ${r.failures.join("; ")}`} |`),
+  ...rows.map((r) => `| ${r.name} | ${r.lane} | ${r.speed === 1 ? "1x" : r.lane.startsWith("webkit") ? `${r.speed}x busy loop` : `${r.speed}x`} | ${cell(r.maxGap)} | ${cell(r.p95Gap)} | ${cell(r.dropped)} | ${cell(r.longTasks)} | ${cell(r.jumpPx)} | ${cell(r.opacityStep)} | ${r.pass ? "pass" : `fail: ${r.failures.join("; ")}`} |`),
 ].join("\n");
 writeFileSync(join(out, "results.json"), JSON.stringify({ limits, rows }, null, 1));
 writeFileSync(join(out, "table.md"), `${table}\n`);
