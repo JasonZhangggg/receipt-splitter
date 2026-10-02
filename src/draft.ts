@@ -280,19 +280,23 @@ function hasAmountOverLimit(receipt: DraftReceipt): boolean {
 
 const gapReason = (what: string, gap: number) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short" : "over"}.`;
 
-export function blockedReason({ scan, handles, names }: Draft): string | null {
-  if (scan.status === "empty") return "Add a receipt.";
-  if (scan.status === "reading") return "Reading the receipt.";
-  if (hasAmountOverLimit(scan.receipt)) return `An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`;
+export type Blocker = { readonly kind: "note"; readonly note: string } | { readonly kind: "noHandle" };
+
+const note = (text: string): Blocker => ({ kind: "note", note: text });
+
+export function blocker({ scan, handles, names }: Draft): Blocker | null {
+  if (scan.status === "empty") return note("Add a receipt.");
+  if (scan.status === "reading") return note("Reading the receipt.");
+  if (hasAmountOverLimit(scan.receipt)) return note(`An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`);
   const check = totalCheck(scan.receipt);
-  if (!check) return "Add an item.";
+  if (!check) return note("Add an item.");
   if (!check.ok) {
-    if (check.subtotalGap !== 0) return gapReason("Items are", check.subtotalGap);
-    return gapReason(scan.receipt.subtotal === null ? "Items are" : "Tax and charges are", check.totalGap);
+    if (check.subtotalGap !== 0) return note(gapReason("Items are", check.subtotalGap));
+    return note(gapReason(scan.receipt.subtotal === null ? "Items are" : "Tax and charges are", check.totalGap));
   }
-  if (scan.receipt.items.some((item) => !item.name.trim())) return "Name every item.";
-  if (!handles.some((row) => row.handle.trim())) return "Add how to pay you.";
-  if (names.length === 0) return "Add your name.";
+  if (scan.receipt.items.some((item) => !item.name.trim())) return note("Name every item.");
+  if (!handles.some((row) => row.handle.trim())) return { kind: "noHandle" };
+  if (names.length === 0) return note("Add your name.");
   return null;
 }
 
