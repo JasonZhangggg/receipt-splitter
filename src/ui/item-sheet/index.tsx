@@ -41,6 +41,7 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
   const c = useColors();
   const reduce = useReducedMotion();
   const [pending, setPending] = useState<ItemEdit>({});
+  const [sent, setSent] = useState<readonly ItemEdit[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
   const flushRef = useRef<() => void>(() => {});
@@ -54,7 +55,8 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
 
   const patch = (edit: ItemEdit): Operation => ({ by: me, type: "editReceipt", items: [{ type: "edit", itemId, ...edit }] });
   const live = split.receipt.items.find(({ id }) => id === itemId);
-  const preview = live && Object.keys(pending).length > 0 ? applyOperation(split, patch(pending), { creator: false }) : null;
+  const unconfirmed = [...sent, pending].reduce(merge, {});
+  const preview = live && Object.keys(unconfirmed).length > 0 ? applyOperation(split, patch(unconfirmed), { creator: false }) : null;
   const item: SplitItem | undefined = preview?.ok ? preview.split.receipt.items.find(({ id }) => id === itemId) : live;
   const refusal = preview && !preview.ok ? preview.rejection.reason : null;
 
@@ -62,7 +64,11 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
     if (Object.keys(pending).length === 0 || refusal) return;
     const sending = pending;
     setPending({});
-    void send(patch(sending)).then((ok) => setProblem(ok ? null : say.saveFailed));
+    setSent((was) => [...was, sending]);
+    void send(patch(sending)).then((ok) => {
+      setSent((was) => was.filter((edit) => edit !== sending));
+      setProblem(ok ? null : say.saveFailed);
+    });
   };
   useLayoutEffect(() => {
     flushRef.current = flush;

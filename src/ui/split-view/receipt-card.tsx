@@ -218,18 +218,21 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
     if (!box || !content) return;
     stop.current();
     const to = open ? content.getBoundingClientRect().height : 0;
-    const settled = () => {
+    const clearOpenStyles = () => {
       box.style.height = "";
       box.style.opacity = "";
-      if (!open) setShown(false);
     };
+    const unmountWhileHidden = () => setShown(false);
+    const settled = open ? clearOpenStyles : unmountWhileHidden;
     if (reduce) {
       box.style.height = "";
       const fade = box.animate([{ opacity: open ? 0 : 1 }, { opacity: open ? 1 : 0 }], { duration: motion.reducedFade, easing: "ease", fill: "forwards" });
-      fade.onfinish = () => {
-        fade.cancel();
-        settled();
-      };
+      fade.onfinish = open
+        ? () => {
+            fade.cancel();
+            clearOpenStyles();
+          }
+        : unmountWhileHidden;
       stop.current = () => fade.cancel();
       return;
     }

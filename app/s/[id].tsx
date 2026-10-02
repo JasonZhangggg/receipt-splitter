@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents } from "../../src/core/money";
@@ -23,6 +23,7 @@ import { circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
+import { useViewport } from "../../src/ui/split-view/viewport";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
 import { webStyle } from "../../src/ui/motion";
 import { layout, type, useColors } from "../../src/ui/theme";
@@ -78,7 +79,7 @@ const crossFadeFor = 200;
 function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; send: Send }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { layoutHeight: pageHeight } = useViewport();
   const [device] = useState(thisDevice);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
   const remember = (change: Parameters<typeof rememberSplit>[1]) => {
@@ -176,8 +177,8 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   };
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
-  const regular = (
-    <View style={styles.regular}>
+  const chips = (
+    <View style={styles.chips}>
       <PeopleChips
         people={people}
         picked={picked}
@@ -187,7 +188,10 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
         onAdd={(typed) => void addPerson(typed)}
       />
-      <View style={styles.regular}>
+    </View>
+  );
+  const regular = (
+    <View style={styles.regular}>
       {!me ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
@@ -206,7 +210,6 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           )}
         </>
       )}
-      </View>
     </View>
   );
 
@@ -233,7 +236,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
       <BottomSheet
         scrim={phase === "pick"}
         label={phase === "pick" ? say.question : say.people}
-        minHeight={phase === "pick" ? windowHeight - tallPickTop : 0}
+        minHeight={phase === "pick" ? pageHeight - tallPickTop : 0}
         rises={false}
         lowered={overlay !== null && !closing}
         onHeight={setSheetHeight}
@@ -241,6 +244,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onUp={phase === "regular" && me && !expanded ? () => setExpanded(true) : undefined}
         stays
         view={phase === "pick" ? "pick" : expanded ? `breakdown-${selectedPerson?.id}` : "bar"}
+        header={phase === "pick" ? null : chips}
         testID="split-sheet"
       >
         {phase === "pick" ? (
@@ -296,6 +300,7 @@ const styles = StyleSheet.create({
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   regular: { gap: layout.blockGap },
+  chips: { marginBottom: layout.blockGap },
   prompt: { marginHorizontal: 2 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
