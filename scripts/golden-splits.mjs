@@ -1,5 +1,3 @@
-// Writes src/core/golden/<label>.json: the row each shipped release stored for one dinner, built by that release's own src/core.
-// Usage: node scripts/golden-splits.mjs [label=rev ...]
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
