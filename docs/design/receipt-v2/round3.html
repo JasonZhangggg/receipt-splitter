@@ -502,7 +502,7 @@ const peopleChips = (sel, { add = true } = {}) =>
 
 const oweLine = (p = "S") => `<div class="owe"><span class="t-body">You owe</span><span style="display:flex;align-items:center;gap:6px"><span class="t-total num">${dollars(owed[p].total)}</span><span class="muted">${icon.chevUp(16)}</span></span></div>`;
 
-const linkReady = () => `<div style="display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden"><span class="t-label">Link ready</span><span class="t-cap">splitwith.app/s/k7Qm2x</span></div>
+const linkReady = () => `<div style="display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden"><span class="t-label">Link ready</span><span class="t-cap">app.splitwith.workers.dev/s/k7Qm2x</span></div>
   <div style="display:flex;gap:10px"><span class="btn" style="flex:1">${icon.share(18)} Share</span><span class="btn soft" style="flex:1">${icon.copy(18)} Copy</span></div>`;
 
 const adjustments = ({ unclaimed = false } = {}) => `<div class="adj">
@@ -555,7 +555,7 @@ const nameChips = (filled) =>
     ? `<div class="chiprow">${["Jason", "Sam", "Priya"].map((n) => `<span class="chip">${n}<span class="x">${icon.x(12)}</span></span>`).join("")}<span class="chip ghost">${icon.plus(16)} Add</span></div>`
     : `<div class="chiprow"><span class="chip ghost">${icon.plus(16)} Your name</span></div>`;
 const pay = (filled) =>
-  `<div class="payrow"><div class="pick"><span class="app"><span class="glyph">V</span>Venmo<span class="muted">${icon.chevDown(13)}</span></span><span class="handle${filled ? "" : " muted"}">${filled ? "@jason-z" : "@username"}</span></div><span class="add">${icon.plus(20)}</span></div>`;
+  `<div class="payrow"><div class="pick"><span class="app"><span class="glyph">V</span>Venmo<span class="muted">${icon.chevDown(13)}</span></span><span class="handle${filled ? "" : " muted"}">${filled ? "@sam-example" : "@username"}</span></div><span class="add">${icon.plus(20)}</span></div>`;
 const action = (on, style = "") => `<span class="btn${on ? "" : " off"}" style="${style}">Create split link</span>`;
 const compact = () =>
   `<div class="rcompact">${thumb(52, 64, { expand: true })}<div class="meta"><div class="t-title">${receipt.merchant}</div><div class="t-small">${itemCount} items</div></div><div class="tot"><div class="t-title num">${dollars(receipt.total)}</div><div class="t-cap">Total</div></div><span class="swap">${icon.camera(20)}</span></div>`;

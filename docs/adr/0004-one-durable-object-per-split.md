@@ -9,6 +9,8 @@ Live Splits are stored in one SQLite-backed Cloudflare Durable Object each, with
 
 Free-plan limits fail with errors rather than bills, so the account moves to the $5 Paid plan before public launch.
 
+Amended on 2026-10-01. The operator ruled that the account stays on the Workers Free plan. ADR 0005 and ADR 0007 size the daily cap and the photo to its limits.
+
 ## Stored Split versions
 
 A stored Split outlives the Worker that wrote it. The record carries `schemaVersion: 1`, and `parseSplit` marks any row it refuses as unreadable (close code 4500), so a rule change can lock people out of a live Split. From launch, any change to `parseSplit` that a stored row could fail bumps `schemaVersion` and ships a migration from the old version in the same change, so a deploy never turns a live Split unreadable. `src/core/golden/` holds one row per shipped release, written by `node scripts/golden-splits.mjs`, and `src/core/parse.test.ts` reads each one. Add a row when a release changes the stored shape.

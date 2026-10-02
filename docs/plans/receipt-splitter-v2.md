@@ -3,13 +3,13 @@
 This program rebuilds how the live site shows a Receipt, after launch, from round 3 of the operator's mockups.
 Friends read a receipt by quantity and Bundle instead of a flat list, the Host's home page asks only for what the link needs, and everyone can view the Receipt photo.
 The rules it enforces are that no deploy makes a live Split unreadable and that a failing Total check blocks nothing.
-The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, and V2-6.
+The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b.
 
 ## How to read this
 
 One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
 
-The program runs `~/.claude/skills/poteto-mode/playbooks/autopilot-stack.md`, as v1 did. The root builds and verifies one linear stack on `main`, bottom-up, and merges each PR on a clean verdict at its exact head plus green CI. Every merge to `main` deploys to production at `app.splitwith.workers.dev`, so the root confirms each deploy before the next merge. V2-3, V2-4, V2-5, and V2-6 change an interaction and stop at merge-ready for the operator's review gate.
+The program runs `~/.claude/skills/poteto-mode/playbooks/autopilot-stack.md`, as v1 did. The root builds and verifies one linear stack on `main`, bottom-up, and merges each PR on a clean verdict at its exact head plus green CI. Every merge to `main` deploys to production at `app.splitwith.workers.dev`, so the root confirms each deploy before the next merge. V2-3, V2-4, V2-5, and V2-6b change an interaction and stop at merge-ready for the operator's review gate. The bug-fix PR on `fix/pay-note-sheet-flash` is not part of this plan, and it merges before V2-3 and V2-5.
 
 Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -30,7 +30,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 7. As a Host, I want to type names and press Enter between them, so that I never reach for the mouse.
 8. As a Participant, I want to open the receipt photo from the Split page, so that I can check a line against the paper.
 
-**Out of scope.** Native iOS and Android builds. Claiming a whole Bundle from its header, because the operator ruled the header has no control. Adding an Item to a Bundle or making a Bundle by hand. Bundles without a discount. Editing or cropping the photo. Storing the photo in R2. Detecting Bundles on receipts that print no $0.00 header. A photo for a Split created before V2-6.
+**Out of scope.** Native iOS and Android builds. Claiming a whole Bundle from its header, because the operator ruled the header has no control. Adding an Item to a Bundle or making a Bundle by hand. Bundles without a discount. Editing or cropping the photo. Storing the photo in R2. Detecting Bundles on receipts that print no $0.00 header. A photo for a Split created before V2-6b.
 
 **Decisions.**
 
@@ -38,9 +38,9 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - `docs/adr/0006-bundle-discount-is-a-scoped-adjustment.md` models a Bundle as an Adjustment of kind `bundleDiscount` that names its Items.
 - `docs/adr/0007-receipt-photo-stored-with-the-split.md` stores one downscaled JPEG in the Split's Durable Object and amends ADR 0001.
 - `docs/adr/0004-one-durable-object-per-split.md`, section **Stored Split versions**, makes the `schemaVersion` bump and migration mandatory. V2-1 ships the reader of version 2 one deploy before V2-2 writes it.
-- `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md` sets the row-write budget that V2-6 measures again.
+- `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md` sets the row-write budget that V2-6a measures again.
 - `CONTEXT.md` gains **Bundle** and **Receipt photo** and redefines **Adjustment** and **Share**.
-- A failing Total check blocks nothing, not creating the link and not any operation. Home and the Split page show it as a quiet note with no highlight. A separate bug-fix PR builds that rule, and every PR here keeps it.
+- A failing Total check blocks nothing, not creating the link and not any operation. Home and the Split page show it as a quiet note with no highlight. The bug-fix PR on `fix/pay-note-sheet-flash` builds that rule and the **Copy** and **Share** buttons on the pick sheet, and every PR here keeps both.
 - The operator's rulings of 2026-10-01 in `~/.claude/orchestrate/receipt-splitter/preferences.md`, from "Turnstile removed" on, bind every PR.
 
 ## Program checklist
@@ -48,7 +48,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 ### Arm the program
 
 - [ ] State the protocol and this plan to the operator, then stop. Start execution only on the operator's explicit go.
-- [ ] On the operator's go, write this exact text into the standing objective and restate it in your todolist. "Run docs/plans/receipt-splitter-v2.md under autopilot-stack. Build V2-1 through V2-6 as one linear stack on main, in that order. A PR is verified only when its unit, live, and perf boxes are all checked, and tests alone are not sufficient verification. The root merges each PR bottom-up on a clean verdict at its exact head plus green CI, and confirms the production deploy before the next merge. V2-3, V2-4, V2-5, and V2-6 also wait at merge-ready for the operator's review gate. Each PR's test runs fit in 30 minutes. Done when every PR is verified, rebased on current main, merged, and deployed."
+- [ ] On the operator's go, write this exact text into the standing objective and restate it in your todolist. "Run docs/plans/receipt-splitter-v2.md under autopilot-stack. Build V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b as one linear stack on main, in that order, after the bug-fix PR on fix/pay-note-sheet-flash merges. A PR is verified only when its unit, live, and perf boxes are all checked, and tests alone are not sufficient verification. The root merges each PR bottom-up on a clean verdict at its exact head plus green CI, and confirms the production deploy before the next merge. V2-3, V2-4, V2-5, and V2-6b also wait at merge-ready for the operator's review gate. Each PR's test runs fit in 30 minutes. Done when every PR is verified, rebased on current main, merged, and deployed."
 - [ ] Read these at program start. Re-read them at every tick.
   - [ ] `~/.claude/skills/poteto-mode/playbooks/autopilot-stack.md`
   - [ ] `~/.claude/skills/swarm/SKILL.md`
@@ -56,9 +56,9 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
   - [ ] `~/.claude/skills/poteto-mode/playbooks/opening-a-pr.md`
   - [ ] `~/.claude/skills/tdd/SKILL.md`
   - [ ] `~/.claude/skills/spec-review/SKILL.md`
-  - [ ] `~/.claude/skills/emil-design-eng/SKILL.md`, `~/.claude/skills/apple-design/SKILL.md`, and `~/.claude/skills/mobile-native/SKILL.md` for V2-3 to V2-6
-  - [ ] `~/.claude/skills/animate/SKILL.md` and `~/.claude/skills/review-animations/SKILL.md` for V2-3 to V2-6
-  - [ ] `~/.claude/skills/unslop/SKILL.md` for the UI text of V2-3 to V2-6
+  - [ ] `~/.claude/skills/emil-design-eng/SKILL.md`, `~/.claude/skills/apple-design/SKILL.md`, and `~/.claude/skills/mobile-native/SKILL.md` for V2-3 to V2-6b
+  - [ ] `~/.claude/skills/animate/SKILL.md` and `~/.claude/skills/review-animations/SKILL.md` for V2-3 to V2-6b
+  - [ ] `~/.claude/skills/unslop/SKILL.md` for the UI text of V2-3 to V2-6b
   - [ ] `~/.claude/skills/principle-model-the-domain/SKILL.md` and `~/.claude/skills/principle-type-system-discipline/SKILL.md` for V2-1 and V2-2
 - [ ] Arm the 30-minute audit tick as a real `/loop` in dynamic mode. Never leave the cadence to memory.
 - [ ] Use this tick prompt, verbatim. "Re-read the execution playbook and the standing objective. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a status message to the operator in chat, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, open notes and their fixers, and blockers."
@@ -70,18 +70,21 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - [ ] Follow this dependency graph. Each PR branches from the PR above it in the stack. Start dependent work only after its parent reaches a verified head.
   - [ ] V2-1 is first and branches from `main`.
   - [ ] V2-2 after V2-1. V2-2 merges only after V2-1's deploy is live in production.
-  - [ ] V2-3 after V2-2.
+  - [ ] The bug-fix PR on `fix/pay-note-sheet-flash` merges before V2-3 and V2-5. It is not part of this plan.
+  - [ ] V2-3 after V2-2 and the bug-fix PR.
   - [ ] V2-4 after V2-3.
-  - [ ] V2-5 needs only `main`. Its owner may start at once, and the root restacks it onto V2-4.
-  - [ ] V2-6 after V2-4 and V2-5.
+  - [ ] V2-5 needs only the bug-fix PR on `main`. Its owner may start once that merges, and the root restacks it onto V2-4.
+  - [ ] V2-6a needs only `main`. Its owner may start at once, and the root restacks it onto V2-5.
+  - [ ] V2-6b after V2-4, V2-5, and V2-6a.
 - [ ] Hold the file boundaries.
   - [ ] V2-1 touches only `src/core/**`, `scripts/golden-splits.mjs`, `worker/**` tests, and the one switch in `src/ui/split-view/receipt-card.tsx` that the new kind breaks.
   - [ ] V2-2 touches only `src/parse/**`, `src/draft.ts`, `src/draft.test.ts`, `src/core/parse.ts`, `src/core/split.ts`, `src/core/golden/**`, `src/ui/receipt-editor/**`, `e2e/fixtures/**`, and `bench/**`.
   - [ ] V2-3 touches only `app/s/[id].tsx`, `src/ui/split-view/**`, `src/ui/item-sheet/**`, `src/ui/split-copy.ts`, `src/ui/components/**`, `e2e/claim.spec.ts`, `e2e/receipt.spec.ts`, and `features/**` in `verify-receipt-splitter`.
   - [ ] V2-4 touches only `app/s/[id].tsx`, `src/ui/split-view/**`, `src/ui/item-sheet/**`, `e2e/desktop.spec.ts`, and `features/**` in `verify-receipt-splitter`.
   - [ ] V2-5 touches only `app/index.tsx`, `src/ui/home-copy.ts`, `src/ui/receipt-input/**`, `src/ui/receipt-editor/**`, `src/ui/components/**`, `src/ui/photo-viewer/**`, `e2e/home.spec.ts`, `e2e/scan.spec.ts`, and `features/**` in `verify-receipt-splitter`.
-  - [ ] V2-6 touches only `worker/**`, `src/core/operations.ts`, `src/live/**`, `src/draft.ts`, `src/ui/receipt-input/**`, `src/ui/photo-viewer/**`, `src/ui/split-view/**`, `app/index.tsx`, `app/s/[id].tsx`, `src/ui/home-copy.ts`, `src/ui/split-copy.ts`, `e2e/photo.spec.ts`, `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md`, and `features/**` in `verify-receipt-splitter`.
-- [ ] Hold the review gate. V2-3, V2-4, V2-5, and V2-6 change an interaction. They wait for the operator's review in chat with screenshots and a video before merge.
+  - [ ] V2-6a touches only `worker/**`, `src/core/operations.ts` and `src/live/**` for the snapshot's photo flag, and `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md`.
+  - [ ] V2-6b touches only `src/draft.ts`, `src/ui/receipt-input/**`, `src/ui/photo-viewer/**`, `src/ui/split-view/**`, `app/index.tsx`, `app/s/[id].tsx`, `src/ui/split-copy.ts`, `e2e/photo.spec.ts`, and `features/**` in `verify-receipt-splitter`.
+- [ ] Hold the review gate. V2-3, V2-4, V2-5, and V2-6b change an interaction. They wait for the operator's review in chat with screenshots and a video before merge.
 
 ### PR mechanics, for every PR
 
@@ -122,7 +125,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Depends on.** None.
 
-V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to read `schemaVersion: 2`. It writes nothing new. No Split can hold a Bundle until V2-2, so the Worker keeps writing version 1. A rollback of V2-2 then lands on a Worker that still reads version 2.
+V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to read `schemaVersion: 2`. It writes nothing new. No Split can hold a Bundle until V2-2, so the Worker keeps writing version 1. From V2-2 on, only a Split with a Bundle is written as version 2. A rollback of V2-2 lands on a Worker that still reads version 2, and a rollback past V2-1 strands only the Splits that hold a Bundle.
 
 **Files.**
 
@@ -135,7 +138,7 @@ V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to
 
 - [ ] In `src/core/split.ts`, add `bundleDiscount` to `ADJUSTMENT_KINDS`. Make `Adjustment` a union where only `kind: "bundleDiscount"` carries `bundle` with a `name` and `items` of type `NonEmpty<ItemId>`, per ADR 0006. No other kind can carry `bundle`.
 - [ ] In `src/core/parse.ts`, read `schemaVersion` 1 and 2. Version 1 migrates to the in-memory Split unchanged. Refuse a `bundleDiscount` whose Items are missing, repeated, or in another Bundle, and refuse a positive Bundle discount. Refuse `bundleDiscount` in a version 1 row and in a create request, because nothing writes one yet.
-- [ ] Keep the stored version at 1. Write it from one constant in `src/core/split.ts`, which V2-2 changes to 2.
+- [ ] Keep the stored version at 1. Derive it in one function in `src/core/split.ts`, which V2-2 changes to return 2 only for a Split with a Bundle.
 - [ ] In `src/core/shares.ts`, divide each Bundle discount among the claimers of its Items' units, in proportion to the unit prices. Divide the other Adjustments in proportion to each Participant's Items after Bundle discounts. Cents of a Bundle discount on an unclaimed unit count as Unclaimed. The Shares plus Unclaimed still equal the total to the cent.
 - [ ] In `src/core/operations.ts`, make deleting an Item drop it from its Bundle in the same Change, and make deleting a Bundle's last Item remove the Bundle discount in the same Change. One Revert restores both.
 - [ ] Add `v2-1.json` to `src/core/golden/` through `node scripts/golden-splits.mjs`, holding the Topgolf Receipt with two Bundles at version 2.
@@ -200,7 +203,7 @@ V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to
 - [ ] Keep the Total check deciding between readings, as PR 22 does. Bundles change no amount, so a passing reading still passes.
 - [ ] In `src/draft.ts`, carry Bundles through a read, a price edit, a reload, and `splitRequest`. Deleting a Bundle Item on home follows the rule from V2-1.
 - [ ] Draw `e2e/fixtures/topgolf-synthetic.png` with `e2e/fixtures/make-fixtures.py` from the lines of `src/parse/fixtures/topgolf.tsv`. It holds no payment lines. Confirm that scanning it on home reads the same Receipt as the TSV, or report the difference.
-- [ ] In `src/core/parse.ts`, accept `bundleDiscount` in a create request. Change the stored-version constant to 2 and write `v2-2.json` through `node scripts/golden-splits.mjs`.
+- [ ] In `src/core/parse.ts`, accept `bundleDiscount` in a create request. Make the stored version 2 for a Split that holds a Bundle and 1 for every other Split, so Splits without a Bundle stay readable by older Workers. Write `v2-2.json` through `node scripts/golden-splits.mjs`.
 
 **You see.**
 
@@ -220,7 +223,7 @@ V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
 
 - [ ] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and Claim Bundle 1's Items as Priya, citing `features/scan.md` and `features/claim.md`, at trunk and head. Save `topgolf-split.png`. Pass when trunk shows the discounts spread over everyone and head shows Priya's Share at $49.52 with Jason on Gameplay and Bundle 2.
-- [ ] Lane 2. Create a Split with no Bundle at head and open it with a Worker built from V2-1's merge commit, citing `features/live.md`. Save `rollback-read.png`. Pass when the V2-1 Worker reads both a version 1 row and a version 2 row with no close code 4500.
+- [ ] Lane 2. Create a Split with no Bundle at head and open it with a Worker built from V2-1's merge commit, citing `features/live.md`. Save `rollback-read.png`. Pass when the head writes the Split without a Bundle as version 1, and the V2-1 Worker reads it and a version 2 row with no close code 4500.
 
 **Feature map.**
 
@@ -260,10 +263,12 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 - [ ] Start every Item row with a quantity column, with tabular figures. Remove the quantity from the name.
 - [ ] Remove the × from every row. A row tap opens the Item sheet.
 - [ ] Draw a Bundle as C's card with B's collapse. Its header shows the Bundle's name, a summary such as "6 drinks · 10% off", and its net price. The header has no claim circle. Closed, it shows who had what inside it. Open, it lists its Items and then its discount.
+- [ ] Draw the Bundle card on the same surface as the rows, per round 3.
 - [ ] Hold the indent rule. Each child's quantity lines up with the left edge of the header's name text. A light vertical line runs from under the header's quantity down beside the children.
 - [ ] Make the header a button with `aria-expanded` and `aria-controls` naming the region of its Items. Its label reads the name, the summary, and the state, such as "Beer Bucket, 6 drinks, 10% off, collapsed". Enter and Space toggle it. Focus stays on the header.
 - [ ] Animate the open and close with the sheet's spring from v1, and cross-fade under reduced motion.
 - [ ] Build C's Item sheet on the phone, with the name, the quantity stepper, the price, a line such as "In Beer Bucket. Its 10% off takes $2.19 off this line." for a Bundle Item, **Who had it**, **Evenly**, **By shares**, **By amount**, and **Delete item**.
+- [ ] Keep **Copy** and **Share** on the pick sheet, as the bug-fix PR on `fix/pay-note-sheet-flash` builds them.
 - [ ] Set the default states. The pick sheet opens first, every Bundle is collapsed, and nothing is selected.
 - [ ] Show the yellow flag on an unclaimed unit inside an open Bundle, and on a closed Bundle's summary when it holds one.
 
@@ -324,7 +329,7 @@ Build from the desktop frames in `docs/design/receipt-v2/round3.html`.
 **Build.**
 
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
-- [ ] From 1024 px up, lay out A's centered pair. The receipt sits on the left and a right pane on the right. With no pick, the right pane is the pick list. After a pick, it is your Share and the people.
+- [ ] From 1024 px up, lay out A's centered pair. The receipt sits on the left and a right pane on the right. With no pick, the right pane is the pick list, with **Copy** and **Share** kept from the bug-fix PR on `fix/pay-note-sheet-flash`. After a pick, it is your Share and the people.
 - [ ] Open an Item's detail as a popover anchored to its line, with the same fields as the phone sheet. It flips above the line when there is no room below. Escape and a click outside close it, and focus returns to the line.
 - [ ] Keep the phone layout under 1024 px unchanged from V2-3.
 
@@ -385,12 +390,12 @@ Build from the home frames in `docs/design/receipt-v2/round3.html`.
 **Build.**
 
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
-- [ ] Center the web home in one column, per A, at 1024 px and 1440 px.
+- [ ] Center the web home in one column, per A, at 1024 px and 1440 px. Give the 1024 px upload box room around its content, per round 3.
 - [ ] After a scan, show the compact receipt card with the thumbnail, the merchant, the Item count, and the total. Remove the Item list from home.
-- [ ] When the Total check fails, show its reason as a quiet note under the card, with no highlight. **Create split link** stays enabled. Items are fixed on the Split page by tapping a line, so home has no editor and no **Fix items** button.
+- [ ] Keep the quiet Total check note and the enabled **Create split link** from the bug-fix PR on `fix/pay-note-sheet-flash` when the card replaces the Item list. Items are fixed on the Split page by tapping a line, so home has no editor and no **Fix items** button.
 - [ ] Remove the **Example** button under 768 px.
 - [ ] After a name is added, open a new name input with focus, so that type, Enter, type, Enter adds names with no click. With no names and the first input focused, the next chip says **+ Add**.
-- [ ] Open the photo viewer when the thumbnail is tapped. The camera button replaces the photo. The viewer closes on Escape, a tap on the scrim, and its close button. Build it in `src/ui/photo-viewer/` so that V2-6 reuses it.
+- [ ] Open the photo viewer when the thumbnail is tapped. The camera button replaces the photo. The viewer closes on Escape, a tap on the scrim, and its close button. Build it in `src/ui/photo-viewer/` so that V2-6b reuses it.
 
 **You see.**
 
@@ -434,20 +439,76 @@ Build from the home frames in `docs/design/receipt-v2/round3.html`.
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
 - [ ] The root merges V2-5 after V2-4 and confirms the deploy.
 
-## Keep the Receipt photo with the Split (V2-6)
+## Store the Receipt photo in the Split's Durable Object (V2-6a)
 
-**Depends on.** V2-4 and V2-5.
+**Depends on.** None. It branches from `main`, and the root restacks it onto V2-5.
 
-Read ADR 0007 first. It sets the size, the transport, the checks, and the deletion.
+Read ADR 0007 first. It sets the size, the checks, the 14-day delete, and the daily cap rule. V2-6a changes the Worker only. No client sends a photo until V2-6b.
 
 **Files.**
 
 - [ ] Create `worker/photo.ts` and `worker/photo.test.ts`.
-- [ ] Edit `worker/index.ts`, `worker/split-server.ts`, `worker/split-server.test.ts`, and `worker/create-cost.test.ts`.
+- [ ] Edit `worker/index.ts`, `worker/split-server.ts`, `worker/split-server.test.ts`, `worker/rate-limit.ts`, and `worker/create-cost.test.ts`.
 - [ ] Edit `src/core/operations.ts` and `src/live/client.ts` for the snapshot's photo flag.
+- [ ] Edit `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md`.
+
+**Build.**
+
+- [ ] In `worker/photo.ts`, take `PUT /api/splits/<id>/photo`. Refuse a missing or wrong Creator secret with 403, a body over 150 KB with 413, and a body without the JPEG start marker or with an EXIF segment with 400. Store the bytes in a `photo` table in the Split's Durable Object. A second PUT replaces the first.
+- [ ] Serve `GET /api/splits/<id>/photo` with `content-type: image/jpeg`, `x-content-type-options: nosniff`, and `cache-control: private, max-age=3600`. Return 404 when there is no photo or no Split.
+- [ ] Add a photo flag to the live snapshot, and broadcast it when the photo lands or goes.
+- [ ] Delete the photo 14 days after the Split is created. The Split's one alarm fires first at that time, deletes the `photo` table, clears the flag, broadcasts it, and then reschedules itself for the Split's expiry. The Split stays.
+- [ ] Measure the row writes of a create with a photo in `worker/create-cost.test.ts`, about 4 more than today's 12. Set the budgeted writes per create from that count, about 17.
+- [ ] Set `DAILY_CREATE_CAP` in `worker/rate-limit.ts` to the floor of 25,000 over the budgeted writes per create, 1,470 at 17. `worker/create-cost.test.ts` asserts that rule, which keeps creates within a quarter of the 100,000 free daily row writes.
+- [ ] Update ADR 0005 with the new count, the budget, and the cap.
+
+**You see.**
+
+- [ ] `npm run test:worker` passes. A `PUT` with a wrong Creator secret returns 403, a 200 KB body returns 413, and a GET after the 14-day alarm returns 404 while the Split still opens. `DAILY_CREATE_CAP` equals the floor of 25,000 over the budgeted writes per create.
+
+**Seams.**
+
+- [ ] The photo routes through the worker test harness in `worker/photo.test.ts`, the 14-day delete and expiry in `worker/split-server.test.ts`, and the row writes and the cap rule in `worker/create-cost.test.ts`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `worker/photo.test.ts` gains each refusal with its status, a replace, and a GET of the stored bytes. Run `npm run test:worker`.
+- [ ] `worker/split-server.test.ts` gains the alarm deleting the photo at 14 days while the Split stays readable, and the expiry alarm after it. Run `npm run test:worker`.
+- [ ] `worker/create-cost.test.ts` gains the row writes of a create with a photo as a literal count, and asserts that `DAILY_CREATE_CAP` is the floor of 25,000 over the budgeted writes per create. Run `npm run test:worker`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
+
+- [ ] Lane 1. Regression lane against trunk. Create a Split through the home page and Claim one Item from a second browser, citing `features/join.md`, at trunk and head. Save `create-claim.png`. Pass when both behave the same, because no client sends a photo yet, and the head snapshot carries the photo flag as false.
+- [ ] Lane 2. Send a PUT of `e2e/fixtures/srd-1040-exif-rotated.jpg`, one of a 140 KB JPEG with the Creator secret, and one without it, then advance the alarm past 14 days, citing `features/photo.md`. Save `photo-api/<case>.png` from each GET opened in a browser. Pass when the EXIF photo gets 400, the forged PUT gets 403, the good PUT stores the bytes and a connected browser sees the flag turn on, and after 14 days the GET returns 404, the flag turns off, and the Split still opens.
+
+**Feature map.**
+
+- [ ] Create `features/photo.md` in `verify-receipt-splitter` with the photo routes and how to advance the alarm, and add it to `features/README.md`.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Row writes per create, and the latency of `GET /api/splits/<id>/photo` for a 150 KB photo.
+- [ ] Probe. `worker/create-cost.test.ts` at trunk and head, and 10 GETs of a stored photo against the lane's `wrangler dev` at head.
+- [ ] Baseline. Record trunk's 12 row writes per create first. Trunk has no photo route, so the GET gets an absolute budget.
+- [ ] Rule. Fail if a create with a photo writes more rows than the budget the test sets, if `DAILY_CREATE_CAP` times that budget passes 25,000, or if the median local GET takes over 150 ms.
+
+**Review gate.** None. V2-6a is not review-gated.
+
+**Merge.**
+
+- [ ] Root's clean verdict at the exact head SHA.
+- [ ] Bugbot triage done.
+- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
+- [ ] The root merges V2-6a after V2-5 and confirms the deploy.
+
+## Send the Receipt photo and show View receipt (V2-6b)
+
+**Depends on.** V2-4, V2-5, and V2-6a.
+
+**Files.**
+
 - [ ] Edit `src/ui/receipt-input/photo.web.ts`, `src/draft.ts`, and `app/index.tsx`.
 - [ ] Edit `src/ui/split-view/header.tsx`, `src/ui/split-view/receipt-card.tsx`, and `app/s/[id].tsx`.
-- [ ] Edit `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md`.
 - [ ] Create `e2e/photo.spec.ts`.
 
 **Build.**
@@ -455,36 +516,28 @@ Read ADR 0007 first. It sets the size, the transport, the checks, and the deleti
 - [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
 - [ ] In `src/ui/receipt-input/photo.web.ts`, downscale the photo at scan time to at most 1280 px on its long edge as a JPEG. Lower the quality in steps until it fits 150 KB. Keep the copy with the draft so that a reload before **Create split link** keeps it.
 - [ ] After `POST /api/splits` returns, send the copy with `PUT /api/splits/<id>/photo` and the Creator secret. Show the link at once. Retry a failed upload twice, then give up without a message.
-- [ ] In `worker/photo.ts`, refuse a missing or wrong Creator secret, a body over 150 KB, a body without the JPEG start marker, and a JPEG with an EXIF segment. Store the bytes in a `photo` table in the Split's Durable Object. A second PUT replaces the first.
-- [ ] Serve `GET /api/splits/<id>/photo` with `content-type: image/jpeg`, `x-content-type-options: nosniff`, and `cache-control: private, max-age=3600`. Return 404 when there is no photo or no Split.
-- [ ] Add a photo flag to the live snapshot, and broadcast it when the photo lands.
-- [ ] Delete the photo 14 days after the Split is created. The Split's one alarm fires first at that time, deletes the `photo` table, clears the flag, broadcasts it, and then reschedules itself for the Split's expiry. The Split stays.
-- [ ] Show **View receipt** beside the merchant name on the Split page, phone and desktop, only when the flag is set. It opens the V2-5 viewer, and it hides when the photo is deleted.
-- [ ] Measure the new row writes per create in `worker/create-cost.test.ts`, and update the arithmetic in ADR 0005 if the per-create budget of 15 no longer holds.
+- [ ] Show **View receipt** beside the merchant name on the Split page, phone and desktop, only when the photo flag is set. It opens the V2-5 viewer, and it hides when the photo is deleted.
 
 **You see.**
 
-- [ ] A Split created from `e2e/fixtures/topgolf-synthetic.png` shows **View receipt** within 2 seconds of the link. Tapping it on a second browser opens the photo. `PUT` with a wrong Creator secret returns 403, and a 200 KB body returns 413.
+- [ ] A Split created from `e2e/fixtures/topgolf-synthetic.png` shows **View receipt** within 2 seconds of the link. Tapping it on a second browser opens the photo.
 
 **Seams.**
 
-- [ ] The photo routes through the worker test harness in `worker/photo.test.ts`, the 14-day delete and expiry in `worker/split-server.test.ts`, row writes in `worker/create-cost.test.ts`, and the flow through Playwright in `e2e/photo.spec.ts`.
+- [ ] The flow through Playwright in `e2e/photo.spec.ts`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `worker/photo.test.ts` gains each refusal with its status, a replace, and a GET of the stored bytes. Run `npm run test:worker`.
-- [ ] `worker/split-server.test.ts` gains the alarm deleting the photo at 14 days while the Split stays readable, and the expiry alarm after it. Run `npm run test:worker`.
-- [ ] `worker/create-cost.test.ts` gains the row writes of a create with a photo, as a literal count. Run `npm run test:worker`.
-- [ ] `e2e/photo.spec.ts` gains create, **View receipt** on a second browser, and a reload of home before create that keeps the photo. Run `npm run e2e`.
+- [ ] `e2e/photo.spec.ts` gains create, **View receipt** on a second browser, a reload of home before create that keeps the photo, and **View receipt** hiding when the flag turns off. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
 
-- [ ] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and open it on a second browser, citing `features/join.md`, at trunk and head. Trunk has no stored photo, so record that and gate the head. Save `view-receipt.png`. Pass when the link shows as fast as trunk's, **View receipt** opens the photo on the second browser, and the uploaded body is at most 150 KB.
-- [ ] Lane 2. Upload a 12 MP synthetic photo and `e2e/fixtures/srd-1040-exif-rotated.jpg`, send a forged PUT without the Creator secret, and advance the alarm past 14 days, citing `features/photo.md`. Save `photo-matrix/<case>.png`. Pass when the stored photo is at most 150 KB with no EXIF segment, the forged PUT gets 403, and after 14 days GET returns 404, **View receipt** is gone, and the Split still opens.
+- [ ] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and open it on a second browser, citing `features/join.md` and `features/photo.md`, at trunk and head. Trunk sends no photo, so record that and gate the head. Save `view-receipt.png`. Pass when the link shows as fast as trunk's, **View receipt** opens the photo on the second browser, and the uploaded body is at most 150 KB.
+- [ ] Lane 2. Scan a 12 MP synthetic photo and `e2e/fixtures/srd-1040-exif-rotated.jpg` at 390 px and 1440 px, in light and dark, citing `features/photo.md`. Save `photo-matrix/<case>.png`. Pass when each upload is at most 150 KB with no EXIF segment, the photo reads upright in the viewer, and **View receipt** sits beside the merchant name at both widths.
 
 **Feature map.**
 
-- [ ] Create `features/photo.md` in `verify-receipt-splitter`, and add it to `features/README.md`.
+- [ ] Update `features/photo.md` in `verify-receipt-splitter` with the upload after create and **View receipt**.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -495,16 +548,16 @@ Read ADR 0007 first. It sets the size, the transport, the checks, and the deleti
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lane 1's `view-receipt.png` into `/tmp/receipt-splitter-review/V2-6-review-view-receipt.png`.
-- [ ] Save a 30 to 60 second video of creating a Split and opening the photo on a second browser as `/tmp/receipt-splitter-review/V2-6-review.mp4`.
-- [ ] Post the screenshots, the video, and the measured row writes per create in chat. Stop at merge-ready. Wait for the operator's approval.
+- [ ] Copy lane 1's `view-receipt.png` and lane 2's screenshots into `/tmp/receipt-splitter-review/V2-6b-review-<case>.png`.
+- [ ] Save a 30 to 60 second video of creating a Split and opening the photo on a second browser as `/tmp/receipt-splitter-review/V2-6b-review.mp4`.
+- [ ] Post the screenshots, the video, and V2-6a's measured row writes per create in chat. Stop at merge-ready. Wait for the operator's approval.
 
 **Merge.**
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The root merges V2-6 after V2-5 and confirms the deploy, then creates one Split in production and opens its photo.
+- [ ] The root merges V2-6b after V2-6a and confirms the deploy, then creates one Split in production and opens its photo.
 
 ## Close the program
 
@@ -519,10 +572,11 @@ The design questions were settled by three rounds of mockups, not by code protot
 - PR 22 (`fix/discount-total`) measured the Topgolf receipt through the real OCR pipeline. Its reading after the fix has the two Bundle discounts, Tax $4.94, Tip $32.26, and a passing Total check, so V2-2 starts from a correct amount and changes only the structure.
 - The Share figures in V2-1's **You see** come from the arithmetic in ADR 0006 and are not yet produced by code. V2-1's tests prove them.
 - Unproven. The indent rule has no frame on the board. V2-3's review gate is its first picture.
-- Unproven. The 150 KB cap at 1280 px is an estimate for a readable receipt photo. V2-6 lane 2 measures it on a 12 MP photo.
+- Unproven. The 150 KB cap at 1280 px is an estimate for a readable receipt photo. V2-6b lane 2 measures it on a 12 MP photo.
 
 ## Appendix B. Alternatives rejected
 
+- One PR for the photo. The Worker half has no interaction and can ship first, and each half fits one owner, so V2-6a and V2-6b split it.
 - One PR for the Bundle model, the parser, and the schema change, as first suggested. A rollback of that PR would land on a Worker that cannot read version 2 rows, and every Split with a Bundle would close with code 4500. Splitting the reader (V2-1) from the writer (V2-2) makes each deploy safe to roll back.
 - One PR for the whole Split page display. The phone receipt and the desktop layout are separate surfaces with separate frames, and together they pass the 300k-token size for one owner. V2-3 and V2-4 each end in screenshots the operator can judge alone.
 - A `bundles` list on the Receipt, folding the discount into Item prices, an optional `items?` on every Adjustment, and keeping the header as an Item. ADR 0006 records why each lost.
@@ -533,22 +587,22 @@ The design questions were settled by three rounds of mockups, not by code protot
 
 ## Appendix C. Risks
 
-- A schema change on live data. It lands in V2-1 and V2-2. Production holds real Splits at version 1, and every merge deploys at once. The owners watch the golden rows, lane 2 of V2-2 reads both versions with the V2-1 Worker, and the root opens live Splits after each deploy. A rollback past V2-1 makes every version 2 Split unreadable, so after V2-2 deploys the fix is a roll forward.
-- The photo's size against the Durable Object's limits and the Free plan. It lands in V2-6. A SQLite-backed Durable Object allows a 2 MB row, and the cap is 150 KB. At the daily cap of 1,500 creates, photos kept 14 days hold about 3.2 GB, and the Splits at their measured size about 0.4 GB, under the Free plan's 5 GB. If the 14-day delete fails, storage grows toward the 5 GB limit, where writes fail, so lane 2 checks the delete. The owner reports the measured bytes per photo.
-- The photo adds row writes to every create. It lands in V2-6. `worker/create-cost.test.ts` fails if the count passes its budget, and the owner redoes ADR 0005's arithmetic.
+- A schema change on live data. It lands in V2-1 and V2-2. Production holds real Splits at version 1, and every merge deploys at once. Only a Split with a Bundle is written as version 2, so every other Split stays readable by any Worker. The owners watch the golden rows, lane 2 of V2-2 reads both versions with the V2-1 Worker, and the root opens live Splits after each deploy. A rollback past V2-1 makes only the Splits with a Bundle unreadable, so after V2-2 deploys the fix for a bad release is a roll forward.
+- The photo's size against the Durable Object's limits and the Free plan. It lands in V2-6a. A SQLite-backed Durable Object allows a 2 MB row, and the cap is 150 KB. At the daily cap of 1,470 creates, photos kept 14 days hold about 3.1 GB, and the Splits at their measured size about 0.4 GB, under the Free plan's 5 GB. If the 14-day delete fails, storage grows toward the 5 GB limit, where writes fail, so lane 2 checks the delete. The owner reports the measured bytes per photo.
+- The photo adds about 4 row writes to every create, about 17 in total. It lands in V2-6a. The daily cap becomes the floor of 25,000 over the budgeted writes per create, 1,470 at 17, so creates stay within a quarter of the free daily row writes. `worker/create-cost.test.ts` enforces the rule, so a new write fails the test until the cap moves.
 - Accessibility of the collapsible Bundles. It lands in V2-3. A header that is not a real button, or a region that stays in the tab order while closed, hides Items from screen reader and keyboard users. The owner tests the header by keyboard in `e2e/receipt.spec.ts` and records the accessibility tree in lane 2.
 - A closed Bundle can hide an unclaimed unit. It lands in V2-3. The closed summary carries the flag, so a missing claim shows without opening it.
 - A Host may create a link from a misread receipt, because a failing Total check blocks nothing. It lands in V2-5. The quiet note on home and on the Split page names the gap, and anyone fixes a line on the Split page. No PR here adds a block or a highlight for a mismatch.
 - The Bundle detector misreads a $0.00 line, such as a free refill, as a header. It lands in V2-2. A group forms only when a discount echoes the header, so a lone $0.00 line stays an Item. The bench run reports any change.
-- The photo shows card digits and anything else the receipt prints. It lands in V2-6. The operator accepted it, with no extra line on home. The server refuses EXIF, and the photo is deleted after 14 days.
+- The photo shows card digits and anything else the receipt prints. It lands in V2-6b. The operator accepted it, with no extra line on home. The server refuses EXIF, and the photo is deleted after 14 days.
 
 ## Appendix D. Links and reading list
 
 - Read `CONTEXT.md`, `docs/adr/0001` through `0007`, and `docs/plans/receipt-splitter-v1.md` before editing.
-- Read `docs/design/receipt-v2/README.md` and `round3.html` in every frame before V2-3, V2-4, V2-5, and V2-6. The README wins over the board.
+- Read `docs/design/receipt-v2/README.md` and `round3.html` in every frame before V2-3, V2-4, V2-5, and V2-6b. The README wins over the board.
 - Read `docs/design/split/README.md` before V2-3, for the Split page decisions that still hold.
 - Read `/tmp/redesign/parse-pr.md` before V2-2, for how PR 22 reads the Topgolf receipt.
-- Read `https://developers.cloudflare.com/durable-objects/platform/limits/` and `https://developers.cloudflare.com/durable-objects/platform/pricing/` before V2-6.
-- Run `/how` at the start of V2-1 and V2-6, because they join the Share math and the Worker to new state.
+- Read `https://developers.cloudflare.com/durable-objects/platform/limits/` and `https://developers.cloudflare.com/durable-objects/platform/pricing/` before V2-6a.
+- Run `/how` at the start of V2-1 and V2-6a, because they join the Share math and the Worker to new state.
 - Run `/interrogate` on V2-1 before its PR opens, because the stored shape is the hardest part to change later.
 - Keep a decision trail per `/show-me-your-work` in `docs/plans/receipt-splitter-v2.trail.tsv`, and commit it with the last PR.
