@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { Participant, ParticipantId } from "../../core/split";
@@ -27,7 +27,18 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
     if (typing?.trim()) onAdd(typing);
     setTyping(null);
   };
-  const enter = (index: number) => (entering && !reduce ? [chipEnter, webStyle({ animationDelay: `${Math.min(index, staggered) * stagger}ms` })] : null);
+  const [entrance, setEntrance] = useState(entering);
+  const [wasEntering, setWasEntering] = useState(entering);
+  if (entering !== wasEntering) {
+    setWasEntering(entering);
+    if (entering) setEntrance(true);
+  }
+  useEffect(() => {
+    if (!entrance) return;
+    const timer = setTimeout(() => setEntrance(false), chipsEnterFor);
+    return () => clearTimeout(timer);
+  }, [entrance]);
+  const enter = (index: number) => (entrance && !reduce ? [chipEnter, webStyle({ animationDelay: `${Math.min(index, staggered) * stagger}ms` })] : null);
 
   return (
     <View style={styles.row} role="group" aria-label={label}>
@@ -93,8 +104,7 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
 const chipEnterMs = 180;
 const stagger = 30;
 const staggered = 3;
-/** The chip entrance's whole length, last chip included. The owner keeps `entering` on at least this long so no chip is cut off mid-fade. */
-export const chipsEnterFor = chipEnterMs + staggered * stagger;
+const chipsEnterFor = chipEnterMs + staggered * stagger;
 
 const chipEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.96)" }, to: { opacity: 1, transform: "none" } }],

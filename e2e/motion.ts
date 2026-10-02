@@ -620,7 +620,6 @@ export const scenarios: Scenario[] = [
       await page.emulateMedia({ reducedMotion: "reduce" });
       await expanded(page);
     },
-    // Past half the breakdown's height but still on screen, so the sheet settles from where the finger left it. The finger moves it, so the settle is judged by opacity.
     act: async (page) => drag(page, await grab(page), 120, 400),
     probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }, breakdownFade],
   },

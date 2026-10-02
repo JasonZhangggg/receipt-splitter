@@ -50,7 +50,6 @@ async function settled(target: Locator) {
 
 type Point = { x: number; y: number };
 
-/** A one-finger drag of `dy` px over `ms`, held still for `holdMs` before lifting, through the browser's touch pipeline in Chromium and as pointer events in WebKit. */
 async function drag(page: Page, from: Point, dy: number, ms: number, holdMs = 0) {
   const steps = Math.max(2, Math.round(ms / 16));
   const points = Array.from({ length: steps + 1 }, (_, i) => ({ x: from.x, y: from.y + (dy * i) / steps }));

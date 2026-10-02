@@ -20,7 +20,7 @@ import { SplitHeader } from "../../src/ui/split-view/header";
 import { LinkLine } from "../../src/ui/split-view/link-line";
 import { OweLine } from "../../src/ui/split-view/owe-line";
 import { circleTap } from "../../src/ui/split-view/model";
-import { chipsEnterFor, PeopleChips } from "../../src/ui/split-view/people-chips";
+import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
@@ -122,7 +122,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
       setTimeout(() => {
         setPhase("regular");
         setChosen(null);
-      }, checkFor + Math.max(crossFadeFor, chipsEnterFor)),
+      }, checkFor + crossFadeFor),
     );
   };
 

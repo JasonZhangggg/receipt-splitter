@@ -21,7 +21,6 @@ const recentMs = 100;
 const heldMs = 80;
 const fastest = 3000;
 
-/** A released finger's speed in px/s, down positive, from its moves in the last 100 ms. A finger that held still for 80 ms before lifting reads as still. */
 export function releaseVelocity(samples: readonly { y: number; t: number }[], at: number): number {
   const recent = samples.filter(({ t }) => at - t <= recentMs);
   const first = recent[0];
