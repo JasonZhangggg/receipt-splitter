@@ -142,8 +142,11 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const onPointerDown = (event: PointerEvent) => {
     const { pointerId, clientY, clientX, isPrimary } = event.nativeEvent;
     if (drag.current || !gestures || !isPrimary || leaving.current) return;
-    if (scrolls && !(event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]")) return;
+    const onGrab = (event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]") != null;
+    if (scrolls && !onGrab) return;
     drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: offset.current ?? tallest - visible, moved: false, samples: [{ y: clientY, t: event.timeStamp }] };
+    // The grab bar holds no buttons, so it can take the pointer at once. A mouse, which has no implicit capture, would otherwise leave the sheet on the first move up.
+    if (onGrab) (event.currentTarget as unknown as HTMLElement).setPointerCapture?.(pointerId);
   };
 
   const onPointerMove = (event: PointerEvent) => {
