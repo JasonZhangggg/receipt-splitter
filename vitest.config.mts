@@ -12,6 +12,6 @@ export default defineConfig({
     },
   ],
   test: {
-    include: ["src/**/*.test.{ts,tsx}", "bench/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "bench/**/*.test.ts", ".claude/skills/*/*.test.ts"],
   },
 });

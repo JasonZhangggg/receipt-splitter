@@ -56,7 +56,9 @@ async function launch() {
         : `port ${p} is held by pid ${pids.join(", ")}, which is outside this worktree's recorded launch group for port ${port}, so cleanup will not stop it; pick another port`,
     );
   }
-  const launcher = `${process.pid}\n${startTime(process.pid)}`;
+  const started = startTime(process.pid);
+  if (!started) fail(`ps reported no start time for this launch (pid ${process.pid}), so doctor and cleanup could not tell it from a reused pid; nothing was started`);
+  const launcher = `${process.pid}\n${started}`;
   mkdirSync(dirname(runDir), { recursive: true });
   try {
     mkdirSync(runDir);
@@ -249,6 +251,10 @@ async function cleanup() {
       `port ${port} or ${inspectorPort} is still held by pid ${held().join(", ")}, which this run did not start, so cleanup left ${runDir}; if that pid is this worktree's wrangler and its record is lost, follow "Recover a lost record" in SKILL.md, otherwise pick another port`,
     );
   }
+  const latest = recordedGroup();
+  if (latest?.raw !== record?.raw || held().length) {
+    fail(`the pgid record or the listeners on port ${port} changed while the group stopped, so cleanup left ${runDir}; run doctor --port ${port}`);
+  }
   rmSync(runDir, { recursive: true, force: true });
   print({ ok: true, port, stoppedGroup: record?.pgid ?? null, portFree: true });
 }
@@ -268,7 +274,7 @@ function liveLauncher() {
 }
 
 function startTime(pid) {
-  const [started = ""] = lines("ps", ["-o", "lstart=", "-p", String(pid)]);
+  const [started = ""] = lines("ps", ["-o", "lstart=", "-p", String(pid)], { ...process.env, LC_ALL: "C", TZ: "UTC" });
   return started.trim();
 }
 
@@ -302,9 +308,9 @@ function groupMembers(pgid) {
     .map(([, pid, , command]) => ({ pid: Number(pid), command }));
 }
 
-function lines(cmd, args) {
+function lines(cmd, args, env = process.env) {
   try {
-    return execFileSync(cmd, args, { encoding: "utf8" }).split("\n").filter(Boolean);
+    return execFileSync(cmd, args, { encoding: "utf8", env }).split("\n").filter(Boolean);
   } catch {
     return [];
   }
