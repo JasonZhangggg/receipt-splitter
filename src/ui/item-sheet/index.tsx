@@ -48,7 +48,7 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
   const [leaving, setLeaving] = useState<SplitItem | null>(null);
   useEffect(() => {
     if (!leaving) return;
-    const timer = setTimeout(() => setLeaving(null), rowsFade);
+    const timer = setTimeout(() => setLeaving(null), rowsFadeOut);
     return () => clearTimeout(timer);
   }, [leaving]);
 
@@ -328,16 +328,17 @@ function Stepper({ value, min, max, onChange, names }: StepperProps) {
 }
 
 const slide = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
-const rowsFade = 150;
+const rowsFadeIn = 150;
+const rowsFadeOut = 120;
 const rowsEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
-  animationDuration: `${rowsFade}ms`,
-  animationTimingFunction: "ease",
+  animationDuration: `${rowsFadeIn}ms`,
+  animationTimingFunction: motion.easeOut,
 });
 const rowsLeave = webAnimation({
   animationKeyframes: [{ from: { opacity: 1 }, to: { opacity: 0 } }],
-  animationDuration: `${rowsFade}ms`,
-  animationTimingFunction: "ease",
+  animationDuration: `${rowsFadeOut}ms`,
+  animationTimingFunction: motion.easeOut,
   animationFillMode: "forwards",
 });
 

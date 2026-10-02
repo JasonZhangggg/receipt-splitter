@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { animateSpring, glideFor, project, releaseIntent, rubberband, snapTarget } from "./sheet-motion";
+import { animateSpring, glideFor, project, releaseIntent, releaseVelocity, rubberband, snapTarget } from "./sheet-motion";
 
 describe("snapTarget", () => {
   test("lands where the momentum projects, not where the finger let go", () => {
@@ -77,5 +77,23 @@ describe("glideFor", () => {
       faster: 150,
       away: 300,
     });
+  });
+});
+
+describe("releaseVelocity", () => {
+  const moves = (from: number, step: number, at: number) => Array.from({ length: 5 }, (_, i) => ({ y: from + step * i, t: at + 16 * i }));
+
+  test("reads the finger's speed over its last moves, and reads a hold before release as still", () => {
+    expect({
+      flick: releaseVelocity(moves(0, 16, 0), 70),
+      held: releaseVelocity(moves(0, 16, 0), 64 + 200),
+      justOverHold: releaseVelocity(moves(0, 16, 0), 64 + 81),
+      oneRecentMove: releaseVelocity([{ y: 0, t: 0 }, { y: 16, t: 100 }], 110),
+      fastUp: releaseVelocity(moves(0, -80, 0), 70),
+    }).toEqual({ flick: 1000, held: 0, justOverHold: 0, oneRecentMove: 0, fastUp: -3000 });
+  });
+
+  test("ignores moves more than 100 ms before release", () => {
+    expect(releaseVelocity([{ y: 0, t: 0 }, { y: 500, t: 20 }, { y: 516, t: 90 }, { y: 532, t: 106 }], 125)).toBe(1000);
   });
 });

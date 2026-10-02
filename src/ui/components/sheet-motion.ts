@@ -17,6 +17,19 @@ export function releaseIntent(travel: number, velocity: number, visible: number)
   return "stay";
 }
 
+const recentMs = 100;
+const heldMs = 80;
+const fastest = 3000;
+
+/** A released finger's speed in px/s, down positive, from its moves in the last 100 ms. A finger that held still for 80 ms before lifting reads as still. */
+export function releaseVelocity(samples: readonly { y: number; t: number }[], at: number): number {
+  const recent = samples.filter(({ t }) => at - t <= recentMs);
+  const first = recent[0];
+  const last = recent.at(-1);
+  if (!first || !last || at - last.t > heldMs || last.t <= first.t) return 0;
+  return Math.max(-fastest, Math.min(fastest, ((last.y - first.y) / (last.t - first.t)) * 1000));
+}
+
 export const glide = { ms: 300, shortest: 150, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 const startSlope = 0.72 / 0.32;
 

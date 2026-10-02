@@ -27,7 +27,7 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
     if (typing?.trim()) onAdd(typing);
     setTyping(null);
   };
-  const enter = (index: number) => (entering && !reduce ? [chipEnter, webStyle({ animationDelay: `${index * 30}ms` })] : null);
+  const enter = (index: number) => (entering && !reduce ? [chipEnter, webStyle({ animationDelay: `${Math.min(index, staggered) * stagger}ms` })] : null);
 
   return (
     <View style={styles.row} role="group" aria-label={label}>
@@ -90,9 +90,15 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
   );
 }
 
+const chipEnterMs = 180;
+const stagger = 30;
+const staggered = 3;
+/** The chip entrance's whole length, last chip included. The owner keeps `entering` on at least this long so no chip is cut off mid-fade. */
+export const chipsEnterFor = chipEnterMs + staggered * stagger;
+
 const chipEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.96)" }, to: { opacity: 1, transform: "none" } }],
-  animationDuration: "180ms",
+  animationDuration: `${chipEnterMs}ms`,
   animationTimingFunction: motion.easeOut,
   animationFillMode: "both",
 });

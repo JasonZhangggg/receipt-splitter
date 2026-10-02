@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Reac
 import { ScrollView, StyleSheet, useWindowDimensions, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { glide, glideFor, releaseIntent, rubberband } from "../components/sheet-motion";
+import { glide, glideFor, releaseIntent, releaseVelocity, rubberband } from "../components/sheet-motion";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, motion, useColors } from "../theme";
 
@@ -10,7 +10,6 @@ const reducedFade = 200;
 const fadeIn = 200;
 const fadeOut = 150;
 const tapSlop = 10;
-const maxVelocity = 3000;
 const grabHeight = 29;
 const contain = webStyle({ overscrollBehavior: "contain" });
 const holdsGesture = webStyle({ touchAction: "none" });
@@ -62,7 +61,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const [shown, setShown] = useState({ view, children });
   const [outgoing, setOutgoing] = useState<{ view: string | undefined; content: ReactNode } | null>(null);
   if (view !== shown.view) {
-    setOutgoing(reduce ? null : { view: shown.view, content: shown.children });
+    setOutgoing({ view: shown.view, content: shown.children });
     setShown({ view, children });
   } else if (children !== shown.children) setShown({ view, children });
   useLayoutEffect(() => {
@@ -90,8 +89,9 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
 
   const settle = (to: number, velocity: number, done?: () => void) => {
     if (reduce) {
+      const entering = (offset.current ?? tallest) >= tallest - 1;
       place(to, 0);
-      element()?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: reducedFade, easing: "ease" });
+      if (entering) element()?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: reducedFade, easing: "ease" });
       return done?.();
     }
     const from = offset.current ?? tallest;
@@ -172,10 +172,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     drag.current = null;
     if (!current.moved) return;
     const rest = tallest - visible;
-    const [first] = current.samples;
-    const last = current.samples.at(-1) ?? first;
-    const measured = last.t > first.t ? ((last.y - first.y) / (last.t - first.t)) * 1000 : 0;
-    const velocity = Math.max(-maxVelocity, Math.min(maxVelocity, measured));
+    const velocity = releaseVelocity(current.samples, event.timeStamp);
     const intent = releaseIntent((offset.current ?? rest) - rest, velocity, visible);
     if (intent === "down" && onDown) return leave(velocity);
     settle(rest, velocity);

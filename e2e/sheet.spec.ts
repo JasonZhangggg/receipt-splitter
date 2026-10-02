@@ -50,8 +50,8 @@ async function settled(target: Locator) {
 
 type Point = { x: number; y: number };
 
-/** A one-finger drag of `dy` px over `ms`, through the browser's touch pipeline in Chromium and as pointer events in WebKit. */
-async function drag(page: Page, from: Point, dy: number, ms: number) {
+/** A one-finger drag of `dy` px over `ms`, held still for `holdMs` before lifting, through the browser's touch pipeline in Chromium and as pointer events in WebKit. */
+async function drag(page: Page, from: Point, dy: number, ms: number, holdMs = 0) {
   const steps = Math.max(2, Math.round(ms / 16));
   const points = Array.from({ length: steps + 1 }, (_, i) => ({ x: from.x, y: from.y + (dy * i) / steps }));
   if (page.context().browser()?.browserType().name() === "chromium") {
@@ -61,10 +61,11 @@ async function drag(page: Page, from: Point, dy: number, ms: number) {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [point] });
       await page.waitForTimeout(16);
     }
+    await page.waitForTimeout(holdMs);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     return;
   }
-  await page.evaluate(async (path) => {
+  await page.evaluate(async ({ path, holdMs }) => {
     const target = document.elementFromPoint(path[0].x, path[0].y)!;
     const fire = (type: string, point: { x: number; y: number }) =>
       target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: point.x, clientY: point.y }));
@@ -73,8 +74,9 @@ async function drag(page: Page, from: Point, dy: number, ms: number) {
       await new Promise((resolve) => setTimeout(resolve, 16));
       fire("pointermove", point);
     }
+    await new Promise((resolve) => setTimeout(resolve, holdMs));
     fire("pointerup", path.at(-1)!);
-  }, points);
+  }, { path: points, holdMs });
 }
 
 async function center(target: Locator): Promise<Point> {
@@ -126,6 +128,18 @@ test("a flick down on the pick sheet's rows closes it, and a drag that starts on
   await drag(page, await center(jason), 260, 120);
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toHaveCount(0, live);
   await expect(page.getByText("Pick your name to check off what you had.")).toBeVisible(live);
+});
+
+test("a drag that stops and holds before letting go reads as still, so a sheet held at 40% springs back instead of closing", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  const sheet = page.getByTestId("split-sheet");
+  const rest = (await sheet.boundingBox())!.y;
+  const visible = page.viewportSize()!.height - rest;
+  const dy = Math.round(visible * 0.4);
+  await drag(page, { x: (await center(sheet)).x, y: rest + 14 }, dy, dy, 200);
+  await settled(sheet);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible();
+  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
 });
 
 test("a swipe up on the share bar opens your breakdown, a swipe down closes it, and a tap on a chip still works", async ({ browser, request, browserName }, { workerIndex }) => {
