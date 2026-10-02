@@ -122,7 +122,7 @@ Debt simplification uses the greedy method: settle the largest creditor against 
 | Fallback | An opt-in endpoint on a Worker, rate-limited, that calls a paid LLM (Gemini Flash-Lite or Claude Haiku 4.5) only when the total check fails. Send the OCR text first, and the image only as a last resort. Never store the image, and never use a free tier that trains on the data. Cost is about $0.0004–0.005 per receipt. |
 | Live claiming | One Cloudflare Durable Object per split (with `partyserver`). Each split expires after 30–90 days, and its JSON is capped at about 32 KB. |
 | Read-only share | Encode the split into the URL fragment (lz-string), with no server. |
-| Abuse control | Cloudflare Turnstile and per-IP rate limits on creating a split and on the LLM fallback. |
+| Abuse control | A per-IP rate limit and a global daily cap on creating a split (ADR 0005), and a per-IP rate limit on the LLM fallback. |
 
 ## How each payment app is handed off
 
