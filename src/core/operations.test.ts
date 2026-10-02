@@ -1,3 +1,4 @@
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
@@ -24,6 +25,7 @@ import {
   itemId,
   participantId,
   serializedBytes,
+  RECEIPT_LEVEL_KINDS,
   type Item,
   type ParticipantId,
   type Receipt,
@@ -31,6 +33,7 @@ import {
 } from "./split";
 import { mintedId } from "./test-ids";
 import { runTotalCheck } from "./total-check";
+import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -1435,17 +1438,17 @@ describe("the 32 KB budget", () => {
   });
 });
 
-describe("random operations", () => {
-  function random(seed: number): () => number {
-    let state = seed;
-    return () => {
-      state = (state + 0x6d2b79f5) | 0;
-      let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
-      mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
-      return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
-    };
-  }
+function random(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
+describe("random operations", () => {
   function content(split: Split) {
     return { receipt: split.receipt, participants: split.participants, payments: split.payments };
   }
@@ -1614,4 +1617,191 @@ describe("random operations", () => {
     expect(worstDrift.nonClaimer).toBeLessThanOrEqual(1);
     expect(worstDrift.claimer).toBeLessThan(2);
   });
+});
+
+describe("Bundles", () => {
+  const claimed = () => topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
+  const bundleItems = (split: Split) => split.receipt.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? [[row.id, ...row.bundle.items]] : []));
+  const deleteItem = (id: string): Operation => {
+    const amount = topgolf().receipt.items.find((row) => row.id === id)?.price ?? 0;
+    return { by: jason, type: "editReceipt", items: [{ type: "delete", itemId: itemId(id) }], subtotalDelta: cents(-amount), totalDelta: cents(-amount) };
+  };
+
+  test("deleting a Bundle's Item drops it from the Bundle in the same Change, and one Revert brings both back", () => {
+    const start = claimed();
+
+    const deleted = apply(start, deleteItem("guinness1"));
+
+    expect(bundleItems(deleted)).toEqual([
+      ["bucket1", "ultra1", "pineapple1", "watermelon1"],
+      ["bucket2", "ultra2", "guinness2", "pineapple2", "watermelon2"],
+    ]);
+    expect(deleted.recentChanges.map(({ revision }) => revision)).toEqual([1]);
+    expect(shareOf(deleted, priya)?.share).toBe(2347);
+
+    const reverted = apply(deleted, { by: priya, type: "undo", revision: 1 });
+
+    expect(reverted.receipt).toEqual(start.receipt);
+  });
+
+  test("deleting a Bundle's last Item removes its discount in the same Change, and one Revert brings both back", () => {
+    const start = apply(claimed(), deleteItem("guinness1"), deleteItem("pineapple1"), deleteItem("watermelon1"));
+
+    const emptied = apply(start, deleteItem("ultra1"));
+
+    expect(emptied.receipt.adjustments.map(({ id }) => id)).toEqual(["bucket2", "tax", "tip"]);
+    expect(emptied.recentChanges.at(-1)?.writes.map(({ kind }) => kind)).toEqual(["item", "adjustment", "totals"]);
+
+    const reverted = apply(emptied, { by: priya, type: "undo", revision: emptied.revision });
+
+    expect(reverted.receipt).toEqual(start.receipt);
+    expect(bundleItems(reverted)[0]).toEqual(["bucket1", "ultra1"]);
+  });
+
+  test("restoring the original Receipt brings back a Bundle whose Items were all deleted", () => {
+    const start = claimed();
+    const [first, ...rest] = start.receipt.items.map(({ id, name, price, split }): Item => ({ id, name, price, quantity: split.units.length }));
+    const original = { ...start.receipt, items: [first, ...rest] as const };
+    const emptied = apply({ ...start, original }, ...bucketOne.map(deleteItem));
+
+    const restored = apply(emptied, { by: priya, type: "restoreReceipt" });
+
+    expect(emptied.receipt.adjustments.map(({ id }) => id)).toEqual(["bucket2", "tax", "tip"]);
+    expect(bundleItems(restored)).toEqual(bundleItems(start));
+    expect(restored.receipt.total).toBe(20729);
+  });
+
+  test("a Split is stored at version 2 while it or its history holds a Bundle, and at version 1 once neither does", () => {
+    const start = claimed();
+    const unbundled = apply(start, {
+      by: jason,
+      type: "editReceipt",
+      adjustments: [
+        { type: "delete", adjustmentId: adjustmentId("bucket1") },
+        { type: "delete", adjustmentId: adjustmentId("bucket2") },
+      ],
+      totalDelta: cents(914),
+    });
+    const forgotten = { ...unbundled, recentChanges: [] };
+
+    expect([start.schemaVersion, unbundled.schemaVersion, unbundled.receipt.adjustments.map(({ kind }) => kind)]).toEqual([2, 2, ["tax", "tip"]]);
+    expect(apply(forgotten, { by: priya, type: "claim", itemId: itemId("gameplay"), participantId: priya }).schemaVersion).toBe(1);
+    expect(created().schemaVersion).toBe(1);
+  });
+
+  test("a Bundle discount keeps its kind, stays at or below $0.00, and its Split keeps version 2", () => {
+    const start = claimed();
+    const bucket = adjustmentId("bucket1");
+
+    expect(reasonFor(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, kind: "discount" }] })).toBe("conflict");
+    expect(reasonFor(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, amount: cents(451) }], totalDelta: cents(902) })).toBe("amountOutOfRange");
+
+    const renamed = apply(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, name: "Bucket" }] });
+
+    expect([renamed.schemaVersion, bundleItems(renamed)]).toEqual([2, bundleItems(start)]);
+  });
+
+  const withOriginal = (start: Split, adjustments: Split["receipt"]["adjustments"] = start.receipt.adjustments): Split => {
+    const [first, ...rest] = start.receipt.items.map(({ id, name, price, split }): Item => ({ id, name, price, quantity: split.units.length }));
+    return { ...start, original: { ...start.receipt, items: [first, ...rest], adjustments } };
+  };
+  const reloaded = (split: Split) => parseSplit(JSON.parse(JSON.stringify(split)));
+
+  test("restoring a Bundle whose id a plain discount took over stores a Split the Worker can load", () => {
+    const start = withOriginal(claimed());
+    const bucket = adjustmentId("bucket1");
+    const replaced = apply(
+      start,
+      { by: jason, type: "editReceipt", adjustments: [{ type: "delete", adjustmentId: bucket }], totalDelta: cents(451) },
+      { by: jason, type: "editReceipt", adjustments: [{ type: "add", adjustment: { id: bucket, kind: "discount", name: "Coupon", amount: cents(-500) }, index: 0 }], totalDelta: cents(-500) },
+    );
+
+    const restored = apply(replaced, { by: priya, type: "restoreReceipt" });
+
+    expect(reloaded(restored)).toEqual({ ok: true, split: restored });
+    expect(bundleItems(restored)).toEqual(bundleItems(start));
+    expect(restored.receipt.total).toBe(20729);
+    const reverted = apply(restored, { by: priya, type: "undo", revision: restored.revision });
+    expect(reloaded(reverted)).toEqual({ ok: true, split: reverted });
+    expect(reverted.receipt.adjustments[0]).toEqual({ id: bucket, kind: "discount", name: "Coupon", amount: -500 });
+  });
+
+  test("restoring a plain discount whose id a Bundle took over stores a Split the Worker can load", () => {
+    const start = claimed();
+    const bucket = adjustmentId("bucket1");
+    const coupon = { id: bucket, kind: "discount", name: "Coupon", amount: cents(-451) } as const;
+    const bundled = withOriginal(start, [coupon, ...start.receipt.adjustments.slice(1)]);
+
+    const restored = apply(bundled, { by: priya, type: "restoreReceipt" });
+
+    expect(reloaded(restored)).toEqual({ ok: true, split: restored });
+    expect(restored.receipt.adjustments[0]).toEqual(coupon);
+    expect(bundleItems(restored)).toEqual([["bucket2", ...bucketTwo]]);
+  });
+});
+
+describe("random operations on the golden rows", () => {
+  const goldenDir = new URL("./golden/", import.meta.url);
+  const labels = readdirSync(goldenDir).map((file) => file.replace(/\.json$/, ""));
+  const loaded = (label: string): Split => accepted(parseSplit(JSON.parse(readFileSync(new URL(`${label}.json`, goldenDir), "utf8"))));
+
+  function randomOperation(split: Split, next: () => number, fresh: () => string): Operation {
+    const pick = <T>(values: readonly T[]): T => values[Math.floor(next() * values.length)];
+    const { items, adjustments } = split.receipt;
+    const people = split.participants.map(({ id }) => id);
+    const adjustmentIds = [...new Set([...adjustments, ...(split.original?.adjustments ?? [])].map(({ id }) => id))];
+    const by = pick(people);
+    const roll = next();
+    if (roll < 0.25) {
+      const item = pick(items);
+      return { by, type: next() < 0.6 ? "claim" : "unclaim", itemId: item.id, unit: Math.floor(next() * item.split.units.length), participantId: pick(people) };
+    }
+    if (roll < 0.35) {
+      const item = pick(items);
+      return { by, type: "editReceipt", items: [{ type: "delete", itemId: item.id }], subtotalDelta: cents(0 - item.price), totalDelta: cents(0 - item.price) };
+    }
+    if (roll < 0.45) {
+      const item = pick(items);
+      return { by, type: "editReceipt", items: [{ type: "edit", itemId: item.id, quantity: 1 + Math.floor(next() * 4) }] };
+    }
+    if (roll < 0.55 && adjustments.length > 0) {
+      const row = pick(adjustments);
+      return { by, type: "editReceipt", adjustments: [{ type: "delete", adjustmentId: row.id }], totalDelta: cents(0 - row.amount) };
+    }
+    if (roll < 0.65) {
+      const id = next() < 0.7 && adjustmentIds.length > 0 ? pick(adjustmentIds) : adjustmentId(fresh());
+      const kind = pick(RECEIPT_LEVEL_KINDS);
+      const amount = cents(kind === "discount" ? -Math.floor(next() * 800) : Math.floor(next() * 800));
+      return { by, type: "editReceipt", adjustments: [{ type: "add", adjustment: { id, kind, name: "Row", amount }, index: Math.floor(next() * (adjustments.length + 1)) }], totalDelta: amount };
+    }
+    if (roll < 0.72 && adjustments.length > 0) {
+      const row = pick(adjustments);
+      return next() < 0.5
+        ? { by, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: row.id, kind: pick(RECEIPT_LEVEL_KINDS) }] }
+        : { by, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: row.id, name: `Renamed ${fresh()}` }] };
+    }
+    if (roll < 0.8) return { by, type: "restoreReceipt" };
+    if (roll < 0.84) return { by, type: "addParticipant", participant: { id: participantId(fresh()), name: `Joiner ${fresh()}` } };
+    const target = split.recentChanges.length > 0 ? pick(split.recentChanges).revision : 0;
+    return { by, type: "undo", revision: target };
+  }
+
+  test.each(labels.flatMap((label) => [1, 2, 3, 4, 5].map((seed) => [label, seed] as const)))(
+    "%s, seed %i: every accepted operation stores a Split the Worker can load",
+    (label, seed) => {
+      const next = random(seed);
+      let counter = 0;
+      const fresh = () => `g${seed}x${counter++}`;
+      let split = loaded(label);
+      let kept = 0;
+      for (let step = 0; step < 200; step++) {
+        const result = applyOperation(split, randomOperation(split, next, fresh), anyone);
+        if (!result.ok) continue;
+        kept += 1;
+        split = result.split;
+        expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
+      }
+      expect(kept).toBeGreaterThan(60);
+    },
+  );
 });

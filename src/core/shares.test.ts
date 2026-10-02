@@ -1,13 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price, type Cents } from "./money";
 import { computeShares, shareBreakdown, unitPrices, type ShareBreakdown, type Shares } from "./shares";
-import { adjustmentId, itemId, participantId, type AdjustmentKind, type ItemSplit, type Part, type ParticipantId, type Split, type SplitItem } from "./split";
+import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type Part, type ParticipantId, type ReceiptLevelKind, type Split, type SplitItem } from "./split";
+import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
 
 type Row = readonly [id: string, price: number, claimers: readonly string[]];
 
 function splitWith(options: {
   items: readonly [Row, ...Row[]];
-  adjustments?: readonly (readonly [kind: AdjustmentKind, amount: number])[];
+  adjustments?: readonly (readonly [kind: ReceiptLevelKind, amount: number])[];
   participants?: readonly [string, ...string[]];
   payments?: readonly (readonly [who: string, amount: number])[];
 }): Pick<Split, "receipt" | "participants" | "payments"> {
@@ -70,7 +71,7 @@ function seededReceipts(count: number) {
       return [`i${index}`, amount, claimers.length > 0 ? claimers : fallback];
     });
     const subtotal = rows.reduce((sum, [, amount]) => sum + amount, 0);
-    const adjustments: [AdjustmentKind, number][] = [
+    const adjustments: [ReceiptLevelKind, number][] = [
       ["tax", Math.round(subtotal * 0.08875)],
       ["tip", Math.round(subtotal * [0.18, 0.2, 0.22][int(0, 2)])],
     ];
@@ -512,7 +513,7 @@ describe("Item quantity and split modes", () => {
     const [first, ...rest] = split.receipt.items.map((item) => (item.id === id ? { ...item, split: shape } : item));
     return { ...split, receipt: { ...split.receipt, items: [first, ...rest] } };
   };
-  const tostones = (shape: ItemSplit, adjustments: readonly (readonly [AdjustmentKind, number])[] = []) =>
+  const tostones = (shape: ItemSplit, adjustments: readonly (readonly [ReceiptLevelKind, number])[] = []) =>
     withSplit(splitWith({ items: [["tostones", 100, []]], adjustments }), "tostones", shape);
 
   test("a $1.00 Item split 2:1 by shares costs 67 and 33 cents", () => {
@@ -749,7 +750,7 @@ describe("shareBreakdown", () => {
     expect(shareBreakdown(split, participantId("ann")).adjustments.map(({ portion }) => portion)).toEqual([-300, 270]);
   });
 
-  test("across 15,000 seeded receipts with $0.00 lines, discounts past the Items, and printed totals that disagree, every line stays between $0.00 and its Item or Adjustment and the lines add up to the Share", () => {
+  test("across 15,000 seeded receipts with $0.00 lines, Bundles, discounts past the Items, and printed totals that disagree, every line stays between $0.00 and its Item or Adjustment and the lines add up to the Share", () => {
     const next = random(20261001);
     const int = (low: number, high: number) => low + Math.floor(next() * (high - low + 1));
     const pick = <T,>(values: readonly T[]): T => values[int(0, values.length - 1)];
@@ -777,11 +778,18 @@ describe("shareBreakdown", () => {
         return { id: itemId(`i${index}`), name: `i${index}`, price: price(amount), split };
       });
       const itemsSum = rows.reduce((total, { price }) => total + price, 0);
-      const adjustments = Array.from({ length: int(0, 3) }, (_, index) => {
+      const size = () => pick([0, 0, 1, 99, 181, int(0, 900), int(0, itemsSum + 1000)]);
+      const receiptLevel = Array.from({ length: int(0, 3) }, (_, index): Adjustment => {
         const kind = pick(["tax", "tip", "serviceCharge", "discount"] as const);
-        const size = pick([0, 0, 1, 99, 181, int(0, 900), int(0, itemsSum + 1000)]);
-        return { id: adjustmentId(`a${index}`), kind, name: kind, amount: cents(kind === "discount" ? -size : size) };
+        const amount = size();
+        return { id: adjustmentId(`a${index}`), kind, name: kind, amount: cents(kind === "discount" ? -amount : amount) };
       });
+      const bundleOfRows = rows.map(() => int(0, 2));
+      const bundles = [1, 2].flatMap((bundle): Adjustment[] => {
+        const [first, ...rest] = rows.filter((_, index) => bundleOfRows[index] === bundle).map(({ id }) => id);
+        return first === undefined ? [] : [{ id: adjustmentId(`b${bundle}`), kind: "bundleDiscount", name: "bundle", amount: cents(-size()), bundle: { name: "bundle", items: [first, ...rest] } }];
+      });
+      const adjustments = [...receiptLevel, ...bundles];
       const agreeing = adjustments.reduce((total, { amount }) => total + amount, itemsSum);
       const total = Math.max(0, pick([agreeing, agreeing, agreeing + int(-300, 300), 0]));
       const [host, ...others] = people.map((id) => ({ id: participantId(id), name: id }));
@@ -822,3 +830,80 @@ describe("shareBreakdown", () => {
     expect(misses).toEqual([]);
   });
 });
+
+describe("Bundles", () => {
+  const shareOf = (split: Pick<Split, "receipt" | "participants" | "payments">, who: ParticipantId) =>
+    computeShares(split).shares.find(({ participantId }) => participantId === who)?.share;
+  const asReceiptDiscounts = (split: Split): Split => ({
+    ...split,
+    receipt: { ...split.receipt, adjustments: split.receipt.adjustments.map(({ id, kind, name, amount }): Adjustment => ({ id, kind: kind === "bundleDiscount" ? "discount" : kind, name, amount })) },
+  });
+
+  test("at Topgolf, Priya on all of the first Beer Bucket owes $49.52 and Jason on Gameplay and the second owes $157.77, where v1 charged Priya $52.21", () => {
+    const split = topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
+
+    expect(computeShares(split)).toEqual({
+      shares: [
+        { participantId: "jason", share: 15777 },
+        { participantId: "priya", share: 4952, paid: 0, owed: 4952 },
+      ],
+      unclaimed: { itemIds: [], total: 0 },
+    });
+    expect(shareOf(asReceiptDiscounts(split), priya)).toBe(5221);
+  });
+
+  test("a Bundle discount on a unit nobody Claimed stays Unclaimed with its part of the tax", () => {
+    const split = splitWith({ items: [["a", 600, ["ann"]], ["b", 400, []], ["c", 1000, ["bob"]]], adjustments: [["tax", 190]] });
+    const bundled = { ...split, receipt: { ...split.receipt, adjustments: [...split.receipt.adjustments, bundleOf("a", "b", -100)], total: cents(2090) } };
+
+    expect(computeShares(bundled)).toEqual({
+      shares: [
+        { participantId: "ann", share: 594 },
+        { participantId: "bob", share: 1100, paid: 0, owed: 1100 },
+        { participantId: "cat", share: 0, paid: 0, owed: 0 },
+      ],
+      unclaimed: { itemIds: ["b"], total: 396 },
+    });
+  });
+
+  test("a Bundle discount past its Items takes them to $0.00 and spreads the rest over everyone's Items", () => {
+    const split = splitWith({ items: [["a", 500, ["ann"]], ["b", 1000, ["bob"]], ["c", 500, ["cat"]]] });
+    const bundled = { ...split, receipt: { ...split.receipt, adjustments: [{ ...bundleOf("a", "a", -800), bundle: { name: "Bundle", items: [itemId("a")] as const } }], total: cents(1200) } };
+
+    expect(computeShares(bundled).shares.map(({ share }) => share)).toEqual([0, 800, 400]);
+  });
+
+  test("Priya's breakdown shows the first Beer Bucket's whole discount and none of the second's", () => {
+    const split = topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
+
+    expect(shareBreakdown(split, priya).adjustments.map(({ id, portion }) => [id, portion])).toEqual([
+      ["bucket1", -451],
+      ["bucket2", 0],
+      ["tax", 118],
+      ["tip", 771],
+    ]);
+  });
+
+  test("across 2,000 random Topgolf Claims, the Shares plus the Unclaimed total come to $207.29", () => {
+    const next = random(1001);
+    const people = [jason, priya, participantId("sam")];
+    const misses: string[] = [];
+    for (let run = 0; run < 2_000; run += 1) {
+      const base = topgolf();
+      const [first, ...rest] = base.receipt.items.map((item): SplitItem => {
+        const units = item.split.units.map(() => people.filter(() => next() < 0.4));
+        return { ...item, split: { by: "even", units: [units[0], ...units.slice(1)] } };
+      });
+      const split = { ...base, participants: [...base.participants, { id: people[2], name: "Sam" }] as const, receipt: { ...base.receipt, items: [first, ...rest] as const } };
+      const { shares, unclaimed } = computeShares(split);
+      const sum = shares.reduce((total: number, { share }) => total + share, unclaimed.total);
+      if (sum !== 20729) misses.push(`run ${run}: ${sum}`);
+    }
+
+    expect(misses).toEqual([]);
+  });
+});
+
+function bundleOf(first: string, second: string, amount: number): Adjustment {
+  return { id: adjustmentId("bundle"), kind: "bundleDiscount", name: "Bundle", amount: cents(amount), bundle: { name: "Bundle", items: [itemId(first), itemId(second)] } };
+}

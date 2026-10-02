@@ -9,6 +9,7 @@ A Split lives in one Durable Object that `wrangler dev` runs beside the site. `P
 - `live-hibernate` wakes the Durable Object from hibernation when a Claim arrives after an idle minute, and delivers it to every client.
 - `live-reconnect` gives a client that left and came back the Claims it missed.
 - `live-cap` refuses the operation that would push the Split over 32 KB and keeps the stored state.
+- `live-seed` loads a golden row from `src/core/golden/` into a local Split, so an older or newer stored shape opens in the browser.
 - `live-perf` measures the round trip from a Claim sent by one client to the state received by another.
 
 ## How to get to it (user POV)
@@ -30,6 +31,7 @@ Preconditions:
 - **Hibernation.** Note the line count of `.verify/8811/wrangler.log`, then run `live-clients idle --port 8811 --clients 3 --idle-s 60 --log <out>/server-hibernate.json`. The line has `"ok":true` and every client at the same revision. The log lines after your note show `SplitServer <id> woke from hibernation with 3 open sockets`. To save `server-hibernate.png`, put those lines and the report in one text file and render it with `live-clients render --in <file> --shot <out>/server-hibernate.png`.
 - **Reconnect.** Run `live-clients drop --port 8811 --drop-s 10 --log <out>/server-reconnect.json` and render it to `<out>/server-reconnect.png`. Client 1 closes its socket, client 0 Claims the pitcher, and after 10 seconds client 1 opens a new socket. The line has `"claimedBy":["ann"]` and the revision client 0 saw.
 - **32 KB cap.** Run `live-clients cap --port 8811 --log <out>/server-cap.json` and render it to `<out>/server-cap.png`. The client adds Items with long names until one is refused. The line has `"rejection":{"reason":"tooLarge"}`, `acceptedBytes` just under 32768, and a fresh client that sees the last accepted state unchanged.
+- **Seed a golden row.** Run `live-clients create --port 8811` and keep its `id`. Then run `node .claude/skills/verify-receipt-splitter/seed.mjs --port 8811 --id <id> --row src/core/golden/v2-1.json`. It writes that golden row, under the new `id`, into the Split's Durable Object storage in `.verify/8811/state/`, while wrangler keeps running. The line has `"ok":true` and the row's `schemaVersion`. The next socket or page that opens `/s/<id>` loads the seeded row. Seed only right after `create`, before any socket or page opens `/s/<id>`. A Durable Object that is already awake keeps the Split it holds in memory and does not read the seed. Any file in `src/core/golden/` works the same way.
 - **Perf.** Run `live-clients claims --port 8811 --claims 200 --pace-ms 60 --log <out>/claims-200.json`. The line reports `p50Ms`, `p95Ms`, and `maxMs`, and `"ok"` is false when `p95Ms` is over 150. Then run `grep -rnE "setInterval|setTimeout|ws\.accept\(" worker/`, which must print nothing.
 
 ## Gotchas

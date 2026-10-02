@@ -1,13 +1,13 @@
 import { cents, isCents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
 import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, MAX_QUANTITY, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
 import {
-  ADJUSTMENT_KINDS,
+  RECEIPT_LEVEL_KINDS,
   adjustmentId,
   isId,
   isRoutableSplitId,
   itemId,
   PAYMENT_SERVICES,
-  type AdjustmentKind,
+  type ReceiptLevelKind,
   type NonEmpty,
   type ParticipantId,
   type PaymentHandle,
@@ -30,7 +30,7 @@ type DraftItem = {
   readonly retyped?: true;
 };
 
-type DraftAdjustment = { readonly id: string; readonly kind: Exclude<AdjustmentKind, "tip">; readonly name: string; readonly amount: Cents };
+type DraftAdjustment = { readonly id: string; readonly kind: Exclude<ReceiptLevelKind, "tip">; readonly name: string; readonly amount: Cents };
 
 export type DraftReceipt = {
   readonly items: readonly DraftItem[];
@@ -193,7 +193,7 @@ function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
   });
   const tip = receipt.adjustments.filter((row) => row.kind === "tip").reduce((sum, row) => sum + row.amount, 0);
   const adjustments = receipt.adjustments.flatMap((row): DraftAdjustment[] =>
-    row.kind === "tip" ? [] : [{ id: row.id, kind: row.kind, name: clip(row.name.trim()), amount: row.amount }],
+    row.kind === "tip" || row.kind === "bundleDiscount" ? [] : [{ id: row.id, kind: row.kind, name: clip(row.name.trim()), amount: row.amount }],
   );
   return {
     items,
@@ -390,4 +390,4 @@ const isItem = (item: unknown) =>
   (item.retyped === undefined || item.retyped === true);
 
 const isAdjustment = (row: unknown) =>
-  isObject(row) && isId(row.id) && ADJUSTMENT_KINDS.includes(row.kind as AdjustmentKind) && row.kind !== "tip" && isText(row.name) && isAmount(row.amount);
+  isObject(row) && isId(row.id) && RECEIPT_LEVEL_KINDS.includes(row.kind as ReceiptLevelKind) && row.kind !== "tip" && isText(row.name) && isAmount(row.amount);

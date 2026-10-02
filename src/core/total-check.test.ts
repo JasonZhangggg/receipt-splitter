@@ -1,13 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { cents, price } from "./money";
-import { adjustmentId, itemId, type Adjustment, type AdjustmentKind, type Item, type NonEmpty, type Receipt } from "./split";
+import { adjustmentId, itemId, type Adjustment, type ReceiptLevelKind, type Item, type NonEmpty, type Receipt } from "./split";
 import { runTotalCheck } from "./total-check";
 
 function item(id: string, amount: number): Item {
   return { id: itemId(id), name: id, price: price(amount) };
 }
 
-function adjustment(id: string, kind: AdjustmentKind, amount: number): Adjustment {
+function adjustment(id: string, kind: ReceiptLevelKind, amount: number): Adjustment {
   return { id: adjustmentId(id), kind, name: kind, amount: cents(amount) };
 }
 

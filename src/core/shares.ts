@@ -40,25 +40,52 @@ function unitParts(split: ItemSplit, index: number, unitPrice: number): UnitPart
   return { parts: new Map<Party, bigint>([...entries, [null, whole - total]]), denominator: whole };
 }
 
-type Piece = UnitParts & { readonly item: number; readonly weight: bigint };
+type Piece = UnitParts & { readonly item: number; readonly gross: bigint; readonly weight: bigint };
 
-function pieces(items: readonly SplitItem[]): readonly Piece[] {
-  const anyPriced = items.some((item) => item.price > 0);
-  return items.flatMap(({ price, split }, item) =>
-    unitPrices(price, split.units.length).map((unitPrice, index) => ({ ...unitParts(split, index, unitPrice), item, weight: anyPriced ? BigInt(unitPrice) : 1n })),
+type Scope = { readonly adjustment: number; readonly items: ReadonlySet<number>; readonly itemsPrice: bigint; readonly carried: bigint };
+
+function scopes({ items, adjustments }: Receipt<SplitItem>): readonly Scope[] {
+  const indexOf = new Map(items.map(({ id }, index) => [id, index]));
+  return adjustments.flatMap((adjustment, at) => {
+    if (adjustment.kind !== "bundleDiscount") return [];
+    const members = new Set(adjustment.bundle.items.flatMap((id) => indexOf.get(id) ?? []));
+    const itemsPrice = sum([...members].map((index) => BigInt(items[index].price)));
+    const carried = BigInt(adjustment.amount) < -itemsPrice ? -itemsPrice : BigInt(adjustment.amount);
+    return itemsPrice === 0n ? [] : [{ adjustment: at, items: members, itemsPrice, carried }];
+  });
+}
+
+function pieces(receipt: Receipt<SplitItem>, scoped: readonly Scope[]): readonly Piece[] {
+  const anyPriced = receipt.items.some((item) => item.price > 0);
+  const whole = scoped.reduce((lcm, { itemsPrice }) => leastCommonMultiple(lcm, itemsPrice), 1n);
+  const factors = receipt.items.map((_, item) => {
+    const scope = scoped.find(({ items }) => items.has(item));
+    return scope ? (scope.itemsPrice + scope.carried) * (whole / scope.itemsPrice) : whole;
+  });
+  return receipt.items.flatMap(({ price, split }, item) =>
+    unitPrices(price, split.units.length).map((unitPrice, index) => {
+      const gross = anyPriced ? BigInt(unitPrice) : 1n;
+      return { ...unitParts(split, index, unitPrice), item, gross, weight: gross * factors[item] };
+    }),
   );
 }
 
-function weighted(items: readonly SplitItem[]) {
-  const all = pieces(items);
+function weighted(receipt: Receipt<SplitItem>) {
+  const bundled = scopes(receipt);
+  const net = pieces(receipt, bundled);
+  const discountedAway = sum(net.map(({ weight }) => weight)) === 0n;
+  const scoped = discountedAway ? [] : bundled;
+  const all = discountedAway ? pieces(receipt, scoped) : net;
   const multiple = all.reduce((lcm, { denominator }) => leastCommonMultiple(lcm, denominator), 1n);
-  const weightOf = (party: Party, piece: Piece) => ((piece.parts.get(party) ?? 0n) * piece.weight * multiple) / piece.denominator;
-  return { all, weightOf, denominator: sum(all.map(({ weight }) => weight)) * multiple };
+  const scaled = (party: Party, piece: Piece, by: bigint) => ((piece.parts.get(party) ?? 0n) * by * multiple) / piece.denominator;
+  const weightOf = (party: Party, piece: Piece) => scaled(party, piece, piece.weight);
+  const grossOf = (party: Party, piece: Piece) => scaled(party, piece, piece.gross);
+  return { all, weightOf, grossOf, scoped, multiple, denominator: sum(all.map(({ weight }) => weight)) * multiple };
 }
 
 export function computeShares(split: Pick<Split, "receipt" | "participants" | "payments">): Shares {
   const { items, total } = split.receipt;
-  const { all, weightOf, denominator } = weighted(items);
+  const { all, weightOf, denominator } = weighted(split.receipt);
   const parties: Party[] = [null, ...split.participants.map(({ id }) => id)];
   const floored = parties.map((id) => {
     const numerator = BigInt(total) * sum(all.map((piece) => weightOf(id, piece)));
@@ -105,7 +132,7 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
   const itemsSum = items.reduce((total, { price }) => total + price, 0);
   const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: cents(itemsSum) });
   const agreeingShare = shareIn({ ...split.receipt, total: cents(itemsSum + adjustments.reduce((total, { amount }) => total + amount, 0)) });
-  const { all, weightOf, denominator } = weighted(items);
+  const { all, weightOf, grossOf, scoped, multiple: unitsMultiple, denominator } = weighted(split.receipt);
   const mine = items.flatMap((item, index) => {
     const units = all.filter((piece) => piece.item === index);
     const multiple = units.reduce((lcm, { denominator: whole }) => leastCommonMultiple(lcm, whole), 1n);
@@ -117,7 +144,13 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
     return [{ item, fraction: [unitsHad, multiple * BigInt(units.length)] as const, cents: [itemCents, multiple] as const }];
   });
   const claimed = sum(all.map((piece) => weightOf(participantId, piece)));
-  const adjustmentParts = adjustments.map(({ amount }): Fraction => [BigInt(amount) * claimed, denominator]);
+  const adjustmentParts = adjustments.map(({ amount }, at): Fraction => {
+    const scope = scoped.find(({ adjustment }) => adjustment === at);
+    if (!scope) return [BigInt(amount) * claimed, denominator];
+    const had = sum(all.filter(({ item }) => scope.items.has(item)).map((piece) => grossOf(participantId, piece)));
+    const whole = scope.itemsPrice * unitsMultiple;
+    return [(BigInt(amount) - scope.carried) * claimed * whole + scope.carried * had * denominator, denominator * whole];
+  });
   const [fewest, most] = roundingRange(adjustmentParts);
   // itemsPart and agreeingShare each round on their own, so their gap can be a cent more than the Adjustments can round to; the Items take that cent.
   const adjustmentsPart = Math.min(Math.max(agreeingShare - itemsPart, fewest), most);

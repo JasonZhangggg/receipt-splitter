@@ -58,16 +58,24 @@ export type ItemRow = {
 /** An Item as read from the receipt. The price covers every unit. */
 export type Item = ItemRow & { readonly quantity?: number };
 
-export const ADJUSTMENT_KINDS = ["tax", "tip", "serviceCharge", "discount"] as const;
+export const RECEIPT_LEVEL_KINDS = ["tax", "tip", "serviceCharge", "discount"] as const;
+
+export const ADJUSTMENT_KINDS = [...RECEIPT_LEVEL_KINDS, "bundleDiscount"] as const;
 
 export type AdjustmentKind = (typeof ADJUSTMENT_KINDS)[number];
 
-export type Adjustment = {
-  readonly id: AdjustmentId;
-  readonly kind: AdjustmentKind;
+export type ReceiptLevelKind = (typeof RECEIPT_LEVEL_KINDS)[number];
+
+export type Bundle = {
   readonly name: string;
-  readonly amount: Cents;
+  readonly items: NonEmpty<ItemId>;
 };
+
+export type Adjustment =
+  | { readonly id: AdjustmentId; readonly kind: ReceiptLevelKind; readonly name: string; readonly amount: Cents }
+  | { readonly id: AdjustmentId; readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: Bundle };
+
+export type ReceiptLevelAdjustment = Extract<Adjustment, { readonly kind: ReceiptLevelKind }>;
 
 export type Receipt<I extends Item = Item> = {
   readonly items: NonEmpty<I>;
@@ -119,7 +127,7 @@ export type PaymentHandle = {
 };
 
 export type ItemFields = Omit<SplitItem, "id">;
-export type AdjustmentFields = Omit<Adjustment, "id">;
+export type AdjustmentFields = Adjustment extends infer Row ? (Row extends Adjustment ? Omit<Row, "id"> : never) : never;
 export type ParticipantFields = Omit<Participant, "id">;
 
 export type Placed<Fields> = Fields & { readonly index: number };
@@ -162,8 +170,18 @@ export type Change = {
   readonly at?: number;
 };
 
+export type SchemaVersion = 1 | 2;
+
+export function storedVersion({ receipt, original, recentChanges }: Pick<Split, "receipt" | "original" | "recentChanges">): SchemaVersion {
+  const bundled = (adjustments: readonly Adjustment[]) => adjustments.some(({ kind }) => kind === "bundleDiscount");
+  const writesBundle = (write: Write | LegacyWrite) =>
+    write.kind === "adjustment" && ("edit" in write ? "bundle" in write.edit : ("added" in write ? write.added : write.removed).kind === "bundleDiscount");
+  const holds = bundled(receipt.adjustments) || bundled(original?.adjustments ?? []) || recentChanges.some(({ writes }) => writes.some(writesBundle));
+  return holds ? 2 : 1;
+}
+
 export type Split = {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: SchemaVersion;
   readonly id: SplitId;
   readonly currency: "USD";
   readonly receipt: Receipt<SplitItem>;

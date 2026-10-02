@@ -2,9 +2,10 @@ import { MAX_CENTS, cents, isCents, type Cents, type Price } from "./money";
 import {
   SPLIT_BYTE_BUDGET,
   serializedBytes,
+  storedVersion,
   type Adjustment,
+  type AdjustmentFields,
   type AdjustmentId,
-  type AdjustmentKind,
   type Change,
   type Claim,
   type Edit,
@@ -23,6 +24,8 @@ import {
   type Placed,
   type Presence,
   type Receipt,
+  type ReceiptLevelAdjustment,
+  type ReceiptLevelKind,
   type RowWrite,
   type Split,
   type SplitId,
@@ -67,11 +70,11 @@ export type ItemPatch =
 export type ItemValue = { readonly unit: number; readonly participantId: ParticipantId; readonly value: number };
 
 export type AdjustmentPatch =
-  | { readonly type: "add"; readonly adjustment: Adjustment; readonly index: number }
+  | { readonly type: "add"; readonly adjustment: ReceiptLevelAdjustment; readonly index: number }
   | {
       readonly type: "edit";
       readonly adjustmentId: AdjustmentId;
-      readonly kind?: AdjustmentKind;
+      readonly kind?: ReceiptLevelKind;
       readonly name?: string;
       readonly amount?: Cents;
     }
@@ -162,7 +165,8 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
     if (serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
     else if (op.type !== "restoreReceipt") return reject("tooLarge");
   }
-  return { ok: true, split: { ...state, recentChanges: fitChanges(state, recentChanges) }, changed: true };
+  const stored = { ...state, recentChanges: fitChanges(state, recentChanges) };
+  return { ok: true, split: { ...stored, schemaVersion: storedVersion(stored) }, changed: true };
 }
 
 function run(split: Split, op: Operation, auth: Auth): Step {
@@ -250,7 +254,7 @@ type RowCodec<Row extends { readonly id: string }, Original extends { readonly i
   readonly rows: (split: Split) => readonly Row[];
   readonly add: (row: Original, index: number, moved: Row | undefined) => Write;
   readonly remove: (row: Row, index: number) => Write;
-  readonly edit: (row: Row, to: Original) => readonly Write[];
+  readonly edit: (row: Row, to: Original, index: number) => readonly Write[];
 };
 
 const ITEM_ROWS: RowCodec<SplitItem, Item> = {
@@ -335,13 +339,19 @@ function keepClaimersRestoreShape(target: ItemSplit, current: ItemSplit): ItemSp
   return withClaimers(target.by, unitsOf(target).map((ids, unit) => now[unit] ?? ids), (unit, id) => valueIn(target, unit, id));
 }
 
+function fieldsOf({ id, ...fields }: Adjustment): AdjustmentFields {
+  return fields;
+}
+
 const ADJUSTMENT_ROWS: RowCodec<Adjustment, Adjustment> = {
   rows: (split) => split.receipt.adjustments,
-  add: ({ id, kind, name, amount }, index) => ({ kind: "adjustment", id, added: { index, kind, name, amount } }),
-  remove: ({ id, kind, name, amount }, index) => ({ kind: "adjustment", id, removed: { index, kind, name, amount } }),
-  edit: ({ id, kind, name, amount }, to) => {
-    const edit = diff({ kind, name, amount }, { kind: to.kind, name: to.name, amount: to.amount });
-    return edit === null || edit === "emptyEdit" ? [] : [{ kind: "adjustment", id, edit }];
+  add: (row, index) => ({ kind: "adjustment", id: row.id, added: { index, ...fieldsOf(row) } }),
+  remove: (row, index) => ({ kind: "adjustment", id: row.id, removed: { index, ...fieldsOf(row) } }),
+  edit: (row, to, index) => {
+    // parseSplit refuses an edit that turns a row into or out of a Bundle, so replace the row.
+    if ((row.kind === "bundleDiscount") !== (to.kind === "bundleDiscount")) return [ADJUSTMENT_ROWS.remove(row, index), ADJUSTMENT_ROWS.add(to, index, undefined)];
+    const edit = diff<AdjustmentFields>(fieldsOf(row), fieldsOf(to));
+    return edit === null || edit === "emptyEdit" ? [] : [{ kind: "adjustment", id: row.id, edit }];
   },
 };
 
@@ -361,7 +371,7 @@ function restoreRows<Row extends { readonly id: string }, Original extends { rea
     (split) => (codec.rows(split).some(({ id }) => wanted.has(id)) ? removeFrom(split, 0, ({ id }) => wanted.has(id)) : []),
     ...original.map((to, index): MakeWrites => (split) => {
       const rows = codec.rows(split);
-      if (rows[index]?.id === to.id) return codec.edit(rows[index], to);
+      if (rows[index]?.id === to.id) return codec.edit(rows[index], to, index);
       const at = indexOf(rows, to.id);
       return at === -1 ? [codec.add(to, index, undefined)] : [codec.remove(rows[at], at), codec.add(to, index, rows[at])];
     }),
@@ -456,7 +466,7 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
   }
   const index = indexOf(items, patch.itemId);
   if (index === -1) return "unknownItem";
-  if (patch.type === "delete") return [ITEM_ROWS.remove(items[index], index)];
+  if (patch.type === "delete") return [ITEM_ROWS.remove(items[index], index), ...leaveBundle(split, patch.itemId)];
   const { name, price, split: shape } = items[index];
   const reshaped = patch.quantity !== undefined || patch.by !== undefined || patch.values !== undefined;
   const next = reshaped ? editedSplit(shape, patch) : undefined;
@@ -465,20 +475,33 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
   return typeof edit === "string" ? edit : edit ? [{ kind: "item", id: patch.itemId, edit }] : [];
 }
 
+function leaveBundle(split: Split, itemId: ItemId): readonly Write[] {
+  return split.receipt.adjustments.flatMap((row, index): Write[] => {
+    if (row.kind !== "bundleDiscount" || !row.bundle.items.includes(itemId)) return [];
+    const [first, ...rest] = row.bundle.items.filter((id) => id !== itemId);
+    if (first === undefined) return [ADJUSTMENT_ROWS.remove(row, index)];
+    return [{ kind: "adjustment", id: row.id, edit: { bundle: [row.bundle, { ...row.bundle, items: [first, ...rest] }] } }];
+  });
+}
+
 function adjustmentWrites(split: Split, patch: AdjustmentPatch): readonly Write[] | RejectionReason {
   const adjustments = split.receipt.adjustments;
   if (patch.type === "add") {
     if (adjustments.some(({ id }) => id === patch.adjustment.id)) return "duplicateId";
     if (!isInsertIndex(patch.index, adjustments.length)) return "badIndex";
-    const { id, kind, name, amount } = patch.adjustment;
-    return [{ kind: "adjustment", id, added: { index: patch.index, kind, name, amount } }];
+    return [ADJUSTMENT_ROWS.add(patch.adjustment, patch.index, undefined)];
   }
   const index = indexOf(adjustments, patch.adjustmentId);
   if (index === -1) return "unknownAdjustment";
-  const { id, kind, name, amount } = adjustments[index];
-  if (patch.type === "delete") return [{ kind: "adjustment", id, removed: { index, kind, name, amount } }];
-  const edit = diff({ kind, name, amount }, { kind: patch.kind, name: patch.name, amount: patch.amount });
-  return typeof edit === "string" ? edit : edit ? [{ kind: "adjustment", id, edit }] : [];
+  const row = adjustments[index];
+  if (patch.type === "delete") return [ADJUSTMENT_ROWS.remove(row, index)];
+  const { name, amount } = row;
+  if (row.kind === "bundleDiscount" && patch.kind !== undefined) return "conflict";
+  const edit: Edit<AdjustmentFields> | "emptyEdit" | null =
+    row.kind === "bundleDiscount"
+      ? diff({ name, amount }, { name: patch.name, amount: patch.amount })
+      : diff({ kind: row.kind, name, amount }, { kind: patch.kind, name: patch.name, amount: patch.amount });
+  return typeof edit === "string" ? edit : edit ? [{ kind: "adjustment", id: row.id, edit }] : [];
 }
 
 function diff<Fields>(
@@ -514,7 +537,7 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
     }
     case "adjustment": {
       if (!keepsNameValid(write, MAX_ROW_NAME_LENGTH)) return "badName";
-      const rows = putRow(receipt.adjustments, write, 0, ({ kind, name, amount }) => ({ id: write.id, kind, name, amount }));
+      const rows = putRow(receipt.adjustments, write, 0, ({ index, ...fields }): Adjustment => ({ id: write.id, ...fields }));
       return typeof rows === "string" ? rows : { ...split, receipt: { ...receipt, adjustments: rows } };
     }
     case "participant": {
@@ -685,11 +708,12 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
   const plain = ({ id, name, price, quantity = 1 }: Item): Item => (quantity === 1 ? { id, name, price } : { id, name, price, quantity });
   const unclaimed = ({ id, name, price, quantity = 1 }: Item): SplitItem => ({ id, name, price, split: evenUnits(quantity) });
   const [first, ...rest] = items;
+  const receipt: Receipt<SplitItem> = { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total };
   const bare: Split = {
-    schemaVersion: 1,
+    schemaVersion: storedVersion({ receipt, recentChanges: [] }),
     id: input.id,
     currency: "USD",
-    receipt: { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total },
+    receipt,
     participants: input.participants,
     picks: [],
     payments: [],
@@ -738,6 +762,8 @@ function checkState(split: Split): Rejection | null {
   if (magnitudes.some((amount) => amount < 0 || amount > MAX_CENTS)) return { reason: "amountOutOfRange" };
   if (payments.some(({ amount }) => amount < 1)) return { reason: "amountOutOfRange" };
   if (total < 0) return { reason: "negativeTotal" };
+  const bundles = bundleRejection(receipt, "receipt") ?? (split.original ? bundleRejection(split.original, "original") : null);
+  if (bundles) return bundles;
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
   const [host] = participants;
@@ -758,6 +784,21 @@ function checkState(split: Split): Rejection | null {
 
   const core = serializedBytes({ ...split, payments: [], recentChanges: [] });
   if (core > SPLIT_BYTE_BUDGET - PAYMENT_RESERVE_BYTES - HISTORY_RESERVE_BYTES) return { reason: "tooLarge" };
+  return null;
+}
+
+function bundleRejection({ items, adjustments }: Receipt, path: string): Rejection | null {
+  const known = new Set(items.map(({ id }) => id));
+  const bundled = new Set<ItemId>();
+  for (const [index, row] of adjustments.entries()) {
+    if (row.kind !== "bundleDiscount") continue;
+    if (row.amount > 0) return { reason: "amountOutOfRange" };
+    const named = new Set(row.bundle.items);
+    if (named.size !== row.bundle.items.length || [...named].some((id) => !known.has(id) || bundled.has(id))) {
+      return { reason: "malformed", path: `${path}.adjustments[${index}].bundle.items` };
+    }
+    for (const id of named) bundled.add(id);
+  }
   return null;
 }
 

@@ -8,7 +8,7 @@ import { groupRows } from "./rows";
 type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null; readonly count?: number };
 
 export type ParsedItem = Item & { readonly discountExceededPrice?: true };
-type DraftAdjustment = AdjustmentFields;
+type DraftAdjustment = Exclude<AdjustmentFields, { readonly kind: "bundleDiscount" }>;
 
 type Draft = {
   readonly items: DraftItem[];
