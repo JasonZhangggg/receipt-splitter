@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { StyleSheet, Text, View } from "react-native";
 
 import type { Shares } from "../../core/shares";
+import { claimersOf } from "../../core/operations";
 import type { AdjustmentId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
 import { plainAmount } from "../../draft";
 import { PressTarget } from "../components/button";
@@ -11,7 +12,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
+import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow, type UnitRow } from "./model";
 import { sheetSpring } from "./spring-sheet";
 
 type Props = {
@@ -19,17 +20,18 @@ type Props = {
   shares: Shares;
   selected: Participant | null;
   me: ParticipantId | null;
-  onCircle: (item: SplitItem) => void;
-  onOpen: (item: SplitItem) => void;
+  onCircle: (item: SplitItem, unit: number) => void;
+  onOpen: (item: SplitItem, unit: number) => void;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
 const circleColumn = 44;
 const columnGap = 6;
-const quantityWidth = 24;
-const quantityGap = 12;
-const childIndent = quantityWidth + quantityGap;
+const nameStart = circleColumn + columnGap;
+const priceGap = 12;
+const dotCenter = 12;
+const bleed = 12;
 
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: Props) {
   const c = useColors();
@@ -39,26 +41,27 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   const started = items.some((item) => claimersOfItem(item).length > 0);
   const note = totalNote(split.receipt);
   const order = split.participants.map(({ id }) => id);
-  const people = (item: SplitItem) => claimersOfItem(item).map((id) => split.participants.find((person) => person.id === id) ?? { id, name: "" });
-  const flagged = (item: SplitItem) => started && shares.unclaimed.itemIds.includes(item.id);
+  const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
+  const people = (item: SplitItem) => claimersOfItem(item).map(person);
+  const flagged = ({ item, unit }: UnitRow) => started && claimersOf(item.split, unit).length === 0;
   const toggle = (id: AdjustmentId) =>
     setOpened((was) => {
       const next = new Set(was);
       if (!next.delete(id)) next.add(id);
       return next;
     });
-  const line = (item: SplitItem, divided: boolean, inBundle: boolean) => (
+  const line = (row: UnitRow, divided: boolean, inBundle: boolean) => (
     <Line
-      key={item.id}
-      item={item}
+      key={`${row.item.id}-${row.unit}`}
+      row={row}
       order={order}
-      claimers={people(item)}
+      claimers={claimersOf(row.item.split, row.unit).map(person)}
       selected={selected}
-      flagged={flagged(item)}
+      flagged={flagged(row)}
       divided={divided}
       inBundle={inBundle}
-      onCircle={() => onCircle(item)}
-      onOpen={() => onOpen(item)}
+      onCircle={() => onCircle(row.item, row.unit)}
+      onOpen={() => onOpen(row.item, row.unit)}
     />
   );
 
@@ -68,15 +71,14 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
         <Text style={[type.caption, styles.hint, { color: c.muted }]}>{selected.id === me ? say.checkYours : say.checkTheirs(selected.name)}</Text>
       ) : null}
       <View aria-hidden style={styles.columns}>
-        <Text style={[type.caption, styles.quantity, { color: c.muted }]}>{say.quantityColumn}</Text>
         <Text style={[type.caption, styles.name, { color: c.muted }]}>{say.itemColumn}</Text>
         <Text style={[type.caption, { color: c.muted }]}>{say.priceColumn}</Text>
       </View>
       <View role="list" aria-label={say.item}>
         {rows.map((row, index) => {
           const previous = rows[index - 1];
-          const divided = index > 0 && !(row.kind === "item" && flagged(row.item)) && !(previous?.kind === "item" && flagged(previous.item));
-          if (row.kind === "item") return line(row.item, divided, false);
+          const divided = index > 0 && !(row.kind === "unit" && flagged(row)) && !(previous?.kind === "unit" && flagged(previous));
+          if (row.kind === "unit") return line(row, divided, false);
           const { bundle } = row;
           return (
             <BundleGroup
@@ -89,7 +91,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
               divided={index > 0}
               onToggle={() => toggle(bundle.id)}
             >
-              {bundle.items.map((item, at) => line(item, !flagged(item) && !(at > 0 && flagged(bundle.items[at - 1])), true))}
+              {bundle.units.map((unit, at) => line(unit, !flagged(unit) && !(at > 0 && flagged(bundle.units[at - 1])), true))}
               <View style={[styles.discount, { borderTopColor: c.hairline }]}>
                 <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
                   {bundle.discount.label}
@@ -140,6 +142,11 @@ type BundleProps = {
   children: ReactNode;
 };
 
+function inside(claimers: readonly Participant[], unclaimed: number): string {
+  const had = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : "";
+  return [had, unclaimed > 0 ? say.unclaimedUnits(unclaimed) : ""].filter(Boolean).join(", ");
+}
+
 function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onToggle, children }: BundleProps) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -147,7 +154,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`} style={divided && [styles.divided, { borderTopColor: c.hairline }]}>
       <PressTarget
-        name={say.bundleLabel(bundle.name, bundle.summary, open)}
+        name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, unclaimed), open)}
         expanded={open}
         controls={region}
         onPress={onToggle}
@@ -156,7 +163,6 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
         {() => (
           <>
             <View style={styles.headerLead}>
-              <Text style={[type.body, tabular, styles.quantity, { color: c.muted }]}>1</Text>
               <View style={styles.name}>
                 <Text numberOfLines={1} style={[type.body, styles.strong, { color: c.ink }]}>
                   {bundle.name}
@@ -225,7 +231,8 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
       stop.current = () => fade.cancel();
       return;
     }
-    const from = box.getBoundingClientRect().height;
+    const from = open && !box.style.height ? 0 : box.getBoundingClientRect().height;
+    box.style.height = `${from}px`;
     const height = Math.max(to, 1);
     stop.current = animateSpring(
       from,
@@ -242,14 +249,18 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
   useLayoutEffect(() => () => stop.current(), []);
 
   return (
-    <View ref={outer} nativeID={id} role="list" aria-label={label} style={styles.collapse}>
-      {shown ? <View ref={inner}>{children}</View> : null}
+    <View ref={outer} nativeID={id} style={styles.collapse}>
+      {shown ? (
+        <View ref={inner} role="list" aria-label={label}>
+          {children}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 type LineProps = {
-  item: SplitItem;
+  row: UnitRow;
   order: readonly ParticipantId[];
   claimers: readonly Participant[];
   selected: Participant | null;
@@ -260,25 +271,25 @@ type LineProps = {
   onOpen: () => void;
 };
 
-function Line({ item, order, claimers, selected, flagged, divided, inBundle, onCircle, onOpen }: LineProps) {
+function Line({ row: { item, unit, price: cost }, order, claimers, selected, flagged, divided, inBundle, onCircle, onOpen }: LineProps) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const tag = lineTag(item, order);
+  const tag = lineTag(item, unit, order);
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
   const ordered = [...claimers].sort((a, b) => Number(a.id === selected?.id) - Number(b.id === selected?.id));
-  const price = plainAmount(item.price);
-  const quantity = item.split.units.length;
+  const price = plainAmount(cost);
   const [title, detail] = nameParts(item.name);
   const who = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
   const ink = flagged ? c.flag : c.ink;
   return (
     <View
       role="listitem"
-      testID={`line-${item.id}`}
+      testID={`line-${item.id}-${unit}`}
       style={[
         styles.line,
-        divided && !inBundle && [styles.divided, { borderTopColor: c.hairline }],
+        divided && [styles.divided, { borderTopColor: c.hairline }],
         flagged && [styles.flagged, { backgroundColor: c.flagWash }],
+        inBundle && { marginLeft: flagged ? nameStart - bleed : nameStart },
       ]}
     >
       <PressTarget
@@ -301,14 +312,9 @@ function Line({ item, order, claimers, selected, flagged, divided, inBundle, onC
           </View>
         )}
       </PressTarget>
-      <PressTarget
-        name={`${say.open(item.name)}, ${quantity > 1 ? `${say.quantityOf(quantity)}, ` : ""}$${price}, ${who}`}
-        onPress={onOpen}
-        style={() => [styles.body, inBundle && styles.child, inBundle && divided && !flagged && [styles.divided, { borderTopColor: c.hairline }]]}
-      >
+      <PressTarget name={`${say.open(item.name)}, $${price}, ${who}`} onPress={onOpen} style={() => styles.body}>
         {() => (
           <View style={styles.bodyRow}>
-            <Text style={[type.body, tabular, styles.quantity, { color: flagged ? c.flag : c.muted }]}>{quantity}</Text>
             <View style={styles.name}>
               <Text numberOfLines={2} style={[type.body, { color: ink }]}>
                 {title}
@@ -345,26 +351,24 @@ const turn = webStyle({ transitionProperty: "transform", transitionDuration: "20
 const styles = StyleSheet.create({
   card: { paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20, borderRadius: layout.cardRadius },
   hint: { marginTop: 0, marginBottom: 6 },
-  columns: { flexDirection: "row", alignItems: "center", gap: quantityGap, paddingLeft: circleColumn + columnGap, minHeight: 24 },
+  columns: { flexDirection: "row", alignItems: "center", gap: priceGap, paddingLeft: nameStart, minHeight: 24 },
   line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: columnGap },
   divided: { borderTopWidth: 1 },
-  flagged: { marginVertical: 4, marginHorizontal: -12, paddingHorizontal: 12, borderRadius: 14 },
+  flagged: { marginVertical: 4, marginHorizontal: -bleed, paddingHorizontal: bleed, borderRadius: 14 },
   circle: { minWidth: 54, height: 44, marginLeft: -10, paddingLeft: 10, justifyContent: "center" },
   dots: { flexDirection: "row", alignItems: "center" },
   overlap: { marginLeft: -9 },
   empty: { width: 24, height: 24, borderRadius: 12 },
-  body: { flex: 1, minWidth: 0, minHeight: layout.row, justifyContent: "center" },
-  child: { marginLeft: childIndent },
-  bodyRow: { flexDirection: "row", alignItems: "center", gap: quantityGap },
-  quantity: { width: quantityWidth },
+  body: { flex: 1, minWidth: 0, minHeight: layout.row, paddingVertical: 8, justifyContent: "center" },
+  bodyRow: { flexDirection: "row", alignItems: "center", gap: priceGap },
   name: { flex: 1, minWidth: 0 },
-  header: { flexDirection: "row", alignItems: "center", gap: quantityGap, minHeight: 60, paddingVertical: 8, paddingLeft: circleColumn + columnGap },
-  headerLead: { flex: 1, minWidth: 0, flexDirection: "row", gap: quantityGap },
+  header: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 60, paddingVertical: 8, paddingLeft: nameStart },
+  headerLead: { flex: 1, minWidth: 0, flexDirection: "row" },
   inside: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   chevron: { width: 16, marginLeft: -4 },
-  collapse: { overflow: "hidden", marginHorizontal: -12, paddingHorizontal: 12 },
-  rule: { position: "absolute", top: 0, bottom: 12, left: circleColumn + columnGap + 4, width: 1 },
-  discount: { flexDirection: "row", alignItems: "center", gap: quantityGap, minHeight: 44, borderTopWidth: 1, marginLeft: circleColumn + columnGap + childIndent, paddingLeft: quantityWidth + quantityGap },
+  collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
+  rule: { position: "absolute", top: 0, bottom: 12, left: bleed + dotCenter, width: 1 },
+  discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
   why: { marginTop: 8, marginBottom: 2 },
   mark: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
