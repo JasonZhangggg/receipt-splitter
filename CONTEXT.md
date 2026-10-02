@@ -48,7 +48,7 @@ The downscaled copy of the Host's photo that the Split keeps, so everyone in it 
 _Avoid_: Image, scan, attachment
 
 **Total check**:
-The test that the Items add up to the subtotal, and the subtotal plus Adjustments equals the total.
+The test that the Items add up to the subtotal, and the subtotal plus Adjustments equals the total. A failed check blocks nothing. It shows as a quiet note, and anyone can fix the rows it names.
 _Avoid_: Validation, reconciliation
 
 ### Dividing it

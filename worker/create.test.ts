@@ -102,12 +102,14 @@ describe("POST /api/splits", () => {
     expect(await response.json()).toEqual({ refused: "rejected", rejection: { reason: "malformed", path: "split.id" } });
   });
 
-  it("refuses a Receipt that fails the Total check", async () => {
+  it("creates a Split whose Receipt fails the Total check, and serves it with the total as typed", async () => {
     const response = await postSplit({
       split: { ...newSplit, receipt: { ...newSplit.receipt, total: 9999 } },
     });
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ refused: "rejected", rejection: { reason: "totalCheckFailed" } });
+    expect(response.status).toBe(201);
+    const { id } = await response.json<{ id: string }>();
+    const client = await connect(id);
+    expect(await client.next()).toMatchObject({ type: "state", split: { id, receipt: { total: 9999 } } });
   });
 
   it("refuses an Item of 10,000,000 units with 400 within 250 ms, before the rate limit", async () => {
@@ -240,7 +242,7 @@ describe("the daily create cap", { timeout: 15_000 }, () => {
     const before = await todaysCount();
     const ip = "192.0.2.222";
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      expect((await postSplit({ split: { ...newSplit, receipt: { ...newSplit.receipt, total: 9999 } } }, { ip })).status).toBe(400);
+      expect((await postSplit({ split: { ...newSplit, receipt: { ...newSplit.receipt, total: -1 } } }, { ip })).status).toBe(400);
     }
     for (let attempt = 0; attempt < 5; attempt += 1) {
       expect((await postSplit("not json", { ip })).status).toBe(400);

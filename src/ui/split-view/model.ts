@@ -2,6 +2,7 @@ import { claimersOf, type Operation } from "../../core/operations";
 import { unitPrices } from "../../core/shares";
 import type { ParticipantId, Receipt, SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
+import { gapNote } from "../../draft";
 
 const UNICODE_FRACTIONS: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾", "1/5": "⅕", "1/6": "⅙", "1/8": "⅛" };
 
@@ -46,9 +47,9 @@ export function circleTap(item: SplitItem, participantId: ParticipantId): Operat
   return [{ by: participantId, type: "claim", itemId: item.id, participantId, unit: Math.max(open, 0) }];
 }
 
-export function itemsOverSubtotal(receipt: Receipt<SplitItem>): number {
+export function totalNote(receipt: Receipt<SplitItem>): string | null {
   const check = runTotalCheck(receipt);
-  return check.ok ? 0 : -check.subtotalGap;
+  return check.ok ? null : gapNote(check, true);
 }
 
 export function unitAmounts(item: SplitItem): { readonly participantId: ParticipantId; readonly cents: number }[][] {

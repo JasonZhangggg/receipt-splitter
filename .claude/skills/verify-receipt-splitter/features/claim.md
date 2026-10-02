@@ -12,7 +12,7 @@ The Split page `/s/<id>` shows the Receipt as a card and a bottom sheet. A devic
 - `claim-breakdown` shows a person's Items, their parts of each Adjustment, their total, and Paid or Not paid.
 - `claim-paid` marks the payer paid with **I already paid**.
 - `claim-history` lists Payments and Receipt changes, reverts one with a confirmation for another device's change, and restores the Receipt.
-- `claim-mismatch` warns while the Items disagree with the printed subtotal.
+- `claim-mismatch` shows a muted note above the Subtotal while the Total check fails, such as "Items are $0.25 over the subtotal." It blocks nothing.
 
 ## How to get to it (user POV)
 

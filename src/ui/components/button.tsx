@@ -86,11 +86,12 @@ type Props = ({ label: string; name?: string } | { label?: undefined; name: stri
   disabled?: boolean;
   busy?: boolean;
   reason?: string;
+  note?: string;
 };
 
 const colorChange = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
-export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, reason, ...action }: Props) {
+export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, reason, note, ...action }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const reasonId = useId();
@@ -103,7 +104,7 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
       outsideScroll={outsideScroll}
       disabled={disabled || busy}
       busy={busy}
-      describedBy={reason ? reasonId : undefined}
+      describedBy={reason || note ? reasonId : undefined}
       style={(pressed) => pressStyle(pressed, reduce)}
     >
       {() => (
@@ -127,11 +128,11 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
       )}
     </PressTarget>
   );
-  if (!reason) return target;
+  if (!reason && !note) return target;
   return (
     <View style={styles.withReason}>
-      <Text id={reasonId} style={[type.small, styles.reason, { backgroundColor: c.flagWash, color: c.flag }]}>
-        {reason}
+      <Text id={reasonId} style={[type.small, styles.reason, reason ? { backgroundColor: c.flagWash, color: c.flag } : { color: c.muted }]}>
+        {reason || note}
       </Text>
       {target}
     </View>
