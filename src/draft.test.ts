@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { cents, MAX_CENTS, price } from "./core/money";
+import { MAX_QUANTITY } from "./core/operations";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import type { ParsedItem } from "./parse";
 import { blockedReason, emptyDraft, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
@@ -194,6 +195,14 @@ describe("loadDraft and saveDraft", () => {
     expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason", "Ann"] });
   });
 
+  test("a reload keeps the handles and names when an Item's quantity is over MAX_QUANTITY", () => {
+    const storage = new MemoryStorage();
+    const [first, ...rest] = receipt1040.items;
+    const tooMany: Receipt = { ...receipt1040, items: [{ ...first, quantity: MAX_QUANTITY + 1 }, ...rest] };
+    saveDraft(run(withVenmo(emptyDraft), { type: "read", file, receipt: tooMany }), storage);
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
+  });
+
   test("saving does nothing where there is no storage, and survives a storage that refuses", () => {
     const refusing = {
       getItem: () => null,
@@ -269,6 +278,17 @@ describe("reading OCR into the draft", () => {
     const receipt: Receipt<ParsedItem> = { ...receipt1040, items: [{ ...first, price: price(0), discountExceededPrice: true }, ...rest] };
     const draft = run(emptyDraft, { type: "read", file, receipt });
     expect(draft.scan.status === "read" && draft.scan.receipt.items[0]).toEqual({ id: "i1", name: "Chicken Fried Rice And Egg", price: 0, discountExceededPrice: true });
+  });
+
+  test("sends an Item's printed count to the Split, through a price edit and a reload", () => {
+    const [first, ...rest] = receipt1040.items;
+    const receipt: Receipt = { ...receipt1040, items: [{ ...first, name: "Guinness Draught", quantity: 3 }, ...rest] };
+    const storage = new MemoryStorage();
+    saveDraft(run(withVenmo(emptyDraft), { type: "read", file, receipt }, { type: "editItem", id: "i1", price: price(2187) }), storage);
+
+    const request = splitRequest(loadDraft(storage), () => participantId("p1"));
+
+    expect(request?.receipt.items[0]).toEqual({ id: "i1", name: "Guinness Draught", price: 2187, quantity: 3 });
   });
 
   test("a failed read opens the empty editor and keeps the file", () => {
