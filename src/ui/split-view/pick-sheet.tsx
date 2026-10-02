@@ -8,6 +8,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
+import { LinkLine } from "./link-line";
 
 export type PickRow = { readonly person: Participant; readonly picked: boolean };
 
@@ -19,9 +20,11 @@ type Props = {
   onPick: (id: ParticipantId, takeOver: boolean) => void;
   onAdd: (name: string) => Promise<string | null>;
   onClose: () => void;
+  url: string;
+  onShared: () => void;
 };
 
-export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose }: Props) {
+export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose, url, onShared }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [typing, setTyping] = useState<string | null>(null);
@@ -84,6 +87,9 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
           <Button label={typing.trim() ? say.joinAs(typing.trim()) : say.yourName} disabled={!typing.trim()} onPress={join} outsideScroll />
         </View>
       )}
+      <View style={[styles.link, fadeOut]}>
+        <LinkLine url={url} onShared={onShared} quiet />
+      </View>
     </View>
   );
 }
@@ -172,6 +178,7 @@ const styles = StyleSheet.create({
   notHere: { justifyContent: "flex-start", paddingLeft: 13 },
   ring: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   adding: { gap: 10 },
+  link: { marginTop: 12 },
   field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius, fontWeight: "500" },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

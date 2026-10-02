@@ -125,6 +125,30 @@ for (const [how, act] of [
   });
 }
 
+test("the pick sheet copies the link below Not here, and shows Share only where the phone can share", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const page = await open(browser, link);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const sheet = page.getByRole("dialog", { name: "Which one are you?" });
+  await expect(sheet.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
+  const notHere = await sheet.getByRole("button", { name: "Not here? Add yourself" }).boundingBox();
+  const copy = sheet.getByRole("button", { name: "Copy" });
+  expect((await copy.boundingBox())!.y).toBeGreaterThan(notHere!.y + notHere!.height);
+  await copy.click();
+  await expect(sheet.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
+  expect(new URL(link).pathname).toMatch(/^\/s\/[\w-]+$/);
+
+  await page.addInitScript(() => {
+    const shared: ShareData[] = [];
+    Object.assign(window, { shared });
+    Object.defineProperty(navigator, "share", { value: async (data: ShareData) => void shared.push(data) });
+  });
+  await page.reload();
+  await sheet.getByRole("button", { name: "Share", exact: true }).click();
+  expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
+});
+
 test("That's me on a second browser takes the name, and the first browser drops back to browsing", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const first = await open(browser, link);

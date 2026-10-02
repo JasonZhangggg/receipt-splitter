@@ -4,7 +4,7 @@ The Split page `/s/<id>` shows the Receipt as a card and a bottom sheet. A devic
 
 ## Sub-features
 
-- `claim-pick` picks a name on the tall sheet and collapses it to the chips, with "Link ready." for the creating device.
+- `claim-pick` picks a name on the tall sheet and collapses it to the chips, with "Link ready." for the creating device. The tall sheet ends with the link and **Copy**, plus **Share** where `navigator.share` exists.
 - `claim-take` moves a name picked on another phone with **That's me**, and drops the other phone back to browsing.
 - `claim-browse` closes the tall sheet without a pick, and a tap on a circle asks again.
 - `claim-check` checks a line for the selected chip, and every browser shows the claimers and Shares.
