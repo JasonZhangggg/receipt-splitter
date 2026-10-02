@@ -1,14 +1,17 @@
 import { cents, price, type Cents } from "../core/money";
-import { adjustmentId, itemId, type Adjustment, type AdjustmentFields, type Item, type Receipt } from "../core/split";
+import { adjustmentId, itemId, type Adjustment, type AdjustmentFields, type Item, type NonEmpty, type Receipt } from "../core/split";
 import { runTotalCheck } from "../core/total-check";
 import type { TextBox } from "../ocr/types";
-import { classifyLines, hasWords, type Line, type Quantity } from "./lines";
+import { classifyLines, echoes, hasWords, type Line, type Quantity } from "./lines";
 import { groupRows } from "./rows";
 
 type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null; readonly count?: number };
 
 export type ParsedItem = Item & { readonly discountExceededPrice?: true };
-type DraftAdjustment = Exclude<AdjustmentFields, { readonly kind: "bundleDiscount" }>;
+type ReceiptLevelDraft = Exclude<AdjustmentFields, { readonly kind: "bundleDiscount" }>;
+/** A Bundle's discount, naming its Items by their index in the draft's Items. */
+type BundleDraft = { readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: { readonly name: string; readonly items: NonEmpty<number> } };
+type DraftAdjustment = ReceiptLevelDraft | BundleDraft;
 
 type Draft = {
   readonly items: DraftItem[];
@@ -57,6 +60,7 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
   let total: Cents | null = null;
   let section: Section = "items";
   let previous: Line | null = null;
+  let header: { readonly name: string; readonly at: number } | null = null;
 
   for (const line of lines) {
     if (section === "closed") {
@@ -72,7 +76,9 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
     }
     switch (line.kind) {
       case "item":
-        if (section === "items") items.push(line);
+        if (section !== "items") break;
+        if (line.price === 0 && hasWords(line.name)) header = { name: line.name, at: items.length };
+        items.push(line);
         break;
       case "modifier":
         if (section === "items") foldInto(items, line.name, line.price);
@@ -88,6 +94,13 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
       case "discount":
         if (line.appliesTo === "item" && section === "items" && items.length > 0) {
           foldInto(items, line.name, line.amount);
+        } else if (header && items.length > header.at + 1 && echoes(line.name, header.name)) {
+          const { name, at } = header;
+          items.splice(at, 1);
+          const [first, ...rest] = items.slice(at).map((_, i) => at + i);
+          adjustments.push({ kind: "bundleDiscount", name: line.name, amount: line.amount, bundle: { name, items: [first, ...rest] } });
+          if (subtotals.length === 0) discountBeforeSubtotal = cents(discountBeforeSubtotal + line.amount);
+          header = null;
         } else if (discountTotals === "drop" && isDiscountTotal(line, adjustments)) {
           droppedDiscountTotal = true;
         } else {
@@ -129,7 +142,7 @@ function foldInto(items: DraftItem[], name: string, amount: Cents): void {
   items[items.length - 1] = folded < 0 ? { ...above, price: price(0), discountExceededPrice: true } : { ...above, price: price(folded) };
 }
 
-function isRunningTotal(line: DraftAdjustment, items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotals: readonly Cents[]): boolean {
+function isRunningTotal(line: ReceiptLevelDraft, items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotals: readonly Cents[]): boolean {
   if (line.amount === 0) return true;
   const base = subtotals.at(-1) ?? sum(prices(items));
   if (line.amount === base + sum(amounts(adjustments))) return true;
@@ -138,7 +151,7 @@ function isRunningTotal(line: DraftAdjustment, items: readonly DraftItem[], adju
 }
 
 function isDiscountTotal({ name, amount }: { readonly name: string; readonly amount: Cents }, adjustments: readonly DraftAdjustment[]): boolean {
-  const discounts = amounts(adjustments.filter(({ kind }) => kind === "discount"));
+  const discounts = amounts(adjustments.filter(({ kind }) => kind === "discount" || kind === "bundleDiscount"));
   return /\btotal\b/i.test(name) && discounts.length > 0 && amount === sum(discounts);
 }
 
@@ -171,7 +184,12 @@ function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjus
   }));
   return {
     items: [first, ...rest],
-    adjustments: adjustments.map(({ kind, name, amount }, i): Adjustment => ({ id: adjustmentId(`a${i + 1}`), kind, name, amount })),
+    adjustments: adjustments.map((row, i): Adjustment => {
+      const id = adjustmentId(`a${i + 1}`);
+      if (row.kind !== "bundleDiscount") return { id, kind: row.kind, name: row.name, amount: row.amount };
+      const [first, ...rest] = row.bundle.items.map((index) => itemId(`i${index + 1}`));
+      return { id, kind: row.kind, name: row.name, amount: row.amount, bundle: { name: row.bundle.name, items: [first, ...rest] } };
+    }),
     subtotal,
     total,
   };

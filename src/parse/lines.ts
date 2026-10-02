@@ -97,7 +97,7 @@ function withCount(name: string): { readonly name: string; readonly count?: numb
   return { name: name.slice(times[0].length), ...(count > 1 && { count }) };
 }
 
-function echoes(label: string, itemRow: string): boolean {
+export function echoes(label: string, itemRow: string): boolean {
   const tokens = (text: string) => (text.toLowerCase().match(/[a-z]{4,}|\d+\.\d{2}/g) ?? []).filter((token) => !LABELS.some(([kind, pattern]) => kind === "discount" && pattern.test(token)));
   const item = new Set(tokens(itemRow));
   return tokens(label).some((token) => item.has(token));
