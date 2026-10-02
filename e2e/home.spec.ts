@@ -619,7 +619,7 @@ const componentHarness = `
   import { View } from "react-native";
   import { SafeAreaProvider } from "react-native-safe-area-context";
   import { Button } from "./src/ui/components/button";
-  import { ReceiptCard } from "./src/ui/receipt-input/receipt-card";
+  import { ReceiptSummary } from "./src/ui/receipt-input/receipt-summary";
   const thumbnail = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='52'><rect width='40' height='52' fill='%23c8a'/></svg>";
   window.presses = 0;
   window.views = 0;
@@ -628,8 +628,8 @@ const componentHarness = `
     <SafeAreaProvider>
       <View style={{ width: 350, padding: 20, gap: 16 }}>
         <Button label="Create split link" onPress={() => window.presses++} reason="Items are $0.50 short." />
-        <ReceiptCard name="IMG_4127.jpg" items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
-        <ReceiptCard name="Example receipt" items={1} total={1599} thumbnail={null} onReplace={() => {}} stacked />
+        <ReceiptSummary name="IMG_4127.jpg" items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
+        <ReceiptSummary name="Example receipt" items={1} total={1599} thumbnail={null} onReplace={() => {}} stacked />
       </View>
     </SafeAreaProvider>,
   );

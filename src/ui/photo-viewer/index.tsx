@@ -11,9 +11,7 @@ export type Photo = { readonly uri: string; readonly name: string };
 
 type Props = {
   photo: Photo;
-  /** Called once the viewer has faded out after a close. */
-  onClosed: () => void;
-  /** Shown as the camera button on the phone, which replaces the photo. */
+  onExited: () => void;
   onReplace?: () => void;
 };
 
@@ -21,13 +19,13 @@ type Phase = "entering" | "shown" | "leaving";
 
 const photoGround = "#24221F";
 
-export function PhotoViewer({ photo, onClosed, onReplace }: Props) {
+export function PhotoViewer({ photo, onExited, onReplace }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [phase, setPhase] = useState<Phase>("entering");
-  const done = useEffectEvent(onClosed);
+  const done = useEffectEvent(onExited);
 
   useEffect(() => {
     if (phase === "entering") {

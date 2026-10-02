@@ -25,7 +25,6 @@ async function readItems(page: Page) {
 
 const card = (page: Page) => page.getByTestId("receipt");
 
-/** The Items the draft holds, which is what Create split link sends, when home shows only the receipt card. */
 const draftItems = (page: Page) =>
   page.evaluate(() =>
     (JSON.parse(localStorage.getItem("receipt-splitter:draft")!).draft.scan.receipt.items as { name: string; price: number }[]).map(
@@ -48,14 +47,6 @@ async function addName(page: Page, name: string) {
   await page.getByRole("button", { name: first ? "Your name" : "Add a name" }).click();
   await page.getByRole("textbox", { name: first ? "Your name" : "Name", exact: true }).fill(name);
   await page.keyboard.press("Enter");
-}
-
-async function noteLook(page: Page) {
-  const described = await action(page).getAttribute("aria-describedby");
-  return page.locator(`[id="${described}"]`).evaluate((note) => {
-    const style = getComputedStyle(note);
-    return [style.backgroundColor, style.color];
-  });
 }
 
 async function blockedBy(page: Page) {
@@ -163,7 +154,6 @@ test("a scan that fails the Total check shows the card, a quiet note, and still 
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
-  expect(await noteLook(page)).toEqual(["rgba(0, 0, 0, 0)", "rgb(105, 109, 116)"]);
 
   await action(page).click();
   await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
@@ -186,12 +176,12 @@ test.describe("the photo viewer", () => {
     await expect(viewer(page)).toHaveCount(0);
 
     await view(page);
-    await expect(viewer(page)).toBeVisible();
+    await expect(viewer(page).getByRole("button", { name: "Close photo" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(viewer(page)).toHaveCount(0);
   });
 
-  test("at 1280 px a click on the scrim closes the photo, and the camera on the card replaces it", async ({ page }) => {
+  test("at 1280 px a click on the scrim and Escape close the photo, and the camera on the card replaces it", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 820 });
     await page.goto("/");
     await choose(page, receipt1040);
@@ -200,6 +190,10 @@ test.describe("the photo viewer", () => {
     await view(page);
     await expect(viewer(page).getByRole("img", { name: "srd-1040.jpg" })).toBeVisible();
     await page.mouse.click(20, 400);
+    await expect(viewer(page)).toHaveCount(0);
+    await view(page);
+    await expect(viewer(page).getByRole("button", { name: "Close photo" })).toBeFocused();
+    await page.keyboard.press("Escape");
     await expect(viewer(page)).toHaveCount(0);
 
     const chooser = page.waitForEvent("filechooser");

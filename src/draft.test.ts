@@ -336,7 +336,7 @@ describe("reading OCR into the draft", () => {
       status: "read",
       file,
       receipt: { items: [], adjustments: [{ id: "a1", kind: "tax", name: "Tax", amount: 0 }], subtotal: null, tip: 0, totalBeforeTip: 0, nextId: 1 },
-      editor: true,
+      fixOnHome: true,
     });
   });
 });

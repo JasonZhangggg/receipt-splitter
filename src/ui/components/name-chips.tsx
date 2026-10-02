@@ -87,7 +87,6 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
   );
 }
 
-/** A click on + Add while a name field is open keeps the field focused, so the click commits the name and the field stays open for the next. */
 const keepFocus = { onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() };
 
 const pressEnds = ["pointerup", "pointercancel"] as const;
@@ -97,7 +96,6 @@ if (typeof document !== "undefined") {
   for (const end of pressEnds) document.addEventListener(end, () => (pressing = false), true);
 }
 
-/** Closing the field changes the height of the sheet above the bottom edge, which moves every control in it. A blur that a press caused closes it only once that press has landed. */
 function afterPress(run: () => void) {
   if (!pressing) return run();
   const release = () => {

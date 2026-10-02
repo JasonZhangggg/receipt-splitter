@@ -21,7 +21,7 @@ import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { isPhoto, photoUri, pickPhoto, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
-import { ReceiptCard } from "../src/ui/receipt-input/receipt-card";
+import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
 import { Reading } from "../src/ui/receipt-input/reading";
 import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
 
@@ -94,7 +94,7 @@ export default function Home() {
   useEffect(() => (photo ? () => releasePhotoUri(photo.uri) : undefined), [photo]);
 
   const wide = width >= breakpoints.columnFrom;
-  const roomy = width >= 1280;
+  const roomy = width >= breakpoints.roomyFrom;
   const hero = wide ? copy.hero.desktop : copy.hero.phone;
   const gutter = wide ? 40 : layout.gutter;
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
@@ -127,6 +127,7 @@ export default function Home() {
   const removeName = splitId === null ? (name: string) => dispatch({ type: "removeName", name }) : undefined;
   const compact = !wide && height - insets.top - insets.bottom < shortScreen;
   const editor = editsOnHome(draft);
+  const ticket = !wide && !editor;
   const columnWidth = roomy ? 480 : 440;
   const view = photo ? () => setViewing(true) : undefined;
   const zoneHeight = roomy ? 380 : 336;
@@ -176,15 +177,15 @@ export default function Home() {
       </View>
     ) : (
       <View style={[!wide && (editor ? [styles.doc, sides] : [styles.hero, sides]), styles.stack]}>
-        <View style={[styles.cardColumn, !wide && !editor && styles.ticketColumn]}>
-          <ReceiptCard
+        <View style={[styles.cardColumn, ticket && styles.ticketColumn]}>
+          <ReceiptSummary
             name={scan.file.name}
             items={scan.receipt.items.length}
             total={totalOf(scan.receipt)}
             thumbnail={scan.file.thumbnail}
             onView={view}
             onReplace={choose}
-            stacked={!wide && !editor}
+            stacked={ticket}
           />
           {editor ? <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} locked={creating || scan.status === "linked"} /> : null}
         </View>
@@ -218,7 +219,7 @@ export default function Home() {
           {details}
         </Sheet>
       )}
-      {viewing && photo ? <PhotoViewer photo={photo} onClosed={() => setViewing(false)} onReplace={choose} /> : null}
+      {viewing && photo ? <PhotoViewer photo={photo} onExited={() => setViewing(false)} onReplace={choose} /> : null}
       <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 0 : sheetHeight} />
     </View>
   );

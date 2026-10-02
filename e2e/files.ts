@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 export type FilePayload = { name: string; mimeType: string; buffer: Buffer };
 
@@ -32,10 +32,12 @@ export async function pasteFile(page: Page, file: FilePayload) {
   await page.evaluate((data) => document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true })), clipboardData);
 }
 
-/** The Example link shows only from 768 px, so a phone-width spec widens the page for the tap. */
 export async function openExample(page: Page) {
   const size = page.viewportSize()!;
   await page.setViewportSize({ width: 768, height: size.height });
-  await page.getByRole("button", { name: "Example" }).click();
+  await expect(async () => {
+    await page.getByRole("button", { name: "Example" }).click({ timeout: 1_000 });
+    await expect(page.getByTestId("receipt")).toBeVisible({ timeout: 1_000 });
+  }).toPass();
   await page.setViewportSize(size);
 }

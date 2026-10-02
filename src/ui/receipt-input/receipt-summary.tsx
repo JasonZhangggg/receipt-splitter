@@ -13,7 +13,6 @@ type Props = {
   items: number;
   total: Cents;
   thumbnail: string | null;
-  /** Opens the photo; absent when there is no photo on this device to show. */
   onView?: () => void;
   onReplace: () => void;
   stacked?: boolean;
@@ -21,7 +20,7 @@ type Props = {
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 
-export function ReceiptCard({ name, items, total, thumbnail, onView, onReplace, stacked = false }: Props) {
+export function ReceiptSummary({ name, items, total, thumbnail, onView, onReplace, stacked = false }: Props) {
   const c = useColors();
   const count = `${items} ${items === 1 ? "item" : "items"}`;
   const amount = `$${plainAmount(total)}`;
