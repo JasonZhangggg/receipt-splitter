@@ -360,7 +360,8 @@ async function sheetBody(page: Page): Promise<Point> {
   return { x: box.x + box.width / 2, y: box.y + 90 };
 }
 
-const testId = (id: string) => `document.querySelector('[data-testid="${id}"]')`;
+/** Matches the live element first, then the copy of it that fades out when the sheet's content changes. */
+const testId = (id: string) => `document.querySelector('[data-testid="${id}"], [data-left-testid="${id}"]')`;
 const label = (name: string) => `document.querySelector('[aria-label="${name}"]')`;
 const heading = (name: string) => `[...document.querySelectorAll('[role="heading"]')].find((el) => el.textContent === "${name}") ?? null`;
 

@@ -233,7 +233,14 @@ function Outgoing({ children, onDone }: { children: ReactNode; onDone: () => voi
   const copy = useRef<View>(null);
   const done = useEffectEvent(onDone);
   useLayoutEffect(() => {
-    const fade = (copy.current as unknown as HTMLElement | null)?.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: fadeOut, easing: motion.easeOut, fill: "forwards" });
+    const node = copy.current as unknown as HTMLElement | null;
+    // The copy is a picture of what left, so it gives up the ids and test ids the live content now holds.
+    node?.querySelectorAll<HTMLElement>("[id], [data-testid]").forEach((el) => {
+      el.removeAttribute("id");
+      if (el.dataset.testid) el.dataset.leftTestid = el.dataset.testid;
+      delete el.dataset.testid;
+    });
+    const fade = node?.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: fadeOut, easing: motion.easeOut, fill: "forwards" });
     if (!fade) return done();
     fade.onfinish = () => done();
     return () => fade.cancel();
