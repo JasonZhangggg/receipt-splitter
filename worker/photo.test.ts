@@ -117,10 +117,27 @@ describe("PUT /api/splits/<id>/photo", () => {
     const noStartOfImage = new Uint8Array([0xff, 0xe0, ...SOS, ...EOI]);
     const cutAtScan = new Uint8Array([...SOI, ...APP0_JFIF, 0xff, 0xda]);
 
-    for (const body of [png, html, exifAfterJfif, xmp, lengthPastEnd, noScan, zeroLength, notAMarker, noStartOfImage, cutAtScan, new Uint8Array(0)]) {
+    const fillByteBeforeExif = jpeg({ head: [0xff, ...APP1_EXIF] });
+    const app13 = jpeg({ head: [...APP0_JFIF, 0xff, 0xed, 0x00, 0x08, 0x38, 0x42, 0x49, 0x4d, 0x04, 0x24] });
+    const exifAfterScan = new Uint8Array([...SOI, ...APP0_JFIF, ...SOS, 0x11, ...APP1_EXIF, ...SOS, 0x22, ...EOI]);
+    const exifJpegAfterEnd = new Uint8Array([...SOI, ...APP0_JFIF, ...SOS, 0x11, ...EOI, ...SOI, ...APP1_EXIF, ...SOS, 0x22, ...EOI]);
+    const htmlAfterScan = new Uint8Array([...SOI, 0xff, 0xda, 0x00, 0x02, ...new TextEncoder().encode("<html><script>alert(1)</script>")]);
+
+    for (const body of [fillByteBeforeExif, app13, exifAfterScan, exifJpegAfterEnd, htmlAfterScan, png, html, exifAfterJfif, xmp, lengthPastEnd, noScan, zeroLength, notAMarker, noStartOfImage, cutAtScan, new Uint8Array(0)]) {
       expect(await status(put(id, body, { secret: creatorSecret }))).toBe(400);
     }
     expect(await status(get(id))).toBe(404);
+  });
+
+  it("takes fill bytes, restart markers, stuffed bytes, a comment, and a second scan with its tables", async () => {
+    const { id, creatorSecret } = await createSplit();
+    const DHT = [0xff, 0xc4, 0x00, 0x03, 0x00];
+    const SOF0 = [0xff, 0xc0, 0x00, 0x04, 0x08, 0x00];
+    const DRI = [0xff, 0xdd, 0x00, 0x04, 0x00, 0x10];
+    const COM = [0xff, 0xfe, 0x00, 0x04, 0x68, 0x69];
+    const photo = new Uint8Array([...SOI, ...APP0_JFIF, 0xff, ...DQT, ...SOF0, ...DHT, ...DRI, ...COM, ...SOS, 0x11, 0xff, 0x00, 0x22, 0xff, 0xd0, 0x33, 0xff, ...DHT, ...SOS, 0x44, ...EOI]);
+
+    expect(await status(put(id, photo, { secret: creatorSecret }))).toBe(204);
   });
 
   it("refuses a body sent as anything but image/jpeg with 415", async () => {
