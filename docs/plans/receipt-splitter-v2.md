@@ -125,7 +125,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Depends on.** None.
 
-V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to read `schemaVersion: 2`. It writes nothing new. No Split can hold a Bundle until V2-2, so the Worker keeps writing version 1. From V2-2 on, only a Split with a Bundle is written as version 2. A rollback of V2-2 lands on a Worker that still reads version 2, and a rollback past V2-1 strands only the Splits that hold a Bundle.
+V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to read `schemaVersion: 2`. It writes nothing new. The stored version is derived in `storedVersion()`, which returns 2 only while the receipt, the original, or the history holds a Bundle, and 1 otherwise. No Split can hold a Bundle until V2-2, so in production the Worker keeps writing version 1. V2-2 does not change `storedVersion()`. A rollback of V2-2 lands on a Worker that still reads version 2. A rollback past V2-1 strands only the Splits that hold a Bundle, because every other Split is still stored as version 1.
 
 **Files.**
 
@@ -138,7 +138,7 @@ V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to
 
 - [ ] In `src/core/split.ts`, add `bundleDiscount` to `ADJUSTMENT_KINDS`. Make `Adjustment` a union where only `kind: "bundleDiscount"` carries `bundle` with a `name` and `items` of type `NonEmpty<ItemId>`, per ADR 0006. No other kind can carry `bundle`.
 - [ ] In `src/core/parse.ts`, read `schemaVersion` 1 and 2. Version 1 migrates to the in-memory Split unchanged. Refuse a `bundleDiscount` whose Items are missing, repeated, or in another Bundle, and refuse a positive Bundle discount. Refuse `bundleDiscount` in a version 1 row and in a create request, because nothing writes one yet.
-- [ ] Keep the stored version at 1. Derive it in one function in `src/core/split.ts`, which V2-2 changes to return 2 only for a Split with a Bundle.
+- [ ] Derive the stored version in `storedVersion()` in `src/core/split.ts`. It returns 2 only while the receipt, the original, or the history holds a Bundle, and 1 otherwise. In production every Split stays at version 1 until V2-2 lets a Split hold a Bundle.
 - [ ] In `src/core/shares.ts`, divide each Bundle discount among the claimers of its Items' units, in proportion to the unit prices. Divide the other Adjustments in proportion to each Participant's Items after Bundle discounts. Cents of a Bundle discount on an unclaimed unit count as Unclaimed. The Shares plus Unclaimed still equal the total to the cent.
 - [ ] In `src/core/operations.ts`, make deleting an Item drop it from its Bundle in the same Change, and make deleting a Bundle's last Item remove the Bundle discount in the same Change. One Revert restores both.
 - [ ] Add `v2-1.json` to `src/core/golden/` through `node scripts/golden-splits.mjs`, holding the Topgolf Receipt with two Bundles at version 2.
@@ -203,7 +203,7 @@ V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to
 - [ ] Keep the Total check deciding between readings, as PR 22 does. Bundles change no amount, so a passing reading still passes.
 - [ ] In `src/draft.ts`, carry Bundles through a read, a price edit, a reload, and `splitRequest`. Deleting a Bundle Item on home follows the rule from V2-1.
 - [ ] Draw `e2e/fixtures/topgolf-synthetic.png` with `e2e/fixtures/make-fixtures.py` from the lines of `src/parse/fixtures/topgolf.tsv`. It holds no payment lines. Confirm that scanning it on home reads the same Receipt as the TSV, or report the difference.
-- [ ] In `src/core/parse.ts`, accept `bundleDiscount` in a create request. Make the stored version 2 for a Split that holds a Bundle and 1 for every other Split, so Splits without a Bundle stay readable by older Workers. Write `v2-2.json` through `node scripts/golden-splits.mjs`.
+- [ ] In `src/core/parse.ts`, accept `bundleDiscount` in a create request. Leave `storedVersion()` as V2-1 wrote it. It already stores a Split with a Bundle as version 2 and every other Split as version 1, so Splits without a Bundle stay readable by older Workers. Write `v2-2.json` through `node scripts/golden-splits.mjs`.
 
 **You see.**
 
