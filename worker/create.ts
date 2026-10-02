@@ -18,14 +18,14 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
     console.error("a create arrived with no cf-connecting-ip, so it cannot be rate limited");
     return refuse(503, { refused: "unavailable" });
   }
+  const cap = env.CreateLimiter.getByName(DAILY_CAP_NAME);
+  // Peeking first keeps a create the cap refuses from writing to its address's limiter.
+  const room = await cap.peekToday();
+  if (!room.ok) return tooMany("dailyLimit", room.retryAfterMs);
   const admission = await env.CreateLimiter.getByName(limiterKey(ip)).admit();
-  if (!admission.ok) {
-    return refuse(429, { refused: "rateLimited" }, { "retry-after": String(Math.ceil(admission.retryAfterMs / 1000)) });
-  }
-  const today = await env.CreateLimiter.getByName(DAILY_CAP_NAME).admitToday();
-  if (!today.ok) {
-    return refuse(429, { refused: "dailyLimit" }, { "retry-after": String(Math.ceil(today.retryAfterMs / 1000)) });
-  }
+  if (!admission.ok) return tooMany("rateLimited", admission.retryAfterMs);
+  const today = await cap.admitToday();
+  if (!today.ok) return tooMany("dailyLimit", today.retryAfterMs);
 
   const created = await env.SplitServer.getByName(id).create(parsed.split);
   if (!created.created) throw new Error(`minted Split id ${id} already exists`);
@@ -71,6 +71,10 @@ function mintSplitId(): MintedSplitId {
   return id;
 }
 
-function refuse(status: number, refusal: CreateSplitRefusal, headers: Record<string, string> = {}): Response {
-  return Response.json(refusal, { status, headers });
+function refuse(status: number, refusal: CreateSplitRefusal): Response {
+  return Response.json(refusal, { status });
+}
+
+function tooMany(refused: "rateLimited" | "dailyLimit", retryAfterMs: number): Response {
+  return Response.json({ refused } satisfies CreateSplitRefusal, { status: 429, headers: { "retry-after": String(Math.ceil(retryAfterMs / 1000)) } });
 }

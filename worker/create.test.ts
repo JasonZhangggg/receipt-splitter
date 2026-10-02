@@ -179,8 +179,10 @@ describe("the daily create cap", { timeout: 60_000 }, () => {
     const { id } = await postSplit({ split: newSplit }).then((response) => response.json<{ id: string }>());
     expect(new Set(await createFromNewAddresses(1499))).toEqual(new Set([201]));
 
-    const refused = await postSplit({ split: newSplit });
+    const refused = await postSplit({ split: newSplit }, { ip: "192.0.2.150" });
     expect([refused.status, refused.headers.get("retry-after"), await refused.json()]).toEqual([429, String(12 * 60 * 60), { refused: "dailyLimit" }]);
+    const unwritten = await runInDurableObject(env.CreateLimiter.getByName("192.0.2.150"), async (_, state) => ({ keys: [...(await state.storage.list()).keys()], alarm: await state.storage.getAlarm() }));
+    expect(unwritten).toEqual({ keys: [], alarm: null });
     const client = await connect(id);
     expect(await client.next()).toMatchObject({ type: "state", split: { id, participants: [{ id: "ann" }] } });
   });
@@ -212,7 +214,7 @@ describe("the daily create cap", { timeout: 60_000 }, () => {
     await createFromNewAddresses(1);
 
     expect(await runDurableObjectAlarm(cap)).toBe(true);
-    const stored = await runInDurableObject(cap, async (_, state) => ({ today: await state.storage.get("today"), alarm: await state.storage.getAlarm() }));
-    expect(stored).toEqual({ today: { day: (T0 + 6 * DAY - 12 * 60 * 60 * 1000) / DAY, count: 1 }, alarm: T0 + 6 * DAY + 12 * 60 * 60 * 1000 });
+    const stored = await runInDurableObject(cap, async (_, state) => ({ tally: await state.storage.get("tally"), alarm: await state.storage.getAlarm() }));
+    expect(stored).toEqual({ tally: { day: (T0 + 6 * DAY - 12 * 60 * 60 * 1000) / DAY, count: 1 }, alarm: T0 + 6 * DAY + 12 * 60 * 60 * 1000 });
   });
 });
