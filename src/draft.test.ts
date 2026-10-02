@@ -530,18 +530,32 @@ describe("Bundles", () => {
     });
   });
 
-  test("a stored Bundle that names an Item the Receipt does not hold loads the empty Receipt and keeps the handles and names", () => {
+  test("a Bundle read with only blank Items keeps its discount on the whole receipt", () => {
+    const blank = new Set(["i2", "i3", "i4", "i5"]);
+    const [first, ...rest] = topgolf.items.map((item) => (blank.has(item.id) ? { ...item, name: "", price: price(0) } : item));
+    const read: Receipt<ParsedItem> = { ...topgolf, items: [first, ...rest] };
+
+    expect(adjustmentsOf(run(readTopgolf(), { type: "read", file, receipt: read }))?.[0]).toEqual({ id: "a1", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -451 });
+  });
+
+  test("a stored Bundle that names an Item the Receipt does not hold, or an Item twice, loads the empty Receipt and keeps the handles and names", () => {
     const storage = new MemoryStorage();
     saveDraft(readTopgolf(), storage);
     const stored = JSON.parse(storage.getItem("receipt-splitter:draft")!);
     const [first, ...rest] = stored.draft.scan.receipt.adjustments;
-    stored.draft.scan.receipt.adjustments = [{ ...first, bundle: { ...first.bundle, items: [...first.bundle.items, "i99"] } }, ...rest];
-    storage.setItem("receipt-splitter:draft", JSON.stringify(stored));
+    const [second, ...others] = rest;
+    const loads = (adjustments: unknown[]) => {
+      storage.setItem("receipt-splitter:draft", JSON.stringify({ ...stored, draft: { ...stored.draft, scan: { ...stored.draft.scan, receipt: { ...stored.draft.scan.receipt, adjustments } } } }));
+      return loadDraft(storage);
+    };
 
-    const loaded = loadDraft(storage);
+    const missing = loads([{ ...first, bundle: { ...first.bundle, items: [...first.bundle.items, "i99"] } }, ...rest]);
 
-    expect(loaded.scan).toEqual({ status: "empty" });
-    expect([loaded.handles, loaded.names]).toEqual([[{ service: "venmo", handle: "@jason-z" }], ["Jason", "Priya"]]);
+    expect(missing.scan).toEqual({ status: "empty" });
+    expect([missing.handles, missing.names]).toEqual([[{ service: "venmo", handle: "@jason-z" }], ["Jason", "Priya"]]);
+    expect(loads([first, { ...second, bundle: { ...second.bundle, items: [...second.bundle.items, "i2"] } }, ...others]).scan).toEqual({ status: "empty" });
+    expect(loads([{ ...first, bundle: { ...first.bundle, items: ["i2", "i2"] } }, ...rest]).scan).toEqual({ status: "empty" });
+    expect(loads([first, ...rest]).scan.status).toBe("read");
   });
 });
 

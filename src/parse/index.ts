@@ -9,8 +9,7 @@ type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quan
 
 export type ParsedItem = Item & { readonly discountExceededPrice?: true };
 type ReceiptLevelDraft = Exclude<AdjustmentFields, { readonly kind: "bundleDiscount" }>;
-/** A Bundle's discount, naming its Items by their index in the draft's Items. */
-type BundleDiscountDraft = { readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: { readonly name: string; readonly items: NonEmpty<number> } };
+type BundleDiscountDraft = { readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: { readonly name: string; readonly itemIndexes: NonEmpty<number> } };
 type DraftAdjustment = ReceiptLevelDraft | BundleDiscountDraft;
 
 type Draft = {
@@ -94,11 +93,11 @@ function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft
       case "discount":
         if (line.appliesTo === "item" && section === "items" && items.length > 0) {
           foldInto(items, line.name, line.amount);
-        } else if (header && items.length > header.at + 1 && echoes(line.name, header.name)) {
+        } else if (header && section === "items" && items[header.at].price === 0 && items.length > header.at + 1 && echoes(line.name, header.name)) {
           const { name, at } = header;
           items.splice(at, 1);
           const [first, ...rest] = items.slice(at).map((_, i) => at + i);
-          adjustments.push({ kind: "bundleDiscount", name: line.name, amount: line.amount, bundle: { name, items: [first, ...rest] } });
+          adjustments.push({ kind: "bundleDiscount", name: line.name, amount: line.amount, bundle: { name, itemIndexes: [first, ...rest] } });
           if (subtotals.length === 0) discountBeforeSubtotal = cents(discountBeforeSubtotal + line.amount);
           header = null;
         } else if (discountTotals === "drop" && isDiscountTotal(line, adjustments)) {
@@ -187,7 +186,7 @@ function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjus
     adjustments: adjustments.map((row, i): Adjustment => {
       const id = adjustmentId(`a${i + 1}`);
       if (row.kind !== "bundleDiscount") return { id, kind: row.kind, name: row.name, amount: row.amount };
-      const [first, ...rest] = row.bundle.items.map((index) => itemId(`i${index + 1}`));
+      const [first, ...rest] = row.bundle.itemIndexes.map((index) => itemId(`i${index + 1}`));
       return { id, kind: row.kind, name: row.name, amount: row.amount, bundle: { name: row.bundle.name, items: [first, ...rest] } };
     }),
     subtotal,

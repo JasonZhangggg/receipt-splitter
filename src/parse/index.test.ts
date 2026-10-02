@@ -180,6 +180,43 @@ describe("parseReceipt", () => {
     ]);
   });
 
+  test("keeps a $0.00 header as an Item once a modifier priced it, or once the Subtotal passed", () => {
+    const priced = parseReceipt(
+      receiptRows([
+        ["Beer Bucket", "$0.00"],
+        ["+ Ice", "$1.00"],
+        ["Guinness", "$20.00"],
+        ["Beer Bucket Discount", "-$2.00"],
+        ["Subtotal", "$19.00"],
+        ["Total", "$19.00"],
+      ]),
+    );
+    const late = parseReceipt(
+      receiptRows([
+        ["Beer Bucket", "$0.00"],
+        ["Guinness", "$20.00"],
+        ["Subtotal", "$20.00"],
+        ["Beer Bucket Discount", "-$2.00"],
+        ["Total", "$18.00"],
+      ]),
+    );
+
+    expect([priced?.items, priced?.adjustments]).toEqual([
+      [
+        { id: "i1", name: "Beer Bucket", price: 100 },
+        { id: "i2", name: "Guinness", price: 2000 },
+      ],
+      [{ id: "a1", kind: "discount", name: "Beer Bucket Discount", amount: -200 }],
+    ]);
+    expect([late?.items, late?.adjustments]).toEqual([
+      [
+        { id: "i1", name: "Beer Bucket", price: 0 },
+        { id: "i2", name: "Guinness", price: 2000 },
+      ],
+      [{ id: "a1", kind: "discount", name: "Beer Bucket Discount", amount: -200 }],
+    ]);
+  });
+
   test("keeps a real discount whose label says total when only keeping it passes the Total check", () => {
     const receipt = parseReceipt(
       receiptRows([

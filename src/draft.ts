@@ -209,7 +209,8 @@ function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
     if (row.kind === "tip") return [];
     if (row.kind !== "bundleDiscount") return [{ id: row.id, kind: row.kind, name, amount: row.amount }];
     const [first, ...rest] = row.bundle.items.filter((id) => kept.has(id));
-    return first === undefined ? [] : [{ id: row.id, kind: row.kind, name, amount: row.amount, bundle: { name: clip(row.bundle.name.trim()), items: [first, ...rest] } }];
+    if (first === undefined) return [{ id: row.id, kind: "discount", name, amount: row.amount }];
+    return [{ id: row.id, kind: row.kind, name, amount: row.amount, bundle: { name: clip(row.bundle.name.trim()), items: [first, ...rest] } }];
   });
   return {
     items,
@@ -396,6 +397,8 @@ function parseScan(scan: unknown): Scan | null {
     isAmount(totalBeforeTip) &&
     Number.isSafeInteger(nextId);
   if (!valid) return null;
+  const bundled = (adjustments as DraftAdjustment[]).flatMap((row) => (row.kind === "bundleDiscount" ? row.bundle.items : []));
+  if (new Set(bundled).size !== bundled.length) return null;
   const read = { status: "read" as const, file: scan.file, receipt: scan.receipt as DraftReceipt };
   return linked ? { ...read, status: "linked", splitId: scan.splitId as SplitId } : read;
 }
