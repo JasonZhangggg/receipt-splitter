@@ -203,6 +203,25 @@ describe("loadDraft and saveDraft", () => {
     expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
   });
 
+  test("a stored quantity of 0 or 2.5 loads the empty Receipt and keeps the handles and names", () => {
+    const storage = new MemoryStorage();
+    saveDraft(withVenmo(read1040()), storage);
+    const stored = JSON.parse(storage.getItem("receipt-splitter:draft") ?? "null");
+    const withQuantity = (quantity: number) => {
+      const [first, ...rest] = stored.draft.scan.receipt.items;
+      const receipt = { ...stored.draft.scan.receipt, items: [{ ...first, quantity }, ...rest] };
+      return JSON.stringify({ ...stored, draft: { ...stored.draft, scan: { ...stored.draft.scan, receipt } } });
+    };
+    const loaded = (quantity: number) => {
+      storage.setItem("receipt-splitter:draft", withQuantity(quantity));
+      return loadDraft(storage);
+    };
+
+    expect(loaded(2).scan.status).toBe("read");
+    expect(loaded(0)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
+    expect(loaded(2.5)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
+  });
+
   test("saving does nothing where there is no storage, and survives a storage that refuses", () => {
     const refusing = {
       getItem: () => null,

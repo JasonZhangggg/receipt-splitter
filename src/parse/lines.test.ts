@@ -215,14 +215,22 @@ describe("classifyLines", () => {
           ["3x Guinness Draught 14.9oz Can", "$21.87"],
           ["2X High Noon Watermelon 12oz Can", "$16.98"],
           ["1x Gameplay", "$87.75"],
-          ["25x Wings", "$50.00"],
+          ["20x Wings", "$40.00"],
+          ["21x Wings", "$42.00"],
+          ["0x Wings", "$0.00"],
+          ["3 x Beer", "$21.00"],
+          ["3 X Beer", "$21.00"],
         ]),
       ),
     ).toEqual([
       { kind: "item", name: "Guinness Draught 14.9oz Can", price: 2187, quantity: null, count: 3 },
       { kind: "item", name: "High Noon Watermelon 12oz Can", price: 1698, quantity: null, count: 2 },
       { kind: "item", name: "Gameplay", price: 8775, quantity: null },
-      { kind: "item", name: "25x Wings", price: 5000, quantity: null },
+      { kind: "item", name: "Wings", price: 4000, quantity: null, count: 20 },
+      { kind: "item", name: "21x Wings", price: 4200, quantity: null },
+      { kind: "item", name: "0x Wings", price: 0, quantity: null },
+      { kind: "item", name: "Beer", price: 2100, quantity: null, count: 3 },
+      { kind: "item", name: "Beer", price: 2100, quantity: null, count: 3 },
     ]);
   });
 

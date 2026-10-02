@@ -112,6 +112,24 @@ describe("parseReceipt", () => {
     expect(runTotalCheck(receipt!)).toEqual({ ok: true });
   });
 
+  test("keeps a real discount whose label says total when only keeping it passes the Total check", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Burger", "20.00"],
+        ["Fries", "10.00"],
+        ["Promo Discount", "-5.00"],
+        ["Total Savings Discount", "-5.00"],
+        ["Total", "20.00"],
+      ]),
+    );
+
+    expect(receipt?.adjustments).toEqual([
+      { id: "a1", kind: "discount", name: "Promo Discount", amount: -500 },
+      { id: "a2", kind: "discount", name: "Total Savings Discount", amount: -500 },
+    ]);
+    expect(runTotalCheck(receipt!)).toEqual({ ok: true });
+  });
+
   test("reads a quantity 7 as 1 when only that makes the Total check pass", () => {
     const receipt = parseReceipt(
       receiptRows([
