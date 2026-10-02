@@ -11,7 +11,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, lineTag, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
+import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
 import { sheetSpring } from "./spring-sheet";
 
 type Props = {
@@ -268,6 +268,7 @@ function Line({ item, order, claimers, selected, flagged, divided, inBundle, onC
   const ordered = [...claimers].sort((a, b) => Number(a.id === selected?.id) - Number(b.id === selected?.id));
   const price = plainAmount(item.price);
   const quantity = item.split.units.length;
+  const [title, detail] = nameParts(item.name);
   const who = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
   const ink = flagged ? c.flag : c.ink;
   return (
@@ -308,10 +309,17 @@ function Line({ item, order, claimers, selected, flagged, divided, inBundle, onC
         {() => (
           <View style={styles.bodyRow}>
             <Text style={[type.body, tabular, styles.quantity, { color: flagged ? c.flag : c.muted }]}>{quantity}</Text>
-            <Text numberOfLines={2} style={[type.body, styles.name, { color: ink }]}>
-              {item.name}
-              {tag ? <Text style={[type.caption, { color: flagged ? c.flag : c.muted }]}>{`  ${tag}`}</Text> : null}
-            </Text>
+            <View style={styles.name}>
+              <Text numberOfLines={2} style={[type.body, { color: ink }]}>
+                {title}
+                {tag ? <Text style={[type.caption, { color: flagged ? c.flag : c.muted }]}>{`  ${tag}`}</Text> : null}
+              </Text>
+              {detail ? (
+                <Text numberOfLines={1} style={[type.caption, { color: flagged ? c.flag : c.muted }]}>
+                  {detail}
+                </Text>
+              ) : null}
+            </View>
             <Text style={[type.body, tabular, { color: ink }]}>{price}</Text>
           </View>
         )}

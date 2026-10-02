@@ -1,5 +1,5 @@
 import { claimersOf, type Operation } from "../../core/operations";
-import { unitPrices } from "../../core/shares";
+import { unitPrices, type ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
 import type { Adjustment, AdjustmentId, ItemId, NonEmpty, ParticipantId, Receipt, SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
@@ -46,6 +46,15 @@ export function circleTap(item: SplitItem, participantId: ParticipantId): Operat
   if (had.length > 0) return had.map((unit) => ({ by: participantId, type: "unclaim", itemId: item.id, participantId, unit }));
   const open = units.findIndex((claimers) => claimers.length === 0);
   return [{ by: participantId, type: "claim", itemId: item.id, participantId, unit: Math.max(open, 0) }];
+}
+
+const SIZE = /^\d+(?:\.\d+)?(?:oz|ml|cl|l|lb|g|kg)$/i;
+
+/** Splits a printed name at its first size, such as "16oz", so the size reads as a quieter second line. */
+export function nameParts(name: string): readonly [title: string, detail: string | null] {
+  const words = name.split(" ");
+  const at = words.findIndex((word, index) => index > 0 && SIZE.test(word));
+  return at < 0 ? [name, null] : [words.slice(0, at).join(" "), words.slice(at).join(" ")];
 }
 
 export type BundleRow = {
@@ -107,7 +116,7 @@ export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId): string 
 }
 
 /** The Adjustments in a breakdown that apply to its person: every receipt-level one, and the discount of each Bundle they had an Item in. */
-export function breakdownCharges<Row extends { readonly id: AdjustmentId }>(receipt: Receipt<SplitItem>, breakdown: { readonly items: readonly { readonly id: ItemId }[]; readonly adjustments: readonly Row[] }): Row[] {
+export function breakdownCharges(receipt: Receipt<SplitItem>, breakdown: ShareBreakdown): ShareBreakdown["adjustments"] {
   const had = new Set(breakdown.items.map(({ id }) => id));
   return breakdown.adjustments.filter(({ id }) => {
     const row = receipt.adjustments.find((adjustment) => adjustment.id === id);

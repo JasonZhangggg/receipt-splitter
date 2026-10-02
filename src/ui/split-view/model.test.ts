@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { shareBreakdown } from "../../core/shares";
-import { breakdownCharges, bundleNote, circleTap, lineTag, receiptRows, shareLabel, totalNote, unclaimedUnits, unitAmounts } from "./model";
+import { breakdownCharges, bundleNote, circleTap, lineTag, nameParts, receiptRows, shareLabel, totalNote, unclaimedUnits, unitAmounts } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -11,7 +11,7 @@ const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostone
 describe("lineTag", () => {
   const order = [bob, ann, cat];
 
-  test("reads ½ for two people, a ratio for shares in the table's order of people, split for amounts, and nothing for two units, which the quantity column counts, or for one person", () => {
+  test("reads ½ for two people, a ratio for shares in the table's order of people, split for amounts, and nothing for two units, even when one of them is shared, since the quantity column counts them, or for one person", () => {
     expect([
       lineTag(item({ by: "even", units: [[ann, bob]] }), order),
       lineTag(item({ by: "even", units: [[ann, bob, cat]] }), order),
@@ -19,9 +19,22 @@ describe("lineTag", () => {
       lineTag(item({ by: "shares", units: [[[ann, 2], [bob, 1]]] }), [ann, bob, cat]),
       lineTag(item({ by: "amount", units: [[[ann, cents(75)], [bob, cents(25)]]] }), order),
       lineTag(item({ by: "even", units: [[ann], [bob]] }), order),
+      lineTag(item({ by: "even", units: [[ann, bob], [cat]] }), order),
       lineTag(item({ by: "even", units: [[ann]] }), order),
-    ]).toEqual(["½", "⅓", "1:2", "2:1", "split", null, null]);
+    ]).toEqual(["½", "⅓", "1:2", "2:1", "split", null, null, null]);
   });
+});
+
+test("nameParts moves a printed size and what follows it to a second line, and leaves a name with no size, or one that starts with a count, whole", () => {
+  expect(["Michelob Ultra 16oz Aluminum Bottle", "Guinness Draught 14.9oz Can", "High Noon Watermelon 12oz Can", "Gameplay", "2 Tacos", "Coke 2", "Water 1L"].map(nameParts)).toEqual([
+    ["Michelob Ultra", "16oz Aluminum Bottle"],
+    ["Guinness Draught", "14.9oz Can"],
+    ["High Noon Watermelon", "12oz Can"],
+    ["Gameplay", null],
+    ["2 Tacos", null],
+    ["Coke 2", null],
+    ["Water", "1L"],
+  ]);
 });
 
 test("shareLabel reads whole units of a line as 1 of 2, part of the price as ½ of 1.00, and all of an Item as nothing", () => {
