@@ -20,6 +20,14 @@ test("home paints before the model download starts, then prefetches the models",
   expect(request.timing().startTime).toBeGreaterThan(firstPaint);
 });
 
+for (const path of ["/debug/ocr", "/debug/ocr/"]) {
+  test(`${path} is cross-origin isolated, so OCR gets threads`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { name: "Read a receipt" })).toBeVisible();
+    expect(await page.evaluate(() => self.crossOriginIsolated)).toBe(true);
+  });
+}
+
 test("recognizes SRD receipt 1040 on the device", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("/debug/ocr");

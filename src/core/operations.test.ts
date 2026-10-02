@@ -998,7 +998,7 @@ describe("Participants", () => {
   test("a name that differs from one at the table only by an invisible format character or by case folding is refused, and an emoji family is a name", () => {
     const join = (id: string, name: string): Operation => ({ by: null, type: "addParticipant", participant: { id: participantId(id), name } });
     const table = apply(withBobAndCat(), join("strauss", "Strauss"), join("odos", "\u03BF\u03B4\u03BF\u03C3"), join("sam", "Sam"));
-    const lookalikes = ["Ann\u00AD", "A\u200Cnn", "An\u200Dn", "Ann\u180E", "Ann\u206A", "Ann\uFFF9", "Ann\u{E0020}", "Ann\uFE0F", "An\u034Fn", "Ann\u3164", "STRAU\u1E9E", "Strau\u00DF", "\u039F\u0394\u039F\u03A3"];
+    const lookalikes = ["Ann\u00AD", "A\u200Cnn", "An\u200Dn", "Ann\u180E", "Ann\u206A", "Ann\uFFF9", "Ann\u{E0020}", "Ann\uFE0F", "An\u034Fn", "Ann\u3164", "STRAU\u1E9E", "Strau\u00DF", "\u039F\u0394\u039F\u03A3", "Sam\u2800", "\u2800Sam"];
 
     expect(lookalikes.map((name) => reasonFor(table, join("dan", name)))).toEqual(lookalikes.map(() => "nameTaken"));
     expect(reasonFor(table, join("dan", "Sbm"))).toBe("accepted");
@@ -1188,6 +1188,19 @@ describe("names", () => {
       Array.from({ length: 6 }, () => "badName"),
     );
     expect(["Jo\u00ADsé", "\u3131\u3164"].map(join)).toEqual(["accepted", "accepted"]);
+  });
+
+  test("refuses a name made only of format characters that are not default-ignorable, which leave an empty key", () => {
+    expect(["\uFFF9", "\u0600", "\u06DD", "\u{110BD}", "\u{13430}", "\uFFFB\u2800"].map(join)).toEqual(
+      Array.from({ length: 6 }, () => "badName"),
+    );
+  });
+
+  test("refuses a name made of characters that draw nothing with a space between them, and still takes short and non-Latin names", () => {
+    expect(["\u3164 \u3164", "\u00AD \u00AD", "\u2800 \u2800", "\u200D \u200D", "\u0600 \u2800", "\uFFF9 \uFFF9"].map(join)).toEqual(
+      Array.from({ length: 6 }, () => "badName"),
+    );
+    expect(["Jo", "Jos\u00E9", "\u674E", "\u{1F600}"].map(join)).toEqual(Array.from({ length: 4 }, () => "accepted"));
   });
 
   test("an Item from a long OCR line keeps up to 80 characters, and an Adjustment too", () => {

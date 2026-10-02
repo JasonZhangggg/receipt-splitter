@@ -27,7 +27,18 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       {names.map((name) => (
         <View key={name} style={[styles.chip, onRemove && styles.named, { backgroundColor: c.sheetIn }]}>
           <Text style={[type.label, { color: c.ink }]}>{name}</Text>
-          {onRemove ? <Button kind="icon" icon="x" name={copy.removeName(name)} onPress={() => onRemove(name)} outsideScroll={outsideScroll} /> : null}
+          {onRemove ? (
+            <Button
+              kind="icon"
+              icon="x"
+              name={copy.removeName(name)}
+              onPress={() => {
+                setRefusal(null);
+                onRemove(name);
+              }}
+              outsideScroll={outsideScroll}
+            />
+          ) : null}
         </View>
       ))}
       {adding ? (

@@ -1,5 +1,5 @@
 import { cents, isCents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
-import { canonicalName, MAX_PARTICIPANT_NAME_LENGTH, MAX_QUANTITY, nameKey, type NewSplit } from "./core/operations";
+import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, MAX_QUANTITY, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
 import {
   ADJUSTMENT_KINDS,
   adjustmentId,
@@ -88,10 +88,15 @@ function clip(text: string, max = MAX_GRAPHEMES): string {
   return kept;
 }
 
-export function newName(typed: string, names: readonly string[]): string | null {
+/** The name to add for what was typed, or why none: `badName` when core would refuse it, as it does a name that draws nothing, and `nameTaken` when it repeats one in `names`. */
+export function newName(
+  typed: string,
+  names: readonly string[],
+): { readonly ok: true; readonly name: string } | { readonly ok: false; readonly reason: Extract<RejectionReason, "badName" | "nameTaken"> } {
   const name = clip(canonicalName(typed), MAX_PARTICIPANT_NAME_LENGTH);
-  const taken = names.some((other) => nameKey(other) === nameKey(name));
-  return name && !taken ? name : null;
+  if (!isName(name, MAX_PARTICIPANT_NAME_LENGTH)) return { ok: false, reason: "badName" };
+  if (names.some((other) => nameKey(other) === nameKey(name))) return { ok: false, reason: "nameTaken" };
+  return { ok: true, name };
 }
 
 export function reduceDraft(draft: Draft, action: DraftAction): Draft {
@@ -121,8 +126,8 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     case "removeHandle":
       return draft.handles.length > 1 ? { ...draft, handles: draft.handles.filter((_, i) => i !== action.index) } : draft;
     case "addName": {
-      const name = newName(action.name, draft.names);
-      return name ? { ...draft, names: [...draft.names, name] } : draft;
+      const named = newName(action.name, draft.names);
+      return named.ok ? { ...draft, names: [...draft.names, named.name] } : draft;
     }
     case "removeName":
       return { ...draft, names: draft.names.filter((name) => name !== action.name) };

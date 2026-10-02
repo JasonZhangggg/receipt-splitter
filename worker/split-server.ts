@@ -1,6 +1,6 @@
 import { Server, type Connection } from "partyserver";
-import { applyOperation, type Operation, type ServerMessage, type WireRejection } from "../src/core/operations";
-import { parseOperation, parseSplit } from "../src/core/parse";
+import { applyOperation, type ClientMessage, type ServerMessage, type WireRejection } from "../src/core/operations";
+import { parseClientMessage, parseSplit } from "../src/core/parse";
 import { SPLIT_BYTE_BUDGET, serializedBytes, type Split } from "../src/core/split";
 import { HISTORY_LIMIT, OPERATION_LIMIT, takeToken, type Bucket } from "./rate-limit";
 
@@ -13,8 +13,6 @@ const HEARTBEAT = { ping: "ping", pong: "pong" } as const;
 
 const SECRET_BYTES = 32;
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-const REF_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-const ENVELOPE_KEYS = new Set(["ref", "op", "creatorSecret"]);
 
 type Stored =
   | { readonly kind: "missing" }
@@ -31,7 +29,7 @@ type Stored =
 type Rate = { readonly operations: Bucket | null; readonly history: Bucket | null };
 
 type Frame =
-  | { readonly ok: true; readonly ref: string; readonly op: Operation; readonly creatorSecret: string | undefined }
+  | ({ readonly ok: true } & ClientMessage)
   | { readonly ok: false; readonly ref: string | null; readonly rejection: WireRejection };
 
 type Pacing = { readonly retryAt: number; readonly early: number };
@@ -51,7 +49,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
   static options = { hibernate: true };
 
   #stored: Stored = { kind: "missing" };
-  #pacing = new Map<string, Pacing>();
+  #pacing = new WeakMap<Connection, Pacing>();
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -99,7 +97,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
     let rate: Rate = { ...stored.rate, operations: admission.state };
     this.#stored = { ...stored, rate };
     if (!admission.ok) return this.#refuse(connection, now, admission.retryAfterMs);
-    this.#pacing.delete(connection.id);
+    this.#pacing.delete(connection);
     const frame = readFrame(message);
     if (!frame.ok) return send(connection, { type: "rejected", ref: frame.ref, rejection: frame.rejection });
     const result = applyOperation(stored.split, frame.op, { creator: isCreator(frame.creatorSecret, stored.secret) }, now);
@@ -129,10 +127,6 @@ export class SplitServer extends Server<Cloudflare.Env> {
     connection.send(stateMessage(frame.ref, json));
   }
 
-  onClose(connection: Connection): void {
-    this.#pacing.delete(connection.id);
-  }
-
   async onAlarm(): Promise<void> {
     const stored = this.#stored;
     if (stored.kind !== "missing") {
@@ -150,13 +144,12 @@ export class SplitServer extends Server<Cloudflare.Env> {
 
   #refuse(connection: Connection, now: number, retryAfterMs: number): void {
     send(connection, { type: "rejected", ref: null, rejection: { reason: "rateLimited", retryAfterMs } });
-    const pacing = this.#pacing.get(connection.id);
+    const pacing = this.#pacing.get(connection);
     const early = pacing === undefined ? 0 : pacing.early + (now < pacing.retryAt ? 1 : 0);
     if (early < MAX_EARLY_FRAMES) {
-      this.#pacing.set(connection.id, { retryAt: now + retryAfterMs, early });
+      this.#pacing.set(connection, { retryAt: now + retryAfterMs, early });
       return;
     }
-    this.#pacing.delete(connection.id);
     connection.close(1008, "rateLimited");
   }
 
@@ -197,25 +190,8 @@ function bucketOf(tokens: number | null, at: number | null): Bucket | null {
 function readFrame(message: string | ArrayBuffer): Frame {
   const oversized = typeof message === "string" ? exceedsBytes(message, MAX_MESSAGE_BYTES) : message.byteLength > MAX_MESSAGE_BYTES;
   if (oversized) return { ok: false, ref: null, rejection: { reason: "messageTooLarge" } };
-  const envelope = typeof message === "string" ? parseJson(message) : undefined;
-  if (typeof envelope !== "object" || envelope === null || Array.isArray(envelope)) return malformed(null, "");
-  const fields = new Map<string, unknown>(Object.entries(envelope));
-  const ref = fields.get("ref");
-  if (typeof ref !== "string" || !REF_PATTERN.test(ref)) return malformed(null, "ref");
-  const extra = [...fields.keys()].find((key) => !ENVELOPE_KEYS.has(key));
-  if (extra !== undefined) return malformed(ref, extra);
-  const creatorSecret = fields.get("creatorSecret");
-  if (creatorSecret !== undefined && typeof creatorSecret !== "string") return malformed(ref, "creatorSecret");
-  const parsed = parseOperation(fields.get("op"));
-  if (!parsed.ok) {
-    const { rejection } = parsed;
-    return rejection.reason === "malformed" ? malformed(ref, rejection.path === "" ? "op" : `op.${rejection.path}`) : { ok: false, ref, rejection };
-  }
-  return { ok: true, ref, op: parsed.op, creatorSecret };
-}
-
-function malformed(ref: string | null, path: string): Frame {
-  return { ok: false, ref, rejection: { reason: "malformed", path } };
+  const parsed = parseClientMessage(typeof message === "string" ? parseJson(message) : undefined);
+  return parsed.ok ? { ok: true, ...parsed.message } : parsed;
 }
 
 function isCreator(presented: string | undefined, secret: Uint8Array): boolean {

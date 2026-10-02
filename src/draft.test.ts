@@ -401,8 +401,15 @@ describe("the Payment handles and names", () => {
   test("refuses a name that repeats one in the draft but for an invisible format character or case folding, and takes a different one", () => {
     const lookalikes = ["Sam\u00AD", "Sa\u200Cm", "Sam\u200D", "Sam\u180E", "Sam\u206A", "Sam\u{E0041}", "Sam\uFFF9", "Sam\uFE0F", "Sam\u3164", "STRAU\u1E9E", "\u039F\u0394\u039F\u03A3"];
 
-    expect(lookalikes.map((typed) => newName(typed, ["Sam", "Strauss", "\u03BF\u03B4\u03BF\u03C3"]))).toEqual(lookalikes.map(() => null));
-    expect(newName("Sbm", ["Sam"])).toBe("Sbm");
+    expect(lookalikes.map((typed) => newName(typed, ["Sam", "Strauss", "\u03BF\u03B4\u03BF\u03C3"]))).toEqual(lookalikes.map(() => ({ ok: false, reason: "nameTaken" })));
+    expect(newName("Sbm", ["Sam"])).toEqual({ ok: true, name: "Sbm" });
+  });
+
+  test("calls a name that draws nothing a bad name, not a taken one, and keeps it out of the draft", () => {
+    const blanks = ["", "   ", "\u200B", "\u0007", "\u2800", "\u00AD", "\uFFF9", "\u3164 \u3164", "\u00AD \u00AD", "\u2800 \u2800", "\u200D \u200D", "\u0600 \u2800", "\uFFF9 \uFFF9"];
+
+    expect(blanks.map((typed) => newName(typed, ["Sam"]))).toEqual(blanks.map(() => ({ ok: false, reason: "badName" })));
+    expect(run(emptyDraft, ...blanks.map((name): DraftAction => ({ type: "addName", name }))).names).toEqual([]);
   });
 
   test("adds trimmed names, skips blanks and repeats, and removes one", () => {

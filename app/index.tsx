@@ -108,10 +108,10 @@ export default function Home() {
 
   const people = live.status === "live" ? live.split.participants.map(({ name }) => name) : draft.names;
   const addName = (typed: string): string | null => {
-    const name = newName(typed, people);
-    if (!name) return typed.trim() ? joinCopy.nameTaken : null;
+    const named = newName(typed, people);
+    if (!named.ok) return named.reason === "nameTaken" ? joinCopy.nameTaken : null;
     if (splitId === null) dispatch({ type: "addName", name: typed });
-    else void send({ type: "addParticipant", by: null, participant: { id: newParticipantId(), name } });
+    else void send({ type: "addParticipant", by: null, participant: { id: newParticipantId(), name: named.name } });
     return null;
   };
   const removeName = splitId === null ? (name: string) => dispatch({ type: "removeName", name }) : undefined;
