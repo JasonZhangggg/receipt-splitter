@@ -660,12 +660,6 @@ describe("the Split link", () => {
     expect(created).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] });
   });
 
-  test("a Split created after the Receipt was replaced leaves the new Receipt in place", () => {
-    const replacing = run(withVenmo(read1040()), { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
-
-    expect(run(replacing, { type: "created" })).toEqual(replacing);
-  });
-
   test("a reload after creating opens a fresh draft, and one saved while linked to a Split by an older build does too", () => {
     const storage = new MemoryStorage();
     saveDraft(run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "created" }), storage);

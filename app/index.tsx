@@ -81,15 +81,17 @@ export default function Home() {
   const create = async () => {
     const request = splitRequest(draft, newParticipantId);
     if (!request) return;
+    const scan = scanning.current;
     setCreating(true);
     setFailure(null);
     const created = await createSplitLink({ split: request });
     setCreating(false);
     if (!created.ok) return setFailure(created.reason);
     rememberSplit(created.id, { creatorSecret: created.creatorSecret });
-    scanning.current++;
-    setPhoto(null);
-    apply({ type: "created" });
+    if (scan === scanning.current) {
+      setPhoto(null);
+      apply({ type: "created" });
+    }
     router.push(`/s/${created.id}`);
   };
 

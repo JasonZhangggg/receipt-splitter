@@ -112,7 +112,7 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     case "example":
       return { ...draft, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: fromReceipt(example1040) } };
     case "created":
-      return draft.scan.status === "read" ? { ...emptyDraft, handles: draft.handles } : draft;
+      return { ...emptyDraft, handles: draft.handles };
     case "setService":
       return { ...draft, handles: draft.handles.map((row, i) => (i === action.index ? { ...row, service: action.service } : row)) };
     case "setHandle":

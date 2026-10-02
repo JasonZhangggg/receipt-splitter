@@ -190,6 +190,27 @@ test("Copy puts the exact link on the clipboard, and Share in the header hands i
   expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
 });
 
+test("a receipt replaced while the link is being created stays on home and finishes reading", async ({ page }) => {
+  await readyHome(page);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/splits", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await page.getByRole("button", { name: "Create split link" }).click();
+  await expect(page.getByRole("button", { name: "Creating link" })).toBeVisible();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Replace receipt" }).click();
+  await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
+  release();
+
+  await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
+  await page.goBack();
+  await expect(page.getByText("srd-1040-no-sprite.jpg")).toBeVisible(linkTimeout);
+  await expect(page.getByText("Reading receipt")).toHaveCount(0);
+});
+
 test("a refused create shows one reason and enables Create split link again", async ({ page }) => {
   await readyHome(page);
   let release = () => {};
