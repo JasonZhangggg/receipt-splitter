@@ -5,7 +5,7 @@ import { limiterKey } from "./rate-limit";
 
 const MAX_CREATE_BODY_BYTES = SPLIT_BYTE_BUDGET + 4 * 1024;
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set(["localhost", "127.0.0.1"]);
+const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const CLOUDFLARE_TEST_SECRET = /^[123]x/;
 
 type Site = { readonly hostnames: ReadonlySet<string>; readonly local: boolean };
@@ -18,7 +18,11 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
   const parsed = parseCreateSplitRequest(parseJson(text), id);
   if (!parsed.ok) return refuse(400, { refused: "rejected", rejection: parsed.rejection });
 
-  const site = siteOf(env.ALLOWED_HOSTNAMES);
+  const site = siteOf(new URL(request.url).hostname, env.ALLOWED_HOSTNAMES);
+  if (site.hostnames.size === 0) {
+    console.error("ALLOWED_HOSTNAMES names no valid hostname, so no Split can be created on a public host");
+    return refuse(503, { refused: "turnstileUnavailable" });
+  }
   const ip = request.headers.get("cf-connecting-ip");
   if (ip === null && !site.local) {
     console.error("a create arrived with no cf-connecting-ip, so it cannot be rate limited");
@@ -76,10 +80,25 @@ function mintSplitId(): MintedSplitId {
   return id;
 }
 
-function siteOf(allowed: string | undefined): Site {
-  const named = (allowed ?? "").split(",").map((hostname) => hostname.trim().toLowerCase()).filter((hostname) => hostname !== "");
-  const hostnames = named.length === 0 ? LOCAL_HOSTNAMES : new Set(named);
-  return { hostnames, local: [...hostnames].every((hostname) => LOCAL_HOSTNAMES.has(hostname)) };
+/** The request's own hostname decides whether this is local dev, so a public deploy with ALLOWED_HOSTNAMES unset is never treated as localhost. */
+function siteOf(requestHostname: string, allowed: string | undefined): Site {
+  const named = allowedHostnames(allowed ?? "");
+  const local = LOCAL_HOSTNAMES.has(requestHostname);
+  const hostnames = named.size === 0 && local ? LOCAL_HOSTNAMES : named;
+  return { hostnames, local: local && [...hostnames].every((hostname) => LOCAL_HOSTNAMES.has(hostname)) };
+}
+
+const parsedHostnames = new Map<string, ReadonlySet<string>>();
+
+function allowedHostnames(allowed: string): ReadonlySet<string> {
+  const cached = parsedHostnames.get(allowed);
+  if (cached) return cached;
+  const entries = allowed.split(",").map((entry) => entry.trim().toLowerCase().replace(/\.$/, "")).filter((entry) => entry !== "");
+  const invalid = entries.filter((entry) => entry.includes(":") && entry !== "[::1]");
+  if (invalid.length > 0) console.error(`ALLOWED_HOSTNAMES takes comma-separated hostnames with no port or scheme, so these entries are skipped: ${invalid.join(", ")}`);
+  const hostnames = new Set(entries.filter((entry) => !invalid.includes(entry)));
+  parsedHostnames.set(allowed, hostnames);
+  return hostnames;
 }
 
 async function verifyTurnstile(token: string, ip: string | null, secret: string | undefined, site: Site): Promise<"passed" | "failed" | "unavailable"> {

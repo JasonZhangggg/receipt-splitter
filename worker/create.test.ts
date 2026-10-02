@@ -203,8 +203,8 @@ describe("the Turnstile deployment checks", () => {
   const STAND_IN_SECRET = "stand-in-for-a-production-secret";
   let nextHost = 1;
 
-  function post(vars: Partial<Cloudflare.Env>, { ip = `203.0.113.${100 + nextHost++}` }: { ip?: string | null } = {}): Promise<Response> {
-    const request = new Request("https://split.example/api/splits", {
+  function post(vars: Partial<Cloudflare.Env>, { ip = `203.0.113.${100 + nextHost++}`, origin = "https://split.example" }: { ip?: string | null; origin?: string } = {}): Promise<Response> {
+    const request = new Request(`${origin}/api/splits`, {
       method: "POST",
       headers: ip === null ? {} : { "cf-connecting-ip": ip },
       body: JSON.stringify({ turnstileToken: PASSING_TOKEN, split: newSplit }),
@@ -232,13 +232,43 @@ describe("the Turnstile deployment checks", () => {
     ]);
   });
 
-  it("allows only localhost and 127.0.0.1 when ALLOWED_HOSTNAMES is empty or unset", async () => {
+  it("on a request to localhost, 127.0.0.1 or [::1] with ALLOWED_HOSTNAMES empty or unset, allows only local hostnames", async () => {
     const statuses: number[] = [];
-    for (const [allowed, hostname] of [[undefined, "localhost"], ["", "127.0.0.1"], [undefined, "split.example"], [" , ", "split.example"]]) {
+    const cases: [string, string | undefined, string][] = [
+      ["http://localhost:8787", undefined, "localhost"],
+      ["http://127.0.0.1:8787", "", "127.0.0.1"],
+      ["http://[::1]:8787", " , ", "localhost"],
+      ["http://localhost:8787", undefined, "split.example"],
+    ];
+    for (const [origin, allowed, hostname] of cases) {
       answerHostname(hostname);
-      statuses.push((await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: allowed })).status);
+      statuses.push((await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: allowed }, { origin })).status);
     }
-    expect(statuses).toEqual([201, 201, 403, 403]);
+    expect(statuses).toEqual([201, 201, 201, 403]);
+  });
+
+  it("refuses with 503 a public request when ALLOWED_HOSTNAMES is unset, empty or blank, whatever the secret or client IP", async () => {
+    const refusals: [number, unknown][] = [];
+    for (const allowed of [undefined, "", " , "]) {
+      for (const [secret, ip] of [["1x0000000000000000000000000000000AA", null], [STAND_IN_SECRET, "203.0.113.7"]] as const) {
+        const response = await post({ TURNSTILE_SECRET_KEY: secret, ALLOWED_HOSTNAMES: allowed }, { ip });
+        refusals.push([response.status, await response.json()]);
+      }
+    }
+    expect(refusals).toEqual(Array.from({ length: 6 }, () => [503, { refused: "turnstileUnavailable" }]));
+    expect(siteverify).toEqual([]);
+  });
+
+  it("matches an ALLOWED_HOSTNAMES entry written with a trailing dot or in capitals, and logs and skips an entry with a port", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const statuses: number[] = [];
+    for (const hostname of ["split.example", "www.split.example"]) {
+      answerHostname(hostname);
+      statuses.push((await post({ TURNSTILE_SECRET_KEY: STAND_IN_SECRET, ALLOWED_HOSTNAMES: "Split.Example., www.split.example:443" })).status);
+    }
+    expect(statuses).toEqual([201, 403]);
+    expect(logged.mock.calls.flat().join("\n")).toContain("www.split.example:443");
+    logged.mockRestore();
   });
 
   it("refuses a Cloudflare test secret with 503 when ALLOWED_HOSTNAMES names a public host, without calling siteverify", async () => {
@@ -255,8 +285,8 @@ describe("the Turnstile deployment checks", () => {
     expect(siteverify).toEqual([]);
   });
 
-  it("accepts the test secret's example.com answer when only localhost is allowed", async () => {
-    const response = await post({ TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", ALLOWED_HOSTNAMES: "localhost,127.0.0.1" });
+  it("accepts the test secret's example.com answer on a localhost request when only localhost is allowed", async () => {
+    const response = await post({ TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", ALLOWED_HOSTNAMES: "localhost,127.0.0.1" }, { origin: "http://localhost:8787" });
     expect(response.status).toBe(201);
   });
 
@@ -265,7 +295,7 @@ describe("the Turnstile deployment checks", () => {
     expect([deployed.status, await deployed.json()]).toEqual([503, { refused: "turnstileUnavailable" }]);
     expect(siteverify).toEqual([]);
 
-    const local = await post({}, { ip: null });
+    const local = await post({}, { ip: null, origin: "http://localhost:8787" });
     expect(local.status).toBe(201);
     expect(siteverify.map(({ remoteip }) => remoteip)).toEqual([null]);
   });
