@@ -258,8 +258,9 @@ export async function drag(page: Page, from: Point, dy: number, ms: number) {
   await lift();
 }
 
-/** Like `drag`, but the finger stays down until the returned function lifts it. */
-export async function hold(page: Page, from: Point, dy: number, ms: number): Promise<() => Promise<void>> {
+type Lift = () => Promise<void>;
+
+export async function hold(page: Page, from: Point, dy: number, ms: number): Promise<Lift> {
   const steps = Math.max(2, Math.round(ms / 16));
   const path = Array.from({ length: steps + 1 }, (_, i) => ({ x: from.x, y: from.y + (dy * i) / steps }));
   if (!(await touches(page))) {
@@ -423,7 +424,7 @@ async function homeTyping(page: Page) {
   await page.waitForTimeout(500);
 }
 
-const lifts = new WeakMap<Page, () => Promise<void>>();
+const lifts = new WeakMap<Page, Lift>();
 
 async function homePanelHeld(page: Page) {
   if ((page.viewportSize()?.width ?? 0) >= 900) await page.setViewportSize({ width: 390, height: 844 });
