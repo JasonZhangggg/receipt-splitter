@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent, type PointerEvent } from "react-native";
+import { ScrollView, StyleSheet, View, type LayoutChangeEvent, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useReducedMotion, webStyle } from "../motion";
@@ -16,19 +16,41 @@ const sheetMarker = { dataSet: { sheet: "" } };
 const surfaceMarker = { dataSet: { sheetSurface: "" } };
 const grabMarker = { dataSet: { sheetGrab: "" } };
 
-export function Sheet({ children, action, onHeight }: Props) {
-  const { height: windowHeight } = useWindowDimensions();
-  return (
-    <PhoneSheet maxContent={Math.round(windowHeight * 0.45)} action={action} onHeight={onHeight}>
-      {children}
-    </PhoneSheet>
-  );
+type Viewport = { height: number; keyboard: number };
+
+// react-native-web's window height follows visualViewport, which the iOS keyboard shrinks; innerHeight stays put.
+function readViewport(): Viewport {
+  const visible = window.visualViewport;
+  return { height: window.innerHeight, keyboard: visible ? Math.max(0, Math.round(window.innerHeight - visible.height - visible.offsetTop)) : 0 };
+}
+
+function useViewport(): Viewport {
+  const [viewport, setViewport] = useState(readViewport);
+  useEffect(() => {
+    const update = () =>
+      setViewport((was) => {
+        const now = readViewport();
+        return now.height === was.height && now.keyboard === was.keyboard ? was : now;
+      });
+    const visible = window.visualViewport;
+    window.addEventListener("resize", update);
+    visible?.addEventListener("resize", update);
+    visible?.addEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      visible?.removeEventListener("resize", update);
+      visible?.removeEventListener("scroll", update);
+    };
+  }, []);
+  return viewport;
 }
 
 type Drag = { pointer: number; startY: number; from: number; samples: { y: number; t: number }[] };
 
-function PhoneSheet({ children, action, onHeight, maxContent }: Props & { maxContent: number }) {
+export function Sheet({ children, action, onHeight }: Props) {
   const c = useColors();
+  const viewport = useViewport();
+  const maxContent = Math.round(viewport.height * 0.45);
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
   const [height, setHeight] = useState(0);
@@ -74,7 +96,7 @@ function PhoneSheet({ children, action, onHeight, maxContent }: Props & { maxCon
   const measure = ({ nativeEvent }: LayoutChangeEvent) => setHeight(nativeEvent.layout.height);
 
   return (
-    <View {...sheetMarker} style={styles.anchor} onLayout={measure}>
+    <View {...sheetMarker} style={[styles.anchor, { transform: [{ translateY: -viewport.keyboard }] }]} onLayout={measure}>
       <View
         ref={panel}
         {...surfaceMarker}
