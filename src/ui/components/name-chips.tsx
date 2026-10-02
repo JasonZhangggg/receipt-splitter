@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { copy } from "../home-copy";
@@ -18,6 +18,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
+  const pressing = usePressing(adding);
   const first = names.length === 0;
   const commit = () => {
     if (typed.trim()) setRefusal(onAdd(typed));
@@ -59,7 +60,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
           submitBehavior="submit"
           blurOnSubmit={false}
           onBlur={() =>
-            afterPress(() => {
+            afterPress(pressing.current, () => {
               commit();
               setAdding(false);
             })
@@ -90,13 +91,25 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
 const keepFocus = { onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() };
 
 const pressEnds = ["pointerup", "pointercancel"] as const;
-let pressing = false;
-if (typeof document !== "undefined") {
-  document.addEventListener("pointerdown", () => (pressing = true), true);
-  for (const end of pressEnds) document.addEventListener(end, () => (pressing = false), true);
+
+function usePressing(listening: boolean) {
+  const pressing = useRef(false);
+  useEffect(() => {
+    if (!listening || typeof document === "undefined") return;
+    const down = () => (pressing.current = true);
+    const up = () => (pressing.current = false);
+    document.addEventListener("pointerdown", down, true);
+    for (const end of pressEnds) document.addEventListener(end, up, true);
+    return () => {
+      pressing.current = false;
+      document.removeEventListener("pointerdown", down, true);
+      for (const end of pressEnds) document.removeEventListener(end, up, true);
+    };
+  }, [listening]);
+  return pressing;
 }
 
-function afterPress(run: () => void) {
+function afterPress(pressing: boolean, run: () => void) {
   if (!pressing) return run();
   const release = () => {
     for (const end of pressEnds) document.removeEventListener(end, release);
