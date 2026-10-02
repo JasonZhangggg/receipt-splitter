@@ -7,10 +7,10 @@ const MAX_CREATE_BODY_BYTES = SPLIT_BYTE_BUDGET + 4 * 1024;
 
 export async function createSplit(request: Request, env: Cloudflare.Env): Promise<Response> {
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
-  const text = await readCapped(request, MAX_CREATE_BODY_BYTES);
-  if (text === null) return refuse(413, { refused: "bodyTooLarge" });
+  const body = await readCapped(request, MAX_CREATE_BODY_BYTES);
+  if (body === null) return refuse(413, { refused: "bodyTooLarge" });
   const id = mintSplitId();
-  const parsed = parseCreateSplitRequest(parseJson(text), id);
+  const parsed = parseCreateSplitRequest(parseJson(new TextDecoder().decode(body)), id);
   if (!parsed.ok) return refuse(400, { refused: "rejected", rejection: parsed.rejection });
 
   const ip = request.headers.get("cf-connecting-ip");
@@ -40,10 +40,10 @@ function parseJson(text: string): unknown {
   }
 }
 
-async function readCapped(request: Request, cap: number): Promise<string | null> {
+export async function readCapped(request: Request, cap: number): Promise<Uint8Array | null> {
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > cap) return null;
-  if (!request.body) return "";
+  if (!request.body) return new Uint8Array(0);
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -61,7 +61,7 @@ async function readCapped(request: Request, cap: number): Promise<string | null>
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(bytes);
+  return bytes;
 }
 
 function mintSplitId(): MintedSplitId {

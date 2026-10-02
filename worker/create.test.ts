@@ -192,10 +192,10 @@ describe("the daily create cap", { timeout: 15_000 }, () => {
   const ipState = (ip: string) =>
     runInDurableObject(env.CreateLimiter.getByName(ip), async (_, state) => ({ times: await state.storage.get<number[]>("times"), alarm: await state.storage.getAlarm() }));
 
-  it("refuses the next create once 1,500 Splits were made in one UTC day, until the next UTC midnight, and leaves existing Splits working", async () => {
+  it("refuses the next create once 1,000 Splits were made in one UTC day, until the next UTC midnight, and leaves existing Splits working", async () => {
     vi.setSystemTime(T0 + 2 * DAY);
     const { id } = await postSplit({ split: newSplit }).then((response) => response.json<{ id: string }>());
-    await seedTodaysCount(1499);
+    await seedTodaysCount(999);
 
     expect((await createFromNewAddresses(1))).toEqual([201]);
     const refused = await postSplit({ split: newSplit }, { ip: "192.0.2.150" });
@@ -208,7 +208,7 @@ describe("the daily create cap", { timeout: 15_000 }, () => {
 
   it("keeps the day's count after the cap's Durable Object is evicted", async () => {
     vi.setSystemTime(T0 + 3 * DAY);
-    await seedTodaysCount(1499);
+    await seedTodaysCount(999);
     await evictDurableObject(cap());
     expect(await createFromNewAddresses(1)).toEqual([201]);
     await evictDurableObject(cap());
@@ -217,7 +217,7 @@ describe("the daily create cap", { timeout: 15_000 }, () => {
 
   it("starts a new count at the next UTC midnight and clears the old day's count", async () => {
     vi.setSystemTime(T0 + 4 * DAY);
-    await seedTodaysCount(1499);
+    await seedTodaysCount(999);
     expect(await createFromNewAddresses(1)).toEqual([201]);
     expect((await postSplit({ split: newSplit })).status).toBe(429);
 
@@ -266,7 +266,7 @@ describe("the daily create cap", { timeout: 15_000 }, () => {
 
   it("answers dailyLimit before rateLimited, and a refusal at the cap changes no count and no IP's state", async () => {
     vi.setSystemTime(T0 + 20 * DAY);
-    await seedTodaysCount(1490);
+    await seedTodaysCount(990);
     const ip = "192.0.2.233";
     const other = "192.0.2.234";
     for (let attempt = 0; attempt < 10; attempt += 1) expect((await postSplit({ split: newSplit }, { ip })).status).toBe(201);
@@ -282,7 +282,7 @@ describe("the daily create cap", { timeout: 15_000 }, () => {
     const dailyLimit: [number, unknown] = [429, { refused: "dailyLimit" }];
     const atCap = await tally();
     const ipAtCap = await ipState(ip);
-    expect(atCap.tally?.count).toBe(1500);
+    expect(atCap.tally?.count).toBe(1000);
     expect(await refusals()).toEqual([dailyLimit, dailyLimit]);
 
     vi.setSystemTime(T0 + 20 * DAY + 60_000);

@@ -52,7 +52,7 @@ const nextMidnight = (day: UtcDay): number => (day + 1) * DAY_MS;
 
 type DayTally = { readonly day: UtcDay; readonly count: number };
 
-export const DAILY_CREATE_CAP = 1500;
+export const DAILY_CREATE_CAP = 1000;
 
 function admitToDay(tally: DayTally | undefined, now: number, cap: number): Admission<DayTally> {
   const day = utcDay(now);

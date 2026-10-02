@@ -1,5 +1,5 @@
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
 import type { Split } from "../src/core/split";
@@ -429,6 +429,133 @@ describe("expiry", () => {
   });
 });
 
+describe("the receipt photo's 14-day delete", () => {
+  const photo = new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0x11, 0x22, 0xff, 0xd9]);
+
+  async function putPhoto(id: string, creatorSecret: string): Promise<number> {
+    const response = await exports.default.fetch(`http://localhost/api/splits/${id}/photo`, {
+      method: "PUT",
+      headers: { "content-type": "image/jpeg", authorization: `Bearer ${creatorSecret}` },
+      body: photo,
+    });
+    return response.status;
+  }
+
+  async function photoStatus(id: string): Promise<number> {
+    const response = await exports.default.fetch(`http://localhost/api/splits/${id}/photo`);
+    await response.body?.cancel();
+    return response.status;
+  }
+
+  it("deletes the photo at 14 days, tells connected clients, keeps the Split readable, and expires it at 60 days", async () => {
+    const { id, creatorSecret } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    vi.setSystemTime(T0 + DAY);
+    expect(await putPhoto(id, creatorSecret)).toBe(204);
+    expect((await leftovers(id)).alarm).toBe(T0 + 14 * DAY);
+    const a = await open(id);
+    expect(a.hello).toMatchObject({ type: "state", photo: true });
+
+    vi.setSystemTime(T0 + 14 * DAY);
+    await evictDurableObject(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await evictDurableObject(stub);
+
+    expect(await photoStatus(id)).toBe(404);
+    expect(await leftovers(id)).toMatchObject({ alarm: T0 + 60 * DAY });
+    const later = await open(id);
+    expect(later.hello).toMatchObject({ type: "state", ref: null, photo: false, split: { id, revision: 0 } });
+
+    vi.setSystemTime(T0 + 60 * DAY);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await later.client.next()).toEqual({ type: "unavailable", reason: "notFound" });
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
+  });
+
+  it("broadcasts the flag turning off to a socket that stayed open through the delete", async () => {
+    const { id, creatorSecret } = await createSplit();
+    expect(await putPhoto(id, creatorSecret)).toBe(204);
+    const a = await open(id);
+
+    vi.setSystemTime(T0 + 14 * DAY);
+    expect(await runDurableObjectAlarm(env.SplitServer.getByName(id))).toBe(true);
+
+    expect(await a.client.next()).toMatchObject({ type: "state", ref: null, photo: false, split: { id } });
+  });
+
+  it("reschedules an alarm that fires before the photo is due, and keeps the photo", async () => {
+    const { id, creatorSecret } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    expect(await putPhoto(id, creatorSecret)).toBe(204);
+
+    vi.setSystemTime(T0 + 14 * DAY - 1);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(await photoStatus(id)).toBe(200);
+    expect((await leftovers(id)).alarm).toBe(T0 + 14 * DAY);
+  });
+
+  it("after the delete, sets the next alarm at 60 days from the last change, not from the create", async () => {
+    const { id, creatorSecret } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    expect(await putPhoto(id, creatorSecret)).toBe(204);
+    vi.setSystemTime(T0 + 10 * DAY);
+    const a = await open(id);
+    a.client.send(claim("a1", "fries"));
+    await a.client.next();
+
+    vi.setSystemTime(T0 + 14 * DAY);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect((await leftovers(id)).alarm).toBe(T0 + 70 * DAY);
+
+    vi.setSystemTime(T0 + 60 * DAY);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect((await open(id)).hello).toMatchObject({ type: "state", photo: false, split: { revision: 1 } });
+  });
+
+  it("deletes the photo with the Split when an overdue alarm finds both past due", async () => {
+    const { id, creatorSecret } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    expect(await putPhoto(id, creatorSecret)).toBe(204);
+
+    vi.setSystemTime(T0 + 60 * DAY);
+    await evictDurableObject(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
+    expect(await photoStatus(id)).toBe(404);
+    expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
+  });
+
+  it("treats a photo past 14 days as gone when its delete alarm was moved later, and moves the alarm back on wake", async () => {
+    const { id, creatorSecret } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    expect(await putPhoto(id, creatorSecret)).toBe(204);
+    const warm = await open(id);
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(T0 + 60 * DAY));
+
+    vi.setSystemTime(T0 + 20 * DAY);
+    expect(await photoStatus(id)).toBe(404);
+    expect((await open(id)).hello).toMatchObject({ type: "state", photo: false });
+    warm.client.send(claim("w1", "fries"));
+    expect(await warm.client.next()).toMatchObject({ type: "state", ref: "w1", photo: false });
+
+    await evictDurableObject(stub);
+    expect(await photoStatus(id)).toBe(404);
+    expect((await open(id)).hello).toMatchObject({ type: "state", photo: false });
+    expect((await leftovers(id)).alarm).toBe(T0 + 14 * DAY);
+  });
+
+  it("keeps a Split without a photo on its single 60-day alarm", async () => {
+    const { id } = await createSplit();
+
+    vi.setSystemTime(T0 + 14 * DAY);
+    expect(await runDurableObjectAlarm(env.SplitServer.getByName(id))).toBe(true);
+
+    expect((await leftovers(id)).alarm).toBe(T0 + 60 * DAY);
+  });
+});
+
 describe("refusals leave the stored Split unchanged", () => {
   it("refuses a frame over the byte cap before parsing it", async () => {
     const { id } = await createSplit();
@@ -490,7 +617,7 @@ describe("refusals leave the stored Split unchanged", () => {
 
     await evictDurableObject(env.SplitServer.getByName(id));
     const late = await open(id);
-    expect(late.hello).toEqual({ type: "state", ref: null, split: accepted });
+    expect(late.hello).toEqual({ type: "state", ref: null, photo: false, split: accepted });
   });
 
   it("answers bad JSON and a bad envelope with malformed and keeps serving", async () => {

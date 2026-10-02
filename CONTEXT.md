@@ -44,7 +44,7 @@ A group of Items the receipt prints under one $0.00 header, such as a Beer Bucke
 _Avoid_: Bucket, combo, group, package
 
 **Receipt photo**:
-The downscaled copy of the Host's photo that the Split keeps, so everyone in it can view the receipt. It is deleted with the Split.
+The downscaled copy of the Host's photo that the Split keeps, so everyone in it can view the receipt. It is deleted 14 days after the Split is created, and the Split stays.
 _Avoid_: Image, scan, attachment
 
 **Total check**:
