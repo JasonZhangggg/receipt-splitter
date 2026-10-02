@@ -4,7 +4,7 @@ export const copy = {
   wordmark: "Receipt Splitter",
   example: "Example",
   hero: {
-    phone: { title: "Add receipt", hint: "Take or upload a photo" },
+    phone: { title: "Add receipt", hint: null },
     desktop: { title: "Drop a receipt", hint: "Choose a photo, or paste one" },
   },
   reading: "Reading receipt",
@@ -20,6 +20,9 @@ export const copy = {
   action: "Create split link",
   creating: "Creating link",
   replace: "Replace receipt",
+  total: "Total",
+  viewPhoto: "View receipt photo",
+  closePhoto: "Close photo",
   removeName: (name: string) => `Remove ${name}`,
   newName: "Name",
   removeApp: (app: string) => `Remove ${app}`,
@@ -89,6 +92,6 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, phone.title, phone.hint, desktop.title, desktop.hint, copy.formats, paymentApps.venmo.name],
+  400: [copy.example, phone.title, desktop.title, desktop.hint, copy.formats, paymentApps.venmo.name],
   500: [copy.wordmark, paymentApps.venmo.glyph, copy.addYourName, copy.action],
 };

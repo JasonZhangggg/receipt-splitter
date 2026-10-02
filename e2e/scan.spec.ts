@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { dropFile, dropZone, pasteFile, photo } from "./files";
+import { dropFile, dropZone, openExample, pasteFile, photo } from "./files";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -15,13 +15,31 @@ async function choose(page: Page, file: string) {
   await (await chooser).setFiles(file);
 }
 
-const items = (page: Page) => page.getByTestId("receipt").getByRole("listitem");
+const items = (page: Page) => page.getByRole("list", { name: "Items" }).getByRole("listitem");
 
 async function readItems(page: Page) {
   return items(page).evaluateAll((rows) =>
     rows.map((row) => [...row.querySelectorAll("input")].map((input) => input.value).join(" ")),
   );
 }
+
+const card = (page: Page) => page.getByTestId("receipt");
+
+/** The Items the draft holds, which is what Create split link sends, when home shows only the receipt card. */
+const draftItems = (page: Page) =>
+  page.evaluate(() =>
+    (JSON.parse(localStorage.getItem("receipt-splitter:draft")!).draft.scan.receipt.items as { name: string; price: number }[]).map(
+      ({ name, price }) => `${name} ${(price / 100).toFixed(2)}`,
+    ),
+  );
+
+const items1040 = [
+  "Chicken Fried Rice And Egg 7.99",
+  "California Tropic And Miso 7.99",
+  "Add Two Tostones 1.00",
+  "Sprite 2.50",
+  "Perrier Sparkling Water 3.50",
+];
 
 const amount = (page: Page, name: string) => page.getByRole("textbox", { name, exact: true });
 
@@ -90,27 +108,11 @@ test.describe("reading SRD receipt 1040", () => {
     await page.goto("/");
     await choose(page, receipt1040);
     await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
-    await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+    await expect(card(page)).toBeVisible(scanTimeout);
 
-    await expect(page.getByText("srd-1040.jpg")).toBeVisible();
-    await expect(page.getByText("5 items")).toBeVisible();
-    expect(await readItems(page)).toEqual([
-      "Chicken Fried Rice And Egg 7.99",
-      "California Tropic And Miso 7.99",
-      "Add Two Tostones 1.00",
-      "Sprite 2.50",
-      "Perrier Sparkling Water 3.50",
-    ]);
-    for (const [name, value] of [
-      ["Subtotal", "$22.98"],
-      ["Tax", "$1.61"],
-      ["Service fees on tables", "$3.45"],
-      ["Total", "$28.04"],
-    ]) {
-      await expect(amount(page, name)).toHaveValue(value);
-    }
-    await expect(amount(page, "Tip")).toHaveValue("");
-    await expect(amount(page, "Tip")).toHaveAttribute("placeholder", "$0.00");
+    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["srd-1040.jpg", "5 items", "$28.04"]);
+    await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
+    expect(await draftItems(page)).toEqual(items1040);
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
     await action(page).click();
     await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeFocused();
@@ -120,56 +122,6 @@ test.describe("reading SRD receipt 1040", () => {
     expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
     await addName(page, "Jason");
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
-  });
-});
-
-test.describe("fixing the Example receipt", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-    await page.getByRole("button", { name: "Example" }).click();
-    await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
-    await addName(page, "Jason");
-  });
-
-  test("a price edit that breaks the Total check highlights the row and notes the gap, unhighlighted, without blocking Create split link", async ({ page }) => {
-    const perrier = page.getByRole("textbox", { name: /^Price of Perrier Sparkling Water/ });
-    await perrier.click();
-    await page.keyboard.type("3.00");
-    const flagged = () => items(page).evaluateAll((rows) => rows.filter((row) => row.dataset.flagged === "true").map((row) => row.querySelector("input")!.value));
-    await expect.poll(flagged).toEqual(["Perrier Sparkling Water"]);
-    await expect(page.getByRole("textbox", { name: "Price of Perrier Sparkling Water, check this price" })).toBeVisible();
-    await expect.poll(() => blockedBy(page)).toEqual({ disabled: null, reason: "Items are $0.50 short of the subtotal." });
-    expect(await noteLook(page)).toEqual(["rgba(0, 0, 0, 0)", "rgb(105, 109, 116)"]);
-
-    await perrier.fill("3.50");
-    expect(await flagged()).toEqual([]);
-    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
-  });
-
-  test("a tip typed as 4.60 moves the Total to $32.64 and keeps the action enabled", async ({ page }) => {
-    await amount(page, "Tip").click();
-    await page.keyboard.type("4.60");
-    await amount(page, "Tip").blur();
-    await expect(amount(page, "Tip")).toHaveValue("$4.60");
-    await expect(amount(page, "Total")).toHaveValue("$32.64");
-    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
-  });
-
-  test("adding a missing Item and deleting a row each update the note in one step", async ({ page }) => {
-    await page.getByRole("button", { name: "Remove Sprite" }).click();
-    expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
-    await page.getByRole("button", { name: "Add item" }).click();
-    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Name every item." });
-    await page.getByRole("textbox", { name: "Name of item 5" }).fill("Sprite");
-    await page.getByRole("textbox", { name: "Price of Sprite" }).fill("2.50");
-    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
-    expect(await readItems(page)).toEqual([
-      "Chicken Fried Rice And Egg 7.99",
-      "California Tropic And Miso 7.99",
-      "Add Two Tostones 1.00",
-      "Perrier Sparkling Water 3.50",
-      "Sprite 2.50",
-    ]);
   });
 });
 
@@ -199,6 +151,73 @@ test("a failed read opens the empty editor with the file row, and two typed Item
   await expect(page.getByText("2 items")).toBeVisible();
 });
 
+test("a scan that fails the Total check shows the card, a quiet note, and still creates the link", async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await page.route("**/api/splits", (route) => route.continue({ headers: { ...route.request().headers(), "cf-connecting-ip": `198.53.${testInfo.workerIndex}.${testInfo.retry + 1}` } }));
+  await page.goto("/");
+  await choose(page, "e2e/fixtures/srd-1040-no-sprite.jpg");
+  await expect(card(page)).toBeVisible(scanTimeout);
+
+  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["srd-1040-no-sprite.jpg", "4 items", "$28.04"]);
+  await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
+  await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+  await addName(page, "Jason");
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
+  expect(await noteLook(page)).toEqual(["rgba(0, 0, 0, 0)", "rgb(105, 109, 116)"]);
+
+  await action(page).click();
+  await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
+});
+
+test.describe("the photo viewer", () => {
+  test.setTimeout(120_000);
+  const viewer = (page: Page) => page.getByRole("dialog");
+  const view = (page: Page) => page.getByRole("button", { name: "View receipt photo" }).click();
+
+  test("at 390 px the thumbnail opens the photo full screen, and its close button and Escape close it", async ({ page }) => {
+    await page.goto("/");
+    await choose(page, receipt1040);
+    await expect(card(page)).toBeVisible(scanTimeout);
+
+    await view(page);
+    await expect(viewer(page).getByRole("img", { name: "srd-1040.jpg" })).toBeVisible();
+    await expect(viewer(page).getByText("srd-1040.jpg")).toBeVisible();
+    await viewer(page).getByRole("button", { name: "Close photo" }).click();
+    await expect(viewer(page)).toHaveCount(0);
+
+    await view(page);
+    await expect(viewer(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(viewer(page)).toHaveCount(0);
+  });
+
+  test("at 1280 px a click on the scrim closes the photo, and the camera on the card replaces it", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 820 });
+    await page.goto("/");
+    await choose(page, receipt1040);
+    await expect(card(page)).toBeVisible(scanTimeout);
+
+    await view(page);
+    await expect(viewer(page).getByRole("img", { name: "srd-1040.jpg" })).toBeVisible();
+    await page.mouse.click(20, 400);
+    await expect(viewer(page)).toHaveCount(0);
+
+    const chooser = page.waitForEvent("filechooser");
+    await card(page).getByRole("button", { name: "Replace receipt" }).click();
+    await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
+    await expect(card(page)).toContainText("srd-1040-no-sprite.jpg", scanTimeout);
+    await view(page);
+    await expect(viewer(page).getByRole("img", { name: "srd-1040-no-sprite.jpg" })).toBeVisible();
+  });
+
+  test("the Example has no photo, so its card has nothing to open", async ({ page }) => {
+    await page.goto("/");
+    await openExample(page);
+    await expect(card(page)).toContainText("Example receipt");
+    await expect(page.getByRole("button", { name: "View receipt photo" })).toHaveCount(0);
+  });
+});
+
 test.describe("at 1280 px", () => {
   test.use({ viewport: { width: 1280, height: 820 }, isMobile: false, hasTouch: false });
   test.setTimeout(120_000);
@@ -220,9 +239,8 @@ test.describe("at 1280 px", () => {
     await page.reload();
     await expect(dropZone(page)).toBeVisible();
     await dropFile(page, photo(receipt1040));
-    await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
-    expect(await readItems(page)).toHaveLength(5);
-    await expect(page.getByText("srd-1040.jpg")).toBeVisible();
+    await expect(card(page)).toContainText("5 items", scanTimeout);
+    await expect(card(page)).toContainText("srd-1040.jpg");
 
     await dropFile(page, photo("e2e/fixtures/blank.png", "image/png"));
     await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
@@ -298,35 +316,30 @@ test("a reload keeps the draft, and once the model is cached a reload and a new 
   test.setTimeout(180_000);
   await page.goto("/");
   await choose(page, receipt1040);
-  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
-  await amount(page, "Tip").fill("4.60");
+  await expect(card(page)).toBeVisible(scanTimeout);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
-  await page.getByRole("textbox", { name: /^Price of Sprite/ }).fill("3.00");
   await expect
     .poll(() => page.evaluate(async () => (await caches.match("/")) !== undefined && navigator.serviceWorker.controller !== null), { timeout: 30_000 })
     .toBe(true);
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByTestId("receipt")).toBeVisible();
+  await expect(card(page)).toContainText("$28.04");
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
-  await expect(amount(page, "Tip")).toHaveValue("$4.60");
-  await expect(page.getByRole("textbox", { name: /^Price of Sprite/ })).toHaveValue("3.00");
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
   expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
 
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Replace receipt" }).click();
-  await (await chooser).setFiles(receipt1040);
-  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
-  await expect(amount(page, "Total")).toHaveValue("$28.04", scanTimeout);
-  expect(await readItems(page)).toHaveLength(5);
+  await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
+  await expect(card(page)).toContainText("srd-1040-no-sprite.jpg", scanTimeout);
+  await expect(card(page)).toContainText("4 items");
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
 });
 
 test("the payment apps and names follow the Host's choices and survive a reload", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Example" }).click();
+  await openExample(page);
   await page.getByRole("combobox", { name: "Payment app" }).selectOption("cashApp");
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveAttribute("placeholder", "$cashtag");
   await page.getByRole("button", { name: "Add another payment app" }).click();
@@ -371,7 +384,7 @@ test.describe("the sheet", () => {
 
   test("a drag down on the grab handle collapses it to the action, follows the finger, and a flick up opens it again", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Example" }).click();
+    await openExample(page);
     const open = { sheet: await sheetTop(page), action: await actionTop(page) };
     const handle = page.getByRole("textbox", { name: "Venmo handle" });
 
@@ -447,13 +460,6 @@ test("an EXIF-rotated phone photo reads upright", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("/");
   await choose(page, "e2e/fixtures/srd-1040-exif-rotated.jpg");
-  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
-  expect(await readItems(page)).toEqual([
-    "Chicken Fried Rice And Egg 7.99",
-    "California Tropic And Miso 7.99",
-    "Add Two Tostones 1.00",
-    "Sprite 2.50",
-    "Perrier Sparkling Water 3.50",
-  ]);
-  await expect(amount(page, "Total")).toHaveValue("$28.04");
+  await expect(card(page)).toContainText("$28.04", scanTimeout);
+  expect(await draftItems(page)).toEqual(items1040);
 });

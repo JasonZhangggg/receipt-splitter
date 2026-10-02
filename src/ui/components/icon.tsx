@@ -14,6 +14,7 @@ const paths = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   minus: '<path d="M5 12h14"/>',
   history: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5v3.7h3.7"/><path d="M12 8.5V12l2.5 1.8"/>',
+  expand: '<path d="M14 5h5v5M10 19H5v-5M19 5l-6 6M5 19l6-6"/>',
   clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>',
 };
 

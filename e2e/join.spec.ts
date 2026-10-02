@@ -1,3 +1,4 @@
+import { openExample } from "./files";
 import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -15,7 +16,7 @@ const linkTimeout = { timeout: 30_000 };
 
 async function readyHome(page: Page, names: string[] = []) {
   await page.goto("/");
-  await page.getByRole("button", { name: "Example" }).click();
+  await openExample(page);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   for (const [index, name] of ["Jason", ...names].entries()) {
     await page.getByRole("button", { name: index === 0 ? "Your name" : "Add a name" }).click();

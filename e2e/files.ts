@@ -31,3 +31,11 @@ export async function pasteFile(page: Page, file: FilePayload) {
   const clipboardData = await transfer(page, file);
   await page.evaluate((data) => document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true })), clipboardData);
 }
+
+/** The Example link shows only from 768 px, so a phone-width spec widens the page for the tap. */
+export async function openExample(page: Page) {
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: 768, height: size.height });
+  await page.getByRole("button", { name: "Example" }).click();
+  await page.setViewportSize(size);
+}

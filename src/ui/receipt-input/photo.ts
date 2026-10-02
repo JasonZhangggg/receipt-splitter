@@ -5,3 +5,7 @@ export const pickPhoto = (_onFile: (file: File) => void): void => {};
 export const usePhotoDrop = (_onFile: (file: File) => void, _accepting: boolean): boolean => false;
 
 export const thumbnailOf = async (_file: Blob): Promise<string | null> => null;
+
+export const photoUri = (_file: File): string | null => null;
+
+export const releasePhotoUri = (_uri: string): void => {};

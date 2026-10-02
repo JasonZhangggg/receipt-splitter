@@ -9,7 +9,7 @@ export function useColors(): Colors {
 
 export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24, xxl: 32, xxxl: 48, huge: 64 } as const;
 
-export const breakpoints = { panelFrom: 900 } as const;
+export const breakpoints = { exampleFrom: 768, columnFrom: 900 } as const;
 
 export const layout = {
   gutter: 22,
@@ -60,6 +60,8 @@ export const motion = {
   readingStagger: 150,
   readingBar: 240,
   receiptIn: 240,
+  photoIn: 240,
+  photoOut: 180,
   dragOver: 150,
   spinnerTurn: 800,
 } as const;

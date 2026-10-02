@@ -49,8 +49,8 @@ export type DraftReceipt = {
 type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
-  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: DraftReceipt }
-  | { readonly status: "linked"; readonly file: ReceiptFile; readonly receipt: DraftReceipt; readonly splitId: SplitId };
+  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: DraftReceipt; readonly editor?: true }
+  | { readonly status: "linked"; readonly file: ReceiptFile; readonly receipt: DraftReceipt; readonly editor?: true; readonly splitId: SplitId };
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
 
@@ -109,16 +109,19 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
   switch (action.type) {
     case "reading":
       return { ...draft, names, scan: { status: "reading", file: action.file } };
-    case "read":
-      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt ? fromReceipt(action.receipt) : typedReceipt } };
+    case "read": {
+      const receipt = action.receipt ? fromReceipt(action.receipt) : typedReceipt;
+      const editor = itemProblem(receipt) ? { editor: true as const } : {};
+      return { ...draft, scan: { status: "read", file: action.file, receipt, ...editor } };
+    }
     case "example":
       return { ...draft, names, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: fromReceipt(example1040) } };
     case "linked":
       return draft.scan.status === "read" ? { ...draft, scan: { ...draft.scan, status: "linked", splitId: action.splitId } } : draft;
     case "unlinked": {
       if (draft.scan.status !== "linked") return draft;
-      const { file, receipt } = draft.scan;
-      return { ...draft, scan: { status: "read", file, receipt } };
+      const { splitId: _, ...read } = draft.scan;
+      return { ...draft, scan: { ...read, status: "read" } };
     }
     case "setService":
       return { ...draft, handles: draft.handles.map((row, i) => (i === action.index ? { ...row, service: action.service } : row)) };
@@ -317,12 +320,21 @@ export type Blocker = { readonly kind: "note"; readonly note: string } | { reado
 
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
+function itemProblem(receipt: DraftReceipt): Blocker | null {
+  if (hasAmountOverLimit(receipt)) return note(`An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`);
+  if (!receiptOf(receipt)) return note("Add an item.");
+  if (receipt.items.some((item) => !item.name.trim())) return note("Name every item.");
+  return null;
+}
+
+/** Whether home shows the Item editor: only when the read left something the Split would refuse, so the Host types it here. Otherwise Items are fixed on the Split page. */
+export const editsOnHome = ({ scan }: Draft): boolean => (scan.status === "read" || scan.status === "linked") && scan.editor === true;
+
 export function blocker({ scan, handles, names }: Draft): Blocker | null {
   if (scan.status === "empty") return note("Add a receipt.");
   if (scan.status === "reading") return note("Reading the receipt.");
-  if (hasAmountOverLimit(scan.receipt)) return note(`An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`);
-  if (!receiptOf(scan.receipt)) return note("Add an item.");
-  if (scan.receipt.items.some((item) => !item.name.trim())) return note("Name every item.");
+  const problem = itemProblem(scan.receipt);
+  if (problem) return problem;
   if (!handles.some((row) => row.handle.trim())) return { kind: "noHandle" };
   if (names.length === 0) return note("Add your name.");
   return null;
@@ -399,7 +411,7 @@ function parseScan(scan: unknown): Scan | null {
   if (!valid) return null;
   const bundled = (adjustments as DraftAdjustment[]).flatMap((row) => (row.kind === "bundleDiscount" ? row.bundle.items : []));
   if (new Set(bundled).size !== bundled.length) return null;
-  const read = { status: "read" as const, file: scan.file, receipt: scan.receipt as DraftReceipt };
+  const read = { status: "read" as const, file: scan.file, receipt: scan.receipt as DraftReceipt, ...(scan.editor === true && { editor: true as const }) };
   return linked ? { ...read, status: "linked", splitId: scan.splitId as SplitId } : read;
 }
 
