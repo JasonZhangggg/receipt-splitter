@@ -614,7 +614,7 @@ describe("Bundles", () => {
 
 describe("the Split link", () => {
   test("the create body carries the Receipt with its tip as an Adjustment, the Host first as the first name typed, and every handle the Host filled in", () => {
-    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
+    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "setHandle", index: 1, handle: "$jasonz" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
 
     expect(requestOf(draft, counter())).toEqual({
       receipt: {
@@ -638,7 +638,10 @@ describe("the Split link", () => {
         { id: "p1", name: "Sam" },
         { id: "p2", name: "Priya" },
       ],
-      paymentHandles: [{ service: "venmo", handle: "@jason-z" }],
+      paymentHandles: [
+        { service: "venmo", handle: "@jason-z" },
+        { service: "cashApp", handle: "$jasonz" },
+      ],
     });
   });
 

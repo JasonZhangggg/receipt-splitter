@@ -195,6 +195,32 @@ test.describe("with the iPhone keyboard up", () => {
   });
 });
 
+test.describe("with the iPhone keyboard up and twelve names", () => {
+  for (const height of [phone.height, 667]) {
+    test(`the whole panel, grab included, stays inside the visible area at ${height} px tall`, async ({ page }) => {
+      await page.setViewportSize({ width: phone.width, height });
+      await page.goto("/");
+      await settle(page);
+      await simulateKeyboard(page);
+
+      const people = page.getByRole("group", { name: "People at the table" });
+      await people.getByRole("button", { name: "Your name" }).tap();
+      for (let i = 1; i <= 12; i++) {
+        await page.keyboard.type(`Guest ${i}`);
+        await page.keyboard.press("Enter");
+      }
+      await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(12);
+      const field = page.getByRole("textbox", { name: "Name", exact: true });
+      await expect(field).toBeFocused();
+      await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(height - iphoneKeyboard);
+
+      await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
+      await expect.poll(() => aboveKeyboard(field)).toBe(true);
+      await expect.poll(() => aboveKeyboard(action(page))).toBe(true);
+    });
+  }
+});
+
 test.describe("the phone panel", () => {
   const panelTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
   const actionTop = async (page: Page) => (await action(page).boundingBox())!.y;

@@ -18,10 +18,13 @@ const grabMarker = { dataSet: { sheetGrab: "" } };
 
 type Viewport = { height: number; keyboard: number };
 
-// react-native-web's window height follows visualViewport, which the iOS keyboard shrinks; innerHeight stays put.
+// The iOS keyboard shrinks visualViewport and leaves innerHeight put.
 function readViewport(): Viewport {
   const visible = window.visualViewport;
-  return { height: window.innerHeight, keyboard: visible ? Math.max(0, Math.round(window.innerHeight - visible.height - visible.offsetTop)) : 0 };
+  return {
+    height: visible ? Math.round(visible.height) : window.innerHeight,
+    keyboard: visible ? Math.max(0, Math.round(window.innerHeight - visible.height - visible.offsetTop)) : 0,
+  };
 }
 
 function useViewport(): Viewport {
@@ -56,6 +59,7 @@ export function Sheet({ children, action, onHeight }: Props) {
   const [height, setHeight] = useState(0);
   const [overflows, setOverflows] = useState(false);
   const panel = useRef<View>(null);
+  const scroller = useRef<ScrollView>(null);
   const drag = useRef<Drag | null>(null);
   const stop = useRef<() => void>(() => {});
   useEffect(() => () => stop.current(), []);
@@ -93,6 +97,13 @@ export function Sheet({ children, action, onHeight }: Props) {
     stop.current = animateSpring(position.current, 0, releaseVelocity(current.samples, event.timeStamp), paint, () => paint(0));
   };
 
+  const onContentSizeChange = (_: number, contentHeight: number) => {
+    setOverflows(contentHeight > maxContent);
+    const content = scroller.current as unknown as HTMLElement | null;
+    const focused = document.activeElement;
+    if (focused && content?.contains(focused)) focused.scrollIntoView({ block: "nearest" });
+  };
+
   const measure = ({ nativeEvent }: LayoutChangeEvent) => setHeight(nativeEvent.layout.height);
 
   return (
@@ -114,9 +125,10 @@ export function Sheet({ children, action, onHeight }: Props) {
           <View style={[styles.grab, { backgroundColor: c.hairline }]} />
         </View>
         <ScrollView
+          ref={scroller}
           style={[{ maxHeight: maxContent }, contain, overflows ? scrolls : pinned]}
           contentContainerStyle={styles.content}
-          onContentSizeChange={(_, contentHeight) => setOverflows(contentHeight > maxContent)}
+          onContentSizeChange={onContentSizeChange}
         >
           {children}
         </ScrollView>
