@@ -28,15 +28,6 @@ export const copy = {
   removeApp: (app: string) => `Remove ${app}`,
 };
 
-export const linkCopy = {
-  ready: "Link ready",
-  share: "Share",
-  copy: "Copy",
-  copied: "Copied",
-  copyFailed: "Couldn't copy the link.",
-  handleLocked: "Only the device that made this link can change how to pay you.",
-};
-
 export const createCopy = {
   busy: "Too many links from here. Try again in a minute.",
   daily: (opensAt: string, tomorrow: boolean) => `Too many new splits today. Try again ${tomorrow ? "tomorrow " : ""}after ${opensAt}.`,
@@ -75,6 +66,7 @@ export const editorCopy = {
   priceOf: (name: string, flagged: boolean) => `Price of ${name}${flagged ? ", check this price" : ""}`,
   remove: (name: string) => `Remove ${name}`,
   addItem: "Add item",
+  check: "Check",
   subtotal: "Subtotal",
   tip: "Tip",
   total: "Total",

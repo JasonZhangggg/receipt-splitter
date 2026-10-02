@@ -13,7 +13,8 @@ import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
 import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow, type UnitRow } from "./model";
-import { sheetSpring } from "./spring-sheet";
+
+const sheetSpring = { response: 0.35, damping: 1 };
 
 type Props = {
   split: Split;
@@ -26,7 +27,9 @@ type Props = {
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
-const dotSize = 18;
+const dotSize = 16;
+// One step under type.body on the same leading ratio, so the receipt reads denser without going under 14 px.
+const itemType = { ...type.body, fontSize: 14, lineHeight: 20.5 };
 const tapSize = 44;
 const tapBleed = 13;
 const circleColumn = tapSize - tapBleed;
@@ -48,7 +51,6 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   const order = split.participants.map(({ id }) => id);
   const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
   const people = (item: SplitItem) => claimersOfItem(item).map(person);
-  const flagged = ({ item, unit }: UnitRow) => started && claimersOf(item.split, unit).length === 0;
   const toggle = (id: AdjustmentId) =>
     setOpened((was) => {
       const next = new Set(was);
@@ -62,7 +64,6 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
       order={order}
       claimers={claimersOf(row.item.split, row.unit).map(person)}
       selected={selected}
-      flagged={flagged(row)}
       divided={divided}
       inBundle={inBundle}
       onCircle={() => onCircle(row.item, row.unit)}
@@ -71,7 +72,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   );
 
   return (
-    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper, filter: c.lift }]}>
+    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper, boxShadow: c.cardLift }]}>
       {selected ? (
         <Text style={[type.caption, styles.hint, { color: c.muted }]}>{selected.id === me ? say.checkYours : say.checkTheirs(selected.name)}</Text>
       ) : null}
@@ -81,9 +82,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
       </View>
       <View role="list" aria-label={say.item}>
         {rows.map((row, index) => {
-          const previous = rows[index - 1];
-          const divided = index > 0 && !(row.kind === "unit" && flagged(row)) && !(previous?.kind === "unit" && flagged(previous));
-          if (row.kind === "unit") return line(row, divided, false);
+          if (row.kind === "unit") return line(row, index > 0, false);
           const { bundle } = row;
           return (
             <BundleGroup
@@ -96,7 +95,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
               divided={index > 0}
               onToggle={() => toggle(bundle.id)}
             >
-              {bundle.units.map((unit, at) => line(unit, !flagged(unit) && !(at > 0 && flagged(bundle.units[at - 1])), true))}
+              {bundle.units.map((unit, at) => line(unit, at > 0, true))}
               <View style={[styles.discount, { borderTopColor: c.hairline }]}>
                 <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
                   {bundle.discount.label}
@@ -127,7 +126,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
       {started ? (
         <View style={styles.unclaimed}>
           <Text style={[type.secondary, { color: c.muted }]}>{say.unclaimed}</Text>
-          <Text testID="unclaimed" style={[type.secondary, tabular, styles.strong, styles.mark, { backgroundColor: c.flagWash, color: c.flag }]}>
+          <Text testID="unclaimed" style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>
             {dollars(shares.unclaimed.total)}
           </Text>
         </View>
@@ -172,7 +171,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
             </View>
             <View style={styles.headerLead}>
               <View style={styles.name}>
-                <Text numberOfLines={1} style={[type.body, styles.strong, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[itemType, styles.strong, { color: c.ink }]}>
                   {bundle.name}
                 </Text>
                 <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
@@ -183,14 +182,12 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                     {claimers.map((person) => (
                       <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
                     ))}
-                    {unclaimed > 0 ? (
-                      <Text style={[type.caption, tabular, styles.strong, styles.mark, { backgroundColor: c.flagWash, color: c.flag }]}>{say.unclaimedUnits(unclaimed)}</Text>
-                    ) : null}
+                    {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
                   </View>
                 ) : null}
               </View>
             </View>
-            <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
+            <Text style={[itemType, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
           </>
         )}
       </PressTarget>
@@ -269,14 +266,13 @@ type LineProps = {
   order: readonly ParticipantId[];
   claimers: readonly Participant[];
   selected: Participant | null;
-  flagged: boolean;
   divided: boolean;
   inBundle: boolean;
   onCircle: () => void;
   onOpen: () => void;
 };
 
-function Line({ row: { item, unit, price: cost }, order, claimers, selected, flagged, divided, inBundle, onCircle, onOpen }: LineProps) {
+function Line({ row: { item, unit, price: cost }, order, claimers, selected, divided, inBundle, onCircle, onOpen }: LineProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const tag = lineTag(item, unit, order);
@@ -285,7 +281,6 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
   const price = plainAmount(cost);
   const [title, detail] = nameParts(item.name);
   const who = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
-  const ink = flagged ? c.flag : c.ink;
   return (
     <View
       role="listitem"
@@ -293,8 +288,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
       style={[
         styles.line,
         divided && [styles.divided, { borderTopColor: c.hairline }],
-        flagged && [styles.flagged, { backgroundColor: c.flagWash }],
-        inBundle && { marginLeft: flagged ? nameStart - bleed : nameStart },
+        inBundle && { marginLeft: nameStart },
       ]}
     >
       <PressTarget
@@ -306,7 +300,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
         {() => (
           <View style={styles.dots}>
             {ordered.length === 0 ? (
-              <View style={[styles.empty, { boxShadow: `inset 0 0 0 1.5px ${flagged ? c.flag : c.muted}`, opacity: flagged ? 0.55 : 0.6 }]} />
+              <View style={[styles.empty, { boxShadow: `inset 0 0 0 1.5px ${c.muted}`, opacity: 0.6 }]} />
             ) : (
               ordered.map((person, index) => (
                 <View key={person.id} style={index > 0 && styles.overlap}>
@@ -321,17 +315,17 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
         {() => (
           <View style={styles.bodyRow}>
             <View style={styles.name}>
-              <Text numberOfLines={2} style={[type.body, { color: ink }]}>
+              <Text numberOfLines={2} style={[itemType, { color: c.ink }]}>
                 {title}
-                {tag ? <Text style={[type.caption, { color: flagged ? c.flag : c.muted }]}>{`  ${tag}`}</Text> : null}
+                {tag ? <Text style={[type.caption, { color: c.muted }]}>{`  ${tag}`}</Text> : null}
               </Text>
               {detail ? (
-                <Text numberOfLines={1} style={[type.caption, { color: flagged ? c.flag : c.muted }]}>
+                <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
                   {detail}
                 </Text>
               ) : null}
             </View>
-            <Text style={[type.body, tabular, { color: ink }]}>{price}</Text>
+            <Text style={[itemType, tabular, { color: c.ink }]}>{price}</Text>
           </View>
         )}
       </PressTarget>
@@ -359,10 +353,9 @@ const styles = StyleSheet.create({
   columns: { flexDirection: "row", alignItems: "center", gap: priceGap, paddingLeft: nameStart, minHeight: 24 },
   line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: columnGap },
   divided: { borderTopWidth: 1 },
-  flagged: { marginVertical: 4, marginHorizontal: -bleed, paddingHorizontal: bleed, borderRadius: 14 },
   circle: { minWidth: tapSize, height: tapSize, marginLeft: -tapBleed, paddingLeft: tapBleed, justifyContent: "center" },
   dots: { flexDirection: "row", alignItems: "center" },
-  overlap: { marginLeft: -7 },
+  overlap: { marginLeft: -6 },
   empty: { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
   body: { flex: 1, minWidth: 0, minHeight: layout.row, paddingVertical: 8, justifyContent: "center" },
   bodyRow: { flexDirection: "row", alignItems: "center", gap: priceGap },
@@ -375,7 +368,6 @@ const styles = StyleSheet.create({
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
   why: { marginTop: 8, marginBottom: 2 },
-  mark: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.adjustmentRow, gap: 12 },
   rowLabel: { flexShrink: 1 },

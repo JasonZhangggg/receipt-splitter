@@ -8,7 +8,7 @@ import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitIte
 import { parseAmount, plainAmount } from "../../draft";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
@@ -48,7 +48,7 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
   const [leaving, setLeaving] = useState<SplitItem | null>(null);
   useEffect(() => {
     if (!leaving) return;
-    const timer = setTimeout(() => setLeaving(null), rowsFade);
+    const timer = setTimeout(() => setLeaving(null), rowsFadeOut);
     return () => clearTimeout(timer);
   }, [leaving]);
 
@@ -199,8 +199,8 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
         ) : null}
       </View>
       <SumLine item={item} unit={unit} price={unitPrice} />
-      {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{say.overPrice}</Text> : null}
-      {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
+      {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{say.overPrice}</Text> : null}
+      {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
       <PressTarget name={say.deleteItem} outsideScroll onPress={remove} style={(pressed) => pressStyle(pressed, reduce)}>
         {() => (
           <View style={[styles.delete, { backgroundColor: c.sheetIn }]}>
@@ -328,16 +328,17 @@ function Stepper({ value, min, max, onChange, names }: StepperProps) {
 }
 
 const slide = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
-const rowsFade = 150;
-const rowsEnter = webStyle({
+const rowsFadeIn = 150;
+const rowsFadeOut = 120;
+const rowsEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
-  animationDuration: `${rowsFade}ms`,
-  animationTimingFunction: "ease",
+  animationDuration: `${rowsFadeIn}ms`,
+  animationTimingFunction: motion.easeOut,
 });
-const rowsLeave = webStyle({
+const rowsLeave = webAnimation({
   animationKeyframes: [{ from: { opacity: 1 }, to: { opacity: 0 } }],
-  animationDuration: `${rowsFade}ms`,
-  animationTimingFunction: "ease",
+  animationDuration: `${rowsFadeOut}ms`,
+  animationTimingFunction: motion.easeOut,
   animationFillMode: "forwards",
 });
 

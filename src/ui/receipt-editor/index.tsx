@@ -4,8 +4,9 @@ import { price } from "../../core/money";
 import { totalOf, type DraftAction, type DraftReceipt } from "../../draft";
 import { Button } from "../components/button";
 import { Icon } from "../components/icon";
+import { Tag } from "../components/tag";
 import { editorCopy } from "../home-copy";
-import { useReducedMotion, webStyle } from "../motion";
+import { useReducedMotion, webAnimation } from "../motion";
 import { layout, motion, type, useColors } from "../theme";
 import { AmountInput } from "./amount-input";
 
@@ -14,16 +15,16 @@ type Props = { receipt: DraftReceipt; flagged: readonly string[]; dispatch: (act
 const tabular = { fontVariant: ["tabular-nums" as const] };
 
 const enter = (from: Record<string, string | number>, duration: number) =>
-  webStyle({
+  webAnimation({
     animationKeyframes: [{ from, to: { opacity: 1, transform: "none" } }],
     animationDuration: `${duration}ms`,
     animationTimingFunction: motion.easeOut,
   });
 
-const entrance = StyleSheet.create({
+const entrance = {
   risen: enter({ opacity: 0, transform: "translateY(8px)" }, motion.receiptIn),
   faded: enter({ opacity: 0 }, motion.reducedFade),
-});
+};
 
 export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Props) {
   const c = useColors();
@@ -42,7 +43,7 @@ export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Pr
               role="listitem"
               testID={`item-${item.id}`}
               {...{ dataSet: { flagged: flag ? "true" : "false" } }}
-              style={[styles.item, index > 0 && !flag && !flagged.includes(receipt.items[index - 1].id) && [styles.divided, { borderTopColor: c.hairline }], flag && [styles.flagged, { backgroundColor: c.flagWash }]]}
+              style={[styles.item, index > 0 && !flag && !flagged.includes(receipt.items[index - 1].id) && [styles.divided, { borderTopColor: c.hairline }]]}
             >
               <View style={styles.itemLine}>
                 <TextInput
@@ -50,10 +51,10 @@ export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Pr
                   value={item.name}
                   editable={!locked}
                   placeholder={editorCopy.namePlaceholder}
-                  placeholderTextColor={flag ? c.flag : c.muted}
+                  placeholderTextColor={c.muted}
                   enterKeyHint="next"
                   onChangeText={(name) => dispatch({ type: "editItem", id: item.id, name })}
-                  style={[type.input, styles.name, { color: flag ? c.flag : c.ink }]}
+                  style={[type.input, styles.name, { color: c.ink }]}
                 />
                 <AmountInput
                   amount={item.price}
@@ -65,12 +66,12 @@ export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Pr
                     tabular,
                     styles.price,
                     { color: c.ink },
-                    flag && [styles.flaggedPrice, { backgroundColor: c.inset, boxShadow: `inset 0 0 0 1.5px ${c.flag}` }],
+                    flag && [styles.flaggedPrice, { backgroundColor: c.inset, boxShadow: `inset 0 0 0 1.5px ${c.ink}` }],
                   ]}
                 />
                 {locked ? null : <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={() => dispatch({ type: "removeItem", id: item.id })} />}
               </View>
-              {note ? <Text style={[type.caption, styles.note, { color: flag ? c.flag : c.muted }]}>{note}</Text> : null}
+              {note ? <Text style={[type.caption, styles.note, { color: c.muted }]}>{note}</Text> : null}
             </View>
           );
         })}
@@ -133,10 +134,11 @@ type LineProps = { label: string; locked: boolean; flagged?: boolean; onRemove?:
 function Line({ label, locked, flagged = false, onRemove, end, children }: LineProps) {
   const c = useColors();
   return (
-    <View style={[styles.line, flagged && [styles.flaggedLine, { backgroundColor: c.flagWash }]]}>
-      <Text numberOfLines={1} style={[type.secondary, styles.lineLabel, { color: flagged ? c.flag : c.muted }]}>
+    <View style={styles.line}>
+      <Text numberOfLines={1} style={[type.secondary, styles.lineLabel, { color: c.muted }]}>
         {label}
       </Text>
+      {flagged ? <Tag text={editorCopy.check} /> : null}
       {children}
       {locked ? null : onRemove ? <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={onRemove} /> : <View style={styles.noRemove}>{end}</View>}
     </View>
@@ -148,7 +150,6 @@ const styles = StyleSheet.create({
   lockedCard: { paddingRight: 10 },
   item: { minHeight: layout.row, justifyContent: "center" },
   divided: { borderTopWidth: 1 },
-  flagged: { marginVertical: 4, marginLeft: -10, paddingLeft: 10, borderRadius: 12 },
   itemLine: { flexDirection: "row", alignItems: "center", gap: 4 },
   name: { flex: 1, minWidth: 0, minHeight: 44, paddingVertical: 10 },
   price: { width: 64, minHeight: 44, paddingVertical: 10, paddingHorizontal: 8, textAlign: "right", borderRadius: 8 },
@@ -157,7 +158,6 @@ const styles = StyleSheet.create({
   addItem: { flexDirection: "row", paddingVertical: 2 },
   lines: { marginTop: 4, paddingTop: 6, borderTopWidth: 1 },
   line: { flexDirection: "row", alignItems: "center", minHeight: 46, gap: 6 },
-  flaggedLine: { marginLeft: -10, paddingLeft: 10, borderRadius: 12 },
   lineLabel: { flex: 1, minWidth: 0 },
   amount: { width: 96, minHeight: 40, paddingRight: 8, textAlign: "right", fontWeight: "500" },
   noRemove: { width: 44, alignItems: "center" },

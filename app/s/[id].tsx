@@ -21,11 +21,11 @@ import { LinkLine } from "../../src/ui/split-view/link-line";
 import { OweLine } from "../../src/ui/split-view/owe-line";
 import { circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
-import { PickRows, PickSheet } from "../../src/ui/split-view/pick-sheet";
+import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
-import { SpringSheet } from "../../src/ui/split-view/spring-sheet";
-import { useReducedMotion, webStyle } from "../../src/ui/motion";
-import { layout, motion, type, useColors } from "../../src/ui/theme";
+import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
+import { webStyle } from "../../src/ui/motion";
+import { layout, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -73,7 +73,7 @@ type Send = ReturnType<typeof useLiveSplit>["send"];
 
 const checkFor = 80;
 const tallPickTop = 170;
-const settleFor = 420;
+const crossFadeFor = 200;
 
 function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; send: Send }) {
   const c = useColors();
@@ -96,8 +96,6 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [closing, setClosing] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(0);
-  const [chipsHeight, setChipsHeight] = useState(44);
-  const reduce = useReducedMotion();
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -124,7 +122,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
       setTimeout(() => {
         setPhase("regular");
         setChosen(null);
-      }, checkFor + settleFor),
+      }, checkFor + crossFadeFor),
     );
   };
 
@@ -147,11 +145,13 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
     for (const op of circleTap(item, unit, selectedPerson.id)) await act({ ...op, by: me });
   };
 
+  const collapse = () => {
+    setExpanded(false);
+    setSelected(me);
+  };
+
   const onChip = (participantId: ParticipantId) => {
-    if (participantId === selected && expanded) {
-      setExpanded(false);
-      return setSelected(me);
-    }
+    if (participantId === selected && expanded) return collapse();
     setSelected(participantId);
     setExpanded(true);
   };
@@ -178,7 +178,6 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
   const regular = (
     <View style={styles.regular}>
-      <View onLayout={({ nativeEvent }) => setChipsHeight(nativeEvent.layout.height)}>
       <PeopleChips
         people={people}
         picked={picked}
@@ -188,8 +187,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
         onAdd={(typed) => void addPerson(typed)}
       />
-      </View>
-      <View style={[styles.regular, phase === "collapsing" ? styles.waiting : phase === "regular" && !reduce ? bodyEnter : null]}>
+      <View style={styles.regular}>
       {!me ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
@@ -201,7 +199,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           {expanded && selectedPerson ? (
             <View>
               <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} />
-              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{payProblem}</Text> : null}
+              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
             </View>
           ) : unshared ? null : (
             <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
@@ -232,35 +230,30 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           </View>
         </View>
       </ScrollView>
-      <SpringSheet
-        scrim={phase !== "regular"}
+      <BottomSheet
+        scrim={phase === "pick"}
         label={phase === "pick" ? say.question : say.people}
         minHeight={phase === "pick" ? windowHeight - tallPickTop : 0}
         rises={false}
         lowered={overlay !== null && !closing}
         onHeight={setSheetHeight}
-        onClose={phase === "pick" ? () => setPhase("regular") : undefined}
+        onDown={phase === "pick" ? () => setPhase("regular") : expanded ? collapse : undefined}
+        onUp={phase === "regular" && me && !expanded ? () => setExpanded(true) : undefined}
         stays
-        extra={
-          phase === "collapsing" ? (
-            <View pointerEvents="none" style={[styles.leaving, { top: chipsHeight + 14 }]}>
-              <PickRows rows={pickRows(split, device)} chosen={chosen} leaving onPick={() => {}} />
-            </View>
-          ) : null
-        }
+        view={phase === "pick" ? "pick" : expanded ? `breakdown-${selectedPerson?.id}` : "bar"}
         testID="split-sheet"
       >
         {phase === "pick" ? (
           <>
-            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} leaving={false} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
-            {pickProblem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{pickProblem}</Text> : null}
+            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
+            {pickProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
           </>
         ) : (
           regular
         )}
-      </SpringSheet>
+      </BottomSheet>
       {overlay ? (
-        <SpringSheet scrim label={overlay.kind === "item" ? say.item : say.history} onClose={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
+        <BottomSheet scrim label={overlay.kind === "item" ? say.item : say.history} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlay.kind === "item" ? (
             <ItemSheet
               split={split}
@@ -276,7 +269,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           ) : (
             <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
           )}
-        </SpringSheet>
+        </BottomSheet>
       ) : null}
     </View>
   );
@@ -294,12 +287,6 @@ function intro(split: Split, creating: boolean) {
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
 
-const bodyEnter = webStyle({
-  animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
-  animationDuration: "180ms",
-  animationTimingFunction: motion.easeOut,
-});
-
 const styles = StyleSheet.create({
   screen: { flex: 1, overflow: "hidden", ...webStyle({ overflow: "clip" }) },
   page: { flex: 1 },
@@ -309,8 +296,6 @@ const styles = StyleSheet.create({
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   regular: { gap: layout.blockGap },
-  waiting: { opacity: 0 },
-  leaving: { position: "absolute", left: 0, right: 0 },
   prompt: { marginHorizontal: 2 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

@@ -4,6 +4,40 @@ export function project(velocity: number): number {
   return ((velocity / 1000) * decelerationRate) / (1 - decelerationRate);
 }
 
+const pullAt = 40;
+const closeAt = 0.5;
+
+export type Release = "down" | "up" | "stay";
+
+/** Where a released sheet goes, from how far below its rest it is (px), its speed (px/s, down is positive) and its visible height. */
+export function releaseIntent(travel: number, velocity: number, visible: number): Release {
+  const projected = travel + project(velocity);
+  if (projected > visible * closeAt) return "down";
+  if (travel <= 0 && projected < -pullAt) return "up";
+  return "stay";
+}
+
+const recentMs = 100;
+const heldMs = 80;
+const fastest = 3000;
+
+export function releaseVelocity(samples: readonly { y: number; t: number }[], at: number): number {
+  const recent = samples.filter(({ t }) => at - t <= recentMs);
+  const first = recent[0];
+  const last = recent.at(-1);
+  if (!first || !last || at - last.t > heldMs || last.t <= first.t) return 0;
+  return Math.max(-fastest, Math.min(fastest, ((last.y - first.y) / (last.t - first.t)) * 1000));
+}
+
+export const glide = { ms: 300, shortest: 150, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
+const startSlope = 0.72 / 0.32;
+
+/** A glide of `distance` px whose first frames match a finger moving `velocity` px/s toward the target. */
+export function glideFor(distance: number, velocity: number): number {
+  if (velocity <= 0) return glide.ms;
+  return Math.round(Math.min(glide.ms, Math.max(glide.shortest, ((startSlope * Math.abs(distance)) / velocity) * 1000)));
+}
+
 export function rubberband(overshoot: number, dimension: number, constant = 0.55): number {
   return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
 }

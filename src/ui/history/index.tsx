@@ -56,7 +56,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           )}
         </PressTarget>
       </View>
-      {problem ? <Text style={[type.small, styles.problem, { backgroundColor: c.flagWash, color: c.flag }]}>{problem}</Text> : null}
+      {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (
           <Row

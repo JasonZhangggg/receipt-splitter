@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { animateSpring, project, rubberband, snapTarget } from "./sheet-motion";
+import { animateSpring, glideFor, project, releaseIntent, releaseVelocity, rubberband, snapTarget } from "./sheet-motion";
 
 describe("snapTarget", () => {
   test("lands where the momentum projects, not where the finger let go", () => {
@@ -51,5 +51,49 @@ describe("animateSpring", () => {
     expect(values).toHaveLength(1);
     expect(values[0]).toBeGreaterThan(0);
     expect(values[0]).toBeLessThan(300);
+  });
+});
+
+describe("releaseIntent", () => {
+  test("a drag past half the sheet or a flick goes down, a pull or flick up goes up, and a short drag stays", () => {
+    expect({
+      slowPastHalf: releaseIntent(130, 0, 240),
+      slowShortOfHalf: releaseIntent(60, 0, 240),
+      flickDownFromNear: releaseIntent(20, 900, 240),
+      pullUp: releaseIntent(-50, 0, 240),
+      flickUp: releaseIntent(-8, -700, 240),
+      nudgeUp: releaseIntent(-20, 0, 240),
+      flickBackUpAfterLongDrag: releaseIntent(150, -900, 240),
+    }).toEqual({ slowPastHalf: "down", slowShortOfHalf: "stay", flickDownFromNear: "down", pullUp: "up", flickUp: "up", nudgeUp: "stay", flickBackUpAfterLongDrag: "stay" });
+  });
+});
+
+describe("glideFor", () => {
+  test("starts a glide at the finger's speed, never slower than the resting glide nor shorter than 150 ms", () => {
+    expect({ still: glideFor(300, 0), slow: glideFor(300, 400), fast: glideFor(300, 3000), faster: glideFor(100, 3000), away: glideFor(200, -2000) }).toEqual({
+      still: 300,
+      slow: 300,
+      fast: 225,
+      faster: 150,
+      away: 300,
+    });
+  });
+});
+
+describe("releaseVelocity", () => {
+  const moves = (from: number, step: number, at: number) => Array.from({ length: 5 }, (_, i) => ({ y: from + step * i, t: at + 16 * i }));
+
+  test("reads the finger's speed over its last moves, and reads a hold before release as still", () => {
+    expect({
+      flick: releaseVelocity(moves(0, 16, 0), 70),
+      held: releaseVelocity(moves(0, 16, 0), 64 + 200),
+      justOverHold: releaseVelocity(moves(0, 16, 0), 64 + 81),
+      oneRecentMove: releaseVelocity([{ y: 0, t: 0 }, { y: 16, t: 100 }], 110),
+      fastUp: releaseVelocity(moves(0, -80, 0), 70),
+    }).toEqual({ flick: 1000, held: 0, justOverHold: 0, oneRecentMove: 0, fastUp: -3000 });
+  });
+
+  test("ignores moves more than 100 ms before release", () => {
+    expect(releaseVelocity([{ y: 0, t: 0 }, { y: 500, t: 20 }, { y: 516, t: 90 }, { y: 532, t: 106 }], 125)).toBe(1000);
   });
 });

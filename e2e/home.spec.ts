@@ -635,7 +635,7 @@ const componentHarness = `
   );
 `;
 
-const ink = { light: { action: "rgb(17, 18, 20)", onAction: "rgb(255, 255, 255)", flagWash: "rgb(255, 239, 158)", flag: "rgb(90, 69, 0)" }, dark: { action: "rgb(242, 242, 243)", onAction: "rgb(17, 18, 20)", flagWash: "rgb(70, 58, 12)", flag: "rgb(255, 226, 122)" } };
+const ink = { light: { action: "rgb(17, 18, 20)", onAction: "rgb(255, 255, 255)", muted: "rgb(105, 109, 116)" }, dark: { action: "rgb(242, 242, 243)", onAction: "rgb(17, 18, 20)", muted: "rgb(160, 163, 169)" } };
 
 for (const colorScheme of ["light", "dark"] as const) {
   test(`an enabled primary Button is a 54 px pill in the action color with its reason line above it, ${colorScheme}`, async ({ page }) => {
@@ -663,7 +663,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       radius: "27px",
       fill: ink[colorScheme].action,
       label: ink[colorScheme].onAction,
-      reason: ["Items are $0.50 short.", ink[colorScheme].flagWash, ink[colorScheme].flag],
+      reason: ["Items are $0.50 short.", "rgba(0, 0, 0, 0)", ink[colorScheme].muted],
       reasonAbove: true,
     });
     await button.click();

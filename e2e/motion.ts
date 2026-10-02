@@ -1,0 +1,626 @@
+import type { Locator, Page } from "@playwright/test";
+
+/**
+ * Frame sampling for the site's animations, shared by e2e/motion.spec.ts and the verify skill's motion.mjs.
+ * Node runs this file directly with type stripping, so it holds erasable types only and imports types only.
+ */
+
+export type ProbeKind = "top" | "left" | "height" | "opacity" | "scale" | "angle";
+/** `find` is a JS expression evaluated in the page each frame; it returns the element or null. */
+export type Probe = { key: string; find: string; kind: ProbeKind };
+export type Frame = { t: number; v: Record<string, number | null> };
+export type Trace = { frames: Frame[]; start: number; release: number; end: number; longTasks: { start: number; duration: number }[] | null };
+
+export type Scenario = {
+  name: string;
+  /** Short id used to select scenarios on the command line. */
+  id: string;
+  reduce?: boolean;
+  /** The change is meant to land in one frame: under reduced motion, or after a keyboard action, which never animates. */
+  instant?: boolean;
+  setup: (page: Page) => Promise<void>;
+  act: (page: Page) => Promise<void>;
+  probes: Probe[];
+};
+
+export const vsync = 1000 / 60;
+
+/** Set from the round 2 measurements in /tmp/v2/sheet/round2/motion.md. */
+export const limits = {
+  /** Longest frame gap allowed at normal CPU speed. */
+  gapMs: 50,
+  /** Largest move of a position in one 60 Hz frame. The 300 ms ease-drawer glides peak at 104 to 116 px. */
+  jumpPx: 140,
+  /** A step this many times larger than both neighbouring steps, and over spikeMinPx, is a jump even under jumpPx. */
+  spikeRatio: 3,
+  spikeMinPx: 24,
+  /** Largest chevron turn in one 60 Hz frame. */
+  jumpDeg: 45,
+  /** Largest opacity change in one 60 Hz frame. A pop is 1. */
+  opacityStep: 0.6,
+  /** A move against the direction of travel larger than this is a reversal. */
+  reversePx: 2,
+  reverseOpacity: 0.04,
+};
+
+const sampler = (probes: Probe[]) => {
+  type Win = typeof window & { __motion?: { frames: Frame[]; lastChange: number; stop: boolean; longTasks: { start: number; duration: number }[] | null } };
+  const win = window as Win;
+  const finders = probes.map((probe) => ({ ...probe, get: new Function(`return (${probe.find});`) as () => Element | null }));
+  const state = { frames: [] as Frame[], lastChange: performance.now(), stop: false, longTasks: null as { start: number; duration: number }[] | null };
+  win.__motion = state;
+  if (PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
+    const tasks: { start: number; duration: number }[] = [];
+    state.longTasks = tasks;
+    new PerformanceObserver((list) => list.getEntries().forEach((entry) => tasks.push({ start: entry.startTime, duration: entry.duration }))).observe({ type: "longtask" });
+  }
+  const opacity = (el: Element) => {
+    let value = 1;
+    for (let node: Element | null = el; node; node = node.parentElement) value *= Number(getComputedStyle(node).opacity);
+    return value;
+  };
+  const matrix = (el: Element) => {
+    const transform = getComputedStyle(el).transform;
+    return transform && transform !== "none" ? new DOMMatrixReadOnly(transform) : null;
+  };
+  const scale = (el: Element) => {
+    let value = 1;
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      const m = matrix(node);
+      if (m) value *= Math.hypot(m.a, m.b);
+    }
+    return value;
+  };
+  const read = (el: Element, kind: ProbeKind) => {
+    if (kind === "top") return el.getBoundingClientRect().top;
+    if (kind === "left") return el.getBoundingClientRect().left;
+    if (kind === "height") return el.getBoundingClientRect().height;
+    if (kind === "opacity") return opacity(el);
+    if (kind === "scale") return scale(el);
+    const m = matrix(el);
+    return m ? (Math.atan2(m.b, m.a) * 180) / Math.PI : 0;
+  };
+  let previous: Record<string, number | null> = {};
+  const tick = (t: number) => {
+    if (state.stop) return;
+    const v: Record<string, number | null> = {};
+    for (const probe of finders) {
+      let el: Element | null = null;
+      try {
+        el = probe.get();
+      } catch {
+        el = null;
+      }
+      v[probe.key] = el ? Number(read(el, probe.kind).toFixed(3)) : null;
+      const was = previous[probe.key];
+      const now = v[probe.key];
+      if (was === undefined) continue;
+      if ((was === null) !== (now === null) || (was !== null && now !== null && Math.abs(was - now) > 0.004)) state.lastChange = performance.now();
+    }
+    previous = v;
+    state.frames.push({ t, v });
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+};
+
+/** Samples the probes on every animation frame while `act` runs, until nothing has changed for `quietMs`. */
+export async function record(page: Page, probes: Probe[], act: () => Promise<void>, { quietMs = 400, maxMs = 5000 } = {}): Promise<Trace> {
+  await page.evaluate(sampler, probes);
+  await page.waitForTimeout(250);
+  const now = () => page.evaluate(() => performance.now());
+  const start = await now();
+  await act();
+  const release = await now();
+  for (;;) {
+    const { at, last } = await page.evaluate(() => ({ at: performance.now(), last: (window as unknown as { __motion: { lastChange: number } }).__motion.lastChange }));
+    if ((at - last > quietMs && at - release > quietMs) || at - release > maxMs) break;
+    await page.waitForTimeout(100);
+  }
+  return page.evaluate(
+    ({ start, release }) => {
+      const state = (window as unknown as { __motion: { frames: Frame[]; lastChange: number; stop: boolean; longTasks: { start: number; duration: number }[] | null } }).__motion;
+      state.stop = true;
+      const end = Math.max(state.lastChange, release) + 20;
+      return { frames: state.frames, start, release, end, longTasks: state.longTasks && state.longTasks.filter((task) => task.start + task.duration > start && task.start < end) };
+    },
+    { start, release },
+  );
+}
+
+export type Verdict = {
+  frames: number;
+  maxGap: number;
+  p95Gap: number;
+  dropped: number;
+  longTasks: number | null;
+  longestTask: number | null;
+  /** Largest move of any position probe in one 60 Hz frame, in px. */
+  jumpPx: number;
+  jumpDeg: number;
+  opacityStep: number;
+  reversals: number;
+  spikes: number;
+  /** Frames where a position sits strictly between where it started and where it ended. Zero means it changed in one step. */
+  inBetween: number;
+  moved: boolean;
+  failures: string[];
+};
+
+const round = (value: number) => Math.round(value * 10) / 10;
+
+export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = false } = {}): Verdict {
+  const inside = trace.frames.filter((frame) => frame.t > trace.start && frame.t <= trace.end);
+  const before = trace.frames.filter((frame) => frame.t <= trace.start).at(-1);
+  // WebKit sometimes runs two rAF callbacks a millisecond apart for one frame, so those count as one.
+  const window = (before ? [before, ...inside] : inside).filter((frame, i, all) => i === all.length - 1 || all[i + 1].t - frame.t > 4);
+  const gaps = window.slice(1).map((frame, i) => frame.t - window[i].t);
+  const sorted = [...gaps].sort((a, b) => a - b);
+  const maxGap = sorted.at(-1) ?? 0;
+  const p95Gap = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] ?? 0;
+  const dropped = gaps.filter((gap) => gap > vsync * 1.5).length;
+
+  let jumpPx = 0;
+  let jumpDeg = 0;
+  let opacityStep = 0;
+  let reversals = 0;
+  let spikes = 0;
+  let inBetween = 0;
+  let moved = false;
+  for (const probe of probes) {
+    const value = (frame: Frame) => (probe.kind === "opacity" ? (frame.v[probe.key] ?? 0) : frame.v[probe.key]);
+    const series = window.map((frame) => ({ t: frame.t, v: value(frame) })).filter((point): point is { t: number; v: number } => point.v !== null && point.v !== undefined);
+    if (series.length < 2) continue;
+    const first = series[0].v;
+    const last = series.at(-1)!.v;
+    const settled = (probe.kind === "opacity" || probe.kind === "scale" ? 0.01 : 1) < Math.abs(last - first);
+    moved ||= settled;
+    const afterRelease = series.filter((point) => point.t >= trace.release);
+    const from = afterRelease[0]?.v ?? first;
+    const direction = Math.sign(last - from);
+    const tolerance = probe.kind === "opacity" || probe.kind === "scale" ? limits.reverseOpacity : limits.reversePx;
+    const perFrame = series.slice(1).map((point, i) => (Math.abs(point.v - series[i].v) * vsync) / Math.max(vsync, point.t - series[i].t));
+    if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") {
+      // Before release a synthetic finger sets the pace, so only the motion the page drives is judged.
+      spikes += perFrame.filter((step, i) => series[i + 1].t > trace.release && step > limits.spikeMinPx && step > limits.spikeRatio * Math.max(perFrame[i - 1] ?? 0, perFrame[i + 1] ?? 0)).length;
+    }
+    for (let i = 1; i < series.length; i += 1) {
+      const step = series[i].v - series[i - 1].v;
+      if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") jumpPx = Math.max(jumpPx, perFrame[i - 1]);
+      else if (probe.kind === "angle") jumpDeg = Math.max(jumpDeg, perFrame[i - 1]);
+      else opacityStep = Math.max(opacityStep, perFrame[i - 1]);
+      if (series[i].t > trace.release && direction !== 0 && step * direction < -tolerance) reversals += 1;
+    }
+    if (probe.kind !== "opacity" && probe.kind !== "angle" && settled) {
+      const low = Math.min(first, last);
+      const high = Math.max(first, last);
+      const margin = probe.kind === "scale" ? 0.005 : 1;
+      inBetween += series.filter((point) => point.v > low + margin && point.v < high - margin).length;
+    }
+  }
+
+  const tasks = trace.longTasks;
+  const failures: string[] = [];
+  if (speed === 1 && maxGap > limits.gapMs) failures.push(`frame gap ${round(maxGap)} ms > ${limits.gapMs}`);
+  if (instant) {
+    if (inBetween > 0) failures.push(`moved through ${inBetween} in-between frames`);
+  } else {
+    if (jumpPx > limits.jumpPx) failures.push(`jump ${round(jumpPx)} px/frame > ${limits.jumpPx}`);
+    if (spikes > 0) failures.push(`${spikes} steps over ${limits.spikeRatio}x their neighbours`);
+    if (jumpDeg > limits.jumpDeg) failures.push(`turn ${round(jumpDeg)} deg/frame > ${limits.jumpDeg}`);
+    if (opacityStep > limits.opacityStep) failures.push(`opacity pop ${round(opacityStep * 100) / 100}/frame > ${limits.opacityStep}`);
+  }
+  if (reversals > 0) failures.push(`${reversals} reversals`);
+  if (!moved) failures.push("nothing changed");
+  return {
+    frames: inside.length,
+    maxGap: round(maxGap),
+    p95Gap: round(p95Gap),
+    dropped,
+    longTasks: tasks ? tasks.length : null,
+    longestTask: tasks ? round(Math.max(0, ...tasks.map((task) => task.duration))) : null,
+    jumpPx: round(jumpPx),
+    jumpDeg: round(jumpDeg),
+    opacityStep: Math.round(opacityStep * 100) / 100,
+    reversals,
+    spikes,
+    inBetween,
+    moved,
+    failures,
+  };
+}
+
+/* Input. Chromium phones get real touches through CDP, WebKit gets synthetic pointer events, desktop gets the mouse. */
+
+type Point = { x: number; y: number };
+
+const engine = (page: Page) => page.context().browser()?.browserType().name() ?? "chromium";
+const touches = (page: Page) => page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+
+export async function center(target: Locator): Promise<Point> {
+  const box = (await target.boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+export async function tap(target: Locator) {
+  if (await touches(target.page())) await target.tap();
+  else await target.click();
+}
+
+export async function tapAt(page: Page, point: Point) {
+  if (await touches(page)) await page.touchscreen.tap(point.x, point.y);
+  else await page.mouse.click(point.x, point.y);
+}
+
+/** One finger, or the mouse, moves `dy` px over `ms`. */
+export async function drag(page: Page, from: Point, dy: number, ms: number) {
+  const steps = Math.max(2, Math.round(ms / 16));
+  const path = Array.from({ length: steps + 1 }, (_, i) => ({ x: from.x, y: from.y + (dy * i) / steps }));
+  if (!(await touches(page))) {
+    await page.mouse.move(path[0].x, path[0].y);
+    await page.mouse.down();
+    for (const point of path.slice(1)) {
+      await page.mouse.move(point.x, point.y);
+      await page.waitForTimeout(16);
+    }
+    await page.mouse.up();
+    return;
+  }
+  if (engine(page) === "chromium") {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [path[0]] });
+    for (const point of path.slice(1)) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [point] });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+    return;
+  }
+  await page.evaluate(async (points) => {
+    const target = document.elementFromPoint(points[0].x, points[0].y)!;
+    const fire = (type: string, point: { x: number; y: number }) =>
+      target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: point.x, clientY: point.y }));
+    fire("pointerdown", points[0]);
+    for (const point of points.slice(1)) {
+      await new Promise((resolve) => setTimeout(resolve, 16));
+      fire("pointermove", point);
+    }
+    fire("pointerup", points.at(-1)!);
+  }, path);
+}
+
+/** Waits until the element's top holds still for 150 ms. */
+export async function still(target: Locator) {
+  let last: number | undefined;
+  for (let i = 0; i < 60; i += 1) {
+    const top = (await target.boundingBox())?.y;
+    if (top !== undefined && top === last) return;
+    last = top;
+    await target.page().waitForTimeout(150);
+  }
+  throw new Error("did not hold still");
+}
+
+/* The Split page. */
+
+const dinner = {
+  items: [
+    { id: "rice", name: "Rice", price: 800 },
+    { id: "tostones", name: "Tostones", price: 100 },
+    { id: "pitchers", name: "Pitchers", price: 2400, quantity: 2 },
+    { id: "sprite", name: "Sprite", price: 250 },
+  ],
+  adjustments: [{ id: "bucket", kind: "bundleDiscount", name: "Bucket deal", amount: -200, bundle: { name: "Beer Bucket", items: ["pitchers", "sprite"] } }],
+  subtotal: 3550,
+  total: 3350,
+};
+
+let creates = 0;
+
+async function openSplit(page: Page) {
+  creates += 1;
+  const response = await page.request.post("/api/splits", {
+    headers: { "cf-connecting-ip": `198.19.${(Date.now() >> 8) % 250}.${creates % 250}` },
+    data: { split: { receipt: dinner, participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }, { id: "priya", name: "Priya" }], paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
+  });
+  if (response.status() !== 201) throw new Error(`creating a Split answered ${response.status()}`);
+  if (engine(page) === "webkit") await page.addInitScript(() => Object.assign(Element.prototype, { setPointerCapture() {}, releasePointerCapture() {} }));
+  await page.goto(`/s/${(await response.json()).id}`);
+  await page.getByRole("heading", { name: "Which one are you?" }).waitFor({ timeout: 15_000 });
+  await still(sheet(page));
+}
+
+const sheet = (page: Page) => page.getByTestId("split-sheet");
+const pickJason = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true });
+const meChip = (page: Page) => page.getByRole("button", { name: "Jason, you", exact: true });
+
+async function picked(page: Page) {
+  await openSplit(page);
+  await tap(pickJason(page));
+  await page.getByTestId("owe").waitFor();
+  await still(sheet(page));
+  await page.waitForTimeout(300);
+}
+
+async function expanded(page: Page) {
+  await picked(page);
+  await tap(page.getByTestId("owe"));
+  await page.getByTestId("breakdown").waitFor();
+  await still(sheet(page));
+}
+
+async function grab(page: Page): Promise<Point> {
+  const box = (await sheet(page).boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + 14 };
+}
+
+async function sheetBody(page: Page): Promise<Point> {
+  const box = (await sheet(page).boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + 90 };
+}
+
+/** Matches the live element first, then the copy of it that fades out when the sheet's content changes. */
+const testId = (id: string) => `document.querySelector('[data-testid="${id}"], [data-left-testid="${id}"]')`;
+const label = (name: string) => `document.querySelector('[aria-label="${name}"]')`;
+const heading = (name: string) => `[...document.querySelectorAll('[role="heading"]')].find((el) => el.textContent === "${name}") ?? null`;
+
+const splitTop: Probe = { key: "sheet", find: testId("split-sheet"), kind: "top" };
+const oweFade: Probe = { key: "owe", find: testId("owe"), kind: "opacity" };
+const breakdownFade: Probe = { key: "breakdown", find: testId("breakdown"), kind: "opacity" };
+const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-expanded]')`;
+const bundleProbes: Probe[] = [
+  { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
+  { key: "regionFade", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild.firstElementChild`, kind: "opacity" },
+  { key: "chevron", find: `[...${bundleHeader}.querySelectorAll("div")].find((el) => getComputedStyle(el).transform !== "none") ?? null`, kind: "angle" },
+  { key: "below", find: testId("total"), kind: "top" },
+];
+const itemProbes: Probe[] = [
+  { key: "item", find: testId("item-sheet"), kind: "top" },
+  { key: "scrim", find: `document.querySelector('[data-testid="item-sheet"]')?.previousElementSibling?.firstElementChild ?? null`, kind: "opacity" },
+  splitTop,
+];
+const chipProbes: Probe[] = [
+  { key: "chipOpacity", find: `${label("Jason, you")}?.parentElement ?? null`, kind: "opacity" },
+  { key: "chipScale", find: `${label("Jason, you")}?.parentElement ?? null`, kind: "scale" },
+  { key: "addOpacity", find: `${label("Add a person")}?.parentElement ?? null`, kind: "opacity" },
+];
+
+const openBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-expanded]"));
+const openItem = (page: Page) => tap(page.getByRole("button", { name: /^Open Rice/ }));
+
+async function bundleOpen(page: Page) {
+  await picked(page);
+  await openBundle(page);
+  await page.locator('[data-testid^="bundle-"]').locator('[aria-expanded="true"]').waitFor();
+  await page.waitForTimeout(700);
+}
+
+async function itemOpen(page: Page) {
+  await picked(page);
+  await openItem(page);
+  await still(page.getByTestId("item-sheet"));
+}
+
+/* Home and the photo viewer. */
+
+async function homeTyping(page: Page) {
+  await page.goto("/");
+  const people = page.getByRole("group", { name: "People at the table" });
+  await people.waitFor();
+  await page.waitForTimeout(800);
+  await tap(people.getByRole("button", { name: "Your name" }));
+  await page.keyboard.type("Jason");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Samantha");
+  await page.waitForTimeout(500);
+}
+
+const photoHarness = `
+  import { useState } from "react";
+  import { createRoot } from "react-dom/client";
+  import { View } from "react-native";
+  import { SafeAreaProvider } from "react-native-safe-area-context";
+  import { PhotoViewer } from "./src/ui/photo-viewer";
+  const uri = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='900'><rect width='600' height='900' fill='%23ede6da'/><rect x='60' y='80' width='480' height='40' fill='%23998'/></svg>";
+  function App() {
+    const [open, setOpen] = useState(false);
+    return (
+      <SafeAreaProvider>
+        <View style={{ height: "100vh", padding: 24 }}>
+          <button aria-label="View receipt photo" onClick={() => setOpen(true)} style={{ width: 120, height: 48 }}>
+            View
+          </button>
+          {open ? <PhotoViewer photo={{ uri, name: "receipt.jpg" }} onExited={() => setOpen(false)} /> : null}
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+  createRoot(document.getElementById("root")).render(<App />);
+`;
+
+let photoBundle: string | undefined;
+
+async function photoPage(page: Page) {
+  if (!photoBundle) {
+    const { build } = await import("esbuild");
+    const result = await build({
+      stdin: { contents: photoHarness, loader: "tsx", resolveDir: process.cwd() },
+      bundle: true,
+      write: false,
+      jsx: "automatic",
+      alias: { "react-native": "react-native-web" },
+      resolveExtensions: [".web.tsx", ".web.ts", ".web.js", ".tsx", ".ts", ".js"],
+      loader: { ".js": "jsx" },
+      define: { "process.env.NODE_ENV": '"production"', __DEV__: "false" },
+    });
+    photoBundle = result.outputFiles[0].text;
+  }
+  await page.setContent('<!doctype html><html style="height:100%"><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;height:100%"><div id="root" style="height:100%"></div></body></html>');
+  await page.addScriptTag({ content: photoBundle });
+  await page.getByRole("button", { name: "View receipt photo" }).waitFor();
+}
+
+async function photoShown(page: Page) {
+  await photoPage(page);
+  await tap(page.getByRole("button", { name: "View receipt photo" }));
+  await page.getByRole("button", { name: "Close photo" }).waitFor();
+  await page.waitForTimeout(600);
+}
+
+const photoProbes: Probe[] = [
+  { key: "photoOpacity", find: label("Close photo"), kind: "opacity" },
+  { key: "photoScale", find: label("Close photo"), kind: "scale" },
+];
+
+const reduced = (scenario: Scenario): Scenario => ({
+  ...scenario,
+  id: `reduced-${scenario.id}`,
+  name: `Reduced motion: ${scenario.name.charAt(0).toLowerCase()}${scenario.name.slice(1)}`,
+  reduce: true,
+  instant: true,
+  setup: async (page) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await scenario.setup(page);
+  },
+});
+
+const pickHandoff: Scenario = {
+  id: "pick-handoff",
+  name: "Split sheet: pick hands off to the bar",
+  setup: openSplit,
+  act: (page) => tap(pickJason(page)),
+  probes: [splitTop, oweFade, { key: "question", find: heading("Which one are you?"), kind: "opacity" }],
+};
+const openTap: Scenario = {
+  id: "open-tap",
+  name: "Split sheet: breakdown opens by tap",
+  setup: picked,
+  act: (page) => tap(page.getByTestId("owe")),
+  probes: [splitTop, breakdownFade],
+};
+const collapseTap: Scenario = {
+  id: "collapse-tap",
+  name: "Split sheet: breakdown collapses by tap",
+  setup: expanded,
+  act: (page) => tap(meChip(page)),
+  probes: [splitTop, breakdownFade],
+};
+const bundleExpand: Scenario = {
+  id: "bundle-expand",
+  name: "Bundle expands, chevron turns",
+  setup: picked,
+  act: openBundle,
+  probes: bundleProbes,
+};
+const itemOpenScenario: Scenario = {
+  id: "item-open",
+  name: "Item sheet opens",
+  setup: picked,
+  act: openItem,
+  probes: itemProbes,
+};
+const photoOpen: Scenario = {
+  id: "photo-open",
+  name: "Photo viewer opens",
+  setup: photoPage,
+  act: (page) => tap(page.getByRole("button", { name: "View receipt photo" })),
+  probes: photoProbes,
+};
+
+export const scenarios: Scenario[] = [
+  pickHandoff,
+  {
+    id: "chip-entrance",
+    name: "Split page: chips enter after the pick",
+    setup: openSplit,
+    act: (page) => tap(pickJason(page)),
+    probes: chipProbes,
+  },
+  {
+    id: "pick-flick",
+    name: "Split sheet: a flick on the pick sheet closes it",
+    setup: openSplit,
+    act: async (page) => drag(page, await sheetBody(page), 260, 120),
+    probes: [splitTop, { key: "question", find: heading("Which one are you?"), kind: "opacity" }],
+  },
+  openTap,
+  collapseTap,
+  {
+    id: "open-swipe",
+    name: "Split sheet: breakdown opens by swipe up",
+    setup: picked,
+    act: async (page) => drag(page, await grab(page), -200, 150),
+    probes: [splitTop, breakdownFade],
+  },
+  {
+    id: "collapse-drag",
+    name: "Split sheet: breakdown collapses by slow drag",
+    setup: expanded,
+    act: async (page) => drag(page, await grab(page), 260, 500),
+    probes: [splitTop, breakdownFade],
+  },
+  {
+    id: "collapse-flick",
+    name: "Split sheet: breakdown collapses by flick",
+    setup: expanded,
+    act: async (page) => drag(page, await sheetBody(page), 200, 100),
+    probes: [splitTop, breakdownFade],
+  },
+  bundleExpand,
+  {
+    id: "bundle-collapse",
+    name: "Bundle collapses, chevron turns back",
+    setup: bundleOpen,
+    act: openBundle,
+    probes: bundleProbes,
+  },
+  itemOpenScenario,
+  {
+    id: "item-close",
+    name: "Item sheet closes on the scrim",
+    setup: itemOpen,
+    act: (page) => tapAt(page, { x: 30, y: 16 }),
+    probes: itemProbes,
+  },
+  {
+    id: "name-add",
+    name: "Home: a name chip is added",
+    instant: true,
+    setup: homeTyping,
+    act: (page) => page.keyboard.press("Enter"),
+    probes: [
+      { key: "surface", find: "document.querySelector('[data-sheet-surface]')", kind: "top" },
+      { key: "names", find: label("People at the table"), kind: "height" },
+      { key: "chip", find: label("Remove Samantha"), kind: "top" },
+      { key: "chipFade", find: label("Remove Samantha"), kind: "opacity" },
+      { key: "field", find: `document.querySelector('input[aria-label="Name"]')`, kind: "top" },
+      { key: "fieldLeft", find: `document.querySelector('input[aria-label="Name"]')`, kind: "left" },
+    ],
+  },
+  photoOpen,
+  {
+    id: "photo-close",
+    name: "Photo viewer closes",
+    setup: photoShown,
+    act: (page) => tap(page.getByRole("button", { name: "Close photo" })),
+    probes: photoProbes,
+  },
+  reduced(pickHandoff),
+  reduced(openTap),
+  reduced(collapseTap),
+  reduced(bundleExpand),
+  reduced(itemOpenScenario),
+  reduced(photoOpen),
+  {
+    id: "reduced-collapse-drag",
+    name: "Reduced motion: a sheet dragged down and let go stays opaque while its content cross-fades",
+    reduce: true,
+    setup: async (page) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await expanded(page);
+    },
+    act: async (page) => drag(page, await grab(page), 120, 400),
+    probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }, breakdownFade],
+  },
+];

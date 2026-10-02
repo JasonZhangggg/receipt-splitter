@@ -125,7 +125,8 @@ for (const [how, act] of [
   });
 }
 
-test("the pick sheet copies the link below Not here, and shows Share only where the phone can share", async ({ browser, request }, { workerIndex }) => {
+test("the pick sheet copies the link below Not here, and shows Share only where the phone can share", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName === "webkit", "WebKit has no clipboard permission to grant");
   const link = await createSplit(request, workerIndex);
   const page = await open(browser, link);
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
