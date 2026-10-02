@@ -331,7 +331,7 @@ function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>) {
 const participants = nonEmpty(participant, MAX_PARTICIPANTS);
 
 const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read }) => ({
-  receipt: read("receipt", receipt(receiptItem, receiptLevelAdjustment)),
+  receipt: read("receipt", receipt(receiptItem, anyAdjustment)),
   participants: read("participants", participants),
   paymentHandles: read("paymentHandles", paymentHandles),
 }));

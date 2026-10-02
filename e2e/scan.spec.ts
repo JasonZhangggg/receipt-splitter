@@ -49,6 +49,40 @@ async function blockedBy(page: Page) {
   };
 }
 
+test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the link carries each Bundle with its own Items", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+  await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+
+  expect(await readItems(page)).toEqual([
+    "Gameplay 87.75",
+    "Michelob Ultra 16oz Aluminum Bottle 6.29",
+    "Guinness Draught 14.9oz Can 21.87",
+    "High Noon Pineapple 12oz Can 8.49",
+    "High Noon Watermelon 12oz Can 8.49",
+    "Michelob Ultra 16oz Aluminum Bottle 6.29",
+    "Guinness Draught 14.9oz Can 14.58",
+    "High Noon Pineapple 12oz Can 8.49",
+    "High Noon Watermelon 12oz Can 16.98",
+  ]);
+  expect(await amount(page, "Beer Bucket Discount (10%)").evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value))).toEqual(["-$4.51", "-$4.63"]);
+  await expect(amount(page, "Total")).toHaveValue("$207.29");
+
+  await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
+  await addName(page, "Jason");
+  const created = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/api/splits"));
+  await action(page).click();
+  const bundles = (await created).postDataJSON().split.receipt.adjustments.flatMap((row: { kind: string; amount: number; bundle?: object }) =>
+    row.kind === "bundleDiscount" ? [[row.amount, row.bundle]] : [],
+  );
+
+  expect(bundles).toEqual([
+    [-451, { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] }],
+    [-463, { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] }],
+  ]);
+});
+
 test.describe("reading SRD receipt 1040", () => {
   test.setTimeout(120_000);
 

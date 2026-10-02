@@ -198,7 +198,7 @@ V2-1 adds the Bundle to the domain and teaches every reader of a stored Split to
 
 **Build.**
 
-- [ ] In `src/parse/index.ts`, open a Bundle at an Item line with words and a price of $0.00. Collect the Items under it. Close it at a receipt-level discount whose label echoes the header's name, using the existing `echoes` token match against the open header. The discount becomes a `bundleDiscount` Adjustment, and the header line becomes the Bundle's name, not an Item.
+- [ ] In `src/parse/index.ts`, open a Bundle at an Item line with words and a price of $0.00. Collect the Items under it. Close it at a receipt-level discount that echoes the header's name (the existing `echoes` token match) and prints a percent, when a run of Items starting right under the header sums to an amount whose percent is within 1 cent of the discount. The Bundle holds that run only. The discount becomes a `bundleDiscount` Adjustment, and the header line becomes the Bundle's name, not an Item.
 - [ ] Leave the reading as it is when no discount closes the group. The $0.00 header stays an Item, as today.
 - [ ] Keep the Total check deciding between readings, as PR 22 does. Bundles change no amount, so a passing reading still passes.
 - [ ] In `src/draft.ts`, carry Bundles through a read, a price edit, a reload, and `splitRequest`. Deleting a Bundle Item on home follows the rule from V2-1.
@@ -593,7 +593,7 @@ The design questions were settled by three rounds of mockups, not by code protot
 - Accessibility of the collapsible Bundles. It lands in V2-3. A header that is not a real button, or a region that stays in the tab order while closed, hides Items from screen reader and keyboard users. The owner tests the header by keyboard in `e2e/receipt.spec.ts` and records the accessibility tree in lane 2.
 - A closed Bundle can hide an unclaimed unit. It lands in V2-3. The closed summary carries the flag, so a missing claim shows without opening it.
 - A Host may create a link from a misread receipt, because a failing Total check blocks nothing. It lands in V2-5. The quiet note on home and on the Split page names the gap, and anyone fixes a line on the Split page. No PR here adds a block or a highlight for a mismatch.
-- The Bundle detector misreads a $0.00 line, such as a free refill, as a header. It lands in V2-2. A group forms only when a discount echoes the header, so a lone $0.00 line stays an Item. The bench run reports any change.
+- The Bundle detector misreads a $0.00 line, such as a free refill, as a header. It lands in V2-2. A group forms only when a discount echoes the header, prints a percent, and a run of Items under the header matches it within 1 cent, so a lone $0.00 line stays an Item. An echoing discount with no percent, or an OCR-garbled one, stays receipt-wide. A coincidental run can pull a nearby Item into a Bundle. A $0.00 modifier inside a group replaces the open header and drops the Bundle, which fails safe to receipt-wide. The bench run reports any change.
 - The photo shows card digits and anything else the receipt prints. It lands in V2-6b. The operator accepted it, with no extra line on home. The server refuses EXIF, and the photo is deleted after 14 days.
 
 ## Appendix D. Links and reading list

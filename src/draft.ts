@@ -8,6 +8,7 @@ import {
   itemId,
   PAYMENT_SERVICES,
   type ReceiptLevelKind,
+  type Adjustment,
   type NonEmpty,
   type ParticipantId,
   type PaymentHandle,
@@ -30,7 +31,11 @@ type DraftItem = {
   readonly retyped?: true;
 };
 
-type DraftAdjustment = { readonly id: string; readonly kind: Exclude<ReceiptLevelKind, "tip">; readonly name: string; readonly amount: Cents };
+type DraftAdjustment =
+  | { readonly id: string; readonly kind: Exclude<ReceiptLevelKind, "tip">; readonly name: string; readonly amount: Cents }
+  | { readonly id: string; readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: DraftBundle };
+
+type DraftBundle = { readonly name: string; readonly items: NonEmpty<string> };
 
 export type DraftReceipt = {
   readonly items: readonly DraftItem[];
@@ -156,7 +161,7 @@ function editReceipt(receipt: DraftReceipt, action: ReceiptEdit): DraftReceipt {
     case "addItem":
       return { ...receipt, items: [...receipt.items, { id: `i${receipt.nextId}`, name: "", price: price(0) }], nextId: receipt.nextId + 1 };
     case "removeItem":
-      return { ...receipt, items: receipt.items.filter((item) => item.id !== action.id) };
+      return { ...receipt, items: receipt.items.filter((item) => item.id !== action.id), adjustments: receipt.adjustments.flatMap((row) => leaveBundle(row, action.id)) };
     case "editAdjustment":
       if (Math.abs(action.amount) > MAX_CENTS) return receipt;
       return { ...receipt, adjustments: receipt.adjustments.map((row) => (row.id === action.id ? { ...row, amount: action.amount } : row)) };
@@ -171,6 +176,12 @@ function editReceipt(receipt: DraftReceipt, action: ReceiptEdit): DraftReceipt {
     default:
       return action satisfies never;
   }
+}
+
+function leaveBundle(row: DraftAdjustment, id: string): DraftAdjustment[] {
+  if (row.kind !== "bundleDiscount") return [row];
+  const [first, ...rest] = row.bundle.items.filter((item) => item !== id);
+  return first === undefined ? [] : [{ ...row, bundle: { ...row.bundle, items: [first, ...rest] } }];
 }
 
 const typedReceipt: DraftReceipt = {
@@ -192,9 +203,15 @@ function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
     return [{ id: item.id, name, price: item.price, ...quantity, ...flags }];
   });
   const tip = receipt.adjustments.filter((row) => row.kind === "tip").reduce((sum, row) => sum + row.amount, 0);
-  const adjustments = receipt.adjustments.flatMap((row): DraftAdjustment[] =>
-    row.kind === "tip" || row.kind === "bundleDiscount" ? [] : [{ id: row.id, kind: row.kind, name: clip(row.name.trim()), amount: row.amount }],
-  );
+  const kept = new Set(items.map((item) => item.id));
+  const adjustments = receipt.adjustments.flatMap((row): DraftAdjustment[] => {
+    const name = clip(row.name.trim());
+    if (row.kind === "tip") return [];
+    if (row.kind !== "bundleDiscount") return [{ id: row.id, kind: row.kind, name, amount: row.amount }];
+    const [first, ...rest] = row.bundle.items.filter((id) => kept.has(id));
+    if (first === undefined) return [{ id: row.id, kind: "discount", name, amount: row.amount }];
+    return [{ id: row.id, kind: row.kind, name, amount: row.amount, bundle: { name: clip(row.bundle.name.trim()), items: [first, ...rest] } }];
+  });
   return {
     items,
     adjustments,
@@ -227,12 +244,17 @@ export function totalOf(receipt: DraftReceipt): Cents {
 
 const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
 
-const adjustmentNames: Record<DraftAdjustment["kind"], string> = { tax: "Tax", serviceCharge: "Service charge", discount: "Discount" };
+const adjustmentNames: Record<DraftAdjustment["kind"], string> = { tax: "Tax", serviceCharge: "Service charge", discount: "Discount", bundleDiscount: "Discount" };
 
 function receiptOf(receipt: DraftReceipt): Receipt | null {
   const [first, ...rest] = receipt.items.map((item) => ({ id: itemId(item.id), name: item.name.trim(), price: item.price, ...(item.quantity && { quantity: item.quantity }) }));
   if (!first) return null;
-  const adjustments = receipt.adjustments.map((row) => ({ ...row, id: adjustmentId(row.id), name: row.name.trim() || adjustmentNames[row.kind] }));
+  const adjustments = receipt.adjustments.map((row): Adjustment => {
+    const named = { id: adjustmentId(row.id), name: row.name.trim() || adjustmentNames[row.kind], amount: row.amount };
+    if (row.kind !== "bundleDiscount") return { ...named, kind: row.kind };
+    const [first, ...rest] = row.bundle.items.map(itemId);
+    return { ...named, kind: row.kind, bundle: { name: row.bundle.name, items: [first, ...rest] } };
+  });
   return {
     items: [first, ...rest],
     adjustments: [...adjustments, { id: adjustmentId("tip"), kind: "tip", name: "Tip", amount: receipt.tip }],
@@ -365,16 +387,18 @@ function parseScan(scan: unknown): Scan | null {
   const linked = scan.status === "linked" && typeof scan.splitId === "string" && isRoutableSplitId(scan.splitId);
   if ((scan.status !== "read" && !linked) || !isFile(scan.file) || !isObject(scan.receipt)) return null;
   const { items, adjustments, subtotal, tip, totalBeforeTip, nextId } = scan.receipt;
+  const itemIds = Array.isArray(items) && items.every(isItem) ? new Set(items.map((item) => item.id)) : null;
   const valid =
-    Array.isArray(items) &&
-    items.every(isItem) &&
+    itemIds !== null &&
     Array.isArray(adjustments) &&
-    adjustments.every(isAdjustment) &&
+    adjustments.every((row) => isAdjustment(row, itemIds)) &&
     (subtotal === null || isAmount(subtotal)) &&
     isPrice(tip) &&
     isAmount(totalBeforeTip) &&
     Number.isSafeInteger(nextId);
   if (!valid) return null;
+  const bundled = (adjustments as DraftAdjustment[]).flatMap((row) => (row.kind === "bundleDiscount" ? row.bundle.items : []));
+  if (new Set(bundled).size !== bundled.length) return null;
   const read = { status: "read" as const, file: scan.file, receipt: scan.receipt as DraftReceipt };
   return linked ? { ...read, status: "linked", splitId: scan.splitId as SplitId } : read;
 }
@@ -389,5 +413,12 @@ const isItem = (item: unknown) =>
   (item.unreadPrice === undefined || item.unreadPrice === true) &&
   (item.retyped === undefined || item.retyped === true);
 
-const isAdjustment = (row: unknown) =>
-  isObject(row) && isId(row.id) && RECEIPT_LEVEL_KINDS.includes(row.kind as ReceiptLevelKind) && row.kind !== "tip" && isText(row.name) && isAmount(row.amount);
+const isAdjustment = (row: unknown, itemIds: ReadonlySet<unknown>) =>
+  isObject(row) &&
+  isId(row.id) &&
+  isText(row.name) &&
+  isAmount(row.amount) &&
+  (row.kind === "bundleDiscount" ? isBundle(row.bundle, itemIds) : RECEIPT_LEVEL_KINDS.includes(row.kind as ReceiptLevelKind) && row.kind !== "tip" && row.bundle === undefined);
+
+const isBundle = (bundle: unknown, itemIds: ReadonlySet<unknown>) =>
+  isObject(bundle) && isText(bundle.name) && Array.isArray(bundle.items) && bundle.items.length > 0 && bundle.items.every((id) => itemIds.has(id));

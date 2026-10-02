@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 2,
+  "id": "golden-topgolf-split-0",
+  "currency": "USD",
+  "receipt": {
+    "items": [
+      {
+        "id": "gameplay",
+        "name": "Gameplay",
+        "price": 8775,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "jason"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "ultra1",
+        "name": "Michelob Ultra 16oz Aluminum Bottle",
+        "price": 629,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "priya"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "guinness1",
+        "name": "Guinness Draught 14.9oz Can",
+        "price": 2187,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "priya"
+            ],
+            [
+              "priya"
+            ],
+            [
+              "priya"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "pineapple1",
+        "name": "High Noon Pineapple 12oz Can",
+        "price": 849,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "priya"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "watermelon1",
+        "name": "High Noon Watermelon 12oz Can",
+        "price": 849,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "priya"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "ultra2",
+        "name": "Michelob Ultra 16oz Aluminum Bottle",
+        "price": 629,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "jason"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "guinness2",
+        "name": "Guinness Draught 14.9oz Can",
+        "price": 1458,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "jason"
+            ],
+            [
+              "jason"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "pineapple2",
+        "name": "High Noon Pineapple 12oz Can",
+        "price": 849,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "jason"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "watermelon2",
+        "name": "High Noon Watermelon 12oz Can",
+        "price": 1698,
+        "split": {
+          "by": "even",
+          "units": [
+            [
+              "jason"
+            ],
+            [
+              "jason"
+            ]
+          ]
+        }
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "bucket1",
+        "name": "Beer Bucket Discount (10%)",
+        "amount": -451,
+        "kind": "bundleDiscount",
+        "bundle": {
+          "name": "Beer Bucket",
+          "items": [
+            "ultra1",
+            "guinness1",
+            "pineapple1",
+            "watermelon1"
+          ]
+        }
+      },
+      {
+        "id": "bucket2",
+        "name": "Beer Bucket Discount (10%)",
+        "amount": -463,
+        "kind": "bundleDiscount",
+        "bundle": {
+          "name": "Beer Bucket",
+          "items": [
+            "ultra2",
+            "guinness2",
+            "pineapple2",
+            "watermelon2"
+          ]
+        }
+      },
+      {
+        "id": "tax",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 494
+      },
+      {
+        "id": "tip",
+        "kind": "tip",
+        "name": "Tip (18%)",
+        "amount": 3226
+      }
+    ],
+    "subtotal": 17923,
+    "total": 20729
+  },
+  "participants": [
+    {
+      "id": "jason",
+      "name": "Jason"
+    },
+    {
+      "id": "priya",
+      "name": "Priya"
+    }
+  ],
+  "picks": [
+    {
+      "participantId": "priya",
+      "device": "priyas-phone"
+    }
+  ],
+  "payments": [],
+  "paymentHandles": [
+    {
+      "service": "venmo",
+      "handle": "jason-host"
+    }
+  ],
+  "revision": 15,
+  "recentChanges": [
+    {
+      "revision": 15,
+      "by": "jason",
+      "undoes": null,
+      "undoneBy": null,
+      "writes": [
+        {
+          "kind": "adjustment",
+          "id": "tip",
+          "edit": {
+            "name": [
+              "Tip",
+              "Tip (18%)"
+            ]
+          }
+        }
+      ],
+      "at": 1767225600000
+    }
+  ],
+  "original": {
+    "items": [
+      {
+        "id": "gameplay",
+        "name": "Gameplay",
+        "price": 8775
+      },
+      {
+        "id": "ultra1",
+        "name": "Michelob Ultra 16oz Aluminum Bottle",
+        "price": 629
+      },
+      {
+        "id": "guinness1",
+        "name": "Guinness Draught 14.9oz Can",
+        "price": 2187,
+        "quantity": 3
+      },
+      {
+        "id": "pineapple1",
+        "name": "High Noon Pineapple 12oz Can",
+        "price": 849
+      },
+      {
+        "id": "watermelon1",
+        "name": "High Noon Watermelon 12oz Can",
+        "price": 849
+      },
+      {
+        "id": "ultra2",
+        "name": "Michelob Ultra 16oz Aluminum Bottle",
+        "price": 629
+      },
+      {
+        "id": "guinness2",
+        "name": "Guinness Draught 14.9oz Can",
+        "price": 1458,
+        "quantity": 2
+      },
+      {
+        "id": "pineapple2",
+        "name": "High Noon Pineapple 12oz Can",
+        "price": 849
+      },
+      {
+        "id": "watermelon2",
+        "name": "High Noon Watermelon 12oz Can",
+        "price": 1698,
+        "quantity": 2
+      }
+    ],
+    "adjustments": [
+      {
+        "id": "bucket1",
+        "name": "Beer Bucket Discount (10%)",
+        "amount": -451,
+        "kind": "bundleDiscount",
+        "bundle": {
+          "name": "Beer Bucket",
+          "items": [
+            "ultra1",
+            "guinness1",
+            "pineapple1",
+            "watermelon1"
+          ]
+        }
+      },
+      {
+        "id": "bucket2",
+        "name": "Beer Bucket Discount (10%)",
+        "amount": -463,
+        "kind": "bundleDiscount",
+        "bundle": {
+          "name": "Beer Bucket",
+          "items": [
+            "ultra2",
+            "guinness2",
+            "pineapple2",
+            "watermelon2"
+          ]
+        }
+      },
+      {
+        "id": "tax",
+        "kind": "tax",
+        "name": "Tax",
+        "amount": 494
+      },
+      {
+        "id": "tip",
+        "kind": "tip",
+        "name": "Tip",
+        "amount": 3226
+      }
+    ],
+    "subtotal": 17923,
+    "total": 20729
+  }
+}
