@@ -70,12 +70,15 @@ One call loads one route in a fresh browser, checks it, and saves proof.
 
 Drive saves files only where `--shot` and `--aria` point, and creates their folders. Point both into the lane's output folder, the one you later pass to `evidence --out`. If the lane names no folder, use `/tmp/verify-receipt-splitter/<port>/`, which is where `evidence` writes by default.
 
-- `--path` is the route to open. The default is `/`.
+- `--path` is the route to open. The default is `/`. Any path on the site works, including files such as `/ort/LICENSE`.
 - `--expect-heading <name>` requires a visible heading with that accessible name.
 - `--expect-text <text>` requires visible text with that exact content. Repeat it for several strings. Each expectation waits up to 5 seconds.
 - `--shot <file>` saves a full-page screenshot.
 - `--aria <file>` saves the ARIA snapshot of the page body.
 - `--width <px>` and `--height <px>` set the viewport in CSS pixels. Without them, the drive uses the Pixel 7 profile at 412 by 839, with touch input, a mobile user agent, and a device pixel ratio of 2.625. A width below 1024 keeps that profile. A width of 1024 or more switches to Playwright's Desktop Chrome profile, with mouse input, a desktop user agent, a device pixel ratio of 1, and a default height of 720. A screenshot is the viewport width times the device pixel ratio.
+- `--click <selector>` clicks the first match after the page loads and before the expectations and the screenshot. It takes any Playwright selector, such as `role=button[name="Example"]` or `text=Add receipt`. Repeat it to click in order. A click that finds nothing within 5 seconds is a failure.
+- `--touch-scroll <selector>:<dy>` puts a finger on the center of the first match and drags it `dy` CSS pixels, so a negative `dy` scrolls the content down. It runs after the clicks. The JSON line has `touchScrolled` with `scrollTop: [before, after]` for the nearest scrollable ancestor of that point. The center must be inside the viewport, so use a phone width and `--height` to make the page scroll.
+- `--video <dir>` records the whole drive, clicks included, and puts the `.webm` path in `video`.
 - `--color-scheme light|dark` sets `prefers-color-scheme`. The default is `light`.
 - `--reduced-motion reduce|no-preference` sets `prefers-reduced-motion`. The default is `no-preference`.
 
@@ -92,7 +95,7 @@ Cite `media` to show which viewport and preferences a screenshot was taken with.
 
 A drive fails on a non-200 response, a missing heading or text, or any console error or uncaught page error. The JSON line lists the failures in `failures` and joins them in `error`. If the page cannot load at all, for example because nothing listens on the port, the failure line carries the browser's error in `error`.
 
-For several WebSocket clients on one Split, use `live-clients.mjs` in this folder, as [features/live.md](features/live.md) describes. For the Split page's main flow across four browsers, run `split-flow.mjs` in this folder, as [features/claim.md](features/claim.md) describes. For multi-step interactions that one navigation cannot express, write a Playwright spec under `e2e/` and run it with `PORT=<port> npm run e2e`. The spec config runs `npm run build` and starts its own `wrangler dev` on that port with the inspector on `port + 10000`, so do not run it against a port where `launch` is already serving.
+To see how many bytes one module adds to the entry bundle, run `module-cost.mjs "<text inside the module>"` in this folder after `npm run build`, as [features/home.md](features/home.md) describes. For several WebSocket clients on one Split, use `live-clients.mjs` in this folder, as [features/live.md](features/live.md) describes. For the Split page's main flow across four browsers, run `split-flow.mjs` in this folder, as [features/claim.md](features/claim.md) describes. For multi-step interactions that one navigation cannot express, write a Playwright spec under `e2e/` and run it with `PORT=<port> npm run e2e`. The spec config runs `npm run build` and starts its own `wrangler dev` on that port with the inspector on `port + 10000`, so do not run it against a port where `launch` is already serving.
 
 ## Evidence
 
