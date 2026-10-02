@@ -775,7 +775,7 @@ const MAX_UNITS_PER_GRAPHEME = 32;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
 export function isName(name: string, maxLength: number): boolean {
-  if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name) || nameKey(name) === "") return false;
+  if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name) || nameKey(name).trim() === "") return false;
   const characters = [...graphemes.segment(name)];
   return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_UNITS_PER_GRAPHEME);
 }

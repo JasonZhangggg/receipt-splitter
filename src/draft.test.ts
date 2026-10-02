@@ -406,7 +406,7 @@ describe("the Payment handles and names", () => {
   });
 
   test("calls a name that draws nothing a bad name, not a taken one, and keeps it out of the draft", () => {
-    const blanks = ["", "   ", "\u200B", "\u0007", "\u2800", "\u00AD", "\uFFF9"];
+    const blanks = ["", "   ", "\u200B", "\u0007", "\u2800", "\u00AD", "\uFFF9", "\u3164 \u3164", "\u00AD \u00AD", "\u2800 \u2800", "\u200D \u200D", "\u0600 \u2800", "\uFFF9 \uFFF9"];
 
     expect(blanks.map((typed) => newName(typed, ["Sam"]))).toEqual(blanks.map(() => ({ ok: false, reason: "badName" })));
     expect(run(emptyDraft, ...blanks.map((name): DraftAction => ({ type: "addName", name }))).names).toEqual([]);

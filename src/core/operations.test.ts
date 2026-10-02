@@ -1196,6 +1196,13 @@ describe("names", () => {
     );
   });
 
+  test("refuses a name made of characters that draw nothing with a space between them, and still takes short and non-Latin names", () => {
+    expect(["\u3164 \u3164", "\u00AD \u00AD", "\u2800 \u2800", "\u200D \u200D", "\u0600 \u2800", "\uFFF9 \uFFF9"].map(join)).toEqual(
+      Array.from({ length: 6 }, () => "badName"),
+    );
+    expect(["Jo", "Jos\u00E9", "\u674E", "\u{1F600}"].map(join)).toEqual(Array.from({ length: 4 }, () => "accepted"));
+  });
+
   test("an Item from a long OCR line keeps up to 80 characters, and an Adjustment too", () => {
     const line = (length: number) => "Grilled chicken sandwich, extra pickles, no onion, sub fries ".padEnd(length, "x");
     const tip = { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(500) };
