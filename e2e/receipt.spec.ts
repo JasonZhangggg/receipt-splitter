@@ -62,7 +62,8 @@ async function pick(page: Page, name: string) {
 }
 
 const firstBucket = (page: Page) => page.getByRole("button", { name: /^Beer Bucket, / }).first();
-const guinness = (page: Page) => page.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, quantity 3, \$21\.87/ });
+const guinness = (page: Page) => page.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, \$7\.29, / });
+const guinnessCircles = (page: Page, name: string) => page.getByRole("button", { name: `Guinness Draught 14.9oz Can, check for ${name}` });
 
 test("a Beer Bucket opens and closes from the keyboard in place, says so through aria-expanded, and keeps focus on its header", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
@@ -75,38 +76,98 @@ test("a Beer Bucket opens and closes from the keyboard in place, says so through
   await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "true");
   await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, expanded");
   await expect(firstBucket(page)).toBeFocused();
-  await expect(guinness(page)).toBeVisible();
+  await expect(guinness(page)).toHaveCount(3);
+  for (const row of await guinness(page).all()) await expect(row).toBeVisible();
   const region = await firstBucket(page).getAttribute("aria-controls");
-  await expect(page.locator(`[id="${region}"]`).getByRole("button", { name: /^Open Guinness/ })).toBeVisible();
+  await expect(page.locator(`[id="${region}"]`).getByRole("button", { name: /^Open Guinness/ })).toHaveCount(3);
+  await expect(page.locator(`[id="${region}"]`).getByRole("list", { name: "Beer Bucket" })).toHaveCount(1);
 
   await page.keyboard.press("Space");
   await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "false");
   await expect(firstBucket(page)).toBeFocused();
   await expect(guinness(page)).toHaveCount(0);
+  await expect(page.locator(`[id="${region}"]`).getByRole("list")).toHaveCount(0);
 });
 
-test("a Bundle Item's sheet names its Bundle's discount, Delete item takes it off the receipt for everyone, and Revert brings it back", async ({ browser, request }, { workerIndex }) => {
+test("a Beer Bucket grows open over several frames instead of jumping to its full height", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const region = await firstBucket(page).getAttribute("aria-controls");
+  const heights = page.evaluate(
+    (id) =>
+      new Promise<number[]>((resolve) => {
+        const box = document.getElementById(id ?? "");
+        const seen: number[] = [];
+        const sample = () => {
+          seen.push(Math.round(box?.getBoundingClientRect().height ?? -1));
+          if (seen.length < 90) requestAnimationFrame(sample);
+          else resolve(seen);
+        };
+        requestAnimationFrame(sample);
+      }),
+    region,
+  );
+  await firstBucket(page).click();
+
+  const seen = await heights;
+  const full = seen.at(-1) ?? 0;
+  expect(full).toBeGreaterThan(200);
+  expect(seen.filter((height) => height > 0 && height < full * 0.9).length).toBeGreaterThan(2);
+});
+
+test("three Guinness cans are three rows at 7.29, and a circle checks only the can it is on", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+
+  await expect(page.getByText("Qty")).toHaveCount(0);
+  await expect(guinness(page)).toHaveCount(3);
+  await guinnessCircles(page, "Sam").nth(1).click();
+
+  await expect(guinnessCircles(page, "Sam").nth(1)).toHaveAttribute("aria-pressed", "true", live);
+  await expect(guinnessCircles(page, "Sam").nth(0)).toHaveAttribute("aria-pressed", "false");
+  await expect(guinnessCircles(page, "Sam").nth(2)).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Sam" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, nobody had it" })).toHaveCount(2);
+  await firstBucket(page).click();
+  await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 5 unclaimed, collapsed");
+});
+
+test("a Bundle Item's sheet shows one can at its unit price, Delete item takes off that can only for everyone, and Revert brings back a whole Item", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-
   await firstBucket(sam).click();
-  await guinness(sam).click();
+  await guinnessCircles(sam, "Sam").nth(2).click();
+  await expect(guinnessCircles(sam, "Sam").nth(2)).toHaveAttribute("aria-pressed", "true", live);
+
+  await guinness(sam).first().click();
   const sheet = sam.getByRole("dialog", { name: "Item" });
-  await expect(sheet.getByText("In Beer Bucket. Its 10% off takes $2.19 off this line.")).toBeVisible();
+  await expect(sheet.getByText("In Beer Bucket. Its 10% off takes $0.73 off this line.")).toBeVisible();
+  await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("7.29");
+  await expect(sheet.getByText("each", { exact: true })).toBeVisible();
+  await expect(sheet.getByRole("group", { name: "Who had it" })).toHaveCount(1);
+  await expect(sheet.getByRole("button", { name: "Less" })).toHaveCount(0);
   await sheet.getByRole("button", { name: "Delete item" }).click();
 
   await expect(sheet).toHaveCount(0, live);
-  await expect(guinness(sam)).toHaveCount(0);
-  await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, expanded");
-  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, collapsed", live);
+  await expect(guinness(sam)).toHaveCount(2);
+  await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Sam" })).toHaveCount(1);
+  await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 5 items, 10% off, had by Sam, 4 unclaimed, expanded");
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 5 items, 10% off, had by Sam, 4 unclaimed, collapsed", live);
+
+  await sam.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first().click();
+  await expect(sheet.getByText("each", { exact: true })).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Delete item" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 3 unclaimed, collapsed", live);
 
   await sam.getByRole("button", { name: "History" }).click();
-  await sam.getByRole("button", { name: "Revert Removed Guinness Draught 14.9oz Can" }).click();
+  await sam.getByRole("button", { name: "Revert Removed Michelob Ultra 16oz Aluminum Bottle" }).click();
   await expect(sam.getByText("Reverted")).toBeVisible(live);
-  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, collapsed", live);
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 5 items, 10% off, had by Sam, 4 unclaimed, collapsed", live);
 });
 
 test("a name already on the Split keeps the cursor in Add yourself after Enter, so the next keys fix it", async ({ browser, request }, { workerIndex }) => {

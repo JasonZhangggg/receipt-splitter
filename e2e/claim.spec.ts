@@ -181,8 +181,10 @@ test("Tostones split 2:1 by shares and a pitcher on its second unit reach the ot
   await expect(owe(sam)).toHaveText("$0.33", live);
   await expect(jason.getByText("2:1")).toBeVisible(live);
 
-  await jason.getByRole("button", { name: /^Open Pitchers/ }).click();
-  await jason.getByRole("group", { name: "Who had it, 2 of 2" }).getByRole("button", { name: "Sam" }).click();
+  await expect(jason.getByRole("button", { name: /^Open Pitchers, \$12\.00, / })).toHaveCount(2);
+  await jason.getByRole("button", { name: /^Open Pitchers/ }).nth(1).click();
+  await jason.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
+  await expect(jason.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" })).toHaveAttribute("aria-pressed", "true", live);
   await jason.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
   await expect(owe(sam)).toHaveText("$12.33", live);
 });
