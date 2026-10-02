@@ -352,8 +352,9 @@ describe("the Payment handles and names", () => {
       { type: "addName", name: "Mary  Ann" },
       { type: "addName", name: "mary ann" },
       { type: "addName", name: "\u202EBob" },
+      { type: "addName", name: "Lee \u200B Ann" },
     );
-    expect(draft.names).toEqual(["Jos\u00E9", "Sam", "Mary Ann", "Bob"]);
+    expect(draft.names).toEqual(["Jos\u00E9", "Sam", "Mary Ann", "Bob", "Lee Ann"]);
   });
 
   test("adds trimmed names, skips blanks and repeats, and removes one", () => {
