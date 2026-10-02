@@ -149,6 +149,20 @@ test("with no way to pay, Create split link shows no note until a tap, which put
 test.describe("the phone panel", () => {
   const panelTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
   const actionTop = async (page: Page) => (await action(page).boundingBox())!.y;
+  const tops = (page: Page) =>
+    page.evaluate(
+      () =>
+        new Promise<{ panel: number; action: number }>((resolve) =>
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() =>
+              resolve({
+                panel: document.querySelector("[data-sheet-surface]")!.getBoundingClientRect().top,
+                action: [...document.querySelectorAll("[role='button']")].find((el) => el.textContent === "Create split link")!.getBoundingClientRect().top,
+              }),
+            ),
+          ),
+        ),
+    );
   const paymentArea = async (page: Page) => {
     const panel = (await page.locator("[data-sheet-surface]").boundingBox())!;
     const field = (await page.getByRole("textbox", { name: "Venmo handle" }).boundingBox())!;
@@ -169,11 +183,11 @@ test.describe("the phone panel", () => {
   test("a drag from the payment area moves the whole panel with the finger, then it springs back to the same rest", async ({ page }) => {
     await page.goto("/");
     await settle(page);
-    const rest = { panel: await panelTop(page), action: await actionTop(page) };
+    const rest = await tops(page);
 
     const finger = await touchDown(page, await paymentArea(page));
     await finger.moveBy(80);
-    const held = { panel: await panelTop(page), action: await actionTop(page) };
+    const held = await tops(page);
     await finger.release();
 
     expect(held.panel - rest.panel).toBeGreaterThan(20);
@@ -202,6 +216,20 @@ test.describe("the phone panel", () => {
     expect(lifted).toBeGreaterThan(20);
     expect(covered).toEqual([true, true]);
     await expect.poll(() => panelTop(page)).toBe(rest);
+  });
+
+  test("under reduced motion a drag from the payment area leaves the panel where it is", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await settle(page);
+    const rest = await tops(page);
+
+    const finger = await touchDown(page, await paymentArea(page));
+    await finger.moveBy(80);
+    const held = await tops(page);
+    await finger.release();
+
+    expect(held).toEqual(rest);
   });
 
   test("a tap on the Venmo handle that wanders a few pixels focuses it and leaves the panel at rest", async ({ page }) => {

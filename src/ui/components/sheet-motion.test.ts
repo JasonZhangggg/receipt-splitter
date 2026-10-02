@@ -1,17 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { animateSpring, glideFor, project, releaseIntent, releaseVelocity, rubberband, snapTarget } from "./sheet-motion";
+import { animateSpring, glideFor, project, releaseIntent, releaseVelocity, rubberband } from "./sheet-motion";
 
-describe("snapTarget", () => {
-  test("lands where the momentum projects, not where the finger let go", () => {
-    expect(project(1000)).toBeCloseTo(499, 0);
-    expect({
-      slowPastHalf: snapTarget(70, 0, 120),
-      slowShortOfHalf: snapTarget(50, 0, 120),
-      flickUpFromLow: snapTarget(90, -400, 120),
-      flickDownFromHigh: snapTarget(20, 400, 120),
-    }).toEqual({ slowPastHalf: 1, slowShortOfHalf: 0, flickUpFromLow: 0, flickDownFromHigh: 1 });
-  });
+test("project carries a release velocity forward the way a scroll decelerates", () => {
+  expect(project(1000)).toBeCloseTo(499, 0);
 });
 
 test("rubberband gives less travel the further past the edge the drag goes", () => {

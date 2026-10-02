@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { rememberSplit } from "../src/device";
-import { blocker, editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, reduceDraft, saveDraft, splitRequest, totalOf, type DraftAction, type ReceiptFile } from "../src/draft";
+import { editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, totalOf, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
@@ -14,7 +14,7 @@ import { PaymentRows } from "../src/ui/components/payment-row";
 import { Sheet } from "../src/ui/components/sheet";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
-import { copy, joinCopy } from "../src/ui/home-copy";
+import { copy, createCopy, joinCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
@@ -75,12 +75,11 @@ export default function Home() {
   const gutter = wide ? 40 : layout.gutter;
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
-  const blocked = blocker(draft);
-  const reason = blocked?.kind === "note" ? blocked.note : null;
+  const ready = readiness(draft);
+  const reason = ready.kind === "note" ? ready.note : null;
 
-  const create = async () => {
-    const request = splitRequest(draft, newParticipantId);
-    if (!request) return;
+  const create = async (split: Ready) => {
+    const request = splitRequest(split, newParticipantId);
     const scan = scanning.current;
     setCreating(true);
     setFailure(null);
@@ -93,6 +92,18 @@ export default function Home() {
       apply({ type: "created" });
     }
     router.push(`/s/${created.id}`);
+  };
+
+  const press = () => {
+    switch (ready.kind) {
+      case "ready":
+        return void create(ready);
+      case "noHandle":
+        handleInput.current?.focus();
+        return setFailure(createCopy.noHandle);
+      case "note":
+        return setFailure(ready.note);
+    }
   };
 
   const people = draft.names;
@@ -113,7 +124,7 @@ export default function Home() {
   const action = (
     <Button
       label={creating ? copy.creating : copy.action}
-      onPress={blocked?.kind === "noHandle" ? () => handleInput.current?.focus() : create}
+      onPress={press}
       outsideScroll={!wide}
       busy={creating}
       disabled={reason !== null}

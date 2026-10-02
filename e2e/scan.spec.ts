@@ -441,7 +441,6 @@ test("the payment apps and names follow the Host's choices and survive a reload"
 test.describe("the sheet", () => {
   const grab = (page: Page) => page.locator("[data-sheet-grab]");
   const sheetTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(el.getBoundingClientRect().top));
-  const actionTop = async (page: Page) => Math.round((await action(page).boundingBox())!.y);
 
   async function drag(page: Page, by: number, { steps = 12, stepMs = 16 } = {}) {
     const box = (await grab(page).boundingBox())!;
@@ -457,47 +456,21 @@ test.describe("the sheet", () => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [], timestamp: at(steps) });
   }
 
-  test("a drag down on the grab handle collapses it to the action, follows the finger, and a flick up opens it again", async ({ page }) => {
-    await page.goto("/");
-    await openExample(page);
-    const open = { sheet: await sheetTop(page), action: await actionTop(page) };
-    const handle = page.getByRole("textbox", { name: "Venmo handle" });
-
-    await drag(page, 160);
-    await expect(grab(page)).toHaveAttribute("aria-expanded", "false");
-    await expect(handle).toBeHidden();
-    expect(await actionTop(page)).toBe(open.action);
-    expect(await sheetTop(page)).toBeGreaterThan(open.sheet);
-
-    await drag(page, -50, { steps: 3, stepMs: 8 });
-    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
-    await expect(handle).toBeVisible();
-    await expect.poll(() => sheetTop(page)).toBe(open.sheet);
-  });
-
-  test("a slow short drag springs back open, and the handle toggles with a tap or the keyboard", async ({ page }) => {
+  test("a slow short drag on the grab handle springs back to rest", async ({ page }) => {
     await page.goto("/");
     const open = await sheetTop(page);
     await drag(page, 25, { steps: 10, stepMs: 50 });
     await expect.poll(() => sheetTop(page)).toBe(open);
-    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
-
-    await grab(page).tap();
-    await expect(grab(page)).toHaveAttribute("aria-expanded", "false");
-    await grab(page).focus();
-    await page.keyboard.press("Enter");
-    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
-    await expect.poll(() => sheetTop(page)).toBe(open);
   });
 
-  test("a touch while the sheet settles catches it where it is, and a tap then sends it back the other way", async ({ page }) => {
+  test("a touch while the sheet settles catches it where it is, and a release sends it back to rest", async ({ page }) => {
     await page.goto("/");
     await expect(grab(page)).toBeVisible();
     const open = await sheetTop(page);
     const offset = () => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(new DOMMatrix(getComputedStyle(el).transform).f));
     const touch = async (type: "touchStart" | "touchMove" | "touchEnd", dy = 0) => {
       const box = (await grab(page).boundingBox())!;
-      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 + dy };
+      const point = { x: 4, y: box.y + box.height / 2 + dy };
       await cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [point] });
     };
     const cdp = await page.context().newCDPSession(page);
@@ -505,7 +478,7 @@ test.describe("the sheet", () => {
     await touch("touchMove", 70);
     await touch("touchEnd");
     const released = await offset();
-    await expect.poll(offset).not.toBe(released);
+    await expect.poll(offset, { intervals: [16] }).not.toBe(released);
     await touch("touchStart");
     const caught = await offset();
     await page.waitForTimeout(200);
@@ -514,7 +487,6 @@ test.describe("the sheet", () => {
 
     expect(caught).toBeGreaterThan(0);
     expect(held).toBe(caught);
-    await expect(grab(page)).toHaveAttribute("aria-expanded", "true");
     await expect.poll(() => sheetTop(page)).toBe(open);
   });
 
