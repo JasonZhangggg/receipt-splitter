@@ -1,8 +1,8 @@
 import { MAX_CENTS, cents, isCents, type Cents, type Price } from "./money";
 import {
-  CREATED_SCHEMA_VERSION,
   SPLIT_BYTE_BUDGET,
   serializedBytes,
+  storedVersion,
   type Adjustment,
   type AdjustmentFields,
   type AdjustmentId,
@@ -165,7 +165,8 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
     if (serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
     else if (op.type !== "restoreReceipt") return reject("tooLarge");
   }
-  return { ok: true, split: { ...state, recentChanges: fitChanges(state, recentChanges) }, changed: true };
+  const stored = { ...state, recentChanges: fitChanges(state, recentChanges) };
+  return { ok: true, split: { ...stored, schemaVersion: storedVersion(stored) }, changed: true };
 }
 
 function run(split: Split, op: Operation, auth: Auth): Step {
@@ -472,7 +473,6 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
   return typeof edit === "string" ? edit : edit ? [{ kind: "item", id: patch.itemId, edit }] : [];
 }
 
-/** Deleting an Item takes it out of its Bundle, and takes away a Bundle it was the last Item of. */
 function leaveBundle(split: Split, itemId: ItemId): readonly Write[] {
   return split.receipt.adjustments.flatMap((row, index): Write[] => {
     if (row.kind !== "bundleDiscount" || !row.bundle.items.includes(itemId)) return [];
@@ -706,11 +706,12 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
   const plain = ({ id, name, price, quantity = 1 }: Item): Item => (quantity === 1 ? { id, name, price } : { id, name, price, quantity });
   const unclaimed = ({ id, name, price, quantity = 1 }: Item): SplitItem => ({ id, name, price, split: evenUnits(quantity) });
   const [first, ...rest] = items;
+  const receipt: Receipt<SplitItem> = { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total };
   const bare: Split = {
-    schemaVersion: CREATED_SCHEMA_VERSION,
+    schemaVersion: storedVersion({ receipt, recentChanges: [] }),
     id: input.id,
     currency: "USD",
-    receipt: { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total },
+    receipt,
     participants: input.participants,
     picks: [],
     payments: [],
@@ -784,7 +785,6 @@ function checkState(split: Split): Rejection | null {
   return null;
 }
 
-/** Every Bundle names Items of its Receipt, each in no other Bundle, and takes nothing off past $0.00. */
 function bundleRejection({ items, adjustments }: Receipt, path: string): Rejection | null {
   const known = new Set(items.map(({ id }) => id));
   const bundled = new Set<ItemId>();

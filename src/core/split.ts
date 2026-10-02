@@ -172,8 +172,13 @@ export type Change = {
 
 export type SchemaVersion = 1 | 2;
 
-/** The version a new Split is stored at. A stored Split keeps the version it was read with. */
-export const CREATED_SCHEMA_VERSION: SchemaVersion = 1;
+export function storedVersion({ receipt, original, recentChanges }: Pick<Split, "receipt" | "original" | "recentChanges">): SchemaVersion {
+  const bundled = (adjustments: readonly Adjustment[]) => adjustments.some(({ kind }) => kind === "bundleDiscount");
+  const writesBundle = (write: Write | LegacyWrite) =>
+    write.kind === "adjustment" && ("edit" in write ? "bundle" in write.edit : ("added" in write ? write.added : write.removed).kind === "bundleDiscount");
+  const holds = bundled(receipt.adjustments) || bundled(original?.adjustments ?? []) || recentChanges.some(({ writes }) => writes.some(writesBundle));
+  return holds ? 2 : 1;
+}
 
 export type Split = {
   readonly schemaVersion: SchemaVersion;

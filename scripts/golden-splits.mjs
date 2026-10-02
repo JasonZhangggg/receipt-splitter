@@ -99,8 +99,7 @@ for (const op of ops) {
 process.stdout.write(JSON.stringify(split) + "\\n");
 `;
 
-/** No release before V2-2 writes a Bundle, so this row is what V2-2's writer stores: the same Split with its two Beer Bucket discounts as Bundles at version 2. */
-function withBundles(json) {
+function asV2_2Writes(json) {
   const bundles = { bucket1: bucketOne, bucket2: bucketTwo };
   const bundled = (receipt) => ({
     ...receipt,
@@ -110,7 +109,7 @@ function withBundles(json) {
   return JSON.stringify({ ...split, schemaVersion: 2, receipt: bundled(split.receipt), original: bundled(split.original) }, null, 2) + "\n";
 }
 
-const drivers = { dinner: { source: dinner, finish: (json) => json }, topgolf: { source: topgolf, finish: withBundles } };
+const drivers = { dinner: { source: dinner, finish: (json) => json }, topgolf: { source: topgolf, finish: asV2_2Writes } };
 
 const root = resolve(import.meta.dirname, "..");
 const out = join(root, "src/core/golden");

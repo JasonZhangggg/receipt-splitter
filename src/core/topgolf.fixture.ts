@@ -33,7 +33,6 @@ function bucket(id: string, amount: number, items: NonEmpty<TopgolfItem>): Adjus
   };
 }
 
-/** The Topgolf receipt of 2026-10-01 with its two Beer Buckets, each Item's every unit Claimed by `claims[item]`. */
 export function topgolf(claims: Partial<Record<TopgolfItem, readonly ParticipantId[]>> = {}): Split {
   const items = rows.map(([id, name, amount, quantity]): SplitItem => {
     const claimers = [...(claims[id] ?? [])].sort();

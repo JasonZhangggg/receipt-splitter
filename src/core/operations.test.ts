@@ -1669,6 +1669,24 @@ describe("Bundles", () => {
     expect(restored.receipt.total).toBe(20729);
   });
 
+  test("a Split is stored at version 2 while it or its history holds a Bundle, and at version 1 once neither does", () => {
+    const start = claimed();
+    const unbundled = apply(start, {
+      by: jason,
+      type: "editReceipt",
+      adjustments: [
+        { type: "delete", adjustmentId: adjustmentId("bucket1") },
+        { type: "delete", adjustmentId: adjustmentId("bucket2") },
+      ],
+      totalDelta: cents(914),
+    });
+    const forgotten = { ...unbundled, recentChanges: [] };
+
+    expect([start.schemaVersion, unbundled.schemaVersion, unbundled.receipt.adjustments.map(({ kind }) => kind)]).toEqual([2, 2, ["tax", "tip"]]);
+    expect(apply(forgotten, { by: priya, type: "claim", itemId: itemId("gameplay"), participantId: priya }).schemaVersion).toBe(1);
+    expect(created().schemaVersion).toBe(1);
+  });
+
   test("a Bundle discount keeps its kind, stays at or below $0.00, and its Split keeps version 2", () => {
     const start = claimed();
     const bucket = adjustmentId("bucket1");
