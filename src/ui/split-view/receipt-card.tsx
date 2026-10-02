@@ -7,7 +7,6 @@ import type { AdjustmentId, Participant, ParticipantId, Split, SplitItem } from 
 import { plainAmount } from "../../draft";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { Tag } from "../components/tag";
 import { animateSpring } from "../components/sheet-motion";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
@@ -52,7 +51,6 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   const order = split.participants.map(({ id }) => id);
   const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
   const people = (item: SplitItem) => claimersOfItem(item).map(person);
-  const flagged = ({ item, unit }: UnitRow) => started && claimersOf(item.split, unit).length === 0;
   const toggle = (id: AdjustmentId) =>
     setOpened((was) => {
       const next = new Set(was);
@@ -66,7 +64,6 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
       order={order}
       claimers={claimersOf(row.item.split, row.unit).map(person)}
       selected={selected}
-      flagged={flagged(row)}
       divided={divided}
       inBundle={inBundle}
       onCircle={() => onCircle(row.item, row.unit)}
@@ -185,9 +182,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                     {claimers.map((person) => (
                       <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
                     ))}
-                    {unclaimed > 0 ? (
-                      <Tag text={say.unclaimedUnits(unclaimed)} />
-                    ) : null}
+                    {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
                   </View>
                 ) : null}
               </View>
@@ -271,14 +266,13 @@ type LineProps = {
   order: readonly ParticipantId[];
   claimers: readonly Participant[];
   selected: Participant | null;
-  flagged: boolean;
   divided: boolean;
   inBundle: boolean;
   onCircle: () => void;
   onOpen: () => void;
 };
 
-function Line({ row: { item, unit, price: cost }, order, claimers, selected, flagged, divided, inBundle, onCircle, onOpen }: LineProps) {
+function Line({ row: { item, unit, price: cost }, order, claimers, selected, divided, inBundle, onCircle, onOpen }: LineProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const tag = lineTag(item, unit, order);
@@ -331,7 +325,6 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
                 </Text>
               ) : null}
             </View>
-            {flagged ? <Tag text={say.unclaimed} /> : null}
             <Text style={[itemType, tabular, { color: c.ink }]}>{price}</Text>
           </View>
         )}

@@ -129,11 +129,11 @@ test("three Guinness cans are three rows at 7.29, and a circle checks only the c
   await expect(guinnessCircles(page, "Sam").nth(2)).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Sam" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, nobody had it" })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /Guinness.*nobody had it/ }).getByText("Unclaimed", { exact: true })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: /Guinness.*had by Sam/ }).getByText("Unclaimed", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Guinness.*nobody had it/ }).getByText(/unclaimed/i)).toHaveCount(0);
   await firstBucket(page).click();
   await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 5 unclaimed, collapsed");
   await expect(firstBucket(page).getByText("5 unclaimed", { exact: true })).toBeVisible();
+  await expect(firstBucket(page).getByText("5 unclaimed", { exact: true })).toHaveCSS("border-top-width", "0px");
 });
 
 test("a Bundle Item's sheet shows one can at its unit price, Delete item takes off that can only for everyone, and Revert brings back a whole Item", async ({ browser, request }, { workerIndex }) => {
