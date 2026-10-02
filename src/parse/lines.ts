@@ -34,8 +34,8 @@ const LABELS: readonly (readonly [Label, RegExp])[] = [
 
 const MONEY = /(-{1,2})?\s?\$?\s?(\d{1,3}(?:,\d{3})+|\d{1,6})(?:\.\s?|,)(\d{2})(?!\d)(-(?!\d))?/g;
 const AT = /(\d{1,2})\s*@\s*\$?\s?(\d{1,6}[.,]\d{2})/;
-const LEADING_COUNT = /^\s*(0\d\s+)?\d{1,2}\s+(?=\S)/;
-const TIMES = /^(\d{1,2})[x×]\s+(?=\S)/i;
+const LEADING_COUNT = /^\s*(0\d\s+)?\d{1,2}\s+(?![x×]\s)(?=\S)/i;
+const TIMES = /^(\d{1,2})\s?[x×]\s+(?=\S)/i;
 const MODIFIER_MARK = /^(\+|add\b|make\s+it\b|extra\b|sub\b|no\b|w\/|with\b)/i;
 
 type Amount = { readonly cents: number; readonly start: number; readonly bracketed: boolean };
