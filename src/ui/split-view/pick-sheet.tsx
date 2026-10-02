@@ -4,9 +4,9 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { Participant, ParticipantId } from "../../core/split";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { pressStyle, useReducedMotion, webAnimation } from "../motion";
+import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, motion, type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 import { Dot } from "./dot";
 import { LinkLine } from "./link-line";
 
@@ -16,7 +16,6 @@ type Props = {
   rows: readonly PickRow[];
   intro: { readonly lead: string; readonly rest: string; readonly strong?: string };
   chosen: ParticipantId | null;
-  leaving: boolean;
   onPick: (id: ParticipantId, takeOver: boolean) => void;
   onAdd: (name: string) => Promise<string | null>;
   onClose: () => void;
@@ -24,12 +23,11 @@ type Props = {
   onShared: () => void;
 };
 
-export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose, url, onShared }: Props) {
+export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url, onShared }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [typing, setTyping] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const fadeOut = leaving && !reduce ? listLeaving : null;
 
   const join = async () => {
     const refused = await onAdd(typing ?? "");
@@ -38,7 +36,7 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
 
   return (
     <View pointerEvents={chosen === null ? "auto" : "none"} style={styles.sheet}>
-      <View style={[styles.topline, fadeOut]}>
+      <View style={styles.topline}>
         <Text style={[type.secondary, styles.invite, { color: c.muted }]}>
           <Text style={[styles.strong, { color: c.ink }]}>{intro.lead}</Text>
           {intro.rest}
@@ -48,12 +46,12 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
           <Button kind="icon" icon="x" name={say.closePick} onPress={onClose} outsideScroll />
         </View>
       </View>
-      <Text role="heading" aria-level={1} style={[type.hero, styles.ask, { color: c.ink }, fadeOut]}>
+      <Text role="heading" aria-level={1} style={[type.hero, styles.ask, { color: c.ink }]}>
         {say.question}
       </Text>
-      <PickRows rows={rows} chosen={chosen} leaving={leaving} onPick={onPick} />
+      <PickRows rows={rows} chosen={chosen} onPick={onPick} />
       {typing === null ? (
-        <View style={fadeOut}>
+        <View>
           <PressTarget name={`${say.notHere} ${say.addYourself}`} outsideScroll onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
             {() => (
               <View style={[styles.row, styles.notHere, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
@@ -88,20 +86,19 @@ export function PickSheet({ rows, intro, chosen, leaving, onPick, onAdd, onClose
           <Button label={typing.trim() ? say.joinAs(typing.trim()) : say.yourName} disabled={!typing.trim()} onPress={join} outsideScroll />
         </View>
       )}
-      <View style={[styles.link, fadeOut]}>
+      <View style={styles.link}>
         <LinkLine url={url} onShared={onShared} />
       </View>
     </View>
   );
 }
 
-type RowsProps = Pick<Props, "rows" | "chosen" | "leaving" | "onPick">;
+type RowsProps = Pick<Props, "rows" | "chosen" | "onPick">;
 
-export function PickRows({ rows, chosen, leaving, onPick }: RowsProps) {
+function PickRows({ rows, chosen, onPick }: RowsProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [asking, setAsking] = useState<ParticipantId | null>(null);
-  const fadeOut = leaving && !reduce ? listLeaving : null;
   return (
     <View role="list" style={styles.rows}>
         {rows.map(({ person, picked }) =>
@@ -122,7 +119,7 @@ export function PickRows({ rows, chosen, leaving, onPick }: RowsProps) {
               </View>
             </View>
           ) : (
-            <View key={person.id} role="listitem" style={chosen !== null && person.id !== chosen ? fadeOut : null}>
+            <View key={person.id} role="listitem">
               <PressTarget
                 name={picked ? say.pickedName(person.name) : person.name}
                 outsideScroll
@@ -153,13 +150,6 @@ export function PickRows({ rows, chosen, leaving, onPick }: RowsProps) {
       </View>
   );
 }
-
-const listLeaving = webAnimation({
-  animationKeyframes: [{ from: { opacity: 1, filter: "blur(0px)" }, to: { opacity: 0, filter: "blur(2px)" } }],
-  animationDuration: "120ms",
-  animationTimingFunction: motion.easeOut,
-  animationFillMode: "forwards",
-});
 
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },

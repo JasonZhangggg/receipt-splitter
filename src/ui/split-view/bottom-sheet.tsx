@@ -4,9 +4,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { glide, glideFor, releaseIntent, rubberband } from "../components/sheet-motion";
 import { useReducedMotion, webStyle } from "../motion";
-import { layout, useColors } from "../theme";
+import { layout, motion, useColors } from "../theme";
 
 const reducedFade = 200;
+const fadeIn = 200;
+const fadeOut = 150;
 const tapSlop = 10;
 const maxVelocity = 3000;
 const grabHeight = 29;
@@ -30,14 +32,15 @@ type Props = {
   lowered?: boolean;
   closing?: boolean;
   onHeight?: (height: number) => void;
-  extra?: ReactNode;
+  /** Names what the sheet shows. When it changes, the old content fades out over the new one as it fades in. */
+  view?: string;
   label: string;
   testID?: string;
 };
 
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; samples: { y: number; t: number }[] };
 
-export function BottomSheet({ children, scrim = false, onDown, onUp, stays = false, closing = false, onHeight, extra, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
+export function BottomSheet({ children, scrim = false, onDown, onUp, stays = false, closing = false, onHeight, view, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
@@ -57,6 +60,16 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const placed = useRef(false);
   const left = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gestures = onDown !== undefined || onUp !== undefined;
+  const [shown, setShown] = useState({ view, children });
+  const [outgoing, setOutgoing] = useState<{ view: string | undefined; content: ReactNode } | null>(null);
+  if (view !== shown.view) {
+    setOutgoing(reduce ? null : { view: shown.view, content: shown.children });
+    setShown({ view, children });
+  } else if (children !== shown.children) setShown({ view, children });
+  useLayoutEffect(() => {
+    const box = body.current as unknown as HTMLElement | null;
+    if (outgoing) box?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: fadeIn, easing: motion.easeOut });
+  }, [outgoing]);
 
   const element = () => surface.current as unknown as HTMLElement | null;
   const dimFor = (value: number) => (visible > 0 ? Math.max(0, Math.min(1, 1 - (value - (tallest - visible)) / visible)) : 0);
@@ -207,11 +220,27 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
             <View ref={body} onLayout={measure} {...{ dataSet: { sheetBody: "" } }}>
               {children}
             </View>
-            {extra}
+            {outgoing ? <Outgoing key={outgoing.view} onDone={() => setOutgoing(null)}>{outgoing.content}</Outgoing> : null}
           </ScrollView>
         </View>
       </View>
     </>
+  );
+}
+
+function Outgoing({ children, onDone }: { children: ReactNode; onDone: () => void }) {
+  const copy = useRef<View>(null);
+  const done = useEffectEvent(onDone);
+  useLayoutEffect(() => {
+    const fade = (copy.current as unknown as HTMLElement | null)?.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: fadeOut, easing: motion.easeOut, fill: "forwards" });
+    if (!fade) return done();
+    fade.onfinish = () => done();
+    return () => fade.cancel();
+  }, []);
+  return (
+    <View ref={copy} aria-hidden pointerEvents="none" style={styles.outgoing}>
+      {children}
+    </View>
   );
 }
 
@@ -226,4 +255,5 @@ const styles = StyleSheet.create({
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   grabArea: { alignSelf: "stretch", height: grabHeight, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },
+  outgoing: { position: "absolute", top: 0, left: 0, right: 0 },
 });

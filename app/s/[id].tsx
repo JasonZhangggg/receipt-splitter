@@ -21,11 +21,11 @@ import { LinkLine } from "../../src/ui/split-view/link-line";
 import { OweLine } from "../../src/ui/split-view/owe-line";
 import { circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
-import { PickRows, PickSheet } from "../../src/ui/split-view/pick-sheet";
+import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
-import { useReducedMotion, webAnimation, webStyle } from "../../src/ui/motion";
-import { layout, motion, type, useColors } from "../../src/ui/theme";
+import { webStyle } from "../../src/ui/motion";
+import { layout, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -96,8 +96,6 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [closing, setClosing] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(0);
-  const [chipsHeight, setChipsHeight] = useState(44);
-  const reduce = useReducedMotion();
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -180,7 +178,6 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
   const regular = (
     <View style={styles.regular}>
-      <View onLayout={({ nativeEvent }) => setChipsHeight(nativeEvent.layout.height)}>
       <PeopleChips
         people={people}
         picked={picked}
@@ -190,8 +187,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
         onAdd={(typed) => void addPerson(typed)}
       />
-      </View>
-      <View style={[styles.regular, phase === "collapsing" && !reduce ? bodyEnter : null]}>
+      <View style={styles.regular}>
       {!me ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
@@ -244,18 +240,12 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         onDown={phase === "pick" ? () => setPhase("regular") : expanded ? collapse : undefined}
         onUp={phase === "regular" && me && !expanded ? () => setExpanded(true) : undefined}
         stays
-        extra={
-          phase === "collapsing" && !reduce ? (
-            <View pointerEvents="none" style={[styles.leaving, { top: chipsHeight + 14 }, rowsLeave]}>
-              <PickRows rows={pickRows(split, device)} chosen={chosen} leaving onPick={() => {}} />
-            </View>
-          ) : null
-        }
+        view={phase === "pick" ? "pick" : expanded ? `breakdown-${selectedPerson?.id}` : "bar"}
         testID="split-sheet"
       >
         {phase === "pick" ? (
           <>
-            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} leaving={false} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
+            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
             {pickProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
           </>
         ) : (
@@ -297,19 +287,6 @@ function intro(split: Split, creating: boolean) {
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
 
-const rowsLeave = webAnimation({
-  animationKeyframes: [{ from: { opacity: 1 }, to: { opacity: 0 } }],
-  animationDuration: `${crossFadeFor}ms`,
-  animationTimingFunction: motion.easeOut,
-  animationFillMode: "forwards",
-});
-
-const bodyEnter = webAnimation({
-  animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
-  animationDuration: "180ms",
-  animationTimingFunction: motion.easeOut,
-});
-
 const styles = StyleSheet.create({
   screen: { flex: 1, overflow: "hidden", ...webStyle({ overflow: "clip" }) },
   page: { flex: 1 },
@@ -319,7 +296,6 @@ const styles = StyleSheet.create({
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   regular: { gap: layout.blockGap },
-  leaving: { position: "absolute", left: 0, right: 0 },
   prompt: { marginHorizontal: 2 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
