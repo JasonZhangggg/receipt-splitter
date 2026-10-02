@@ -138,6 +138,23 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   expect(loaded.filter((path) => path.startsWith("/models/") || path.startsWith("/ort/"))).toEqual([]);
 });
 
+test("the wordmark on the Split page opens a fresh home that keeps the Venmo handle, and the Split stays on this device", async ({ page }) => {
+  await readyHome(page);
+  const link = await createLink(page);
+  await page.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Split a receipt" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
+  await expect(page.getByRole("group", { name: "People at the table" }).getByText("Jason", { exact: true })).toHaveCount(0);
+
+  await page.goto(link);
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(linkTimeout);
+  await expect(question(page)).toHaveCount(0);
+});
+
 test("without a system share sheet the link has Copy alone", async ({ page }) => {
   await page.addInitScript(() => {
     Reflect.deleteProperty(Navigator.prototype, "share");
