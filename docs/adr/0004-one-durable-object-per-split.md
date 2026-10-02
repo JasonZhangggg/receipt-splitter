@@ -15,4 +15,4 @@ A stored Split outlives the Worker that wrote it. The record carries `schemaVers
 
 A Worker rolled back to an older release refuses a row with a newer `schemaVersion` as unreadable. It does not read the row with fields dropped and write the rest away.
 
-Until launch no real Split exists, so `schemaVersion` stays 1 and the reads of older shapes stay in version 1.
+Until launch no real Split exists, so nothing stored has to survive and `schemaVersion` stays 1. Rules and reads of older shapes may still change inside version 1, as the hidden-character check on Zelle handles did, and the migration rule above applies from launch on.

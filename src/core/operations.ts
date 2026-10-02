@@ -788,11 +788,11 @@ function repeatedNames(participants: readonly Participant[]): number {
   return participants.length - new Set(participants.map(({ name }) => nameKey(name))).size;
 }
 
-const INVISIBLE = /(?!\s)[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+const STRIPPED = new RegExp(`(?!\\s)${HIDDEN_CHARACTERS.source}`, "gu");
 
-/** A name as a person typed it, in NFC, with inner whitespace collapsed to one space and invisible characters dropped. */
+/** A name as a person typed it, in NFC, with inner whitespace collapsed to one space and the hidden characters `isName` refuses dropped. */
 export function canonicalName(typed: string): string {
-  return typed.normalize("NFC").replace(INVISIBLE, "").replace(/\s+/gu, " ").trim();
+  return typed.normalize("NFC").replace(STRIPPED, "").replace(/\s+/gu, " ").trim();
 }
 
 /** Two names are the same name when their keys match, so "José" in either Unicode form, "Ｓam" and "sam" all collide with "Sam". */
