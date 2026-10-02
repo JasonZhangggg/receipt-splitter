@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   inside: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   chevron: { width: 16, marginLeft: -4 },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
-  rule: { position: "absolute", top: 0, bottom: 12, left: bleed + dotCenter, width: 1 },
+  rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
   why: { marginTop: 8, marginBottom: 2 },
   mark: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
