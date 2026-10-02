@@ -54,7 +54,8 @@ test("shareLabel reads whole units of a line as 1 of 2, part of the price as ½ 
 });
 
 describe("circleTap", () => {
-  test("checks the person on the unit tapped, whoever else has it", () => {
+  test("checks the person on the unit tapped, whoever else has it and whatever other units they have", () => {
+    expect(circleTap(item({ by: "even", units: [[bob], []] }), 1, bob)).toEqual([{ by: "bob", type: "claim", itemId: "tostones", participantId: "bob", unit: 1 }]);
     expect(circleTap(item({ by: "even", units: [[ann], []] }), 0, bob)).toEqual([{ by: "bob", type: "claim", itemId: "tostones", participantId: "bob", unit: 0 }]);
     expect(circleTap(item({ by: "even", units: [[ann], [], [cat]] }), 2, bob)).toEqual([{ by: "bob", type: "claim", itemId: "tostones", participantId: "bob", unit: 2 }]);
   });
