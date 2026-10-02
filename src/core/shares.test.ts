@@ -505,6 +505,30 @@ describe("computeShares", () => {
   });
 });
 
+describe("unitPrices", () => {
+  test("splits a line into unit prices that add up to it, the first units taking the extra cents", () => {
+    expect([unitPrices(1000, 3), unitPrices(2187, 3), unitPrices(1001, 3), unitPrices(5, 1), unitPrices(0, 2)]).toEqual([
+      [334, 333, 333],
+      [729, 729, 729],
+      [334, 334, 333],
+      [5],
+      [0, 0],
+    ]);
+  });
+
+  test("one person on each unit of a $10.00 line of three pays exactly that unit's price, so the unit rows and the Shares agree to the cent", () => {
+    const split = splitWith({ items: [["cans", 1000, []]] });
+    const [first, ...rest] = split.receipt.items.map((item) => ({ ...item, split: { by: "even" as const, units: [[participantId("cat")], [participantId("ann")], [participantId("bob")]] as const } }));
+    const shares = computeShares({ ...split, receipt: { ...split.receipt, items: [first, ...rest] } });
+
+    expect(shareCents(shares)).toEqual([
+      ["ann", 333],
+      ["bob", 333],
+      ["cat", 334],
+    ]);
+  });
+});
+
 describe("Item quantity and split modes", () => {
   const ids = (names: string) => (names ? names.split(",").map(participantId) : []);
   const weighted = (names: Record<string, number>) => Object.entries(names).map(([id, value]): [ParticipantId, number] => [participantId(id), value]);

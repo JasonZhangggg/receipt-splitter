@@ -60,6 +60,8 @@ export type ItemPatch =
       readonly price?: Price;
       /** Adds empty units or drops the last ones. */
       readonly quantity?: number;
+      /** Drops this unit instead of the last when `quantity` is one less than now. */
+      readonly drop?: number;
       /** A new mode starts every claimer at 1 share or $0.00. */
       readonly by?: SplitMode;
       readonly values?: readonly ItemValue[];
@@ -311,6 +313,10 @@ function resize(split: ItemSplit, quantity: number): ItemSplit {
   return withClaimers(split.by, Array.from({ length: quantity }, (_, unit) => now[unit] ?? []), (unit, id) => valueIn(split, unit, id));
 }
 
+function withoutUnit(split: ItemSplit, drop: number): ItemSplit {
+  return withClaimers(split.by, unitsOf(split).filter((_, unit) => unit !== drop), (unit, id) => valueIn(split, unit < drop ? unit : unit + 1, id));
+}
+
 function evenIfOverPrice(split: ItemSplit, price: number): ItemSplit {
   return overPrice(split, price) ? withClaimers("even", unitsOf(split), () => undefined) : split;
 }
@@ -321,9 +327,11 @@ function overPrice(split: ItemSplit, price: number): boolean {
   return split.units.some((unit, index) => unit.reduce((total, [, cents]) => total + cents, 0) > prices[index]);
 }
 
-function editedSplit(split: ItemSplit, { quantity, by, values }: Extract<ItemPatch, { type: "edit" }>): ItemSplit | RejectionReason {
+function editedSplit(split: ItemSplit, { quantity, drop, by, values }: Extract<ItemPatch, { type: "edit" }>): ItemSplit | RejectionReason {
   if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY)) return "amountOutOfRange";
-  let next = quantity === undefined ? split : resize(split, quantity);
+  if (drop !== undefined && (!Number.isInteger(drop) || drop < 0 || drop >= split.units.length)) return "badIndex";
+  if (drop !== undefined && quantity !== split.units.length - 1) return "conflict";
+  let next = quantity === undefined ? split : drop === undefined ? resize(split, quantity) : withoutUnit(split, drop);
   if (by !== undefined && by !== next.by) next = withClaimers(by, unitsOf(next), () => undefined);
   for (const { unit, participantId, value } of values ?? []) {
     if (!Number.isInteger(unit) || unit < 0 || unit >= next.units.length) return "badIndex";
@@ -334,9 +342,18 @@ function editedSplit(split: ItemSplit, { quantity, by, values }: Extract<ItemPat
   return next;
 }
 
-function keepClaimersRestoreShape(target: ItemSplit, current: ItemSplit): ItemSplit {
+function keepClaimersRestoreShape(target: ItemSplit, edited: ItemSplit, current: ItemSplit): ItemSplit {
   const now = unitsOf(current);
-  return withClaimers(target.by, unitsOf(target).map((ids, unit) => now[unit] ?? ids), (unit, id) => valueIn(target, unit, id));
+  const gone = droppedUnit(unitsOf(target), unitsOf(edited));
+  const kept = (unit: number) => (unit < gone ? now[unit] : unit === gone ? undefined : now[unit - 1]);
+  return withClaimers(target.by, unitsOf(target).map((ids, unit) => kept(unit) ?? ids), (unit, id) => valueIn(target, unit, id));
+}
+
+/** The unit an edit dropped, read from the claimers before and after it, so a stored edit needs no field to say which. */
+function droppedUnit(before: readonly (readonly ParticipantId[])[], after: readonly (readonly ParticipantId[])[]): number {
+  if (before.length !== after.length + 1) return Infinity;
+  const moved = after.findIndex((ids, unit) => ids.join() !== before[unit].join());
+  return moved === -1 ? Infinity : moved;
 }
 
 function fieldsOf({ id, ...fields }: Adjustment): AdjustmentFields {
@@ -404,7 +421,8 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] {
       if ("added" in write && current) return [{ kind: "item", id: write.id, removed: { index: at, name: current.name, price: current.price, split: current.split } }];
       const inverted = invertRow(write, at);
       if (!("edit" in inverted) || !("edit" in write) || !write.edit.split || !current) return [{ kind: "item", ...inverted }];
-      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, keepClaimersRestoreShape(write.edit.split[0], current.split)] } }];
+      const [before, after] = write.edit.split;
+      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, keepClaimersRestoreShape(before, after, current.split)] } }];
     }
     case "adjustment":
       return [{ kind: "adjustment", ...invertRow(write, indexOf(split.receipt.adjustments, write.id)) }];
@@ -468,7 +486,7 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
   if (index === -1) return "unknownItem";
   if (patch.type === "delete") return [ITEM_ROWS.remove(items[index], index), ...leaveBundle(split, patch.itemId)];
   const { name, price, split: shape } = items[index];
-  const reshaped = patch.quantity !== undefined || patch.by !== undefined || patch.values !== undefined;
+  const reshaped = patch.quantity !== undefined || patch.drop !== undefined || patch.by !== undefined || patch.values !== undefined;
   const next = reshaped ? editedSplit(shape, patch) : undefined;
   if (typeof next === "string") return next;
   const edit = diff({ name, price, split: shape }, { name: patch.name, price: patch.price, split: next });

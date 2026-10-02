@@ -689,6 +689,46 @@ describe("Item quantity and split", () => {
     ]);
   });
 
+  test("deleting one unit of three drops that unit and its price, keeps the claims on the other two, and Undo brings it back", () => {
+    const three = apply(withBobAndCat(), edit({ quantity: 3, price: price(1000) }), claim(pitcher, ann, 0), claim(pitcher, bob, 1), claim(pitcher, cat, 2));
+
+    const dropped = apply(three, edit({ quantity: 2, price: price(666), drop: 0 }));
+
+    expect(dropped.receipt.items[2]).toEqual({ id: "pitcher", name: "Pitcher", price: 666, split: { by: "even", units: [["bob"], ["cat"]] } });
+    expect(apply(dropped, { by: cat, type: "undo", revision: dropped.revision }).receipt).toEqual(three.receipt);
+    const claimedSince = apply(dropped, claim(pitcher, ann, 1));
+    expect(apply(claimedSince, { by: cat, type: "undo", revision: dropped.revision }).receipt.items[2].split).toEqual({ by: "even", units: [["ann"], ["bob"], ["ann", "cat"]] });
+  });
+
+  test("drop names a unit the Item has, and only when the quantity goes down by one", () => {
+    const three = apply(withBobAndCat(), edit({ quantity: 3 }));
+
+    expect([
+      reasonFor(three, edit({ quantity: 2, drop: 3 })),
+      reasonFor(three, edit({ quantity: 2, drop: -1 })),
+      reasonFor(three, edit({ quantity: 2, drop: 0.5 })),
+      reasonFor(three, edit({ quantity: 1, drop: 0 })),
+      reasonFor(three, edit({ drop: 0 })),
+    ]).toEqual(["badIndex", "badIndex", "badIndex", "conflict", "conflict"]);
+  });
+
+  test("a dropped unit is stored as the plain split and price edit that the deployed parser already reads", () => {
+    const three = apply(withBobAndCat(), edit({ quantity: 3 }), claim(pitcher, bob, 1));
+    const dropped = apply(three, edit({ quantity: 2, price: price(2000), drop: 1 }));
+    const stored = JSON.stringify(dropped);
+
+    expect(parseOperation({ by: "bob", type: "editReceipt", items: [{ type: "edit", itemId: "pitcher", quantity: 2, price: 2000, drop: 1 }] })).toEqual({
+      ok: true,
+      op: { by: "bob", type: "editReceipt", items: [{ type: "edit", itemId: "pitcher", quantity: 2, price: 2000, drop: 1 }] },
+    });
+
+    expect(stored.includes("drop")).toBe(false);
+    expect(dropped.recentChanges.at(-1)?.writes).toEqual([
+      { kind: "item", id: "pitcher", edit: { price: [3000, 2000], split: [{ by: "even", units: [[], ["bob"], []] }, { by: "even", units: [[], []] }] } },
+    ]);
+    expect(parseSplit(JSON.parse(stored))).toEqual({ ok: true, split: dropped });
+  });
+
   test("a change made at a known time carries it", () => {
     const result = applyOperation(withBobAndCat(), edit({ price: price(700) }, fries), anyone, 1_790_000_000_000);
 

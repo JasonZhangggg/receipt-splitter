@@ -389,6 +389,7 @@ const itemPatch = tagged<ItemPatch>("type", {
     ...maybe("name", text),
     ...maybe("price", price),
     ...maybe("quantity", quantity),
+    ...maybe("drop", count),
     ...maybe("by", oneOf(SPLIT_MODES)),
     ...maybe("values", array(strict((fields) => ({ unit: fields.read("unit", count), participantId: fields.read("participantId", participantId), value: fields.read("value", count) })), MAX_QUANTITY * MAX_PARTICIPANTS)),
   })),
