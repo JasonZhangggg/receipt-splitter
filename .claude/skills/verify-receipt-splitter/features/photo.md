@@ -6,9 +6,9 @@ The Host's device sends one downscaled JPEG of the receipt after the Split is cr
 
 - `photo-put` stores a JPEG sent with the Creator secret by `PUT /api/splits/<id>/photo`. A second PUT replaces it, and a third gets 429.
 - `photo-get` serves it with `GET /api/splits/<id>/photo`.
-- `photo-refusals` answers 403 without the Creator secret, 413 over 150 KB, 415 for a `content-type` other than `image/jpeg`, 400 for bytes that do not start with the JPEG marker or that hold an APP1 (EXIF or XMP) segment before the scan, 404 for a Split that does not exist, and 410 from 14 days after the create.
+- `photo-refusals` answers 403 without the Creator secret, 413 over 150 KB, 415 for a `content-type` other than `image/jpeg`, 400 for bytes that do not start with the JPEG marker, that hold any segment other than APP0, DQT, DHT, SOFn, DRI, COM, and SOS (so no EXIF, XMP, or IPTC), or that carry bytes after the end marker, 404 for a Split that does not exist, and 410 from 14 days after the create.
 - `photo-flag` turns the snapshot's `photo` flag on for every connected client when the photo lands, and off when it goes.
-- `photo-delete` deletes the photo 14 days after the create, then sets the alarm for the Split's 60-day expiry.
+- `photo-delete` deletes the photo 14 days after the create, then sets the alarm for the Split's 60-day expiry. From day 14 the GET answers 404 and the flag is false even if the alarm has not run.
 
 ## How to get to it (user POV)
 
