@@ -345,15 +345,14 @@ function editedSplit(split: ItemSplit, { quantity, drop, by, values }: Extract<I
 function keepClaimersRestoreShape(target: ItemSplit, edited: ItemSplit, current: ItemSplit): ItemSplit {
   const now = unitsOf(current);
   const gone = droppedUnit(unitsOf(target), unitsOf(edited));
-  const kept = (unit: number) => (unit < gone ? now[unit] : unit === gone ? undefined : now[unit - 1]);
+  const kept = (unit: number) => (gone === null || unit < gone ? now[unit] : unit === gone ? undefined : now[unit - 1]);
   return withClaimers(target.by, unitsOf(target).map((ids, unit) => kept(unit) ?? ids), (unit, id) => valueIn(target, unit, id));
 }
 
-/** The unit an edit dropped, read from the claimers before and after it, so a stored edit needs no field to say which. */
-function droppedUnit(before: readonly (readonly ParticipantId[])[], after: readonly (readonly ParticipantId[])[]): number {
-  if (before.length !== after.length + 1) return Infinity;
+function droppedUnit(before: readonly (readonly ParticipantId[])[], after: readonly (readonly ParticipantId[])[]): number | null {
+  if (before.length !== after.length + 1) return null;
   const moved = after.findIndex((ids, unit) => ids.join() !== before[unit].join());
-  return moved === -1 ? Infinity : moved;
+  return moved === -1 ? null : moved;
 }
 
 function fieldsOf({ id, ...fields }: Adjustment): AdjustmentFields {
