@@ -517,6 +517,19 @@ describe("Bundles", () => {
     expect(adjustmentsOf(run(draft, ...["i3", "i4", "i5"].map((id): DraftAction => ({ type: "removeItem", id }))))?.map(({ id }) => id)).toEqual(["a2", "a3", "tip"]);
   });
 
+  test("a Bundle read with a blank Item leaves that Item out, since the draft drops it", () => {
+    const [first, ...rest] = topgolf.items.map((item) => (item.id === "i2" ? { ...item, name: " ", price: price(0) } : item));
+    const blank: Receipt<ParsedItem> = { ...topgolf, items: [first, ...rest] };
+
+    expect(adjustmentsOf(run(readTopgolf(), { type: "read", file, receipt: blank }))?.[0]).toEqual({
+      id: "a1",
+      kind: "bundleDiscount",
+      name: "Beer Bucket Discount (10%)",
+      amount: -451,
+      bundle: { name: "Beer Bucket", items: ["i3", "i4", "i5"] },
+    });
+  });
+
   test("a stored Bundle that names an Item the Receipt does not hold loads the empty Receipt and keeps the handles and names", () => {
     const storage = new MemoryStorage();
     saveDraft(readTopgolf(), storage);

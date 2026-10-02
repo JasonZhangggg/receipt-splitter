@@ -139,6 +139,47 @@ describe("parseReceipt", () => {
     expect(runTotalCheck(receipt!)).toEqual({ ok: true });
   });
 
+  test("keeps a $0.00 header with no Items under it as an Item, and its discount on the whole receipt", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Burger", "$12.00"],
+        ["Beer Bucket", "$0.00"],
+        ["Beer Bucket Coupon", "-$2.00"],
+        ["Subtotal", "$10.00"],
+        ["Total", "$10.00"],
+      ]),
+    );
+
+    expect(receipt?.items).toEqual([
+      { id: "i1", name: "Burger", price: 1200 },
+      { id: "i2", name: "Beer Bucket", price: 0 },
+    ]);
+    expect(receipt?.adjustments).toEqual([{ id: "a1", kind: "discount", name: "Beer Bucket Coupon", amount: -200 }]);
+  });
+
+  test("closes a Bundle at its discount, so a later discount that echoes its name stays on the whole receipt", () => {
+    const receipt = parseReceipt(
+      receiptRows([
+        ["Beer Bucket", "$0.00"],
+        ["3x Guinness", "$20.00"],
+        ["Beer Bucket Discount", "-$2.00"],
+        ["Nachos", "$8.00"],
+        ["Beer Bucket Discount", "-$1.00"],
+        ["Subtotal", "$25.00"],
+        ["Total", "$25.00"],
+      ]),
+    );
+
+    expect(receipt?.items).toEqual([
+      { id: "i1", name: "Guinness", price: 2000, quantity: 3 },
+      { id: "i2", name: "Nachos", price: 800 },
+    ]);
+    expect(receipt?.adjustments).toEqual([
+      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount", amount: -200, bundle: { name: "Beer Bucket", items: ["i1"] } },
+      { id: "a2", kind: "discount", name: "Beer Bucket Discount", amount: -100 },
+    ]);
+  });
+
   test("keeps a real discount whose label says total when only keeping it passes the Total check", () => {
     const receipt = parseReceipt(
       receiptRows([
