@@ -26,11 +26,14 @@ type Props = {
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
-const circleColumn = 44;
-const columnGap = 6;
+const dotSize = 18;
+const tapSize = 44;
+const tapBleed = 13;
+const circleColumn = tapSize - tapBleed;
+const columnGap = 3;
 const nameStart = circleColumn + columnGap;
-const priceGap = 12;
-const dotCenter = 12;
+const priceGap = 10;
+const dotCenter = dotSize / 2;
 const bleed = 12;
 
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: Props) {
@@ -305,7 +308,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, fla
             ) : (
               ordered.map((person, index) => (
                 <View key={person.id} style={index > 0 && styles.overlap}>
-                  <Dot name={person.name} tone={person.id === selected?.id ? "me" : "dot"} ring={`0 0 0 2px ${c.paper}`} />
+                  <Dot name={person.name} size={dotSize} tone={person.id === selected?.id ? "me" : "dot"} ring={`0 0 0 2px ${c.paper}`} />
                 </View>
               ))
             )}
@@ -349,16 +352,16 @@ function Row({ label, amount }: { label: string; amount: number }) {
 const turn = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
-  card: { paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20, borderRadius: layout.cardRadius },
+  card: { paddingTop: 18, paddingLeft: 16, paddingRight: 17, paddingBottom: 20, borderRadius: layout.cardRadius },
   hint: { marginTop: 0, marginBottom: 6 },
   columns: { flexDirection: "row", alignItems: "center", gap: priceGap, paddingLeft: nameStart, minHeight: 24 },
   line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: columnGap },
   divided: { borderTopWidth: 1 },
   flagged: { marginVertical: 4, marginHorizontal: -bleed, paddingHorizontal: bleed, borderRadius: 14 },
-  circle: { minWidth: 54, height: 44, marginLeft: -10, paddingLeft: 10, justifyContent: "center" },
+  circle: { minWidth: tapSize, height: tapSize, marginLeft: -tapBleed, paddingLeft: tapBleed, justifyContent: "center" },
   dots: { flexDirection: "row", alignItems: "center" },
-  overlap: { marginLeft: -9 },
-  empty: { width: 24, height: 24, borderRadius: 12 },
+  overlap: { marginLeft: -7 },
+  empty: { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
   body: { flex: 1, minWidth: 0, minHeight: layout.row, paddingVertical: 8, justifyContent: "center" },
   bodyRow: { flexDirection: "row", alignItems: "center", gap: priceGap },
   name: { flex: 1, minWidth: 0 },

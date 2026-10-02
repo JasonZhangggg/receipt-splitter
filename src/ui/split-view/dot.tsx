@@ -19,7 +19,7 @@ export function Dot({ name, size = 24, tone = "dot", ring }: { name: string; siz
   const { fill, ink } = fills[tone](c);
   return (
     <View aria-hidden style={[styles.dot, { width: size, height: size, borderRadius: size / 2, backgroundColor: fill, boxShadow: ring }]}>
-      <Text style={[type.glyph, { color: ink, fontSize: size > 24 ? 12 : 10.5, lineHeight: size > 24 ? 14 : 12 }]}>{[...name.trim()][0]?.toUpperCase() ?? ""}</Text>
+      <Text style={[type.glyph, { color: ink, fontSize: size > 24 ? 12 : size > 18 ? 10.5 : 9.5, lineHeight: size > 24 ? 14 : size > 18 ? 12 : 11 }]}>{[...name.trim()][0]?.toUpperCase() ?? ""}</Text>
     </View>
   );
 }
