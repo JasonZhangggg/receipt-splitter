@@ -155,24 +155,26 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
       >
         {() => (
           <>
-            <Text style={[type.body, tabular, styles.quantity, styles.headerQuantity, { color: c.muted }]}>1</Text>
-            <View style={styles.name}>
-              <Text numberOfLines={1} style={[type.body, styles.strong, { color: c.ink }]}>
-                {bundle.name}
-              </Text>
-              <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
-                {bundle.summary}
-              </Text>
-              {!open && (claimers.length > 0 || unclaimed > 0) ? (
-                <View style={styles.inside}>
-                  {claimers.map((person) => (
-                    <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
-                  ))}
-                  {unclaimed > 0 ? (
-                    <Text style={[type.caption, tabular, styles.strong, styles.mark, { backgroundColor: c.flagWash, color: c.flag }]}>{say.unclaimedUnits(unclaimed)}</Text>
-                  ) : null}
-                </View>
-              ) : null}
+            <View style={styles.headerLead}>
+              <Text style={[type.body, tabular, styles.quantity, { color: c.muted }]}>1</Text>
+              <View style={styles.name}>
+                <Text numberOfLines={1} style={[type.body, styles.strong, { color: c.ink }]}>
+                  {bundle.name}
+                </Text>
+                <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
+                  {bundle.summary}
+                </Text>
+                {!open && (claimers.length > 0 || unclaimed > 0) ? (
+                  <View style={styles.inside}>
+                    {claimers.map((person) => (
+                      <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
+                    ))}
+                    {unclaimed > 0 ? (
+                      <Text style={[type.caption, tabular, styles.strong, styles.mark, { backgroundColor: c.flagWash, color: c.flag }]}>{say.unclaimedUnits(unclaimed)}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
             </View>
             <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
             <View style={[styles.chevron, { transform: [{ rotate: open ? "180deg" : "0deg" }] }, !reduce && turn]}>
@@ -359,7 +361,7 @@ const styles = StyleSheet.create({
   quantity: { width: quantityWidth },
   name: { flex: 1, minWidth: 0 },
   header: { flexDirection: "row", alignItems: "center", gap: quantityGap, minHeight: 60, paddingVertical: 8, paddingLeft: circleColumn + columnGap },
-  headerQuantity: { alignSelf: "flex-start", marginTop: 0 },
+  headerLead: { flex: 1, minWidth: 0, flexDirection: "row", gap: quantityGap },
   inside: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   chevron: { width: 16, marginLeft: -4 },
   collapse: { overflow: "hidden", marginHorizontal: -12, paddingHorizontal: 12 },
