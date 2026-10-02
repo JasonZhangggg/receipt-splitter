@@ -5,7 +5,7 @@ import type { TextBox } from "../ocr/types";
 import { classifyLines, hasWords, type Line, type Quantity } from "./lines";
 import { groupRows } from "./rows";
 
-type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null };
+type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null; readonly count?: number };
 
 export type ParsedItem = Item & { readonly discountExceededPrice?: true };
 type DraftAdjustment = AdjustmentFields;
@@ -79,7 +79,7 @@ function assemble(lines: readonly Line[]): Draft {
       case "discount":
         if (line.appliesTo === "item" && section === "items" && items.length > 0) {
           foldInto(items, line.name, line.amount);
-        } else {
+        } else if (!isDiscountTotal(line, adjustments)) {
           adjustments.push({ kind: "discount", name: line.name, amount: line.amount });
           if (subtotals.length === 0) discountBeforeSubtotal = cents(discountBeforeSubtotal + line.amount);
         }
@@ -126,6 +126,11 @@ function isRunningTotal(line: DraftAdjustment, items: readonly DraftItem[], adju
   return line.kind === "tax" && taxes.length > 0 && line.amount === sum(amounts(taxes));
 }
 
+function isDiscountTotal({ name, amount }: { readonly name: string; readonly amount: Cents }, adjustments: readonly DraftAdjustment[]): boolean {
+  const discounts = amounts(adjustments.filter(({ kind }) => kind === "discount"));
+  return /\btotal\b/i.test(name) && discounts.length > 0 && amount === sum(discounts);
+}
+
 function subtotalOf({ items, adjustments, subtotals, discountBeforeSubtotal }: Draft, total: Cents): Cents {
   const itemsSum = sum(prices(items));
   const read = [subtotals.at(-1), subtotals.length > 1 ? sum(subtotals) : undefined]
@@ -146,10 +151,11 @@ function repairs(receipt: Receipt<ParsedItem>, draft: Draft): Receipt<ParsedItem
 }
 
 function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotal: Cents, total: Cents): Receipt<ParsedItem> {
-  const [first, ...rest] = items.map(({ name, price: amount, discountExceededPrice }, i) => ({
+  const [first, ...rest] = items.map(({ name, price: amount, count, discountExceededPrice }, i) => ({
     id: itemId(`i${i + 1}`),
     name,
     price: amount,
+    ...(count && { quantity: count }),
     ...(discountExceededPrice && { discountExceededPrice }),
   }));
   return {
