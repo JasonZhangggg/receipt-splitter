@@ -35,7 +35,6 @@ export const linkCopy = {
 };
 
 export const createCopy = {
-  turnstile: "Couldn't check this browser. Try again.",
   busy: "Too many links from here. Try again in a minute.",
   network: "Couldn't reach the server. Try again.",
   handle: "Check how to pay you.",

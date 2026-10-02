@@ -29,7 +29,6 @@ a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
 [data-pressable]:has([data-press-face]):focus-visible { outline: none; }
 [data-pressable]:focus-visible [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; }
 [data-app-picker]:has(select:focus-visible) [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
-.rs-turnstile { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 10; }
 `;
 }
 

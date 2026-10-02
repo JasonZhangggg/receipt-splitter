@@ -224,7 +224,7 @@ describe("model prefetch", () => {
       "https://split.test/parties/split-server/q7Xv0Lr9_aZ-3mKpAbCdEf",
       "https://split.test/s/q7Xv0Lr9_aZ-3mKpAbCdEf",
       "https://split.test/sw.js",
-      "https://challenges.cloudflare.com/turnstile/v0/api.js",
+      "https://cdn.example/widget.js",
     ];
     vi.stubGlobal("performance", { getEntriesByType: () => loaded.map((name) => ({ name })) });
     const kept = new Promise<unknown>((resolve) => {

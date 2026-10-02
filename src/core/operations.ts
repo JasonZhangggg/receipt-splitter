@@ -656,15 +656,12 @@ export type NewSplit = {
   readonly paymentHandles: NonEmpty<PaymentHandle>;
 };
 
-export type CreateSplitRequest = {
-  readonly turnstileToken: string;
-  readonly split: Omit<NewSplit, "id">;
-};
+export type CreateSplitRequest = { readonly split: Omit<NewSplit, "id"> };
 
 export type CreateSplitResponse = { readonly id: SplitId; readonly creatorSecret: string };
 
 export type CreateSplitRefusal =
-  | { readonly refused: "bodyTooLarge" | "turnstileFailed" | "turnstileUnavailable" | "rateLimited" }
+  | { readonly refused: "bodyTooLarge" | "unavailable" | "rateLimited" }
   | { readonly refused: "rejected"; readonly rejection: Rejection };
 
 export type ClientMessage = {

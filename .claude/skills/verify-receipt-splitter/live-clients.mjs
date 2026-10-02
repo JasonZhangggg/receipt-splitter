@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 
 const USAGE = `usage: .claude/skills/verify-receipt-splitter/live-clients.mjs <create|claims|idle|drop|cap|render> --port <port> [options]
-  create                      create a Split with the Turnstile test token and print { id, creatorSecret }
+  create                      create a Split and print { id, creatorSecret }
   claims --claims 200 --pace-ms 60 --clients 2
                               each client in turn Claims and then unclaims, so every client receives both from another;
                               reports the round trip until the other clients see each new state
@@ -62,7 +62,6 @@ async function createSplit() {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      turnstileToken: "XXXX.DUMMY.TOKEN.XXXX",
       split: {
         receipt: {
           items: [

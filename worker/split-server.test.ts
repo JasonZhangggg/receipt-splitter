@@ -3,13 +3,12 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
 import type { Split } from "../src/core/split";
-import { connect, createSplit, leftovers, stubSiteverify, T0, type Client } from "./testing";
+import { connect, createSplit, leftovers, T0, type Client } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
 
 beforeEach(() => {
   vi.setSystemTime(T0);
-  stubSiteverify();
 });
 
 const claim = (ref: string, itemId: string, participantId = "ann"): ClientMessage =>

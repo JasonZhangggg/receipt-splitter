@@ -110,11 +110,9 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
 
 function refusalReason(refusal: CreateSplitRefusal | null): string {
   switch (refusal?.refused) {
-    case "turnstileFailed":
-      return createCopy.turnstile;
     case "rateLimited":
       return createCopy.busy;
-    case "turnstileUnavailable":
+    case "unavailable":
     case undefined:
       return createCopy.network;
     case "rejected":

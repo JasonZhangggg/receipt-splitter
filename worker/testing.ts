@@ -1,10 +1,6 @@
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { vi } from "vitest";
 import type { ClientMessage, CreateSplitRequest, CreateSplitResponse, ServerMessage } from "../src/core/operations";
-
-export const PASSING_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
-export const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export const newSplit: CreateSplitRequest["split"] = JSON.parse(
   JSON.stringify({
@@ -22,26 +18,6 @@ export const newSplit: CreateSplitRequest["split"] = JSON.parse(
   }),
 );
 
-export type Siteverify = { secret: string | null; response: string | null; remoteip: string | null };
-
-export function stubSiteverify(): Siteverify[] {
-  const calls: Siteverify[] = [];
-  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-    const request = new Request(input, init);
-    if (request.url !== SITEVERIFY_URL) throw new Error(`unexpected fetch to ${request.url}`);
-    const form = await request.formData();
-    const field = (name: string) => {
-      const value = form.get(name);
-      return typeof value === "string" ? value : null;
-    };
-    const call = { secret: field("secret"), response: field("response"), remoteip: field("remoteip") };
-    calls.push(call);
-    const success = call.response === PASSING_TOKEN;
-    return Response.json(success ? { success, "error-codes": [], hostname: "example.com" } : { success, "error-codes": ["invalid-input-response"] });
-  });
-  return calls;
-}
-
 let nextAddress = 1;
 
 export function postSplit(body: unknown, { ip = `198.51.100.${nextAddress++}` } = {}): Promise<Response> {
@@ -53,7 +29,7 @@ export function postSplit(body: unknown, { ip = `198.51.100.${nextAddress++}` } 
 }
 
 export async function createSplit(split: unknown = newSplit): Promise<CreateSplitResponse> {
-  const response = await postSplit({ turnstileToken: PASSING_TOKEN, split });
+  const response = await postSplit({ split });
   if (response.status !== 201) throw new Error(`create returned ${response.status}: ${await response.text()}`);
   return response.json();
 }

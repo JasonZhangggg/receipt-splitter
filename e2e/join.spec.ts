@@ -1,4 +1,3 @@
-import { stubTurnstile } from "./turnstile";
 import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -6,8 +5,7 @@ test.setTimeout(90_000);
 
 let tests = 0;
 
-test.beforeEach(async ({ page, context }, testInfo) => {
-  if (!testInfo.tags.includes("@network")) await stubTurnstile(page);
+test.beforeEach(async ({ context }, testInfo) => {
   tests += 1;
   const ip = `198.52.${testInfo.workerIndex}.${tests}`;
   await context.route("**/api/splits", (route) => route.continue({ headers: { ...route.request().headers(), "cf-connecting-ip": ip } }));
@@ -72,12 +70,6 @@ test("Create split link takes the Host to the tall pick sheet, and a second brow
   await expect(rows(sam)).toHaveText(["JJasonPicked", "SSam", "PPriya"]);
 });
 
-test("Create split link works with Cloudflare's real Turnstile script", { tag: "@network" }, async ({ page }) => {
-  await readyHome(page);
-  await createLink(page);
-  await expect(question(page)).toBeVisible();
-});
-
 test("before the link is shared, the Host taps Sam's chip and sees Sam's breakdown under the link row", async ({ page }) => {
   await readyHome(page, ["Sam"]);
   await createLink(page);
@@ -135,17 +127,6 @@ test("without a system share sheet the link has Copy alone", async ({ page }) =>
   await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
 });
 
-test("a Turnstile widget that cannot load shows one reason and enables Create split link again", async ({ page }) => {
-  await page.route("https://challenges.cloudflare.com/**", (route) => route.abort());
-  await readyHome(page);
-  const action = page.getByRole("button", { name: "Create split link" });
-
-  await action.click();
-
-  await expect(page.getByText("Couldn't check this browser. Try again.")).toBeVisible(linkTimeout);
-  await expect(action).not.toHaveAttribute("aria-disabled", "true");
-});
-
 test("Copy puts the exact link on the clipboard, and Share in the header hands it to the system share sheet", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => {
@@ -166,13 +147,13 @@ test("Copy puts the exact link on the clipboard, and Share in the header hands i
   expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
 });
 
-test("a failed Turnstile token shows one reason and enables Create split link again", async ({ page }) => {
+test("a refused create shows one reason and enables Create split link again", async ({ page }) => {
   await readyHome(page);
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/api/splits", async (route) => {
     await held;
-    await route.fallback({ postData: JSON.stringify({ ...route.request().postDataJSON(), turnstileToken: "" }) });
+    await route.fallback({ postData: JSON.stringify({ ...route.request().postDataJSON(), note: "" }) });
   });
   const action = page.getByRole("button", { name: /Create split link|Creating link/ });
 
@@ -181,7 +162,7 @@ test("a failed Turnstile token shows one reason and enables Create split link ag
   await expect(action).toHaveAttribute("aria-busy", "true");
   release();
 
-  await expect(page.getByText("Couldn't check this browser. Try again.")).toBeVisible(linkTimeout);
+  await expect(page.getByText("Couldn't create the link. Try again.")).toBeVisible(linkTimeout);
   await expect(action).toHaveText("Create split link");
   await expect(action).not.toHaveAttribute("aria-disabled", "true");
   await page.unroute("**/api/splits");

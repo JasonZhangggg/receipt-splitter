@@ -1,4 +1,3 @@
-import { DUMMY_TOKEN } from "./turnstile";
 import { expect, test } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -9,7 +8,6 @@ test("the first load of a Split link transfers under 400 KB", async ({ page, req
   const created = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": "198.51.250.1" },
     data: {
-      turnstileToken: DUMMY_TOKEN,
       split: {
         receipt: { items: [{ id: "rice", name: "Rice", price: 800 }], adjustments: [], subtotal: 800, total: 800 },
         participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }],

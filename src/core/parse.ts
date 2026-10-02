@@ -43,16 +43,12 @@ export function parseSplit(input: unknown): { readonly ok: true; readonly split:
   return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
 }
 
-export const MAX_TURNSTILE_TOKEN_LENGTH = 2048;
-
 export function parseCreateSplitRequest(
   input: unknown,
   id: MintedSplitId,
-): { readonly ok: true; readonly turnstileToken: string; readonly split: Split } | Rejected {
+): { readonly ok: true; readonly split: Split } | Rejected {
   const parsed = parse(createRequest, input);
-  if (!parsed.ok) return parsed;
-  const created = createSplit({ ...parsed.value.split, id });
-  return created.ok ? { ok: true, turnstileToken: parsed.value.turnstileToken, split: created.split } : created;
+  return parsed.ok ? createSplit({ ...parsed.value.split, id }) : parsed;
 }
 
 export function parseNewSplit(input: unknown, id: MintedSplitId): { readonly ok: true; readonly split: Split } | Rejected {
@@ -312,7 +308,6 @@ const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read }) => ({
 }));
 
 const createRequest: Parser<CreateSplitRequest> = strict(({ read }) => ({
-  turnstileToken: read("turnstileToken", check((input): input is string => typeof input === "string" && input.length <= MAX_TURNSTILE_TOKEN_LENGTH)),
   split: read("split", newSplit),
 }));
 
