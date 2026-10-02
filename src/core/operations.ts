@@ -771,12 +771,11 @@ function valuesInRange(split: ItemSplit): boolean {
 }
 
 const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u2028-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;
-const BLANK = /^[\s\p{Default_Ignorable_Code_Point}\u2800]*$/u;
 const MAX_UNITS_PER_GRAPHEME = 32;
 const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
 
 function isName(name: string, maxLength: number): boolean {
-  if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name) || BLANK.test(name)) return false;
+  if (name.length > maxLength * MAX_UNITS_PER_GRAPHEME || HIDDEN_CHARACTERS.test(name) || nameKey(name) === "") return false;
   const characters = [...graphemes.segment(name)];
   return characters.length <= maxLength && characters.every(({ segment }) => segment.length <= MAX_UNITS_PER_GRAPHEME);
 }
@@ -792,9 +791,9 @@ export function canonicalName(typed: string): string {
   return typed.normalize("NFC").replace(STRIPPED, "").replace(/\s+/gu, " ").trim();
 }
 
-const IGNORABLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+const IGNORABLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}\u2800]/gu;
 
-/** Two names are the same name when their keys match: NFKC, no format or default-ignorable characters, and a full case fold, so "Ｓam", "Sam" with a soft hyphen, and "STRAUẞ" against "Strauss" all collide. */
+/** Two names are the same name when their keys match: NFKC, no format, default-ignorable or braille-blank characters, and a full case fold, so "Ｓam", "Sam" with a soft hyphen, and "STRAUẞ" against "Strauss" all collide. A name whose key is empty draws nothing. */
 export function nameKey(name: string): string {
   return canonicalName(name).replace(IGNORABLE, "").normalize("NFKC").toLowerCase().toUpperCase().toLowerCase();
 }
