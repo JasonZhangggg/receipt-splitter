@@ -1,5 +1,5 @@
 import { cents, isCents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
-import { canonicalName, MAX_PARTICIPANT_NAME_LENGTH, nameKey, type NewSplit } from "./core/operations";
+import { canonicalName, MAX_PARTICIPANT_NAME_LENGTH, MAX_QUANTITY, nameKey, type NewSplit } from "./core/operations";
 import {
   ADJUSTMENT_KINDS,
   adjustmentId,
@@ -24,6 +24,7 @@ type DraftItem = {
   readonly id: string;
   readonly name: string;
   readonly price: Price;
+  readonly quantity?: number;
   readonly discountExceededPrice?: true;
   readonly unreadPrice?: true;
   readonly retyped?: true;
@@ -143,7 +144,7 @@ function editReceipt(receipt: DraftReceipt, action: ReceiptEdit): DraftReceipt {
         if (item.id !== action.id) return item;
         const name = action.name === undefined ? item.name : clip(action.name);
         if (action.price === undefined) return { ...item, name };
-        return { id: item.id, name, price: action.price, retyped: true as const };
+        return { id: item.id, name, price: action.price, ...(item.quantity && { quantity: item.quantity }), retyped: true as const };
       });
       return { ...receipt, items };
     }
@@ -181,8 +182,9 @@ function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
     const name = clip(item.name.trim());
     if (!name && item.price === 0) return [];
     const flags = item.discountExceededPrice ? { discountExceededPrice: true as const } : {};
-    if (item.price > MAX_CENTS) return [{ id: item.id, name, price: price(0), unreadPrice: true }];
-    return [{ id: item.id, name, price: item.price, ...flags }];
+    const quantity = item.quantity && { quantity: item.quantity };
+    if (item.price > MAX_CENTS) return [{ id: item.id, name, price: price(0), ...quantity, unreadPrice: true }];
+    return [{ id: item.id, name, price: item.price, ...quantity, ...flags }];
   });
   const tip = receipt.adjustments.filter((row) => row.kind === "tip").reduce((sum, row) => sum + row.amount, 0);
   const adjustments = receipt.adjustments.flatMap((row): DraftAdjustment[] =>
@@ -223,7 +225,7 @@ const sum = (values: readonly number[]) => values.reduce((total, value) => total
 const adjustmentNames: Record<DraftAdjustment["kind"], string> = { tax: "Tax", serviceCharge: "Service charge", discount: "Discount" };
 
 function receiptOf(receipt: DraftReceipt): Receipt | null {
-  const [first, ...rest] = receipt.items.map((item) => ({ id: itemId(item.id), name: item.name.trim(), price: item.price }));
+  const [first, ...rest] = receipt.items.map((item) => ({ id: itemId(item.id), name: item.name.trim(), price: item.price, ...(item.quantity && { quantity: item.quantity }) }));
   if (!first) return null;
   const adjustments = receipt.adjustments.map((row) => ({ ...row, id: adjustmentId(row.id), name: row.name.trim() || adjustmentNames[row.kind] }));
   return {
@@ -327,6 +329,7 @@ const isObject = (value: unknown): value is Json => typeof value === "object" &&
 const isText = (value: unknown): value is string => typeof value === "string" && clip(value) === value;
 const isAmount = (value: unknown): value is Cents => isCents(value) && Math.abs(value) <= MAX_CENTS;
 const isPrice = (value: unknown): value is Price => isAmount(value) && value >= 0;
+const isQuantity = (value: unknown) => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= MAX_QUANTITY;
 const isFile = (value: unknown): value is ReceiptFile =>
   isObject(value) && typeof value.name === "string" && (value.thumbnail === null || (typeof value.thumbnail === "string" && value.thumbnail.startsWith("data:image/")));
 
@@ -366,6 +369,7 @@ const isItem = (item: unknown) =>
   isId(item.id) &&
   isText(item.name) &&
   isPrice(item.price) &&
+  (item.quantity === undefined || isQuantity(item.quantity)) &&
   (item.discountExceededPrice === undefined || item.discountExceededPrice === true) &&
   (item.unreadPrice === undefined || item.unreadPrice === true) &&
   (item.retyped === undefined || item.retyped === true);

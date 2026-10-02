@@ -5,7 +5,7 @@ import type { TextBox } from "../ocr/types";
 import { classifyLines, hasWords, type Line, type Quantity } from "./lines";
 import { groupRows } from "./rows";
 
-type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null };
+type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null; readonly count?: number };
 
 export type ParsedItem = Item & { readonly discountExceededPrice?: true };
 type DraftAdjustment = AdjustmentFields;
@@ -17,7 +17,10 @@ type Draft = {
   readonly discountBeforeSubtotal: Cents;
   readonly total: Cents | null;
   readonly laterTotals: Cents[];
+  readonly droppedDiscountTotal: boolean;
 };
+
+type DiscountTotals = "drop" | "keep";
 
 type Section = "items" | "adjustments" | "closed";
 
@@ -25,7 +28,7 @@ const ONE_READ_AS_SEVEN = 7;
 
 export function parseReceipt(boxes: readonly TextBox[]): Receipt<ParsedItem> | null {
   const lines = classifyLines(groupRows(boxes));
-  const readings = [lines, lines.map(strayMinusAsItem)].map(assemble).flatMap((draft) => {
+  const readings = [lines, lines.map(strayMinusAsItem)].flatMap(readingsOf).flatMap((draft) => {
     if (draft.items.length === 0 || draft.total === null) return [];
     const receipt = toReceipt(draft.items, draft.adjustments, subtotalOf(draft, draft.total), draft.total);
     return [receipt, ...repairs(receipt, draft)];
@@ -33,18 +36,24 @@ export function parseReceipt(boxes: readonly TextBox[]): Receipt<ParsedItem> | n
   return readings.find((receipt) => runTotalCheck(receipt).ok) ?? readings[0] ?? null;
 }
 
+function readingsOf(lines: readonly Line[]): Draft[] {
+  const dropped = assemble(lines, "drop");
+  return dropped.droppedDiscountTotal ? [dropped, assemble(lines, "keep")] : [dropped];
+}
+
 function strayMinusAsItem(line: Line): Line {
   if (line.kind !== "discount" || line.markedBy !== "minusSign" || !hasWords(line.name)) return line;
   return { kind: "item", name: line.name, price: price(-line.amount), quantity: null };
 }
 
-function assemble(lines: readonly Line[]): Draft {
+function assemble(lines: readonly Line[], discountTotals: DiscountTotals): Draft {
   const items: DraftItem[] = [];
   const adjustments: DraftAdjustment[] = [];
   const subtotals: Cents[] = [];
   const pending: DraftAdjustment[] = [];
   const laterTotals: Cents[] = [];
   let discountBeforeSubtotal = cents(0);
+  let droppedDiscountTotal = false;
   let total: Cents | null = null;
   let section: Section = "items";
   let previous: Line | null = null;
@@ -79,6 +88,8 @@ function assemble(lines: readonly Line[]): Draft {
       case "discount":
         if (line.appliesTo === "item" && section === "items" && items.length > 0) {
           foldInto(items, line.name, line.amount);
+        } else if (discountTotals === "drop" && isDiscountTotal(line, adjustments)) {
+          droppedDiscountTotal = true;
         } else {
           adjustments.push({ kind: "discount", name: line.name, amount: line.amount });
           if (subtotals.length === 0) discountBeforeSubtotal = cents(discountBeforeSubtotal + line.amount);
@@ -105,7 +116,7 @@ function assemble(lines: readonly Line[]): Draft {
     }
     previous = line;
   }
-  return { items, adjustments, subtotals, discountBeforeSubtotal, total, laterTotals };
+  return { items, adjustments, subtotals, discountBeforeSubtotal, total, laterTotals, droppedDiscountTotal };
 }
 
 function foldInto(items: DraftItem[], name: string, amount: Cents): void {
@@ -124,6 +135,11 @@ function isRunningTotal(line: DraftAdjustment, items: readonly DraftItem[], adju
   if (line.amount === base + sum(amounts(adjustments))) return true;
   const taxes = adjustments.filter(({ kind }) => kind === "tax");
   return line.kind === "tax" && taxes.length > 0 && line.amount === sum(amounts(taxes));
+}
+
+function isDiscountTotal({ name, amount }: { readonly name: string; readonly amount: Cents }, adjustments: readonly DraftAdjustment[]): boolean {
+  const discounts = amounts(adjustments.filter(({ kind }) => kind === "discount"));
+  return /\btotal\b/i.test(name) && discounts.length > 0 && amount === sum(discounts);
 }
 
 function subtotalOf({ items, adjustments, subtotals, discountBeforeSubtotal }: Draft, total: Cents): Cents {
@@ -146,10 +162,11 @@ function repairs(receipt: Receipt<ParsedItem>, draft: Draft): Receipt<ParsedItem
 }
 
 function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotal: Cents, total: Cents): Receipt<ParsedItem> {
-  const [first, ...rest] = items.map(({ name, price: amount, discountExceededPrice }, i) => ({
+  const [first, ...rest] = items.map(({ name, price: amount, count, discountExceededPrice }, i) => ({
     id: itemId(`i${i + 1}`),
     name,
     price: amount,
+    ...(count && { quantity: count }),
     ...(discountExceededPrice && { discountExceededPrice }),
   }));
   return {

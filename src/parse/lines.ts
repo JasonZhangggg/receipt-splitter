@@ -1,10 +1,11 @@
 import { cents, price, type Cents, type Price } from "../core/money";
+import { MAX_QUANTITY } from "../core/operations";
 import type { Row } from "./rows";
 
 export type Quantity = { readonly count: number; readonly unitPrice: Price };
 
 export type Line =
-  | { readonly kind: "item"; readonly name: string; readonly price: Price; readonly quantity: Quantity | null }
+  | { readonly kind: "item"; readonly name: string; readonly price: Price; readonly quantity: Quantity | null; readonly count?: number }
   | { readonly kind: "quantity"; readonly price: Price; readonly quantity: Quantity | null }
   | { readonly kind: "modifier"; readonly name: string; readonly price: Price }
   | {
@@ -33,7 +34,8 @@ const LABELS: readonly (readonly [Label, RegExp])[] = [
 
 const MONEY = /(-{1,2})?\s?\$?\s?(\d{1,3}(?:,\d{3})+|\d{1,6})(?:\.\s?|,)(\d{2})(?!\d)(-(?!\d))?/g;
 const AT = /(\d{1,2})\s*@\s*\$?\s?(\d{1,6}[.,]\d{2})/;
-const LEADING_COUNT = /^\s*(0\d\s+)?\d{1,2}\s+(?=\S)/;
+const LEADING_COUNT = /^\s*(0\d\s+)?\d{1,2}\s+(?![x×]\s)(?=\S)/i;
+const TIMES = /^(\d{1,2})\s?[x×]\s+(?=\S)/i;
 const MODIFIER_MARK = /^(\+|add\b|make\s+it\b|extra\b|sub\b|no\b|w\/|with\b)/i;
 
 type Amount = { readonly cents: number; readonly start: number; readonly bracketed: boolean };
@@ -85,7 +87,14 @@ function classify(row: Row, anchor: Row | null): Line {
   if (counted ? name.startsWith("+") : indented || MODIFIER_MARK.test(name)) {
     return { kind: "modifier", name, price: price(amount) };
   }
-  return { kind: "item", name, price: price(amount), quantity: null };
+  return { kind: "item", ...withCount(name), price: price(amount), quantity: null };
+}
+
+function withCount(name: string): { readonly name: string; readonly count?: number } {
+  const times = TIMES.exec(name);
+  const count = Number(times?.[1]);
+  if (!times || count < 1 || count > MAX_QUANTITY) return { name };
+  return { name: name.slice(times[0].length), ...(count > 1 && { count }) };
 }
 
 function echoes(label: string, itemRow: string): boolean {
