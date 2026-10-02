@@ -475,7 +475,7 @@ describe("Splits stored by each shipped release", () => {
     const labels = readdirSync(new URL("./golden/", import.meta.url)).map((file) => file.replace(/\.json$/, ""));
 
     expect(labels.filter((label) => !parseSplit(golden(label)).ok)).toEqual([]);
-    expect(labels).toContain("v2-1");
+    expect(labels).toEqual(expect.arrayContaining(["v2-1", "v2-2"]));
   });
 
   test("the V2-1 row holds the Topgolf receipt with two Beer Buckets at version 2", () => {
@@ -493,6 +493,17 @@ describe("Splits stored by each shipped release", () => {
       ["priya", 4952],
     ]);
     expect(JSON.parse(JSON.stringify(split))).toEqual(golden("v2-1"));
+  });
+
+  test("the V2-2 row, written by creating the Topgolf Split with its Bundles, is the row V2-1 expected V2-2 to write", () => {
+    const split = read("v2-2");
+
+    expect(split.schemaVersion).toBe(2);
+    expect(computeShares(split).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
+      ["jason", 15777],
+      ["priya", 4952],
+    ]);
+    expect(golden("v2-2")).toEqual(golden("v2-1"));
   });
 
   test("a row the current release writes reads back unchanged", () => {

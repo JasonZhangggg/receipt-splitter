@@ -6,7 +6,7 @@ import { build } from "esbuild";
 
 const releases = process.argv.length > 2
   ? process.argv.slice(2).map((pair) => pair.split("="))
-  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"]];
+  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"], ["v2-2", "1ed0165", "topgolfBundles"]];
 
 const dinner = `
 import { applyOperation, createSplit } from "./src/core/operations";
@@ -54,7 +54,7 @@ process.stdout.write(JSON.stringify(split, null, 2) + "\\n");
 const bucketOne = ["ultra1", "guinness1", "pineapple1", "watermelon1"];
 const bucketTwo = ["ultra2", "guinness2", "pineapple2", "watermelon2"];
 
-const topgolf = `
+const topgolf = (bucketKind) => `
 import { applyOperation, createSplit } from "./src/core/operations";
 const items = [
   ["gameplay", "Gameplay", 8775, 1],
@@ -67,6 +67,8 @@ const items = [
   ["pineapple2", "High Noon Pineapple 12oz Can", 849, 1],
   ["watermelon2", "High Noon Watermelon 12oz Can", 1698, 2],
 ];
+const discount = () => ({ kind: "discount" });
+const bundle = (items) => ({ kind: "bundleDiscount", bundle: { name: "Beer Bucket", items } });
 const created = createSplit({
   id: "golden-topgolf-split-0",
   participants: [{ id: "jason", name: "Jason" }, { id: "priya", name: "Priya" }],
@@ -74,8 +76,8 @@ const created = createSplit({
   receipt: {
     items: items.map(([id, name, price, quantity]) => (quantity === 1 ? { id, name, price } : { id, name, price, quantity })),
     adjustments: [
-      { id: "bucket1", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -451 },
-      { id: "bucket2", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -463 },
+      { id: "bucket1", name: "Beer Bucket Discount (10%)", amount: -451, ...${bucketKind}(${JSON.stringify(bucketOne)}) },
+      { id: "bucket2", name: "Beer Bucket Discount (10%)", amount: -463, ...${bucketKind}(${JSON.stringify(bucketTwo)}) },
       { id: "tax", kind: "tax", name: "Tax", amount: 494 },
       { id: "tip", kind: "tip", name: "Tip", amount: 3226 },
     ],
@@ -109,7 +111,12 @@ function asV2_2Writes(json) {
   return JSON.stringify({ ...split, schemaVersion: 2, receipt: bundled(split.receipt), original: bundled(split.original) }, null, 2) + "\n";
 }
 
-const drivers = { dinner: { source: dinner, finish: (json) => json }, topgolf: { source: topgolf, finish: asV2_2Writes } };
+const pretty = (json) => JSON.stringify(JSON.parse(json), null, 2) + "\n";
+const drivers = {
+  dinner: { source: dinner, finish: (json) => json },
+  topgolf: { source: topgolf("discount"), finish: asV2_2Writes },
+  topgolfBundles: { source: topgolf("bundle"), finish: pretty },
+};
 
 const root = resolve(import.meta.dirname, "..");
 const out = join(root, "src/core/golden");
