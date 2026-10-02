@@ -9,6 +9,7 @@ import {
   checkSplit,
   createSplit,
   type AdjustmentPatch,
+  type ClientMessage,
   type CreateSplitRequest,
   type ItemPatch,
   type NewSplit,
@@ -41,6 +42,14 @@ export function parseSplit(input: unknown): { readonly ok: true; readonly split:
   if (!parsed.ok) return parsed;
   const rejection = checkSplit(parsed.value);
   return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
+}
+
+/** A ClientMessage, or its rejection with the ref to answer under, which is null when the ref itself is unreadable. */
+export function parseClientMessage(input: unknown): { readonly ok: true; readonly message: ClientMessage } | (Rejected & { readonly ref: string | null }) {
+  const parsed = parse(clientMessage, input);
+  if (parsed.ok) return { ok: true, message: parsed.value };
+  const ref = typeof input === "object" && input !== null ? new Map(Object.entries(input)).get("ref") : undefined;
+  return { ...parsed, ref: isRef(ref) ? ref : null };
 }
 
 export function parseCreateSplitRequest(
@@ -405,3 +414,12 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
 };
 
 const operation = tagged<Operation>("type", operationVariants);
+
+const REF_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const isRef = (input: unknown): input is string => typeof input === "string" && REF_PATTERN.test(input);
+
+const clientMessage: Parser<ClientMessage> = strict(({ read, maybe }) => ({
+  ref: read("ref", check(isRef)),
+  ...maybe("creatorSecret", text),
+  op: read("op", operation),
+}));
