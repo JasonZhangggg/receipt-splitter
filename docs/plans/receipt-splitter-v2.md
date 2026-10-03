@@ -9,8 +9,8 @@ The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b.
 
 - Merged and deployed, in this order: V2-1 as PR 29 (`9e3a34d`), V2-2 as PR 30 (`ade639d`), V2-5 as PR 31 (`f5e5b8e`), V2-6a as PR 32 (`461b37a`), and V2-3 as PR 33 (`2da1e47`).
 - Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create.
-- In flight on local branches, not pushed. `fix/create-silent` makes every Create tap act and keeps the home panel open. `fix/flash-root` fixes the Split page flashes at their causes.
-- Queued, in order: the bar after a pick, Add Item on the Split page, History on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. The first three have short sections before **Close the program**.
+- In flight. `fix/create-silent` is open as [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36). It makes every Create tap act and keeps the home panel open. `fix/flash-root` is a local branch, not pushed. It fixes the Split page flashes at their causes.
+- Queued, in order: server-side receipt reading, the bar after a pick, quantities follow the receipt, a home reload that keeps only the payment handles, Add Item on the Split page, History on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. The first six have short sections before **Close the program**.
 - "Preferences N" means ruling N in `~/.claude/orchestrate/receipt-splitter/preferences.md`.
 
 ## How to read this
@@ -61,22 +61,24 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
 - **Preferences 15, 2026-10-02.** Nothing is highlighted in yellow. Unclaimed rows, flagged rows, and reasons use secondary gray text. This replaces V2-3's yellow flag.
 - **Preferences 17, 2026-10-02.** The keyboard never covers a focused text field, on any page.
 - **Preferences 18, 2026-10-02.** No animation shows a stale or wrong state for any frame. That includes an old selection, a flash of the open state, doubled content, and a jump when the keyboard opens or closes.
-- **Preferences 19, 2026-10-02.** One row per unit, with no quantity column. Name and price edits apply to the whole Item, and Delete removes one unit. This is V2-3's amendment.
+- **Preferences 58, 2026-10-03.** Quantities follow the receipt. Lines the receipt prints separately stay separate rows. A line printed with a quantity, such as "x2" or "qty 2", is one row that shows that quantity. Its detail has a **Split** button that splits it into one-unit rows. Name and price edits apply to the whole Item, and the model keeps its per-unit claims. This replaces preferences 19, V2-3's one row per unit. It is queued.
 - **Preferences 20, 2026-10-02.** Rows use about 14 px text and a 16 px select circle with a 44 px tap target.
 - **Preferences 22, 2026-10-02.** The Bundle header's chevron sits in its leading slot, with its tip on the light vertical rule beside the children.
 - **Preferences 23, 2026-10-02.** Rows carry no "Unclaimed" tag, because the missing person icon shows it. A collapsed Bundle shows a quiet gray "N unclaimed".
-- **Preferences 24, 2026-10-02.** A person's breakdown lists one line per unit, with no "1 of 3".
+- **Preferences 24, 2026-10-02.** A person's breakdown shows no "1 of 3". Preferences 24 also says the breakdown matches one row per unit, which preferences 58 replaced. How a breakdown reads a quantity row is open for the operator.
 - **Preferences 25, 2026-10-02.** "Which one are you?" is the tall pick sheet, and it closes without a pick. It shows the invite line, the people, "Not here? Add yourself", and one link row with the link, **Copy**, and **Share**.
 - **Preferences 26, 2026-10-02.** After a pick, the collapsed bar shows "Your share" with an up-arrow and no link row. It is queued.
 - **Preferences 27, 2026-10-02.** The pay button stays in the expanded breakdown, not in the collapsed bar.
 - **Preferences 28, 2026-10-02.** The Split page header has a Home button that starts a new split. PR 35 built it.
 - **Preferences 30, 2026-10-02.** Anyone in the Split can add a fully new Item. This brings a new Item into scope, though not one inside a Bundle. Who may add is still open. It is queued.
 - **Preferences 33, 2026-10-02.** The home panel with the payment row, the names, and **Create split link** is always shown, never collapses, and is one surface with Create. A drag moves it and it springs back. `fix/create-silent` builds it.
-- **Preferences 34, 2026-10-02.** A tap on an enabled Create always acts. It creates, or it focuses what is missing and says so. `fix/create-silent` builds it, and the wording "Add how to pay you." waits for the operator's OK.
+- **Preferences 34, 2026-10-02.** A tap on an enabled Create always acts. It creates, or it focuses what is missing and says so. `fix/create-silent`, PR 36, builds it. The operator approved the wording "Add how to pay you." on 2026-10-03.
 - **Preferences 36, 2026-10-02.** After a Split is created, home is fresh. The receipt, the photo, and the names clear, and the payment handles stay. PR 35 built it.
 - **Preferences 37, 2026-10-02.** History on home lists past Splits stored on this device only. It is queued.
 - **Preferences 44, 2026-10-02.** The real-iOS census in the iOS Simulator is the deciding gate for UI fixes. Every flagged interaction counts 0 on the fix head.
 - **Preferences 45, 2026-10-02.** CI runs WebKit for the functional sheet and claim specs only. WebKit frame timing runs locally through `motion.mjs` on macOS before every UI PR, and Chromium frame timing runs in CI.
+- **Preferences 55 to 57, 2026-10-03.** The server may read receipts, with the photo and a third-party model API. This reverses ADR 0001's on-device OCR rule. The API key is a Worker secret behind a same-origin `/api` route, and scans get their own rate limit and daily cap. An eval on real receipts picks the reading path by price to performance. The provider and model change by config, open-weight models with several hosts come first, and a fallback needs no paid model. It is queued.
+- **Preferences 59, 2026-10-03.** A reload of home resets the receipt, the photo, and the names, and keeps the payment handles. Create treats a kept handle as filled, which fixes the bug where a prefilled handle counts as empty until the user types. It is queued.
 
 ## Program checklist
 
@@ -288,6 +290,8 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 
 **Amendment: one row per unit.** The operator dropped the quantity column after round 3. An Item with quantity N shows N rows, one per unit, each with its own circle, the Item's name, and the unit price. The README's "Amendment: no quantity column" wins over the Build and You see lines below where they mention quantity.
 
+**Changed after it shipped.** The boxes below record what PR 33 shipped. Preferences 58 replaces one row per unit from here on. A line printed with a quantity becomes one row with that quantity and a **Split** button in its detail. See **Queued: quantities follow the receipt**.
+
 **Files.**
 
 - [x] Edit `src/ui/split-view/receipt-card.tsx`, `src/ui/split-view/model.ts`, and `src/ui/split-view/model.test.ts`.
@@ -353,7 +357,7 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 
 ## Center the Split page on desktop with a popover and a right pane (V2-4)
 
-**Depends on.** V2-3, `fix/flash-root`, and the bar after a pick. The last two change the phone sheet that this layout replaces from 1024 px.
+**Depends on.** V2-3, `fix/flash-root`, the bar after a pick, and quantities follow the receipt. The second and third change the phone sheet that this layout replaces from 1024 px. The last changes the rows and the detail that the desktop draws.
 
 **Amended after approval.** This section follows **Amendments since approval**. Where the desktop frames in `docs/design/receipt-v2/round3.html` disagree with a ruling, the ruling wins. Build from those frames otherwise.
 
@@ -370,10 +374,10 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 - [ ] With no pick, fill the right pane with the pick content: the invite line, the people, "Not here? Add yourself", and one link row with the link, **Copy**, and **Share** (preferences 25). A visitor can browse the receipt without picking.
 - [ ] After a pick, show "Your share" in the right pane with the breakdown open, the pay button inside it, and the people (preferences 26 and 27). The pane has no link row, because the header's **Share** button covers sharing.
 - [ ] Keep the header's Home button and **Share** button (preferences 28).
-- [ ] Draw the rows as the phone does. Each unit is its own row at the unit price, with about 14 px text, a 16 px circle, a 44 px tap target, and no × (preferences 19, 20, and 21).
+- [ ] Draw the rows as the phone does. Rows follow the receipt. A line printed with a quantity is one row that shows the quantity, and a line printed on its own is its own row. Rows have about 14 px text, a 16 px circle, a 44 px tap target, and no × (preferences 58, 20, and 21).
 - [ ] Draw Bundles as the phone does. They start closed, the chevron sits in the header's leading slot, and a closed Bundle shows a gray "N unclaimed" (preferences 22 and 23). Nothing on the page is yellow (preferences 15).
-- [ ] Open a row's detail as a popover anchored to its line. It holds the phone sheet's fields: the unit price, **Who had it** for that unit, **Evenly**, **By shares**, **By amount**, and **Delete item**, which removes that unit only. Name and price edits apply to the whole Item. The popover flips above the line when there is no room below. Escape and a click outside close it, and focus returns to the line.
-- [ ] Show a person's breakdown one line per unit, with no "1 of 3" (preferences 24).
+- [ ] Open a row's detail as a popover anchored to its line. It holds the phone sheet's fields: the price, **Who had it**, **Evenly**, **By shares**, **By amount**, **Delete item**, and, on a row with a quantity above 1, **Split**, which splits the row into one-unit rows (preferences 58). Name and price edits apply to the whole Item. The popover flips above the line when there is no room below. Escape and a click outside close it, and focus returns to the line.
+- [ ] Show a person's breakdown with no "1 of 3" (preferences 24). Read a quantity row in it the way the phone does after quantities follow the receipt.
 - [ ] Offer no control that edits a Payment handle (preferences 10).
 - [ ] Show no stale or wrong frame when the popover opens, closes, or moves to another line, or when the right pane changes from the pick content to "Your share" (preferences 18).
 - [ ] Keep the phone layout under 1024 px as `main` has it.
@@ -388,7 +392,7 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `e2e/desktop.spec.ts` gains opening the popover by click and by Enter, closing it with Escape with focus back on the line, a Claim in the popover that updates the right pane, and **Delete item** on one unit of a quantity-3 Item. The cases hold the CI-robustness rule. Run `npm run e2e`.
+- [ ] `e2e/desktop.spec.ts` gains opening the popover by click and by Enter, closing it with Escape with focus back on the line, a Claim in the popover that updates the right pane, **Split** on a quantity-3 row that leaves three one-unit rows, and **Delete item** on one of those rows. The cases hold the CI-robustness rule. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
 
@@ -612,9 +616,28 @@ Read ADR 0007 first. It sets the size, the checks, the 14-day delete, and the da
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
 - [ ] The root merges V2-6b and confirms the deploy. A production check that needs a new Split uses the handle @test-debug and says so (preferences 54).
 
+## Queued: server-side receipt reading
+
+Intent only. A full section with boxes comes before the build, and the operator has not approved the design yet. The on-device OCR reads the characters well, but the rule-based parser often gets the receipt wrong (preferences 56). The server reads the receipt instead, with the photo and a third-party model API (preferences 55). A new ADR records this and replaces ADR 0001's on-device OCR rule.
+
+- The OpenRouter key is a Worker secret behind a same-origin `/api` route. Scans get their own rate limit and daily cap (preferences 55).
+- The provider and the model change by config. Open-weight models with several hosts come first, and a fallback needs no paid model (preferences 57).
+- `docs/research/receipt-extraction-eval.md` records the eval on real receipts and the recommended two-pass design. `docs/research/receipt-extraction-models.md` compares models and providers.
+- Rotate both OpenRouter keys before the build, because they appeared in chat.
+
 ## Queued: the bar after a pick
 
 Intent only. A full section with boxes comes before the build. After someone picks their name, the collapsed bar shows "Your share" with an up-arrow that pulls up their breakdown (preferences 26). The bar has no link row, because the header's **Share** button covers sharing. The pay button stays in the expanded breakdown, not in the bar (preferences 27). It builds on `fix/flash-root`.
+
+## Queued: quantities follow the receipt
+
+Intent only. A full section with boxes comes before the build. The Split page shows lines as the receipt prints them (preferences 58). Lines printed separately stay separate rows. A line printed with a quantity, such as "Guinness x3", is one row that shows quantity 3. Its detail has a **Split** button that splits it into three one-unit rows. Name and price edits apply to the whole Item, and the model keeps its per-unit claims (preferences 5). This replaces V2-3's one row per unit.
+
+Two questions are open for the operator. How does **Who had it** claim units on a quantity row before a **Split**? How does a person's breakdown read a quantity row (preferences 24)?
+
+## Queued: a home reload keeps only the payment handles
+
+Intent only. A full section with boxes comes before the build. A reload of home clears the receipt, the photo, and the names, and keeps the payment handles (preferences 59). A kept handle counts as filled, so a tap on Create works without retyping it. Today a prefilled handle counts as empty until the user types, as `notes.md` records from the operator's report of 2026-10-03. Reproduce that bug in the iOS Simulator first.
 
 ## Queued: Add Item on the Split page
 
