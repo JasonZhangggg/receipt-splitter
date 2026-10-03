@@ -264,12 +264,7 @@ function totalCheck(receipt: DraftReceipt) {
 export const filledHandles = (handles: readonly HandleRow[]): PaymentHandle[] =>
   handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
 
-export function splitRequest({ scan, handles, names }: Draft, newId: () => ParticipantId): Omit<NewSplit, "id"> | null {
-  const receipt = scan.status === "read" ? receiptOf(scan.receipt) : null;
-  const [first, ...rest] = filledHandles(handles);
-  const [host, ...others] = names;
-  if (!receipt || !first || host === undefined) return null;
-  const paymentHandles: NonEmpty<PaymentHandle> = [first, ...rest];
+export function splitRequest({ receipt, paymentHandles, names: [host, ...others] }: Ready, newId: () => ParticipantId): Omit<NewSplit, "id"> {
   return { receipt, participants: [{ id: newId(), name: host }, ...others.map((name) => ({ id: newId(), name }))], paymentHandles };
 }
 
@@ -308,6 +303,8 @@ export function mismatchNote({ scan }: Draft): string | null {
 
 export type Blocker = { readonly kind: "note"; readonly note: string } | { readonly kind: "noHandle" };
 
+export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonly paymentHandles: NonEmpty<PaymentHandle>; readonly names: NonEmpty<string> };
+
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
 function itemProblem(receipt: DraftReceipt): Blocker | null {
@@ -319,14 +316,18 @@ function itemProblem(receipt: DraftReceipt): Blocker | null {
 
 export const editsOnHome = ({ scan }: Draft): boolean => scan.status === "read" && scan.fixOnHome === true;
 
-export function blocker({ scan, handles, names }: Draft): Blocker | null {
+export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
   if (scan.status === "empty") return note("Add a receipt.");
   if (scan.status === "reading") return note("Reading the receipt.");
   const problem = itemProblem(scan.receipt);
   if (problem) return problem;
-  if (!handles.some((row) => row.handle.trim())) return { kind: "noHandle" };
-  if (names.length === 0) return note("Add your name.");
-  return null;
+  const receipt = receiptOf(scan.receipt);
+  if (!receipt) return note("Add an item.");
+  const [first, ...rest] = filledHandles(handles);
+  if (!first) return { kind: "noHandle" };
+  const [host, ...others] = names;
+  if (host === undefined) return note("Add your name.");
+  return { kind: "ready", receipt, paymentHandles: [first, ...rest], names: [host, ...others] };
 }
 
 export function flaggedRows(draft: Draft): string[] {

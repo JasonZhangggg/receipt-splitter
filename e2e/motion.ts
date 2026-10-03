@@ -254,6 +254,15 @@ export async function tapAt(page: Page, point: Point) {
 
 /** One finger, or the mouse, moves `dy` px over `ms`. */
 export async function drag(page: Page, from: Point, dy: number, ms: number) {
+  const lift = await press(page, from, dy, ms, true);
+  await lift();
+}
+
+type Lift = () => Promise<void>;
+
+export const hold = (page: Page, from: Point, dy: number, ms: number) => press(page, from, dy, ms, false);
+
+async function press(page: Page, from: Point, dy: number, ms: number, release: boolean): Promise<Lift> {
   const steps = Math.max(2, Math.round(ms / 16));
   const path = Array.from({ length: steps + 1 }, (_, i) => ({ x: from.x, y: from.y + (dy * i) / steps }));
   if (!(await touches(page))) {
@@ -263,8 +272,7 @@ export async function drag(page: Page, from: Point, dy: number, ms: number) {
       await page.mouse.move(point.x, point.y);
       await page.waitForTimeout(16);
     }
-    await page.mouse.up();
-    return;
+    return () => page.mouse.up();
   }
   if (engine(page) === "chromium") {
     const cdp = await page.context().newCDPSession(page);
@@ -273,11 +281,12 @@ export async function drag(page: Page, from: Point, dy: number, ms: number) {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [point] });
       await page.waitForTimeout(16);
     }
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await cdp.detach();
-    return;
+    return async () => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await cdp.detach();
+    };
   }
-  await page.evaluate(async (points) => {
+  await page.evaluate(async ({ points, release }) => {
     const target = document.elementFromPoint(points[0].x, points[0].y)!;
     const fire = (type: string, point: { x: number; y: number }) =>
       target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: point.x, clientY: point.y }));
@@ -286,8 +295,11 @@ export async function drag(page: Page, from: Point, dy: number, ms: number) {
       await new Promise((resolve) => setTimeout(resolve, 16));
       fire("pointermove", point);
     }
-    fire("pointerup", points.at(-1)!);
-  }, path);
+    const lift = () => fire("pointerup", points.at(-1)!);
+    if (release) lift();
+    else (window as unknown as { __lift: () => void }).__lift = lift;
+  }, { points: path, release });
+  return release ? async () => {} : () => page.evaluate(() => (window as unknown as { __lift: () => void }).__lift());
 }
 
 /** Waits until the element's top holds still for 150 ms. */
@@ -414,6 +426,19 @@ async function homeTyping(page: Page) {
   await page.keyboard.press("Enter");
   await page.keyboard.type("Samantha");
   await page.waitForTimeout(500);
+}
+
+const lifts = new WeakMap<Page, Lift>();
+
+async function homePanelHeld(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) >= 900) await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const panel = page.locator("[data-sheet-surface]");
+  await panel.waitFor();
+  await page.waitForTimeout(800);
+  const field = (await page.getByRole("textbox", { name: "Venmo handle" }).boundingBox())!;
+  const left = (await panel.boundingBox())!.x;
+  lifts.set(page, await hold(page, { x: left + 4, y: field.y + field.height / 2 }, 120, 200));
 }
 
 const photoHarness = `
@@ -582,6 +607,16 @@ export const scenarios: Scenario[] = [
     setup: itemOpen,
     act: (page) => tapAt(page, { x: 30, y: 16 }),
     probes: itemProbes,
+  },
+  {
+    id: "home-panel-spring",
+    name: "Home: the panel springs back after a drag from the payment row",
+    setup: homePanelHeld,
+    act: (page) => lifts.get(page)!(),
+    probes: [
+      { key: "surface", find: "document.querySelector('[data-sheet-surface]')", kind: "top" },
+      { key: "action", find: `[...document.querySelectorAll("[role='button']")].find((el) => el.textContent === "Create split link") ?? null`, kind: "top" },
+    ],
   },
   {
     id: "name-add",

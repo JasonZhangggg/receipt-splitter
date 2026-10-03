@@ -42,10 +42,6 @@ export function rubberband(overshoot: number, dimension: number, constant = 0.55
   return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
 }
 
-export function snapTarget(position: number, velocity: number, collapsedAt: number): 0 | 1 {
-  return position + project(velocity) > collapsedAt / 2 ? 1 : 0;
-}
-
 type Spring = { response: number; damping: number };
 
 const sheetSpring: Spring = { response: 0.3, damping: 0.8 };

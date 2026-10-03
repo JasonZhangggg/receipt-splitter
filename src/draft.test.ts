@@ -9,7 +9,7 @@ import { mintedId } from "./core/test-ids";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import { parseReceipt, type ParsedItem } from "./parse";
 import { box } from "./parse/fixtures/boxes";
-import { blocker, editsOnHome, emptyDraft, mismatchNote, flaggedRows, newName, parseAmount, loadDraft, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
+import { editsOnHome, emptyDraft, mismatchNote, flaggedRows, newName, parseAmount, loadDraft, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -34,8 +34,14 @@ const run = (draft: Draft, ...actions: DraftAction[]) => actions.reduce(reduceDr
 const read1040 = (draft = emptyDraft) => run(draft, { type: "reading", file }, { type: "read", file, receipt: receipt1040 });
 
 const reasonOf = (draft: Draft) => {
-  const found = blocker(draft);
-  return found?.kind === "note" ? found.note : found;
+  const found = readiness(draft);
+  if (found.kind === "ready") return null;
+  return found.kind === "note" ? found.note : found;
+};
+
+const requestOf = (draft: Draft, newId: () => ReturnType<typeof participantId>) => {
+  const found = readiness(draft);
+  return found.kind === "ready" ? splitRequest(found, newId) : null;
 };
 
 const withVenmo = (draft: Draft) => run(draft, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addName", name: "Jason" });
@@ -50,7 +56,7 @@ class MemoryStorage {
   }
 }
 
-describe("blocker", () => {
+describe("readiness", () => {
   test("names the one thing that keeps Create split link off", () => {
     const ready = withVenmo(read1040());
     expect({
@@ -66,6 +72,15 @@ describe("blocker", () => {
       noName: "Add your name.",
       ready: null,
     });
+  });
+
+  test("a ready draft carries the create body, so Create split link always has one to send", () => {
+    const found = readiness(run(withVenmo(read1040()), { type: "addName", name: "Sam" }));
+
+    expect(found.kind === "ready" && splitRequest(found, counter()).participants).toEqual([
+      { id: "p0", name: "Jason" },
+      { id: "p1", name: "Sam" },
+    ]);
   });
 
   test("refuses an amount over MAX_CENTS, which Create split link would be refused for", () => {
@@ -325,7 +340,7 @@ describe("reading OCR into the draft", () => {
     const storage = new MemoryStorage();
     saveDraft(run(withVenmo(emptyDraft), { type: "read", file, receipt }, { type: "editItem", id: "i1", price: price(2187) }), storage);
 
-    const request = splitRequest(loadDraft(storage), () => participantId("p1"));
+    const request = requestOf(loadDraft(storage), () => participantId("p1"));
 
     expect(request?.receipt.items[0]).toEqual({ id: "i1", name: "Guinness Draught", price: 2187, quantity: 3 });
   });
@@ -512,7 +527,7 @@ describe("Bundles", () => {
     });
   const topgolf = parseReceipt(topgolfBoxes)!;
   const readTopgolf = (draft = emptyDraft) => run(withVenmo(draft), { type: "addName", name: "Priya" }, { type: "read", file, receipt: topgolf });
-  const adjustmentsOf = (draft: Draft) => splitRequest(draft, counter())?.receipt.adjustments;
+  const adjustmentsOf = (draft: Draft) => requestOf(draft, counter())?.receipt.adjustments;
   const bucketOne = { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] };
   const bucketTwo = { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] };
 
@@ -520,7 +535,7 @@ describe("Bundles", () => {
     const storage = new MemoryStorage();
     saveDraft(run(readTopgolf(), { type: "editItem", id: "i3", price: price(2190) }, { type: "editItem", id: "i3", price: price(2187) }), storage);
 
-    const request = splitRequest(loadDraft(storage), counter());
+    const request = requestOf(loadDraft(storage), counter());
 
     expect(request?.receipt.adjustments).toEqual([
       { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: bucketOne },
@@ -599,9 +614,9 @@ describe("Bundles", () => {
 
 describe("the Split link", () => {
   test("the create body carries the Receipt with its tip as an Adjustment, the Host first as the first name typed, and every handle the Host filled in", () => {
-    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
+    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "setHandle", index: 1, handle: "$jasonz" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
 
-    expect(splitRequest(draft, counter())).toEqual({
+    expect(requestOf(draft, counter())).toEqual({
       receipt: {
         items: [
           { id: "i1", name: "Chicken Fried Rice And Egg", price: 799 },
@@ -623,7 +638,10 @@ describe("the Split link", () => {
         { id: "p1", name: "Sam" },
         { id: "p2", name: "Priya" },
       ],
-      paymentHandles: [{ service: "venmo", handle: "@jason-z" }],
+      paymentHandles: [
+        { service: "venmo", handle: "@jason-z" },
+        { service: "cashApp", handle: "$jasonz" },
+      ],
     });
   });
 
@@ -642,7 +660,7 @@ describe("the Split link", () => {
       receipt: { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "discount", name: " ", amount: cents(-100) }], total: cents(2198) },
     });
 
-    expect(splitRequest(typed, counter())?.receipt).toEqual({
+    expect(requestOf(typed, counter())?.receipt).toEqual({
       items: [{ id: "i1", name: "Fries", price: 800 }],
       adjustments: [
         { id: "a1", kind: "tax", name: "Tax", amount: 72 },
@@ -651,7 +669,7 @@ describe("the Split link", () => {
       subtotal: 800,
       total: 872,
     });
-    expect(splitRequest(unnamed, counter())?.receipt.adjustments[0]).toEqual({ id: "a1", kind: "discount", name: "Discount", amount: -100 });
+    expect(requestOf(unnamed, counter())?.receipt.adjustments[0]).toEqual({ id: "a1", kind: "discount", name: "Discount", amount: -100 });
   });
 
   test("creating the Split starts a fresh draft that keeps only the Payment handles", () => {

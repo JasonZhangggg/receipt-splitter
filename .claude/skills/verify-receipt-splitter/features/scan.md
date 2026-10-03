@@ -43,7 +43,7 @@ Preconditions:
 - **EXIF.** `-g "EXIF"` reads `e2e/fixtures/srd-1040-exif-rotated.jpg`, whose pixels lie sideways with EXIF orientation 6, as the same five Items in the stored draft.
 - **Reading state.** `-g "reading state"` holds the dictionary download for 3 s, checks that the seven lines darken in order, and that reduced motion runs no animation.
 - **Reload and offline.** `-g "reload keeps the draft"` scans, edits, waits for the service worker, goes offline, reloads, and scans again. `-g "payment apps and names"` switches to Cash App, adds Venmo with **+**, adds two names, removes one, and reloads.
-- **Sheet.** `-g "the sheet"` drags the grab handle down to collapse the sheet, flicks it open, taps and presses Enter on it, interrupts its settle, and fills it until its content scrolls.
+- **Sheet.** `-g "the sheet"` drags the grab handle a short way and watches the panel spring back, catches it during the spring, and fills it until its content scrolls. In `e2e/home.spec.ts`, `-g "the phone panel|no way to pay"` drags it from beside the payment row, checks that the action moves with it with no gap, taps the handle field with a small wander, and taps **Create split link** with no handle.
 - **Screens.** For a screenshot of a state, run the spec with `--trace on` and save a frame, or use a short Playwright script against a `launch`ed port, as `/tmp/swarm-RS-7/owner/shots.mjs` does.
 
 ## Gotchas

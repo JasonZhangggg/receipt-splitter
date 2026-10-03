@@ -128,7 +128,7 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
   await page.keyboard.up(" ");
 });
 
-test("with no way to pay, Create split link shows no note and a tap puts the cursor in the Venmo handle", async ({ page }) => {
+test("with no way to pay, Create split link shows no note until a tap, which puts the cursor in the Venmo handle and says what is missing", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await openExample(page);
@@ -136,8 +136,190 @@ test("with no way to pay, Create split link shows no note and a tap puts the cur
   await expect(action(page)).not.toHaveAttribute("aria-disabled");
   await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
   await action(page).click();
-  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeFocused();
+  const handle = page.getByRole("textbox", { name: "Venmo handle" });
+  await expect(handle).toBeFocused();
+  await expect(handle).toBeInViewport({ ratio: 1 });
+  await expect(action(page)).toHaveAccessibleDescription("Add how to pay you.");
+  await expect(page.getByText("Add how to pay you.")).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
+  await handle.pressSequentially("@j");
+  await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
+});
+
+const iphoneKeyboard = 336;
+
+async function simulateKeyboard(page: Page) {
+  await page.evaluate((keyboard) => {
+    const viewport = window.visualViewport!;
+    const height = Object.getOwnPropertyDescriptor(VisualViewport.prototype, "height")!.get!;
+    let shown = 0;
+    Object.defineProperty(viewport, "height", { configurable: true, get: () => height.call(viewport) - shown });
+    const show = (px: number) => {
+      if (shown === px) return;
+      shown = px;
+      viewport.dispatchEvent(new Event("resize"));
+    };
+    const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+    document.addEventListener("focusin", (event) => typing(event.target) && setTimeout(() => show(keyboard), 60));
+    document.addEventListener("focusout", () => setTimeout(() => !typing(document.activeElement) && show(0), 60));
+  }, iphoneKeyboard);
+}
+
+const aboveKeyboard = (field: Locator) =>
+  field.evaluate((el) => {
+    const { top, bottom } = el.getBoundingClientRect();
+    return top >= 0 && bottom <= window.visualViewport!.height;
+  });
+
+test.describe("with the iPhone keyboard up", () => {
+  test("the focused handle field and name field sit above the keyboard, and the panel returns to rest when it goes down", async ({ page }) => {
+    await page.goto("/");
+    await settle(page);
+    const rest = await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
+    await simulateKeyboard(page);
+
+    const handle = page.getByRole("textbox", { name: "Venmo handle" });
+    await handle.tap();
+    await expect(handle).toBeFocused();
+    await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height - iphoneKeyboard);
+    await expect.poll(() => aboveKeyboard(handle)).toBe(true);
+
+    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
+    const name = page.getByRole("textbox", { name: "Your name", exact: true });
+    await expect(name).toBeFocused();
+    await expect.poll(() => aboveKeyboard(name)).toBe(true);
+
+    await page.locator("h1").tap();
+    await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height);
+    await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top)).toBe(rest);
+  });
+});
+
+test.describe("with the iPhone keyboard up and twelve names", () => {
+  for (const height of [phone.height, 667]) {
+    test(`the whole panel, grab included, stays inside the visible area at ${height} px tall`, async ({ page }) => {
+      await page.setViewportSize({ width: phone.width, height });
+      await page.goto("/");
+      await settle(page);
+      await simulateKeyboard(page);
+
+      const people = page.getByRole("group", { name: "People at the table" });
+      await people.getByRole("button", { name: "Your name" }).tap();
+      for (let i = 1; i <= 12; i++) {
+        await page.keyboard.type(`Guest ${i}`);
+        await page.keyboard.press("Enter");
+      }
+      await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(12);
+      const field = page.getByRole("textbox", { name: "Name", exact: true });
+      await expect(field).toBeFocused();
+      await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(height - iphoneKeyboard);
+
+      await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
+      await expect.poll(() => aboveKeyboard(field)).toBe(true);
+      await expect.poll(() => aboveKeyboard(action(page))).toBe(true);
+    });
+  }
+});
+
+test.describe("the phone panel", () => {
+  const panelTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
+  const actionTop = async (page: Page) => (await action(page).boundingBox())!.y;
+  const tops = (page: Page) =>
+    page.evaluate(
+      () =>
+        new Promise<{ panel: number; action: number }>((resolve) =>
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() =>
+              resolve({
+                panel: document.querySelector("[data-sheet-surface]")!.getBoundingClientRect().top,
+                action: [...document.querySelectorAll("[role='button']")].find((el) => el.textContent === "Create split link")!.getBoundingClientRect().top,
+              }),
+            ),
+          ),
+        ),
+    );
+  const paymentArea = async (page: Page) => {
+    const panel = (await page.locator("[data-sheet-surface]").boundingBox())!;
+    const field = (await page.getByRole("textbox", { name: "Venmo handle" }).boundingBox())!;
+    return { x: panel.x + 4, y: field.y + field.height / 2 };
+  };
+  async function touchDown(page: Page, from: { x: number; y: number }) {
+    const cdp = await page.context().newCDPSession(page);
+    const send = (type: "touchStart" | "touchMove", y: number) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: [{ x: from.x, y }] });
+    await send("touchStart", from.y);
+    return {
+      moveBy: async (by: number, steps = 8) => {
+        for (let step = 1; step <= steps; step++) await send("touchMove", from.y + (by * step) / steps);
+      },
+      release: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }),
+    };
+  }
+
+  test("a drag from the payment area moves the whole panel with the finger, then it springs back to the same rest", async ({ page }) => {
+    await page.goto("/");
+    await settle(page);
+    const rest = await tops(page);
+
+    const finger = await touchDown(page, await paymentArea(page));
+    await finger.moveBy(80);
+    const held = await tops(page);
+    await finger.release();
+
+    expect(held.panel - rest.panel).toBeGreaterThan(20);
+    expect(held.panel - rest.panel).toBeLessThan(80);
+    expect(held.action - rest.action).toBeCloseTo(held.panel - rest.panel, 0);
+    await expect.poll(() => panelTop(page)).toBe(rest.panel);
+    expect(await actionTop(page)).toBe(rest.action);
+    await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeVisible();
+  });
+
+  test("dragged up from its grab handle, the panel and Create split link stay one piece with no gap and no page showing below", async ({ page }) => {
+    await page.goto("/");
+    await settle(page);
+    const rest = await panelTop(page);
+    const grab = (await page.locator("[data-sheet-grab]").boundingBox())!;
+
+    const finger = await touchDown(page, { x: grab.x + grab.width / 2, y: grab.y + grab.height / 2 });
+    await finger.moveBy(-120);
+    const covered = await page.evaluate(
+      ([x, ys]) => ys.map((y) => !!document.elementFromPoint(x, y)?.closest("[data-sheet-surface]")),
+      [phone.width / 2, [(await actionTop(page)) - 2, phone.height - 2]] as const,
+    );
+    const lifted = rest - (await panelTop(page));
+    await finger.release();
+
+    expect(lifted).toBeGreaterThan(20);
+    expect(covered).toEqual([true, true]);
+    await expect.poll(() => panelTop(page)).toBe(rest);
+  });
+
+  test("under reduced motion a drag from the payment area leaves the panel where it is", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await settle(page);
+    const rest = await tops(page);
+
+    const finger = await touchDown(page, await paymentArea(page));
+    await finger.moveBy(80);
+    const held = await tops(page);
+    await finger.release();
+
+    expect(held).toEqual(rest);
+  });
+
+  test("a tap on the Venmo handle that wanders a few pixels focuses it and leaves the panel at rest", async ({ page }) => {
+    await page.goto("/");
+    await settle(page);
+    const rest = await panelTop(page);
+    const field = (await page.getByRole("textbox", { name: "Venmo handle" }).boundingBox())!;
+
+    const finger = await touchDown(page, { x: field.x + 20, y: field.y + field.height / 2 });
+    await finger.moveBy(6, 3);
+    await finger.release();
+
+    await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeFocused();
+    expect(await panelTop(page)).toBe(rest);
+  });
 });
 
 test("a keydown on the disabled Create split link draws no press", async ({ page }) => {

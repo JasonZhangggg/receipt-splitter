@@ -33,6 +33,7 @@ export const createCopy = {
   daily: (opensAt: string, tomorrow: boolean) => `Too many new splits today. Try again ${tomorrow ? "tomorrow " : ""}after ${opensAt}.`,
   network: "Couldn't reach the server. Try again.",
   handle: "Check how to pay you.",
+  noHandle: "Add how to pay you.",
   other: "Couldn't create the link. Try again.",
 };
 
@@ -51,11 +52,6 @@ export const joinCopy = {
   newSplit: "Split a receipt",
   expired: { title: "This split has expired", hint: "A split lasts 60 days after its last change." },
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
-};
-
-export const sheetCopy = {
-  collapse: "Hide payment and names",
-  expand: "Show payment and names",
 };
 
 export const editorCopy = {
