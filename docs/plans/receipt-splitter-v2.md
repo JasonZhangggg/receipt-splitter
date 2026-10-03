@@ -55,23 +55,24 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 The operator approved this plan with PR 26. The rulings below changed its spec after that, and each wins over the text in this file where they disagree. Rulings that only restate this plan are not listed.
 
+- **Preferences 5, 2026-10-03.** A line shown as one row is claimed like any one-line Item, with or without a quantity. **Who had it**, **Evenly**, **By shares**, and **By amount** apply to the whole line. After **Split**, each one-unit row is claimed the same way. This replaces per-unit claims on a quantity line.
 - **Preferences 7, 2026-10-02.** Creates are limited to 10 a minute and 50 a UTC day per IP, plus a global cap of 1,000 a UTC day. PR 34 added the daily per-IP limit. V2-6a's cap of 1,000 stands.
 - **Preferences 10, 2026-10-02.** Payment handles cannot change after create. The Split page has no handle-edit control.
 - **Preferences 12, 2026-10-01.** The Host may upload the Receipt photo at most twice. PR 32 replaces the photo on the second PUT and answers a third with 429.
 - **Preferences 15, 2026-10-02.** Nothing is highlighted in yellow. Unclaimed rows, flagged rows, and reasons use secondary gray text. This replaces V2-3's yellow flag.
 - **Preferences 17, 2026-10-02.** The keyboard never covers a focused text field, on any page.
 - **Preferences 18, 2026-10-02.** No animation shows a stale or wrong state for any frame. That includes an old selection, a flash of the open state, doubled content, and a jump when the keyboard opens or closes.
-- **Preferences 58, 2026-10-03.** Quantities follow the receipt. Lines the receipt prints separately stay separate rows. A line printed with a quantity, such as "x2" or "qty 2", is one row that shows that quantity. Its detail has a **Split** button that splits it into one-unit rows. Name and price edits apply to the whole Item, and the model keeps its per-unit claims. This replaces preferences 19, V2-3's one row per unit. It is queued.
+- **Preferences 58, 2026-10-03.** Quantities follow the receipt. Lines the receipt prints separately stay separate rows. A line printed with a quantity is one row with the quantity in its text, such as "3x", styled like the "6 items" count on a Bundle header. It behaves as any one-line Item (preferences 5). Its detail has a **Split** button that splits it into that many one-unit rows, which then behave as normal one-line Items. This replaces preferences 19, V2-3's one row per unit. It is queued.
 - **Preferences 20, 2026-10-02.** Rows use about 14 px text and a 16 px select circle with a 44 px tap target.
 - **Preferences 22, 2026-10-02.** The Bundle header's chevron sits in its leading slot, with its tip on the light vertical rule beside the children.
 - **Preferences 23, 2026-10-02.** Rows carry no "Unclaimed" tag, because the missing person icon shows it. A collapsed Bundle shows a quiet gray "N unclaimed".
-- **Preferences 24, 2026-10-02.** A person's breakdown shows no "1 of 3". Preferences 24 also says the breakdown matches one row per unit, which preferences 58 replaced. How a breakdown reads a quantity row is open for the operator.
+- **Preferences 24, 2026-10-03.** A person's breakdown shows no "1 of 3". It lists what the Split page shows. A quantity line is one line with its quantity, and split rows are separate lines.
 - **Preferences 25, 2026-10-02.** "Which one are you?" is the tall pick sheet, and it closes without a pick. It shows the invite line, the people, "Not here? Add yourself", and one link row with the link, **Copy**, and **Share**.
 - **Preferences 26, 2026-10-02.** After a pick, the collapsed bar shows "Your share" with an up-arrow and no link row. It is queued.
 - **Preferences 27, 2026-10-02.** The pay button stays in the expanded breakdown, not in the collapsed bar.
 - **Preferences 28, 2026-10-02.** The Split page header has a Home button that starts a new split. PR 35 built it.
 - **Preferences 30, 2026-10-02.** Anyone in the Split can add a fully new Item. This brings a new Item into scope, though not one inside a Bundle. Who may add is still open. It is queued.
-- **Preferences 33, 2026-10-02.** The home panel with the payment row, the names, and **Create split link** is always shown, never collapses, and is one surface with Create. A drag moves it and it springs back. `fix/create-silent` builds it.
+- **Preferences 33, 2026-10-02.** The home panel with the payment row, the names, and **Create split link** is always shown, never collapses, and is one surface with Create. A drag moves it and it springs back. `fix/create-silent`, PR 36, builds it.
 - **Preferences 34, 2026-10-02.** A tap on an enabled Create always acts. It creates, or it focuses what is missing and says so. `fix/create-silent`, PR 36, builds it. The operator approved the wording "Add how to pay you." on 2026-10-03.
 - **Preferences 36, 2026-10-02.** After a Split is created, home is fresh. The receipt, the photo, and the names clear, and the payment handles stay. PR 35 built it.
 - **Preferences 37, 2026-10-02.** History on home lists past Splits stored on this device only. It is queued.
@@ -290,7 +291,7 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 
 **Amendment: one row per unit.** The operator dropped the quantity column after round 3. An Item with quantity N shows N rows, one per unit, each with its own circle, the Item's name, and the unit price. The README's "Amendment: no quantity column" wins over the Build and You see lines below where they mention quantity.
 
-**Changed after it shipped.** The boxes below record what PR 33 shipped. Preferences 58 replaces one row per unit from here on. A line printed with a quantity becomes one row with that quantity and a **Split** button in its detail. See **Queued: quantities follow the receipt**.
+**Changed after it shipped.** The boxes below record what PR 33 shipped. Preferences 58 replaces one row per unit from here on. A line printed with a quantity becomes one row, claimed as a whole, with a **Split** button in its detail. See **Queued: quantities follow the receipt**.
 
 **Files.**
 
@@ -374,10 +375,10 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 - [ ] With no pick, fill the right pane with the pick content: the invite line, the people, "Not here? Add yourself", and one link row with the link, **Copy**, and **Share** (preferences 25). A visitor can browse the receipt without picking.
 - [ ] After a pick, show "Your share" in the right pane with the breakdown open, the pay button inside it, and the people (preferences 26 and 27). The pane has no link row, because the header's **Share** button covers sharing.
 - [ ] Keep the header's Home button and **Share** button (preferences 28).
-- [ ] Draw the rows as the phone does. Rows follow the receipt. A line printed with a quantity is one row that shows the quantity, and a line printed on its own is its own row. Rows have about 14 px text, a 16 px circle, a 44 px tap target, and no × (preferences 58, 20, and 21).
+- [ ] Draw the rows as the phone does. Rows follow the receipt. A line printed with a quantity is one row with the quantity in its text, such as "3x", styled like the "6 items" count on a Bundle header. A line printed on its own is its own row. Rows have about 14 px text, a 16 px circle, a 44 px tap target, and no × (preferences 58, 20, and 21).
 - [ ] Draw Bundles as the phone does. They start closed, the chevron sits in the header's leading slot, and a closed Bundle shows a gray "N unclaimed" (preferences 22 and 23). Nothing on the page is yellow (preferences 15).
-- [ ] Open a row's detail as a popover anchored to its line. It holds the phone sheet's fields: the price, **Who had it**, **Evenly**, **By shares**, **By amount**, **Delete item**, and, on a row with a quantity above 1, **Split**, which splits the row into one-unit rows (preferences 58). Name and price edits apply to the whole Item. The popover flips above the line when there is no room below. Escape and a click outside close it, and focus returns to the line.
-- [ ] Show a person's breakdown with no "1 of 3" (preferences 24). Read a quantity row in it the way the phone does after quantities follow the receipt.
+- [ ] Open a row's detail as a popover anchored to its line. It holds the phone sheet's fields: the price, **Who had it**, **Evenly**, **By shares**, **By amount**, **Delete item**, and, on a row with a quantity above 1, **Split**. The split modes apply to the whole line, quantity or not (preferences 5). **Split** turns the row into that many one-unit rows, each claimed as a one-line Item (preferences 58). Name and price edits apply to the whole Item. The popover flips above the line when there is no room below. Escape and a click outside close it, and focus returns to the line.
+- [ ] Show a person's breakdown as the Split page shows the rows, with no "1 of 3" (preferences 24). A quantity line is one line with its quantity, and split rows are separate lines.
 - [ ] Offer no control that edits a Payment handle (preferences 10).
 - [ ] Show no stale or wrong frame when the popover opens, closes, or moves to another line, or when the right pane changes from the pick content to "Your share" (preferences 18).
 - [ ] Keep the phone layout under 1024 px as `main` has it.
@@ -631,9 +632,7 @@ Intent only. A full section with boxes comes before the build. After someone pic
 
 ## Queued: quantities follow the receipt
 
-Intent only. A full section with boxes comes before the build. The Split page shows lines as the receipt prints them (preferences 58). Lines printed separately stay separate rows. A line printed with a quantity, such as "Guinness x3", is one row that shows quantity 3. Its detail has a **Split** button that splits it into three one-unit rows. Name and price edits apply to the whole Item, and the model keeps its per-unit claims (preferences 5). This replaces V2-3's one row per unit.
-
-Two questions are open for the operator. How does **Who had it** claim units on a quantity row before a **Split**? How does a person's breakdown read a quantity row (preferences 24)?
+Intent only. A full section with boxes comes before the build. The Split page shows lines as the receipt prints them (preferences 58). Lines printed separately stay separate rows. A line printed with a quantity, such as Guinness x3, is one row with "3x" in its text, styled like the "6 items" count on a Bundle header. Unsplit, it is claimed like any one-line Item. **Who had it**, **Evenly**, **By shares**, and **By amount** apply to the whole line, with no per-unit claims (preferences 5). Its detail has a **Split** button that splits it into three one-unit rows, and each of those is claimed as a one-line Item. A person's breakdown lists what the Split page shows, so a quantity line is one line (preferences 24). This replaces V2-3's one row per unit.
 
 ## Queued: a home reload keeps only the payment handles
 
