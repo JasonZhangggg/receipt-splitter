@@ -5,11 +5,11 @@ Friends read a receipt by quantity and Bundle instead of a flat list, the Host's
 The rules it enforces are that no deploy makes a live Split unreadable and that a failing Total check blocks nothing.
 The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b.
 
-**Status at `main` = `d0cf6ce`.**
+**Status at `main` = `19c8e93`.**
 
 - Merged and deployed, in this order: V2-1 as PR 29 (`9e3a34d`), V2-2 as PR 30 (`ade639d`), V2-5 as PR 31 (`f5e5b8e`), V2-6a as PR 32 (`461b37a`), and V2-3 as PR 33 (`2da1e47`).
-- Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create.
-- In flight. `fix/create-silent` is open as [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36). It makes every Create tap act and keeps the home panel open. `fix/flash-root` is a local branch, not pushed. It fixes the Split page flashes at their causes.
+- Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create. [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36) (`19c8e93`), `fix/create-silent`, which makes every Create tap act and keeps the home panel open.
+- In flight. `fix/flash-root` is a local branch, not pushed. It fixes the Split page flashes at their causes.
 - Queued, in order: server-side receipt reading, the bar after a pick, quantities follow the receipt, a home reload that keeps only the payment handles, Add Item on the Split page, History on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. The first six have short sections before **Close the program**.
 - "Preferences N" means ruling N in `~/.claude/orchestrate/receipt-splitter/preferences.md`.
 
@@ -72,8 +72,8 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
 - **Preferences 27, 2026-10-02.** The pay button stays in the expanded breakdown, not in the collapsed bar.
 - **Preferences 28, 2026-10-02.** The Split page header has a Home button that starts a new split. PR 35 built it.
 - **Preferences 30, 2026-10-02.** Anyone in the Split can add a fully new Item. This brings a new Item into scope, though not one inside a Bundle. Who may add is still open. It is queued.
-- **Preferences 33, 2026-10-02.** The home panel with the payment row, the names, and **Create split link** is always shown, never collapses, and is one surface with Create. A drag moves it and it springs back. `fix/create-silent`, PR 36, builds it.
-- **Preferences 34, 2026-10-02.** A tap on an enabled Create always acts. It creates, or it focuses what is missing and says so. `fix/create-silent`, PR 36, builds it. The operator approved the wording "Add how to pay you." on 2026-10-03.
+- **Preferences 33, 2026-10-02.** The home panel with the payment row, the names, and **Create split link** is always shown, never collapses, and is one surface with Create. A drag moves it and it springs back. PR 36 built it.
+- **Preferences 34, 2026-10-02.** A tap on an enabled Create always acts. It creates, or it focuses what is missing and says so. PR 36 built it. The operator approved the wording "Add how to pay you." on 2026-10-03.
 - **Preferences 36, 2026-10-02.** After a Split is created, home is fresh. The receipt, the photo, and the names clear, and the payment handles stay. PR 35 built it.
 - **Preferences 37, 2026-10-02.** History on home lists past Splits stored on this device only. It is queued.
 - **Preferences 44, 2026-10-02.** The real-iOS census in the iOS Simulator is the deciding gate for UI fixes. Every flagged interaction counts 0 on the fix head.
