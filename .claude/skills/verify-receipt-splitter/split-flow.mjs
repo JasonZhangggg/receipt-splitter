@@ -114,14 +114,13 @@ check("tostones 2:1 reaches the Host", true);
 
 await sam.waitForTimeout(500);
 await sam.getByRole("button", { name: /^Open Perrier/ }).click();
-await sam.getByRole("button", { name: "More", exact: true }).click();
-await sam.getByRole("group", { name: "Who had it, 2 of 2" }).getByRole("button", { name: "Sam" }).click();
+await sam.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
 await sam.waitForTimeout(900);
 await sam.getByRole("dialog", { name: "Item" }).evaluate((sheet) => sheet.querySelector("[data-sheet-grab]")?.scrollIntoView());
-await shot(sam, "I4-quantity");
+await shot(sam, "I4-item-claim");
 await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
 await priya.getByRole("button", { name: /^Open Perrier.*had by Sam$/ }).waitFor();
-check("a second unit claimed per unit reaches another browser", true);
+check("a line claimed from its Item sheet reaches another browser", true);
 
 blocked = true;
 priyaSocket?.close({ code: 4000, reason: "network down" });
