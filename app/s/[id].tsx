@@ -14,6 +14,7 @@ import { Button } from "../../src/ui/components/button";
 import { HistorySheet } from "../../src/ui/history";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
+import { AddItemSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { Breakdown } from "../../src/ui/split-view/breakdown";
@@ -73,9 +74,10 @@ function Gone({ reason }: { reason: GoneReason }) {
 }
 
 type Phase = "pick" | "collapsing" | "regular";
-type Overlay = { readonly kind: "item"; readonly itemId: ItemId } | { readonly kind: "history" } | null;
+type Overlay = { readonly kind: "item"; readonly itemId: ItemId } | { readonly kind: "add" } | { readonly kind: "history" } | null;
 type Send = ReturnType<typeof useLiveSplit>["send"];
 
+const overlayLabel = { item: say.item, add: say.newItem, history: say.history } as const;
 const checkFor = 80;
 const tallPickTop = 170;
 const crossFadeFor = 200;
@@ -233,6 +235,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
               me={me}
               onCircle={(item) => void onCircle(item)}
               onOpen={(item) => setOverlay({ kind: "item", itemId: item.id })}
+              onAdd={() => setOverlay({ kind: "add" })}
             />
           </View>
         </View>
@@ -261,7 +264,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         )}
       </BottomSheet>
       {overlay ? (
-        <BottomSheet scrim label={overlay.kind === "item" ? say.item : say.history} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
+        <BottomSheet scrim label={overlayLabel[overlay.kind]} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlay.kind === "item" ? (
             <ItemSheet
               split={split}
@@ -273,6 +276,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
               }
               onClose={closeOverlay}
             />
+          ) : overlay.kind === "add" ? (
+            <AddItemSheet split={split} me={me} send={send} onClose={closeOverlay} />
           ) : (
             <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
           )}

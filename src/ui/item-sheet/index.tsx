@@ -393,7 +393,7 @@ function Segments({ value, onChange }: { value: SplitMode; onChange: (mode: Spli
 
 type StepperProps = { value: number; min: number; max: number; onChange: (value: number) => void; names: readonly [string, string] };
 
-function Stepper({ value, min, max, onChange, names }: StepperProps) {
+export function Stepper({ value, min, max, onChange, names }: StepperProps) {
   const c = useColors();
   const step = (by: number) => {
     const next = Math.min(max, Math.max(min, value + by));

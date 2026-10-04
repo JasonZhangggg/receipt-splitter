@@ -732,6 +732,44 @@ const splitRows: Scenario = {
   ],
 };
 
+const addSheet = (page: Page) => page.getByTestId("add-sheet");
+const addProbes: Probe[] = [
+  { key: "add", find: testId("add-sheet"), kind: "top" },
+  { key: "scrim", find: `document.querySelector('[data-testid="add-sheet"]')?.previousElementSibling?.firstElementChild ?? null`, kind: "opacity" },
+  splitTop,
+];
+const addOpenScenario: Scenario = {
+  id: "add-open",
+  name: "Add item: the sheet opens from the row under the receipt",
+  setup: picked,
+  act: (page) => tap(page.getByRole("button", { name: "Add item", exact: true })),
+  probes: addProbes,
+};
+
+async function addFilled(page: Page) {
+  await picked(page);
+  await tap(page.getByRole("button", { name: "Add item", exact: true }));
+  await addSheet(page).getByRole("textbox", { name: "Item name", exact: true }).fill("Tea");
+  await addSheet(page).getByRole("textbox", { name: "Price", exact: true }).fill("3.00");
+  await tap(addSheet(page).getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Jason", exact: true }));
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await still(addSheet(page));
+}
+
+const addedRow = `[...document.querySelectorAll('[data-testid^="line-"]')].find((row) => row.textContent?.includes("Tea"))?.parentElement ?? null`;
+const addRowScenario: Scenario = {
+  id: "add-row",
+  name: "Add item: the new row opens under the receipt and Add item slides down",
+  setup: addFilled,
+  act: (page) => tap(addSheet(page).getByRole("button", { name: "Add item", exact: true })),
+  quietMs: 800,
+  probes: [
+    { key: "rowHeight", find: addedRow, kind: "height" },
+    { key: "rowFade", find: addedRow, kind: "opacity" },
+    { key: "addRow", find: label("Add item"), kind: "top" },
+  ],
+};
+
 const itemOpenScenario: Scenario = {
   id: "item-open",
   name: "Item sheet opens",
@@ -856,6 +894,8 @@ export const scenarios: Scenario[] = [
     probes: [{ key: "item", find: testId("item-sheet"), kind: "top" }, splitTop],
   },
   splitRows,
+  addOpenScenario,
+  addRowScenario,
   photoOpen,
   {
     id: "photo-close",
@@ -871,6 +911,7 @@ export const scenarios: Scenario[] = [
   reduced(bundleCollapse),
   reduced(itemOpenScenario),
   reduced(splitRows),
+  reduced(addRowScenario),
   reduced(photoOpen),
   {
     id: "reduced-collapse-drag",

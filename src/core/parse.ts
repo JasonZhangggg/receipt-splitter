@@ -462,10 +462,11 @@ const itemValue = ({ read, maybe }: Fields) => {
 };
 
 const itemPatch = tagged<ItemPatch>("type", {
-  add: strict(({ read }) => ({
+  add: strict(({ read, maybe }) => ({
     type: read("type", literal("add")),
     item: read("item", receiptItem),
     index: read("index", count),
+    ...maybe("who", array(participantId, MAX_PARTICIPANTS)),
   })),
   edit: strict(({ read, maybe }) => ({
     type: read("type", literal("edit")),

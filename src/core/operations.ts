@@ -58,7 +58,8 @@ const COMMAS_BETWEEN_CHANGES = RECENT_CHANGES_LIMIT;
 export const HISTORY_RESERVE_BYTES = MAX_CHANGE_BYTES + HISTORY_BURST_BYTES + COMMAS_BETWEEN_CHANGES;
 
 export type ItemPatch =
-  | { readonly type: "add"; readonly item: Item; readonly index: number }
+  /** `who` had the new Item, split evenly; without it the Item starts unclaimed. */
+  | { readonly type: "add"; readonly item: Item; readonly index: number; readonly who?: readonly ParticipantId[] }
   | {
       readonly type: "edit";
       readonly itemId: ItemId;
@@ -498,7 +499,10 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
   if (patch.type === "add") {
     if (items.some(({ id }) => id === patch.item.id)) return "duplicateId";
     if (!isInsertIndex(patch.index, items.length)) return "badIndex";
-    return [ITEM_ROWS.add(patch.item, patch.index, undefined)];
+    const who = patch.who ?? [];
+    if (!who.every((id) => findParticipant(split, id))) return "unknownParticipant";
+    if (new Set(who).size !== who.length) return "duplicateId";
+    return [ITEM_ROWS.add(patch.item, patch.index, { ...patch.item, split: withClaimers("even", sortByCodeUnit(who), () => undefined) })];
   }
   const index = indexOf(items, patch.itemId);
   if (index === -1) return "unknownItem";

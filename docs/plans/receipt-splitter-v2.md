@@ -992,11 +992,80 @@ On a phone, home's panel moves in steps when a handle or name field takes focus.
 
 **Review gate.** The operator reviews the census frames in `~/.claude/orchestrate/receipt-splitter/review/home-keyboard-a/` before merge.
 
-## Queued: Add Item on the Split page
+## Add Item on the Split page
 
-Intent only. A full section with boxes comes before the build. Anyone in the Split can add a fully new Item from the Split page (preferences 30). The add is a manual receipt change, so History lists it and Revert removes it (preferences 3 and 29). With **Add item** on the Split page, home no longer needs the editor that `Scan.fixOnHome` keeps after a bad read.
+**Depends on.** Quantities follow the receipt (PR 49). It branches from `feat/quantities` at `e92bf9c` and rebases onto `main` once PR 49 merges.
 
-Who may add is an open question for the operator. The recommendation is anyone in the Split, with the new Item outside every Bundle, because **Out of scope** keeps adding an Item to a Bundle out.
+Anyone in the Split can add a new Item from the Split page (preferences 30). The Item goes at the end of the receipt, outside every Bundle, because adding to a Bundle stays **Out of scope**. An add is a manual receipt change, so History lists it, and Revert removes it after a confirmation when someone else made it (preferences 3 and 29). Today the core already takes an added Item and History already reads one, but no page sends it.
+
+**Decisions.**
+
+- **Add item** is the last row of the receipt list, under the last row or Bundle and above the Total check note and **Subtotal**. It has a plus in the circle column and "Add item" in secondary gray, on the row's 44 px tap target. A tap opens the add sheet, a bottom sheet over the page, as an Item's detail opens today.
+- The add sheet is a form, not the live Item sheet. Nothing is sent until **Add item** at its foot. It holds the name, the detail ("Add a detail", optional), the price, the quantity (a stepper from 1 to 20, 1 by default), and **Who had it** (the people as chips, none on by default). The price is the whole line's price, as on a quantity line's detail. A half-typed Item never reaches other phones, and History holds one entry per add.
+- One operation carries the whole add. The `add` Item patch gains an optional `who`, the people who had it, split evenly. So the new row arrives with its claims, on every phone, in one frame. Without it, the row would arrive unclaimed and its dots would pop in one claim later (preferences 18). The stored change does not change, because an `added` write already holds its claims, so storage stays at version 4 (preferences 68). The server refuses a `who` that names an unknown person or one person twice.
+- Validation. The name is required and at most 80 characters. The price is required and from $0.00 up. A tap on **Add item** always acts: it adds, or it focuses the first missing field and says what is missing under the button ("Add a name." or "Add a price."), as **Create** does on home (preferences 34). A price over the limit says "That price is over $X." Problems show in secondary gray, never yellow (preferences 15).
+- The Total check keeps the printed Subtotal and Total. An add sends no `subtotalDelta` or `totalDelta`, because the common add is an Item the reading missed, which the printed Subtotal already counts. The quiet gray note under the rows updates as it does for any edit, and it blocks nothing (preferences 6).
+- Caps. The sheet runs the add through `applyOperation` before it sends, as the Item sheet previews its edits. At the 100-Item cap it says "A split holds at most 100 items." At the 32 KB budget it says "This split is full. Delete an item to add one." The server's answer wins: the same two messages show when it refuses a race the preview did not see, and any other refusal says "Couldn't save that. Check it and try again." The sheet stays open on a refusal and keeps what was typed.
+- The new Item's id is a random 12-character id, minted when the sheet opens. A retry after a lost answer sends the same id, and a `duplicateId` answer for an id the Split now holds counts as added.
+- Motion. The add sheet opens and closes as the Item sheet does. On success the sheet closes, and the new row opens in place with the existing `Grow` entrance: height and opacity from 0, `motion.rowsIn`, ease-out, and opacity only under reduced motion. The height starts at 0 in a layout effect, so no painted frame shows the row at full height or without its claims. Other phones see the same entrance, because `useEntering` keys on the receipt's ids. The **Add item** row does not animate; it moves down with the new row.
+- Keyboard, design A (preferences 17). The app does not move the add sheet for the keyboard; iOS pans the page. The sheet focuses no field on open, so the keyboard never rises while the sheet rises. Return moves from the name to the detail to the price (`enterKeyHint` "next"), and Return in the price adds (`enterKeyHint` "done"). Inputs stay at 16 px (preferences 16).
+- Home's editor stays in this PR. With **Add item** on the Split page, home no longer needs the editor that `Scan.fixOnHome` keeps after a read with no Items, an unnamed Item, or an amount over the limit. Removing it changes what Create sends for such a read, the home e2e cases, and the over-limit fixture, so it is the next PR, **Drop the home editor**.
+
+**Files.**
+
+- [ ] Edit `src/core/operations.ts`, `src/core/parse.ts`, and `src/core/operations.test.ts`.
+- [ ] Add `src/ui/item-sheet/add.tsx`, and `src/ui/item-sheet/new-item.ts` with `src/ui/item-sheet/new-item.test.ts`.
+- [ ] Edit `src/ui/split-view/receipt-card.tsx`, `src/ui/split-copy.ts`, and `app/s/[id].tsx`.
+- [ ] Add `e2e/add-item.spec.ts`. Edit `e2e/motion.ts` for the add scenario.
+- [ ] Edit `features/receipt.md` in `verify-receipt-splitter`.
+
+**Build.**
+
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` on the UI text before the PR.
+- [ ] Name the form's shape before view code. `NewItem` is `{ name, detail, price, quantity, who }` as typed. `newItem(split, typed, id, by)` returns the operation to send, or the one problem to show (`name`, `price`, `overLimit`, `tooManyItems`, or `tooLarge`). The sheet renders from that answer alone.
+- [ ] The `add` patch takes `who`. `itemWrites` writes the added Item with `{ by: "even", units: [who] }`, and refuses an unknown person as `unknownParticipant` and a repeat as `duplicateId`.
+- [ ] The Split page's overlay gains `{ kind: "add" }`.
+- [ ] On success the sheet closes. On a refusal it stays, keeps the fields, and shows the message.
+- [ ] History needs no change. It reads an add as "Added Fries", and Revert asks first for someone else's add.
+
+**You see.**
+
+- [ ] On the Topgolf Split at 390 px, **Add item** sits under the second Beer Bucket. A tap opens the sheet. Type "Fries" and "6.50", turn on Sam, and tap **Add item**. The sheet closes, and "Fries" opens in under the Bucket at 6.50 with Sam's dot, on this phone and on a second one. History shows "Added Fries". Revert from the second phone asks first, and the row leaves both.
+
+**Seams.**
+
+- [ ] The `add` patch with `who` through `parseOperation` and `applyOperation` in `src/core/operations.test.ts`.
+- [ ] `newItem` as a pure function in `src/ui/item-sheet/new-item.test.ts`.
+- [ ] The Split page through Playwright in `e2e/add-item.spec.ts`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `src/core/operations.test.ts` gains an add with `who` that lands claimed evenly with the Shares to the cent, an add whose `who` names an unknown person refused as `unknownParticipant` and a repeat refused as `duplicateId`, a `who` read through `parseOperation`, and an add at the end of a Split with Bundles that joins no Bundle. Run `npm test`.
+- [ ] `src/ui/item-sheet/new-item.test.ts` covers an empty name, an empty price, $0.00 accepted, a price over the limit, a quantity of 3 sent as a 3x line, a detail trimmed or dropped, the 100th Item accepted and the 101st refused as `tooManyItems`, and a Split at its byte budget refused as `tooLarge`. Run `npm test`.
+- [ ] `e2e/add-item.spec.ts` covers an add from one browser that a second browser sees with its claim and the same Shares; claiming the added Item from the second browser, with the Shares in both; History listing the add, and Revert from the other browser asking first and then removing the row in both; a Split at 100 Items whose sheet shows the cap message and sends nothing; a tap on **Add item** with no name that focuses the name and says "Add a name."; Return moving from the name to the detail to the price and then adding; with the iOS keyboard model up, each focused field above the keyboard and the sheet's top unchanged; and no frame that shows the new row at full height before it grows, with frames 200 ms late. Run `npm run e2e`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe, on ports 9300 to 9399.
+
+- [ ] Lane 1. Screenshot matrix at 390 px and 1440 px, in light and dark, citing `features/receipt.md`: the receipt with **Add item**, the empty add sheet, the sheet with "Add a name.", and the receipt with the added row. Save `add-item/<case>.png`.
+- [ ] Run `motion.mjs` on every lane and the flash census with `flash-census.mjs`. Pass when the motion lanes pass and every "Runs with flash" cell reads 0. The root schedules the real-iOS census for the add sheet and the entrance (preferences 44).
+
+**Feature map.**
+
+- [ ] Update `features/receipt.md` with **Add item**, its sheet, and its refusals.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. `npm run size`. Probe at trunk and head. Rule. Fail when size passes its budget or grows by more than 2 KB brotli.
+
+**Review gate.** The root merges on a clean verdict and green CI (preferences 40). The screenshots go to the operator after the merge.
+
+- [ ] Copy lane 1's screenshots into `~/.claude/orchestrate/receipt-splitter/review/add-item/`.
+
+## Drop the home editor
+
+**Depends on.** Add Item on the Split page.
+
+Intent only. A full section with boxes comes before the build. With **Add item** on the Split page, home no longer needs the editor that `Scan.fixOnHome` keeps after a read with no Items, an unnamed Item, or an amount over the limit (preferences 38). The open question is what Create sends for such a read: drop the unnamed rows, or name them and let the Split page fix them.
 
 ## Recent splits on home
 
