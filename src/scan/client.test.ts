@@ -48,6 +48,17 @@ describe("receiptOfReply", () => {
     expect(receiptOfReply({ ...reply, subtotal: null })?.subtotal).toBe(3625);
   });
 
+  test("leaves a Bundle with no discount as plain Items, and reads a kind named like an Object method as malformed", () => {
+    const plain = receiptOfReply({ ...reply, bundles: [{ ...reply.bundles[0], discounts: [] }] });
+
+    expect(plain?.adjustments.map(({ id, kind }) => [id, kind])).toEqual([
+      ["a1", "serviceCharge"],
+      ["a2", "discount"],
+      ["a3", "tax"],
+    ]);
+    expect(receiptOfReply({ ...reply, adjustments: [{ kind: "constructor", name: "Fuel", amount: 10 }] })).toBeNull();
+  });
+
   test("clips a long detail to 120 characters", () => {
     const [first, ...rest] = reply.items;
     const detail = receiptOfReply({ ...reply, items: [{ ...first, details: ["x".repeat(130)] }, ...rest] })?.items[0].detail;

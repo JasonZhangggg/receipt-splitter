@@ -35,7 +35,7 @@ const isItem = (value: unknown): value is ReadItem =>
   (value.quantity === null || (Number.isSafeInteger(value.quantity) && Number(value.quantity) > 1)) &&
   isList(value.details, isText) &&
   isList(value.discounts, isDiscount);
-const isAdjustment = (value: unknown): value is ReadAdjustment => isObject(value) && isText(value.name) && isCents(value.amount) && isText(value.kind) && value.kind in KINDS;
+const isAdjustment = (value: unknown): value is ReadAdjustment => isObject(value) && isText(value.name) && isCents(value.amount) && isText(value.kind) && Object.hasOwn(KINDS, value.kind);
 const isIndex = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
 const isBundle = (value: unknown): value is ReadBundle<NonEmpty<number>> =>
   isObject(value) && isText(value.name) && isNonEmpty(value.items, isIndex) && isList(value.discounts, isDiscount);
@@ -54,7 +54,7 @@ function parseReply(value: unknown): ScanReply | null {
 const sum = (amounts: readonly number[]) => amounts.reduce((total, amount) => total + amount, 0);
 
 /** The Item's detail lines and folded discounts as one line, such as "Large, oat milk, $2.00 off", or undefined when there are none or it cannot be shown. */
-function detailOf({ details, discounts }: ReadItem): string | undefined {
+function detailLine({ details, discounts }: ReadItem): string | undefined {
   const parts = [...details, ...discounts.map(({ amount }) => `$${plainAmount(Math.abs(amount))} off`)];
   const line = parts.map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean).join(", ");
   const characters = [...line];
@@ -81,7 +81,7 @@ export function receiptOfReply(value: unknown): Receipt | null {
   const reply = parseReply(value);
   if (reply === null) return null;
   const items = reply.items.map((read, index): Item => {
-    const detail = detailOf(read);
+    const detail = detailLine(read);
     return {
       id: itemId(`i${index + 1}`),
       name: read.name,
@@ -90,12 +90,13 @@ export function receiptOfReply(value: unknown): Receipt | null {
       ...(read.quantity !== null && read.quantity <= MAX_QUANTITY && { quantity: read.quantity }),
     };
   });
-  const bundles = reply.bundles.map(({ name, items: members, discounts }, index): Adjustment => {
+  const discounted = reply.bundles.filter(({ discounts }) => discounts.length > 0);
+  const bundles = discounted.map(({ name, items: members, discounts }, index): Adjustment => {
     const [first, ...rest] = members.map((member) => items[member].id);
     return {
       id: adjustmentId(`b${index + 1}`),
       kind: "bundleDiscount",
-      name: discounts[0]?.name || name,
+      name: discounts[0].name || name,
       amount: cents(sum(discounts.map(({ amount }) => amount))),
       bundle: { name, items: [first, ...rest] },
     };

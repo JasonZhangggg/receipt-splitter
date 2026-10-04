@@ -58,7 +58,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
         if (!after) return { lead: `Removed "${before}" from ${name}` };
         return { lead: name, before, after };
       }
-      if ("amount" in edit && edit.amount)return { lead: name, before: plainAmount(edit.amount[0]), after: plainAmount(edit.amount[1]) };
+      if ("amount" in edit && edit.amount) return { lead: name, before: plainAmount(edit.amount[0]), after: plainAmount(edit.amount[1]) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
         if (before.units.length !== after.units.length) return { lead: name, before: `×${before.units.length}`, after: `×${after.units.length}` };
