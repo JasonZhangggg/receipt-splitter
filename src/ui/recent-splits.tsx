@@ -87,9 +87,12 @@ function Popover({ anchor, closing, onClose, onGone, children }: { anchor: Ancho
   useLayoutEffect(() => {
     if (!closing) return;
     const element = surface.current as unknown as HTMLElement | null;
+    if (!element?.animate) return leave();
+    // A close that lands mid-entrance leaves from where the popover is, not from fully shown.
+    const { opacity, transform } = getComputedStyle(element);
+    element.getAnimations().forEach((running) => running.cancel());
     const to = reduce ? { opacity: 0 } : { opacity: 0, transform: "scale(0.98)" };
-    const fade = element?.animate?.([{ opacity: 1, transform: "scale(1)" }, to], { duration: popoverOut, easing: motion.easeOut, fill: "forwards" });
-    if (!fade) return leave();
+    const fade = element.animate([{ opacity, transform }, to], { duration: popoverOut, easing: motion.easeOut, fill: "forwards" });
     fade.onfinish = () => leave();
     return () => fade.cancel();
   }, [closing, reduce]);
