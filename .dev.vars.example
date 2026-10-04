@@ -1,3 +1,5 @@
 OPENROUTER_API_KEY=
+# Signs Split ids (ADR 0009). Without it, creates answer 503. Any 32 or more characters work locally, for example the output of `openssl rand -base64 32`.
+SPLIT_ID_SECRET=
 # Sends x-scan-cost and x-scan-passes. The bench harness reads them. Leave it unset or "false" in production.
 SCAN_DEBUG_HEADERS=true

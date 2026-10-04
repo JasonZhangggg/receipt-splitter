@@ -3,6 +3,8 @@ import { isRoutableSplitId } from "../src/core/split";
 import { createSplit } from "./create";
 import { servePhoto } from "./photo";
 import { scanReceipt } from "./scan/route";
+import { routesToSplit, splitIdSecret } from "./split-id";
+import { notFoundSocket } from "./split-server";
 
 export { CreateLimiter } from "./rate-limit";
 export { SplitServer } from "./split-server";
@@ -32,6 +34,7 @@ export default {
     const id = SPLIT_SOCKET_PATH.exec(url.pathname)?.[1];
     const upgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
     if (id !== undefined && upgrade && isRoutableSplitId(id)) {
+      if (!routesToSplit(id, splitIdSecret(env))) return notFoundSocket();
       const response = await routePartykitRequest(withoutPartyInputs(request, url), env);
       if (response) return response;
     }

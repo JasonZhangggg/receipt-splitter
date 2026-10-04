@@ -15,7 +15,7 @@ describe("POST /api/splits", () => {
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const { id, creatorSecret } = await response.json<{ id: string; creatorSecret: string }>();
-    expect(id).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(id).toMatch(/^[A-Za-z0-9_-]{24}$/);
     expect(creatorSecret).toMatch(/^[A-Za-z0-9_-]{43}$/);
 
     const client = await connect(id);

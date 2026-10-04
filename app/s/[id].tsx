@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents } from "../../src/core/money";
 import type { Operation } from "../../src/core/operations";
+import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
@@ -94,7 +95,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const pageHeight = useLayoutHeight();
   const wide = useLayoutWidth() >= breakpoints.pairFrom;
   const paneRef = useRef<View>(null);
-  const [device] = useState(thisDevice);
+  const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
   const remember = (change: Parameters<typeof rememberSplit>[1]) => {
     rememberSplit(splitId, change);

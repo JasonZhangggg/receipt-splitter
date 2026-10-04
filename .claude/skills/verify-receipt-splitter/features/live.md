@@ -40,4 +40,5 @@ Preconditions:
 - Each IP may create 10 Splits a minute and 50 per UTC day. A lane that runs more than 10 commands without `--id` in a minute, or more than 50 in a day on one port's storage, gets 429 from `POST /api/splits`. Pass `--id` from an earlier `create` to reuse a Split.
 - `drop` closes the socket cleanly. It proves that a reconnect gets the missed state, not how a phone's client library notices a lost network.
 - `cleanup` deletes `.verify/<port>/`, including the Durable Object storage, so Splits do not survive a relaunch.
-- The socket path answers 404 without an upgrade header and for any id that is not 22 characters of letters, digits, `_`, and `-`. A curl on the path is not a proof.
+- The socket path answers 404 without an upgrade header and for any id that is not 22 or 24 characters of letters, digits, `_`, and `-`. A curl on the path is not a proof.
+- New Splits get 24-character signed ids (ADR 0009). The Worker ends a 24-character id with a wrong tag as `notFound` (code 4404) without waking a Durable Object. A 22-character id predates signing and reaches its Durable Object, which ends a missing Split the same way and writes no rows. `launch` passes a local `SPLIT_ID_SECRET`; without one, `POST /api/splits` answers 503.

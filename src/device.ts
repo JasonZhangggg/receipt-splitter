@@ -1,4 +1,5 @@
 import { isCents, type Cents } from "./core/money";
+import { BROWSER_DEVICE_LENGTH } from "./core/pick-device";
 import { deviceId, isId, randomId, type DeviceId, type ParticipantId, type Split, type SplitId } from "./core/split";
 
 export type SplitOnDevice = { readonly creatorSecret?: string; readonly me?: ParticipantId };
@@ -118,10 +119,10 @@ export function thisDevice(): DeviceId {
   if (device) return device;
   try {
     const saved = storage()?.getItem(deviceKey);
-    device = isId<"DeviceId">(saved) ? saved : deviceId(randomId(16));
+    device = isId<"DeviceId">(saved) && saved.length === BROWSER_DEVICE_LENGTH ? saved : deviceId(randomId(BROWSER_DEVICE_LENGTH));
     storage()?.setItem(deviceKey, device);
   } catch {
-    device ??= deviceId(randomId(16));
+    device ??= deviceId(randomId(BROWSER_DEVICE_LENGTH));
   }
   return device;
 }

@@ -1,15 +1,21 @@
 import type { CreateSplitRefusal, CreateSplitResponse } from "../src/core/operations";
 import { parseCreateSplitRequest } from "../src/core/parse";
-import { SPLIT_BYTE_BUDGET, SPLIT_ID_LENGTH, isRoutableSplitId, randomId, type MintedSplitId } from "../src/core/split";
+import { SPLIT_BYTE_BUDGET } from "../src/core/split";
 import { CREATE_LIMIT, DAILY_CAP_NAME, DAILY_CREATE_CAP, limiterKey } from "./rate-limit";
+import { mintSplitId, splitIdSecret } from "./split-id";
 
 const MAX_CREATE_BODY_BYTES = SPLIT_BYTE_BUDGET + 4 * 1024;
 
 export async function createSplit(request: Request, env: Cloudflare.Env): Promise<Response> {
   if (request.method !== "POST") return new Response(null, { status: 405, headers: { allow: "POST" } });
+  const secret = splitIdSecret(env);
+  if (secret === null) {
+    console.error("SPLIT_ID_SECRET is unset or shorter than 32 characters, so no Split id can be signed; run `npx wrangler secret put SPLIT_ID_SECRET`");
+    return refuse(503, { refused: "unavailable" });
+  }
   const body = await readCapped(request, MAX_CREATE_BODY_BYTES);
   if (body === null) return refuse(413, { refused: "bodyTooLarge" });
-  const id = mintSplitId();
+  const id = mintSplitId(secret);
   const parsed = parseCreateSplitRequest(parseJson(new TextDecoder().decode(body)), id);
   if (!parsed.ok) return refuse(400, { refused: "rejected", rejection: parsed.rejection });
 
@@ -62,12 +68,6 @@ export async function readCapped(request: Request, cap: number): Promise<Uint8Ar
     offset += chunk.byteLength;
   }
   return bytes;
-}
-
-function mintSplitId(): MintedSplitId {
-  const id = randomId(SPLIT_ID_LENGTH);
-  if (!isRoutableSplitId(id)) throw new Error(`minted ${id}, which is not a Split id`);
-  return id;
 }
 
 function refuse(status: number, refusal: CreateSplitRefusal): Response {

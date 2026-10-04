@@ -128,6 +128,34 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
   await expect(breakdown(priya).getByText("Paid", { exact: true })).toBeVisible();
 });
 
+test("a name picked by a page that sent the browser's raw device id stays this phone's after the update, and no frame carries the raw id", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const splitId = new URL(link).pathname.split("/").pop()!;
+  const { raw, frame } = await sam.evaluate(
+    (room) =>
+      new Promise<{ raw: string; frame: string }>((resolve) => {
+        const raw = localStorage.getItem("receipt-splitter:device")!;
+        const socket = new WebSocket(`ws://${location.host}/parties/split-server/${room}`);
+        socket.addEventListener("message", ({ data }) => {
+          const message = JSON.parse(data);
+          if (message.type === "state" && message.ref === null) socket.send(JSON.stringify({ ref: "old", op: { by: "sam", type: "pick", participantId: "sam", device: raw, takeOver: false } }));
+          if (message.ref === "old") {
+            socket.close();
+            localStorage.setItem(`receipt-splitter:split:${room}`, JSON.stringify({ me: "sam" }));
+            resolve({ raw, frame: data });
+          }
+        });
+      }),
+    splitId,
+  );
+  expect([raw.length, frame.includes(raw), JSON.parse(frame).split.picks.length]).toEqual([16, false, 1]);
+
+  await sam.reload();
+  await expect(sam.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+  await expect(sam.getByRole("heading", { name: "Which one are you?" })).toHaveCount(0);
+});
+
 test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays Not paid", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);

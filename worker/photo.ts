@@ -1,5 +1,5 @@
-import { isRoutableSplitId } from "../src/core/split";
 import { readCapped } from "./create";
+import { routesToSplit, splitIdSecret } from "./split-id";
 
 const PHOTO_BYTE_CAP = 150 * 1024;
 
@@ -15,7 +15,7 @@ const SOFN = [0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 
 const SEGMENTS_WITHOUT_METADATA = new Set([APP0, DQT, DHT, DRI, COM, SOS, ...SOFN]);
 
 export async function servePhoto(request: Request, env: Cloudflare.Env, id: string): Promise<Response> {
-  if (!isRoutableSplitId(id)) return status(404);
+  if (!routesToSplit(id, splitIdSecret(env))) return status(404);
   const split = env.SplitServer.getByName(id);
   if (request.method === "GET") {
     const response = await split.fetch("http://split/photo");

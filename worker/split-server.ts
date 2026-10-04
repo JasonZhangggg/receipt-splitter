@@ -89,6 +89,14 @@ export class SplitServer extends Server<Cloudflare.Env> {
     return { created: true, creatorSecret: toBase64Url(secret) };
   }
 
+  /** partyserver writes a name row on its first fetch, so a probe to an id no Split holds is answered here, before it, with reads only. */
+  override async fetch(request: Request): Promise<Response> {
+    if (this.#stored.kind === "missing" && !hasSplitTable(this.ctx.storage.sql)) {
+      return request.headers.get("upgrade")?.toLowerCase() === "websocket" ? notFoundSocket() : new Response(null, { status: 404 });
+    }
+    return super.fetch(request);
+  }
+
   async onStart(): Promise<void> {
     const stored = this.#load();
     this.#stored = stored;
@@ -218,9 +226,7 @@ export class SplitServer extends Server<Cloudflare.Env> {
 
   #load(): Stored {
     const sql = this.ctx.storage.sql;
-    if (sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'split'").toArray().length === 0) {
-      return { kind: "missing" };
-    }
+    if (!hasSplitTable(sql)) return { kind: "missing" };
     const [row] = sql
       .exec<Row>(
         "SELECT *, length(CAST(json AS BLOB)) AS bytes FROM split",
@@ -246,6 +252,20 @@ export class SplitServer extends Server<Cloudflare.Env> {
       photo: row.created_at == null ? { kind: "beforePhotos" } : this.#photo(row.created_at + PHOTO_TTL_MS),
     };
   }
+}
+
+function hasSplitTable(sql: SqlStorage): boolean {
+  return sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'split'").toArray().length > 0;
+}
+
+/** What a client sees for a Split that does not exist, matching the ending a live Durable Object gives a missing one. */
+export function notFoundSocket(): Response {
+  const [client, server] = Object.values(new WebSocketPair());
+  server.accept();
+  const { reason, code } = ENDINGS.missing;
+  server.send(JSON.stringify({ type: "unavailable", reason } satisfies ServerMessage));
+  server.close(code, reason);
+  return new Response(null, { status: 101, webSocket: client });
 }
 
 function bucketOf(tokens: number | null, at: number | null): Bucket | null {

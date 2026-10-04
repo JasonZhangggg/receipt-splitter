@@ -81,7 +81,7 @@ test("Create split link takes the Host to the tall pick sheet, and a second brow
   await readyHome(page, ["Sam", "Priya"]);
   const link = await createLink(page);
 
-  expect(link).toMatch(/^http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{22}$/);
+  expect(link).toMatch(/^http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{24}$/);
   await expect(rows(page)).toHaveText(["JJason", "SSam", "PPriya"]);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();

@@ -368,6 +368,17 @@ describe("picking a name", () => {
     expect(recovered.receipt).toEqual(start.receipt);
   });
 
+  test("a pick or Payment from a page that still sends the browser's raw device id holds the name under this Split's id for that browser", () => {
+    const raw = deviceId("AbCdEfGh01234567");
+    const perSplit = deviceId("nZstfGZMUIJIL7ugC8HRh8");
+    const split = apply(withBobAndCat(), pick(bob, raw));
+
+    expect(split.picks).toEqual([{ participantId: "bob", device: "nZstfGZMUIJIL7ugC8HRh8" }]);
+    expect(applyOperation(split, pick(bob, perSplit), anyone)).toEqual({ ok: true, split, changed: false });
+    expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, device: raw, amount: cents(100) })).toBe("accepted");
+    expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, device: deviceId("ZZZZZZZZ01234567"), amount: cents(100) })).toBe("payerOnly");
+  });
+
   test("keeps a picked Participant from being taken out by undoing their add", () => {
     const split = apply(withBobAndCat(), pick(bob));
 

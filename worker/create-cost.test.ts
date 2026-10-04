@@ -2,41 +2,9 @@ import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { expect, it, vi } from "vitest";
 import { parseCreateSplitRequest } from "../src/core/parse";
-import { isRoutableSplitId, randomId, SPLIT_ID_LENGTH } from "../src/core/split";
+import { isRoutableSplitId, LEGACY_SPLIT_ID_LENGTH, randomId } from "../src/core/split";
 import { DAILY_CAP_NAME, DAILY_CREATE_CAP } from "./rate-limit";
-import { newSplit, postSplit, T0 } from "./testing";
-
-type Meter = () => number;
-
-function billedRowWrites(storage: DurableObjectStorage): Meter {
-  const counts: Meter[] = [];
-  const { sql } = storage;
-  const exec = sql.exec.bind(sql);
-  sql.exec = ((query: string, ...bindings: unknown[]) => {
-    const cursor = exec(query, ...bindings);
-    counts.push(() => cursor.rowsWritten);
-    return cursor;
-  }) as typeof sql.exec;
-  const put = storage.put.bind(storage) as (key: string, value: unknown) => Promise<void>;
-  storage.put = (async (key: string, value: unknown) => {
-    counts.push(() => 1);
-    await put(key, value);
-  }) as typeof storage.put;
-  const setAlarm = storage.setAlarm.bind(storage);
-  storage.setAlarm = async (time) => {
-    counts.push(() => 1);
-    await setAlarm(time);
-  };
-  const deleteAll = storage.deleteAll.bind(storage);
-  storage.deleteAll = async () => {
-    const tables = exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\'").toArray();
-    const rows = tables.reduce((sum, { name }) => sum + Number(exec(`SELECT count(*) AS n FROM "${String(name)}"`).one().n), 0);
-    const keys = (await storage.list()).size;
-    counts.push(() => rows + keys);
-    await deleteAll();
-  };
-  return () => counts.reduce((sum, count) => sum + count(), 0);
-}
+import { billedRowWrites, newSplit, postSplit, T0 } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -54,7 +22,7 @@ it("one create with a photo writes 19 rows from its POST through its photo uploa
   vi.setSystemTime(T0 - 30 * DAY + DAY / 2);
   await runDurableObjectAlarm(limiter);
 
-  const id = randomId(SPLIT_ID_LENGTH);
+  const id = randomId(LEGACY_SPLIT_ID_LENGTH);
   const parsed = isRoutableSplitId(id) ? parseCreateSplitRequest({ split: newSplit }, id) : null;
   if (!parsed?.ok) throw new Error(`could not build a Split for ${id}`);
   const server = env.SplitServer.getByName(id);

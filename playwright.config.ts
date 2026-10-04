@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = Number(process.env.PORT ?? 8787);
+// Signs the Split ids this local server mints (ADR 0009). Production has its own Worker secret.
+const splitIdSecret = "local-only-split-id-secret-never-in-production";
 
 export default defineConfig({
   testDir: "e2e",
@@ -19,7 +21,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build && npx wrangler dev --port ${port} --inspector-port ${port + 10000}`,
+    command: `npm run build && npx wrangler dev --port ${port} --inspector-port ${port + 10000} --var SPLIT_ID_SECRET:${splitIdSecret}`,
     url: `http://localhost:${port}/`,
     reuseExistingServer: false,
     timeout: 180_000,

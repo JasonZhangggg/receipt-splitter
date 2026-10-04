@@ -26,7 +26,9 @@ export function isMintedSplitId(value: string): value is MintedSplitId {
   return value.length >= MIN_MINTED_ID_LENGTH && isId<"SplitId">(value);
 }
 
-export const SPLIT_ID_LENGTH = 22;
+/** Ids minted before signed ids are 22 random characters. A signed id is 16 random characters and an 8-character tag the Worker checks (worker/split-id.ts). */
+export const LEGACY_SPLIT_ID_LENGTH = 22;
+export const SIGNED_SPLIT_ID_LENGTH = 24;
 
 const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
 
@@ -35,7 +37,7 @@ export function randomId(length: number): string {
 }
 
 export function isRoutableSplitId(value: string): value is MintedSplitId {
-  return value.length === SPLIT_ID_LENGTH && isMintedSplitId(value);
+  return (value.length === LEGACY_SPLIT_ID_LENGTH || value.length === SIGNED_SPLIT_ID_LENGTH) && isMintedSplitId(value);
 }
 
 function id<Kind extends IdKind>(value: string): Id<Kind> {

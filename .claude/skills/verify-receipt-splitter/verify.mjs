@@ -90,6 +90,8 @@ async function launch() {
       "--inspector-port", String(inspectorPort),
       "--persist-to", join(runDir, "state"),
       "--show-interactive-dev-session=false",
+      // Signs the Split ids this local server mints (ADR 0009). Production has its own Worker secret.
+      "--var", "SPLIT_ID_SECRET:local-only-split-id-secret-never-in-production",
     ],
     { cwd: root, detached: true, stdio: ["ignore", log, log] },
   );
