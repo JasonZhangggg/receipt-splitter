@@ -4,9 +4,9 @@ import { applyEdits, readLines, replyLines } from "./format";
 const read = (reply: string) => readLines(replyLines(reply));
 
 describe("readLines", () => {
-  it("drops a printed quantity of 1 from a Bundle header's name and keeps any other leading number", () => {
+  it("keeps a Bundle header as printed, including a leading 1", () => {
     const reading = read(["SUB|1800", "TOT|1800", "b|1 Beer Bucket", ">i|Lager|900", "b|12 Wing Party", ">i|Wings|900"].join("\n"));
-    expect(reading?.bundles.map((bundle) => bundle.name)).toEqual(["Beer Bucket", "12 Wing Party"]);
+    expect(reading?.bundles.map((bundle) => bundle.name)).toEqual(["1 Beer Bucket", "12 Wing Party"]);
   });
 
   it("reads the invented receipt from Compact formats into Items, Bundles, and Adjustments, folding the discount under an Item into its price", () => {

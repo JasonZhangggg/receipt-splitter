@@ -2,7 +2,7 @@ import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { T0 } from "../testing";
-import { JPEG_2560_WIDE, JPEG_2561_TALL, SMALL_JPEG } from "./jpeg-fixtures";
+import { JPEG_2560_WIDE, JPEG_2561_TALL, JPEG_TWO_FRAME_HEADERS, SMALL_JPEG } from "./jpeg-fixtures";
 import { SCAN_DAILY_CAP_NAME, scanReceipt } from "./route";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -118,6 +118,12 @@ describe("POST /api/scan refusals", () => {
     const over = await scan(scanRequest({ body: { photo: JPEG_2561_TALL, ocrLines: [] } }));
     const notJpeg = await scan(scanRequest({ body: { photo: "data:image/jpeg;base64,iVBORw0KGgoAAAA", ocrLines: [] } }));
     expect([atLimit.status, over.status, await over.json(), notJpeg.status, calls.length]).toEqual([200, 400, { refused: "rejected" }, 400, 1]);
+  });
+
+  it("refuses a JPEG with a second frame header with 400, so the size the Worker reads is the size a decoder sees", async () => {
+    const calls = stubOpenRouter(() => completion(PASSING));
+    const response = await scan(scanRequest({ body: { photo: JPEG_TWO_FRAME_HEADERS, ocrLines: [] } }));
+    expect([response.status, await response.json(), calls.length]).toEqual([400, { refused: "rejected" }, 0]);
   });
 
   it("takes the image size limit from SCAN_MAX_IMAGE_PX", async () => {

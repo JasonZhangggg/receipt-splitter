@@ -112,7 +112,7 @@ export function readLines(lines: readonly string[]): Reading | null {
       continue;
     }
     if (tag === "b") {
-      bundle = { name: fields.slice(1).join("|").replace(/^1\s+/, ""), items: [], discounts: [] };
+      bundle = { name: fields.slice(1).join("|"), items: [], discounts: [] };
       bundles.push(bundle);
       last = null;
       continue;

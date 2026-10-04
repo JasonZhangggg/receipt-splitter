@@ -14,7 +14,7 @@ On 2026-10-03 the operator ruled that receipt data may leave the device to be re
 
 ## Limits and cost
 
-Scans are limited apart from creates, in the same `CreateLimiter` Durable Object class as ADR 0005, under the names `scan:<address or /64>` and `scan-daily-cap`. One address may scan 6 times a minute and 30 times a UTC day, and all addresses together 2,000 times a UTC day. These are vars, `SCAN_PER_MINUTE`, `SCAN_PER_DAY`, and `SCAN_DAILY_CAP`, and they await the operator's OK before merge. A refused scan gets 429 with `retry-after` and costs no model call.
+Scans are limited apart from creates, in the same `CreateLimiter` Durable Object class as ADR 0005, under the names `scan:<address or /64>` and `scan-daily-cap`. One address may scan 6 times a minute and 20 times a UTC day, and all addresses together 2,000 times a UTC day. These are vars, `SCAN_PER_MINUTE`, `SCAN_PER_DAY`, and `SCAN_DAILY_CAP`, and they await the operator's OK before merge. A refused scan gets 429 with `retry-after` and costs no model call.
 
 The eval measured about $0.001 per receipt for both passes together, so a day of normal scans at the cap costs about $2.
 
@@ -32,13 +32,13 @@ Measured on 2026-10-03 with direct OpenRouter calls at `max_tokens` 16:
 
 - Text. Pass 1's prompt alone is 740 tokens on GLM-5.3-Flash. With 8,000 characters of OCR text it is 6,385 tokens for letters and digits, 15,475 for CJK, 16,277 for characters outside the BMP, and 19,531 for random BMP characters. The worst is about 2.35 tokens a character, not the 0.5 this section once assumed.
 - Images at the cap. A 2,560 by 2,560 px JPEG is 7,936 prompt tokens on GLM on Parasail and 7,937 on BaseTen, and 7,688 on GPT-6 Luna on Azure, against 13 and 7 for the same text with no image. A 1,440 by 2,560 px JPEG is 4,799 on GLM and 4,328 on Luna. GLM scales a larger image down itself (7,936 at 7,400 by 7,400), but Luna does not: 64,596 tokens at 7,400 by 7,400, which is why the route now caps the size.
-- Prices. GLM-5.3-Flash is $0.15 in and $0.50 out per million tokens on Parasail and BaseTen. GPT-6 Luna is $0.10 in and $0.50 out on `azure`, and $0.11 in and $0.55 out on `azure/us` and `azure/eu`. Azure billed the 2,560 px image call $0.000968 for 7,688 tokens, which is $0.125 a million, so the image costs a quarter more than the list input price.
+- Prices. GLM-5.3-Flash is $0.15 in and $0.50 out per million tokens on Parasail and BaseTen. GPT-6 Luna is $0.10 in and $0.50 out on `azure`, and $0.11 in and $0.55 out on `azure/us` and `azure/eu`. Azure billed the 2,560 px image call $0.000968 for 7,688 tokens, which is $0.125 a million, so the image costs a quarter more than the list input price. A later call billed 12,426 tokens at $0.1375 a million, with 12,423 of them as cache writes. Azure charges the cache-write rate on the whole prompt once it reaches 1,024 tokens, so all pass-2 input is priced at $0.1375 a million, not only the image.
 
 The worst scan runs pass 1 on both hosts and pass 2 once:
 
 - Pass 1, each call: 19,531 tokens of prompt and text plus 7,923 of image is 27,454 in, at $0.15, and 3,000 out (`SCAN_PASS1_MAX_TOKENS`) at $0.50. That is $0.00562, and **$0.01124** for two calls.
-- Pass 2: the image at Azure's measured rate raised to `azure/us` prices is $0.00106. The prompt, the problems, and pass 1's numbered lines are at most about 10,000 tokens, since pass 1 wrote at most 3,000, which is $0.00110 at $0.11. Then 1,500 out (`SCAN_PASS2_MAX_TOKENS`) at $0.55 is $0.00083. That is **$0.00299**.
-- The worst scan is **$0.0142**. `SCAN_WORST_CASE_USD` is $0.015. Without the budget, 2,000 of them in a UTC day would be $28.44. The budget holds that day to $3, about 200 worst-case scans.
+- Pass 2: the image (7,688 tokens) plus the prompt, the problems, and pass 1's numbered lines (at most about 10,000 tokens, since pass 1 wrote at most 3,000) is 17,688 tokens in, at $0.1375, which is $0.00243. Then 1,500 out (`SCAN_PASS2_MAX_TOKENS`) at $0.55 is $0.00083. That is **$0.00326**.
+- The worst scan is **$0.0145**. `SCAN_WORST_CASE_USD` is $0.016, which leaves about 10% margin. Without the budget, 2,000 of them in a UTC day would be $29. The budget holds that day to $3, which admits 187 worst-case scans (187 x $0.016 is $2.992).
 
 Recompute `SCAN_WORST_CASE_USD` when a pass's model, hosts, or `max_tokens` changes, or when the image cap does.
 

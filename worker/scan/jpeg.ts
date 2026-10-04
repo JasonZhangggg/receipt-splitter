@@ -25,12 +25,13 @@ function bytesAt(base64: string, offset: number, count: number): number[] | null
 
 /**
  * The longer side in pixels of a base64 JPEG, read from its frame header without decoding any pixels,
- * or null when the bytes are not a JPEG with a frame header before its scan data.
+ * or null when the bytes are not a JPEG with exactly one frame header before its scan data.
  */
 export function jpegLongestSide(base64: string): number | null {
   const start = bytesAt(base64, 0, 2);
   if (start === null || start[0] !== 0xff || start[1] !== 0xd8) return null;
   let offset = 2;
+  let size: number | null = null;
   for (let segment = 0; segment < MAX_SEGMENTS; segment += 1) {
     const head = bytesAt(base64, offset, 4);
     if (head === null || head[0] !== 0xff) return null;
@@ -40,13 +41,17 @@ export function jpegLongestSide(base64: string): number | null {
     } else if (BARE_MARKERS.has(marker)) {
       offset += 2;
     } else if (FRAME_MARKERS.has(marker)) {
-      const size = bytesAt(base64, offset + 5, 4);
-      if (size === null) return null;
-      const [height, width] = [(size[0] << 8) | size[1], (size[2] << 8) | size[3]];
-      return height === 0 || width === 0 ? null : Math.max(height, width);
+      if (size !== null) return null;
+      const dimensions = bytesAt(base64, offset + 5, 4);
+      if (dimensions === null) return null;
+      const [height, width] = [(dimensions[0] << 8) | dimensions[1], (dimensions[2] << 8) | dimensions[3]];
+      if (height === 0 || width === 0) return null;
+      size = Math.max(height, width);
+      offset += 2 + ((head[2] << 8) | head[3]);
     } else {
       const length = (head[2] << 8) | head[3];
-      if (marker === 0xd9 || marker === 0xda || length < 2) return null;
+      if (marker === 0xd9 || length < 2) return null;
+      if (marker === 0xda) return size;
       offset += 2 + length;
     }
   }
