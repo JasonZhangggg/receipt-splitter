@@ -7,14 +7,11 @@ import type { AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem
 import { plainAmount } from "../../draft";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { animateSpring } from "../components/sheet-motion";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
 import { claimersOfItem, lineTag, nameParts, quantityText, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
-
-const sheetSpring = { response: 0.35, damping: 1 };
 
 type Props = {
   split: Split;
@@ -205,64 +202,44 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   );
 }
 
+const collapseFor = 250;
+
+// grid-template-rows 0fr to 1fr animates to the content's own height off the main thread, and a second tap mid-flight retargets from where it is.
 function Collapse({ open, id, label, children }: { open: boolean; id: string; label: string; children: ReactNode }) {
   const reduce = useReducedMotion();
   const [shown, setShown] = useState(open);
   const outer = useRef<View>(null);
-  const inner = useRef<View>(null);
-  const stop = useRef<() => void>(() => {});
   const first = useRef(true);
   if (open && !shown) setShown(true);
 
   useLayoutEffect(() => {
+    const box = outer.current as unknown as HTMLElement | null;
+    if (!box) return;
     if (first.current) {
       first.current = false;
+      Object.assign(box.style, { display: "grid", gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? "1" : "0" });
       return;
     }
-    const box = outer.current as unknown as HTMLElement | null;
-    const content = inner.current as unknown as HTMLElement | null;
-    if (!box || !content) return;
-    stop.current();
-    const to = open ? content.getBoundingClientRect().height : 0;
-    const clearOpenStyles = () => {
-      box.style.height = "";
-      box.style.opacity = "";
-    };
-    const unmountWhileHidden = () => setShown(false);
-    const settled = open ? clearOpenStyles : unmountWhileHidden;
-    if (reduce) {
-      box.style.height = "";
-      const fade = box.animate([{ opacity: open ? 0 : 1 }, { opacity: open ? 1 : 0 }], { duration: motion.reducedFade, easing: "ease", fill: "forwards" });
-      fade.onfinish = open
-        ? () => {
-            fade.cancel();
-            clearOpenStyles();
-          }
-        : unmountWhileHidden;
-      stop.current = () => fade.cancel();
-      return;
-    }
-    const from = open && !box.style.height ? 0 : box.getBoundingClientRect().height;
-    box.style.height = `${from}px`;
-    const height = Math.max(to, 1);
-    stop.current = animateSpring(
-      from,
-      to,
-      0,
-      (value) => {
-        box.style.height = `${Math.max(0, value)}px`;
-        box.style.opacity = String(Math.min(1, Math.max(0, value / height)));
-      },
-      settled,
-      sheetSpring,
-    );
+    const ms = reduce ? motion.reducedFade : collapseFor;
+    const ease = `${ms}ms ${motion.easeOut}`;
+    box.style.transition = reduce ? `opacity ${ease}` : `grid-template-rows ${ease}, opacity ${ease}`;
+    if (open && reduce) box.style.gridTemplateRows = "1fr";
+    // Rows mounted in this commit take the closed state first, so the first painted frame is still closed.
+    box.getBoundingClientRect();
+    box.style.opacity = open ? "1" : "0";
+    if (!reduce) box.style.gridTemplateRows = open ? "1fr" : "0fr";
+    if (open) return;
+    const done = setTimeout(() => {
+      box.style.gridTemplateRows = "0fr";
+      setShown(false);
+    }, ms);
+    return () => clearTimeout(done);
   }, [open, reduce]);
-  useLayoutEffect(() => () => stop.current(), []);
 
   return (
     <View ref={outer} nativeID={id} style={styles.collapse}>
       {shown ? (
-        <View ref={inner} role="list" aria-label={label}>
+        <View role="list" aria-label={label} style={styles.collapsed}>
           {children}
         </View>
       ) : null}
@@ -434,6 +411,7 @@ const styles = StyleSheet.create({
   inside: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   chevron: { width: dotSize, height: dotSize, marginRight: nameStart - dotSize - priceGap, alignItems: "center", justifyContent: "center" },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
+  collapsed: { minHeight: 0 },
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
   add: { minHeight: tapSize },
