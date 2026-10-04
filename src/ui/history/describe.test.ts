@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { cents, price } from "../../core/money";
 import { applyOperation, createSplit, type Operation } from "../../core/operations";
+import { parseSplit } from "../../core/parse";
 import { adjustmentId, deviceId, itemId, participantId, type MintedSplitId, type Split } from "../../core/split";
 import { historyOf, whenText } from "./describe";
 
@@ -89,6 +90,24 @@ test("reads a Split as one entry, Split Guinness Draught 14.9oz Can into 3, that
   expect(historyOf(result.split)).toEqual([
     { revision: 1, lead: "Split Guinness Draught 14.9oz Can into 3", more: 0, sentAs: "ann", name: "Ann", at: 1_000, reverted: false, revertible: true },
   ]);
+});
+
+test("an old claim change whose Revert would move money, marked perUnit, shows no Revert", () => {
+  const read = parseSplit({
+    schemaVersion: 3,
+    id: "q7Xv0Lr9_aZ-3mKpAbCdEf",
+    currency: "USD",
+    receipt: { items: [{ id: "beer", name: "Beer", price: 300, split: { by: "even", units: [["ann"], ["sam"], []] } }], adjustments: [], subtotal: 300, total: 300 },
+    participants: [{ id: "ann", name: "Ann" }, { id: "sam", name: "Sam" }],
+    paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+    payments: [],
+    picks: [],
+    revision: 2,
+    recentChanges: [{ revision: 1, by: "ann", undoes: null, undoneBy: null, at: 1_000, writes: [{ kind: "item", id: "beer", edit: { split: [{ by: "even", units: [[], [], []] }, { by: "even", units: [["ann"], ["sam"], []] }] } }] }],
+  });
+  if (!read.ok) throw new Error(JSON.stringify(read.rejection));
+
+  expect(historyOf(read.split).map(({ revision, revertible }) => [revision, revertible])).toEqual([[1, false]]);
 });
 
 test("whenText reads Just now, minutes, then the clock time", () => {

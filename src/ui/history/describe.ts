@@ -35,7 +35,7 @@ export function historyOf(split: Split): Entry[] {
         name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
         at: change.at,
         reverted: change.undoneBy !== null,
-        revertible: !writes.some((write) => write.kind === "payment"),
+        revertible: !change.writes.some((write) => write.kind === "payment" || write.kind === "perUnit"),
       };
     })
     .reverse();
