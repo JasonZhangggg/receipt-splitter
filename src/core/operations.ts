@@ -45,6 +45,9 @@ export const MAX_DETAIL_LENGTH = 120;
 export const MAX_QUANTITY = 20;
 export const MAX_SHARES = 99;
 export const RECENT_CHANGES_LIMIT = 64;
+/** An old Split's line of up to MAX_QUANTITY units can read as that many rows, so a stored Split may hold more Items than a write may add. */
+export const MAX_STORED_ITEMS = MAX_ITEMS * MAX_QUANTITY;
+export const MAX_STORED_BYTES = MAX_QUANTITY * SPLIT_BYTE_BUDGET;
 export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
 export const MAX_CHANGE_BYTES = 5 * 1024;
@@ -160,7 +163,7 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
   if (step.split === split) return { ok: true, split, changed: false };
   const revision = split.revision + 1;
   const state: Split = { ...step.split, revision, recentChanges: [] };
-  const rejection = checkState(state);
+  const rejection = checkState(state) ?? capRejection(state, split);
   if (rejection) return { ok: false, rejection };
   if (repeatedNames(state.participants) > repeatedNames(split.participants)) return reject("nameTaken");
   let recentChanges = step.split.recentChanges;
@@ -813,8 +816,9 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
     recentChanges: [],
   };
   const withOriginal: Split = { ...bare, original: { items: [plain(first), ...rest.map(plain)], adjustments, subtotal, total } };
-  const split = checkSplit(withOriginal) === null ? withOriginal : bare;
-  const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : checkSplit(split);
+  const check = (candidate: Split) => checkSplit(candidate) ?? capRejection(candidate, null);
+  const split = check(withOriginal) === null ? withOriginal : bare;
+  const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : check(split);
   return rejection ? { ok: false, rejection } : { ok: true, split };
 }
 
@@ -829,7 +833,7 @@ export function checkSplit(split: Split): Rejection | null {
   if (!isStrictlySorted(revisions) || revisions.some((revision) => revision > split.revision)) {
     return { reason: "malformed", path: "recentChanges" };
   }
-  if (split.recentChanges.length > RECENT_CHANGES_LIMIT || serializedBytes(split) > SPLIT_BYTE_BUDGET) {
+  if (split.recentChanges.length > RECENT_CHANGES_LIMIT || serializedBytes(split) > MAX_STORED_BYTES) {
     return { reason: "tooLarge" };
   }
   return null;
@@ -838,7 +842,7 @@ export function checkSplit(split: Split): Rejection | null {
 function checkState(split: Split): Rejection | null {
   const { receipt, participants, payments, paymentHandles } = split;
   const { items, adjustments, subtotal, total } = receipt;
-  if (items.length > MAX_ITEMS) return { reason: "tooManyItems" };
+  if (items.length > MAX_STORED_ITEMS) return { reason: "tooManyItems" };
   if (adjustments.length > MAX_ADJUSTMENTS) return { reason: "tooManyAdjustments" };
   if (participants.length > MAX_PARTICIPANTS) return { reason: "tooManyParticipants" };
   if (!hasUniqueIds(items) || !hasUniqueIds(adjustments) || !hasUniqueIds(participants)) return { reason: "duplicateId" };
@@ -873,8 +877,23 @@ function checkState(split: Split): Rejection | null {
   const handlesValid = paymentHandles.every(({ service, handle }) => HANDLE_RULES[service].pattern.test(handle) && !HIDDEN_CHARACTERS.test(handle));
   if (!handlesValid || new Set(services).size !== services.length) return { reason: "badHandle" };
 
-  const core = serializedBytes({ ...split, payments: [], recentChanges: [] });
-  if (core > SPLIT_BYTE_BUDGET - PAYMENT_RESERVE_BYTES - HISTORY_RESERVE_BYTES) return { reason: "tooLarge" };
+  return null;
+}
+
+const coreBytes = (split: Split) => serializedBytes({ ...split, payments: [], recentChanges: [] });
+
+/**
+ * The Item and byte caps hold for a new Split and for any write that adds Items. A stored old Split can read past them, since its
+ * differing units read as rows; it still takes writes that add no Item, and one within the byte cap never grows past it.
+ */
+function capRejection(split: Split, before: Split | null): Rejection | null {
+  const items = split.receipt.items.length;
+  const grew = before === null || items > before.receipt.items.length;
+  if (grew && items > MAX_ITEMS) return { reason: "tooManyItems" };
+  const core = coreBytes(split);
+  const room = PAYMENT_RESERVE_BYTES + HISTORY_RESERVE_BYTES;
+  if (core > MAX_STORED_BYTES - room) return { reason: "tooLarge" };
+  if (core > SPLIT_BYTE_BUDGET - room && (grew || coreBytes(before) <= SPLIT_BYTE_BUDGET - room)) return { reason: "tooLarge" };
   return null;
 }
 

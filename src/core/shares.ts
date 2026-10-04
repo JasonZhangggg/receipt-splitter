@@ -232,7 +232,7 @@ function greatestCommonDivisor(a: bigint, b: bigint): bigint {
   return x;
 }
 
-export function leastCommonMultiple(a: bigint, b: bigint): bigint {
+function leastCommonMultiple(a: bigint, b: bigint): bigint {
   return (a / greatestCommonDivisor(a, b)) * b;
 }
 

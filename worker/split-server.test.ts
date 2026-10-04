@@ -279,7 +279,7 @@ describe("Payment handles", () => {
 describe("loading a stored Split", () => {
   const corruptions: [string, (json: string) => string][] = [
     ["JSON that does not parse", (json) => json.slice(0, -1)],
-    ["JSON over 32 KB", () => JSON.stringify("x".repeat(33 * 1024))],
+    ["JSON over 640 KB", () => JSON.stringify("x".repeat(641 * 1024))],
     ["a Split under another id", (json) => json.replace(/"id":"[^"]+"/, '"id":"anotherSplit0000000000"')],
   ];
 
@@ -322,10 +322,10 @@ describe("loading a stored Split", () => {
     expect([again.hello.split.schemaVersion, again.hello.split.receipt.items[0].split.units, again.hello.split.receipt.items[2].quantity]).toEqual([4, [["jason", "priya"]], 3]);
   });
 
-  it("refuses a stored row over 32 KB after a wake without parsing it", async () => {
+  it("refuses a stored row over 640 KB, the most an old Split can read as, after a wake without parsing it", async () => {
     const { id } = await createSplit();
     const stub = env.SplitServer.getByName(id);
-    const oversized = JSON.stringify({ pad: "x".repeat(33 * 1024) });
+    const oversized = JSON.stringify({ pad: "x".repeat(641 * 1024) });
     await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", oversized));
     await evictDurableObject(stub);
     const parse = vi.spyOn(JSON, "parse");
@@ -338,6 +338,41 @@ describe("loading a stored Split", () => {
     expect(reply).toEqual({ type: "unavailable", reason: "unreadable" });
     expect(await client.closed).toMatchObject({ code: 4500 });
     expect(parsedRow).toBe(false);
+  });
+
+  it("reads an old row whose differing units read as 180 rows over 32 KB, takes a Claim, refuses an added Item, and reads back after a wake", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    const name = "Pale Ale ".repeat(8).trim();
+    const items = Array.from({ length: 60 }, (_, index) => ({ id: `l${index}`, name, price: 600, detail: "Draft pour from the tap, served in a frosted glass", split: { by: "even", units: [["ann"], ["bob"], ["cat"], ["ann"]] } }));
+    const row = {
+      schemaVersion: 3,
+      id,
+      currency: "USD",
+      receipt: { items, adjustments: [], subtotal: 36000, total: 36000 },
+      participants: [{ id: "ann", name: "Ann" }, { id: "bob", name: "Bob" }, { id: "cat", name: "Cat" }],
+      picks: [],
+      payments: [],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      revision: 0,
+      recentChanges: [],
+    };
+    await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify(row)));
+    await evictDurableObject(stub);
+
+    const a = await open(id);
+    a.client.send(claim("c1", "l0-3", "bob"));
+    const claimed = await a.client.next();
+    a.client.send(JSON.parse(JSON.stringify({ ref: "add", op: { type: "editReceipt", by: "bob", items: [{ type: "add", index: 0, item: { id: "tea", name: "Tea", price: 100 } }] } })));
+    const added = await a.client.next();
+    await evictDurableObject(stub);
+    const again = await open(id);
+
+    if (a.hello.type !== "state" || claimed.type !== "state" || again.hello.type !== "state") throw new Error("expected state");
+    expect([a.hello.split.receipt.items.length, a.hello.split.receipt.items.slice(0, 3).map(({ id: itemId, price, quantity }) => [itemId, price, quantity ?? 1])]).toEqual([180, [["l0", 300, 2], ["l0-2", 150, 1], ["l0-3", 150, 1]]]);
+    expect(added).toEqual({ type: "rejected", ref: "add", rejection: { reason: "tooManyItems" } });
+    expect(again.hello.split).toEqual(claimed.split);
+    expect([again.hello.split.schemaVersion, JSON.stringify(again.hello.split).length > 32 * 1024, again.hello.split.receipt.items[2].split.units]).toEqual([4, true, [["bob", "cat"]]]);
   });
 
   it("accepts the creator secret after the Durable Object wakes from storage", async () => {

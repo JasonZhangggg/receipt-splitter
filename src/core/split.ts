@@ -10,7 +10,8 @@ export type ItemId = Id<"ItemId">;
 export type AdjustmentId = Id<"AdjustmentId">;
 export type DeviceId = Id<"DeviceId">;
 
-const ID_PATTERN = /^[A-Za-z0-9_-]{1,24}$/;
+export const MAX_ID_LENGTH = 24;
+const ID_PATTERN = new RegExp(`^[A-Za-z0-9_-]{1,${MAX_ID_LENGTH}}$`);
 
 export function isId<Kind extends IdKind>(value: unknown): value is Id<Kind> {
   return typeof value === "string" && ID_PATTERN.test(value) && value !== "__proto__";

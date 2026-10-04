@@ -5,6 +5,7 @@ import {
   MAX_ITEMS,
   MAX_PARTICIPANTS,
   MAX_QUANTITY,
+  MAX_STORED_ITEMS,
   MAX_WRITES_PER_CHANGE,
   RECENT_CHANGES_LIMIT,
   checkSplit,
@@ -269,7 +270,7 @@ function legacyItemEdit(detailed: boolean) {
     };
   };
 }
-const bundle = strict(({ read }) => ({ name: read("name", text), items: read("items", nonEmpty(itemId, MAX_ITEMS)) }));
+const bundle = strict(({ read }) => ({ name: read("name", text), items: read("items", nonEmpty(itemId, MAX_STORED_ITEMS)) }));
 
 const receiptLevelFields = ({ read }: Fields) => ({ kind: read("kind", receiptLevelKind), name: read("name", text), amount: read("amount", cents) });
 const anyAdjustmentFields = ({ read }: Fields) => {
@@ -383,9 +384,9 @@ const participant = strict((fields) => ({ id: fields.read("id", participantId), 
 const paymentHandle = strict(({ read }) => ({ service: read("service", oneOf(PAYMENT_SERVICES)), handle: read("handle", text) }));
 const paymentHandles = nonEmpty(paymentHandle, PAYMENT_SERVICES.length);
 
-function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>) {
+function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>, maxItems = MAX_ITEMS) {
   return strict((fields) => ({
-    items: fields.read("items", nonEmpty(itemParser, MAX_ITEMS)),
+    items: fields.read("items", nonEmpty(itemParser, maxItems)),
     adjustments: fields.read("adjustments", array(adjustmentParser, MAX_ADJUSTMENTS)),
     subtotal: fields.read("subtotal", cents),
     total: fields.read("total", cents),
@@ -418,7 +419,7 @@ const LEGACY_ROWS = { 1: legacyRows(1), 2: legacyRows(2), 3: legacyRows(3) } as 
 
 const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", itemId, itemFields, itemEdit);
 const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit"), perUnit });
-const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment), original: receipt(receiptItem, anyAdjustment), change: currentChange };
+const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment, MAX_STORED_ITEMS), original: receipt(receiptItem, anyAdjustment), change: currentChange };
 
 /** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */
 const split: Parser<Split> = strict((fields) => {
