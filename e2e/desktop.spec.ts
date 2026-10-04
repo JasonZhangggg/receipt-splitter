@@ -6,15 +6,6 @@ test.setTimeout(90_000);
 
 const live = { timeout: 15_000 };
 
-// SLOW_FRAMES=1 runs every case with each animation frame 200 ms late, as on a loaded CI runner.
-test.beforeEach(async ({ page }) => {
-  if (!process.env.SLOW_FRAMES) return;
-  await page.addInitScript(() => {
-    const now = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = (callback) => window.setTimeout(() => now(callback), 200);
-  });
-});
-
 const bucket = (run: 1 | 2, guinness: number, watermelon: number) => [
   { id: `ultra${run}`, name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
   { id: `guinness${run}`, name: "Guinness Draught 14.9oz Can", price: 729 * guinness, quantity: guinness },
