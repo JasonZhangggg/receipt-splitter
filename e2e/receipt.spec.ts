@@ -161,6 +161,28 @@ test("the Item sheet shows the gray line under a row's name in its Detail field,
   await expect(renamed.getByText("16oz Aluminum Bottle", { exact: true })).toBeVisible();
 });
 
+test("typing a sized row's name back to what it was saves nothing, so History has no empty row", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const field = (name: string) => sheet.getByRole("textbox", { name, exact: true });
+
+  await firstBucket(page).click();
+  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).click();
+  await field("Item name").fill("Michelob Ultra Lite");
+  await field("Item name").fill("Michelob Ultra");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).click();
+  await field("Detail").fill("16oz Can");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await page.getByRole("button", { name: "History" }).click();
+  await expect(page.getByRole("button", { name: /^Revert / })).toHaveCount(1, live);
+  await expect(page.getByRole("button", { name: /^Revert Michelob Ultra/ })).toHaveCount(1);
+});
+
 test("Split turns the 3x Guinness line into three rows at 7.29 with its claims for everyone, and Revert brings back the one 3x row", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);

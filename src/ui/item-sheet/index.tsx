@@ -36,6 +36,14 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   return { ...pending, ...next, values: reshaped ? (next.values ?? []) : values };
 }
 
+function showsAsBefore(item: SplitItem, edit: ItemEdit): boolean {
+  const { name, detail, values = [], ...rest } = edit;
+  if (values.length > 0 || Object.keys(rest).length > 0) return false;
+  const [title, line] = nameParts(item);
+  const [nextTitle, nextLine] = nameParts({ name: name ?? item.name, detail: detail === undefined ? item.detail : detail });
+  return nextTitle === title && (nextLine || null) === (line || null);
+}
+
 export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClose }: Props) {
   const c = useColors();
   // Split and Delete item change the Item at once; the sheet keeps showing the Split as it looked at the tap, unsaved edits included, until it has left.
@@ -88,6 +96,10 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
 
   const flush = () => {
     if (Object.keys(pending).length === 0 || refusal || leavingFrom) return;
+    if (live && showsAsBefore(live, pending)) {
+      setPending({});
+      return;
+    }
     const sending = pending;
     setPending({});
     setSent((was) => [...was, sending]);
