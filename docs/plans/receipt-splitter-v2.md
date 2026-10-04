@@ -10,7 +10,7 @@ The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b. V2-
 - Merged and deployed, in this order: V2-1 as PR 29 (`9e3a34d`), V2-2 as PR 30 (`ade639d`), V2-5 as PR 31 (`f5e5b8e`), V2-6a as PR 32 (`461b37a`), and V2-3 as PR 33 (`2da1e47`).
 - Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create. [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36) (`19c8e93`), `fix/create-silent`, which makes every Create tap act and keeps the home panel open. [PR 37](https://github.com/JasonZhangggg/receipt-splitter/pull/37) (`fe301a4`), docs only, which adds the receipt-reading research and brings this plan up to rulings 55 to 59.
 - In flight. `fix/flash-root` is a local branch, not pushed. It fixes the Split page flashes at their causes.
-- Queued, in order: server-side receipt reading as V2-7a then V2-7b, the bar after a pick, quantities follow the receipt, a home reload that keeps only the payment handles, Add Item on the Split page, History on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. V2-7a and V2-7b have full sections. The next five have short sections before **Close the program**.
+- Queued, in order: server-side receipt reading as V2-7a then V2-7b, the bar after a pick, quantities follow the receipt, a home reload that keeps only the payment handles, Add Item on the Split page, Recent splits on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. V2-7a and V2-7b have full sections. The next five have short sections before **Close the program**.
 - "Preferences N" means ruling N in `~/.claude/orchestrate/receipt-splitter/preferences.md`.
 
 ## How to read this
@@ -75,7 +75,7 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
 - **Preferences 33, 2026-10-02.** The home panel with the payment row, the names, and **Create split link** is always shown, never collapses, and is one surface with Create. A drag moves it and it springs back. PR 36 built it.
 - **Preferences 34, 2026-10-02.** A tap on an enabled Create always acts. It creates, or it focuses what is missing and says so. PR 36 built it. The operator approved the wording "Add how to pay you." on 2026-10-03.
 - **Preferences 36, 2026-10-02.** After a Split is created, home is fresh. The receipt, the photo, and the names clear, and the payment handles stay. PR 35 built it.
-- **Preferences 37, 2026-10-02.** History on home lists past Splits stored on this device only. It is queued.
+- **Preferences 37, 2026-10-02.** History on home lists past Splits stored on this device only. **Recent splits on home** builds it.
 - **Preferences 44, 2026-10-02.** The real-iOS census in the iOS Simulator is the deciding gate for UI fixes. Every flagged interaction counts 0 on the fix head.
 - **Preferences 45, 2026-10-02.** CI runs WebKit for the functional sheet and claim specs only. WebKit frame timing runs locally through `motion.mjs` on macOS before every UI PR, and Chromium frame timing runs in CI.
 - **Preferences 55 to 57, 2026-10-03.** The server may read receipts, with the photo and a third-party model API. This reverses ADR 0001's on-device OCR rule. The API key is a Worker secret behind a same-origin `/api` route, and scans get their own rate limit and daily cap. An eval on real receipts picks the reading path by price to performance. The provider and model change by config, open-weight models with several hosts come first, and a fallback needs no paid model. V2-7a and V2-7b build it.
@@ -920,9 +920,64 @@ Intent only. A full section with boxes comes before the build. Anyone in the Spl
 
 Who may add is an open question for the operator. The recommendation is anyone in the Split, with the new Item outside every Bundle, because **Out of scope** keeps adding an Item to a Bundle out.
 
-## Queued: History on home
+## Recent splits on home
 
-Intent only. A full section with boxes comes before the build. Home lists the past Splits stored on this device only, and tapping one opens its share link (preferences 37). This is separate from the History on the Split page, which lists payments and manual receipt changes (preferences 29).
+**Depends on.** None. It branches from `main` at `74932fe` or later.
+
+Home lists the Splits this device created or opened, and a tap on one opens its link (preferences 37). The list is called **Recent splits**, because History is the Split page's list of payments and receipt changes (preferences 29). Today a Host who closes the tab has no way back to a link they did not save.
+
+Decisions.
+
+- Each entry shows the names at the table, host first, up to three and then "and N more"; the day this device first saw the Split ("Today", "Yesterday", "Sep 28", or "Sep 28, 2025" in another year); and the receipt's total. The Split page writes them from the Split it already holds, so the list costs no server call and sends nothing.
+- Newest first, by the day this device first saw the Split. A reopened Split keeps its place, so the dates read in order.
+- Home shows the 5 newest. The device keeps at most 50 Splits and drops the oldest past that, so storage stays near 15 KB.
+- A Split expires 60 days after its last change, which the device cannot see. An entry leaves the list 60 days after this device last opened its Split, and at once when its link says the Split has expired. An entry can outlive its Split when nobody opens it; the tap then shows **This split has expired** and the entry is gone on the way back.
+- The list shows only on the empty home, before a receipt is added, so it never competes with the editor. After Create, home is fresh (preferences 36), and the new Split tops the list.
+- On a phone the list sits in the scrolling page between the hero and the panel. The panel stays shown and never collapses (preferences 33), and the hero gives up its spare room to the list. From 900 px it sits under **Create split link** in the one centered column (preferences 32).
+- With no Splits there is no heading and no placeholder. A first-time Host sees today's home.
+- The app does not move anything for the keyboard (preferences 17). The list scrolls with the page.
+- A row's press fills it with `sheetIn` at once and fades over 200 ms on release, by the `pressIn` and `pressOut` tokens. The list does not animate in, because home shows it on every visit.
+
+**Files.**
+
+- [ ] Edit `src/device.ts` and add `src/device.test.ts` and `src/ui/home-copy.test.ts`.
+- [ ] Add `src/ui/recent-splits.tsx`. Edit `src/ui/home-copy.ts`, `app/index.tsx`, and `app/s/[id].tsx`.
+- [ ] Add `e2e/history.spec.ts`.
+- [ ] Edit `CONTEXT.md` and `features/home.md` in `verify-receipt-splitter`.
+
+**Build.**
+
+- [ ] Name the data shape first. A Split's record on the device is `{ creatorSecret?, me?, recent? }`, and `recent` is `{ names, total, added, seen }`. `RecentSplit` is `{ id, names, total, added }`. `rememberSplit` keeps `recent` when it writes the pick or the Creator secret.
+- [ ] `noteSplit(split, now)` writes `recent` from the Split, keeps `added` once set, sets `seen` to now, and drops the oldest records past 50. The Split page calls it on each Split it renders.
+- [ ] `recentSplits(now)` reads every record with `recent`, leaves out those seen more than 60 days ago, and returns the 5 newest by `added`. Records written before this PR have no `recent` and are not listed.
+- [ ] `forgetSplit(id)` deletes the record. The Split page calls it when its link says the Split has expired.
+- [ ] `RecentSplits` renders the heading **Recent splits** and one link per entry to `/s/<id>`, named by its names, day, and total, through expo-router's `Link`, so a tap navigates in place.
+- [ ] Home reads the list once per mount and renders it when the receipt is empty and the list is not.
+
+**You see.**
+
+- [ ] On a phone, create a link for Jason and Sam, then tap **Split a receipt**. Home shows the hero, then **Recent splits** with "Jason and Sam", "Today", and the total, then the panel. Tap the row. The Split page opens at the same link.
+
+**Seams.**
+
+- [ ] `noteSplit`, `recentSplits`, `forgetSplit`, and `rememberSplit` in `src/device.ts`, through a memory `localStorage`, in `src/device.test.ts`.
+- [ ] `historyCopy` in `src/ui/home-copy.ts`, through `src/ui/home-copy.test.ts`.
+- [ ] Home and the Split page through Playwright in `e2e/history.spec.ts`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `src/device.test.ts`. Splits list newest first with their names and total; only 5 show; a reopened Split keeps its day and takes its new names; a Split last seen 61 days ago is gone and one seen 59 days ago stays; a forgotten Split is gone; the 51st Split drops the oldest; a pick and a Creator secret survive `noteSplit`, and `recent` survives a pick; bad JSON and old records list nothing. Run `npm test`.
+- [ ] `src/ui/home-copy.test.ts`. One, two, three, and five names read "Jason", "Jason and Sam", "Jason, Sam, and Priya", and "Jason, Sam, and 3 more"; days read "Today", "Yesterday", "Sep 28", and "Sep 28, 2025". Run `npm test`.
+- [ ] `e2e/history.spec.ts`. A created Split heads the fresh home's list, and a tap opens its link. Three stored Splits list newest first with their days and totals. A Split last opened 61 days ago is not listed. An entry whose link says expired is gone back on home. At 1440 px the list shares the column's left edge and width under **Create split link**. With the keyboard up on the handle field and 3 entries, the field stays above the keyboard and the panel keeps its page position. A fresh home shows no **Recent splits**. Run `npm run e2e`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Lane 1. Against `verify-receipt-splitter` on a port from 9300 to 9399, at 390 and 1440 px, light and dark: home with no Splits, home with 3, and at 390 px home with 3 and the keyboard up on the handle field (the iOS keyboard model in `e2e/motion.ts`). Pass when the list sits between the hero and the panel on the phone and under **Create split link** on desktop, and the focused field is above the keyboard.
+- [ ] Lane 2. `motion.mjs` on all lanes and the Playwright flash census.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Brotli bytes of every script `dist/index.html` loads. Probe `npm run size` at trunk and head. Rule. Fail on any growth over 2 KB.
 
 ## Close the program
 
