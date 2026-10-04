@@ -508,3 +508,126 @@ test("an EXIF-rotated phone photo reads upright", async ({ page }) => {
   await addName(page, "Jason");
   expect(itemsOf(await sentReceipt(page))).toEqual(items1040);
 });
+
+test.describe("reading through the server", () => {
+  const reply = {
+    items: [
+      { name: "Club Sandwich", price: 1050, quantity: null, details: [], discounts: [{ name: "Member discount", amount: -200 }] },
+      { name: "Cold Brew", price: 575, quantity: null, details: ["Large", "oat milk"], discounts: [] },
+      { name: "Hot Wings", price: 900, quantity: null, details: [], discounts: [] },
+      { name: "Garlic Fries", price: 500, quantity: null, details: [], discounts: [] },
+    ],
+    bundles: [{ name: "Wing Bucket", items: [2, 3], discounts: [{ name: "Bucket discount", amount: -300 }] }],
+    adjustments: [{ kind: "tax", name: "Tax", amount: 290 }],
+    subtotal: { amount: 2725, beforeDiscounts: false },
+    total: 3015,
+    check: { passed: true, gaps: { subtotal: 0, total: 0 } },
+  };
+  const onDevice = ["topgolf-synthetic.png", "9 items", "$207.29"];
+
+  test.beforeEach(async ({ page }) => {
+    const rate = Number(process.env.CPU_THROTTLE ?? 1);
+    if (rate > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate });
+  });
+
+  test("a route reading fills the receipt, its discount shows as the Item's detail on the Split page, and the upload is a JPEG with the OCR lines", async ({ page }, testInfo) => {
+    test.setTimeout(150_000);
+    let body: { photo: string; ocrLines: string[] } | null = null;
+    await page.route("**/api/scan", (route) => {
+      body = route.request().postDataJSON();
+      return route.fulfill({ json: reply });
+    });
+    await page.route("**/api/splits", (route) => route.continue({ headers: { ...route.request().headers(), "cf-connecting-ip": `198.54.${testInfo.workerIndex}.${testInfo.retry + 1}` } }));
+    await page.goto("/");
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+    await expect(card(page)).toBeVisible(scanTimeout);
+
+    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["topgolf-synthetic.png", "4 items", "$30.15"]);
+    expect(body!.photo).toMatch(/^data:image\/jpeg;base64,/);
+    expect(body!.ocrLines.some((line) => /Gameplay/.test(line))).toBe(true);
+
+    await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+    await addName(page, "Jason");
+    await action(page).click();
+    await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
+
+    await expect(page.getByTestId("line-i1-0")).toContainText("$2.00 off");
+    await expect(page.getByTestId("line-i2-0")).toContainText("Large, oat milk");
+    await expect(page.getByTestId("line-i2-0")).not.toContainText("off");
+  });
+
+  for (const [status, why] of [
+    [429, "a refused scan"],
+    [502, "an unreadable scan"],
+  ] as const) {
+    test(`${why} (${status}) falls back to the on-device reading with no message`, async ({ page }) => {
+      test.setTimeout(120_000);
+      let asked = false;
+      await page.route("**/api/scan", (route) => {
+        asked = true;
+        return route.fulfill({ status, json: { refused: status === 429 ? "rateLimited" : "unreadable" } });
+      });
+      await page.goto("/");
+      await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+      await expect(card(page)).toBeVisible(scanTimeout);
+
+      expect(asked).toBe(true);
+      expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(onDevice);
+    });
+  }
+
+  test("a scan with no reply in 60 s falls back to the on-device reading, and home reads until then", async ({ page }) => {
+    test.setTimeout(240_000);
+    let askedAt = 0;
+    await page.route("**/api/scan", () => {
+      askedAt = Date.now();
+    });
+    await page.goto("/");
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+    await expect.poll(() => askedAt, scanTimeout).toBeGreaterThan(0);
+
+    await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
+    await expect(card(page)).toBeVisible({ timeout: 90_000 });
+    expect(Date.now() - askedAt).toBeGreaterThan(55_000);
+    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(onDevice);
+  });
+
+  test("a large photo uploads at most 1 MB, at most 2048 px on its long edge", async ({ page }) => {
+    test.setTimeout(150_000);
+    let sent: { bytes: number; photo: string } | null = null;
+    await page.route("**/api/scan", (route) => {
+      const posted = route.request().postData() ?? "";
+      sent = { bytes: Buffer.byteLength(posted), photo: JSON.parse(posted).photo };
+      return route.fulfill({ json: reply });
+    });
+    await page.goto("/");
+    const large = await page.evaluate(async (base64) => {
+      const image = await createImageBitmap(new Blob([Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0))], { type: "image/png" }));
+      const canvas = Object.assign(document.createElement("canvas"), { width: image.width * 3, height: image.height * 3 });
+      const context = canvas.getContext("2d")!;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      for (let at = 0; at < pixels.data.length; at += 4) {
+        const grain = (Math.random() - 0.5) * 40;
+        for (let channel = 0; channel < 3; channel++) pixels.data[at + channel] += grain;
+      }
+      context.putImageData(pixels, 0, 0);
+      const blob = await new Promise<Blob>((resolve) => canvas.toBlob((made) => resolve(made!), "image/png"));
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let text = "";
+      for (let at = 0; at < bytes.length; at += 0x8000) text += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+      return btoa(text);
+    }, photo("e2e/fixtures/topgolf-synthetic.png", "image/png").buffer.toString("base64"));
+    expect(large.length * 0.75).toBeGreaterThan(2 * 1024 * 1024);
+
+    await pasteFile(page, { name: "large.png", mimeType: "image/png", buffer: Buffer.from(large, "base64") });
+    await expect(card(page)).toBeVisible(scanTimeout);
+
+    expect(sent!.bytes).toBeLessThanOrEqual(1024 * 1024);
+    const edges = await page.evaluate(async (dataUrl) => {
+      const image = await createImageBitmap(await (await fetch(dataUrl)).blob());
+      return [image.width, image.height];
+    }, sent!.photo);
+    expect(Math.max(...edges)).toBeLessThanOrEqual(2048);
+  });
+});

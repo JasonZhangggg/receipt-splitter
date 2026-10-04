@@ -116,7 +116,7 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
   - [ ] V2-6a needs only `main`. Its owner may start at once, and the root restacks it onto V2-5. *V2-6a merged before V2-3, as PR 32, with no restack.*
   - [ ] V2-6b after V2-4, V2-5, and V2-6a. *Not done: V2-6b is not built.*
   - [ ] V2-7a needs only `main`. *Not built.*
-  - [ ] V2-7b after V2-7a's deploy is live with the secret set. *Not built.*
+  - [ ] V2-7b after V2-7a's deploy is live with the secret set. *Built locally on `v2-7b-scan-client`, restacked onto `main` at 629a862 after V2-7a merged as PR 41.*
 - [ ] Hold the file boundaries. *Not held for every PR. See each child.*
   - [ ] V2-1 touches only `src/core/**`, `scripts/golden-splits.mjs`, `worker/**` tests, and the one switch in `src/ui/split-view/receipt-card.tsx` that the new kind breaks. *Not held: its PR body lists the files outside this list.*
   - [ ] V2-2 touches only `src/parse/**`, `src/draft.ts`, `src/draft.test.ts`, `src/core/parse.ts`, `src/core/split.ts`, `src/core/golden/**`, `src/ui/receipt-editor/**`, `e2e/fixtures/**`, and `bench/**`. *Not held: its PR body lists the files outside this list.*
@@ -709,64 +709,64 @@ V2-7b moves home's scan onto the route, with the on-device reader as the fallbac
 
 **Files.**
 
-- [ ] Edit `src/core/split.ts`, `src/core/parse.ts`, `src/core/operations.ts`, and their tests. Add a golden row in `src/core/golden/` with `scripts/golden-splits.mjs`.
-- [ ] Create `src/scan/client.ts` and `src/scan/client.test.ts`.
-- [ ] Edit `app/index.tsx`, `src/draft.ts`, `src/ui/receipt-input/photo.web.ts`, and `src/ui/receipt-input/reading.tsx`.
-- [ ] Edit `src/ui/split-view/model.ts`, `src/ui/split-view/receipt-card.tsx`, `src/ui/item-sheet/index.tsx`, `src/ui/receipt-editor/index.tsx`, and `src/ui/history/describe.ts`.
-- [ ] Edit `CONTEXT.md` and `e2e/scan.spec.ts`.
+- [x] Edit `src/core/split.ts`, `src/core/parse.ts`, `src/core/operations.ts`, and their tests. Add a golden row in `src/core/golden/` with `scripts/golden-splits.mjs`.
+- [x] Create `src/scan/client.ts` and `src/scan/client.test.ts`.
+- [x] Edit `app/index.tsx`, `src/draft.ts`, `src/ui/receipt-input/photo.web.ts`, and `src/ui/receipt-input/reading.tsx`. *`photo.web.ts` and `reading.tsx` needed no change. The JPEG encode lives in `src/scan/client.ts`, and the bar's OCR share lives in `app/index.tsx`.*
+- [x] Edit `src/ui/split-view/model.ts`, `src/ui/split-view/receipt-card.tsx`, `src/ui/item-sheet/index.tsx`, `src/ui/receipt-editor/index.tsx`, and `src/ui/history/describe.ts`.
+- [x] Edit `CONTEXT.md` and `e2e/scan.spec.ts`.
 
 **Build.**
 
-- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
-- [ ] Add **Detail** to `CONTEXT.md`. A Detail is supplementary text under an Item's name, such as a size, a flavor, a weight, an unpriced modifier, or a discount folded into its price. The name alone identifies the Item. Avoid "description" and "note".
-- [ ] Give `Item` in `src/core/split.ts` an optional `detail`, one line of at most 120 characters. One string holds both the model's detail and the discount text, so the stored shape gains one field.
-- [ ] Read `detail` in `parseSplit`. Per ADR 0004, bump `schemaVersion` to 3 and read versions 1 and 2 unchanged. Write version 3 only when an Item has a detail, so a Split without one stays readable by the V2-7a Worker, as V2-2 did for Bundles. Add the golden row.
-- [ ] Let anyone edit an Item's detail in the item sheet, beside its name. The edit is a receipt change, so History lists it and Revert restores it (preferences 3).
-- [ ] Call the route in `src/scan/client.ts`. Run the on-device OCR as today. Downscale the photo to about 2048 px on its long edge, crop it to the OCR boxes with a margin, and encode it as a JPEG through a canvas, so it carries no EXIF. Lower the quality in steps until it fits 1 MB. Post it with the OCR plain lines.
-- [ ] Parse the route's reply at the boundary in `src/scan/client.ts`, and map it to a Receipt. Join the detail lines with ", ". Append each folded discount as "$2.00 off". A Bundle becomes an Adjustment of kind `bundleDiscount` per ADR 0006.
-- [ ] Fall back to `parseReceipt` on the same OCR result on any status other than 200, a network failure, a reply that does not parse, or no reply in 60 s. Show no message for the fallback. Home keeps "Reading the receipt." until either reading lands.
-- [ ] On the Split page, show `item.detail` under the name when it is set. Otherwise split the name with `nameParts` in `src/ui/split-view/model.ts`, which stays the fallback for sizes printed on the name line and for on-device readings.
-- [ ] Show no stale or wrong frame when the detail line appears or changes (preferences 18). Nothing is yellow (preferences 15).
+- [x] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
+- [x] Add **Detail** to `CONTEXT.md`. A Detail is supplementary text under an Item's name, such as a size, a flavor, a weight, an unpriced modifier, or a discount folded into its price. The name alone identifies the Item. Avoid "description" and "note".
+- [x] Give `Item` in `src/core/split.ts` an optional `detail`, one line of at most 120 characters. One string holds both the model's detail and the discount text, so the stored shape gains one field. *The reply's `fee` kind, which has no core match, maps to `serviceCharge`. A Bundle the reply gives no discount stays plain Items.*
+- [x] Read `detail` in `parseSplit`. Per ADR 0004, bump `schemaVersion` to 3 and read versions 1 and 2 unchanged. Write version 3 only when an Item has a detail, so a Split without one stays readable by the V2-7a Worker, as V2-2 did for Bundles. Add the golden row.
+- [x] Let anyone edit an Item's detail in the item sheet, beside its name. The edit is a receipt change, so History lists it and Revert restores it (preferences 3).
+- [x] Call the route in `src/scan/client.ts`. Run the on-device OCR as today. Downscale the photo to about 2048 px on its long edge, crop it to the OCR boxes with a margin, and encode it as a JPEG through a canvas, so it carries no EXIF. Lower the quality in steps until it fits 1 MB. Post it with the OCR plain lines.
+- [x] Parse the route's reply at the boundary in `src/scan/client.ts`, and map it to a Receipt. Join the detail lines with ", ". Append each folded discount as "$2.00 off". A Bundle becomes an Adjustment of kind `bundleDiscount` per ADR 0006.
+- [x] Fall back to `parseReceipt` on the same OCR result on any status other than 200, a network failure, a reply that does not parse, or no reply in 60 s. Show no message for the fallback. Home keeps "Reading the receipt." until either reading lands. *Home keeps its shipped copy, **Reading receipt**. The bar fills to 80% over OCR and holds while the server reads.*
+- [x] On the Split page, show `item.detail` under the name when it is set. Otherwise split the name with `nameParts` in `src/ui/split-view/model.ts`, which stays the fallback for sizes printed on the name line and for on-device readings.
+- [x] Show no stale or wrong frame when the detail line appears or changes (preferences 18). Nothing is yellow (preferences 15).
 
 **You see.**
 
-- [ ] Scanning `e2e/fixtures/topgolf-synthetic.png` on home reads both Bundles through the route. A fixture with a discount under an Item shows "$2.00 off" in that Item's detail line on the Split page. With the route blocked, the same scan still reads, on the device.
+- [x] Scanning `e2e/fixtures/topgolf-synthetic.png` on home reads both Bundles through the route. A fixture with a discount under an Item shows "$2.00 off" in that Item's detail line on the Split page. With the route blocked, the same scan still reads, on the device.
 
 **Seams.**
 
-- [ ] The reply-to-Receipt mapping in `src/scan/client.test.ts`, fed invented replies.
-- [ ] The stored shape in `src/core/parse.test.ts` through the golden rows.
-- [ ] The detail edit in `src/core/operations.test.ts`.
-- [ ] The scan flow through Playwright in `e2e/scan.spec.ts`, with `/api/scan` answered by `page.route`.
+- [x] The reply-to-Receipt mapping in `src/scan/client.test.ts`, fed invented replies.
+- [x] The stored shape in `src/core/parse.test.ts` through the golden rows.
+- [x] The detail edit in `src/core/operations.test.ts`.
+- [x] The scan flow through Playwright in `e2e/scan.spec.ts`, with `/api/scan` answered by `page.route`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `src/scan/client.test.ts` gains a reply mapped to a literal Receipt with a joined detail, "$2.00 off", and a Bundle, and a malformed reply that returns null. Run `npm test`.
-- [ ] `src/core/parse.test.ts` reads every golden row, a version 3 row with a detail, and a version 2 row unchanged, and refuses a detail over 120 characters. Run `npm test`.
-- [ ] `src/core/operations.test.ts` gains a detail edit and its revert. Run `npm test`.
-- [ ] `e2e/scan.spec.ts` gains a route reading, the fallback on 429, on 502, and on a 60 s timeout, and an upload at most 1 MB. Run each new case under a 4x CPU throttle. Run `npm run e2e`.
+- [x] `src/scan/client.test.ts` gains a reply mapped to a literal Receipt with a joined detail, "$2.00 off", and a Bundle, and a malformed reply that returns null. Run `npm test`.
+- [x] `src/core/parse.test.ts` reads every golden row, a version 3 row with a detail, and a version 2 row unchanged, and refuses a detail over 120 characters. Run `npm test`.
+- [x] `src/core/operations.test.ts` gains a detail edit and its revert. Run `npm test`.
+- [x] `e2e/scan.spec.ts` gains a route reading, the fallback on 429, on 502, and on a 60 s timeout, and an upload at most 1 MB. Run each new case under a 4x CPU throttle. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe, with the key in `.dev.vars`.
 
-- [ ] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and Claim one Item from a second browser, citing `features/scan.md` and `features/join.md`, at trunk and head. Save `scan-create-claim.png`. Pass when the head reads through the route, both read the same Bundles and Total, and create and Claim behave the same.
-- [ ] Lane 2. Scan the V2-7a fixtures with item discounts and modifiers at 390 px and 1440 px, in light and dark, citing `features/scan.md`. Save `detail-matrix/<case>.png`. Then block `/api/scan` and scan once more. Pass when each detail line reads under its name, "$2.00 off" sits on the right Item, and the blocked scan reads on the device.
-- [ ] Run the WebKit frame-timing checks through `motion.mjs` on macOS for the item sheet with the detail field (preferences 45), and the real-iOS census for opening it and editing the detail (preferences 44). Pass when every flagged interaction counts 0.
+- [x] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and Claim one Item from a second browser, citing `features/scan.md` and `features/join.md`, at trunk and head. Save `scan-create-claim.png`. Pass when the head reads through the route, both read the same Bundles and Total, and create and Claim behave the same.
+- [x] Lane 2. Scan the V2-7a fixtures with item discounts and modifiers at 390 px and 1440 px, in light and dark, citing `features/scan.md`. Save `detail-matrix/<case>.png`. Then block `/api/scan` and scan once more. Pass when each detail line reads under its name, "$2.00 off" sits on the right Item, and the blocked scan reads on the device.
+- [ ] Run the WebKit frame-timing checks through `motion.mjs` on macOS for the item sheet with the detail field (preferences 45), and the real-iOS census for opening it and editing the detail (preferences 44). Pass when every flagged interaction counts 0. *WebKit `motion.mjs` passed `item-open` and `item-close` at 1x and 4x. The real-iOS census did not run, because simulator access was not granted. A Playwright WebKit iPhone 15 recording run through the census tool showed 0 flags while typing the detail, and flags only on the sheet's own slide, which a constant-frame recording reports as motion.*
 
 **Feature map.**
 
-- [ ] Update `features/scan.md` in `verify-receipt-splitter` with the home flow, the fallback, and how to block the route.
+- [x] Update `features/scan.md` in `verify-receipt-splitter` with the home flow, the fallback, and how to block the route.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Time from picking the photo to the read receipt on home, the uploaded bytes, and `npm run size`.
-- [ ] Probe. Five scans of `e2e/fixtures/topgolf-synthetic.png` at trunk and head, interleaved, under Playwright mobile emulation with a 4x CPU throttle, timed from the page's performance marks.
-- [ ] Baseline. Record the trunk pick-to-read time first.
-- [ ] Rule. Fail if the head median is more than 5 s over trunk's, any upload is over 1 MB, or `npm run size` passes its budget.
+- [x] Metric. Time from picking the photo to the read receipt on home, the uploaded bytes, and `npm run size`.
+- [x] Probe. Five scans of `e2e/fixtures/topgolf-synthetic.png` at trunk and head, interleaved, under Playwright mobile emulation with a 4x CPU throttle, timed from the page's performance marks.
+- [x] Baseline. Record the trunk pick-to-read time first.
+- [x] Rule. Fail if the head median is more than 5 s over trunk's, any upload is over 1 MB, or `npm run size` passes its budget.
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lane 1's `scan-create-claim.png` and lane 2's screenshots into `/tmp/receipt-splitter-review/V2-7b-review-<case>.png`.
-- [ ] Save a 30 to 60 second video of scanning a receipt and opening an Item with a discount in its detail as `/tmp/receipt-splitter-review/V2-7b-review.mp4`.
+- [x] Copy lane 1's `scan-create-claim.png` and lane 2's screenshots into `/tmp/receipt-splitter-review/V2-7b-review-<case>.png`. *They live in `~/.claude/orchestrate/receipt-splitter/review/v2-7b/`, per the coordinator, to keep durable files out of `/tmp`.*
+- [ ] Save a 30 to 60 second video of scanning a receipt and opening an Item with a discount in its detail as `/tmp/receipt-splitter-review/V2-7b-review.mp4`. *Recorded at `~/.claude/orchestrate/receipt-splitter/review/v2-7b/video/V2-7b-review.mp4`, 12.5 s, because the flow is that short.*
 - [ ] Post the screenshots, the video, and V2-7a's harness table in chat. Stop at merge-ready. Wait for the operator's approval.
 
 **Merge.**

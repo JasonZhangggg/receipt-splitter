@@ -53,6 +53,8 @@ export type ItemRow = {
   readonly id: ItemId;
   readonly name: string;
   readonly price: Price;
+  /** Text under the name, such as a size, a modifier, or "$2.00 off". Absent when the Item has none. */
+  readonly detail?: string;
 };
 
 /** An Item as read from the receipt. The price covers every unit. */
@@ -132,6 +134,7 @@ export type ParticipantFields = Omit<Participant, "id">;
 
 export type Placed<Fields> = Fields & { readonly index: number };
 
+/** An Item's `detail` pair writes "" for no detail, so the pair survives JSON. */
 export type Edit<Fields> = { readonly [Key in keyof Fields]?: readonly [before: Fields[Key], after: Fields[Key]] };
 
 export type Presence<RowId, Fields> =
@@ -170,14 +173,18 @@ export type Change = {
   readonly at?: number;
 };
 
-export type SchemaVersion = 1 | 2;
+/** Version 2 adds Bundles and version 3 adds an Item's detail. A Split is stored at the lowest version that holds it, so older Workers keep reading it. */
+export type SchemaVersion = 1 | 2 | 3;
 
 export function storedVersion({ receipt, original, recentChanges }: Pick<Split, "receipt" | "original" | "recentChanges">): SchemaVersion {
+  const writes = recentChanges.flatMap((change) => change.writes);
   const bundled = (adjustments: readonly Adjustment[]) => adjustments.some(({ kind }) => kind === "bundleDiscount");
   const writesBundle = (write: Write | LegacyWrite) =>
     write.kind === "adjustment" && ("edit" in write ? "bundle" in write.edit : ("added" in write ? write.added : write.removed).kind === "bundleDiscount");
-  const holds = bundled(receipt.adjustments) || bundled(original?.adjustments ?? []) || recentChanges.some(({ writes }) => writes.some(writesBundle));
-  return holds ? 2 : 1;
+  const detailed = (items: readonly ItemRow[]) => items.some((item) => item.detail !== undefined);
+  const writesDetail = (write: Write | LegacyWrite) => write.kind === "item" && ("edit" in write ? "detail" in write.edit : ("added" in write ? write.added : write.removed).detail !== undefined);
+  if (detailed(receipt.items) || detailed(original?.items ?? []) || writes.some(writesDetail)) return 3;
+  return bundled(receipt.adjustments) || bundled(original?.adjustments ?? []) || writes.some(writesBundle) ? 2 : 1;
 }
 
 export type Split = {

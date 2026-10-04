@@ -11,6 +11,7 @@ import {
   type Edit,
   type DeviceId,
   type Item,
+  type ItemFields,
   type ItemId,
   type ItemSplit,
   type LegacyWrite,
@@ -40,6 +41,7 @@ export const MAX_ADJUSTMENTS = 20;
 export const MAX_PARTICIPANTS = 30;
 export const MAX_PARTICIPANT_NAME_LENGTH = 40;
 export const MAX_ROW_NAME_LENGTH = 80;
+export const MAX_DETAIL_LENGTH = 120;
 export const MAX_QUANTITY = 20;
 export const MAX_SHARES = 99;
 export const RECENT_CHANGES_LIMIT = 64;
@@ -58,6 +60,8 @@ export type ItemPatch =
       readonly itemId: ItemId;
       readonly name?: string;
       readonly price?: Price;
+      /** "" removes the detail. */
+      readonly detail?: string;
       /** Adds empty units or drops the last ones. */
       readonly quantity?: number;
       /** Drops this unit instead of the last when `quantity` is one less than now. */
@@ -261,17 +265,24 @@ type RowCodec<Row extends { readonly id: string }, Original extends { readonly i
 
 const ITEM_ROWS: RowCodec<SplitItem, Item> = {
   rows: (split) => split.receipt.items,
-  add: ({ id, name, price, quantity = 1 }, index, moved) => ({
+  add: ({ id, name, price, detail, quantity = 1 }, index, moved) => ({
     kind: "item",
     id,
-    added: { index, name, price, split: evenIfOverPrice(resize(moved?.split ?? evenUnits(1), quantity), price) },
+    added: { index, name, price, ...(detail !== undefined && { detail }), split: evenIfOverPrice(resize(moved?.split ?? evenUnits(1), quantity), price) },
   }),
-  remove: ({ id, name, price, split }, index) => ({ kind: "item", id, removed: { index, name, price, split } }),
-  edit: ({ id, name, price, split }, to) => {
-    const edit = diff({ name, price, split }, { name: to.name, price: to.price, split: evenIfOverPrice(resize(split, to.quantity ?? 1), to.price) });
+  remove: (row, index) => ({ kind: "item", id: row.id, removed: { index, ...itemFieldsOf(row) } }),
+  edit: ({ id, name, price, detail = "", split }, to) => {
+    const edit = diff(
+      { name, price, detail, split },
+      { name: to.name, price: to.price, detail: to.detail ?? "", split: evenIfOverPrice(resize(split, to.quantity ?? 1), to.price) },
+    );
     return edit === null || edit === "emptyEdit" ? [] : [{ kind: "item", id, edit }];
   },
 };
+
+function itemFieldsOf({ id, ...fields }: SplitItem): ItemFields {
+  return fields;
+}
 
 export function evenUnits(quantity: number): ItemSplit {
   return { by: "even", units: [[], ...Array.from({ length: quantity - 1 }, () => [])] };
@@ -418,7 +429,7 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] {
     case "item": {
       const at = indexOf(split.receipt.items, write.id);
       const current = split.receipt.items[at];
-      if ("added" in write && current) return [{ kind: "item", id: write.id, removed: { index: at, name: current.name, price: current.price, split: current.split } }];
+      if ("added" in write && current) return [{ kind: "item", id: write.id, removed: { index: at, ...itemFieldsOf(current) } }];
       const inverted = invertRow(write, at);
       if (!("edit" in inverted) || !("edit" in write) || !write.edit.split || !current) return [{ kind: "item", ...inverted }];
       const [before, after] = write.edit.split;
@@ -485,11 +496,11 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
   const index = indexOf(items, patch.itemId);
   if (index === -1) return "unknownItem";
   if (patch.type === "delete") return [ITEM_ROWS.remove(items[index], index), ...leaveBundle(split, patch.itemId)];
-  const { name, price, split: shape } = items[index];
+  const { name, price, detail = "", split: shape } = items[index];
   const reshaped = patch.quantity !== undefined || patch.drop !== undefined || patch.by !== undefined || patch.values !== undefined;
   const next = reshaped ? editedSplit(shape, patch) : undefined;
   if (typeof next === "string") return next;
-  const edit = diff({ name, price, split: shape }, { name: patch.name, price: patch.price, split: next });
+  const edit = diff({ name, price, detail, split: shape }, { name: patch.name, price: patch.price, detail: patch.detail, split: next });
   return typeof edit === "string" ? edit : edit ? [{ kind: "item", id: patch.itemId, edit }] : [];
 }
 
@@ -545,11 +556,12 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
   const receipt = split.receipt;
   switch (write.kind) {
     case "item": {
-      if (!keepsNameValid(write, MAX_ROW_NAME_LENGTH)) return "badName";
+      if (!keepsNameValid(write, MAX_ROW_NAME_LENGTH) || !keepsDetailValid(write)) return "badName";
       if ("added" in write && !unitsOf(write.added.split).flat().every((id) => findParticipant(split, id))) return "conflict";
-      const rows = putRow(receipt.items, write, 0, ({ name, price, split: shape }) => ({ id: write.id, name, price, split: shape }));
+      const blanked = receipt.items.map((item) => ({ ...item, detail: item.detail ?? "" }));
+      const rows = putRow(blanked, write, 0, ({ name, price, detail = "", split: shape }) => ({ id: write.id, name, price, detail, split: shape }));
       if (typeof rows === "string") return rows;
-      const [first, ...rest] = rows;
+      const [first, ...rest] = rows.map(({ detail, ...item }): SplitItem => (detail === "" ? item : { ...item, detail }));
       if (first === undefined) return "lastItem";
       return { ...split, receipt: { ...receipt, items: [first, ...rest] } };
     }
@@ -592,6 +604,15 @@ function keepsNameValid(write: Extract<Write, { kind: "item" | "adjustment" | "p
   if ("added" in write) return isName(write.added.name, maxLength);
   if ("edit" in write && write.edit.name) return isName(write.edit.name[1], maxLength);
   return true;
+}
+
+function keepsDetailValid(write: Extract<Write, { kind: "item" }>): boolean {
+  const detail = "added" in write ? write.added.detail : "edit" in write ? write.edit.detail?.[1] : undefined;
+  return detail === undefined || detail === "" || isDetail(detail);
+}
+
+export function isDetail(detail: string): boolean {
+  return isName(detail, MAX_DETAIL_LENGTH);
 }
 
 function putRow<RowId, Fields, Row extends { readonly id: RowId }>(
@@ -723,8 +744,8 @@ export type ServerMessage =
 
 export function createSplit(input: NewSplit): { readonly ok: true; readonly split: Split } | Rejected {
   const { items, adjustments, subtotal, total } = input.receipt;
-  const plain = ({ id, name, price, quantity = 1 }: Item): Item => (quantity === 1 ? { id, name, price } : { id, name, price, quantity });
-  const unclaimed = ({ id, name, price, quantity = 1 }: Item): SplitItem => ({ id, name, price, split: evenUnits(quantity) });
+  const plain = ({ quantity = 1, ...row }: Item): Item => (quantity === 1 ? row : { ...row, quantity });
+  const unclaimed = ({ quantity = 1, ...row }: Item): SplitItem => ({ ...row, split: evenUnits(quantity) });
   const [first, ...rest] = items;
   const receipt: Receipt<SplitItem> = { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total };
   const bare: Split = {
@@ -749,7 +770,7 @@ export function checkSplit(split: Split): Rejection | null {
   const rejection = checkState({ ...split, recentChanges: [] });
   if (rejection) return rejection;
   const { items, adjustments } = split.receipt;
-  const rowsNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH));
+  const rowsNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH)) && [...items, ...(split.original?.items ?? [])].every(({ detail }) => detail === undefined || isDetail(detail));
   const participantsNamed = split.participants.every(({ name }) => isName(name, MAX_PARTICIPANT_NAME_LENGTH));
   if (!rowsNamed || !participantsNamed) return { reason: "badName" };
   const revisions = split.recentChanges.map(({ revision }) => revision);

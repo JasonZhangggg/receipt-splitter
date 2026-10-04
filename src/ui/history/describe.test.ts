@@ -59,6 +59,16 @@ describe("historyOf", () => {
       { revision: 1, lead: "", before: "Sprite", after: "Sprite Zero", more: 0, sentAs: null, name: null, at: 1_000, reverted: false, revertible: true },
     ]);
   });
+
+  test("names a detail added, changed, and removed, and each can be reverted", () => {
+    const detail = (text: string): Operation => ({ by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, detail: text }] });
+
+    expect(historyOf(split(detail("Large"), detail("Small"), detail(""))).map(({ lead, before, after, revertible }) => [lead, before, after, revertible])).toEqual([
+      ['Removed "Small" from Sprite', undefined, undefined, true],
+      ["Sprite", "Large", "Small", true],
+      ['Added "Large" to Sprite', undefined, undefined, true],
+    ]);
+  });
 });
 
 test("whenText reads Just now, minutes, then the clock time", () => {

@@ -314,6 +314,16 @@ describe("reading OCR into the draft", () => {
     expect(request?.receipt.items[0]).toEqual({ id: "i1", name: "Guinness Draught", price: 2187, quantity: 3 });
   });
 
+  test("sends an Item's detail to the Split, through a price edit", () => {
+    const [first, ...rest] = receipt1040.items;
+    const receipt: Receipt = { ...receipt1040, items: [{ ...first, detail: "Large, $2.00 off", quantity: 2 }, ...rest] };
+    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt }, { type: "editItem", id: "i1", price: price(899) });
+
+    const request = requestOf(draft, () => participantId("p1"));
+
+    expect(request?.receipt.items[0]).toEqual({ id: "i1", name: "Chicken Fried Rice And Egg", price: 899, detail: "Large, $2.00 off", quantity: 2 });
+  });
+
   test("a failed read opens the empty editor and keeps the file", () => {
     const draft = run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt: null });
     expect(draft.scan).toEqual({
