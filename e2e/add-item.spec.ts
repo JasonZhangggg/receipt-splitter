@@ -9,19 +9,22 @@ const live = { timeout: 15_000 };
 
 type Row = { id: string; name: string; price: number };
 const rice: Row[] = [{ id: "rice", name: "Rice", price: 800 }];
+type Bundle = { id: string; kind: "bundleDiscount"; name: string; amount: number; bundle: { name: string; items: string[] } };
+const bucket: Bundle[] = [{ id: "bucket", kind: "bundleDiscount", name: "Bucket deal", amount: -200, bundle: { name: "Beer Bucket", items: ["pitcher", "sprite"] } }];
+const bucketRows: Row[] = [...rice, { id: "pitcher", name: "Pitcher", price: 1200 }, { id: "sprite", name: "Sprite", price: 250 }];
 const hundred: Row[] = Array.from({ length: 100 }, (_, at) => ({ id: `i${at}`, name: `Item ${at}`, price: 100 }));
 
 let creates = 0;
 
 /** The printed Subtotal counts `missing` cents more than `items`, as when the reading missed a line. */
-async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, missing = 0): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, missing = 0, adjustments: Bundle[] = []): Promise<string> {
   creates += 1;
   const subtotal = items.reduce((sum, { price }) => sum + price, missing);
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.54.${100 + workerIndex}.${creates}` },
     data: {
       split: {
-        receipt: { items, adjustments: [], subtotal, total: subtotal },
+        receipt: { items, adjustments, subtotal, total: subtotal + adjustments.reduce((sum, { amount }) => sum + amount, 0) },
         participants: [
           { id: "jason", name: "Jason" },
           { id: "sam", name: "Sam" },
@@ -205,8 +208,8 @@ async function slowFramesOpen(browser: Browser, link: string, rafDelay: number):
 }
 
 for (const rafDelay of [0, 200]) {
-  test(`the added row opens from nothing with its claim on every frame, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
-    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex), rafDelay);
+  test(`the added row's first painted frame is at height 0, and it opens with its claim on every frame, with frames ${rafDelay} ms late @frame-timing`, async ({ browser, request }, { workerIndex }) => {
+    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex, bucketRows, 0, bucket), rafDelay);
     await pick(sam, "Sam");
     await addRow(sam).click();
     await field(sam, "Item name").fill("Fries");
@@ -232,13 +235,15 @@ for (const rafDelay of [0, 200]) {
           frame(sample);
         }),
     );
+    await sam.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
 
     const seen = await frames;
     const full = seen.at(-1)!.height;
     expect(full).toBeGreaterThanOrEqual(44);
     expect(seen.every(({ claimed }) => claimed)).toBe(true);
-    expect(seen[0].height < full || seen[0].opacity < 0.5).toBe(true);
+    expect(seen[0].height).toBeLessThanOrEqual(4);
+    expect(seen[0].opacity).toBeLessThanOrEqual(0.1);
     expect(seen.every(({ height }, at) => at === 0 || height >= seen[at - 1].height)).toBe(true);
   });
 }

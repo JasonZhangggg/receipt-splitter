@@ -298,7 +298,13 @@ function Grow({ enter, children }: { enter: boolean; children: ReactNode }) {
           { height, opacity: 1, overflow: "hidden" },
         ];
     const opening = el.animate(frames, { duration: mount.reduce ? motion.reducedFade : motion.rowsIn, easing: motion.easeOut });
-    return () => opening.cancel();
+    // Held at its first frame until the frame that paints the row, so a slow commit cannot eat its start.
+    opening.pause();
+    const frame = requestAnimationFrame(() => opening.play());
+    return () => {
+      cancelAnimationFrame(frame);
+      opening.cancel();
+    };
   }, [mount]);
   return <View ref={box}>{children}</View>;
 }
