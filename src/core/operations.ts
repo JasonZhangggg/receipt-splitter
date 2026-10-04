@@ -400,7 +400,7 @@ function undo(split: Split, revision: number): Step {
   return { ok: true, split: { ...step.split, recentChanges }, record: { writes: step.record.writes, undoes: revision } };
 }
 
-function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] {
+function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | RejectionReason {
   switch (write.kind) {
     case "item": {
       const at = indexOf(split.receipt.items, write.id);
@@ -410,6 +410,17 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] {
       if (!("edit" in inverted) || !("edit" in write) || !write.edit.split || !current) return [{ kind: "item", ...inverted }];
       const [before] = write.edit.split;
       return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id))] } }];
+    }
+    case "split": {
+      const current = split.receipt.items.find(({ id }) => id === write.id);
+      if (!current || current.price !== unitPrices(write.line.price, write.line.quantity)[0]) return "conflict";
+      const before = write.line.split;
+      return [{ kind: "unsplit", id: write.id, ids: write.ids, line: { ...write.line, split: withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id)) } }];
+    }
+    case "unsplit": {
+      const current = split.receipt.items.find(({ id }) => id === write.id);
+      if (!current) return "conflict";
+      return [{ kind: "split", id: write.id, ids: write.ids, line: { quantity: current.quantity ?? 1, price: current.price, split: current.split } }];
     }
     case "adjustment":
       return [{ kind: "adjustment", ...invertRow(write, indexOf(split.receipt.adjustments, write.id)) }];
@@ -483,23 +494,49 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
 
 function splitWrites(split: Split, index: number, ids: NonEmpty<ItemId>): readonly Write[] | RejectionReason {
   const { items } = split.receipt;
-  const line = items[index];
-  const quantity = line.quantity ?? 1;
+  const { id, quantity = 1, price, split: claims } = items[index];
   if (ids.length !== quantity - 1) return "conflict";
-  if (new Set([...items.map(({ id }) => id), ...ids]).size !== items.length + ids.length) return "duplicateId";
-  const prices = unitPrices(line.price, quantity).map(asPrice);
+  if (new Set([...items.map((item) => item.id), ...ids]).size !== items.length + ids.length) return "duplicateId";
+  return [{ kind: "split", id, ids, line: { quantity, price, split: claims } }];
+}
+
+/** Turns the line into its rows, with the new ids right after the line's in any Bundle that lists it. */
+function splitLine(split: Split, { id, ids, line }: Extract<Write, { kind: "split" }>): Split | RejectionReason {
+  const { items, adjustments } = split.receipt;
+  const at = indexOf(items, id);
+  const current = items[at];
+  if (!current || !holds({ quantity: current.quantity ?? 1, price: current.price, split: current.split }, line)) return "conflict";
+  if (ids.length !== line.quantity - 1 || ids.some((rowId) => indexOf(items, rowId) !== -1)) return "conflict";
+  const prices = unitPrices(line.price, line.quantity).map(asPrice);
   const [first, ...rest] = splitRows(line.split, prices);
-  const edit = diff({ quantity, price: line.price, split: line.split }, { quantity: 1, price: prices[0], split: first });
-  if (!edit || edit === "emptyEdit") return "conflict";
-  return [
-    { kind: "item", id: line.id, edit },
-    ...ids.map((id, at): Write => ({ kind: "item", id, added: { index: index + 1 + at, name: line.name, price: prices[at + 1], ...(line.detail !== undefined && { detail: line.detail }), split: rest[at] } })),
-    ...split.receipt.adjustments.flatMap((row): Write[] => {
-      if (row.kind !== "bundleDiscount" || !row.bundle.items.includes(line.id)) return [];
-      const [head, ...tail] = row.bundle.items.flatMap((id) => (id === line.id ? [id, ...ids] : [id]));
-      return head === undefined ? [] : [{ kind: "adjustment", id: row.id, edit: { bundle: [row.bundle, { ...row.bundle, items: [head, ...tail] }] } }];
-    }),
-  ];
+  const { quantity: _, ...named } = current;
+  const rows = ids.map((rowId, row): SplitItem => ({ ...named, id: rowId, price: prices[row + 1], split: rest[row] }));
+  const [head, ...tail] = [...items.slice(0, at), { ...named, price: prices[0], split: first }, ...rows, ...items.slice(at + 1)];
+  const bundled = adjustments.map((row) => (row.kind === "bundleDiscount" && row.bundle.items.includes(id) ? { ...row, bundle: { ...row.bundle, items: withRowsAfter(row.bundle.items, id, ids) } } : row));
+  return { ...split, receipt: { ...split.receipt, items: [head, ...tail], adjustments: bundled } };
+}
+
+/** Folds the rows back into the line and drops them from every Bundle. */
+function unsplitLine(split: Split, { id, ids, line }: Extract<Write, { kind: "unsplit" }>): Split | RejectionReason {
+  const { items, adjustments } = split.receipt;
+  const current = items.find((item) => item.id === id);
+  if (!current || current.quantity !== undefined || ids.some((rowId) => indexOf(items, rowId) === -1)) return "conflict";
+  if (!claimersOf(line.split).every((claimer) => findParticipant(split, claimer))) return "conflict";
+  const gone = new Set<ItemId>(ids);
+  const restored: SplitItem = { ...current, price: line.price, ...(line.quantity !== 1 && { quantity: line.quantity }), split: line.split };
+  const [head, ...tail] = items.filter((item) => !gone.has(item.id)).map((item) => (item.id === id ? restored : item));
+  const bundles = adjustments.map((row) => {
+    if (row.kind !== "bundleDiscount") return row;
+    const [first, ...rest] = row.bundle.items.filter((itemId) => !gone.has(itemId));
+    return first === undefined ? null : { ...row, bundle: { ...row.bundle, items: [first, ...rest] as const } };
+  });
+  if (bundles.includes(null)) return "conflict";
+  return { ...split, receipt: { ...split.receipt, items: [head, ...tail], adjustments: bundles.filter((row) => row !== null) } };
+}
+
+function withRowsAfter(list: NonEmpty<ItemId>, id: ItemId, ids: NonEmpty<ItemId>): NonEmpty<ItemId> {
+  const [head, ...tail] = list.flatMap((itemId) => (itemId === id ? [itemId, ...ids] : [itemId]));
+  return [head ?? id, ...tail];
 }
 
 function leaveBundle(split: Split, itemId: ItemId): readonly Write[] {
@@ -580,6 +617,10 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       const rows = putRow(others, write, 1, ({ name }) => ({ id: write.id, name }));
       return typeof rows === "string" ? rows : { ...split, participants: [host, ...rows] };
     }
+    case "split":
+      return splitLine(split, write);
+    case "unsplit":
+      return unsplitLine(split, write);
     case "totals": {
       const subtotal = receipt.subtotal + write.subtotalDelta;
       const total = receipt.total + write.totalDelta;

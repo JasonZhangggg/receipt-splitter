@@ -310,7 +310,14 @@ function rowWrite<const Kind extends string, RowId, Full, Edit>(
   });
 }
 
-type OtherWrite = Exclude<Write | LegacyWrite, { readonly kind: "item" }>;
+type RowsWrite = Extract<Write, { readonly kind: "split" | "unsplit" }>;
+type OtherWrite = Exclude<Write | LegacyWrite, { readonly kind: "item" } | RowsWrite>;
+
+const quantityLine = strict(({ read }) => ({ quantity: read("quantity", storedQuantity), price: read("price", price), split: read("split", itemSplit) }));
+
+function rowsWrite<const Kind extends RowsWrite["kind"]>(kind: Kind) {
+  return strict(({ read }) => ({ kind: read("kind", literal(kind)), id: read("id", itemId), ids: read("ids", nonEmpty(itemId, MAX_QUANTITY - 1)), line: read("line", quantityLine) }));
+}
 
 function otherWrites(bundles: boolean): { readonly [Kind in OtherWrite["kind"]]: Parser<Extract<OtherWrite, { kind: Kind }>> } {
   return {
@@ -345,8 +352,8 @@ function otherWrites(bundles: boolean): { readonly [Kind in OtherWrite["kind"]]:
   };
 }
 
-function change<ItemWrite>(bundles: boolean, item: Parser<ItemWrite>) {
-  const write = tagged<ItemWrite | OtherWrite>("kind", { item, ...otherWrites(bundles) });
+function change<ItemWrite>(bundles: boolean, item: Parser<ItemWrite>, rows: { readonly [Kind in RowsWrite["kind"]]?: Parser<RowsWrite> } = {}) {
+  const write = tagged<ItemWrite | OtherWrite | RowsWrite>("kind", { item, ...otherWrites(bundles), ...rows });
   return strict(({ read, maybe }) => ({
     revision: read("revision", count),
     by: read("by", nullable(participantId)),
@@ -408,7 +415,7 @@ function legacyRows(version: LegacySplit["schemaVersion"]) {
 const LEGACY_ROWS = { 1: legacyRows(1), 2: legacyRows(2), 3: legacyRows(3) } as const;
 
 const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", itemId, itemFields, itemEdit);
-const currentChange: Parser<Change> = change(true, itemWrite);
+const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit") });
 const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment), original: receipt(receiptItem, anyAdjustment), change: currentChange };
 
 /** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */

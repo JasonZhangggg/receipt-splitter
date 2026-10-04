@@ -760,11 +760,7 @@ describe("quantity lines", () => {
       { id: "beer-b", name: "Guinness", price: 729, split: owners },
       { id: "beer-c", name: "Guinness", price: 729, split: owners },
     ]);
-    expect(split.recentChanges.at(-1)?.writes).toEqual([
-      { kind: "item", id: "beer", edit: { quantity: [3, 1], price: [2187, 729] } },
-      { kind: "item", id: "beer-b", added: { index: 2, name: "Guinness", price: 729, split: owners } },
-      { kind: "item", id: "beer-c", added: { index: 3, name: "Guinness", price: 729, split: owners } },
-    ]);
+    expect(split.recentChanges.at(-1)?.writes).toEqual([{ kind: "split", id: "beer", ids: ["beer-b", "beer-c"], line: { quantity: 3, price: 2187, split: owners } }]);
     expect(shares(split)).toEqual(shares(claimed));
     expect(shares(split)).toEqual([0, 1458, 729]);
   });
@@ -849,8 +845,30 @@ describe("quantity lines", () => {
       ["pineapple1", 849],
     ]);
     expect(split.receipt.adjustments[0]).toMatchObject({ bundle: { name: "Beer Bucket", items: ["ultra1", "guinness1", "guinness1-b", "guinness1-c", "pineapple1", "watermelon1"] } });
-    expect(split.recentChanges.at(-1)?.writes.map(({ kind }) => kind)).toEqual(["item", "item", "item", "adjustment"]);
+    expect(split.recentChanges.at(-1)?.writes.map(({ kind }) => kind)).toEqual(["split"]);
     expect(computeShares(split).shares.map(({ share }) => share)).toEqual([15777, 4952]);
+  });
+
+  test("Split of a 20x line with 10 claimers, a long name and a long detail fits one recorded change, and Revert brings the line back", () => {
+    const people = [bob, cat, ...Array.from({ length: 7 }, (_, at) => participantId(`guest-${String(at).padStart(2, "0")}-xxxxxxxxxxxxxxx`))];
+    const big: Receipt = { items: [{ id: fries, name: "W".repeat(80), detail: "D".repeat(120), price: price(200000), quantity: 20 }], adjustments: [], subtotal: cents(200000), total: cents(200000) };
+    const everyone = apply(
+      created(big),
+      ...people.map((id): Operation => ({ by: ann, type: "addParticipant", participant: { id, name: id } })),
+      ...[ann, ...people].map((id) => claim(id, fries)),
+      edit({ by: "amount", values: [ann, ...people].map((participantId, at) => ({ participantId, value: 6000 + at })) }, fries),
+    );
+    const ids = Array.from({ length: 19 }, (_, at) => itemId(`fries-row-${String(at + 2).padStart(2, "0")}-xxxxxxxxxx`));
+
+    const result = applyOperation(everyone, splitLine([ids[0], ...ids.slice(1)], fries), anyone);
+
+    expect(result.ok ? result.split.receipt.items.length : result.rejection).toBe(20);
+    const split = accepted(result);
+    expect(shares(split)).toEqual(shares(everyone));
+    expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
+    const reverted = apply(split, { by: cat, type: "undo", revision: split.revision });
+    expect(reverted.receipt).toEqual(everyone.receipt);
+    expect(apply(reverted, { by: cat, type: "undo", revision: reverted.revision }).receipt).toEqual(split.receipt);
   });
 
   test("Split of a one-unit line, with the wrong number of ids, or with an id already used is refused", () => {

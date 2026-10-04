@@ -161,6 +161,20 @@ describe("parseSplit", () => {
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
 
+  test("reads a stored Split and its Revert back unchanged, and refuses a Split record whose line has no quantity", () => {
+    const splitOp = { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] } as const;
+    const once = applyOperation(topgolf({ guinness1: [jason, priya] }), splitOp, { creator: false });
+    if (!once.ok) throw new Error(JSON.stringify(once.rejection));
+    const reverted = applyOperation(once.split, { by: priya, type: "undo", revision: once.split.revision }, { creator: false });
+    if (!reverted.ok) throw new Error(JSON.stringify(reverted.rejection));
+    const stored = JSON.parse(JSON.stringify(reverted.split));
+
+    expect(stored.recentChanges.slice(-2).map(({ writes }: { writes: { kind: string }[] }) => writes.map(({ kind }) => kind))).toEqual([["split"], ["unsplit"]]);
+    expect(parseSplit(stored)).toEqual({ ok: true, split: reverted.split });
+    stored.recentChanges.at(-1).writes[0].line.quantity = 1;
+    expect(parseSplit(stored)).toEqual({ ok: false, rejection: { reason: "malformed", path: `recentChanges[${stored.recentChanges.length - 1}].writes[0].line.quantity` } });
+  });
+
   test("refuses a stored Split from another schema version or one that breaks an invariant", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
 

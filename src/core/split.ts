@@ -148,8 +148,15 @@ export type Presence<RowId, Fields> =
 
 export type RowWrite<RowId, Fields> = Presence<RowId, Fields> | { readonly id: RowId; readonly edit: Edit<Fields> };
 
+/** What Split changes on a quantity line, and what Revert gives it back. */
+export type QuantityLine = { readonly quantity: number; readonly price: Price; readonly split: ItemSplit };
+
 export type Write =
   | ({ readonly kind: "item" } & RowWrite<ItemId, ItemFields>)
+  /** The line `id`, holding `line`, becomes one-unit rows: itself, then `ids`. The rows follow from `line`, so the write stays small at any quantity. */
+  | { readonly kind: "split"; readonly id: ItemId; readonly ids: NonEmpty<ItemId>; readonly line: QuantityLine }
+  /** The rows `ids` fold back into the row `id`, which takes `line`. */
+  | { readonly kind: "unsplit"; readonly id: ItemId; readonly ids: NonEmpty<ItemId>; readonly line: QuantityLine }
   | ({ readonly kind: "adjustment" } & RowWrite<AdjustmentId, AdjustmentFields>)
   | ({ readonly kind: "participant" } & Presence<ParticipantId, ParticipantFields>)
   | { readonly kind: "totals"; readonly subtotalDelta: Cents; readonly totalDelta: Cents }
@@ -183,7 +190,8 @@ export type SchemaVersion = 1 | 2 | 3 | 4;
 
 export function storedVersion({ receipt, original, recentChanges }: Pick<Split, "receipt" | "original" | "recentChanges">): SchemaVersion {
   const writes = recentChanges.flatMap((change) => change.writes);
-  const writesQuantity = (write: Write | LegacyWrite) => write.kind === "item" && ("edit" in write ? "quantity" in write.edit : ("added" in write ? write.added : write.removed).quantity !== undefined);
+  const writesQuantity = (write: Write | LegacyWrite) =>
+    write.kind === "split" || write.kind === "unsplit" || (write.kind === "item" && ("edit" in write ? "quantity" in write.edit : ("added" in write ? write.added : write.removed).quantity !== undefined));
   if (receipt.items.some(({ quantity }) => quantity !== undefined) || writes.some(writesQuantity)) return 4;
   const detailed = (items: readonly ItemRow[]) => items.some((item) => item.detail !== undefined);
   const writesDetail = (write: Write | LegacyWrite) => write.kind === "item" && ("edit" in write ? "detail" in write.edit : ("added" in write ? write.added : write.removed).detail !== undefined);
