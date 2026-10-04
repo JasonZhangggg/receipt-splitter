@@ -506,6 +506,34 @@ describe("Splits stored by each shipped release", () => {
     expect(golden("v2-2")).toEqual(golden("v2-1"));
   });
 
+  test("the V2-7b row holds Item details at version 3, and a version 2 row reads unchanged", () => {
+    const split = read("v2-7b");
+
+    expect(split.schemaVersion).toBe(3);
+    expect(split.receipt.items.flatMap(({ id, detail }) => (detail === undefined ? [] : [[id, detail]]))).toEqual([
+      ["gameplay", "2 bays, 1 hour"],
+      ["ultra1", "Ice cold"],
+      ["guinness1", "$2.00 off"],
+    ]);
+    expect(split.recentChanges.at(-1)?.writes).toEqual([{ kind: "item", id: "ultra1", edit: { detail: ["", "Ice cold"] } }]);
+    expect(computeShares(split).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
+      ["jason", 15777],
+      ["priya", 4952],
+    ]);
+    expect(JSON.parse(JSON.stringify(split))).toEqual(golden("v2-7b"));
+    expect(JSON.parse(JSON.stringify(read("v2-2")))).toEqual(golden("v2-2"));
+  });
+
+  test("refuses a detail over 120 characters, and a detail in a row stored before version 3", () => {
+    const stored = golden("v2-7b") as Split;
+    const [first, ...rest] = stored.receipt.items;
+    const long = { ...stored, receipt: { ...stored.receipt, items: [{ ...first, detail: "x".repeat(121) }, ...rest] } };
+
+    expect(parseSplit({ ...long, receipt: { ...long.receipt, items: [{ ...first, detail: "x".repeat(120) }, ...rest] } }).ok).toBe(true);
+    expect(parseSplit(long)).toEqual(badName);
+    expect(parseSplit({ ...stored, schemaVersion: 2 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].detail" } });
+  });
+
   test("a row the current release writes reads back unchanged", () => {
     expect(JSON.parse(JSON.stringify(read("rs-11")))).toEqual(golden("rs-11"));
   });

@@ -6,7 +6,7 @@ import { build } from "esbuild";
 
 const releases = process.argv.length > 2
   ? process.argv.slice(2).map((pair) => pair.split("="))
-  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"], ["v2-2", "1ed0165", "topgolfBundles"]];
+  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"], ["v2-2", "1ed0165", "topgolfBundles"], ["v2-7b", "04e5d2d", "topgolfDetails"]];
 
 const dinner = `
 import { applyOperation, createSplit } from "./src/core/operations";
@@ -54,7 +54,9 @@ process.stdout.write(JSON.stringify(split, null, 2) + "\\n");
 const bucketOne = ["ultra1", "guinness1", "pineapple1", "watermelon1"];
 const bucketTwo = ["ultra2", "guinness2", "pineapple2", "watermelon2"];
 
-const topgolf = (bucketKind) => `
+const details = { gameplay: "2 bays, 1 hour", guinness1: "$2.00 off" };
+
+const topgolf = (bucketKind, detailed = false) => `
 import { applyOperation, createSplit } from "./src/core/operations";
 const items = [
   ["gameplay", "Gameplay", 8775, 1],
@@ -74,7 +76,7 @@ const created = createSplit({
   participants: [{ id: "jason", name: "Jason" }, { id: "priya", name: "Priya" }],
   paymentHandles: [{ service: "venmo", handle: "jason-host" }],
   receipt: {
-    items: items.map(([id, name, price, quantity]) => (quantity === 1 ? { id, name, price } : { id, name, price, quantity })),
+    items: items.map(([id, name, price, quantity]) => ({ id, name, price, ...(quantity > 1 && { quantity }), ...(${detailed} && ${JSON.stringify(details)}[id] && { detail: ${JSON.stringify(details)}[id] }) })),
     adjustments: [
       { id: "bucket1", name: "Beer Bucket Discount (10%)", amount: -451, ...${bucketKind}(${JSON.stringify(bucketOne)}) },
       { id: "bucket2", name: "Beer Bucket Discount (10%)", amount: -463, ...${bucketKind}(${JSON.stringify(bucketTwo)}) },
@@ -92,6 +94,7 @@ const ops = [
   { by: "priya", type: "pick", participantId: "priya", device: "priyas-phone", takeOver: false },
   ...items.flatMap(([id, , , quantity]) => Array.from({ length: quantity }, (_, unit) => ({ by: owner(id), type: "claim", itemId: id, participantId: owner(id), unit }))),
   { by: "jason", type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: "tip", name: "Tip (18%)" }] },
+  ...(${detailed} ? [{ by: "priya", type: "editReceipt", items: [{ type: "edit", itemId: "ultra1", detail: "Ice cold" }] }] : []),
 ];
 for (const op of ops) {
   const result = applyOperation(split, op, { creator: true }, 1767225600000);
@@ -116,6 +119,7 @@ const drivers = {
   dinner: { source: dinner, finish: (json) => json },
   topgolf: { source: topgolf("discount"), finish: asV2_2Writes },
   topgolfBundles: { source: topgolf("bundle"), finish: pretty },
+  topgolfDetails: { source: topgolf("bundle", true), finish: pretty },
 };
 
 const root = resolve(import.meta.dirname, "..");
