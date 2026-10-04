@@ -1,6 +1,6 @@
 import { deviceId, isId, randomId, type DeviceId, type ParticipantId, type SplitId } from "./core/split";
 
-export type SplitOnDevice = { readonly creatorSecret?: string; readonly me?: ParticipantId; readonly shared?: true };
+export type SplitOnDevice = { readonly creatorSecret?: string; readonly me?: ParticipantId };
 
 const keyOf = (id: SplitId) => `receipt-splitter:split:${id}`;
 const deviceKey = "receipt-splitter:device";
@@ -9,18 +9,17 @@ export function splitOnDevice(id: SplitId): SplitOnDevice {
   try {
     const saved: unknown = JSON.parse(globalThis.localStorage?.getItem(keyOf(id)) ?? "null");
     if (typeof saved !== "object" || saved === null) return {};
-    const { creatorSecret, me, shared } = saved as Record<string, unknown>;
+    const { creatorSecret, me } = saved as Record<string, unknown>;
     return {
       ...(typeof creatorSecret === "string" ? { creatorSecret } : {}),
       ...(isId<"ParticipantId">(me) ? { me } : {}),
-      ...(shared === true ? { shared } : {}),
     };
   } catch {
     return {};
   }
 }
 
-export function rememberSplit(id: SplitId, change: { creatorSecret?: string; me?: ParticipantId | null; shared?: true }) {
+export function rememberSplit(id: SplitId, change: { creatorSecret?: string; me?: ParticipantId | null }) {
   const { me, ...rest } = { ...splitOnDevice(id), ...change };
   try {
     globalThis.localStorage?.setItem(keyOf(id), JSON.stringify(me === null ? rest : { ...rest, me }));

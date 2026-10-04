@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button } from "../components/button";
@@ -9,25 +9,17 @@ const copiedFor = 1600;
 const keptEnd = 6;
 
 /** The link on one line, cut in the middle so its host and the end of its id both show, with Copy and, where the phone can share, Share. */
-export function LinkLine({ url, onShared }: { url: string; onShared: () => void }) {
+export function LinkLine({ url }: { url: string }) {
   const c = useColors();
   const [copied, setCopied] = useState(false);
   const [problem, setProblem] = useState(false);
-  const done = useEffectEvent(onShared);
   useEffect(() => {
     if (!copied) return;
-    const timer = setTimeout(() => {
-      setCopied(false);
-      done();
-    }, copiedFor);
+    const timer = setTimeout(() => setCopied(false), copiedFor);
     return () => clearTimeout(timer);
   }, [copied]);
   const sharable = typeof navigator !== "undefined" && typeof navigator.share === "function";
-  const share = () =>
-    navigator.share({ url }).then(
-      () => onShared(),
-      () => {},
-    );
+  const share = () => navigator.share({ url }).catch(() => {});
   const copy = () =>
     navigator.clipboard.writeText(url).then(
       () => {

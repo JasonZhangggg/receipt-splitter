@@ -776,9 +776,53 @@ V2-7b moves home's scan onto the route, with the on-device reader as the fallbac
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
 - [ ] The root merges V2-7b and confirms the deploy. A production check that needs a new Split uses the handle @test-debug and says so (preferences 54).
 
-## Queued: the bar after a pick
+## Show your share in the bar after a pick
 
-Intent only. A full section with boxes comes before the build. After someone picks their name, the collapsed bar shows "Your share" with an up-arrow that pulls up their breakdown (preferences 26). The bar has no link row, because the header's **Share** button covers sharing. The pay button stays in the expanded breakdown, not in the bar (preferences 27). It builds on `fix/flash-root`.
+**Depends on.** PR 40 (`fix/flash-root`), which fades the bar's content through and keeps the chips in a fixed header. It branches from `main` at `629a862` or later.
+
+After someone picks their name, the collapsed bar shows **Your share** with their amount and an up-arrow that pulls up their breakdown (preferences 26). The bar has no link row, because the header's **Share** button covers sharing. The pay button stays in the expanded breakdown, not in the bar (preferences 27). The pick sheet keeps the full link row and its close button (preferences 25). Today a Host who has not shared the link sees the link row in place of the share line, both collapsed and above the breakdown, and a guest's line says "You owe".
+
+**Files.**
+
+- [ ] Edit `src/ui/split-view/model.ts` and `src/ui/split-view/model.test.ts`.
+- [ ] Edit `app/s/[id].tsx`.
+- [ ] Edit `src/ui/split-view/link-line.tsx`, `src/ui/split-view/pick-sheet.tsx`, and `src/device.ts`.
+- [ ] Edit `e2e/join.spec.ts` and `e2e/pay.spec.ts`.
+- [ ] Edit `features/join.md`, `features/claim.md`, `features/pay.md`, and `features/README.md` in `verify-receipt-splitter`.
+
+**Build.**
+
+- [ ] Name the bar's states as a type before any view code. `Bar` is `ask` (no name picked), `share` (picked, collapsed), or `breakdown` with the person it shows (picked, expanded). `barFor(me, expanded, selected)` derives it, so an expanded bar with no pick cannot exist.
+- [ ] The page renders from `Bar` alone. The sheet's `view` key, `onUp`, and `onDown` come from the same value.
+- [ ] `share` shows **Your share**, the amount, and the up-arrow for everyone, Host and guest alike. A tap or a swipe up opens `breakdown`.
+- [ ] Delete the link row from the bar and from above the breakdown. Delete the `shared` flag in device memory, which only decided that row, and the `onShared` callbacks that set it.
+- [ ] Leave the pick sheet as it is. It closes without a pick and shows the link, **Copy**, and **Share** on one line.
+- [ ] No new motion. The bar's content swap keeps PR 40's fade-through.
+
+**You see.**
+
+- [ ] On a phone, create a link and pick your name. The bar shows the chips, then **Your share $0.00** with an up-arrow, and no link. Tap it. Your breakdown rises with no link row above it. Open the link in another browser as Sam, check Pho, and the bar says **Your share $14.20**. Pull it up, and the **Pay Jason $14.20 on Venmo** button shows under the total.
+
+**Seams.**
+
+- [ ] `barFor` in `src/ui/split-view/model.ts`, through `src/ui/split-view/model.test.ts`.
+- [ ] The Split page through Playwright in `e2e/join.spec.ts` (the Host) and `e2e/pay.spec.ts` (a guest).
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `src/ui/split-view/model.test.ts`. No pick gives `ask` whether or not the bar was expanded; a pick gives `share` collapsed and `breakdown` of the selected person expanded, falling back to the picker. Run `npm test`.
+- [ ] `e2e/join.spec.ts`. After the Host picks on an unshared link, the bar shows **Your share** and no link row or **Copy**; tapping Sam's chip shows Sam's breakdown with no link row. **Copy** and the no-share case move to the pick sheet, where the link now lives. Run `npm run e2e`.
+- [ ] `e2e/pay.spec.ts`. A guest who checked a line sees **Your share $14.20** and no pay link in the collapsed bar, and the Venmo pay link in the expanded breakdown. Run `npm run e2e`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Lane 1. Against `verify-receipt-splitter` on a port from 9300 to 9399, capture the Host and a guest at 390 px, light and dark: before the pick, after the pick collapsed, and after the pick expanded. Pass when no collapsed bar shows the link row or a pay button, and every expanded guest breakdown shows the pay button.
+- [ ] Lane 2. `motion.mjs` in every lane and `flash-census.mjs` at 0 of 180.
+- [ ] Lane 3. The iOS census on the owner's own simulator device: the pick (the pick sheet closing into the bar), a flick up and down on the bar after a pick, and closing the pick sheet without a pick. Pass at 0 flagged frames each.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Brotli bytes of every script `dist/index.html` loads. Probe `npm run size` at trunk and head. Rule. Fail on any growth over 1 KB.
 
 ## Queued: quantities follow the receipt
 
