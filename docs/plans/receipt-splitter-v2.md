@@ -792,7 +792,7 @@ A reload of home starts a new split: no receipt, no photo, no names. The payment
 
 **Files.**
 
-- [ ] Edit `src/draft.ts` and `src/draft.test.ts`.
+- [ ] Edit `src/draft.ts`, `src/draft.test.ts`, and `app/index.tsx`.
 - [ ] Edit `e2e/join.spec.ts` and `e2e/scan.spec.ts`.
 - [ ] Add `e2e/fixtures/example-total-over-limit.png` through `e2e/fixtures/make-fixtures.py`. The home editor tests reached the editor through a stored Draft; a read whose Total is over the limit reaches it the way a Host does.
 - [ ] Edit `features/home.md` in `verify-receipt-splitter`.
@@ -801,9 +801,10 @@ A reload of home starts a new split: no receipt, no photo, no names. The payment
 
 - [ ] Reproduce the prefilled handle in Safari on an iOS Simulator device of the owner's own, before any fix. Record what the field shows against what the Draft holds after a reload, a crash reload of the tab, and a Safari relaunch.
 - [ ] Store only the payment handles. The stored value is `{ version: 2, handles }` under the same key, so the first save after this PR overwrites a version 1 Draft and its receipt thumbnail. A version 1 value still yields its handles, so nobody retypes a handle after the deploy.
-- [ ] `loadDraft` returns the empty Draft with the stored handles, and `saveDraft` stores only the handles, so `app/index.tsx` does not change.
+- [ ] `loadDraft` returns the empty Draft with the stored handles, and `saveDraft` stores only the handles.
+- [ ] Back to home remounts it without a reload. Home keeps the whole Draft for the life of the page in `app/index.tsx`, so a receipt replaced during Create still waits on home after Back (PR 33bece3), and only a reload starts over.
 - [ ] Delete the code that only read a stored receipt back: the stored-scan parser and its Item, Adjustment, Bundle, and file checks.
-- [ ] The PR changes no UI code, no motion, and no UI text.
+- [ ] The PR changes no layout, no motion, and no UI text.
 
 **You see.**
 
