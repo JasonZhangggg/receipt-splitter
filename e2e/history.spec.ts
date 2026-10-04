@@ -24,6 +24,8 @@ const jason: Stored = { id: "JasonSam00000000000002", names: ["Jason", "Sam"], t
 const priya: Stored = { id: "PriyaJo000000000000003", names: ["Priya", "Jo"], total: 12875, added: now - DAY - 60_000 };
 const kim: Stored = { id: "KimLee00000000000000004", names: ["Kim", "Lee"], total: 3100, added: now - 5 * DAY };
 const omar: Stored = { id: "OmarNia0000000000000005", names: ["Omar"], total: 560, added: now - 6 * DAY };
+const lin: Stored = { id: "LinOnly0000000000000006", names: ["Lin"], total: 1400, added: now - 14 * DAY };
+const max: Stored = { id: "MaxIvy00000000000000007", names: ["Max", "Ivy"], total: 7700, added: now - 24 * DAY };
 
 async function seed(page: Page, splits: Stored[]) {
   await page.clock.setFixedTime(now);
@@ -35,17 +37,21 @@ async function seed(page: Page, splits: Stored[]) {
   await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
 }
 
-const recent = (page: Page) => page.getByRole("region", { name: "Recent splits" });
-const rows = (page: Page) => recent(page).getByRole("link");
+const icon = (page: Page) => page.getByRole("button", { name: "Recent splits" });
+const list = (page: Page) => page.getByRole("dialog", { name: "Recent splits" });
+const rows = (page: Page) => list(page).getByRole("link");
 const action = (page: Page) => page.getByRole("button", { name: "Create split link" });
+const labels = (page: Page) => rows(page).evaluateAll((links) => links.map((link) => link.getAttribute("aria-label")));
+const focusedName = (page: Page) => page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? null);
 
-test("a fresh home shows no Recent splits", async ({ page }) => {
+test("a fresh home shows no Recent splits icon", async ({ page }) => {
   await page.goto("/");
   await expect(action(page)).toBeVisible();
+  await expect(icon(page)).toHaveCount(0);
   await expect(page.getByText("Recent splits")).toHaveCount(0);
 });
 
-test("a Split this browser created heads the fresh home's Recent splits, and a tap opens its link", async ({ page }) => {
+test("a Split this browser created heads Recent splits on the fresh home, and a tap opens its link", async ({ page }) => {
   await page.goto("/");
   await openExample(page);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
@@ -64,6 +70,7 @@ test("a Split this browser created heads the fresh home's Recent splits, and a t
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
+  await icon(page).click();
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, ${total}`);
   await rows(page).first().click();
@@ -71,21 +78,70 @@ test("a Split this browser created heads the fresh home's Recent splits, and a t
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
-test("three stored Splits list newest first with their names, days, and totals, between the hero and the panel", async ({ page }) => {
-  await seed(page, [ana, jason, priya]);
-  await expect(rows(page)).toHaveCount(3);
-  expect(await rows(page).evaluateAll((links) => links.map((link) => link.getAttribute("aria-label")))).toEqual([
+test("the icon sits at the top right of home and its sheet lists every stored Split newest first, past five", async ({ page }) => {
+  await seed(page, [ana, jason, priya, kim, omar, lin, max]);
+  await expect(page.getByText("Recent splits")).toHaveCount(0);
+  const box = (await icon(page).boundingBox())!;
+  expect(box.x + box.width).toBeGreaterThanOrEqual(phone.width - 22);
+  expect(box.y + box.height).toBeLessThanOrEqual(72);
+  expect([box.width, box.height]).toEqual([44, 44]);
+
+  await icon(page).click();
+  await expect(list(page).getByRole("heading", { name: "Recent splits" })).toBeVisible();
+  expect(await labels(page)).toEqual([
     "Jason and Sam, Today, $42.10",
     "Priya and Jo, Yesterday, $128.75",
     "Ana, Ben, and 2 more, Oct 1, $9.90",
+    "Kim and Lee, Sep 29, $31.00",
+    "Omar, Sep 28, $5.60",
+    "Lin, Sep 20, $14.00",
+    "Max and Ivy, Sep 10, $77.00",
   ]);
-  expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual([`/s/${jason.id}`, `/s/${priya.id}`, `/s/${ana.id}`]);
+  expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual(
+    [jason, priya, ana, kim, omar, lin, max].map(({ id }) => `/s/${id}`),
+  );
+});
 
-  const hero = (await page.getByRole("button", { name: /^Add receipt/ }).boundingBox())!;
-  const list = (await recent(page).boundingBox())!;
-  const panel = await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
-  expect(list.y).toBeGreaterThanOrEqual(hero.y + hero.height);
-  expect(list.y + list.height).toBeLessThanOrEqual(panel);
+test("the phone sheet closes on a scrim tap and on Escape, and focus returns to the icon", async ({ page }) => {
+  await seed(page, [ana, jason]);
+  await icon(page).click();
+  await expect(rows(page)).toHaveCount(2);
+  await page.mouse.click(phone.width / 2, 40);
+  await expect(list(page)).toHaveCount(0);
+  expect(await focusedName(page)).toBe("Recent splits");
+
+  await icon(page).click();
+  await expect(rows(page)).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await expect(list(page)).toHaveCount(0);
+  expect(await focusedName(page)).toBe("Recent splits");
+});
+
+test("at 1440 px the list is a popover under the icon that closes on an outside click and on Escape, with focus back on the icon", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await seed(page, [ana, jason, priya, kim, omar, lin]);
+  const button = (await icon(page).boundingBox())!;
+  expect(button.x + button.width).toBeGreaterThan(1440 - 80);
+  await icon(page).click();
+  await expect(rows(page)).toHaveCount(6);
+  const popover = (await list(page).boundingBox())!;
+  expect(popover.y).toBeGreaterThanOrEqual(button.y + button.height);
+  expect(Math.abs(popover.x + popover.width - (button.x + button.width))).toBeLessThanOrEqual(16);
+  expect(popover.width).toBeLessThan(480);
+
+  await page.mouse.click(200, 600);
+  await expect(list(page)).toHaveCount(0);
+  expect(await focusedName(page)).toBe("Recent splits");
+
+  await icon(page).click();
+  await expect(rows(page)).toHaveCount(6);
+  await page.keyboard.press("Escape");
+  await expect(list(page)).toHaveCount(0);
+  expect(await focusedName(page)).toBe("Recent splits");
+
+  await icon(page).click();
+  await rows(page).nth(1).click();
+  await expect(page).toHaveURL(new RegExp(`/s/${priya.id}$`));
 });
 
 test("a Split this browser last opened 61 days ago is not listed, and one opened 59 days ago is", async ({ page }) => {
@@ -93,73 +149,49 @@ test("a Split this browser last opened 61 days ago is not listed, and one opened
     { ...jason, added: now - 90 * DAY, seen: now - 61 * DAY },
     { ...priya, added: now - 90 * DAY, seen: now - 59 * DAY },
   ]);
+  await icon(page).click();
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 });
 
-test("an entry whose link says the split has expired is gone back on home", async ({ page }) => {
+test("an entry whose link says the split has expired is gone back on home, and the icon hides with the last one", async ({ page }) => {
   await seed(page, [jason, priya]);
+  await icon(page).click();
   await rows(page).first().click();
   await expect(page).toHaveURL(new RegExp(`/s/${jason.id}$`));
   await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(page).toHaveURL(/\/$/);
+  await icon(page).click();
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
+
+  await rows(page).first().click();
+  await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
+  await page.getByRole("button", { name: "Split a receipt" }).last().click();
+  await expect(action(page)).toBeVisible();
+  await expect(icon(page)).toHaveCount(0);
 });
 
-test("the list hides once a receipt is on home", async ({ page }) => {
-  await seed(page, [jason]);
-  await expect(rows(page)).toHaveCount(1);
-  await openExample(page);
-  await expect(page.getByText("Recent splits")).toHaveCount(0);
-});
-
-test("five stored Splits show three on the phone, with the list ending above the panel", async ({ page }) => {
-  await seed(page, [ana, jason, priya, kim, omar]);
-  await expect(rows(page)).toHaveCount(3);
-  expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual([`/s/${jason.id}`, `/s/${priya.id}`, `/s/${ana.id}`]);
-  const list = (await recent(page).boundingBox())!;
-  const panel = await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
-  expect(panel - (list.y + list.height)).toBeLessThanOrEqual(40);
-});
-
-const shownAbovePanel = (page: Page) =>
-  page.evaluate(() => {
-    const panel = document.querySelector("[data-sheet-surface]")!.getBoundingClientRect().top;
-    const bottoms = [...document.querySelectorAll('[aria-label="Recent splits"] a')].map((row) => row.getBoundingClientRect().bottom);
-    return { shown: bottoms.length, above: bottoms.filter((bottom) => bottom <= panel).length };
+const dashedBox = (page: Page) =>
+  page.getByRole("button", { name: /^Add receipt/ }).evaluate((hero) => {
+    const box = [hero, ...hero.querySelectorAll("div")].find((el) => getComputedStyle(el).borderTopStyle === "dashed")!.getBoundingClientRect();
+    const header = document.querySelector('[role="heading"][aria-level="1"]')!.getBoundingClientRect();
+    const panel = document.querySelector("[data-sheet-surface]")!.getBoundingClientRect();
+    return { aboveBox: Math.round(box.top - header.bottom), belowBox: Math.round(panel.top - box.bottom), top: Math.round(box.top), bottom: Math.round(box.bottom) };
   });
 
-test("on a shorter phone, Recent splits shows only the rows that end above the panel, and shows more once there is room", async ({ page }) => {
-  await seed(page, [ana, jason, priya, kim, omar]);
-  expect(await shownAbovePanel(page)).toEqual({ shown: 3, above: 3 });
-
-  await page.setViewportSize({ width: 390, height: 700 });
-  await seed(page, [ana, jason, priya, kim, omar]);
-  const at700 = await shownAbovePanel(page);
-  expect(at700.above).toBe(at700.shown);
-  expect(at700.shown).toBeLessThan(3);
-
-  await page.setViewportSize({ width: 390, height: 600 });
-  await seed(page, [ana, jason, priya, kim, omar]);
-  const at600 = await shownAbovePanel(page);
-  expect(at600.above).toBe(at600.shown);
-  expect(at600.shown).toBeLessThanOrEqual(at700.shown);
-
-  await page.setViewportSize(phone);
-  await expect.poll(() => shownAbovePanel(page)).toEqual({ shown: 3, above: 3 });
-});
-
-test("at 1440 px five stored Splits show five, under Create split link, sharing the column's left edge and width", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await seed(page, [ana, jason, priya, kim, omar]);
-  await expect(rows(page)).toHaveCount(5);
-  const create = (await action(page).boundingBox())!;
-  const list = (await recent(page).boundingBox())!;
-  expect(list.y).toBeGreaterThan(create.y + create.height);
-  expect([Math.round(list.x), Math.round(list.width)]).toEqual([Math.round(create.x), Math.round(create.width)]);
-});
+for (const height of [844, 700]) {
+  test(`at 390 by ${height} the dashed Add receipt box fills the page from the header to the panel`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height });
+    await seed(page, [jason]);
+    const { aboveBox, belowBox } = await dashedBox(page);
+    expect(aboveBox).toBeGreaterThanOrEqual(0);
+    expect(aboveBox).toBeLessThanOrEqual(36);
+    expect(belowBox).toBeGreaterThanOrEqual(0);
+    expect(belowBox).toBeLessThanOrEqual(28);
+  });
+}
 
 const blockStorage = (page: Page) =>
   page.addInitScript(() =>
@@ -206,16 +238,17 @@ const aboveKeyboard = (field: Locator) =>
     return top >= offsetTop && bottom <= offsetTop + height;
   });
 
-test("with three Splits and the iPhone keyboard up, the focused handle field stays above the keyboard and the panel keeps its page position", async ({ page }) => {
+test("with stored Splits and the iPhone keyboard up, the focused handle field stays above the keyboard and nothing on home moves", async ({ page }) => {
   await simulateKeyboard(page, iphoneKeyboard);
   await seed(page, [ana, jason, priya]);
-  await expect(rows(page)).toHaveCount(3);
-  const panelTop = () => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(el.getBoundingClientRect().top));
-  const rest = await panelTop();
+  await expect(icon(page)).toBeVisible();
+  const panelTop = () => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY));
+  const boxTop = async () => (await dashedBox(page)).top + (await page.evaluate(() => Math.round(window.scrollY)));
+  const rest = { panel: await panelTop(), box: await boxTop() };
   const handle = page.getByRole("textbox", { name: "Venmo handle" });
   await handle.tap();
   await expect(handle).toBeFocused();
   await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height - iphoneKeyboard);
   await expect.poll(() => aboveKeyboard(handle)).toBe(true);
-  expect(await panelTop()).toBe(rest);
+  expect({ panel: await panelTop(), box: await boxTop() }).toEqual(rest);
 });

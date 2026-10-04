@@ -36,8 +36,6 @@ const text: [fg: keyof Colors, bg: keyof Colors][] = [
 ];
 
 const shapes: [fg: keyof Colors, bg: keyof Colors][] = [
-  ["dash", "field"],
-  ["dash", "paper"],
   ["action", "field"],
   ["action", "sheet"],
   ["focus", "field"],
@@ -52,5 +50,12 @@ describe.each(["light", "dark"] as const)("%s colors", (scheme) => {
 
   test.each(shapes)("%s shape on %s meets WCAG AA 3:1", (fg, bg) => {
     expect(contrast(colors[scheme][fg], colors[scheme][bg])).toBeGreaterThanOrEqual(3);
+  });
+
+  // The Add receipt box's dashes are a quiet edge (preferences 66); its camera button and label name the control.
+  test.each(["field", "paper"] as const)("dash on %s stays visible at 1.8:1 and lighter than the 3:1 shapes", (bg) => {
+    const ratio = contrast(colors[scheme].dash, colors[scheme][bg]);
+    expect(ratio).toBeGreaterThanOrEqual(1.8);
+    expect(ratio).toBeLessThan(3);
   });
 });
