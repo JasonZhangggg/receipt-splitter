@@ -46,11 +46,18 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
   const [adding, setAdding] = useState<string | null>(null);
   const flushRef = useRef<() => void>(() => {});
   const [shown, setShown] = useState<SplitItem | undefined>(() => split.receipt.items.find(({ id }) => id === itemId));
-  const [leaving, setLeaving] = useState<SplitItem | null>(null);
+  const [leaving, setLeaving] = useState<Leaving | null>(null);
+  const [enterAfter, setEnterAfter] = useState<number | null>(null);
+  const [fade, setFade] = useState<Fade | null>(null);
+  const incomingRef = useRef<View>(null);
+  const leavingRef = useRef<View>(null);
   useEffect(() => {
     if (!leaving) return;
-    const timer = setTimeout(() => setLeaving(null), rowsFadeOut);
+    const timer = setTimeout(() => setLeaving(null), leaving.ms);
     return () => clearTimeout(timer);
+  }, [leaving]);
+  useLayoutEffect(() => {
+    if (leaving) dom(leavingRef.current)?.animate([{ opacity: leaving.from }, { opacity: 0 }], { duration: leaving.ms, easing: motion.easeOut, fill: "forwards" });
   }, [leaving]);
 
   const patch = (edit: ItemEdit): Operation => ({ by: me, type: "editReceipt", items: [{ type: "edit", itemId, ...edit }] });
@@ -82,7 +89,15 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
   useEffect(() => () => flushRef.current(), []);
 
   if (item && shown && item.split.by !== shown.split.by) {
-    setLeaving(shown);
+    const { from, left } = fade ?? settled;
+    if (from > unseen) {
+      const ms = Math.round(rowsFadeOut * from);
+      setLeaving({ item: shown, from, ms });
+      setEnterAfter(ms);
+    } else {
+      setEnterAfter(left);
+    }
+    setFade(null);
     setShown(item);
   }
   if (!item || unit >= item.split.units.length) return null;
@@ -193,14 +208,20 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
         )}
       </View>
       <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.split}</Text>
-      <Segments value={item.split.by} onChange={(by) => edit({ by })} />
+      <Segments
+        value={item.split.by}
+        onChange={(by) => {
+          if (by !== item.split.by) setFade({ from: opacityOf(incomingRef.current), left: msLeft(leavingRef.current) });
+          edit({ by });
+        }}
+      />
       <View>
-        <View key={item.split.by} style={reduce ? null : rowsEnter}>
+        <View ref={incomingRef} key={item.split.by} style={reduce ? null : enterAfter === null ? rowsEnter : [rowsEnterAfter, webStyle({ animationDelay: `${enterAfter}ms` })]}>
           <SplitRows item={item} unit={unit} me={me} nameOf={nameOf} edit={edit} />
         </View>
         {leaving && !reduce ? (
-          <View key={`${leaving.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, rowsLeave]}>
-            <SplitRows item={leaving} unit={unit} me={me} nameOf={nameOf} edit={() => {}} />
+          <View ref={leavingRef} key={`${leaving.item.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, { opacity: leaving.from }]}>
+            <SplitRows item={leaving.item} unit={unit} me={me} nameOf={nameOf} edit={() => {}} />
           </View>
         ) : null}
       </View>
@@ -341,12 +362,28 @@ const rowsEnter = webAnimation({
   animationDuration: `${rowsFadeIn}ms`,
   animationTimingFunction: motion.easeOut,
 });
-const rowsLeave = webAnimation({
-  animationKeyframes: [{ from: { opacity: 1 }, to: { opacity: 0 } }],
-  animationDuration: `${rowsFadeOut}ms`,
+// After a swap the old rows fade out fully first, so the two copies are never both visible. The delay is set inline to what is left of that fade.
+const rowsEnterAfter = webAnimation({
+  animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
+  animationDuration: `${rowsFadeIn}ms`,
+  animationFillMode: "backwards",
   animationTimingFunction: motion.easeOut,
-  animationFillMode: "forwards",
 });
+
+type Leaving = { item: SplitItem; from: number; ms: number };
+// What the user was seeing when they switched: the incoming rows' opacity, and the animation time left on the leaving layer.
+type Fade = { from: number; left: number };
+const settled: Fade = { from: 1, left: 0 };
+
+const unseen = 0.02;
+const dom = (node: View | null) => (Platform.OS === "web" ? (node as unknown as HTMLElement | null) : null);
+const opacityOf = (node: View | null) => {
+  const el = dom(node);
+  return el ? Number(getComputedStyle(el).opacity) : 1;
+};
+// Animation time left on the node, the same clock a CSS delay runs on.
+const msLeft = (node: View | null) =>
+  Math.max(0, ...(dom(node)?.getAnimations().map((fade) => Number(fade.effect?.getComputedTiming().endTime) - Number(fade.currentTime)) ?? []));
 
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
