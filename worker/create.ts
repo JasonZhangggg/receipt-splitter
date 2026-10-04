@@ -1,7 +1,7 @@
 import type { CreateSplitRefusal, CreateSplitResponse } from "../src/core/operations";
 import { parseCreateSplitRequest } from "../src/core/parse";
 import { SPLIT_BYTE_BUDGET, SPLIT_ID_LENGTH, isRoutableSplitId, randomId, type MintedSplitId } from "../src/core/split";
-import { DAILY_CAP_NAME, limiterKey } from "./rate-limit";
+import { CREATE_LIMIT, DAILY_CAP_NAME, DAILY_CREATE_CAP, limiterKey } from "./rate-limit";
 
 const MAX_CREATE_BODY_BYTES = SPLIT_BYTE_BUDGET + 4 * 1024;
 
@@ -19,11 +19,11 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
     return refuse(503, { refused: "unavailable" });
   }
   const cap = env.CreateLimiter.getByName(DAILY_CAP_NAME);
-  const room = await cap.peekToday();
+  const room = await cap.peekToday({ cap: DAILY_CREATE_CAP });
   if (!room.ok) return tooMany("dailyLimit", room.retryAfterMs);
-  const admission = await env.CreateLimiter.getByName(limiterKey(ip)).admit();
+  const admission = await env.CreateLimiter.getByName(limiterKey(ip)).admit(CREATE_LIMIT);
   if (!admission.ok) return tooMany(admission.refused, admission.retryAfterMs);
-  const today = await cap.admitToday();
+  const today = await cap.admitToday({ cap: DAILY_CREATE_CAP });
   if (!today.ok) return tooMany("dailyLimit", today.retryAfterMs);
 
   const created = await env.SplitServer.getByName(id).create(parsed.split);

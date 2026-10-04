@@ -1,0 +1,13 @@
+{
+  "items": [375, -75, 550, -100, 895],
+  "tax": 115,
+  "total": 1760,
+  "subtotal": 1645,
+  "lines": [
+    { "k": "i", "cents": 375 },
+    { "k": "d", "cents": -75, "under": true },
+    { "k": "i", "cents": 550 },
+    { "k": "d", "cents": -100, "under": true },
+    { "k": "i", "cents": 895 }
+  ]
+}

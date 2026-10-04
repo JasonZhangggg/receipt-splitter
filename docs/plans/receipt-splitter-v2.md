@@ -634,62 +634,62 @@ The receipt-reading work is two PRs, not one. The Worker half and its harness al
 
 **Files.**
 
-- [ ] Create `docs/adr/0008-server-reads-the-receipt.md`. Edit `docs/adr/0001-on-device-ocr-no-llm-for-anonymous-use.md` with an amendment line.
-- [ ] Create `worker/scan/route.ts`, `worker/scan/prompt.ts`, `worker/scan/reader.ts`, `worker/scan/format.ts`, and `worker/scan/check.ts`, with `worker/scan/route.test.ts`, `worker/scan/format.test.ts`, and `worker/scan/check.test.ts`.
-- [ ] Edit `worker/index.ts`, `worker/rate-limit.ts`, `worker/env.d.ts`, and `wrangler.jsonc`. Create `.dev.vars.example`.
-- [ ] Create `bench/scan/run.mjs`, `bench/scan/score.mjs`, `bench/scan/score.test.ts`, and the synthetic fixtures in `bench/scan/fixtures/`. Edit `e2e/fixtures/make-fixtures.py` to draw them.
+- [x] Create `docs/adr/0008-server-reads-the-receipt.md`. Edit `docs/adr/0001-on-device-ocr-no-llm-for-anonymous-use.md` with an amendment line.
+- [x] Create `worker/scan/route.ts`, `worker/scan/prompt.ts`, `worker/scan/reader.ts`, `worker/scan/format.ts`, and `worker/scan/check.ts`, with `worker/scan/route.test.ts`, `worker/scan/format.test.ts`, and `worker/scan/check.test.ts`.
+- [x] Edit `worker/index.ts`, `worker/rate-limit.ts`, `worker/env.d.ts`, and `wrangler.jsonc`. Create `.dev.vars.example`.
+- [x] Create `bench/scan/run.mjs`, `bench/scan/score.mjs`, `bench/scan/score.test.ts`, and the synthetic fixtures in `bench/scan/fixtures/`. Edit `e2e/fixtures/make-fixtures.py` to draw them.
 
 **Build.**
 
-- [ ] Write ADR 0008. The photo and the on-device OCR lines go to the Worker and on to OpenRouter and its pinned hosts. The key is a Worker secret behind a same-origin `/api` route, and scans have their own rate limit and daily cap. The model and hosts change by config, and the on-device reader stays as the fallback that needs no paid model (preferences 57). Record the operator's approval of the design on 2026-10-03 and link the eval. Add a line to ADR 0001 saying ADR 0008 replaces its on-device OCR rule.
-- [ ] Take `POST /api/scan` in `worker/scan/route.ts`. The body is JSON with the photo as a JPEG data URL and the OCR text as plain lines. Refuse a request whose `origin` is not the site's own with 403, a body over 1 MB with 413, and an image that is not a JPEG data URL with 400. Forward the data URL as is. The Worker never decodes or re-encodes the image, because Workers Free allows 10 ms of CPU per request.
-- [ ] Limit scans apart from creates. Give `CreateLimiter`'s per-IP and daily-cap logic in `worker/rate-limit.ts` a limit argument, and run scans under their own names, `scan:<limiterKey(ip)>` and `scan-daily-cap`. Read the limits from `wrangler.jsonc` vars: `SCAN_PER_MINUTE` 6, `SCAN_PER_DAY` 30, and `SCAN_DAILY_CAP` 2,000. Answer a refused scan with 429 and `retry-after`. At about $0.001 a receipt, the cap holds spend near $2 a UTC day.
-- [ ] Keep every model setting in config (preferences 57). `SCAN_PASS1_MODEL` is `z-ai/glm-5.3-flash`, and `SCAN_PASS1_HOSTS` lists `parasail` and a second host. `SCAN_PASS2_MODEL` is `openai/gpt-6-luna`, and `SCAN_PASS2_HOSTS` lists `azure` and `openai`. Never route to `openai/flex`. The key is the secret `OPENROUTER_API_KEY`. `.dev.vars.example` names it with an empty value.
-- [ ] Run pass 1 in `worker/scan/reader.ts` per preferences 60. Use GLM at `reasoning.effort = "minimal"`, with `/nothink` at the start of the prompt, the photo, and the OCR lines. Pin one host per call with `provider.order` and `allow_fallbacks: false`. Never sort hosts by latency.
-- [ ] Retry pass 1 once on the next host in `SCAN_PASS1_HOSTS` when it runs past 25 s or returns an empty reply. Pick the second host from the harness's latency run, and record the choice in the PR body.
-- [ ] Write the pass-1 prompt in `worker/scan/prompt.ts` from **Compact formats**. Use an invented example, never a real receipt (preferences 53). Tell the model to use per-item promos and skip a summary savings block, and to keep names as printed apart from casing. Ask for no priced `+` lines, unit price, `CNT`, or `?`.
-- [ ] Parse the reply in `worker/scan/format.ts`. Fold each `-` line into the Item above it, and keep the folded amount with the Item so V2-7b can show it. Keep `d` lines order-level. Open a Bundle on `b|` and add the `>` lines to it, with `>d` as its discount. Make every discount amount negative. Send a decimal after an amount to the detail as a weight. Skip a line that does not parse and count it.
-- [ ] Check the reading in `worker/scan/check.ts`. Sum the lines and compare them with `SUB` and `TOT`. With `|pre`, compare the subtotal with the items before any `-`, `d`, or `>d` line. Accept a receipt with no tax line. Accept a gap of up to 3 cents, and return the reading with the gap instead of running pass 2.
-- [ ] Run pass 2 only when the check fails or pass 1's reply is malformed. Use Luna at `reasoning.effort = "low"` on `SCAN_PASS2_HOSTS`, with pass 1's numbered lines. Apply its `fix`, `drop`, `after`, and `add` edits. Refuse a `drop` of an `f` line. `after|<n>` inserts after line n and the `+` and `-` lines under it. Check again.
-- [ ] Reply 200 with the reading: Items with name, price, quantity, detail lines, and folded discounts, Bundles with their discounts, receipt-level Adjustments, subtotal, total, and the check result. A reading that still fails the check is still a 200. The client shows the quiet Total check note (preferences 6). `worker/scan/format.ts` exports the reply's type. Reply 502 when no pass returns a usable reading.
-- [ ] Log timings, token counts, cost, the host, and the check result. Never log the image, the OCR lines, a reply's text, or the key.
-- [ ] Draw the synthetic fixtures with `e2e/fixtures/make-fixtures.py`, each from an invented TSV with a truth file beside it. Cover two items with different discounts printed under them, so a swap shows, a tax-free receipt with a subtotal printed before discounts, a fee and a deposit, per-item promos with a summary savings block, a weighed item, and modifiers on their own lines. t1 is the Topgolf fixture drawn from `src/parse/fixtures/topgolf.tsv`. No fixture comes from a real receipt (preferences 53).
-- [ ] Build the regression harness. `bench/scan/run.mjs` posts each fixture to a running route a set number of times and scores each reading with `bench/scan/score.mjs`. The scorer reports fully correct, items F1 by amount, the per-item discount split, Bundle members and discounts, and readings wrong with a passing check. It prints one table and exits non-zero below a floor committed beside the fixtures. It also takes a directory and truth file outside the repo, so the owner can score `~/receipts-eval/` locally without committing it.
+- [x] Write ADR 0008. The photo and the on-device OCR lines go to the Worker and on to OpenRouter and its pinned hosts. The key is a Worker secret behind a same-origin `/api` route, and scans have their own rate limit and daily cap. The model and hosts change by config, and the on-device reader stays as the fallback that needs no paid model (preferences 57). Record the operator's approval of the design on 2026-10-03 and link the eval. Add a line to ADR 0001 saying ADR 0008 replaces its on-device OCR rule.
+- [x] Take `POST /api/scan` in `worker/scan/route.ts`. The body is JSON with the photo as a JPEG data URL and the OCR text as plain lines. Refuse a request whose `origin` is not the site's own with 403, a body over 1 MB with 413, and an image that is not a JPEG data URL with 400. Forward the data URL as is. The Worker never decodes or re-encodes the image, because Workers Free allows 10 ms of CPU per request.
+- [x] Limit scans apart from creates. Give `CreateLimiter`'s per-IP and daily-cap logic in `worker/rate-limit.ts` a limit argument, and run scans under their own names, `scan:<limiterKey(ip)>` and `scan-daily-cap`. Read the limits from `wrangler.jsonc` vars: `SCAN_PER_MINUTE` 6, `SCAN_PER_DAY` 20, and `SCAN_DAILY_CAP` 2,000. Answer a refused scan with 429 and `retry-after`. At about $0.001 a receipt, the cap holds spend near $2 a UTC day.
+- [x] Keep every model setting in config (preferences 57). `SCAN_PASS1_MODEL` is `z-ai/glm-5.3-flash`, and `SCAN_PASS1_HOSTS` lists `parasail` and a second host. `SCAN_PASS2_MODEL` is `openai/gpt-6-luna`, and `SCAN_PASS2_HOSTS` lists `azure` and `openai`. Never route to `openai/flex`. The key is the secret `OPENROUTER_API_KEY`. `.dev.vars.example` names it with an empty value.
+- [x] Run pass 1 in `worker/scan/reader.ts` per preferences 60. Use GLM at `reasoning.effort = "minimal"`, with `/nothink` at the start of the prompt, the photo, and the OCR lines. Pin one host per call with `provider.order` and `allow_fallbacks: false`. Never sort hosts by latency.
+- [x] Retry pass 1 once on the next host in `SCAN_PASS1_HOSTS` when it runs past 25 s or returns an empty reply. Pick the second host from the harness's latency run, and record the choice in the PR body. *The second host is `baseten`. On t1 it took 1.5 to 1.7 s against 2.9 to 3.2 s for `friendli`, and Parasail took 0.6 to 1.9 s.*
+- [x] Write the pass-1 prompt in `worker/scan/prompt.ts` from **Compact formats**. Use an invented example, never a real receipt (preferences 53). Tell the model to use per-item promos and skip a summary savings block, and to keep names as printed apart from casing. Ask for no priced `+` lines, unit price, `CNT`, or `?`. *The prompt moves the example's bag fee above the tax and prints `SUB|3235`, because the server check counts fees in the subtotal and the example in **Compact formats** fails it.*
+- [x] Parse the reply in `worker/scan/format.ts`. Fold each `-` line into the Item above it, and keep the folded amount with the Item so V2-7b can show it. Keep `d` lines order-level. Open a Bundle on `b|` and add the `>` lines to it, with `>d` as its discount. Make every discount amount negative. Send a decimal after an amount to the detail as a weight. Skip a line that does not parse and count it.
+- [x] Check the reading in `worker/scan/check.ts`. Sum the lines and compare them with `SUB` and `TOT`. With `|pre`, compare the subtotal with the items before any `-`, `d`, or `>d` line. Accept a receipt with no tax line. Accept a gap of up to 3 cents, and return the reading with the gap instead of running pass 2.
+- [x] Run pass 2 only when the check fails or pass 1's reply is malformed. Use Luna at `reasoning.effort = "low"` on `SCAN_PASS2_HOSTS`, with pass 1's numbered lines. Apply its `fix`, `drop`, `after`, and `add` edits. Refuse a `drop` of an `f` line. `after|<n>` inserts after line n and the `+` and `-` lines under it. Check again.
+- [x] Reply 200 with the reading: Items with name, price, quantity, detail lines, and folded discounts, Bundles with their discounts, receipt-level Adjustments, subtotal, total, and the check result. A reading that still fails the check is still a 200. The client shows the quiet Total check note (preferences 6). `worker/scan/format.ts` exports the reply's type. Reply 502 when no pass returns a usable reading.
+- [x] Log timings, token counts, cost, the host, and the check result. Never log the image, the OCR lines, a reply's text, or the key.
+- [x] Draw the synthetic fixtures with `e2e/fixtures/make-fixtures.py`, each from an invented TSV with a truth file beside it. Cover two items with different discounts printed under them, so a swap shows, a tax-free receipt with a subtotal printed before discounts, a fee and a deposit, per-item promos with a summary savings block, a weighed item, and modifiers on their own lines. t1 is the Topgolf fixture drawn from `src/parse/fixtures/topgolf.tsv`. No fixture comes from a real receipt (preferences 53).
+- [x] Build the regression harness. `bench/scan/run.mjs` posts each fixture to a running route a set number of times and scores each reading with `bench/scan/score.mjs`. The scorer reports fully correct, items F1 by amount, the per-item discount split, Bundle members and discounts, and readings wrong with a passing check. It prints one table and exits non-zero below a floor committed beside the fixtures. It also takes a directory and truth file outside the repo, so the owner can score `~/receipts-eval/` locally without committing it.
 
 **You see.**
 
-- [ ] A POST of t1 to the route on `wrangler dev` returns both Bundles with their members and discounts, Gameplay outside them, and a passing check. The seventh scan from one IP in a minute gets 429. `node bench/scan/run.mjs` prints its table and passes its floor.
+- [x] A POST of t1 to the route on `wrangler dev` returns both Bundles with their members and discounts, Gameplay outside them, and a passing check. The seventh scan from one IP in a minute gets 429. `node bench/scan/run.mjs` prints its table and passes its floor.
 
 **Seams.**
 
-- [ ] The parser, the fold, and pass 2's edits as pure functions in `worker/scan/format.test.ts`, fed invented replies.
-- [ ] The check in `worker/scan/check.test.ts`.
-- [ ] The route through the worker test harness in `worker/scan/route.test.ts`, with OpenRouter stubbed at `fetch`.
-- [ ] The scorer in `bench/scan/score.test.ts`.
+- [x] The parser, the fold, and pass 2's edits as pure functions in `worker/scan/format.test.ts`, fed invented replies.
+- [x] The check in `worker/scan/check.test.ts`.
+- [x] The route through the worker test harness in `worker/scan/route.test.ts`, with OpenRouter stubbed at `fetch`.
+- [x] The scorer in `bench/scan/score.test.ts`.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `worker/scan/format.test.ts` gains the invented receipt from **Compact formats** parsed to literal Items, Bundles, and Adjustments, an unsigned discount made negative, a weight sent to the detail, a `d` line after an item kept order-level, a skipped bad line counted, and each pass-2 edit, including `after` past a `-` line and a refused `drop` of an `f` line. Run `npm run test:worker`.
-- [ ] `worker/scan/check.test.ts` gains a pass, a 3-cent gap accepted, a 4-cent gap failed, a `|pre` subtotal, and a receipt with no tax. Run `npm run test:worker`.
-- [ ] `worker/scan/route.test.ts` gains each refusal with its status, 429 at each limit, a pass-1 timeout retried on the second host, an empty reply retried, pass 2 run only on a failed check, and 502 when every pass fails. Run `npm run test:worker`.
-- [ ] `bench/scan/score.test.ts` gains a swapped per-item split scored wrong while every amount matches. Run `npm test`.
+- [x] `worker/scan/format.test.ts` gains the invented receipt from **Compact formats** parsed to literal Items, Bundles, and Adjustments, an unsigned discount made negative, a weight sent to the detail, a `d` line after an item kept order-level, a skipped bad line counted, and each pass-2 edit, including `after` past a `-` line and a refused `drop` of an `f` line. Run `npm run test:worker`.
+- [x] `worker/scan/check.test.ts` gains a pass, a 3-cent gap accepted, a 4-cent gap failed, a `|pre` subtotal, and a receipt with no tax. Run `npm run test:worker`.
+- [x] `worker/scan/route.test.ts` gains each refusal with its status, 429 at each limit, a pass-1 timeout retried on the second host, an empty reply retried, pass 2 run only on a failed check, and 502 when every pass fails. Run `npm run test:worker`.
+- [x] `bench/scan/score.test.ts` gains a swapped per-item split scored wrong while every amount matches. Run `npm test`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe. The lane puts the key in `.dev.vars` from `~/.config/receipt-eval/env` without printing it.
 
-- [ ] Lane 1. Regression lane against trunk. Create a Split through the home page and Claim one Item from a second browser, citing `features/join.md`, at trunk and head. Save `create-claim.png`. Pass when both behave the same, because no client calls the route yet.
-- [ ] Lane 2. Run `node bench/scan/run.mjs` with 3 runs per fixture against the lane's `wrangler dev`, citing `features/scan.md`. Save the table as `scan-table.txt`. Pass when t1 is fully correct with both Bundles in 3 of 3 runs and the fixtures pass the committed floor. Then set the pass-1 limit to 1 ms and scan once. Pass when the log shows the retry on the second host.
-- [ ] Run the harness once against `~/receipts-eval/` (r1-r8, 3 runs each) and report scores by receipt id only (preferences 53). Pass when at least 18 of 24 readings are fully correct, the eval's 20 of 24 less the noise band.
+- [x] Lane 1. Regression lane against trunk. Create a Split through the home page and Claim one Item from a second browser, citing `features/join.md`, at trunk and head. Save `create-claim.png`. Pass when both behave the same, because no client calls the route yet.
+- [x] Lane 2. Run `node bench/scan/run.mjs` with 3 runs per fixture against the lane's `wrangler dev`, citing `features/scan.md`. Save the table as `scan-table.txt`. Pass when t1 is fully correct with both Bundles in 3 of 3 runs and the fixtures pass the committed floor. Then set the pass-1 limit to 1 ms and scan once. Pass when the log shows the retry on the second host.
+- [x] Run the harness once against `~/receipts-eval/` (r1-r8, 3 runs each) and report scores by receipt id only (preferences 53). Pass when at least 18 of 24 readings are fully correct, the eval's 20 of 24 less the noise band.
 
 **Feature map.**
 
-- [ ] Create `features/scan.md` in `verify-receipt-splitter` with the route, the limits, how to set the key in `.dev.vars`, and how to run the harness. Add it to `features/README.md`.
+- [x] Create `features/scan.md` in `verify-receipt-splitter` with the route, the limits, how to set the key in `.dev.vars`, and how to run the harness. Add it to `features/README.md`. *`features/scan.md` already covered the home scan, so the route, its limits, the key, and the harness went into it as new sub-features and a driving section.*
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Time per scan, median and worst, and cost per receipt from OpenRouter's reported usage.
-- [ ] Probe. Lane 2's harness run.
-- [ ] Baseline. Trunk has no route, so each metric gets an absolute budget from the eval.
-- [ ] Rule. Fail if the median scan takes over 8 s, any scan takes over 60 s, or the mean cost passes $0.0015 per receipt.
+- [x] Metric. Time per scan, median and worst, and cost per receipt from OpenRouter's reported usage.
+- [x] Probe. Lane 2's harness run.
+- [x] Baseline. Trunk has no route, so each metric gets an absolute budget from the eval.
+- [x] Rule. Fail if the median scan takes over 8 s, any scan takes over 60 s, or the mean cost passes $0.0015 per receipt.
 
 **Review gate.** No interaction changes. The operator confirms the three scan limits in chat before merge, because they set the daily spend.
 

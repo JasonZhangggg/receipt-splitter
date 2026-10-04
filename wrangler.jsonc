@@ -10,6 +10,27 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SplitServer", "CreateLimiter"] }],
+  // Every scan setting lives here (preferences 57). The three limits await the operator's OK. OPENROUTER_API_KEY is a secret.
+  "vars": {
+    "SCAN_PER_MINUTE": "6",
+    "SCAN_PER_DAY": "20",
+    "SCAN_DAILY_CAP": "2000",
+    // Dollars. ADR 0008 derives the worst case from the pass settings below, so recompute it when they change.
+    "SCAN_DAILY_BUDGET_USD": "3",
+    "SCAN_WORST_CASE_USD": "0.016",
+    "SCAN_MAX_IMAGE_PX": "2560",
+    "SCAN_PASS1_MODEL": "z-ai/glm-5.3-flash",
+    "SCAN_PASS1_HOSTS": "parasail,baseten",
+    "SCAN_PASS1_EFFORT": "minimal",
+    "SCAN_PASS1_TIMEOUT_MS": "25000",
+    "SCAN_PASS1_MAX_TOKENS": "3000",
+    "SCAN_PASS2_MODEL": "openai/gpt-6-luna",
+    "SCAN_PASS2_HOSTS": "azure,openai",
+    "SCAN_PASS2_EFFORT": "low",
+    "SCAN_PASS2_TIMEOUT_MS": "30000",
+    "SCAN_PASS2_MAX_TOKENS": "1500",
+    "SCAN_DEBUG_HEADERS": "false"
+  },
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",

@@ -9,15 +9,22 @@ exif[0x0112] = 6
 source.rotate(90, expand=True).save(root / "e2e/fixtures/srd-1040-exif-rotated.jpg", quality=90, exif=exif.tobytes())
 Image.new("RGB", (600, 800), "white").save(root / "e2e/fixtures/blank.png")
 
-lines = [line.split("\t") for line in (root / "src/parse/fixtures/topgolf.tsv").read_text().strip().splitlines()]
 font = ImageFont.truetype("/System/Library/Fonts/Menlo.ttc", 24)
-receipt = Image.new("RGB", (900, 80 + 40 * len(lines)), "white")
-draw = ImageDraw.Draw(receipt)
-for row, (label, amount) in enumerate(lines):
-    y = 40 + 40 * row
-    draw.text((40, y), label, fill="black", font=font)
-    draw.text((860, y), amount, fill="black", font=font, anchor="ra")
-receipt.save(root / "e2e/fixtures/topgolf-synthetic.png")
+
+
+def draw_receipt(tsv, path, **save):
+    lines = [line.split("\t") for line in tsv.read_text().strip().splitlines()]
+    receipt = Image.new("RGB", (900, 80 + 40 * len(lines)), "white")
+    draw = ImageDraw.Draw(receipt)
+    for row, (label, *amount) in enumerate(lines):
+        y = 40 + 40 * row
+        draw.text((40, y), label, fill="black", font=font)
+        if amount:
+            draw.text((860, y), amount[0], fill="black", font=font, anchor="ra")
+    receipt.save(path, **save)
+
+
+draw_receipt(root / "src/parse/fixtures/topgolf.tsv", root / "e2e/fixtures/topgolf-synthetic.png")
 
 short = Image.open(root / "bench/data/srd-1040.jpg").convert("RGB")
 paper = short.getpixel((480, 700))
@@ -42,3 +49,7 @@ for row, (label, amount) in enumerate(example):
     draw.text((40, y), label, fill="black", font=font)
     draw.text((860, y), amount, fill="black", font=font, anchor="ra")
 over.save(root / "e2e/fixtures/example-total-over-limit.png")
+
+scan = root / "bench/scan/fixtures"
+for tsv in sorted(scan.glob("*.tsv")):
+    draw_receipt(tsv, scan / f"{tsv.stem}.jpg", quality=90)

@@ -1,0 +1,3 @@
+OPENROUTER_API_KEY=
+# Sends x-scan-cost and x-scan-passes. The bench harness reads them. Leave it unset or "false" in production.
+SCAN_DEBUG_HEADERS=true
