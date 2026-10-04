@@ -461,3 +461,30 @@ test("the pick sheet takes no taps while it leaves, so its Copy cannot fire afte
   release();
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
 });
+
+test("the first claim grows a collapsed Bundle's unclaimed line in, so the rows under it glide down", async ({ page, request }, { workerIndex }) => {
+  await page.goto(await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const second = page.getByRole("button", { name: /^Beer Bucket, / }).nth(1);
+  await expect(second).toBeVisible(live);
+  const tops = page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const header = [...document.querySelectorAll<HTMLElement>('[data-testid^="bundle-"]')][1];
+        const seen: number[] = [];
+        const started = performance.now();
+        const sample = () => {
+          seen.push(Math.round(header.getBoundingClientRect().top * 10) / 10);
+          if (performance.now() - started < 1500) requestAnimationFrame(sample);
+          else resolve(seen);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+
+  await page.getByRole("button", { name: "Gameplay, check for Sam" }).click();
+
+  const moves = [...new Set(await tops)];
+  expect(moves.length).toBeGreaterThan(3);
+  expect(moves.at(-1)! - moves[0]).toBeGreaterThan(10);
+});
