@@ -1,0 +1,21 @@
+{
+  "items": [8775, 629, 2187, 849, 849, -451, 629, 1458, 849, 1698, -463],
+  "tax": 494,
+  "tip": 3226,
+  "total": 20729,
+  "subtotal": 17009,
+  "bundles": [{ "name": "Beer Bucket" }, { "name": "Beer Bucket" }],
+  "lines": [
+    { "k": "i", "cents": 8775, "qty": 1 },
+    { "k": "i", "cents": 629, "bundle": 0 },
+    { "k": "i", "cents": 2187, "bundle": 0, "qty": 3 },
+    { "k": "i", "cents": 849, "bundle": 0 },
+    { "k": "i", "cents": 849, "bundle": 0 },
+    { "k": "d", "cents": -451, "bundle": 0 },
+    { "k": "i", "cents": 629, "bundle": 1 },
+    { "k": "i", "cents": 1458, "bundle": 1, "qty": 2 },
+    { "k": "i", "cents": 849, "bundle": 1 },
+    { "k": "i", "cents": 1698, "bundle": 1, "qty": 2 },
+    { "k": "d", "cents": -463, "bundle": 1 }
+  ]
+}
