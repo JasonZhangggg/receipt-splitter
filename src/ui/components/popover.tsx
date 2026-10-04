@@ -15,7 +15,7 @@ type Props = {
   children: ReactNode;
 };
 
-/** Where the surface sits in the layer. It hangs below the anchor, or above it when only there is room. */
+/** Where the surface sits in the layer. It hangs below the anchor, or above it when there is more room there. */
 type Placement = { readonly left: number; readonly width: number; readonly maxHeight: number } & (
   | { readonly side: "below"; readonly top: number }
   | { readonly side: "above"; readonly bottom: number }

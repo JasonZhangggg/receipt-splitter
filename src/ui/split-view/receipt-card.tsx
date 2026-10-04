@@ -204,7 +204,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
 
 const collapseFor = 250;
 
-// grid-template-rows 0fr to 1fr animates to the content's own height off the main thread, and a second tap mid-flight retargets from where it is.
+// A grid-template-rows transition from 0fr to 1fr reaches the content's own height with no measuring and no script per frame, and a second tap mid-flight retargets from where it is.
 function Collapse({ open, id, label, children }: { open: boolean; id: string; label: string; children: ReactNode }) {
   const reduce = useReducedMotion();
   const [shown, setShown] = useState(open);

@@ -62,7 +62,7 @@ export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll =
   );
 }
 
-// A role="button" target renders as a native <button>, so Enter and Space reach onPress as a click, which counts no pointer clicks.
+// A role="button" target renders as a native <button>, so Enter and Space reach onPress as a click with detail 0, since no pointer clicked.
 const pressedByKey = (event: GestureResponderEvent) => (event.nativeEvent as unknown as MouseEvent).detail === 0;
 
 type Tone = { fill?: string; ink: string; ring?: string };
