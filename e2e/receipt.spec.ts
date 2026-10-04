@@ -462,12 +462,8 @@ test("the pick sheet takes no taps while it leaves, so its Copy cannot fire afte
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
 });
 
-test("the first claim grows a collapsed Bundle's unclaimed line in, so the rows under it glide down", { tag: "@frame-timing" }, async ({ page, request }, { workerIndex }) => {
-  await page.goto(await createSplit(request, workerIndex));
-  await pick(page, "Sam");
-  const second = page.getByRole("button", { name: /^Beer Bucket, / }).nth(1);
-  await expect(second).toBeVisible(live);
-  const tops = page.evaluate(
+const secondBundleTops = (page: Page) =>
+  page.evaluate(
     () =>
       new Promise<number[]>((resolve) => {
         const header = [...document.querySelectorAll<HTMLElement>('[data-testid^="bundle-"]')][1];
@@ -482,9 +478,22 @@ test("the first claim grows a collapsed Bundle's unclaimed line in, so the rows 
       }),
   );
 
-  await page.getByRole("button", { name: "Gameplay, check for Sam" }).click();
+test("a collapsed Bundle's unclaimed line grows in on the first claim and collapses out on the last, so the rows under it glide", { tag: "@frame-timing" }, async ({ page, request }, { workerIndex }) => {
+  await page.goto(await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const second = page.getByRole("button", { name: /^Beer Bucket, / }).nth(1);
+  await expect(second).toBeVisible(live);
+  const claim = page.getByRole("button", { name: "Gameplay, check for Sam" });
 
-  const moves = [...new Set(await tops)];
-  expect(moves.length).toBeGreaterThan(3);
-  expect(moves.at(-1)! - moves[0]).toBeGreaterThan(10);
+  const down = secondBundleTops(page);
+  await claim.click();
+  const grown = [...new Set(await down)];
+  expect(grown.length).toBeGreaterThan(3);
+  expect(grown.at(-1)! - grown[0]).toBeGreaterThan(10);
+
+  const up = secondBundleTops(page);
+  await claim.click();
+  const shrunk = [...new Set(await up)];
+  expect(shrunk.length).toBeGreaterThan(3);
+  expect(shrunk[0] - shrunk.at(-1)!).toBeGreaterThan(10);
 });
