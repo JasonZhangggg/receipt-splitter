@@ -104,7 +104,7 @@ const rowsOf = {
   "By amount": `input[aria-label="Jason's amount"]`,
 };
 
-async function switchTo(page: Page, mode: keyof typeof rowsOf) {
+async function switchTo(page: Page, mode: "Evenly" | keyof typeof rowsOf) {
   await page.getByTestId("item-sheet").getByRole("group", { name: "Split" }).getByRole("button", { name: mode, exact: true }).tap({ force: true });
 }
 
