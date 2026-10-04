@@ -18,9 +18,11 @@ export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
   const [hadReceipt] = useState(onReceipt !== undefined);
   return (
     <View style={styles.header}>
-      <PressTarget name={joinCopy.newSplit} onPress={() => router.push("/")} style={(pressed) => [styles.home, pressStyle(pressed, reduce)]}>
-        {() => <Text style={[type.wordmark, { color: c.ink }]}>{copy.wordmark}</Text>}
-      </PressTarget>
+      <View role="heading" aria-level={1}>
+        <PressTarget name={joinCopy.newSplit} onPress={() => router.push("/")} style={(pressed) => [styles.home, pressStyle(pressed, reduce)]}>
+          {() => <Text style={[type.wordmark, { color: c.ink }]}>{copy.wordmark}</Text>}
+        </PressTarget>
+      </View>
       <View style={styles.buttons}>
         {onReceipt ? (
           <View style={!hadReceipt && (reduce ? receiptFade : receiptIn)}>
