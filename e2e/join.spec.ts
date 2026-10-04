@@ -182,8 +182,7 @@ test("a reload of home clears the receipt and the names, and the kept Venmo hand
 
 test("without a system share sheet the pick sheet's link has Copy alone", async ({ page }) => {
   await page.addInitScript(() => {
-    Reflect.deleteProperty(Navigator.prototype, "share");
-    Reflect.deleteProperty(navigator, "share");
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
   });
   await readyHome(page);
   await createLink(page);
