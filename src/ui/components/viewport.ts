@@ -13,3 +13,10 @@ function subscribe(changed: () => void) {
 export function useLayoutHeight(): number {
   return useSyncExternalStore(subscribe, read);
 }
+
+const readWidth = () => document.documentElement.clientWidth;
+
+/** The page's width. A layout that switches on it does not re-render when the keyboard shrinks the visual viewport. */
+export function useLayoutWidth(): number {
+  return useSyncExternalStore(subscribe, readWidth);
+}

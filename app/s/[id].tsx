@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents } from "../../src/core/money";
@@ -26,7 +26,7 @@ import { barFor, circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
-import { useLayoutHeight } from "../../src/ui/components/viewport";
+import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
 import { webStyle } from "../../src/ui/motion";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
@@ -92,7 +92,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
-  const wide = useWindowDimensions().width >= breakpoints.pairFrom;
+  const wide = useLayoutWidth() >= breakpoints.pairFrom;
   const paneRef = useRef<View>(null);
   const [device] = useState(thisDevice);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
