@@ -104,6 +104,7 @@ test.describe("on Chromium", () => {
     expect(Buffer.compare(await served.body(), Buffer.from(body))).toBe(0);
     await guest.getByRole("button", { name: "Close photo" }).click();
     await expect(shown).toHaveCount(0);
+    await guest.context().close();
 
     await page.getByRole("button", { name: "Close, just look" }).click();
     await page.getByRole("button", { name: "Split a receipt" }).click();
@@ -183,6 +184,7 @@ test.describe("on Chromium", () => {
 
     clients.at(-1)!.send(JSON.stringify({ ...states.at(-1), ref: null, photo: false }));
     await expect(viewReceipt(guest)).toHaveCount(0);
+    await context.close();
   });
 });
 
