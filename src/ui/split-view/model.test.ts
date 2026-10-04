@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { shareBreakdown } from "../../core/shares";
-import { barFor, breakdownCharges, bundleNote, circleTap, lineAmounts, lineTag, nameParts, receiptRows, shareLabel, totalNote, unclaimedUnits } from "./model";
+import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, lineAmounts, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedUnits } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -156,6 +156,43 @@ describe("receiptRows at Topgolf", () => {
       bundleNote(topgolf(), itemId("ultra1"), 629),
       bundleNote(topgolf(), itemId("gameplay"), 8775),
     ]).toEqual(["In Beer Bucket. Its 10% off takes $2.19 off this line.", "In Beer Bucket. Its discount takes $2.19 off this line.", "In Beer Bucket. Its 10% off takes $0.63 off this line.", null]);
+  });
+
+  test("shows 3x on the Guinness line and nothing on a line of one", () => {
+    expect(topgolf().items.map((row) => [row.id, quantityText(row)])).toEqual([
+      ["gameplay", null],
+      ["ultra1", null],
+      ["guinness1", "3x"],
+      ["pineapple1", null],
+      ["watermelon1", null],
+      ["ultra2", null],
+      ["guinness2", "2x"],
+      ["pineapple2", null],
+      ["watermelon2", "2x"],
+    ]);
+  });
+
+  test("lists the Guinness line Ann and Bob had in Ann's breakdown as one 3x line at half its price, with no 1 of 3", () => {
+    const receipt = topgolf([ann, bob]);
+    const split = { receipt, participants: [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }] as const, payments: [] };
+    expect(breakdownLines(shareBreakdown(split, ann))).toEqual([
+      { id: "ultra1", quantity: null, name: "Michelob Ultra 16oz Aluminum Bottle", part: null, portion: 629 },
+      { id: "guinness1", quantity: "3x", name: "Guinness Draught 14.9oz Can", part: "½ of 21.87", portion: 1094 },
+      { id: "pineapple1", quantity: null, name: "High Noon Pineapple 12oz Can", part: null, portion: 849 },
+    ]);
+  });
+
+  test("mints guinness1-2 and guinness1-3 for Splitting the 3x line, and skips an id already on the receipt", () => {
+    const receipt = topgolf();
+    const guinness = receipt.items[2];
+    expect(splitIds(receipt, guinness)).toEqual(["guinness1-2", "guinness1-3"]);
+    const taken: Receipt<SplitItem> = { ...receipt, items: [receipt.items[0], ...receipt.items.slice(1), line("guinness1-2", "Sprite", 250)] };
+    expect(splitIds(taken, guinness)).toEqual(["guinness1-3", "guinness1-4"]);
+  });
+
+  test("keeps minted ids within 24 characters when the line's id is already 24 long", () => {
+    const long = line("abcdefghijklmnopqrstuvwx", "Cans", 1000, [], 3);
+    expect(splitIds({ items: [long], adjustments: [], subtotal: cents(1000), total: cents(1000) }, long)).toEqual(["abcdefghijklmnopqrstuv-2", "abcdefghijklmnopqrstuv-3"]);
   });
 
   test("lists in Ann's breakdown only the first Beer Bucket's discount, the one her drinks were in, with Tax and Tip", () => {

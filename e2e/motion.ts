@@ -710,6 +710,26 @@ const splitType: Scenario = {
     { key: "rows", find: label("More shares for Jason"), kind: "opacity" },
   ],
 };
+async function pitchersOpen(page: Page) {
+  await bundleOpen(page);
+  await tap(page.getByRole("button", { name: /^Open 2x Pitchers/ }));
+  await still(page.getByTestId("item-sheet"));
+}
+
+const newRow = `document.querySelector('[data-testid="line-pitchers-2"]')?.parentElement ?? null`;
+const splitRows: Scenario = {
+  id: "split-rows",
+  name: "Split: the new row opens below the line and the row under it slides down",
+  setup: pitchersOpen,
+  act: (page) => tap(page.getByTestId("item-sheet").getByRole("button", { name: "Split into 2" })),
+  quietMs: 800,
+  probes: [
+    { key: "rowHeight", find: newRow, kind: "height" },
+    { key: "rowFade", find: newRow, kind: "opacity" },
+    { key: "below", find: testId("line-sprite"), kind: "top" },
+  ],
+};
+
 const itemOpenScenario: Scenario = {
   id: "item-open",
   name: "Item sheet opens",
@@ -833,6 +853,7 @@ export const scenarios: Scenario[] = [
     act: blur,
     probes: [{ key: "item", find: testId("item-sheet"), kind: "top" }, splitTop],
   },
+  splitRows,
   photoOpen,
   {
     id: "photo-close",
@@ -847,6 +868,7 @@ export const scenarios: Scenario[] = [
   reduced(bundleExpand),
   reduced(bundleCollapse),
   reduced(itemOpenScenario),
+  reduced(splitRows),
   reduced(photoOpen),
   {
     id: "reduced-collapse-drag",

@@ -26,11 +26,11 @@ export function historyOf(split: Split): Entry[] {
     .map((change) => {
       const writes = change.writes.filter(shown);
       const lead = writes.find((write) => write.kind !== "totals") ?? writes[0];
-      const words = describe(lead, split);
+      const into = splitInto(writes);
       return {
         revision: change.revision,
-        ...words,
-        more: writes.filter((write) => write.kind !== "totals" && write !== lead).length,
+        ...(into === null ? describe(lead, split) : { lead: `Split ${nameOf(split, lead)} into ${into}` }),
+        more: into === null ? writes.filter((write) => write.kind !== "totals" && write !== lead).length : 0,
         sentAs: change.by,
         name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
         at: change.at,
@@ -39,6 +39,17 @@ export function historyOf(split: Split): Entry[] {
       };
     })
     .reverse();
+}
+
+/** How many rows a Split change made of its line: the line's quantity went to 1 and the other rows were added with it. */
+function splitInto(writes: readonly Shown[]): number | null {
+  const [lead] = writes;
+  if (lead?.kind !== "item" || !("edit" in lead) || !lead.edit.quantity || lead.edit.quantity[1] !== 1) return null;
+  return writes.some((write) => write.kind === "item" && "added" in write) ? lead.edit.quantity[0] : null;
+}
+
+function nameOf(split: Split, write: Shown): string {
+  return ("id" in write && split.receipt.items.find(({ id }) => id === write.id)?.name) || "An item";
 }
 
 function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "after"> {

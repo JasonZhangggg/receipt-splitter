@@ -11,7 +11,7 @@ import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion"
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
-import { bundleNote, lineAmounts } from "../split-view/model";
+import { bundleNote, lineAmounts, splitIds } from "../split-view/model";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
 
@@ -43,6 +43,7 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
   const [problem, setProblem] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
   const flushRef = useRef<() => void>(() => {});
+  const splitting = useRef(false);
   const [shown, setShown] = useState<SplitItem | undefined>(() => split.receipt.items.find(({ id }) => id === itemId));
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [enterAfter, setEnterAfter] = useState<number | null>(null);
@@ -115,6 +116,18 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
     void send({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }).then((ok) => (ok ? onClose() : setProblem(say.saveFailed)));
   };
   const note = bundleNote(split.receipt, itemId, item.price);
+  const quantity = item.quantity ?? 1;
+  const splitLine = () => {
+    const [first, ...rest] = splitIds(split.receipt, item);
+    if (!first || splitting.current) return;
+    splitting.current = true;
+    flush();
+    void send({ by: me, type: "editReceipt", items: [{ type: "split", itemId, ids: [first, ...rest] }] }).then((ok) => {
+      splitting.current = false;
+      if (ok) onClose();
+      else setProblem(say.saveFailed);
+    });
+  };
 
   return (
     <View style={styles.sheet}>
@@ -130,7 +143,7 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
           )}
         </PressTarget>
       </View>
-      <View style={[styles.nameGroup, { backgroundColor: c.sheetIn }]}>
+      <View style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <TextInput
           aria-label={say.itemName}
           defaultValue={item.name}
@@ -150,26 +163,48 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
           style={[type.input, styles.field, { color: c.ink }]}
         />
       </View>
-      <View style={[styles.priceField, { backgroundColor: c.sheetIn }]}>
-        <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.price}</Text>
-        <Text style={[type.input, { color: c.ink }]}>$</Text>
-        <TextInput
-          aria-label={say.price}
-          inputMode="decimal"
-          defaultValue={plainAmount(item.price)}
-          onChangeText={(text) => {
-            const amount = parseAmount(text);
-            if (amount !== null && amount >= 0) edit({ price: toPrice(amount) });
-          }}
-          enterKeyHint="done"
-          style={[type.input, tabular, styles.priceInput, styles.strong, { color: c.ink }]}
-        />
+      <View style={[styles.group, { backgroundColor: c.sheetIn }]}>
+        <View style={styles.priceField}>
+          <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.price}</Text>
+          <Text style={[type.input, { color: c.ink }]}>$</Text>
+          <TextInput
+            aria-label={say.price}
+            inputMode="decimal"
+            defaultValue={plainAmount(item.price)}
+            onChangeText={(text) => {
+              const amount = parseAmount(text);
+              if (amount !== null && amount >= 0) edit({ price: toPrice(amount) });
+            }}
+            enterKeyHint="done"
+            style={[type.input, tabular, styles.priceInput, styles.strong, { color: c.ink }]}
+          />
+        </View>
+        {quantity > 1 ? (
+          <>
+            <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
+            <View style={styles.priceField}>
+              <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.quantity}</Text>
+              <Text testID="quantity" style={[type.input, tabular, styles.strong, styles.quantity, { color: c.ink }]}>
+                {quantity}
+              </Text>
+            </View>
+          </>
+        ) : null}
       </View>
       {note ? (
         <View style={styles.note}>
           <Icon name="bag" size={15} color={c.muted} />
           <Text style={[type.caption, styles.noteText, { color: c.muted }]}>{note}</Text>
         </View>
+      ) : null}
+      {quantity > 1 ? (
+        <PressTarget name={say.splitInto(quantity)} outsideScroll onPress={splitLine} style={(pressed) => pressStyle(pressed, reduce)}>
+          {() => (
+            <View style={[styles.wide, { backgroundColor: c.sheetIn }]}>
+              <Text style={[type.button, { color: c.ink }]}>{say.splitInto(quantity)}</Text>
+            </View>
+          )}
+        </PressTarget>
       ) : null}
       <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.whoHadIt}</Text>
       <View role="group" aria-label={say.whoHadIt} style={styles.chips}>
@@ -236,7 +271,7 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
       {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
       <PressTarget name={say.deleteItem} outsideScroll onPress={remove} style={(pressed) => pressStyle(pressed, reduce)}>
         {() => (
-          <View style={[styles.delete, { backgroundColor: c.sheetIn }]}>
+          <View style={[styles.wide, styles.delete, { backgroundColor: c.sheetIn }]}>
             <Icon name="trash" size={18} color={c.danger} />
             <Text style={[type.button, { color: c.danger }]}>{say.deleteItem}</Text>
           </View>
@@ -398,10 +433,10 @@ const styles = StyleSheet.create({
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
-  nameGroup: { borderRadius: layout.fieldRadius, overflow: "hidden" },
+  group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
   groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   strong: { fontWeight: "500" },
-  priceField: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
+  priceField: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingHorizontal: 16 },
   fieldLabel: { marginRight: "auto" },
   priceInput: { width: 80, textAlign: "right", minHeight: 44 },
   label: { marginHorizontal: 2, marginTop: 4, marginBottom: -4 },
@@ -430,7 +465,9 @@ const styles = StyleSheet.create({
   sumEnd: { flexDirection: "row", alignItems: "center", gap: 4 },
   note: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 2 },
   noteText: { flexShrink: 1 },
-  delete: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: layout.field, marginTop: 4, borderRadius: layout.fieldRadius },
+  wide: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: layout.field, borderRadius: layout.fieldRadius },
+  delete: { marginTop: 4 },
+  quantity: { minWidth: 80, textAlign: "right" },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
 

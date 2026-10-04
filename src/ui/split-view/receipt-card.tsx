@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import type { Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
-import type { AdjustmentId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
+import type { AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
 import { plainAmount } from "../../draft";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
@@ -12,7 +12,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
+import { claimersOfItem, lineTag, nameParts, quantityText, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
 
 const sheetSpring = { response: 0.35, damping: 1 };
 
@@ -46,29 +46,33 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
   const { items, subtotal, total } = split.receipt;
   const { rows, charges } = receiptRows(split.receipt);
+  const [entering, settle] = useEntering(items.map(({ id }) => id));
   const started = items.some((item) => claimersOfItem(item).length > 0);
   const note = totalNote(split.receipt);
   const order = split.participants.map(({ id }) => id);
   const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
   const people = (item: SplitItem) => claimersOfItem(item).map(person);
-  const toggle = (id: AdjustmentId) =>
+  const toggle = (id: AdjustmentId) => {
+    settle();
     setOpened((was) => {
       const next = new Set(was);
       if (!next.delete(id)) next.add(id);
       return next;
     });
+  };
   const line = (item: SplitItem, divided: boolean, inBundle: boolean) => (
-    <Line
-      key={item.id}
-      item={item}
-      order={order}
-      claimers={claimersOf(item.split).map(person)}
-      selected={selected}
-      divided={divided}
-      inBundle={inBundle}
-      onCircle={() => onCircle(item)}
-      onOpen={() => onOpen(item)}
-    />
+    <Grow key={item.id} enter={entering.has(item.id)}>
+      <Line
+        item={item}
+        order={order}
+        claimers={claimersOf(item.split).map(person)}
+        selected={selected}
+        divided={divided}
+        inBundle={inBundle}
+        onCircle={() => onCircle(item)}
+        onOpen={() => onOpen(item)}
+      />
+    </Grow>
   );
 
   return (
@@ -264,6 +268,39 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
   );
 }
 
+/** Item ids the last receipt change added, such as the rows of a Split. A row reads it only when it mounts, and a Bundle that opens later mounts its rows as they are. */
+function useEntering(ids: readonly ItemId[]): readonly [ReadonlySet<ItemId>, () => void] {
+  const key = ids.join(" ");
+  const [seen, setSeen] = useState(() => ({ key, ids: new Set(ids) }));
+  const [entering, setEntering] = useState<ReadonlySet<ItemId>>(() => new Set());
+  if (seen.key !== key) {
+    setSeen({ key, ids: new Set(ids) });
+    setEntering(new Set(ids.filter((id) => !seen.ids.has(id))));
+  }
+  return [entering, () => setEntering(new Set())];
+}
+
+// The height starts at 0 in a layout effect, so no painted frame shows the new row at full height.
+function Grow({ enter, children }: { enter: boolean; children: ReactNode }) {
+  const reduce = useReducedMotion();
+  const box = useRef<View>(null);
+  const [mount] = useState({ enter, reduce });
+  useLayoutEffect(() => {
+    const el = box.current as unknown as HTMLElement | null;
+    if (!mount.enter || typeof el?.animate !== "function") return;
+    const height = `${el.getBoundingClientRect().height}px`;
+    const frames = mount.reduce
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [
+          { height: "0px", opacity: 0, overflow: "hidden" },
+          { height, opacity: 1, overflow: "hidden" },
+        ];
+    const opening = el.animate(frames, { duration: mount.reduce ? motion.reducedFade : motion.rowsIn, easing: motion.easeOut });
+    return () => opening.cancel();
+  }, [mount]);
+  return <View ref={box}>{children}</View>;
+}
+
 type LineProps = {
   item: SplitItem;
   order: readonly ParticipantId[];
@@ -284,6 +321,8 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   const ordered = [...claimers].sort((a, b) => Number(a.id === selected?.id) - Number(b.id === selected?.id));
   const price = plainAmount(cost);
   const [title, detail] = nameParts(item);
+  const count = quantityText(item);
+  const label = count ? `${count} ${item.name}` : item.name;
   const who = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
   return (
     <View
@@ -296,7 +335,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
       ]}
     >
       <PressTarget
-        name={selected ? say.claimFor(item.name, selected.name) : say.whoHad(item.name)}
+        name={selected ? say.claimFor(label, selected.name) : say.whoHad(label)}
         toggled={selected ? mine : undefined}
         onPress={onCircle}
         style={(pressed) => [styles.circle, pressStyle(pressed, reduce)]}
@@ -315,11 +354,12 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
           </View>
         )}
       </PressTarget>
-      <PressTarget name={`${say.open(item.name)}, $${price}, ${who}`} onPress={onOpen} style={() => styles.body}>
+      <PressTarget name={`${say.open(label)}, $${price}, ${who}`} onPress={onOpen} style={() => styles.body}>
         {() => (
           <View style={styles.bodyRow}>
             <View style={styles.name}>
               <Text numberOfLines={2} style={[itemType, { color: c.ink }]}>
+                {count ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${count}  `}</Text> : null}
                 {title}
                 {tag ? <Text style={[type.caption, { color: c.muted }]}>{`  ${tag}`}</Text> : null}
               </Text>

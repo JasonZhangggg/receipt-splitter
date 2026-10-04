@@ -69,6 +69,28 @@ describe("historyOf", () => {
   });
 });
 
+test("reads a Split as one entry, Split Guinness Draught 14.9oz Can into 3, that can be reverted", () => {
+  const guinness = itemId("guinness");
+  const created = createSplit({
+    id: "q7Xv0Lr9_aZ-3mKpAbCdEf" as MintedSplitId,
+    receipt: {
+      items: [{ id: guinness, name: "Guinness Draught 14.9oz Can", price: price(2187), quantity: 3 }],
+      adjustments: [{ id: adjustmentId("bucket"), kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: cents(-219), bundle: { name: "Beer Bucket", items: [guinness] } }],
+      subtotal: cents(1968),
+      total: cents(1968),
+    },
+    participants: [{ id: ann, name: "Ann" }],
+    paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+  });
+  if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+  const result = applyOperation(created.split, { by: ann, type: "editReceipt", items: [{ type: "split", itemId: guinness, ids: [itemId("guinness-2"), itemId("guinness-3")] }] }, { creator: false }, 1_000);
+  if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+
+  expect(historyOf(result.split)).toEqual([
+    { revision: 1, lead: "Split Guinness Draught 14.9oz Can into 3", more: 0, sentAs: "ann", name: "Ann", at: 1_000, reverted: false, revertible: true },
+  ]);
+});
+
 test("whenText reads Just now, minutes, then the clock time", () => {
   const at = Date.UTC(2026, 9, 1, 0, 31);
   expect([whenText(at, at + 30_000), whenText(at, at + 2 * 60_000), whenText(undefined, at)]).toEqual(["Just now", "2 min ago", null]);

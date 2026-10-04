@@ -1,7 +1,7 @@
 import { claimersOf, type Operation } from "../../core/operations";
 import type { ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
-import type { Adjustment, AdjustmentId, ItemId, ItemRow, NonEmpty, ParticipantId, Receipt, SplitItem } from "../../core/split";
+import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
 import { gapNote, plainAmount } from "../../draft";
 import { splitCopy as say } from "../split-copy";
@@ -46,6 +46,31 @@ export function shareLabel(fraction: readonly [number, number], price: string): 
   const [numerator, denominator] = fraction;
   if (numerator === denominator) return null;
   return `${fractionText(fraction)} of ${price}`;
+}
+
+export function quantityText({ quantity = 1 }: { readonly quantity?: number }): string | null {
+  return quantity > 1 ? `${quantity}x` : null;
+}
+
+export type BreakdownLine = { readonly id: ItemId; readonly quantity: string | null; readonly name: string; readonly part: string | null; readonly portion: Cents };
+
+/** One line per row on the Split page: a quantity line is one line with its quantity, never "1 of 3". */
+export function breakdownLines(breakdown: ShareBreakdown): BreakdownLine[] {
+  return breakdown.items.map((line) => ({ id: line.id, quantity: quantityText(line), name: line.name, part: shareLabel(line.fraction, plainAmount(line.price)), portion: line.portion }));
+}
+
+const MAX_ID_LENGTH = 24;
+
+/** Ids for the rows Split adds after a line: `<id>-2`, `<id>-3`, and so on, past any id the receipt already holds. */
+export function splitIds(receipt: Receipt<SplitItem>, line: SplitItem): ItemId[] {
+  const taken = new Set<string>(receipt.items.map(({ id }) => id));
+  const ids: ItemId[] = [];
+  for (let n = 2; ids.length < (line.quantity ?? 1) - 1; n += 1) {
+    const suffix = `-${n}`;
+    const id = `${line.id.slice(0, MAX_ID_LENGTH - suffix.length)}${suffix}`;
+    if (!taken.has(id)) ids.push(itemId(id));
+  }
+  return ids;
 }
 
 export function circleTap(item: SplitItem, participantId: ParticipantId): Operation[] {
