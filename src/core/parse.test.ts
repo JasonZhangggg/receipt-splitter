@@ -137,7 +137,7 @@ describe("parseSplit", () => {
   test("refuses a stored Split from another schema version or one that breaks an invariant", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
 
-    expect(parseSplit({ ...stored, schemaVersion: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "schemaVersion" } });
+    expect(parseSplit({ ...stored, schemaVersion: 4 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "schemaVersion" } });
     expect(parseSplit({ ...stored, participants: [stored.participants[0]] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });

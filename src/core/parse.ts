@@ -185,7 +185,7 @@ const adjustmentId = check(isId<"AdjustmentId">);
 const participantId = check(isId<"ParticipantId">);
 const deviceId = check(isId<"DeviceId">);
 const receiptLevelKind = oneOf(RECEIPT_LEVEL_KINDS);
-const schemaVersion = check((input): input is SchemaVersion => input === 1 || input === 2);
+const schemaVersion = check((input): input is SchemaVersion => input === 1 || input === 2 || input === 3);
 
 function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
   return (input, path) => {
@@ -214,16 +214,31 @@ const itemSplit = tagged<ItemSplit>("by", {
   amount: strict(({ read }) => ({ by: read("by", literal("amount")), units: read("units", units(part(cents))) })),
 });
 
-const itemFields = ({ read, has, fail }: Fields) => {
-  const head = { name: read("name", text), price: read("price", price) };
-  if (has("claimedBy") === has("split")) return fail("split");
-  return { ...head, split: has("split") ? read("split", itemSplit) : read("claimedBy", lineClaimersAsOneUnit) };
-};
-const itemEdit = ({ maybe }: Fields) => ({
-  ...maybe("name", pair(text)),
-  ...maybe("price", pair(price)),
-  ...maybe("split", pair(itemSplit)),
-});
+/** Reads an Item's `detail` where `detailed` allows one, and refuses the field elsewhere. */
+function detailOf({ maybe, has, fail }: Fields, detailed: boolean): { readonly detail?: string } {
+  if (!detailed && has("detail")) return fail("detail");
+  return maybe("detail", text);
+}
+
+function itemFields(detailed: boolean) {
+  return (fields: Fields) => {
+    const { read, has, fail } = fields;
+    const head = { name: read("name", text), price: read("price", price), ...detailOf(fields, detailed) };
+    if (has("claimedBy") === has("split")) return fail("split");
+    return { ...head, split: has("split") ? read("split", itemSplit) : read("claimedBy", lineClaimersAsOneUnit) };
+  };
+}
+function itemEdit(detailed: boolean) {
+  return ({ maybe, has, fail }: Fields) => {
+    if (!detailed && has("detail")) return fail("detail");
+    return {
+      ...maybe("name", pair(text)),
+      ...maybe("price", pair(price)),
+      ...maybe("detail", pair(text)),
+      ...maybe("split", pair(itemSplit)),
+    };
+  };
+}
 const bundle = strict(({ read }) => ({ name: read("name", text), items: read("items", nonEmpty(itemId, MAX_ITEMS)) }));
 
 const receiptLevelFields = ({ read }: Fields) => ({ kind: read("kind", receiptLevelKind), name: read("name", text), amount: read("amount", cents) });
@@ -265,9 +280,10 @@ function rowWrite<const Kind extends string, RowId, Full, Edit>(
   });
 }
 
-function writeVariants(bundles: boolean): { readonly [Kind in (Write | LegacyWrite)["kind"]]: Parser<Extract<Write | LegacyWrite, { kind: Kind }>> } {
+function writeVariants(version: SchemaVersion): { readonly [Kind in (Write | LegacyWrite)["kind"]]: Parser<Extract<Write | LegacyWrite, { kind: Kind }>> } {
+  const [bundles, detailed] = [version >= 2, version >= 3];
   return {
-    item: rowWrite("item", itemId, itemFields, itemEdit),
+    item: rowWrite("item", itemId, itemFields(detailed), itemEdit(detailed)),
     adjustment: rowWrite("adjustment", adjustmentId, adjustmentFields(bundles), adjustmentEdit(bundles)),
     participant: strict((fields) => {
       const head = { kind: fields.read("kind", literal("participant")), id: fields.read("id", participantId) };
@@ -299,8 +315,8 @@ function writeVariants(bundles: boolean): { readonly [Kind in (Write | LegacyWri
   };
 }
 
-function change(bundles: boolean): Parser<Change> {
-  const write = tagged<Write | LegacyWrite>("kind", writeVariants(bundles));
+function change(version: SchemaVersion): Parser<Change> {
+  const write = tagged<Write | LegacyWrite>("kind", writeVariants(version));
   return strict(({ read, maybe }) => ({
     revision: read("revision", count),
     by: read("by", nullable(participantId)),
@@ -311,8 +327,16 @@ function change(bundles: boolean): Parser<Change> {
   }));
 }
 
-const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));
-const receiptItem = strict(({ read, maybe }) => ({ id: read("id", itemId), name: read("name", text), price: read("price", price), ...maybe("quantity", quantity) }));
+const item = (detailed: boolean) => strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(detailed)(fields) }));
+const receiptItemOf = (detailed: boolean) =>
+  strict((fields) => ({
+    id: fields.read("id", itemId),
+    name: fields.read("name", text),
+    price: fields.read("price", price),
+    ...detailOf(fields, detailed),
+    ...fields.maybe("quantity", quantity),
+  }));
+const receiptItem = receiptItemOf(true);
 const receiptLevelAdjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...receiptLevelFields(fields) }));
 const anyAdjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...anyAdjustmentFields(fields) }));
 const participant = strict((fields) => ({ id: fields.read("id", participantId), ...participantFields(fields) }));
@@ -342,12 +366,13 @@ const createRequest: Parser<CreateSplitRequest> = strict(({ read }) => ({
 
 const pick = strict(({ read, maybe }) => ({ participantId: read("participantId", participantId), ...maybe("device", deviceId) }));
 
-function storedRows(bundles: boolean) {
-  const adjustmentRow = bundles ? anyAdjustment : receiptLevelAdjustment;
-  return { receipt: receipt(item, adjustmentRow), original: receipt(receiptItem, adjustmentRow), change: change(bundles) };
+function storedRows(version: SchemaVersion) {
+  const adjustmentRow = version >= 2 ? anyAdjustment : receiptLevelAdjustment;
+  const detailed = version >= 3;
+  return { receipt: receipt(item(detailed), adjustmentRow), original: receipt(receiptItemOf(detailed), adjustmentRow), change: change(version) };
 }
 
-const STORED_ROWS: { readonly [Version in SchemaVersion]: ReturnType<typeof storedRows> } = { 1: storedRows(false), 2: storedRows(true) };
+const STORED_ROWS: { readonly [Version in SchemaVersion]: ReturnType<typeof storedRows> } = { 1: storedRows(1), 2: storedRows(2), 3: storedRows(3) };
 
 const split: Parser<Split> = strict(({ read, maybe, has, fail }) => {
   const version = read("schemaVersion", schemaVersion);
@@ -388,6 +413,7 @@ const itemPatch = tagged<ItemPatch>("type", {
     itemId: read("itemId", itemId),
     ...maybe("name", text),
     ...maybe("price", price),
+    ...maybe("detail", text),
     ...maybe("quantity", quantity),
     ...maybe("drop", count),
     ...maybe("by", oneOf(SPLIT_MODES)),

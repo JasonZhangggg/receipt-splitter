@@ -566,6 +566,27 @@ describe("editing the Receipt", () => {
     expect(restored.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, split: { by: "even", units: [["bob", "cat"]] } });
   });
 
+  test("a detail edit lands as a receipt change at version 3, and undoing it restores the Item without one", () => {
+    const split = withBobAndCat();
+    const detailed = apply(split, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "Large, $2.00 off" }] });
+
+    expect(detailed.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, detail: "Large, $2.00 off", split: { by: "even", units: [[]] } });
+    expect(detailed.schemaVersion).toBe(3);
+    expect(detailed.recentChanges.at(-1)?.writes).toEqual([{ kind: "item", id: "fries", edit: { detail: ["", "Large, $2.00 off"] } }]);
+    expect(parseSplit(JSON.parse(JSON.stringify(detailed)))).toEqual({ ok: true, split: detailed });
+
+    const undone = apply(detailed, { by: cat, type: "undo", revision: detailed.revision });
+
+    expect(undone.receipt).toEqual(split.receipt);
+    expect(undone.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, split: { by: "even", units: [[]] } });
+
+    const cleared = apply(detailed, { by: cat, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "" }] });
+
+    expect(cleared.receipt).toEqual(split.receipt);
+    expect(reasonFor(split, { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "x".repeat(121) }] })).toBe("badName");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "Large\nfries" }] })).toBe("badName");
+  });
+
   test("an edit that names no field is rejected, and one that changes nothing is accepted unchanged", () => {
     const split = withBobAndCat();
 
