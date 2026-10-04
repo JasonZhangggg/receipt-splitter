@@ -375,6 +375,37 @@ describe("loading a stored Split", () => {
     expect([again.hello.split.schemaVersion, JSON.stringify(again.hello.split).length > 32 * 1024, again.hello.split.receipt.items[2].split.units]).toEqual([4, true, [["bob", "cat"]]]);
   });
 
+  it("reads an old Restore of 121 writes whose Items read as rows, stores it at version 4 after a Claim, and reads it back with the same Shares after a wake", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    const ids = Array.from({ length: 100 }, (_, index) => `b${index}`);
+    const taxes = Array.from({ length: 20 }, (_, index) => ({ kind: "adjustment", id: `t${index}`, removed: { index, kind: "tax", name: "Tax", amount: 10 } }));
+    const row = {
+      schemaVersion: 3,
+      id,
+      currency: "USD",
+      receipt: { items: ids.map((itemId) => ({ id: itemId, name: "Beer", price: 200, split: { by: "even", units: [["ann"], []] } })), adjustments: [], subtotal: 20000, total: 20000 },
+      participants: [{ id: "ann", name: "Ann" }, { id: "bob", name: "Bob" }],
+      picks: [],
+      payments: [],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      revision: 1,
+      recentChanges: [{ revision: 1, by: "ann", undoes: null, undoneBy: null, at: T0, writes: [...ids.map((itemId) => ({ kind: "item", id: itemId, edit: { split: [{ by: "even", units: [[], []] }, { by: "even", units: [["ann"], []] }] } })), ...taxes, { kind: "totals", subtotalDelta: 0, totalDelta: -200 }] }],
+    };
+    await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify(row)));
+    await evictDurableObject(stub);
+
+    const a = await open(id);
+    a.client.send(claim("c1", "b0-2", "bob"));
+    const claimed = await a.client.next();
+    await evictDurableObject(stub);
+    const again = await open(id);
+
+    if (a.hello.type !== "state" || claimed.type !== "state") throw new Error("expected state");
+    expect(again.hello).toEqual({ type: "state", ref: null, photo: false, split: claimed.split });
+    expect([claimed.split.schemaVersion, claimed.split.recentChanges.map(({ writes }) => writes.length)]).toEqual([4, [122]]);
+  });
+
   it("accepts the creator secret after the Durable Object wakes from storage", async () => {
     const { id, creatorSecret } = await createSplit();
     await evictDurableObject(env.SplitServer.getByName(id));

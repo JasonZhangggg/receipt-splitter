@@ -666,7 +666,7 @@ describe("Splits stored by each shipped release", () => {
     ]);
   });
 
-  test("a version 3 history keeps the detail on each Item write it maps, and marks the writes whose units differed", () => {
+  test("a version 3 history keeps the detail on each Item write it maps, and marks a change whose units differed once", () => {
     const pitcher = { name: "Pitcher", price: 1000, detail: "Lager", split: { by: "even", units: [["ann"], ["bob"]] } };
     const writes = [
       { kind: "item", id: "pitcher", added: { index: 1, ...pitcher } },
@@ -677,10 +677,9 @@ describe("Splits stored by each shipped release", () => {
 
     expect(accepted(parseSplit(row)).recentChanges[0].writes).toEqual([
       { kind: "item", id: "pitcher", added: { index: 1, name: "Pitcher", price: 1000, detail: "Lager", quantity: 2, split: { by: "even", units: [["ann", "bob"]] } } },
-      { kind: "perUnit", id: "pitcher" },
       { kind: "item", id: "wings", removed: { index: 2, name: "Wings", price: 500, detail: "Hot", split: { by: "even", units: [[]] } } },
       { kind: "item", id: "beer", edit: { detail: ["", "Pint"], quantity: [1, 2], split: [{ by: "even", units: [["ann"]] }, { by: "even", units: [["ann", "bob"]] }] } },
-      { kind: "perUnit", id: "beer" },
+      { kind: "perUnit", id: "pitcher" },
     ]);
   });
 
@@ -892,6 +891,7 @@ describe("Splits stored by each shipped release", () => {
     expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"]]]);
     expect(split.recentChanges.length).toBe(5);
   });
+
 });
 
 describe("Bundles in a stored Split", () => {

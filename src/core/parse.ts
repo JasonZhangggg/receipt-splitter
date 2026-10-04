@@ -6,6 +6,7 @@ import {
   MAX_PARTICIPANTS,
   MAX_QUANTITY,
   MAX_STORED_ITEMS,
+  MAX_STORED_WRITES_PER_CHANGE,
   MAX_WRITES_PER_CHANGE,
   RECENT_CHANGES_LIMIT,
   checkSplit,
@@ -355,14 +356,14 @@ function otherWrites(bundles: boolean): { readonly [Kind in OtherWrite["kind"]]:
   };
 }
 
-function change<ItemWrite>(bundles: boolean, item: Parser<ItemWrite>, rows: { readonly [Kind in RowsWrite["kind"]]?: Parser<RowsWrite> } = {}) {
+function change<ItemWrite>(bundles: boolean, item: Parser<ItemWrite>, rows: { readonly [Kind in RowsWrite["kind"]]?: Parser<RowsWrite> } = {}, maxWrites = MAX_WRITES_PER_CHANGE) {
   const write = tagged<ItemWrite | OtherWrite | RowsWrite>("kind", { item, ...otherWrites(bundles), ...rows });
   return strict(({ read, maybe }) => ({
     revision: read("revision", count),
     by: read("by", nullable(participantId)),
     undoes: read("undoes", nullable(count)),
     undoneBy: read("undoneBy", nullable(count)),
-    writes: read("writes", nonEmpty(write, MAX_WRITES_PER_CHANGE)),
+    writes: read("writes", nonEmpty(write, maxWrites)),
     ...maybe("at", count),
   }));
 }
@@ -418,7 +419,7 @@ function legacyRows(version: LegacySplit["schemaVersion"]) {
 const LEGACY_ROWS = { 1: legacyRows(1), 2: legacyRows(2), 3: legacyRows(3) } as const;
 
 const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", itemId, itemFields, itemEdit);
-const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit"), perUnit });
+const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit"), perUnit }, MAX_STORED_WRITES_PER_CHANGE);
 const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment, MAX_STORED_ITEMS), original: receipt(receiptItem, anyAdjustment), change: currentChange };
 
 /** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */

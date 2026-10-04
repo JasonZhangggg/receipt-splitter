@@ -54,10 +54,10 @@ export function fromLegacy(legacy: LegacySplit): Split {
   });
   const receipt = { ...legacy.receipt, items: [first[0], ...first.slice(1), ...rest.flat()] as const, adjustments };
   const now = { rows: new Set([...rowIds].filter(([, ids]) => ids.length > 0).map(([id]) => id)), units: new Map(legacy.receipt.items.map(({ id, split }) => [id, split.units.length])) };
-  const recentChanges = legacy.recentChanges.map(({ writes: [first, ...rest], ...change }): Change => ({
-    ...change,
-    writes: [...asWrites(first, now), ...rest.flatMap((write) => asWrites(write, now))],
-  }));
+  const recentChanges = legacy.recentChanges.map(({ writes: [first, ...rest], ...change }): Change => {
+    const marked = [first, ...rest].find((write) => perUnit(write, now));
+    return { ...change, writes: [asWrite(first), ...rest.map(asWrite), ...(marked ? [{ kind: "perUnit", id: marked.id } as const] : [])] };
+  });
   return { ...legacy, schemaVersion: storedVersion({ receipt, original: legacy.original, recentChanges }), receipt, recentChanges };
 }
 
@@ -131,18 +131,17 @@ function summed<Value extends number>(units: readonly (readonly Part<Value>[])[]
 }
 
 /**
- * An old item write, with a perUnit mark when reverting it would no longer undo what it did:
- * its line now reads as rows, its units differed, or its quantity is not the line's, since an old Revert then gave the claims to the first units only.
+ * Whether reverting an old item write would no longer undo what it did: its line now reads as rows, its units differed, or its quantity is not the line's,
+ * since an old Revert then gave the claims to the first units only. One perUnit mark per change is enough, as it makes the whole Revert answer conflict.
  */
-function asWrites(
+function perUnit(
   write: LegacyItemWrite | Exclude<Write | LegacyWrite, { readonly kind: "item" }>,
   now: { readonly rows: ReadonlySet<ItemId>; readonly units: ReadonlyMap<ItemId, number> },
-): NonEmpty<Write | LegacyWrite> {
-  if (write.kind !== "item") return [write];
+): write is LegacyItemWrite {
+  if (write.kind !== "item") return false;
   const claimSets = "edit" in write ? (write.edit.split ?? []) : ["added" in write ? write.added.split : write.removed.split];
   const quantities = new Set([...claimSets.map(({ units }) => units.length), ...(claimSets.length > 0 && now.units.has(write.id) ? [now.units.get(write.id)] : [])]);
-  const perUnit = now.rows.has(write.id) || quantities.size > 1 || claimSets.some((split) => !sameUnits(split));
-  return perUnit ? [asWrite(write), { kind: "perUnit", id: write.id }] : [asWrite(write)];
+  return now.rows.has(write.id) || quantities.size > 1 || claimSets.some((split) => !sameUnits(split));
 }
 
 function asWrite(write: LegacyItemWrite | Exclude<Write | LegacyWrite, { readonly kind: "item" }>): Write | LegacyWrite {

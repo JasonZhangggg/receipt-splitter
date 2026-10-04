@@ -49,6 +49,8 @@ export const RECENT_CHANGES_LIMIT = 64;
 export const MAX_STORED_ITEMS = MAX_ITEMS * MAX_QUANTITY;
 export const MAX_STORED_BYTES = MAX_QUANTITY * SPLIT_BYTE_BUDGET;
 export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
+/** An old change reads with one perUnit mark added, so a stored change may hold one write more than a new one. */
+export const MAX_STORED_WRITES_PER_CHANGE = MAX_WRITES_PER_CHANGE + 1;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
 export const MAX_CHANGE_BYTES = 5 * 1024;
 /** Bytes of recorded changes a Split may write in one burst before the Worker's history rate refuses more. */
@@ -169,7 +171,7 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
   let recentChanges = step.split.recentChanges;
   if (step.record) {
     const change: Change = { revision, by: op.by, undoes: step.record.undoes, undoneBy: null, writes: step.record.writes, ...(at === undefined ? {} : { at }) };
-    if (serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
+    if (change.writes.length <= MAX_WRITES_PER_CHANGE && serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
     else if (op.type !== "restoreReceipt") return reject("tooLarge");
   }
   const stored = { ...state, recentChanges: fitChanges(state, recentChanges) };
