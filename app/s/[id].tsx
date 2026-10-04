@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents } from "../../src/core/money";
@@ -14,6 +14,7 @@ import { Button } from "../../src/ui/components/button";
 import { HistorySheet } from "../../src/ui/history";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
+import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { Breakdown } from "../../src/ui/split-view/breakdown";
 import { SplitHeader } from "../../src/ui/split-view/header";
@@ -38,7 +39,7 @@ export default function SplitScreen() {
     if (expired && splitId) forgetSplit(splitId);
   }, [expired, splitId]);
 
-  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} send={send} />;
+  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} photo={live.photo} send={send} />;
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
@@ -79,7 +80,7 @@ const checkFor = 80;
 const tallPickTop = 170;
 const crossFadeFor = 200;
 
-function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; send: Send }) {
+function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: Split; photo: boolean; send: Send }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
@@ -100,6 +101,11 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [closing, setClosing] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(0);
+  const [viewing, setViewing] = useState(false);
+  const photoUrl = `/api/splits/${splitId}/photo`;
+  useEffect(() => {
+    if (photo) Image.prefetch(photoUrl).catch(() => {});
+  }, [photo, photoUrl]);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   useEffect(() => noteSplit(split), [split]);
@@ -218,7 +224,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: sheetHeight + 16, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
       >
         <View style={styles.column}>
-          <SplitHeader onHistory={() => setOverlay({ kind: "history" })} onShare={() => void share()} />
+          <SplitHeader onReceipt={photo ? () => setViewing(true) : undefined} onHistory={() => setOverlay({ kind: "history" })} onShare={() => void share()} />
           <View style={styles.doc}>
             <ReceiptCard
               split={split}
@@ -273,6 +279,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
           )}
         </BottomSheet>
       ) : null}
+      {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
     </View>
   );
 }

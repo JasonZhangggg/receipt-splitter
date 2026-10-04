@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { recentSplits, rememberSplit } from "../src/device";
 import { editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, totalOf, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
-import { createSplitLink, newParticipantId } from "../src/live/client";
+import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
@@ -21,7 +21,8 @@ import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { RecentSplits } from "../src/ui/recent-splits";
-import { isPhoto, photoUri, pickPhoto, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
+import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
+import { isPhoto, photoUri, pickPhoto, receiptCopyOf, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
 import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
 import { Reading } from "../src/ui/receipt-input/reading";
 import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
@@ -52,6 +53,7 @@ export default function Home() {
   const [fit, setFit] = useState<{ room: string; rows: number } | null>(null);
   const historyBox = useRef<View>(null);
   const scanning = useRef(0);
+  const receiptCopy = useRef<{ scan: number; copy: Promise<ReceiptJpeg | null> } | null>(null);
   const handleInput = useRef<TextInput>(null);
   useEffect(prefetchModel, []);
   useEffect(() => {
@@ -75,6 +77,10 @@ export default function Home() {
     dispatch({ type: "reading", file });
     globalThis.performance?.mark?.("scan-picked");
     const boxes = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction * OCR_SHARE)).catch(() => null);
+    globalThis.performance?.mark?.("copy-start");
+    const copying = receiptCopyOf(photo, boxes ?? []).catch(() => null);
+    void copying.then(() => globalThis.performance?.mark?.("copy-done"));
+    if (scan === scanning.current) receiptCopy.current = { scan, copy: copying };
     const receipt = boxes && ((await readOnServer(photo, boxes)) ?? parseReceipt(boxes));
     globalThis.performance?.mark?.("scan-read");
     if (scan === scanning.current) dispatch({ type: "read", file, receipt });
@@ -83,6 +89,7 @@ export default function Home() {
   const choose = () => pickPhoto(read);
   const example = () => {
     scanning.current++;
+    receiptCopy.current = null;
     setPhoto(null);
     dispatch({ type: "example" });
   };
@@ -100,13 +107,16 @@ export default function Home() {
   const create = async (split: Ready) => {
     const request = splitRequest(split, newParticipantId);
     const scan = scanning.current;
+    const photoCopy = receiptCopy.current?.scan === scan ? receiptCopy.current.copy : null;
     setCreating(true);
     setFailure(null);
     const created = await createSplitLink({ split: request });
     setCreating(false);
     if (!created.ok) return setFailure(created.reason);
     rememberSplit(created.id, { creatorSecret: created.creatorSecret });
+    void photoCopy?.then((jpeg) => jpeg && sendPhoto(created.id, created.creatorSecret, jpeg));
     if (scan === scanning.current) {
+      receiptCopy.current = null;
       setPhoto(null);
       apply({ type: "created" });
     }

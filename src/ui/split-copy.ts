@@ -1,5 +1,7 @@
 export const splitCopy = {
   history: "History",
+  viewReceipt: "View receipt",
+  receiptPhoto: "Receipt",
   shareLink: "Share link",
   close: "Close",
   closePick: "Close, just look",
