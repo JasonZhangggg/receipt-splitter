@@ -6,6 +6,9 @@ import { fallbackMetrics, faces } from "./fonts.generated";
 const weights = [400, 500] as const;
 const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans", "Roboto", "Roboto-Regular"];
 
+/** Marks a rounded group of text fields, which draws the focus ring for the field inside it. */
+export const fieldGroup = { dataSet: { field: "" } };
+
 function css({ light, dark }: typeof colors) {
   const webFaces = weights.map(
     (weight) =>
@@ -28,6 +31,10 @@ a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
 [data-pressable]:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 [data-pressable]:has([data-press-face]):focus-visible { outline: none; }
 [data-pressable]:focus-visible [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; }
+:is(input, textarea):focus { outline: none; }
+@media (any-pointer: fine) {
+  :is(input, textarea):focus-visible:not([data-field] *), [data-field]:has(:is(input, textarea):focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+}
 [data-app-picker]:has(select:focus-visible) [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
 `;
 }

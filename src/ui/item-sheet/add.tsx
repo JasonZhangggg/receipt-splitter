@@ -9,6 +9,7 @@ import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
+import { fieldGroup } from "../document";
 import { layout, type, useColors } from "../theme";
 import { Stepper } from "./index";
 import { newItem, problemFor, type NewItem, type NewItemProblem } from "./new-item";
@@ -75,7 +76,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
           )}
         </PressTarget>
       </View>
-      <View style={[styles.group, { backgroundColor: c.sheetIn }]}>
+      <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <TextInput
           ref={nameField}
           aria-label={say.itemName}
@@ -105,7 +106,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
           style={[type.input, styles.field, { color: c.ink }]}
         />
       </View>
-      <View style={[styles.group, { backgroundColor: c.sheetIn }]}>
+      <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <View style={styles.row}>
           <Text style={[type.caption, styles.rowLabel, { color: c.muted }]}>{say.price}</Text>
           <Text style={[type.input, { color: c.ink }]}>$</Text>

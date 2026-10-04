@@ -9,6 +9,7 @@ import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
+import { fieldGroup } from "../document";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
 import { bundleNote, lineAmounts, splitIds } from "../split-view/model";
@@ -172,7 +173,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           )}
         </PressTarget>
       </View>
-      <View style={[styles.group, { backgroundColor: c.sheetIn }]}>
+      <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <TextInput
           aria-label={say.itemName}
           key={fields}
@@ -194,7 +195,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           style={[type.input, styles.field, { color: c.ink }]}
         />
       </View>
-      <View style={[styles.group, { backgroundColor: c.sheetIn }]}>
+      <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <View style={styles.priceField}>
           <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.price}</Text>
           <Text style={[type.input, { color: c.ink }]}>$</Text>
@@ -335,7 +336,7 @@ function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
               <Stepper value={shares} min={1} max={MAX_SHARES} onChange={(next) => edit({ values: [value(next)] })} names={[say.fewerShares(nameOf(participantId)), say.moreShares(nameOf(participantId))]} />
             ) : null}
             {item.split.by === "amount" ? (
-              <View style={[styles.amountField, { backgroundColor: c.sheetIn }]}>
+              <View {...fieldGroup} style={[styles.amountField, { backgroundColor: c.sheetIn }]}>
                 <Text style={[type.button, { color: c.ink }]}>$</Text>
                 <TextInput
                   aria-label={say.amountOf(nameOf(participantId))}
