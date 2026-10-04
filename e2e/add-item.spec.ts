@@ -120,7 +120,7 @@ test("a Split at 100 Items says it is full and sends nothing", async ({ browser,
   await field(sam, "Price").fill("6.50");
   await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
 
-  await expect(sheet(sam).getByText("This split has 100 items, the most it can hold.")).toBeVisible();
+  await expect(sheet(sam).getByText("A split holds at most 100 items.")).toBeVisible();
   await expect(field(sam, "Item name")).toHaveValue("Fries");
   expect(sent).toEqual([]);
 });

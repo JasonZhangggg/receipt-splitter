@@ -76,7 +76,7 @@ export const splitCopy = {
     name: "Add a name.",
     price: "Add a price.",
     overLimit: "That price is over $100,000.",
-    tooManyItems: "This split has 100 items, the most it can hold.",
+    tooManyItems: "A split holds at most 100 items.",
     tooLarge: "This split is full. Delete an item to add one.",
     failed: "Couldn't save that. Check it and try again.",
   },
