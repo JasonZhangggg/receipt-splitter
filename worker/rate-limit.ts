@@ -40,7 +40,9 @@ const utcDay = (time: number): UtcDay => Math.floor(time / DAY_MS);
 
 const nextMidnight = (day: UtcDay): number => (day + 1) * DAY_MS;
 
-const CREATE_LIMIT = { perMinute: 10, perDay: 50 } as const;
+export type IpLimit = { readonly perMinute: number; readonly perDay: number };
+
+export const CREATE_LIMIT: IpLimit = { perMinute: 10, perDay: 50 };
 
 const MINUTE_MS = 60_000;
 
@@ -53,14 +55,14 @@ type IpAdmission =
   | { readonly ok: true; readonly state: CreateTimes }
   | { readonly ok: false; readonly refused: "rateLimited" | "dailyLimit"; readonly retryAfterMs: number };
 
-function admitFromIp(times: CreateTimes, now: number): IpAdmission {
+function admitFromIp(times: CreateTimes, now: number, limit: IpLimit): IpAdmission {
   const counted = stillCounted(times, now);
   const day = utcDay(now);
-  if (counted.filter((time) => utcDay(time) === day).length >= CREATE_LIMIT.perDay) {
+  if (counted.filter((time) => utcDay(time) === day).length >= limit.perDay) {
     return { ok: false, refused: "dailyLimit", retryAfterMs: nextMidnight(day) - now };
   }
   const lastMinute = counted.filter((time) => now - time < MINUTE_MS);
-  if (lastMinute.length >= CREATE_LIMIT.perMinute) {
+  if (lastMinute.length >= limit.perMinute) {
     return { ok: false, refused: "rateLimited", retryAfterMs: lastMinute[0] + MINUTE_MS - now };
   }
   return { ok: true, state: [...counted, now] };
@@ -87,24 +89,24 @@ type Verdict = { readonly ok: true } | { readonly ok: false; readonly retryAfter
 type IpVerdict = { readonly ok: true } | Extract<IpAdmission, { readonly ok: false }>;
 
 export class CreateLimiter extends DurableObject<Cloudflare.Env> {
-  async peekToday(): Promise<Verdict> {
-    const admission = admitToDay(await this.ctx.storage.get<DayTally>(TALLY_KEY), Date.now(), DAILY_CREATE_CAP);
+  async peekToday(cap: number): Promise<Verdict> {
+    const admission = admitToDay(await this.ctx.storage.get<DayTally>(TALLY_KEY), Date.now(), cap);
     return admission.ok ? { ok: true } : { ok: false, retryAfterMs: admission.retryAfterMs };
   }
 
-  async admitToday(): Promise<Verdict> {
+  async admitToday(cap: number): Promise<Verdict> {
     const storage = this.ctx.storage;
-    const admission = admitToDay(await storage.get<DayTally>(TALLY_KEY), Date.now(), DAILY_CREATE_CAP);
+    const admission = admitToDay(await storage.get<DayTally>(TALLY_KEY), Date.now(), cap);
     if (!admission.ok) return { ok: false, retryAfterMs: admission.retryAfterMs };
     await storage.put(TALLY_KEY, admission.state);
     if ((await storage.getAlarm()) === null) await storage.setAlarm(nextMidnight(admission.state.day));
     return { ok: true };
   }
 
-  async admit(): Promise<IpVerdict> {
+  async admit(limit: IpLimit): Promise<IpVerdict> {
     const storage = this.ctx.storage;
     const now = Date.now();
-    const admission = admitFromIp((await storage.get<number[]>(TIMES_KEY)) ?? [], now);
+    const admission = admitFromIp((await storage.get<number[]>(TIMES_KEY)) ?? [], now, limit);
     if (!admission.ok) return admission;
     await storage.put(TIMES_KEY, admission.state);
     if ((await storage.getAlarm()) === null) await storage.setAlarm(nextMidnight(utcDay(now)));
