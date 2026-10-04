@@ -930,10 +930,10 @@ Decisions.
 
 - Each entry shows the names at the table, host first, up to three and then "and N more"; the day this device first saw the Split ("Today", "Yesterday", "Sep 28", or "Sep 28, 2025" in another year); and the receipt's total. The Split page writes them from the Split it already holds, so the list costs no server call and sends nothing.
 - Newest first, by the day this device first saw the Split. A reopened Split keeps its place, so the dates read in order.
-- Home shows the 5 newest. The device keeps at most 50 Splits and drops the oldest past that, so storage stays near 15 KB.
+- Home shows the 3 newest on a phone and the 5 newest from desktop width up (operator, 2026-10-04). The device lists at most 50 Splits. Past that, the oldest lose their entry (`recent`) and keep their Creator secret and pick, so storage stays near 15 KB for entries and no Split's ownership is ever dropped.
 - A Split expires 60 days after its last change, which the device cannot see. An entry leaves the list 60 days after this device last opened its Split, and at once when its link says the Split has expired. An entry can outlive its Split when nobody opens it; the tap then shows **This split has expired** and the entry is gone on the way back.
 - The list shows only on the empty home, before a receipt is added, so it never competes with the editor. After Create, home is fresh (preferences 36), and the new Split tops the list.
-- On a phone the list sits in the scrolling page between the hero and the panel. The panel stays shown and never collapses (preferences 33). While the list shows, the hero draws compact, as on a short screen, so three entries fit above the panel at 390 by 844. A fourth and fifth scroll under the panel. From 900 px it sits under **Create split link** in the one centered column (preferences 32).
+- On a phone the list sits in the scrolling page between the hero and the panel. The panel stays shown and never collapses (preferences 33). While the list shows, the hero draws compact, as on a short screen, so the three entries fit above the panel at 390 by 844. From 900 px it sits under **Create split link** in the one centered column (preferences 32).
 - With no Splits there is no heading and no placeholder. A first-time Host sees today's home.
 - The app does not move anything for the keyboard (preferences 17). The list scrolls with the page.
 - A row's press fills it with `sheetIn` and fades over 200 ms (`pressOut`) on release. A touch fills after a 150 ms hold, like the hero, so a scroll that starts on a row does not flash; a mouse hover fills at once. The list does not animate in, because home shows it on every visit.
@@ -947,9 +947,9 @@ Decisions.
 
 **Build.**
 
-- [ ] Name the data shape first. A Split's record on the device is `{ creatorSecret?, me?, recent? }`, and `recent` is `{ names, total, added, seen }`. `RecentSplit` is `{ id, names, total, added }`. `rememberSplit` keeps `recent` when it writes the pick or the Creator secret.
-- [ ] `noteSplit(split, now)` writes `recent` from the Split, keeps `added` once set, sets `seen` to now, and drops the oldest records past 50. The Split page calls it on each Split it renders.
-- [ ] `recentSplits(now)` reads every record with `recent`, leaves out those seen more than 60 days ago, and returns the 5 newest by `added`. Records written before this PR have no `recent` and are not listed.
+- [ ] Name the data shape first. A Split's record on the device is `{ creatorSecret?, me?, recent? }`, and `recent` is `{ names, total, added, seen }`. Blocked storage lists nothing and never stops a page; `loadDraft` and `saveDraft` read it inside their `try`. `RecentSplit` is `{ id, names, total, added }`. `rememberSplit` keeps `recent` when it writes the pick or the Creator secret.
+- [ ] `noteSplit(split, now)` writes `recent` from the Split, keeps `added` once set, sets `seen` to now, and removes `recent` from the listed records past 50, deleting a record only when nothing else is left in it. The Split page calls it on each Split it renders.
+- [ ] `recentSplits(now)` reads every record with `recent`, leaves out those seen more than 60 days ago, and returns the 5 newest by `added`, of which home shows 3 below 900 px. Records written before this PR have no `recent` and are not listed.
 - [ ] `forgetSplit(id)` deletes the record. The Split page calls it when its link says the Split has expired.
 - [ ] `RecentSplits` renders the heading **Recent splits** and one link per entry to `/s/<id>`, named by its names, day, and total, through expo-router's `Link`, so a tap navigates in place.
 - [ ] Home reads the list once per mount and renders it when the receipt is empty and the list is not.
@@ -966,9 +966,9 @@ Decisions.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `src/device.test.ts`. Splits list newest first with their names and total; only 5 show; a reopened Split keeps its day and takes its new names; a Split last seen 61 days ago is gone and one seen 59 days ago stays; a forgotten Split is gone; the 51st Split drops the oldest; a pick and a Creator secret survive `noteSplit`, and `recent` survives a pick; bad JSON and old records list nothing. Run `npm test`.
+- [ ] `src/device.test.ts`. Splits list newest first with their names and total; only 5 show; a throwing `localStorage` getter or `key()` lists nothing and `noteSplit` does not throw; a record from before this list keeps its Creator secret and pick when 50 Splits are listed, and so does one past the 50; a reopened Split keeps its day and takes its new names; a Split last seen 61 days ago is gone and one seen 59 days ago stays; a forgotten Split is gone; the 51st Split drops the oldest entry; a pick and a Creator secret survive `noteSplit`, and `recent` survives a pick; bad JSON and old records list nothing. Run `npm test`.
 - [ ] `src/ui/home-copy.test.ts`. One, two, three, and five names read "Jason", "Jason and Sam", "Jason, Sam, and Priya", and "Jason, Sam, and 3 more"; days read "Today", "Yesterday", "Sep 28", and "Sep 28, 2025". Run `npm test`.
-- [ ] `e2e/history.spec.ts`. A created Split heads the fresh home's list, and a tap opens its link. Three stored Splits list newest first with their days and totals. A Split last opened 61 days ago is not listed. An entry whose link says expired is gone back on home. At 1440 px the list shares the column's left edge and width under **Create split link**. With the keyboard up on the handle field and 3 entries, the field stays above the keyboard and the panel keeps its page position. A fresh home shows no **Recent splits**. Run `npm run e2e`.
+- [ ] `e2e/history.spec.ts`. A created Split heads the fresh home's list, and a tap opens its link. Five stored Splits show 3 on a phone and 5 at 1440 px. Three stored Splits list newest first with their days and totals. A Split last opened 61 days ago is not listed. An entry whose link says expired is gone back on home. At 1440 px the list shares the column's left edge and width under **Create split link**. With the keyboard up on the handle field and 3 entries, the field stays above the keyboard and the panel keeps its page position. A fresh home shows no **Recent splits**. Home and a live Split page render with a throwing `localStorage` getter. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 

@@ -48,7 +48,7 @@ export default function Home() {
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [viewing, setViewing] = useState(false);
   const [now] = useState(Date.now);
-  const [recent] = useState(() => recentSplits(now));
+  const [stored] = useState(() => recentSplits(now));
   const scanning = useRef(0);
   const handleInput = useRef<TextInput>(null);
   useEffect(prefetchModel, []);
@@ -131,6 +131,7 @@ export default function Home() {
     return null;
   };
   const removeName = (name: string) => dispatch({ type: "removeName", name });
+  const recent = stored.slice(0, wide ? RECENT_WIDE : RECENT_NARROW);
   const listing = draft.scan.status === "empty" && recent.length > 0;
   // With Recent splits under it, the hero yields its spare room so the list sits above the panel.
   const compact = !wide && (listing || height - insets.top - insets.bottom < shortScreen);
@@ -238,6 +239,8 @@ export default function Home() {
 const wideHeader = 76;
 
 const shortScreen = 700;
+const RECENT_NARROW = 3;
+const RECENT_WIDE = 5;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

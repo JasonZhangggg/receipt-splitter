@@ -12,6 +12,8 @@ const splits = [
   { id: "AnaBenCy00000000000001", names: ["Ana", "Ben", "Cy", "Dee"], total: 990, added: now - 3 * DAY },
   { id: "JasonSam00000000000002", names: ["Jason", "Sam"], total: 4210, added: now - 2 * 60 * 60 * 1000 },
   { id: "PriyaJo000000000000003", names: ["Priya", "Jo"], total: 12875, added: now - DAY - 60_000 },
+  { id: "KimLee00000000000000004", names: ["Kim", "Lee"], total: 3100, added: now - 5 * DAY },
+  { id: "OmarNia0000000000000005", names: ["Omar"], total: 560, added: now - 6 * DAY },
 ];
 
 const { iosKeyboard } = await import(new URL("../../../e2e/motion.ts", import.meta.url).href);
@@ -20,7 +22,7 @@ const browser = await chromium.launch();
 const results = [];
 for (const width of [390, 1440]) {
   for (const scheme of ["light", "dark"]) {
-    for (const state of ["empty", "three", ...(width === 390 ? ["keyboard"] : [])]) {
+    for (const state of ["empty", "three", "five", ...(width === 390 ? ["keyboard"] : [])]) {
       const profile = width === 390 ? { ...devices["iPhone 15"], viewport: { width: 390, height: 844 } } : { viewport: { width: 1440, height: 900 } };
       const context = await browser.newContext({ ...profile, colorScheme: scheme });
       await context.route("**/models/**", (route) => route.abort());
@@ -28,8 +30,9 @@ for (const width of [390, 1440]) {
       const page = await context.newPage();
       if (state === "keyboard") await page.addInitScript(iosKeyboard, 336);
       await page.goto(base);
+      const stored = state === "five" ? splits : splits.slice(0, 3);
       if (state !== "empty") {
-        await page.evaluate((splits) => splits.forEach(({ id, ...recent }) => localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { ...recent, seen: recent.added } }))), splits);
+        await page.evaluate((splits) => splits.forEach(({ id, ...recent }) => localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { ...recent, seen: recent.added } }))), stored);
         await page.reload();
       }
       await page.getByRole("button", { name: "Create split link" }).waitFor();
@@ -49,7 +52,12 @@ for (const width of [390, 1440]) {
       const rows = await page.getByRole("region", { name: "Recent splits" }).getByRole("link").count();
       const file = `${out}/home-${width}-${scheme}-${state}.png`;
       await page.screenshot({ path: file });
-      results.push({ file, rows });
+      const gap = await page.evaluate(() => {
+        const list = document.querySelector('[role="region"][aria-label="Recent splits"]')?.getBoundingClientRect();
+        const panel = document.querySelector("[data-sheet-surface]")?.getBoundingClientRect();
+        return list && panel ? Math.round(panel.top - list.bottom) : null;
+      });
+      results.push({ file, rows, gapAbovePanel: gap });
       await context.close();
     }
   }

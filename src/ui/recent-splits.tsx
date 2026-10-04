@@ -2,6 +2,7 @@ import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { RecentSplit } from "../device";
+import { scrollViewTouchDelay } from "./components/button";
 import { historyCopy as say } from "./home-copy";
 import { webStyle } from "./motion";
 import { dollars } from "./pay/model";
@@ -11,9 +12,9 @@ type Props = { splits: readonly RecentSplit[]; now: number };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 /** A row in the scrolling page fills only once a touch holds, so a scroll that starts on it does not flash. */
-const web = { dataSet: { pressable: "" }, delayPressIn: 150 };
+const web = { dataSet: { pressable: "" }, delayPressIn: scrollViewTouchDelay };
 const fillIn = webStyle({ transitionProperty: "background-color", transitionDuration: "0ms" });
-const fillOut = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.pressOut}ms`, transitionTimingFunction: "ease" });
+const fillOut = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.pressOut}ms`, transitionTimingFunction: motion.easeOut });
 
 export function RecentSplits({ splits, now }: Props) {
   const c = useColors();

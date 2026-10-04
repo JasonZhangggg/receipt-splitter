@@ -55,12 +55,22 @@ function writeRecord(id: SplitId, record: SplitRecord) {
 }
 
 function storedIds(): SplitId[] {
-  const store = storage();
-  if (!store) return [];
-  return Array.from({ length: store.length }, (_, index) => store.key(index))
-    .filter((key): key is string => key?.startsWith(prefix) ?? false)
-    .map((key) => key.slice(prefix.length))
-    .filter((id): id is SplitId => isId<"SplitId">(id));
+  try {
+    const store = storage();
+    if (!store) return [];
+    return Array.from({ length: store.length }, (_, index) => store.key(index))
+      .filter((key): key is string => key?.startsWith(prefix) ?? false)
+      .map((key) => key.slice(prefix.length))
+      .filter((id): id is SplitId => isId<"SplitId">(id));
+  } catch {
+    return [];
+  }
+}
+
+function unlist(id: SplitId) {
+  const { recent: _, ...memory } = readRecord(keyOf(id));
+  if (Object.keys(memory).length === 0) forgetSplit(id);
+  else writeRecord(id, memory);
 }
 
 export function splitOnDevice(id: SplitId): SplitOnDevice {
@@ -77,10 +87,13 @@ export function noteSplit(split: Split, now = Date.now()) {
   const record = readRecord(keyOf(split.id));
   const recent: Recent = { names: split.participants.map(({ name }) => name), total: split.receipt.total, added: record.recent?.added ?? now, seen: now };
   writeRecord(split.id, { ...record, recent });
-  const byAge = storedIds()
-    .map((id) => ({ id, added: readRecord(keyOf(id)).recent?.added ?? 0 }))
+  const listed = storedIds()
+    .flatMap((id) => {
+      const { recent: kept } = readRecord(keyOf(id));
+      return kept ? [{ id, added: kept.added }] : [];
+    })
     .sort((a, b) => b.added - a.added);
-  byAge.slice(KEPT).forEach(({ id }) => forgetSplit(id));
+  listed.slice(KEPT).forEach(({ id }) => unlist(id));
 }
 
 export function recentSplits(now = Date.now()): readonly RecentSplit[] {

@@ -22,6 +22,8 @@ type Stored = { id: string; names: string[]; total: number; added: number; seen?
 const ana: Stored = { id: "AnaBenCy00000000000001", names: ["Ana", "Ben", "Cy", "Dee"], total: 990, added: now - 3 * DAY };
 const jason: Stored = { id: "JasonSam00000000000002", names: ["Jason", "Sam"], total: 4210, added: now - 2 * 60 * 60 * 1000 };
 const priya: Stored = { id: "PriyaJo000000000000003", names: ["Priya", "Jo"], total: 12875, added: now - DAY - 60_000 };
+const kim: Stored = { id: "KimLee00000000000000004", names: ["Kim", "Lee"], total: 3100, added: now - 5 * DAY };
+const omar: Stored = { id: "OmarNia0000000000000005", names: ["Omar"], total: 560, added: now - 6 * DAY };
 
 async function seed(page: Page, splits: Stored[]) {
   await page.clock.setFixedTime(now);
@@ -113,13 +115,59 @@ test("the list hides once a receipt is on home", async ({ page }) => {
   await expect(page.getByText("Recent splits")).toHaveCount(0);
 });
 
-test("at 1440 px the list sits under Create split link and shares the column's left edge and width", async ({ page }) => {
+test("five stored Splits show three on the phone, with the list ending above the panel", async ({ page }) => {
+  await seed(page, [ana, jason, priya, kim, omar]);
+  await expect(rows(page)).toHaveCount(3);
+  expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual([`/s/${jason.id}`, `/s/${priya.id}`, `/s/${ana.id}`]);
+  const list = (await recent(page).boundingBox())!;
+  const panel = await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
+  expect(panel - (list.y + list.height)).toBeLessThanOrEqual(40);
+});
+
+test("at 1440 px five stored Splits show five, under Create split link, sharing the column's left edge and width", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await seed(page, [ana, jason, priya]);
+  await seed(page, [ana, jason, priya, kim, omar]);
+  await expect(rows(page)).toHaveCount(5);
   const create = (await action(page).boundingBox())!;
   const list = (await recent(page).boundingBox())!;
   expect(list.y).toBeGreaterThan(create.y + create.height);
   expect([Math.round(list.x), Math.round(list.width)]).toEqual([Math.round(create.x), Math.round(create.width)]);
+});
+
+const blockStorage = (page: Page) =>
+  page.addInitScript(() =>
+    Object.defineProperty(window, "localStorage", {
+      get() {
+        throw new DOMException("The operation is insecure.", "SecurityError");
+      },
+    }),
+  );
+
+test("home renders with blocked storage", async ({ page }) => {
+  await blockStorage(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
+  await expect(action(page)).toBeVisible();
+});
+
+test("a live Split page renders with blocked storage", async ({ page }) => {
+  const response = await page.request.post("/api/splits", {
+    headers: { "cf-connecting-ip": "198.53.250.1" },
+    data: {
+      split: {
+        receipt: { items: [{ id: "i1", name: "Pizza", price: 2000 }], adjustments: [], subtotal: 2000, total: 2000 },
+        participants: [
+          { id: "jason", name: "Jason" },
+          { id: "sam", name: "Sam" },
+        ],
+        paymentHandles: [{ service: "venmo", handle: "jason-z" }],
+      },
+    },
+  });
+  expect(response.status()).toBe(201);
+  await blockStorage(page);
+  await page.goto(`/s/${(await response.json()).id}`);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 30_000 });
 });
 
 const iphoneKeyboard = 336;

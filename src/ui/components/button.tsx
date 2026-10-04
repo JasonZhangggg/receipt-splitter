@@ -7,7 +7,7 @@ import { motion, type, useColors } from "../theme";
 import { openWithFallback } from "../open-link";
 import { Icon, type IconName } from "./icon";
 
-const scrollViewTouchDelay = 150;
+export const scrollViewTouchDelay = 150;
 
 export type Action = { onPress: () => void; href?: undefined; fallbackHref?: undefined } | { href: string; fallbackHref?: string; onPress?: undefined };
 

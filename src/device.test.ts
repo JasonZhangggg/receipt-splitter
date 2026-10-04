@@ -107,4 +107,53 @@ describe("recent splits on this device", () => {
     storage.setItem("receipt-splitter:draft", JSON.stringify({ version: 2, handles: [] }));
     expect(listed()).toEqual([]);
   });
+
+  test("keep a pre-list record's Creator secret and pick when 50 newer Splits are listed", () => {
+    storage.setItem(`receipt-splitter:split:${idOf(900)}`, '{"creatorSecret":"old","me":"p1","shared":true}');
+    for (let n = 1; n <= 51; n++) noteSplit(splitOf(n), T0 - (60 - n) * 60_000);
+    expect(splitOnDevice(splitOf(900).id)).toEqual({ creatorSecret: "old", me: "p1" });
+    expect(storage.getItem(`receipt-splitter:split:${idOf(1)}`)).toBeNull();
+  });
+
+  test("keep a Creator secret and pick when its Split falls past the 50 and leaves the list", () => {
+    const first = splitOf(1);
+    rememberSplit(first.id, { creatorSecret: "secret", me: participantId("p1") });
+    noteSplit(first, T0 - 100 * 60_000);
+    for (let n = 2; n <= 51; n++) noteSplit(splitOf(n), T0 - (60 - n) * 60_000);
+    expect(splitOnDevice(first.id)).toEqual({ creatorSecret: "secret", me: "p1" });
+    expect(listed().map(({ id }) => id)).not.toContain(idOf(1));
+  });
+});
+
+describe("blocked storage", () => {
+  test("a throwing localStorage getter lists nothing and does not stop a note", () => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("The operation is insecure.", "SecurityError");
+      },
+    });
+    try {
+      expect(recentSplits(T0)).toEqual([]);
+      expect(() => noteSplit(splitOf(1), T0)).not.toThrow();
+      expect(splitOnDevice(splitOf(1).id)).toEqual({});
+    } finally {
+      Reflect.deleteProperty(globalThis, "localStorage");
+    }
+  });
+
+  test("a throwing key() lists nothing and does not stop a note", () => {
+    vi.stubGlobal("localStorage", {
+      length: 2,
+      key() {
+        throw new Error("blocked");
+      },
+      getItem: () => null,
+      setItem() {},
+      removeItem() {},
+    });
+    expect(recentSplits(T0)).toEqual([]);
+    expect(() => noteSplit(splitOf(1), T0)).not.toThrow();
+  });
 });
