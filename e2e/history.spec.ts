@@ -176,20 +176,18 @@ test("an entry whose link says the split has expired is gone back on home, and t
 const dashedBox = (page: Page) =>
   page.getByRole("button", { name: /^Add receipt/ }).evaluate((hero) => {
     const box = [hero, ...hero.querySelectorAll("div")].find((el) => getComputedStyle(el).borderTopStyle === "dashed")!.getBoundingClientRect();
-    const header = document.querySelector('[role="heading"][aria-level="1"]')!.getBoundingClientRect();
+    const header = document.querySelector('[role="heading"][aria-level="1"]')!.parentElement!.getBoundingClientRect();
     const panel = document.querySelector("[data-sheet-surface]")!.getBoundingClientRect();
     return { aboveBox: Math.round(box.top - header.bottom), belowBox: Math.round(panel.top - box.bottom), top: Math.round(box.top), bottom: Math.round(box.bottom) };
   });
 
 for (const height of [844, 700]) {
-  test(`at 390 by ${height} the dashed Add receipt box fills the page from the header to the panel`, async ({ page }) => {
+  test(`at 390 by ${height} the dashed Add receipt box fills the page from the header to the panel with 24 px above and 32 px below`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height });
     await seed(page, [jason]);
     const { aboveBox, belowBox } = await dashedBox(page);
-    expect(aboveBox).toBeGreaterThanOrEqual(0);
-    expect(aboveBox).toBeLessThanOrEqual(36);
-    expect(belowBox).toBeGreaterThanOrEqual(0);
-    expect(belowBox).toBeLessThanOrEqual(28);
+    expect(aboveBox).toBe(24);
+    expect(belowBox).toBe(32);
   });
 }
 

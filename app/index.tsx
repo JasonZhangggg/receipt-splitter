@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   drop: { alignItems: "center", gap: 6 },
   dashed: { alignSelf: "stretch", paddingVertical: 28, paddingHorizontal: 16, borderRadius: 28, borderWidth: 2, borderStyle: "dashed" },
   dropCompact: { paddingVertical: 14 },
-  fills: { paddingTop: 4, paddingBottom: 16 },
+  fills: { paddingTop: 24, paddingBottom: 32 },
   dropFills: { flexGrow: 1, justifyContent: "center" },
   doc: { paddingTop: 12, paddingBottom: 20 },
   stack: { alignSelf: "stretch" },
