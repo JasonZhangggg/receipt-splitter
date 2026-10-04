@@ -7,11 +7,11 @@ test.setTimeout(90_000);
 
 const keyboard = 336;
 const bundle = (page: Page) => page.locator('[data-testid^="bundle-"]');
-const bundleHeader = (page: Page) => bundle(page).locator("[aria-expanded]");
+const bundleHeader = (page: Page) => bundle(page).locator("[aria-controls]");
 
 async function openBundle(page: Page) {
   await tap(bundleHeader(page));
-  await bundle(page).locator('[aria-expanded="true"]').waitFor();
+  await bundle(page).locator('[aria-controls][aria-expanded="true"]').waitFor();
   await page.waitForFunction(() => {
     const region = document.querySelector('[data-testid^="bundle-"]')!.lastElementChild as HTMLElement;
     return region.style.height === "" && region.style.opacity === "" && region.getAnimations().length === 0;

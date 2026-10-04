@@ -499,7 +499,7 @@ const heading = (name: string) => `[...document.querySelectorAll('[role="heading
 const splitTop: Probe = { key: "sheet", find: testId("split-sheet"), kind: "top" };
 const oweFade: Probe = { key: "owe", find: testId("owe"), kind: "opacity" };
 const breakdownFade: Probe = { key: "breakdown", find: testId("breakdown"), kind: "opacity" };
-const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-expanded]')`;
+const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-controls]')`;
 const bundleProbes: Probe[] = [
   { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
   { key: "regionPainted", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "painted" },
@@ -518,13 +518,13 @@ const chipProbes: Probe[] = [
   { key: "addOpacity", find: `${label("Add a person")}?.parentElement ?? null`, kind: "opacity" },
 ];
 
-const openBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-expanded]"));
+const openBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-controls]"));
 const openItem = (page: Page) => tap(page.getByRole("button", { name: /^Open Rice/ }));
 
 async function bundleOpen(page: Page) {
   await picked(page);
   await openBundle(page);
-  await page.locator('[data-testid^="bundle-"]').locator('[aria-expanded="true"]').waitFor();
+  await page.locator('[data-testid^="bundle-"]').locator('[aria-controls][aria-expanded="true"]').waitFor();
   await page.waitForTimeout(700);
 }
 
@@ -985,7 +985,7 @@ async function deskPopover(page: Page) {
 async function deskBundleOpen(page: Page) {
   await deskPicked(page);
   await openBundle(page);
-  await page.locator('[data-testid^="bundle-"]').locator('[aria-expanded="true"]').waitFor();
+  await page.locator('[data-testid^="bundle-"]').locator('[aria-controls][aria-expanded="true"]').waitFor();
   await page.waitForTimeout(700);
 }
 
