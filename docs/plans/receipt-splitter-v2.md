@@ -784,9 +784,53 @@ Intent only. A full section with boxes comes before the build. After someone pic
 
 Intent only. A full section with boxes comes before the build. The Split page shows lines as the receipt prints them (preferences 58). Lines printed separately stay separate rows. A line printed with a quantity, such as Guinness x3, is one row with "3x" in its text, styled like the "6 items" count on a Bundle header. Unsplit, it is claimed like any one-line Item. **Who had it**, **Evenly**, **By shares**, and **By amount** apply to the whole line, with no per-unit claims (preferences 5). Its detail has a **Split** button that splits it into three one-unit rows, and each of those is claimed as a one-line Item. A person's breakdown lists what the Split page shows, so a quantity line is one line (preferences 24). This replaces V2-3's one row per unit.
 
-## Queued: a home reload keeps only the payment handles
+## A home reload keeps only the payment handles
 
-Intent only. A full section with boxes comes before the build. A reload of home clears the receipt, the photo, and the names, and keeps the payment handles (preferences 59). A kept handle counts as filled, so a tap on Create works without retyping it. Today a prefilled handle counts as empty until the user types, as `notes.md` records from the operator's report of 2026-10-03. Reproduce that bug in the iOS Simulator first.
+**Depends on.** None. It branches from `main`.
+
+A reload of home starts a new split: no receipt, no photo, no names. The payment handles stay, and a kept handle works, so a tap on **Create split link** never asks for a handle the field shows (preferences 59). Today home saves the whole Draft, so a reload brings back the receipt and the names. The operator also saw a handle in the field that Create reported missing until they typed (`notes.md`, operator report of 2026-10-03).
+
+**Files.**
+
+- [ ] Edit `src/draft.ts`, `src/draft.test.ts`, and `app/index.tsx`.
+- [ ] Edit `e2e/join.spec.ts` and `e2e/scan.spec.ts`.
+- [ ] Add `e2e/fixtures/example-total-over-limit.png` through `e2e/fixtures/make-fixtures.py`. The home editor tests reached the editor through a stored Draft; a read whose Total is over the limit reaches it the way a Host does.
+- [ ] Edit `features/home.md` in `verify-receipt-splitter`.
+
+**Build.**
+
+- [ ] Reproduce the prefilled handle in Safari on an iOS Simulator device of the owner's own, before any fix. Record what the field shows against what the Draft holds after a reload, a crash reload of the tab, and a Safari relaunch.
+- [ ] Store only the payment handles. The stored value is `{ version: 2, handles }` under the same key, so the first save after this PR overwrites a version 1 Draft and its receipt thumbnail. A version 1 value still yields its handles, so nobody retypes a handle after the deploy.
+- [ ] `loadDraft` returns the empty Draft with the stored handles, and `saveDraft` stores only the handles.
+- [ ] Back to home remounts it without a reload. Home keeps the whole Draft for the life of the page in `app/index.tsx`, so a receipt replaced during Create still waits on home after Back (PR 33bece3), and only a reload starts over.
+- [ ] Delete the code that only read a stored receipt back: the stored-scan parser and its Item, Adjustment, Bundle, and file checks.
+- [ ] The PR changes no layout, no motion, and no UI text.
+
+**You see.**
+
+- [ ] On a phone, enter `@test-debug`, scan a receipt, and add two names. Reload. Home shows the empty receipt box, no names, and `@test-debug` in the Venmo field. Scan again, add a name, and tap **Create split link**. The Split page opens.
+
+**Seams.**
+
+- [ ] `saveDraft` and `loadDraft` in `src/draft.ts`, through a memory storage, in `src/draft.test.ts`.
+- [ ] The home page through Playwright in `e2e/join.spec.ts`, beside the other fresh-home cases, and `e2e/scan.spec.ts`. Specs that read the stored receipt read the body Create sends instead.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `src/draft.test.ts`. A saved Draft loads back as the empty Draft with its handles in order; a kept handle makes the Draft ready once a Receipt and a name are back; a full Draft saved by the old build loads back as its handles only, and the first save overwrites it; nothing, bad JSON, or another version loads the one empty Venmo row. Run `npm test`.
+- [ ] `e2e/join.spec.ts`. After a handle, the Example receipt, and two names, a reload shows the handle and no receipt card or name chips. Then the Example receipt and a name, and a tap on **Create split link** opens the Split page and sends that handle. The case holds the CI-robustness rule. Run `npm run e2e`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Lane 1. In Safari on the owner's own iOS Simulator device, against `verify-receipt-splitter` on a port from 9100 to 9199, enter a handle, read a receipt, add names, and reload. Save `home-after-reload.png`. Then read a receipt, add a name, and tap **Create split link**. Save `create-with-kept-handle.png`. Pass when the reload shows only the handle and Create opens the Split page.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Brotli bytes of every script `dist/index.html` loads. Probe `npm run size` at trunk and head. Rule. Fail on any growth over 1 KB; the PR deletes code.
+
+**Review gate.** The operator reviews before merge, because a reload now drops the receipt and the names.
+
+- [ ] Copy lane 1's screenshots into `~/.claude/orchestrate/receipt-splitter/review/home-reload/`. Post them in chat and wait for approval.
 
 ## Queued: Add Item on the Split page
 

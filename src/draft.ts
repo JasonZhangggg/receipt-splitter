@@ -1,9 +1,7 @@
-import { cents, isCents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
-import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, MAX_QUANTITY, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
+import { cents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
+import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
 import {
-  RECEIPT_LEVEL_KINDS,
   adjustmentId,
-  isId,
   itemId,
   PAYMENT_SERVICES,
   type ReceiptLevelKind,
@@ -345,9 +343,10 @@ type Store = Pick<Storage, "getItem" | "setItem">;
 
 const key = "receipt-splitter:draft";
 
-export function saveDraft(draft: Draft, storage: Store | undefined = globalThis.localStorage): void {
+/** A reload of home starts a new split, so only the Payment handles are stored. */
+export function saveDraft({ handles }: Draft, storage: Store | undefined = globalThis.localStorage): void {
   try {
-    storage?.setItem(key, JSON.stringify({ version: 1, draft }));
+    storage?.setItem(key, JSON.stringify({ version: 2, handles }));
   } catch {
     return;
   }
@@ -355,8 +354,8 @@ export function saveDraft(draft: Draft, storage: Store | undefined = globalThis.
 
 export function loadDraft(storage: Store | undefined = globalThis.localStorage): Draft {
   try {
-    const saved: unknown = JSON.parse(storage?.getItem(key) ?? "null");
-    return parseDraft(saved) ?? emptyDraft;
+    const handles = storedHandles(JSON.parse(storage?.getItem(key) ?? "null"));
+    return handles ? { ...emptyDraft, handles } : emptyDraft;
   } catch {
     return emptyDraft;
   }
@@ -365,64 +364,13 @@ export function loadDraft(storage: Store | undefined = globalThis.localStorage):
 type Json = Record<string, unknown>;
 
 const isObject = (value: unknown): value is Json => typeof value === "object" && value !== null && !Array.isArray(value);
-const isText = (value: unknown): value is string => typeof value === "string" && clip(value) === value;
-const isAmount = (value: unknown): value is Cents => isCents(value) && Math.abs(value) <= MAX_CENTS;
-const isPrice = (value: unknown): value is Price => isAmount(value) && value >= 0;
-const isQuantity = (value: unknown) => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= MAX_QUANTITY;
-const isFile = (value: unknown): value is ReceiptFile =>
-  isObject(value) && typeof value.name === "string" && (value.thumbnail === null || (typeof value.thumbnail === "string" && value.thumbnail.startsWith("data:image/")));
 
-function parseDraft(saved: unknown): Draft | null {
-  if (!isObject(saved) || saved.version !== 1 || !isObject(saved.draft)) return null;
-  const { scan, handles, names } = saved.draft;
-  if (!Array.isArray(handles) || handles.length === 0 || !handles.every(isHandle)) return null;
-  if (!Array.isArray(names) || !names.every(isText)) return null;
-  return { scan: parseScan(scan) ?? emptyDraft.scan, handles, names };
+// Version 1 held the whole Draft; its handles carry over so nobody retypes one after the deploy.
+function storedHandles(saved: unknown): HandleRow[] | null {
+  if (!isObject(saved)) return null;
+  const handles = saved.version === 2 ? saved.handles : saved.version === 1 && isObject(saved.draft) ? saved.draft.handles : null;
+  return Array.isArray(handles) && handles.length > 0 && handles.every(isHandle) ? handles : null;
 }
 
 const isHandle = (row: unknown): row is HandleRow =>
   isObject(row) && PAYMENT_SERVICES.includes(row.service as PaymentService) && typeof row.handle === "string";
-
-function parseScan(scan: unknown): Scan | null {
-  if (!isObject(scan)) return null;
-  // A draft an older build left linked to its Split was already sent, so it opens fresh.
-  if (scan.status === "empty" || scan.status === "reading" || scan.status === "linked") return { status: "empty" };
-  if (scan.status !== "read" || !isFile(scan.file) || !isObject(scan.receipt)) return null;
-  const { items, adjustments, subtotal, tip, totalBeforeTip, nextId } = scan.receipt;
-  const itemIds = Array.isArray(items) && items.every(isItem) ? new Set(items.map((item) => item.id)) : null;
-  const valid =
-    itemIds !== null &&
-    Array.isArray(adjustments) &&
-    adjustments.every((row) => isAdjustment(row, itemIds)) &&
-    (subtotal === null || isAmount(subtotal)) &&
-    isPrice(tip) &&
-    isAmount(totalBeforeTip) &&
-    Number.isSafeInteger(nextId);
-  if (!valid) return null;
-  const bundled = (adjustments as DraftAdjustment[]).flatMap((row) => (row.kind === "bundleDiscount" ? row.bundle.items : []));
-  if (new Set(bundled).size !== bundled.length) return null;
-  const receipt = scan.receipt as DraftReceipt;
-  // Drafts saved before fixOnHome existed lack the flag, and an Item problem with no editor on home leaves the Host stuck.
-  const fixOnHome = scan.fixOnHome === true || itemProblem(receipt) !== null;
-  return { status: "read", file: scan.file, receipt, ...(fixOnHome && { fixOnHome: true as const }) };
-}
-
-const isItem = (item: unknown) =>
-  isObject(item) &&
-  isId(item.id) &&
-  isText(item.name) &&
-  isPrice(item.price) &&
-  (item.quantity === undefined || isQuantity(item.quantity)) &&
-  (item.discountExceededPrice === undefined || item.discountExceededPrice === true) &&
-  (item.unreadPrice === undefined || item.unreadPrice === true) &&
-  (item.retyped === undefined || item.retyped === true);
-
-const isAdjustment = (row: unknown, itemIds: ReadonlySet<unknown>) =>
-  isObject(row) &&
-  isId(row.id) &&
-  isText(row.name) &&
-  isAmount(row.amount) &&
-  (row.kind === "bundleDiscount" ? isBundle(row.bundle, itemIds) : RECEIPT_LEVEL_KINDS.includes(row.kind as ReceiptLevelKind) && row.kind !== "tip" && row.bundle === undefined);
-
-const isBundle = (bundle: unknown, itemIds: ReadonlySet<unknown>) =>
-  isObject(bundle) && isText(bundle.name) && Array.isArray(bundle.items) && bundle.items.length > 0 && bundle.items.every((id) => itemIds.has(id));

@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { rememberSplit } from "../src/device";
-import { editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, totalOf, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
+import { editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, totalOf, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
@@ -26,11 +26,14 @@ import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
 
 const ringChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 
+// Back remounts home without a reload, so the Draft lives as long as the page; a reload keeps only the handles.
+let pageDraft: Draft | null = null;
+
 export default function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [draft, apply] = useReducer(reduceDraft, undefined, () => loadDraft());
+  const [draft, apply] = useReducer(reduceDraft, undefined, () => pageDraft ?? loadDraft());
   const [progress, setProgress] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetHeight, setSheetHeight] = useState(0);
@@ -41,7 +44,10 @@ export default function Home() {
   const scanning = useRef(0);
   const handleInput = useRef<TextInput>(null);
   useEffect(prefetchModel, []);
-  useEffect(() => saveDraft(draft), [draft]);
+  useEffect(() => {
+    pageDraft = draft;
+    saveDraft(draft);
+  }, [draft]);
 
   const dispatch = useCallback((action: DraftAction) => {
     setFailure(null);

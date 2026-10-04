@@ -25,12 +25,19 @@ async function readItems(page: Page) {
 
 const card = (page: Page) => page.getByTestId("receipt");
 
-const draftItems = (page: Page) =>
-  page.evaluate(() =>
-    (JSON.parse(localStorage.getItem("receipt-splitter:draft")!).draft.scan.receipt.items as { name: string; price: number }[]).map(
-      ({ name, price }) => `${name} ${(price / 100).toFixed(2)}`,
-    ),
-  );
+type SentReceipt = { items: { name: string; price: number }[]; adjustments: { name: string; amount: number }[] };
+
+/** What Create split link sends, caught before it reaches the Worker so no Split is made. */
+async function sentReceipt(page: Page): Promise<SentReceipt> {
+  await page.route("**/api/splits", (route) => route.abort());
+  const sent = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/api/splits"));
+  await action(page).click();
+  const receipt: SentReceipt = (await sent).postDataJSON().split.receipt;
+  await page.unroute("**/api/splits");
+  return receipt;
+}
+
+const itemsOf = ({ items }: SentReceipt) => items.map(({ name, price }) => `${name} ${(price / 100).toFixed(2)}`);
 
 const items1040 = [
   "Chicken Fried Rice And Egg 7.99",
@@ -74,7 +81,13 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
 
   expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["topgolf-synthetic.png", "9 items", "$207.29"]);
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
-  expect(await draftItems(page)).toEqual([
+
+  await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
+  await addName(page, "Jason");
+  const created = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/api/splits"));
+  await action(page).click();
+  const sent = (await created).postDataJSON().split.receipt;
+  expect(itemsOf(sent)).toEqual([
     "Gameplay 87.75",
     "Michelob Ultra 16oz Aluminum Bottle 6.29",
     "Guinness Draught 14.9oz Can 21.87",
@@ -85,19 +98,13 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
     "High Noon Pineapple 12oz Can 8.49",
     "High Noon Watermelon 12oz Can 16.98",
   ]);
-  expect(
-    await page.evaluate(() =>
-      (JSON.parse(localStorage.getItem("receipt-splitter:draft")!).draft.scan.receipt.adjustments as { name: string; amount: number }[]).map(({ name, amount }) => `${name} ${amount}`),
-    ),
-  ).toEqual(["Beer Bucket Discount (10%) -451", "Beer Bucket Discount (10%) -463", "Tax 494"]);
-
-  await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
-  await addName(page, "Jason");
-  const created = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/api/splits"));
-  await action(page).click();
-  const bundles = (await created).postDataJSON().split.receipt.adjustments.flatMap((row: { kind: string; amount: number; bundle?: object }) =>
-    row.kind === "bundleDiscount" ? [[row.amount, row.bundle]] : [],
-  );
+  expect(sent.adjustments.map(({ name, amount }: { name: string; amount: number }) => `${name} ${amount}`)).toEqual([
+    "Beer Bucket Discount (10%) -451",
+    "Beer Bucket Discount (10%) -463",
+    "Tax 494",
+    "Tip 3226",
+  ]);
+  const bundles = sent.adjustments.flatMap((row: { kind: string; amount: number; bundle?: object }) => (row.kind === "bundleDiscount" ? [[row.amount, row.bundle]] : []));
 
   expect(bundles).toEqual([
     [-451, { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] }],
@@ -116,7 +123,6 @@ test.describe("reading SRD receipt 1040", () => {
 
     expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["srd-1040.jpg", "5 items", "$28.04"]);
     await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
-    expect(await draftItems(page)).toEqual(items1040);
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
     await action(page).click();
     await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeFocused();
@@ -126,20 +132,17 @@ test.describe("reading SRD receipt 1040", () => {
     expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
     await addName(page, "Jason");
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
+    expect(itemsOf(await sentReceipt(page))).toEqual(items1040);
   });
 });
 
 test.describe("fixing the Example receipt in the home editor", () => {
   test.beforeEach(async ({ page }) => {
+    test.setTimeout(120_000);
     await page.goto("/");
-    await openExample(page);
-    await page.evaluate(() => {
-      const saved = JSON.parse(localStorage.getItem("receipt-splitter:draft")!);
-      saved.draft.scan.fixOnHome = true;
-      localStorage.setItem("receipt-splitter:draft", JSON.stringify(saved));
-    });
-    await page.reload();
-    await expect(page.getByRole("list", { name: "Items" })).toBeVisible();
+    await choose(page, "e2e/fixtures/example-total-over-limit.png");
+    await expect(page.getByRole("list", { name: "Items" })).toBeVisible(scanTimeout);
+    await amount(page, "Total").fill("28.04");
     await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
     await addName(page, "Jason");
   });
@@ -213,10 +216,6 @@ test("a failed read opens the empty editor with the file row, and two typed Item
 
   await amount(page, "Tip").fill("4.60");
   await page.getByRole("textbox", { name: /^Price of Iced tea/ }).fill("3.00");
-  await expect(amount(page, "Total")).toHaveValue("$22.60");
-  await page.reload();
-  await expect(amount(page, "Tip")).toHaveValue("$4.60");
-  await expect(page.getByRole("textbox", { name: /^Price of Iced tea/ })).toHaveValue("3.00");
   await expect(amount(page, "Total")).toHaveValue("$22.60");
   expect(await readItems(page)).toEqual(["Pad thai 14.00", "Iced tea 3.00"]);
 });
@@ -386,7 +385,7 @@ test.describe("the reading state", () => {
   });
 });
 
-test("a reload keeps the draft, and once the model is cached a reload and a new scan work offline", async ({ page, context }) => {
+test("a reload keeps only the handle, and once the model is cached a reload and a new scan work offline", async ({ page, context }) => {
   test.setTimeout(180_000);
   await page.goto("/");
   await choose(page, receipt1040);
@@ -398,21 +397,19 @@ test("a reload keeps the draft, and once the model is cached a reload and a new 
 
   await context.setOffline(true);
   await page.reload();
-  await expect(card(page)).toContainText("$28.04");
+  await expect(page.getByRole("button", { name: /^Add receipt/ })).toBeVisible();
+  await expect(card(page)).toHaveCount(0);
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
-  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
 
-  const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: "Replace receipt" }).click();
-  await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
+  await choose(page, "e2e/fixtures/srd-1040-no-sprite.jpg");
   await expect(card(page)).toContainText("srd-1040-no-sprite.jpg", scanTimeout);
   await expect(card(page)).toContainText("4 items");
   await expect(card(page)).toContainText("$28.04");
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
 });
 
-test("the payment apps and names follow the Host's choices and survive a reload", async ({ page }) => {
+test("the payment apps and handles follow the Host's choices and survive a reload, and the names do not", async ({ page }) => {
   await page.goto("/");
   await openExample(page);
   await page.getByRole("combobox", { name: "Payment app" }).selectOption("cashApp");
@@ -425,16 +422,15 @@ test("the payment apps and names follow the Host's choices and survive a reload"
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
 
   await page.reload();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
   const people = page.getByRole("group", { name: "People at the table" });
-  await expect(people).toContainText("Priya");
-  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Jason", "Priya", "Add"]);
+  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Your name"]);
   expect(await page.getByRole("combobox", { name: "Payment app" }).evaluateAll((pickers) => pickers.map((picker) => (picker as HTMLSelectElement).value))).toEqual([
     "cashApp",
     "venmo",
   ]);
-  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
-  expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
-  await page.getByRole("textbox", { name: "Venmo handle" }).fill("");
+  await openExample(page);
+  await addName(page, "Jason");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
 });
 
@@ -508,5 +504,7 @@ test("an EXIF-rotated phone photo reads upright", async ({ page }) => {
   await page.goto("/");
   await choose(page, "e2e/fixtures/srd-1040-exif-rotated.jpg");
   await expect(card(page)).toContainText("$28.04", scanTimeout);
-  expect(await draftItems(page)).toEqual(items1040);
+  await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
+  await addName(page, "Jason");
+  expect(itemsOf(await sentReceipt(page))).toEqual(items1040);
 });

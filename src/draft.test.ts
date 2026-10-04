@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 
 import { cents, MAX_CENTS, price } from "./core/money";
-import { applyOperation, MAX_QUANTITY } from "./core/operations";
+import { applyOperation } from "./core/operations";
 import { parseCreateSplitRequest } from "./core/parse";
 import { computeShares } from "./core/shares";
 import { mintedId } from "./core/test-ids";
@@ -168,93 +168,61 @@ function totalOf(draft: Draft) {
   return totalBeforeTip + tip;
 }
 
-describe("loadDraft and saveDraft", () => {
-  test("a saved draft loads back with its Receipt, tip, two Payment handles, and three names", () => {
+describe("a reload of home", () => {
+  test("starts a new split: no Receipt and no names, and the two Payment handles in their order", () => {
     const storage = new MemoryStorage();
     const draft = run(
       read1040(),
-      { type: "editTip", amount: cents(460) },
       { type: "setService", index: 0, service: "cashApp" },
       { type: "setHandle", index: 0, handle: "$jasonz" },
       { type: "addHandle" },
       { type: "setHandle", index: 1, handle: "@jason-z" },
       { type: "addName", name: "Sam" },
       { type: "addName", name: "Priya" },
-      { type: "addName", name: "Lee" },
     );
     saveDraft(draft, storage);
-    const loaded = loadDraft(storage);
-    expect(loaded).toEqual(draft);
-    expect(loaded.handles).toEqual([
-      { service: "cashApp", handle: "$jasonz" },
-      { service: "venmo", handle: "@jason-z" },
-    ]);
-    expect(loaded.names).toEqual(["Sam", "Priya", "Lee"]);
-    expect(loaded.scan.status === "read" && loaded.scan.receipt.items.map((item) => item.price)).toEqual([799, 799, 100, 250, 350]);
+    expect(loadDraft(storage)).toEqual({
+      scan: { status: "empty" },
+      handles: [
+        { service: "cashApp", handle: "$jasonz" },
+        { service: "venmo", handle: "@jason-z" },
+      ],
+      names: [],
+    });
   });
 
-  test("a reload during a read keeps the Payment handles and starts over on the Receipt", () => {
+  test("lets a kept handle create the link once a Receipt and a name are back", () => {
     const storage = new MemoryStorage();
-    saveDraft(withVenmo(run(emptyDraft, { type: "reading", file })), storage);
-    expect(loadDraft(storage)).toEqual(withVenmo(emptyDraft));
+    saveDraft(withVenmo(read1040()), storage);
+    const again = run(loadDraft(storage), { type: "example" }, { type: "addName", name: "Jason" });
+    expect(readiness(again)).toMatchObject({ kind: "ready", paymentHandles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
+  });
+
+  test("keeps only the handles of a full Draft the previous build saved", () => {
+    const storage = new MemoryStorage();
+    storage.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: withVenmo(read1040()) }));
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] });
+  });
+
+  test("overwrites the previous build's Receipt and thumbnail on the first save", () => {
+    const storage = new MemoryStorage();
+    storage.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: withVenmo(read1040()) }));
+    saveDraft(loadDraft(storage), storage);
+    expect(JSON.parse(storage.getItem("receipt-splitter:draft") ?? "null")).toEqual({ version: 2, handles: [{ service: "venmo", handle: "@jason-z" }] });
   });
 
   test("an empty, unreadable, or foreign value loads the empty draft", () => {
     const storage = new MemoryStorage();
-    expect(loadDraft(storage)).toEqual(emptyDraft);
-    storage.setItem("receipt-splitter:draft", "{not json");
-    expect(loadDraft(storage)).toEqual(emptyDraft);
-    storage.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: { scan: { status: "read" }, handles: [], names: [] } }));
-    expect(loadDraft(storage)).toEqual(emptyDraft);
-  });
-
-  test("a stored draft with another version loads the empty draft", () => {
-    const storage = new MemoryStorage();
-    saveDraft(withVenmo(read1040()), storage);
-    const stored = JSON.parse(storage.getItem("receipt-splitter:draft") ?? "null");
-    storage.setItem("receipt-splitter:draft", JSON.stringify({ ...stored, version: 2 }));
-    expect(loadDraft(storage)).toEqual(emptyDraft);
-  });
-
-  test("a reload keeps the handles and names when the Receipt carries a 999999.99 adjustment", () => {
-    const storage = new MemoryStorage();
-    const bigAdjustment: Receipt = { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(99_999_999) }] };
-    saveDraft(run(withVenmo(emptyDraft), { type: "addName", name: "Ann" }, { type: "read", file, receipt: bigAdjustment }), storage);
-    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason", "Ann"] });
-  });
-
-  test("a reload keeps the handles and names when the Receipt total is over MAX_CENTS", () => {
-    const storage = new MemoryStorage();
-    const bigTotal: Receipt = { ...receipt1040, total: cents(MAX_CENTS + 1) };
-    saveDraft(run(withVenmo(emptyDraft), { type: "addName", name: "Ann" }, { type: "read", file, receipt: bigTotal }), storage);
-    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason", "Ann"] });
-  });
-
-  test("a reload keeps the handles and names when an Item's quantity is over MAX_QUANTITY", () => {
-    const storage = new MemoryStorage();
-    const [first, ...rest] = receipt1040.items;
-    const tooMany: Receipt = { ...receipt1040, items: [{ ...first, quantity: MAX_QUANTITY + 1 }, ...rest] };
-    saveDraft(run(withVenmo(emptyDraft), { type: "read", file, receipt: tooMany }), storage);
-    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
-  });
-
-  test("a stored quantity of 0 or 2.5 loads the empty Receipt and keeps the handles and names", () => {
-    const storage = new MemoryStorage();
-    saveDraft(withVenmo(read1040()), storage);
-    const stored = JSON.parse(storage.getItem("receipt-splitter:draft") ?? "null");
-    const withQuantity = (quantity: number) => {
-      const [first, ...rest] = stored.draft.scan.receipt.items;
-      const receipt = { ...stored.draft.scan.receipt, items: [{ ...first, quantity }, ...rest] };
-      return JSON.stringify({ ...stored, draft: { ...stored.draft, scan: { ...stored.draft.scan, receipt } } });
-    };
-    const loaded = (quantity: number) => {
-      storage.setItem("receipt-splitter:draft", withQuantity(quantity));
+    const loads = (value: unknown) => {
+      storage.setItem("receipt-splitter:draft", typeof value === "string" ? value : JSON.stringify(value));
       return loadDraft(storage);
     };
-
-    expect(loaded(2).scan.status).toBe("read");
-    expect(loaded(0)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
-    expect(loaded(2.5)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
+    expect(loadDraft(storage)).toEqual(emptyDraft);
+    expect(loads("{not json")).toEqual(emptyDraft);
+    expect(loads({ version: 2, handles: [] })).toEqual(emptyDraft);
+    expect(loads({ version: 2, handles: [{ service: "bank", handle: "x" }] })).toEqual(emptyDraft);
+    expect(loads({ version: 1, draft: { handles: [] } })).toEqual(emptyDraft);
+    expect(loads({ version: 3, handles: [{ service: "venmo", handle: "@jason-z" }] })).toEqual(emptyDraft);
   });
 
   test("saving does nothing where there is no storage, and survives a storage that refuses", () => {
@@ -267,7 +235,9 @@ describe("loadDraft and saveDraft", () => {
     expect(() => saveDraft(emptyDraft, undefined)).not.toThrow();
     expect(() => saveDraft(emptyDraft, refusing)).not.toThrow();
   });
+});
 
+describe("the Draft", () => {
   test("replacing the Receipt keeps the Payment handles and the names", () => {
     const draft = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
     expect(draft).toEqual({
@@ -334,13 +304,12 @@ describe("reading OCR into the draft", () => {
     expect(draft.scan.status === "read" && draft.scan.receipt.items[0]).toEqual({ id: "i1", name: "Chicken Fried Rice And Egg", price: 0, discountExceededPrice: true });
   });
 
-  test("sends an Item's printed count to the Split, through a price edit and a reload", () => {
+  test("sends an Item's printed count to the Split, through a price edit", () => {
     const [first, ...rest] = receipt1040.items;
     const receipt: Receipt = { ...receipt1040, items: [{ ...first, name: "Guinness Draught", quantity: 3 }, ...rest] };
-    const storage = new MemoryStorage();
-    saveDraft(run(withVenmo(emptyDraft), { type: "read", file, receipt }, { type: "editItem", id: "i1", price: price(2187) }), storage);
+    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt }, { type: "editItem", id: "i1", price: price(2187) });
 
-    const request = requestOf(loadDraft(storage), () => participantId("p1"));
+    const request = requestOf(draft, () => participantId("p1"));
 
     expect(request?.receipt.items[0]).toEqual({ id: "i1", name: "Guinness Draught", price: 2187, quantity: 3 });
   });
@@ -461,25 +430,9 @@ describe("where the Host fixes Items", () => {
     expect(editsOnHome(run(emptyDraft, { type: "example" }))).toBe(false);
   });
 
-  test("a failed read keeps the editor on home while the Host types Items, and through a reload", () => {
+  test("a failed read keeps the editor on home while the Host types Items", () => {
     const typing = run(emptyDraft, { type: "read", file, receipt: null }, { type: "addItem" }, { type: "editItem", id: "i1", name: "Pad thai", price: price(1400) });
     expect(editsOnHome(typing)).toBe(true);
-    const storage = new MemoryStorage();
-    saveDraft(typing, storage);
-    expect(editsOnHome(loadDraft(storage))).toBe(true);
-  });
-
-  test("a draft saved before the flag existed keeps the editor on home only if its Items still need fixing", () => {
-    const storage = new MemoryStorage();
-    const saveWithoutFlag = (draft: Draft) => {
-      saveDraft(draft, storage);
-      const saved = JSON.parse(storage.getItem("receipt-splitter:draft")!);
-      delete saved.draft.scan.fixOnHome;
-      storage.setItem("receipt-splitter:draft", JSON.stringify(saved));
-      return loadDraft(storage);
-    };
-    expect(editsOnHome(saveWithoutFlag(run(emptyDraft, { type: "read", file, receipt: null })))).toBe(true);
-    expect(editsOnHome(saveWithoutFlag(read1040()))).toBe(false);
   });
 
   test("a read with a priced Item it could not name keeps the editor on home", () => {
@@ -531,11 +484,10 @@ describe("Bundles", () => {
   const bucketOne = { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] };
   const bucketTwo = { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] };
 
-  test("carry the Topgolf Bundles from the read, through a price edit and a reload, into the create body, where Priya on the first owes $49.52", () => {
-    const storage = new MemoryStorage();
-    saveDraft(run(readTopgolf(), { type: "editItem", id: "i3", price: price(2190) }, { type: "editItem", id: "i3", price: price(2187) }), storage);
+  test("carry the Topgolf Bundles from the read, through a price edit, into the create body, where Priya on the first owes $49.52", () => {
+    const draft = run(readTopgolf(), { type: "editItem", id: "i3", price: price(2190) }, { type: "editItem", id: "i3", price: price(2187) });
 
-    const request = requestOf(loadDraft(storage), counter());
+    const request = requestOf(draft, counter());
 
     expect(request?.receipt.adjustments).toEqual([
       { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: bucketOne },
@@ -591,25 +543,6 @@ describe("Bundles", () => {
     expect(adjustmentsOf(run(readTopgolf(), { type: "read", file, receipt: read }))?.[0]).toEqual({ id: "a1", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -451 });
   });
 
-  test("a stored Bundle that names an Item the Receipt does not hold, or an Item twice, loads the empty Receipt and keeps the handles and names", () => {
-    const storage = new MemoryStorage();
-    saveDraft(readTopgolf(), storage);
-    const stored = JSON.parse(storage.getItem("receipt-splitter:draft")!);
-    const [first, ...rest] = stored.draft.scan.receipt.adjustments;
-    const [second, ...others] = rest;
-    const loads = (adjustments: unknown[]) => {
-      storage.setItem("receipt-splitter:draft", JSON.stringify({ ...stored, draft: { ...stored.draft, scan: { ...stored.draft.scan, receipt: { ...stored.draft.scan.receipt, adjustments } } } }));
-      return loadDraft(storage);
-    };
-
-    const missing = loads([{ ...first, bundle: { ...first.bundle, items: [...first.bundle.items, "i99"] } }, ...rest]);
-
-    expect(missing.scan).toEqual({ status: "empty" });
-    expect([missing.handles, missing.names]).toEqual([[{ service: "venmo", handle: "@jason-z" }], ["Jason", "Priya"]]);
-    expect(loads([first, { ...second, bundle: { ...second.bundle, items: [...second.bundle.items, "i2"] } }, ...others]).scan).toEqual({ status: "empty" });
-    expect(loads([{ ...first, bundle: { ...first.bundle, items: ["i2", "i2"] } }, ...rest]).scan).toEqual({ status: "empty" });
-    expect(loads([first, ...rest]).scan.status).toBe("read");
-  });
 });
 
 describe("the Split link", () => {
