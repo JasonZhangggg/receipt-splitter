@@ -3,9 +3,9 @@ import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { glide, glideFor, releaseIntent, releaseVelocity, rubberband } from "../components/sheet-motion";
+import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, motion, useColors } from "../theme";
-import { useViewport } from "./viewport";
 
 const reducedFade = 200;
 const fadeIn = 200;
@@ -47,14 +47,13 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
-  const viewport = useViewport();
-  const tallest = viewport.layoutHeight - insets.top - 38;
-  const room = Math.min(tallest, viewport.visibleHeight - insets.top - 38);
+  // The keyboard neither moves nor shrinks the sheet. iOS pans the page to reveal the focused field.
+  const tallest = useLayoutHeight() - insets.top - 38;
   const [content, setContent] = useState(0);
   const natural = content + grabHeight + 30 + insets.bottom;
-  const visible = content === 0 ? 0 : Math.min(Math.max(natural, minHeight), room);
-  const scrolls = natural > room;
-  const rest = tallest - viewport.keyboardInset - visible;
+  const visible = content === 0 ? 0 : Math.min(Math.max(natural, minHeight), tallest);
+  const scrolls = natural > tallest;
+  const rest = tallest - visible;
   const surface = useRef<View>(null);
   const body = useRef<View>(null);
   const shade = useRef<View>(null);
@@ -63,7 +62,6 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const drag = useRef<Drag | null>(null);
   const leaving = useRef(false);
   const handoff = useRef(0);
-  const keyboard = useRef(viewport.keyboardInset);
   const placed = useRef(false);
   const left = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gestures = onDown !== undefined || onUp !== undefined;
@@ -120,28 +118,17 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     settle(tallest, velocity, onDown);
   };
 
-  const revealFocusAboveKeyboard = () => {
-    const focused = document.activeElement;
-    if (viewport.keyboardInset > 0 && focused instanceof HTMLElement && element()?.contains(focused)) focused.scrollIntoView({ block: "nearest" });
-  };
-
   const follow = useEffectEvent(() => {
     if (offset.current === null) place(tallest, 0);
-    const keyboardMoved = keyboard.current !== viewport.keyboardInset;
-    keyboard.current = viewport.keyboardInset;
     if (visible === 0 || drag.current?.moved || leaving.current) return;
     const to = lowered ? tallest : rest;
     const firstPlacement = !placed.current;
     placed.current = true;
     if (!rises && firstPlacement) return place(to, 0);
-    if (keyboardMoved) {
-      place(to, 0);
-      return revealFocusAboveKeyboard();
-    }
     settle(to, handoff.current);
     handoff.current = 0;
   });
-  useLayoutEffect(() => follow(), [visible, tallest, lowered, viewport.keyboardInset]);
+  useLayoutEffect(() => follow(), [visible, tallest, lowered]);
 
   const close = useEffectEvent(() => leave(0));
   useEffect(() => {
@@ -232,7 +219,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
           <View {...{ dataSet: { sheetGrab: "" } }} style={[styles.grabArea, grip]}>
             <View style={[styles.grab, { backgroundColor: c.hairline }]} />
           </View>
-          <ScrollView style={[{ maxHeight: room - grabHeight + ringRoom }, contain, fits]} contentContainerStyle={[{ paddingTop: ringRoom, paddingHorizontal: ringRoom, paddingBottom: 30 + insets.bottom }, fits]}>
+          <ScrollView style={[{ maxHeight: tallest - grabHeight + ringRoom }, contain, fits]} contentContainerStyle={[{ paddingTop: ringRoom, paddingHorizontal: ringRoom, paddingBottom: 30 + insets.bottom }, fits]}>
             <View ref={body} onLayout={measure} {...{ dataSet: { sheetBody: "" } }}>
               {header}
               <View>

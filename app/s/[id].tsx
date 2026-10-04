@@ -23,7 +23,7 @@ import { circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
-import { useViewport } from "../../src/ui/split-view/viewport";
+import { useLayoutHeight } from "../../src/ui/components/viewport";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
 import { webStyle } from "../../src/ui/motion";
 import { layout, type, useColors } from "../../src/ui/theme";
@@ -79,7 +79,7 @@ const crossFadeFor = 200;
 function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; send: Send }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { layoutHeight: pageHeight } = useViewport();
+  const pageHeight = useLayoutHeight();
   const [device] = useState(thisDevice);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
   const remember = (change: Parameters<typeof rememberSplit>[1]) => {
