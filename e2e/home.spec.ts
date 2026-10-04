@@ -1,6 +1,6 @@
 import { fallbackSamples } from "../src/ui/home-copy";
 import { openExample } from "./files";
-import { runs, sample, simulateKeyboard } from "./motion";
+import { animationsDone, frames, runs, sample, simulateKeyboard } from "./motion";
 import { mountHarness } from "./harness";
 import { expect, test, type Locator, type Page } from "./without-ocr";
 
@@ -119,12 +119,12 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
   await settle(page);
   expect(await look()).toEqual(["rgb(238, 239, 241)", "background-color", "0.18s", "ease"]);
   const cdp = await pressAndHold(action(page));
-  await page.waitForTimeout(300);
+  await frames(page, 18);
   const afterTouch = await pressLook(page, action);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await action(page).click({ force: true });
   await page.keyboard.down(" ");
-  await page.waitForTimeout(300);
+  await frames(page, 18);
   expect({ afterTouch, afterClickAndSpace: await pressLook(page, action) }).toEqual({ afterTouch: restLook, afterClickAndSpace: restLook });
   await page.keyboard.up(" ");
 });
@@ -189,13 +189,13 @@ test.describe("with the iPhone keyboard up", () => {
     );
     await page.getByRole("textbox", { name: "Venmo handle" }).tap();
     await keyboardUp(page);
-    await page.waitForTimeout(800);
+    await animationsDone(page);
     const rising = (await tops()).map((top) => top.screen);
     await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
-    await page.waitForTimeout(800);
+    await animationsDone(page);
     await page.locator("h1").tap();
     await keyboardDown(page);
-    await page.waitForTimeout(800);
+    await animationsDone(page);
 
     expect(runs((await tops()).map((top) => top.page))).toEqual([rest]);
     expect(rising.filter((top, i) => i > 0 && top > rising[i - 1])).toEqual([]);
@@ -209,10 +209,10 @@ test.describe("with the iPhone keyboard up", () => {
     const sizes = await sample<string>(page, `(() => { const box = ${drop}.getBoundingClientRect(); return Math.round(box.width) + "x" + Math.round(box.height); })()`);
     await page.getByRole("textbox", { name: "Venmo handle" }).tap();
     await keyboardUp(page);
-    await page.waitForTimeout(800);
+    await animationsDone(page);
     await page.locator("h1").tap();
     await keyboardDown(page);
-    await page.waitForTimeout(800);
+    await animationsDone(page);
     expect(runs(await sizes())).toEqual([before]);
   });
 });
@@ -345,7 +345,7 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   await page.goto("/");
   await settle(page);
   await action(page).evaluate((el) => el.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
-  await page.waitForTimeout(200);
+  await frames(page, 12);
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 

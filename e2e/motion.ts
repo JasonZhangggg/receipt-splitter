@@ -882,3 +882,16 @@ export const scenarios: Scenario[] = [
     probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }, breakdownFade],
   },
 ];
+
+/** Resolves once the page has painted `count` more frames, so a check that nothing changed waits on rendering and not on wall-clock time. */
+export const frames = (page: Page, count: number) =>
+  page.evaluate(
+    (n) =>
+      new Promise<void>((resolve) => {
+        const step = (left: number) => (left === 0 ? resolve() : requestAnimationFrame(() => step(left - 1)));
+        step(n);
+      }),
+    count,
+  );
+
+export const animationsDone = (page: Page) => page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
