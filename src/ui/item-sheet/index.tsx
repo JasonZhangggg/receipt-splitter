@@ -37,9 +37,12 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
 
 export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClose }: Props) {
   const c = useColors();
-  // Split and Delete item change the Item at once; the sheet keeps showing the Split as it was at the tap until it has left.
+  // Split and Delete item change the Item at once; the sheet keeps showing the Split as it looked at the tap, unsaved edits included, until it has left.
   const [leavingFrom, setLeavingFrom] = useState<Split | null>(null);
   const split = leavingFrom ?? current;
+  const currentRef = useRef(current);
+  // The name, detail, price and amount fields are uncontrolled; a lost Split or Delete item remounts them on the Item as it is now.
+  const [fields, setFields] = useState(0);
   const reduce = useReducedMotion();
   const [pending, setPending] = useState<ItemEdit>({});
   const [sent, setSent] = useState<readonly ItemEdit[]>([]);
@@ -63,9 +66,10 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
 
   const patch = (edit: ItemEdit): Operation => ({ by: me, type: "editReceipt", items: [{ type: "edit", itemId, ...edit }] });
   const live = split.receipt.items.find(({ id }) => id === itemId);
-  const unconfirmed = [...sent, pending].reduce(merge, {});
+  const unconfirmed = leavingFrom ? {} : [...sent, pending].reduce(merge, {});
   const preview = live && Object.keys(unconfirmed).length > 0 ? applyOperation(split, patch(unconfirmed), { creator: false }) : null;
-  const item: SplitItem | undefined = preview?.ok ? preview.split.receipt.items.find(({ id }) => id === itemId) : live;
+  const seen = preview?.ok ? preview.split : split;
+  const item: SplitItem | undefined = seen.receipt.items.find(({ id }) => id === itemId);
   const refusal = preview && !preview.ok ? preview.rejection.reason : null;
 
   const flush = () => {
@@ -80,6 +84,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   };
   useLayoutEffect(() => {
     flushRef.current = flush;
+    currentRef.current = current;
   });
 
   useEffect(() => {
@@ -114,10 +119,11 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     onClose();
   };
   const leave = (op: Operation) => {
-    setLeavingFrom(split);
+    setLeavingFrom(seen);
     void send(op).then((ok) => {
-      if (ok) return onClose();
+      if (ok || !currentRef.current.receipt.items.some(({ id }) => id === itemId)) return onClose();
       setLeavingFrom(null);
+      setFields((was) => was + 1);
       setProblem(say.saveFailed);
     });
   };
@@ -126,7 +132,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     flushRef.current = () => {};
     leave({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] });
   };
-  const note = bundleNote(split.receipt, itemId, item.price);
+  const note = bundleNote(seen.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
   const splitLine = () => {
     const [first, ...rest] = splitIds(split.receipt, item);
@@ -152,6 +158,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       <View style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <TextInput
           aria-label={say.itemName}
+          key={fields}
           defaultValue={item.name}
           onChangeText={(name) => name.trim() && edit({ name: name.trim() })}
           enterKeyHint="done"
@@ -162,6 +169,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           aria-label={say.itemDetail}
           placeholder={say.addDetail}
           placeholderTextColor={c.muted}
+          key={fields}
           defaultValue={item.detail ?? ""}
           maxLength={MAX_DETAIL_LENGTH}
           onChangeText={(detail) => edit({ detail: detail.trim() })}
@@ -176,6 +184,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           <TextInput
             aria-label={say.price}
             inputMode="decimal"
+            key={fields}
             defaultValue={plainAmount(item.price)}
             onChangeText={(text) => {
               const amount = parseAmount(text);
@@ -264,7 +273,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       />
       <View>
         <View ref={incomingRef} key={item.split.by} style={reduce ? null : enterAfter === null ? rowsEnter : [rowsEnterAfter, webStyle({ animationDelay: `${enterAfter}ms` })]}>
-          <SplitRows item={item} me={me} nameOf={nameOf} edit={edit} />
+          <SplitRows key={fields} item={item} me={me} nameOf={nameOf} edit={edit} />
         </View>
         {leaving && !reduce ? (
           <View ref={leavingRef} key={`${leaving.item.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, { opacity: leaving.from }]}>

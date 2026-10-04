@@ -197,17 +197,37 @@ test("no frame shows the 3x row beside the rows Split adds, or two 3x rows", asy
   expect(seen).toEqual(["3x", "7.29 7.29 7.29"]);
 });
 
-async function slowFramesOpen(browser: Browser, link: string, rafDelay: number): Promise<Page> {
+type Op = { type: string; items?: { type: string }[] };
+
+/** A page whose frames run `rafDelay` ms late; an Operation that `hold` matches waits for `release` before it reaches the server. */
+async function slowFramesOpenHolding(browser: Browser, link: string, rafDelay: number, hold: (op: Op) => boolean = () => false) {
   const page = await (await newContext(browser)).newPage();
   await page.addInitScript((delay) => {
     const frame = window.requestAnimationFrame.bind(window);
     Object.assign(window, { sampleFrame: frame });
     if (delay > 0) window.requestAnimationFrame = (callback) => frame(() => setTimeout(() => frame(callback), delay));
   }, rafDelay);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => {
+    const server = socket.connectToServer();
+    socket.onMessage((message) => {
+      const op = typeof message === "string" ? (JSON.parse(message) as { op?: Op }).op : undefined;
+      if (op && hold(op)) void held.then(() => server.send(message));
+      else server.send(message);
+    });
+  });
   await page.goto(link);
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
-  return page;
+  return { page, release };
 }
+
+async function slowFramesOpen(browser: Browser, link: string, rafDelay: number): Promise<Page> {
+  return (await slowFramesOpenHolding(browser, link, rafDelay)).page;
+}
+
+const isSplit = (op: Op) => op.type === "editReceipt" && op.items?.[0]?.type === "split";
+const isDelete = (op: Op) => op.type === "editReceipt" && op.items?.[0]?.type === "delete";
 
 /** What the Item sheet shows on each frame until it is gone: its heading, the Price field, and every amount in its text. */
 function sheetFrames(page: Page) {
@@ -265,6 +285,98 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     expect([...new Set(await frames)]).toEqual(["Item | 6.29 | $0.63"]);
+  });
+
+  test(`a price typed just before Split shows with the Bundle note for that price on every frame while the Split waits on the server, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const { page: sam, release } = await slowFramesOpenHolding(browser, await createSplit(request, workerIndex), rafDelay, isSplit);
+    await pick(sam, "Sam");
+    await firstBucket(sam).click();
+    await guinness(sam).click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const price = sheet.getByRole("textbox", { name: "Price" });
+    await expect(price).toHaveValue("21.87");
+    await price.fill("24.00");
+    const frames = sheetFrames(sam);
+
+    await sheet.getByRole("button", { name: "Split into 3" }).click();
+    await sam.waitForTimeout(1500);
+    release();
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(sam.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, \$8\.00, / })).toHaveCount(3, live);
+    expect([...new Set(await frames)]).toEqual(["Item | 24.00 | $2.29"]);
+  });
+
+  test(`a claim from another device while Split waits on the server leaves the sheet on the tapped state, and the rows arrive with the claim, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const link = await createSplit(request, workerIndex);
+    const { page: sam, release } = await slowFramesOpenHolding(browser, link, rafDelay, isSplit);
+    const priya = await open(browser, link);
+    await pick(sam, "Sam");
+    await pick(priya, "Priya");
+    await firstBucket(sam).click();
+    await firstBucket(priya).click();
+    await guinness(sam).click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
+    const frames = sheetFrames(sam);
+
+    await sheet.getByRole("button", { name: "Split into 3" }).click();
+    await guinnessCircle(priya, "Priya").click();
+    await expect(sam.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, had by Priya" })).toHaveCount(1, live);
+    release();
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Priya" })).toHaveCount(3, live);
+    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
+  });
+
+  test(`a Split that loses a race to another device's Split leaves the sheet on the row as it is now, with its own price, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const link = await createSplit(request, workerIndex);
+    const { page: sam, release } = await slowFramesOpenHolding(browser, link, rafDelay, isSplit);
+    const priya = await open(browser, link);
+    await pick(sam, "Sam");
+    await pick(priya, "Priya");
+    await firstBucket(sam).click();
+    await firstBucket(priya).click();
+    await guinness(sam).click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
+    const frames = sheetFrames(sam);
+
+    await sheet.getByRole("button", { name: "Split into 3" }).click();
+    await guinness(priya).click();
+    await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Split into 3" }).click();
+    await expect(guinness(priya)).toHaveCount(0, live);
+    release();
+
+    await expect(sheet.getByText("Couldn't save that. Check it and try again.")).toBeVisible(live);
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("7.29");
+    await expect(cans(sam)).toHaveCount(3, live);
+    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19", "Item | 7.29 | $0.73"]);
+  });
+
+  test(`a Delete item that loses a race to another device's Delete item closes the sheet on the tapped state, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const link = await createSplit(request, workerIndex);
+    const { page: sam, release } = await slowFramesOpenHolding(browser, link, rafDelay, isDelete);
+    const priya = await open(browser, link);
+    await pick(sam, "Sam");
+    await pick(priya, "Priya");
+    await firstBucket(sam).click();
+    await firstBucket(priya).click();
+    await guinness(sam).click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
+    const frames = sheetFrames(sam);
+
+    await sheet.getByRole("button", { name: "Delete item" }).click();
+    await guinness(priya).click();
+    await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Delete item" }).click();
+    await expect(guinness(priya)).toHaveCount(0, live);
+    release();
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(guinness(sam)).toHaveCount(0);
+    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
   });
 }
 
