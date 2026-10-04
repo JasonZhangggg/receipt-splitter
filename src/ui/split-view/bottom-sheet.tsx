@@ -41,7 +41,8 @@ type Props = {
   testID?: string;
 };
 
-type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; samples: { y: number; t: number }[] };
+/** `resume` is where a sheet caught mid-glide was headed, so a touch that never drags lets it finish. */
+type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
 export function BottomSheet({ children, scrim = false, onDown, onUp, stays = false, closing = false, onHeight, view, header, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
   const c = useColors();
@@ -98,7 +99,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     if (reduce) {
       const entering = (offset.current ?? tallest) >= tallest - 1;
       place(to, 0);
-      if (entering) element()?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: reducedFade, easing: "ease" });
+      if (entering) element()?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: reducedFade, easing: motion.easeOut });
       return done?.();
     }
     const from = offset.current ?? tallest;
@@ -149,7 +150,11 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     if (drag.current || !gestures || !isPrimary || leaving.current) return;
     const onGrab = (event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]") != null;
     if (scrolls && !onGrab) return;
-    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: offset.current ?? rest, moved: false, samples: [{ y: clientY, t: event.timeStamp }] };
+    const target = offset.current ?? rest;
+    const at = live();
+    const gliding = Math.abs(at - target) > 1;
+    if (gliding) place(at, 0);
+    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: at, moved: false, resume: gliding ? target : null, samples: [{ y: clientY, t: event.timeStamp }] };
     // The grab bar holds no buttons, so it can take the pointer at once. A mouse, which has no implicit capture, would otherwise leave the sheet on the first move up.
     if (onGrab) (event.currentTarget as unknown as HTMLElement).setPointerCapture?.(pointerId);
   };
@@ -176,7 +181,10 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     const current = drag.current;
     if (!current || current.pointer !== event.nativeEvent.pointerId) return;
     drag.current = null;
-    if (!current.moved) return;
+    if (!current.moved) {
+      if (current.resume !== null) settle(current.resume, 0);
+      return;
+    }
     const velocity = releaseVelocity(current.samples, event.timeStamp);
     const intent = releaseIntent((offset.current ?? rest) - rest, velocity, visible);
     if (intent === "down" && onDown) return leave(velocity);
@@ -259,7 +267,7 @@ function Outgoing({ children, onDone }: { children: ReactNode; onDone: () => voi
 
 const layer = webStyle({ willChange: "transform" });
 const scrimFade = webStyle({ transitionProperty: "opacity", transitionDuration: `${glide.ms}ms`, transitionTimingFunction: glide.easing });
-const scrimCrossFade = webStyle({ transitionProperty: "opacity", transitionDuration: `${reducedFade}ms`, transitionTimingFunction: "ease" });
+const scrimCrossFade = webStyle({ transitionProperty: "opacity", transitionDuration: `${reducedFade}ms`, transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
   scrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
