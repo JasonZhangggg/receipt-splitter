@@ -876,6 +876,44 @@ A reload of home starts a new split: no receipt, no photo, no names. The payment
 
 - [ ] Copy lane 1's screenshots into `~/.claude/orchestrate/receipt-splitter/review/home-reload/`. Post them in chat and wait for approval.
 
+## Home leaves the keyboard to iOS
+
+**Depends on.** None. It branches from `main` at 629a862 or later.
+
+On a phone, home's panel moves in steps when a handle or name field takes focus. iOS pans the page 166 pt before the keyboard's resize, and the panel's keyboard inset then steps 330, 164, 330 as `visualViewport.offsetTop` arrives (`notes.md`, home keyboard). The hero also switches to compact while the keyboard is up. The operator chose design A for home too (preferences 17). The app does not move the panel for the keyboard, and iOS pans the page. **Create split link** may sit under the keyboard while someone types. The focused field stays in view.
+
+**Files.**
+
+- [ ] Edit `src/ui/components/sheet.tsx`, `src/ui/components/viewport.ts`, and `app/index.tsx`.
+- [ ] Edit `e2e/home.spec.ts`, `e2e/motion.ts`, and `e2e/flash.spec.ts`.
+- [ ] Edit `features/home.md` in `verify-receipt-splitter`.
+
+**Build.**
+
+- [ ] Delete the panel's keyboard inset. The panel keeps PR 36's behavior otherwise: one surface, it never collapses, and a drag moves it and it springs back.
+- [ ] The panel's scroll limit and the hero's compact switch read the layout height (`clientHeight`), not the visual viewport.
+- [ ] Delete what only the inset used: `useViewport`, `visibleHeight`, and `keyboardInset`.
+- [ ] The PR adds no motion and no UI text.
+
+**Seams.**
+
+- [ ] The home page through Playwright in `e2e/home.spec.ts`, with the shared iOS 27 keyboard model in `e2e/motion.ts`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `e2e/home.spec.ts`. With the keyboard up, the focused handle field and name field are in view above it, also with twelve names at 844 and 667 px. The panel's page position does not change while the keyboard opens and closes, and its on-screen top never reverses while the keyboard rises. The hero's drop box keeps its size. These fail on 629a862. The twelve-names case no longer asks for Create above the keyboard, by the operator's ruling.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] The iOS census (preferences 44) on the owner's own simulator device: handle field and name field, keyboard up and down, counted on the band above the keyboard (`keyboard-premise/above.sh`) and judged against `kbref.html` run on the same device. Every case counts 0 beyond the reference.
+- [ ] `motion.mjs` on all lanes and the Playwright flash census.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. `npm run size` at trunk and head. Rule. Fail on any growth; the PR deletes code.
+
+**Review gate.** The operator reviews the census frames in `~/.claude/orchestrate/receipt-splitter/review/home-keyboard-a/` before merge.
+
 ## Queued: Add Item on the Split page
 
 Intent only. A full section with boxes comes before the build. Anyone in the Split can add a fully new Item from the Split page (preferences 30). The add is a manual receipt change, so History lists it and Revert removes it (preferences 3 and 29). With **Add item** on the Split page, home no longer needs the editor that `Scan.fixOnHome` keeps after a bad read.
