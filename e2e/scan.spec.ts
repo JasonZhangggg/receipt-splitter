@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { frames } from "./motion";
 import { dropFile, dropZone, openExample, pasteFile, photo } from "./files";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -317,7 +318,7 @@ test.describe("at 1280 px", () => {
 
     await dropFile(page, photo("e2e/fixtures/blank.png", "image/png"));
     await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
-    await page.waitForTimeout(500);
+    await frames(page, 3);
     await expect(page.getByText("srd-1040.jpg")).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/");
   });
@@ -377,7 +378,7 @@ test.describe("the reading state", () => {
     await page.goto("/");
     await choose(page, receipt1040);
     await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
-    await page.waitForTimeout(500);
+    await frames(page, 3);
     expect(await page.getByTestId("reading-line").count()).toBe(0);
     expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
     release();
@@ -477,7 +478,7 @@ test.describe("the sheet", () => {
     await expect.poll(offset, { intervals: [16] }).not.toBe(released);
     await touch("touchStart");
     const caught = await offset();
-    await page.waitForTimeout(200);
+    await frames(page, 12);
     const held = await offset();
     await touch("touchEnd");
 

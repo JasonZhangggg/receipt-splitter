@@ -1,6 +1,7 @@
 import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { servePhoto } from "./photo";
 import { connect, createSplit, leftovers, T0 } from "./testing";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -99,7 +100,13 @@ describe("PUT /api/splits/<id>/photo", () => {
 
     expect(await status(put(id, jpeg({ size: 200 * KB }), { secret: creatorSecret }))).toBe(413);
     expect(await status(put(id, jpeg({ size: 150 * KB + 1 }), { secret: creatorSecret }))).toBe(413);
-    expect(await status(put(id, streamed, { secret: creatorSecret }))).toBe(413);
+    const streaming = new Request(`http://localhost/api/splits/${id}/photo`, {
+      method: "PUT",
+      headers: { "content-type": "image/jpeg", authorization: `Bearer ${creatorSecret}` },
+      body: streamed,
+      duplex: "half",
+    } as RequestInit);
+    expect(await status(servePhoto(streaming, env, id))).toBe(413);
     expect(await status(get(id))).toBe(404);
     expect(await status(put(id, jpeg({ size: 150 * KB }), { secret: creatorSecret }))).toBe(204);
   });

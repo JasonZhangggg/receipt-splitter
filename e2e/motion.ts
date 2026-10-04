@@ -12,7 +12,8 @@ import type { Locator, Page } from "@playwright/test";
 export type ProbeKind = "top" | "left" | "height" | "opacity" | "scale" | "angle" | "painted";
 /** `find` is a JS expression evaluated in the page each frame; it returns the element or null. */
 export type Probe = { key: string; find: string; kind: ProbeKind };
-export type Frame = { t: number; v: Record<string, number | null> };
+/** `t` is the frame's vsync stamp, which can precede an action the callback then sees; `at` is when the callback ran. Traces saved before `at` existed lack it. */
+export type Frame = { t: number; at?: number; v: Record<string, number | null> };
 export type Paint = { t: number; key: string; v: number };
 export type Trace = { frames: Frame[]; painted: Paint[]; start: number; release: number; end: number; longTasks: { start: number; duration: number }[] | null };
 
@@ -121,7 +122,7 @@ const sampler = (probes: Probe[]) => {
       if ((was === null) !== (now === null) || (was !== null && now !== null && Math.abs(was - now) > 0.004)) state.lastChange = performance.now();
     }
     previous = v;
-    state.frames.push({ t, v });
+    state.frames.push({ t, at: performance.now(), v });
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -175,8 +176,9 @@ export type Verdict = {
 const round = (value: number) => Math.round(value * 10) / 10;
 
 export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = false } = {}): Verdict {
-  const inside = trace.frames.filter((frame) => frame.t > trace.start && frame.t <= trace.end);
-  const before = trace.frames.filter((frame) => frame.t <= trace.start).at(-1);
+  const ran = (frame: Frame) => frame.at ?? frame.t;
+  const inside = trace.frames.filter((frame) => ran(frame) > trace.start && ran(frame) <= trace.end);
+  const before = trace.frames.filter((frame) => ran(frame) <= trace.start).at(-1);
   // WebKit sometimes runs two rAF callbacks a millisecond apart for one frame, so those count as one.
   const window = (before ? [before, ...inside] : inside).filter((frame, i, all) => i === all.length - 1 || all[i + 1].t - frame.t > 4);
   const gaps = window.slice(1).map((frame, i) => frame.t - window[i].t);
@@ -882,3 +884,16 @@ export const scenarios: Scenario[] = [
     probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }, breakdownFade],
   },
 ];
+
+/** Resolves once the page has painted `count` more frames, so a check that nothing changed waits on rendering and not on wall-clock time. */
+export const frames = (page: Page, count: number) =>
+  page.evaluate(
+    (n) =>
+      new Promise<void>((resolve) => {
+        const step = (left: number) => (left === 0 ? resolve() : requestAnimationFrame(() => step(left - 1)));
+        step(n);
+      }),
+    count,
+  );
+
+export const animationsDone = (page: Page) => page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
