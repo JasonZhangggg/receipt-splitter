@@ -194,7 +194,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     setOverlay(null);
     setClosing(false);
     if (!overlay || !(wide || overlay.from.keyboard)) return;
-    const trigger = overlay.from.trigger.isConnected ? overlay.from.trigger : overlay.kind === "item" ? nearestLine(overlay.lines, overlay.itemId) : null;
+    const trigger = overlay.from.trigger.isConnected ? overlay.from.trigger : overlay.kind === "item" ? nearestLine(split, overlay.lines, overlay.itemId) : null;
     trigger?.focus({ preventScroll: true });
   };
   useEscape(overlay !== null && !closing && !wide, closeOverlay);
@@ -378,11 +378,15 @@ const paneInset = 16;
 const sticky = webStyle({ position: "sticky", top: `${paneInset}px` });
 const contain = webStyle({ overscrollBehavior: "contain" });
 
-/** After Split or Delete item the line is gone; focus goes to the nearest line still on screen. */
-function nearestLine(lines: readonly ItemId[], gone: ItemId): HTMLElement | null {
+/** After Split or Delete item the line is gone; focus goes to the nearest line still on screen, or to the header of the collapsed Bundle that hides it. */
+function nearestLine(split: Split, lines: readonly ItemId[], gone: ItemId): HTMLElement | null {
+  const shown = (target: HTMLElement | undefined) => (target && target.getClientRects().length > 0 && target.offsetHeight > 0 ? target : null);
   for (const id of linesNear(lines, gone)) {
-    const open = [...document.querySelectorAll<HTMLElement>(`[data-testid="line-${id}"] [data-pressable]`)].at(-1);
-    if (open && open.getClientRects().length > 0 && open.offsetHeight > 0) return open;
+    const line = shown([...document.querySelectorAll<HTMLElement>(`[data-testid="line-${id}"] [data-pressable]`)].at(-1));
+    if (line) return line;
+    const bundle = split.receipt.adjustments.find((row) => row.kind === "bundleDiscount" && row.bundle.items.includes(id));
+    const header = bundle && shown(document.querySelector<HTMLElement>(`[data-testid="bundle-${bundle.id}"] [data-pressable]`) ?? undefined);
+    if (header) return header;
   }
   return null;
 }

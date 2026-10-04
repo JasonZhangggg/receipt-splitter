@@ -187,6 +187,18 @@ test("after a Delete item, Enter on the line that takes focus opens its popover,
   await expect(ultra).toBeFocused();
 });
 
+test("Delete item on a line whose neighbors sit inside collapsed Bundles hands focus to the next Bundle's header", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await gameplay(page).click();
+  await itemPopover(page).getByRole("button", { name: "Delete item" }).click();
+
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(gameplay(page)).toHaveCount(0);
+  await expect(firstBucket(page)).toBeFocused();
+  await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "false");
+});
+
 test("at 1280 px with a Bundle open, the Add item popover opens above its row, and Tab and Shift+Tab never leave it", async ({ page, request }, { workerIndex }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await open(page, await createSplit(request, workerIndex));
