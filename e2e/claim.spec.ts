@@ -216,6 +216,18 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await expect(sam.getByRole("button", { name: /^Open Sprite, \$2\.50/ })).toBeVisible(live);
 });
 
+test("a breakdown counts a 2x line as 2 items, as a Bundle header counts it", async ({ browser, request }, { workerIndex }) => {
+  const priya = await open(browser, await createSplit(request, workerIndex));
+  await pick(priya, "Priya");
+  await circle(priya, "2x Pitchers", "Priya").click();
+  await circle(priya, "Sprite", "Priya").click();
+  await expect(owe(priya)).toHaveText("$26.50", live);
+
+  await owe(priya).click();
+
+  await expect(priya.getByTestId("breakdown").getByText("3 items", { exact: true })).toBeVisible(live);
+});
+
 test("the payer marks themselves paid, and another browser sees Paid on their breakdown", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const priya = await open(browser, link);
