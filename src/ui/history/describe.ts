@@ -50,7 +50,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       const rows: readonly { readonly id: string; readonly name: string }[] = write.kind === "item" ? split.receipt.items : split.receipt.adjustments;
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
-      if ("name" in edit && edit.name && "detail" in edit && edit.detail) {
+      if ("name" in edit && edit.name && "detail" in edit && edit.detail && !edit.detail[0]) {
         const [before, after] = [nameParts({ name: edit.name[0], detail: undefined }), edit.name[1]];
         if (before[1] !== null && after === before[0] && edit.detail[1]) return { lead: name, before: before[1], after: edit.detail[1] };
       }

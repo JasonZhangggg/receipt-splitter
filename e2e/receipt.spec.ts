@@ -547,3 +547,38 @@ test("a collapsed Bundle's unclaimed line grows in on the first claim and collap
   expect(shrunk.length).toBeGreaterThan(2);
   expect(shrunk[0] - shrunk.at(-1)!).toBeGreaterThan(10);
 });
+
+test("typing the original name back while the first edit is unconfirmed still saves it, so the row ends as it began", async ({ browser, request }, { workerIndex }) => {
+  const context = await newContext(browser);
+  const page = await context.newPage();
+  const held: { forward: () => void }[] = [];
+  let holding = false;
+  await page.routeWebSocket(/\/parties\//, (client) => {
+    const server = client.connectToServer();
+    server.onMessage((message) => client.send(message));
+    client.onMessage((message) => {
+      if (holding && String(message).includes("editReceipt")) held.push({ forward: () => server.send(message) });
+      else server.send(message);
+    });
+  });
+  await page.goto(await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const name = sheet.getByRole("textbox", { name: "Item name", exact: true });
+
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  holding = true;
+  await name.fill("Lite");
+  await expect.poll(() => held.length, live).toBe(1);
+  await name.fill("Gameplay");
+  await page.waitForTimeout(1_500);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  holding = false;
+  held.forEach(({ forward }) => forward());
+  await expect(page.getByRole("button", { name: /^Open Gameplay, / })).toBeVisible(live);
+  await page.waitForTimeout(1_000);
+  await expect(page.getByRole("button", { name: /^Open Lite, / })).toHaveCount(0);
+  await context.close();
+});

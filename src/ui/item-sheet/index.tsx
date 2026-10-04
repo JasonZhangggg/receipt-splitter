@@ -96,7 +96,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
 
   const flush = () => {
     if (Object.keys(pending).length === 0 || refusal || leavingFrom) return;
-    if (live && showsAsBefore(live, pending)) {
+    const withSent = live && sent.length > 0 ? applyOperation(split, patch(sent.reduce(merge, {})), { creator: false }) : null;
+    const base = withSent?.ok ? withSent.split.receipt.items.find(({ id }) => id === itemId) : live;
+    if (base && showsAsBefore(base, pending)) {
       setPending({});
       return;
     }
