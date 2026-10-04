@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from "./without-ocr";
+import { expect, newContext, test, type APIRequestContext, type Locator, type Page } from "./without-ocr";
 
 const desktop = { width: 1440, height: 900 };
 test.use({ viewport: desktop, isMobile: false, hasTouch: false });
@@ -77,6 +77,13 @@ async function box(target: Locator): Promise<Box> {
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 const inside = (a: Box, { width, height }: { width: number; height: number }) => a.x >= 0 && a.y >= 0 && a.x + a.width <= width && a.y + a.height <= height;
 
+test("the wordmark is the page's only level-1 heading, and the pane's question is level 2", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(pane(page).getByRole("heading", { name: "Which one are you?", level: 2 })).toBeVisible();
+});
+
 test("a click on a line opens its detail as a popover under that line, while the right pane stays in view", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
@@ -148,6 +155,28 @@ test("Split on a quantity-3 line leaves three one-unit rows, and Delete item on 
 
   await expect(itemPopover(page)).toHaveCount(0, live);
   await expect(cans(page)).toHaveCount(2, live);
+});
+
+test("another device's Delete item closes the open popover and hands focus to the next line", async ({ page, browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const ultra = (on: Page) => on.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first();
+  await open(page, link);
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+  await ultra(page).click();
+  await expect(itemPopover(page)).toBeVisible();
+  const priya = await (await newContext(browser)).newPage();
+  await priya.setViewportSize(desktop);
+  await open(priya, link);
+  await pick(priya, "Priya");
+  await firstBucket(priya).click();
+  await ultra(priya).click();
+
+  await itemPopover(priya).getByRole("button", { name: "Delete item" }).click();
+
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / })).toHaveCount(1);
+  await expect(guinness(page)).toBeFocused();
 });
 
 test("Add item opens its form as a popover from its row, and the new row lands in the receipt with its claim", async ({ page, request }, { workerIndex }) => {
@@ -227,4 +256,5 @@ test("under 1024 px the Split page keeps the phone layout with its bottom sheet"
 
   await expect(page.getByRole("dialog", { name: "Which one are you?" })).toBeVisible(live);
   await expect(page.getByRole("complementary")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 });

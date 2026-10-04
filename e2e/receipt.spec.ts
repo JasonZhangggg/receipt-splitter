@@ -378,6 +378,27 @@ for (const rafDelay of [0, 200]) {
     await expect(guinness(sam)).toHaveCount(0);
     expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
   });
+
+  test(`another device's Delete item closes an open Item sheet on the Item as it was, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const link = await createSplit(request, workerIndex);
+    const sam = await slowFramesOpen(browser, link, rafDelay);
+    const priya = await open(browser, link);
+    await pick(sam, "Sam");
+    await pick(priya, "Priya");
+    await firstBucket(sam).click();
+    await firstBucket(priya).click();
+    await guinness(sam).click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
+    const frames = sheetFrames(sam);
+
+    await guinness(priya).click();
+    await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Delete item" }).click();
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(guinness(sam)).toHaveCount(0);
+    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
+  });
 }
 
 test("Delete item takes a Bundle Item off for everyone, and Revert brings it back", async ({ browser, request }, { workerIndex }) => {
