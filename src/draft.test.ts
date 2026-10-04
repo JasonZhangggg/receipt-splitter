@@ -8,7 +8,9 @@ import { computeShares } from "./core/shares";
 import { mintedId } from "./core/test-ids";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import { parseReceipt } from "./parse";
-import { box } from "./parse/fixtures/boxes";
+import { box, receiptRows } from "./parse/fixtures/boxes";
+import { receiptOfReply } from "./scan/client";
+import { readLines, toReply } from "../worker/scan/format";
 import { emptyDraft, mismatchNote, newName, parseAmount, loadDraft, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
@@ -373,6 +375,78 @@ describe("a read the Split would refuse as it is", () => {
 
   test("a read with no Items keeps Create split link off, since a Split holds at least one Item", () => {
     expect(reasonOf(readReady(null))).toBe("Couldn't read any items. Try another photo.");
+  });
+
+  const device = (rows: [string, string][]) => parseReceipt(receiptRows(rows));
+  const server = (lines: string[]) => {
+    const reading = readLines(lines);
+    return reading && receiptOfReply(JSON.parse(JSON.stringify(toReply(reading, { passed: true, gaps: { subtotal: null, total: cents(0) } }))));
+  };
+  const totalsOf = (receipt: Receipt | null) => {
+    const sent = sentOf(receipt!);
+    return [sent.subtotal, sent.total];
+  };
+
+  test("sends a negative Subtotal or Total, from either reader, as the sum it should be", () => {
+    expect(totalsOf({ ...receipt1040, subtotal: cents(-200), total: cents(-500) })).toEqual([2298, 2804]);
+    expect(totalsOf(device([["Fries", "5.00"], ["Subtotal", "-2.00"], ["Tax", "1.00"], ["Total", "6.00"]]))).toEqual([500, 600]);
+    expect(totalsOf(device([["Fries", "5.00"], ["Total", "2.00-"]]))).toEqual([500, 500]);
+    expect(totalsOf(server(["i|Fries|500", "tot|-500"]))).toEqual([500, 500]);
+  });
+
+  test("keeps a rebuilt Subtotal and Total within $0.00 and the limit", () => {
+    const big: Receipt = {
+      items: [
+        { id: itemId("i1"), name: "Car", price: price(MAX_CENTS) },
+        { id: itemId("i2"), name: "Boat", price: price(MAX_CENTS) },
+      ],
+      adjustments: [],
+      subtotal: cents(MAX_CENTS + 1),
+      total: cents(-1),
+    };
+    expect(totalsOf(big)).toEqual([10_000_000, 10_000_000]);
+    const credited: Receipt = { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "discount", name: "Voucher", amount: cents(-MAX_CENTS) }], total: cents(MAX_CENTS + 1) };
+    expect(totalsOf(credited)).toEqual([2298, 0]);
+  });
+
+  test("a price over the limit with no readable Subtotal still leaves a note on the gap", () => {
+    const [first, ...rest] = receipt1040.items;
+    const receipt: Receipt = { ...receipt1040, items: [first, ...rest.slice(0, 3), { ...rest[3], price: price(MAX_CENTS + 350) }], subtotal: cents(-1), total: cents(MAX_CENTS + 2804) };
+    expect(totalsOf(receipt)).toEqual([10_000_000, 10_000_000]);
+    expect(mismatchNote(readReady(receipt))).toBe("Items are $99980.52 short of the subtotal.");
+  });
+
+  test("a read with more Items than a Split holds keeps Create split link off and says why", () => {
+    const things = (n: number) => Array.from({ length: n }, (_, k): [string, string] => [`Thing ${k}`, "1.00"]);
+    expect(reasonOf(readReady(device([...things(101), ["Total", "101.00"]])))).toBe("A split holds up to 100 items. This receipt has 101.");
+    expect(reasonOf(readReady(device([...things(100), ["Total", "100.00"]])))).toBe(null);
+  });
+
+  test("a read with more charges and discounts than a Split holds keeps Create split link off and says why", () => {
+    const fees = (n: number) => Array.from({ length: n }, () => "f|Fee|100");
+    expect(reasonOf(readReady(server(["i|Fries|500", ...fees(20), "p|Tip|100", "tot|2600"])))).toBe("A split holds up to 19 taxes, fees and discounts. This receipt has 20.");
+    expect(reasonOf(readReady(server(["i|Fries|500", ...fees(19), "p|Tip|100", "tot|2500"])))).toBe(null);
+  });
+
+  test("calls an unnamed Item by its place on the receipt, counting the blank $0.00 rows left out", () => {
+    const receipt: Receipt = {
+      items: [
+        { id: itemId("i1"), name: "Fries", price: price(500) },
+        { id: itemId("i2"), name: "", price: price(0) },
+        { id: itemId("i3"), name: "", price: price(300) },
+        { id: itemId("i4"), name: "", price: price(200), quantity: 2 },
+      ],
+      adjustments: [{ id: adjustmentId("b1"), kind: "bundleDiscount", name: "Combo off", amount: cents(-100), bundle: { name: "", items: [itemId("i2"), itemId("i3")] } }],
+      subtotal: cents(1000),
+      total: cents(900),
+    };
+    const sent = sentOf(receipt);
+    expect(sent.items.map(({ name }) => name)).toEqual(["Fries", "Item 3", "Item 4"]);
+  });
+
+  test("calls a Bundle read with no name by its place among the Bundles", () => {
+    const sent = sentOf(server(["i|Fries|500", "b|Wings", ">i|Wings|900", ">d|Wing deal|100", "b|", ">i|Soda|300", ">i|Pie|200", ">d|Combo off|100", "tot|1400"])!);
+    expect(sent.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? [row.bundle.name] : []))).toEqual(["Wings", "Bundle 2"]);
   });
 });
 

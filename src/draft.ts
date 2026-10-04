@@ -1,5 +1,5 @@
 import { cents, MAX_CENTS, price, type Cents } from "./core/money";
-import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
+import { canonicalName, isName, MAX_ADJUSTMENTS, MAX_ITEMS, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
 import { adjustmentId, itemId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 
@@ -89,6 +89,10 @@ const sum = (values: readonly number[]) => values.reduce((total, value) => total
 
 const inRange = (amount: number) => Math.abs(amount) <= MAX_CENTS;
 
+const readable = (amount: number) => amount >= 0 && amount <= MAX_CENTS;
+
+const clamped = (amount: number) => cents(Math.min(Math.max(amount, 0), MAX_CENTS));
+
 /** The name as read, or null when it draws nothing, which the Split refuses. */
 function rowName(read: string): string | null {
   const name = clip(read.trim());
@@ -99,37 +103,31 @@ const adjustmentNames: Record<Adjustment["kind"], string> = { tax: "Tax", tip: "
 
 /**
  * The Receipt a read sends, repaired where the Split would refuse it, so the rows reach the Split page to be fixed there:
- * an unnamed Item is called by its place, and an amount over the limit is sent as $0.00, or as the sum it should be for the Subtotal and Total.
+ * an unnamed Item or Bundle is called by its place, an amount over the limit is sent as $0.00, and a Subtotal or Total outside $0.00 and the limit
+ * is sent as the sum it should be, within them. The Subtotal's sum counts a price over the limit at the limit, so the Total check still shows its gap.
  */
 function sendable(read: Receipt): Receipt | null {
-  const named = read.items.flatMap((item) => {
-    const name = rowName(item.name);
-    return name === null && item.price === 0 ? [] : [{ ...item, name }];
+  const [first, ...rest] = read.items.flatMap(({ id, name: readName, price: amount, detail, quantity }, place): Item[] => {
+    const name = rowName(readName);
+    if (name === null && amount === 0) return [];
+    return [{ id, name: name ?? `Item ${place + 1}`, price: inRange(amount) ? amount : price(0), ...(detail && { detail }), ...(quantity && { quantity }) }];
   });
-  const [first, ...rest] = named.map(
-    ({ id, name, price: amount, detail, quantity }, i): Item => ({
-      id,
-      name: name ?? `Item ${i + 1}`,
-      price: inRange(amount) ? amount : price(0),
-      ...(detail && { detail }),
-      ...(quantity && { quantity }),
-    }),
-  );
   if (!first) return null;
   const items: NonEmpty<Item> = [first, ...rest];
   const kept = new Set(items.map(({ id }) => id));
+  const bundlePlaces = new Map(read.adjustments.filter((row) => row.kind === "bundleDiscount").map(({ id }, place) => [id, place + 1]));
   const adjustments = read.adjustments.flatMap((row): Adjustment[] => {
     if (row.kind === "tip") return [];
     const fields = { id: row.id, name: rowName(row.name) ?? adjustmentNames[row.kind], amount: inRange(row.amount) ? row.amount : cents(0) };
     if (row.kind !== "bundleDiscount") return [{ ...fields, kind: row.kind }];
     const [inside, ...others] = row.bundle.items.filter((id) => kept.has(id));
     if (inside === undefined) return [{ ...fields, kind: "discount" }];
-    return [{ ...fields, kind: row.kind, bundle: { name: clip(row.bundle.name.trim()), items: [inside, ...others] } }];
+    return [{ ...fields, kind: row.kind, bundle: { name: rowName(row.bundle.name) ?? `Bundle ${bundlePlaces.get(row.id)}`, items: [inside, ...others] } }];
   });
   const tip = sum(read.adjustments.filter((row) => row.kind === "tip").map((row) => row.amount));
   const withTip = [...adjustments, { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(inRange(tip) ? tip : 0) }];
-  const subtotal = inRange(read.subtotal) ? read.subtotal : cents(sum(items.map((item) => item.price)));
-  const total = inRange(read.total) ? read.total : cents(subtotal + sum(withTip.map((row) => row.amount)));
+  const subtotal = readable(read.subtotal) ? read.subtotal : clamped(sum(read.items.map((item) => Math.min(item.price, MAX_CENTS))));
+  const total = readable(read.total) ? read.total : clamped(subtotal + sum(withTip.map((row) => row.amount)));
   return { items, adjustments: withTip, subtotal, total };
 }
 
@@ -192,6 +190,10 @@ export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
   if (scan.status === "empty") return note("Add a receipt.");
   if (scan.status === "reading") return note("Reading the receipt.");
   if (!scan.receipt) return note("Couldn't read any items. Try another photo.");
+  const { items, adjustments } = scan.receipt;
+  if (items.length > MAX_ITEMS) return note(`A split holds up to ${MAX_ITEMS} items. This receipt has ${items.length}.`);
+  // The Tip is always one of the Adjustments sent, so the receipt's own charges get one fewer.
+  if (adjustments.length > MAX_ADJUSTMENTS) return note(`A split holds up to ${MAX_ADJUSTMENTS - 1} taxes, fees and discounts. This receipt has ${adjustments.length - 1}.`);
   const [first, ...rest] = filledHandles(handles);
   if (!first) return { kind: "noHandle" };
   const [host, ...others] = names;
