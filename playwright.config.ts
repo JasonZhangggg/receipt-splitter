@@ -9,6 +9,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: `http://localhost:${port}` },
+  // `npm run e2e` runs @frame-timing tests in a second pass on one worker, since beside parallel workers a frame gap measures the machine.
   projects: [
     { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
     // The Split page's sheet is where iOS Safari has differed; the rest of the suite stays on one engine to keep CI short.

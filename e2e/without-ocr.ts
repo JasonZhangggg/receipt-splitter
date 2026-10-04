@@ -36,12 +36,27 @@ async function withoutOcrModels(context: BrowserContext): Promise<BrowserContext
   return context;
 }
 
+/** Playwright keeps a context made from the worker's browser open until the worker exits, so each test closes the ones it made. */
+const opened = new Set<BrowserContext>();
+
 export async function newContext(browser: Browser): Promise<BrowserContext> {
-  return withoutOcrModels(await browser.newContext());
+  const context = await withoutOcrModels(await browser.newContext());
+  opened.add(context);
+  return context;
 }
 
-export const test = base.extend({
+export const test = base.extend<{ closeOpened: void }>({
   context: async ({ context }, provide) => {
     await provide(await withoutOcrModels(context));
   },
+  closeOpened: [
+    // Playwright reads a fixture's dependencies from this pattern, and this one has none.
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, provide) => {
+      await provide();
+      await Promise.all([...opened].map((context) => context.close()));
+      opened.clear();
+    },
+    { auto: true },
+  ],
 });
