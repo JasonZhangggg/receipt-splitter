@@ -8,7 +8,7 @@ type Props = {
   anchor: HTMLElement;
   label: string;
   closing: boolean;
-  /** Opened from the keyboard, so it shows at once with no entrance. */
+  /** Opened from the keyboard, so it shows and leaves at once, with no motion. */
   instant: boolean;
   onClose: () => void;
   onGone: () => void;
@@ -82,7 +82,7 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, chil
   useLayoutEffect(() => {
     if (!closing) return;
     const element = surface.current as unknown as HTMLElement | null;
-    if (!element?.animate) return leave();
+    if (!element?.animate || instant) return leave();
     // A close that lands mid-entrance leaves from where the popover is, not from fully shown.
     const { opacity, transform } = getComputedStyle(element);
     element.getAnimations().forEach((running) => running.cancel());
@@ -90,7 +90,7 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, chil
     const fade = element.animate([{ opacity, transform }, to], { duration: leaveFor, easing: motion.easeOut, fill: "forwards" });
     fade.onfinish = () => leave();
     return () => fade.cancel();
-  }, [closing, reduce]);
+  }, [closing, reduce, instant]);
 
   // Only a width change moves the anchor sideways; a height change can be a tablet's keyboard over a field in the popover.
   useEffect(() => {
