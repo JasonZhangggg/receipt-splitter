@@ -17,7 +17,6 @@ const deviceKey = "receipt-splitter:device";
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A Split expires 60 days after its last change, which this device sees only when it opens the Split. */
 const LISTED_FOR_MS = 60 * DAY_MS;
-const SHOWN = 5;
 const KEPT = 50;
 
 const storage = () => globalThis.localStorage as Storage | undefined;
@@ -102,8 +101,7 @@ export function recentSplits(now = Date.now()): readonly RecentSplit[] {
       const { recent } = readRecord(keyOf(id));
       return recent && now - recent.seen <= LISTED_FOR_MS ? [{ id, names: recent.names, total: recent.total, added: recent.added }] : [];
     })
-    .sort((a, b) => b.added - a.added)
-    .slice(0, SHOWN);
+    .sort((a, b) => b.added - a.added);
 }
 
 export function forgetSplit(id: SplitId) {

@@ -19,6 +19,7 @@ type TargetProps = Action & {
   describedBy?: string;
   toggled?: boolean;
   expanded?: boolean;
+  popup?: "dialog";
   controls?: string;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;
@@ -26,7 +27,7 @@ type TargetProps = Action & {
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, controls, style, children }: TargetProps) {
+export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   if (disabled && held) setHeld(false);
   const web = Platform.OS === "web" ? { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay, ...(href === undefined ? {} : { href, hrefAttrs: newTab }) } : {};
@@ -38,6 +39,7 @@ export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll =
       aria-busy={busy}
       aria-pressed={toggled}
       aria-expanded={expanded}
+      aria-haspopup={popup}
       aria-controls={controls}
       disabled={disabled}
       onPressIn={() => setHeld(!disabled)}
@@ -91,13 +93,15 @@ type Props = ({ label: string; name?: string } | { label?: undefined; name: stri
   outsideScroll?: boolean;
   disabled?: boolean;
   busy?: boolean;
+  expanded?: boolean;
+  popup?: "dialog";
   reason?: string;
   note?: string;
 };
 
 const colorChange = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
-export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, reason, note, ...action }: Props) {
+export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, expanded, popup, reason, note, ...action }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const reasonId = useId();
@@ -110,6 +114,8 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
       outsideScroll={outsideScroll}
       disabled={disabled || busy}
       busy={busy}
+      expanded={expanded}
+      popup={popup}
       describedBy={reason || note ? reasonId : undefined}
       style={(pressed) => pressStyle(pressed, reduce)}
     >

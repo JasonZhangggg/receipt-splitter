@@ -75,7 +75,8 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
 - **Preferences 33, 2026-10-02.** The home panel with the payment row, the names, and **Create split link** is always shown, never collapses, and is one surface with Create. A drag moves it and it springs back. PR 36 built it.
 - **Preferences 34, 2026-10-02.** A tap on an enabled Create always acts. It creates, or it focuses what is missing and says so. PR 36 built it. The operator approved the wording "Add how to pay you." on 2026-10-03.
 - **Preferences 36, 2026-10-02.** After a Split is created, home is fresh. The receipt, the photo, and the names clear, and the payment handles stay. PR 35 built it.
-- **Preferences 37, 2026-10-02.** History on home lists past Splits stored on this device only. **Recent splits on home** builds it.
+- **Preferences 37, 2026-10-04.** Recent splits, the past Splits stored on this device only, open from an icon at the top right of home, not inline. A tap on an entry opens its link, and the icon hides when there are none. **Recent splits on home** builds it.
+- **Preferences 66, 2026-10-04.** On home the dashed **Add receipt** box fills the space between the header and the panel, and its dashed border is a lighter gray. **Recent splits on home** builds it.
 - **Preferences 44, 2026-10-02.** The real-iOS census in the iOS Simulator is the deciding gate for UI fixes. Every flagged interaction counts 0 on the fix head.
 - **Preferences 45, 2026-10-02.** CI runs WebKit for the functional sheet and claim specs only. WebKit frame timing runs locally through `motion.mjs` on macOS before every UI PR, and Chromium frame timing runs in CI.
 - **Preferences 55 to 57, 2026-10-03.** The server may read receipts, with the photo and a third-party model API. This reverses ADR 0001's on-device OCR rule. The API key is a Worker secret behind a same-origin `/api` route, and scans get their own rate limit and daily cap. An eval on real receipts picks the reading path by price to performance. The provider and model change by config, open-weight models with several hosts come first, and a fallback needs no paid model. V2-7a and V2-7b build it.
@@ -999,60 +1000,56 @@ Who may add is an open question for the operator. The recommendation is anyone i
 
 ## Recent splits on home
 
-**Depends on.** None. It branches from `main` at `74932fe` or later.
+**Depends on.** None. It branches from `main` at `d59243e` or later. PR 46 built Recent splits as a list inline on home. This section replaces that list with an icon (preferences 37, 2026-10-04) and fills the space above the panel with the **Add receipt** box (preferences 66).
 
-Home lists the Splits this device created or opened, and a tap on one opens its link (preferences 37). The list is called **Recent splits**, because History is the Split page's list of payments and receipt changes (preferences 29). Today a Host who closes the tab has no way back to a link they did not save.
+Home keeps the Splits this device created or opened, and a tap on one opens its link. The list is called **Recent splits**, because History is the Split page's list of payments and receipt changes (preferences 29). It opens from an icon at the top right of home, so home itself shows only the receipt, the names, and **Create split link**.
 
 Decisions.
 
-- Each entry shows the names at the table, host first, up to three and then "and N more"; the day this device first saw the Split ("Today", "Yesterday", "Sep 28", or "Sep 28, 2025" in another year); and the receipt's total. The Split page writes them from the Split it already holds, so the list costs no server call and sends nothing.
-- Newest first, by the day this device first saw the Split. A reopened Split keeps its place, so the dates read in order.
-- Home shows the 3 newest on a phone and the 5 newest from desktop width up (operator, 2026-10-04). The device lists at most 50 Splits. Past that, the oldest lose their entry (`recent`) and keep their Creator secret and pick, so storage stays near 15 KB for entries and no Split's ownership is ever dropped.
-- A Split expires 60 days after its last change, which the device cannot see. An entry leaves the list 60 days after this device last opened its Split, and at once when its link says the Split has expired. An entry can outlive its Split when nobody opens it; the tap then shows **This split has expired** and the entry is gone on the way back.
-- The list shows only on the empty home, before a receipt is added, so it never competes with the editor. After Create, home is fresh (preferences 36), and the new Split tops the list.
-- On a phone the list sits in the scrolling page between the hero and the panel. The panel stays shown and never collapses (preferences 33). While the list shows, the hero draws compact, as on a short screen, so the three entries fit above the panel at 390 by 844. The list shows only the entries that end fully above the panel, at most 3, measured from the laid-out page before the first paint, so a shorter Safari viewport shows fewer. From 900 px it sits under **Create split link** in the one centered column (preferences 32).
-- With no Splits there is no heading and no placeholder. A first-time Host sees today's home.
-- The app does not move anything for the keyboard (preferences 17). The list scrolls with the page.
-- A row's press fills it with `sheetIn` and fades over 200 ms (`pressOut`) on release. A touch fills after a 150 ms hold, like the hero, so a scroll that starts on a row does not flash; a mouse hover fills at once. The list does not animate in, because home shows it on every visit.
+- The icon is the `history` glyph, the one the Split page header uses for **History**, drawn by the same `Button kind="icon"`: an 18 px glyph in `muted` on a 44 by 44 tap target, with the header's -12 px right margin so the glyph lines up with the gutter. Its name is **Recent splits**. The two pages never show both lists, so one glyph does not mean two things on one screen.
+- The icon shows only when this device lists at least one Split. With none there is no icon, no heading, and no placeholder, so a first-time Host sees today's home. The icon shows whether or not a receipt is on home.
+- Below 900 px a tap opens a bottom sheet with a scrim, the same `BottomSheet` the Split page uses for an Item's detail and for History. From 900 px it opens a popover anchored under the icon, right edges aligned, 360 px wide, as preferences 31 asks for the Item detail on desktop.
+- It lists every entry this device saw within 60 days, newest first by `added`. The device keeps at most 50, so the list is at most 50 rows, and the sheet and the popover scroll past their height. Each entry shows the names, host first, up to three and then "and N more"; the day this device first saw the Split ("Today", "Yesterday", "Sep 28", or "Sep 28, 2025" in another year); and the total. A tap on an entry opens its link in place.
+- It closes on a tap outside (the scrim on a phone, anywhere off the popover on desktop), on Escape, and on a swipe down on the phone sheet. Focus moves into the list on open and returns to the icon on close.
+- Motion. The phone sheet rises and leaves with the `BottomSheet` glide and follows the finger on a swipe. The popover scales from 0.96 and fades in over 200 ms (`controlIn`) with the strong ease-out, from its top-right corner, which sits under the icon, and leaves with a 150 ms fade. Under reduced motion both only fade. The icon itself does not animate in, because it is there from the first frame.
+- The dashed **Add receipt** box fills the page between the header and the panel on a phone, at every height, with its content centered. From 900 px it keeps its 336 px (380 px from 1280 px) minimum in the one centered column (preferences 32). Its dashed border uses the `dash` token, now lighter: `#B0B4BA` in light and `#4A4D53` in dark, about 2:1 against the page and the paper in both, so it reads as a quiet edge while the camera button and the **Add receipt** text name the control.
+- The app moves nothing for the keyboard (preferences 17, design A). The box is part of the scrolling page, and iOS pans the page to reveal a focused field.
+- The rows keep PR 46's press: a fill with `sheetIn` after a 150 ms touch hold, at once on a mouse hover, and a 200 ms fade on release.
 
 **Files.**
 
-- [ ] Edit `src/device.ts` and add `src/device.test.ts` and `src/ui/home-copy.test.ts`.
-- [ ] Add `src/ui/recent-splits.tsx`. Edit `src/ui/home-copy.ts`, `app/index.tsx`, and `app/s/[id].tsx`.
-- [ ] Add `e2e/history.spec.ts`.
-- [ ] Edit `CONTEXT.md` and `features/home.md` in `verify-receipt-splitter`, and add `history-shots.mjs` there for the screenshot matrix.
+- [ ] Edit `src/device.ts` and `src/device.test.ts`.
+- [ ] Edit `src/ui/recent-splits.tsx`, `src/ui/colors.ts`, `src/ui/colors.test.ts`, and `app/index.tsx`.
+- [ ] Edit `e2e/history.spec.ts` and `e2e/flash.spec.ts`.
+- [ ] Edit `features/home.md` and `history-shots.mjs` in `verify-receipt-splitter`.
 
 **Build.**
 
-- [ ] Name the data shape first. A Split's record on the device is `{ creatorSecret?, me?, recent? }`, and `recent` is `{ names, total, added, seen }`. Blocked storage lists nothing and never stops a page; `loadDraft` and `saveDraft` read it inside their `try`. `RecentSplit` is `{ id, names, total, added }`. `rememberSplit` keeps `recent` when it writes the pick or the Creator secret.
-- [ ] `noteSplit(split, now)` writes `recent` from the Split, keeps `added` once set, sets `seen` to now, and removes `recent` from the listed records past 50, deleting a record only when nothing else is left in it. The Split page calls it on each Split it renders.
-- [ ] `recentSplits(now)` reads every record with `recent`, leaves out those seen more than 60 days ago, and returns the 5 newest by `added`, of which home shows 3 below 900 px. Records written before this PR have no `recent` and are not listed.
-- [ ] `forgetSplit(id)` deletes the record. The Split page calls it when its link says the Split has expired.
-- [ ] `RecentSplits` renders the heading **Recent splits** and one link per entry to `/s/<id>`, named by its names, day, and total, through expo-router's `Link`, so a tap navigates in place.
-- [ ] Home reads the list once per mount and renders it when the receipt is empty and the list is not.
+- [ ] Name the data shape first. A Split's record on the device stays `{ creatorSecret?, me?, recent? }`, and `recent` stays `{ names, total, added, seen }`. `recentSplits(now)` returns every entry seen within 60 days, newest first, with no cap of 5. The open state is one value, `null`, open, or closing, so the sheet and the popover cannot both show.
+- [ ] Delete the inline list from home: the hero's compact switch for the list, the measured fit of rows above the panel, and the 3 and 5 row caps. Keep `sheet.tsx`'s first-frame height, which Back still needs.
+- [ ] `RecentSplits` renders the icon, and on a tap the sheet or the popover with the heading **Recent splits** and one link per entry to `/s/<id>`, through expo-router's `Link`.
 
 **You see.**
 
-- [ ] On a phone, create a link for Jason and Sam, then tap **Split a receipt**. Home shows the hero, then **Recent splits** with "Jason and Sam", "Today", and the total, then the panel. Tap the row. The Split page opens at the same link.
+- [ ] On a phone, create a link for Jason and Sam, then tap **Split a receipt**. Home shows the box down to the panel and the icon at the top right. Tap the icon. The sheet lists "Jason and Sam", "Today", and the total. Tap the row. The Split page opens at the same link.
 
 **Seams.**
 
-- [ ] `noteSplit`, `recentSplits`, `forgetSplit`, and `rememberSplit` in `src/device.ts`, through a memory `localStorage`, in `src/device.test.ts`.
-- [ ] `historyCopy` in `src/ui/home-copy.ts`, through `src/ui/home-copy.test.ts`.
+- [ ] `recentSplits` in `src/device.ts` through `src/device.test.ts`.
 - [ ] Home and the Split page through Playwright in `e2e/history.spec.ts`.
 
-**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+**Verify, unit.** Tests alone are not sufficient verification.
 
-- [ ] `src/device.test.ts`. Splits list newest first with their names and total; only 5 show; a throwing `localStorage` getter or `key()` lists nothing and `noteSplit` does not throw; a record from before this list keeps its Creator secret and pick when 50 Splits are listed, and so does one past the 50; a reopened Split keeps its day and takes its new names; a Split last seen 61 days ago is gone and one seen 59 days ago stays; a forgotten Split is gone; the 51st Split drops the oldest entry; a pick and a Creator secret survive `noteSplit`, and `recent` survives a pick; bad JSON and old records list nothing. Run `npm test`.
-- [ ] `src/ui/home-copy.test.ts`. One, two, three, and five names read "Jason", "Jason and Sam", "Jason, Sam, and Priya", and "Jason, Sam, and 3 more"; days read "Today", "Yesterday", "Sep 28", and "Sep 28, 2025". Run `npm test`.
-- [ ] `e2e/history.spec.ts`. A created Split heads the fresh home's list, and a tap opens its link. Five stored Splits show 3 on a phone and 5 at 1440 px. At 390 by 700 and 390 by 600 every shown row ends above the panel, and resizing back to 844 shows 3. Three stored Splits list newest first with their days and totals. A Split last opened 61 days ago is not listed. An entry whose link says expired is gone back on home. At 1440 px the list shares the column's left edge and width under **Create split link**. With the keyboard up on the handle field and 3 entries, the field stays above the keyboard and the panel keeps its page position. A fresh home shows no **Recent splits**. Home and a live Split page render with a throwing `localStorage` getter. Run `npm run e2e`.
+- [ ] `src/device.test.ts`. Every entry within 60 days lists, newest first, past 5. The other PR 46 cases stand. Run `npm test`.
+- [ ] `src/ui/colors.test.ts`. `dash` stands at least 1.8:1 against `field` and `paper` in both schemes. Run `npm test`.
+- [ ] `e2e/history.spec.ts`. A fresh home has no icon. With stored Splits the icon shows at the top right. Its sheet lists all of them newest first with names, days, and totals, and a tap opens a link. It closes on a scrim tap and on Escape, with focus back on the icon. At 1440 px a popover opens under the icon and closes on an outside click and on Escape, with focus back on the icon. The box fills the page from the header to the panel at 390 by 844 and 390 by 700. With the keyboard up on the handle field the panel and the box keep their page positions. Home and a live Split page render with a throwing `localStorage` getter. Run `npm run e2e`.
 
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+**Verify, live.** Tests alone are not sufficient verification.
 
-- [ ] Lane 1. Against `verify-receipt-splitter` on a port from 9300 to 9399, at 390 and 1440 px, light and dark: home with no Splits, home with 3, and at 390 px home with 3 and the keyboard up on the handle field (the iOS keyboard model in `e2e/motion.ts`). Pass when the list sits between the hero and the panel on the phone and under **Create split link** on desktop, and the focused field is above the keyboard.
+- [ ] Lane 1. Against `verify-receipt-splitter` on a port from 9300 to 9399, at 390 and 1440 px, light and dark: home with no Splits (no icon), home with Splits (the icon), and the sheet or the popover open.
 - [ ] Lane 2. `motion.mjs` on all lanes and the Playwright flash census.
 
-**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+**Verify, perf.**
 
 - [ ] Metric. Brotli bytes of every script `dist/index.html` loads. Probe `npm run size` at trunk and head. Rule. Fail on any growth over 2 KB.
 

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -50,8 +50,6 @@ export default function Home() {
   const [viewing, setViewing] = useState(false);
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
-  const [fit, setFit] = useState<{ room: string; rows: number } | null>(null);
-  const historyBox = useRef<View>(null);
   const scanning = useRef(0);
   const receiptCopy = useRef<{ scan: number; copy: Promise<ReceiptJpeg | null> } | null>(null);
   const handleInput = useRef<TextInput>(null);
@@ -143,27 +141,12 @@ export default function Home() {
     return null;
   };
   const removeName = (name: string) => dispatch({ type: "removeName", name });
-  // On a phone the list shows only the rows that end above the panel, measured with every row laid out once per page size.
-  const room = `${width}x${height}:${sheetHeight}`;
-  const recent = stored.slice(0, wide ? RECENT_WIDE : fit?.room === room ? fit.rows : RECENT_NARROW);
-  const listing = draft.scan.status === "empty" && stored.length > 0;
-  // With Recent splits under it, the hero yields its spare room so the list sits above the panel.
-  const compact = !wide && (listing || height - insets.top - insets.bottom < shortScreen);
+  const compact = !wide && height - insets.top - insets.bottom < shortScreen;
   const editor = editsOnHome(draft);
   const ticket = !wide && !editor;
   const columnWidth = roomy ? 480 : 440;
   const view = photo ? () => setViewing(true) : undefined;
   const zoneHeight = roomy ? 380 : 336;
-  const history = listing && recent.length > 0 ? <RecentSplits splits={recent} now={now} /> : null;
-
-  useLayoutEffect(() => {
-    const box = historyBox.current as unknown as HTMLElement | null;
-    if (wide || !box || sheetHeight === 0 || fit?.room === room) return;
-    const page = box.parentElement!.getBoundingClientRect().top;
-    const bottoms = [...box.querySelectorAll("a")].map((row) => row.getBoundingClientRect().bottom - page);
-    const below = box.getBoundingClientRect().bottom - page - bottoms[bottoms.length - 1];
-    setFit({ room, rows: bottoms.filter((bottom) => bottom + below <= height - sheetHeight).length });
-  }, [wide, listing, sheetHeight, fit?.room, room, height]);
 
   const action = (
     <Button
@@ -189,11 +172,11 @@ export default function Home() {
         onPress={choose}
         style={() => [
           styles.hero,
-          wide ? [styles.zone, ringChange, { minHeight: zoneHeight, backgroundColor: c.paper, borderColor: dragging ? c.ink : c.dash }] : [sides, compact && styles.heroCompact],
+          wide ? [styles.zone, ringChange, { minHeight: zoneHeight, backgroundColor: c.paper, borderColor: dragging ? c.ink : c.dash }] : [sides, styles.fills],
         ]}
       >
         {(pressed) => (
-          <View style={[styles.drop, !wide && [styles.dashed, compact && styles.dropCompact, { borderColor: dragging ? c.ink : c.dash }]]}>
+          <View style={[styles.drop, !wide && [styles.dashed, styles.dropFills, compact && styles.dropCompact, { borderColor: dragging ? c.ink : c.dash }]]}>
             <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact || (wide && !roomy)} />
             <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
             {hero.hint ? <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text> : null}
@@ -229,7 +212,14 @@ export default function Home() {
           <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
             {copy.wordmark}
           </Text>
-          {scan.status === "empty" && width >= breakpoints.exampleFrom ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
+          <View style={styles.headerButtons}>
+            {scan.status === "empty" && width >= breakpoints.exampleFrom ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
+            {stored.length > 0 ? (
+              <View style={styles.recent}>
+                <RecentSplits splits={stored} now={now} wide={wide} />
+              </View>
+            ) : null}
+          </View>
         </View>
         {wide ? (
           <View style={[styles.center, sides, { paddingBottom: wideHeader }]}>
@@ -237,18 +227,10 @@ export default function Home() {
               {receipt}
               {details}
               <View style={styles.wideAction}>{action}</View>
-              {history ? <View style={styles.wideHistory}>{history}</View> : null}
             </View>
           </View>
         ) : (
-          <>
-            {receipt}
-            {history ? (
-              <View ref={historyBox} style={[sides, styles.history]}>
-                {history}
-              </View>
-            ) : null}
-          </>
+          receipt
         )}
       </ScrollView>
 
@@ -266,20 +248,21 @@ export default function Home() {
 const wideHeader = 76;
 
 const shortScreen = 700;
-const RECENT_NARROW = 3;
-const RECENT_WIDE = 5;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerButtons: { flexDirection: "row", alignItems: "center", gap: 6 },
+  recent: { marginRight: -12 },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
   zone: { flexGrow: 0, paddingVertical: 32, paddingHorizontal: 40, borderRadius: 26, borderWidth: 1.5, borderStyle: "dashed" },
   reading: { borderColor: "transparent" },
   drop: { alignItems: "center", gap: 6 },
   dashed: { alignSelf: "stretch", paddingVertical: 28, paddingHorizontal: 16, borderRadius: 28, borderWidth: 2, borderStyle: "dashed" },
   dropCompact: { paddingVertical: 14 },
-  heroCompact: { paddingVertical: 4 },
+  fills: { paddingTop: 44, paddingBottom: 48 },
+  dropFills: { flexGrow: 1, justifyContent: "center" },
   doc: { paddingTop: 12, paddingBottom: 20 },
   stack: { alignSelf: "stretch" },
   cardColumn: { alignSelf: "center", width: "100%", maxWidth: 480, gap: layout.blockGap },
@@ -287,6 +270,4 @@ const styles = StyleSheet.create({
   center: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   column: { width: "100%", gap: layout.blockGap },
   wideAction: { paddingTop: layout.blockGap },
-  wideHistory: { paddingTop: 36 },
-  history: { alignSelf: "center", width: "100%", maxWidth: 440 + 2 * layout.gutter, paddingBottom: 16 },
 });

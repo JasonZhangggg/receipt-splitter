@@ -54,9 +54,9 @@ describe("recent splits on this device", () => {
     ]);
   });
 
-  test("show only the five newest", () => {
+  test("list every Split within 60 days, not only the five newest", () => {
     for (let n = 1; n <= 7; n++) noteSplit(splitOf(n), T0 - (10 - n) * DAY);
-    expect(listed().map(({ id }) => id)).toEqual([7, 6, 5, 4, 3].map(idOf));
+    expect(listed().map(({ id }) => id)).toEqual([7, 6, 5, 4, 3, 2, 1].map(idOf));
   });
 
   test("keep a reopened Split's day and place, and take its new names and total", () => {
