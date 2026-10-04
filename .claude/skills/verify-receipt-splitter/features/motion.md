@@ -13,7 +13,7 @@ Every animation on the site runs without long frames, jumps, pops or reversals, 
 - `motion-names` covers a name chip added on `/`. Enter adds it, and a keyboard action never animates, so the layout must change in one step.
 - `motion-photo` covers the photo viewer opening and closing. It runs in a harness page that mounts `PhotoViewer`, because the route needs a real OCR scan to show a photo.
 - `motion-split-type` covers the Item sheet's split type changing once through its save, also with a 300 ms socket round trip (`slow-split-type`).
-- `motion-keyboard` covers the Split sheet and the Item sheet when a simulated iPhone keyboard opens and closes. The sheet must land on the keyboard in one step.
+- `motion-keyboard` covers the Split sheet and the Item sheet when a simulated iPhone keyboard opens and closes. The app does not move either sheet for the keyboard. iOS pans the page to reveal the field, so each sheet's on-screen top moves in one step.
 - `motion-reduced` covers the same changes under `prefers-reduced-motion: reduce`.
 
 ## How to get to it (user POV)
@@ -45,7 +45,7 @@ Each row reports the longest and 95th percentile frame gap, frames over 1.5 vsyn
 - no position travels more than 16 px beyond its start-to-end change after the finger lifts, so nothing goes out and comes back;
 - no `painted` height steps back against its direction of change by over 1 px. A `painted` probe reads the height from a ResizeObserver, which reports after every rAF callback and layout, just before paint. The rAF sampler reads before later rAF callbacks in the same frame, so it misses a size that one of them sets and a later task undoes.
 
-Scenarios can opt into two conditions. `latencyMs` holds each socket message for half that time in each direction, through `addLatency` in `e2e/motion.ts`. `simulateKeyboard` makes the visual viewport shrink by 336 px 60 ms after a text field takes focus and grow back on blur, while the window keeps its size, as iOS Safari does. It does not model iOS panning the layout viewport (`visualViewport.offsetTop`), so check the keyboard on the iOS Simulator too.
+Scenarios can opt into two conditions. `latencyMs` holds each socket message for half that time in each direction, through `addLatency` in `e2e/motion.ts`. `simulateKeyboard` models iOS 27 Safari's keyboard as measured in the simulator. 60 ms after a text field takes focus, the visual viewport shrinks by 336 px and pans down (`visualViewport.offsetTop`) far enough to reveal the field, and `innerHeight` reads the layout height minus that pan. On blur both go back. `clientHeight` keeps its size throughout. The `top` probe reads on-screen position, so the pan counts as movement. The real keyboard animates where the model jumps, so check the keyboard on the iOS Simulator too.
 
 ## Gotchas
 
