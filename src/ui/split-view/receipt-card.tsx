@@ -158,6 +158,14 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   const c = useColors();
   const reduce = useReducedMotion();
   const region = useId();
+  const showInside = !open && (claimers.length > 0 || unclaimed > 0);
+  // The line grows in when a claim brings it, so the rows under it glide down; opening or closing the Bundle already moves them.
+  const [was, setWas] = useState({ open, showInside });
+  const [growInside, setGrowInside] = useState(false);
+  if (was.open !== open || was.showInside !== showInside) {
+    setWas({ open, showInside });
+    setGrowInside(showInside && was.open === open);
+  }
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`} style={divided && [styles.divided, { borderTopColor: c.hairline }]}>
       <PressTarget
@@ -180,13 +188,15 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                 <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
                   {bundle.summary}
                 </Text>
-                {!open && (claimers.length > 0 || unclaimed > 0) ? (
-                  <View style={styles.inside}>
-                    {claimers.map((person) => (
-                      <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
-                    ))}
-                    {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
-                  </View>
+                {showInside ? (
+                  <Grow enter={growInside}>
+                    <View style={styles.inside}>
+                      {claimers.map((person) => (
+                        <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
+                      ))}
+                      {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
+                    </View>
+                  </Grow>
                 ) : null}
               </View>
             </View>

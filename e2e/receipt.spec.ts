@@ -462,7 +462,7 @@ test("the pick sheet takes no taps while it leaves, so its Copy cannot fire afte
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
 });
 
-test("the first claim grows a collapsed Bundle's unclaimed line in, so the rows under it glide down", async ({ page, request }, { workerIndex }) => {
+test("the first claim grows a collapsed Bundle's unclaimed line in, so the rows under it glide down", { tag: "@frame-timing" }, async ({ page, request }, { workerIndex }) => {
   await page.goto(await createSplit(request, workerIndex));
   await pick(page, "Sam");
   const second = page.getByRole("button", { name: /^Beer Bucket, / }).nth(1);
