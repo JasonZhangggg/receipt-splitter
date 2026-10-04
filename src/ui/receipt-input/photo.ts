@@ -1,7 +1,7 @@
 import type { TextBox } from "../../ocr/types";
 import type { ReceiptJpeg } from "./jpeg";
 
-export const isPhoto =(file: Blob): boolean => file.type.startsWith("image/");
+export const isPhoto = (file: Blob): boolean => file.type.startsWith("image/");
 
 export const pickPhoto = (_onFile: (file: File) => void): void => {};
 
