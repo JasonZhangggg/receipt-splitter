@@ -17,6 +17,10 @@ The Host reads a Receipt on the home page `/`. Items are fixed on the Split page
 - `scan-offline` keeps a scan working offline once the model is cached. `public/sw.js` answers from Cache Storage only while the browser is offline, and the page asks it to keep `/`, the entry, the fonts, and the worker script. `sw.js` keeps only same-origin files on its own allowlist, never `/api`, `/parties`, or `/s/`. The OCR worker keeps the ORT JavaScript files with the runtime and the models.
 - `scan-bundles` reads a group of Items under a $0.00 header as one Bundle when a later discount's label echoes the header's name, prints a percent, and that percent of the Items right under the header equals the discount, as Topgolf's "Beer Bucket Discount (10%)" does. The Bundle holds only those Items. A discount with no percent, or whose percent matches no run of Items under the header, stays on the whole receipt. The header is the Bundle's name and not an Item, and the discount is a `bundleDiscount` Adjustment that names the Items. On home the discount shows as an Adjustment row. Deleting a Bundle's Item drops it from the Bundle, and deleting its last Item drops the discount. A $0.00 header that no discount closes stays an Item. The created Split holds the Bundles and is stored at `schemaVersion` 2. A Split without a Bundle is stored at version 1.
 - `scan-example` fills the draft with SRD receipt 1040 as its checked label reads, named "Example receipt", and keeps the Payment handles.
+- `scan-route` is `POST /api/scan`, which reads a receipt on the server (ADR 0008). No page calls it before V2-7b. The body is JSON, `{ "photo": "data:image/jpeg;base64,...", "ocrLines": ["..."] }`, with an `origin` header equal to the site's own origin. It answers 403 `{ "refused": "origin" }` for any other origin or none, 413 `bodyTooLarge` over 1 MiB, 400 `rejected` for a photo that is not a JPEG data URL or a bad body, 503 `unavailable` without the `OPENROUTER_API_KEY` secret, 429 `rateLimited` or `dailyLimit` with `retry-after`, 502 `unreadable` when no pass gives a usable reading, and 200 with the reading: `items` (name, price after the discounts printed under it, quantity, details, discounts), `bundles` (name, Item indexes, discounts), `adjustments`, `subtotal`, `total`, and `check` (`passed`, `gaps`, and `problems` when it fails). A 200 carries `x-scan-cost` in dollars and `x-scan-passes`.
+- `scan-limits` allows one address 6 scans a minute and 30 a UTC day, and all addresses 2,000 a UTC day, apart from the create limits. The values are the `SCAN_PER_MINUTE`, `SCAN_PER_DAY`, and `SCAN_DAILY_CAP` vars in `wrangler.jsonc`.
+- `scan-passes` reads with pass 1 on the first host in `SCAN_PASS1_HOSTS`, retries once on the second when the call fails, runs past `SCAN_PASS1_TIMEOUT_MS`, or comes back empty, and runs pass 2 on `SCAN_PASS2_HOSTS` only when the check fails. Each scan logs one `"event":"scan"` JSON line with each call's host, time, tokens, cost, and outcome, and never the photo, the OCR lines, or a reply's text.
+- `scan-harness` is `bench/scan/run.mjs`, which posts each fixture in `bench/scan/fixtures/` to a running route and prints one table scored by `bench/scan/score.mjs`.
 
 ## How to get to it (user POV)
 
@@ -46,6 +50,19 @@ Preconditions:
 - **Sheet.** `-g "the sheet"` drags the grab handle a short way and watches the panel spring back, catches it during the spring, and fills it until its content scrolls. In `e2e/home.spec.ts`, `-g "the phone panel|no way to pay"` drags it from beside the payment row, checks that the action moves with it with no gap, taps the handle field with a small wander, and taps **Create split link** with no handle.
 - **Screens.** For a screenshot of a state, run the spec with `--trace on` and save a frame, or use a short Playwright script against a `launch`ed port, as `/tmp/swarm-RS-7/owner/shots.mjs` does.
 
+### The scan route and its harness
+
+Preconditions:
+
+- `.dev.vars` in the worktree root holds the key. Write it without printing it: `node -e 'const fs=require("fs");const k=fs.readFileSync(process.env.HOME+"/.config/receipt-eval/env","utf8").match(/OPENROUTER_API_KEY=(\S+)/)[1];fs.writeFileSync(".dev.vars","OPENROUTER_API_KEY="+k+"\n",{mode:0o600})'`. `.dev.vars` is gitignored, and `.dev.vars.example` names the key with an empty value. Never commit, print, or log the key.
+- `verify.mjs launch --port 9211` reported `"ok":true` after `.dev.vars` was written. Wrangler reads `.dev.vars` only at start.
+- Live scans cost money. Check the balance before and after a run with `node ~/receipts-eval/credits.mjs`.
+
+- **Score the fixtures.** `node bench/scan/run.mjs --url http://localhost:9211 --runs 3` prints the table and exits 1 below `bench/scan/fixtures/floor.json`. t1 is the Topgolf receipt drawn from `src/parse/fixtures/topgolf.tsv`, and its row should show both Bundles right.
+- **Score the operator's receipts.** `node bench/scan/run.mjs --url http://localhost:9211 --runs 3 --dir ~/receipts-eval --truth ~/receipts-eval/truth.json --only r1,r2,r3,r4,r5,r6,r7,r8` reads `ocr/<id>.json` for the OCR lines. Report the table by receipt id only (preferences 53).
+- **Retry on the second host.** Add `SCAN_PASS1_TIMEOUT_MS=1` to `.dev.vars`, relaunch, and scan once with `--runs 1 --only t1`. `.verify/9211/wrangler.log` shows a `"event":"scan"` line whose first two calls are pass 1 with `"outcome":"timeout"`, the second on the second host. Remove the line and relaunch afterwards.
+- **A refusal.** `curl -s -X POST http://localhost:9211/api/scan -H 'origin: https://other.example' -d '{}'` prints `{"refused":"origin"}`.
+
 ## Gotchas
 
 - OCR takes about 0.4 to 1 s once the models are cached, so the reading state can be gone before a slow assertion runs. Hold a model download with `page.route` to keep it on screen.
@@ -56,4 +73,6 @@ Preconditions:
 - Local storage carries the draft between loads in one browser context. Start each check in a fresh context, as Playwright does per test.
 - The Example has no photo, so its card shows the receipt glyph instead of a thumbnail.
 - Below 768 px there is no **Example** link. A phone-width spec widens the page to 768 px for the tap with `openExample` in `e2e/files.ts`.
-- `e2e/fixtures/make-fixtures.py` writes the fixtures it derives from `bench/data/srd-1040.jpg`.
+- `e2e/fixtures/make-fixtures.py` writes the fixtures it derives from `bench/data/srd-1040.jpg`, and draws the scan fixtures in `bench/scan/fixtures/` from their invented TSVs.
+- The scan limits count per address in the lane's own Durable Object storage, and every local scan comes from `localhost`. A seventh scan in a minute gets 429, and the 31st in a day too. `run.mjs` waits out a `retry-after` of 65 s or less. For a harness run of more than 30 scans, add `SCAN_PER_MINUTE=100` and `SCAN_PER_DAY=1000` to `.dev.vars` and relaunch. Leave them out when checking the limits themselves.
+- `wrangler dev` reads `.dev.vars` and the `wrangler.jsonc` vars only at start. Relaunch after changing either.
