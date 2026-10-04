@@ -13,6 +13,7 @@ import { Button, PressTarget } from "../src/ui/components/button";
 import { NameChips } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
 import { Sheet } from "../src/ui/components/sheet";
+import { useLayoutHeight } from "../src/ui/components/viewport";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
 import { copy, createCopy, joinCopy } from "../src/ui/home-copy";
@@ -35,7 +36,8 @@ const OCR_SHARE = 0.8;
 export default function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
+  const height = useLayoutHeight();
   const [draft, apply] = useReducer(reduceDraft, undefined, () => pageDraft ?? loadDraft());
   const [progress, setProgress] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);

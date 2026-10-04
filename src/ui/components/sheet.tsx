@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, useColors } from "../theme";
 import { animateSpring, releaseVelocity, rubberband } from "./sheet-motion";
-import { useViewport } from "./viewport";
+import { useLayoutHeight } from "./viewport";
 
 type Props = { children: ReactNode; action: ReactNode; onHeight: (height: number) => void };
 
@@ -21,8 +21,7 @@ type Drag = { pointer: number; startY: number; from: number; samples: { y: numbe
 
 export function Sheet({ children, action, onHeight }: Props) {
   const c = useColors();
-  const viewport = useViewport();
-  const maxContent = Math.round(viewport.visibleHeight * 0.45);
+  const maxContent = Math.round(useLayoutHeight() * 0.45);
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
   const [height, setHeight] = useState(0);
@@ -76,8 +75,8 @@ export function Sheet({ children, action, onHeight }: Props) {
   const measure = ({ nativeEvent }: LayoutChangeEvent) => setHeight(nativeEvent.layout.height);
 
   return (
-    // Home keeps its Create button above the keyboard too, so its panel rides on the keyboard rather than leaving it to iOS's pan.
-    <View {...sheetMarker} style={[styles.anchor, { transform: [{ translateY: -viewport.keyboardInset }] }]} onLayout={measure}>
+    // The keyboard leaves the panel where it lies; iOS pans the page to reveal the focused field.
+    <View {...sheetMarker} style={styles.anchor} onLayout={measure}>
       <View
         ref={panel}
         {...surfaceMarker}
