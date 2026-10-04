@@ -134,6 +134,33 @@ test("the Guinness line is one 3x row at 21.87, and its circle claims the whole 
   await expect(firstBucket(page).getByText("3 unclaimed", { exact: true })).toBeVisible();
 });
 
+test("the Item sheet shows the gray line under a row's name in its Detail field, and renaming the Item keeps that line", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const field = (name: string) => sheet.getByRole("textbox", { name, exact: true });
+
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  await expect(field("Item name")).toHaveValue("Gameplay");
+  await expect(field("Detail")).toHaveValue("");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await firstBucket(page).click();
+  const ultra = page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / });
+  await expect(ultra.getByText("16oz Aluminum Bottle", { exact: true })).toBeVisible();
+  await ultra.click();
+  await expect(field("Item name")).toHaveValue("Michelob Ultra");
+  await expect(field("Detail")).toHaveValue("16oz Aluminum Bottle");
+
+  await field("Item name").fill("Michelob Ultra Lite");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  const renamed = page.getByRole("button", { name: /^Open Michelob Ultra Lite, / });
+  await expect(renamed.getByText("Michelob Ultra Lite", { exact: true })).toBeVisible(live);
+  await expect(renamed.getByText("16oz Aluminum Bottle", { exact: true })).toBeVisible();
+});
+
 test("Split turns the 3x Guinness line into three rows at 7.29 with its claims for everyone, and Revert brings back the one 3x row", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
