@@ -188,22 +188,8 @@ export type Change = {
   readonly at?: number;
 };
 
-/** Version 2 adds Bundles, version 3 adds an Item's detail, and version 4 stores a quantity line as one claim set. A Split is stored at the lowest version that holds it, so older Workers keep reading it. */
+/** Version 2 adds Bundles, version 3 adds an Item's detail, and version 4 stores a quantity line as one claim set. */
 export type SchemaVersion = 1 | 2 | 3 | 4;
-
-export function storedVersion({ receipt, original, recentChanges }: Pick<Split, "receipt" | "original" | "recentChanges">): SchemaVersion {
-  const writes = recentChanges.flatMap((change) => change.writes);
-  const writesQuantity = (write: Write | LegacyWrite) =>
-    write.kind === "split" || write.kind === "unsplit" || write.kind === "perUnit" || (write.kind === "item" && ("edit" in write ? "quantity" in write.edit : ("added" in write ? write.added : write.removed).quantity !== undefined));
-  if (receipt.items.some(({ quantity }) => quantity !== undefined) || writes.some(writesQuantity)) return 4;
-  const detailed = (items: readonly ItemRow[]) => items.some((item) => item.detail !== undefined);
-  const writesDetail = (write: Write | LegacyWrite) => write.kind === "item" && ("edit" in write ? "detail" in write.edit : ("added" in write ? write.added : write.removed).detail !== undefined);
-  if (detailed(receipt.items) || detailed(original?.items ?? []) || writes.some(writesDetail)) return 3;
-  const bundled = (adjustments: readonly Adjustment[]) => adjustments.some(({ kind }) => kind === "bundleDiscount");
-  const writesBundle = (write: Write | LegacyWrite) =>
-    write.kind === "adjustment" && ("edit" in write ? "bundle" in write.edit : ("added" in write ? write.added : write.removed).kind === "bundleDiscount");
-  return bundled(receipt.adjustments) || bundled(original?.adjustments ?? []) || writes.some(writesBundle) ? 2 : 1;
-}
 
 export type Split = {
   readonly schemaVersion: SchemaVersion;

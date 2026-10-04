@@ -1,5 +1,5 @@
 import { cents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
-import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
+import { canonicalName, isName, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
 import {
   adjustmentId,
   itemId,
@@ -14,6 +14,7 @@ import {
 } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 import type { ParsedItem } from "./parse";
+import { MAX_PARTICIPANT_NAME_LENGTH } from "./core/limits";
 
 export type ReceiptFile = { readonly name: string; readonly thumbnail: string | null };
 

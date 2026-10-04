@@ -2,10 +2,6 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
-  MAX_CHANGE_BYTES,
-  MAX_PARTICIPANT_NAME_LENGTH,
-  MAX_ROW_NAME_LENGTH,
-  RECENT_CHANGES_LIMIT,
   applyOperation,
   checkSplit,
   claimersOf,
@@ -33,6 +29,7 @@ import {
 import { mintedId } from "./test-ids";
 import { runTotalCheck } from "./total-check";
 import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
+import { MAX_CHANGE_BYTES, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, RECENT_CHANGES_LIMIT } from "./limits";
 
 const ann = participantId("ann");
 const bob = participantId("bob");

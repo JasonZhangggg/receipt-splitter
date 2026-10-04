@@ -1,10 +1,11 @@
 import type { ReadAdjustment, ReadBundle, ReadDiscount, ReadItem, ScanReply } from "../../worker/scan/format";
 import { cents, isCents, isPrice, price, type Cents } from "../core/money";
-import { isDetail, MAX_DETAIL_LENGTH, MAX_QUANTITY } from "../core/operations";
+import { isDetail } from "../core/operations";
 import { adjustmentId, itemId, type Adjustment, type Item, type NonEmpty, type Receipt, type ReceiptLevelKind } from "../core/split";
 import { plainAmount } from "../draft";
 import type { TextBox } from "../ocr/types";
 import { groupRows } from "../parse/rows";
+import { MAX_DETAIL_LENGTH, MAX_QUANTITY } from "../core/limits";
 
 /** The route refuses a body over 1 MB, so the client sends at most this. */
 export const MAX_SCAN_BYTES = 1024 * 1024;

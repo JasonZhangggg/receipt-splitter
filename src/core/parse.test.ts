@@ -1,12 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { cents, price } from "./money";
-import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
+import { applyOperation, createSplit } from "./operations";
 import { parseCreateSplitRequest, parseNewSplit, parseOperation, parseSplit } from "./parse";
 import { computeShares } from "./shares";
 import { adjustmentId, itemId, participantId, type Split } from "./split";
 import { mintedId } from "./test-ids";
 import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
+import { MAX_PARTICIPANTS } from "./limits";
 
 const badName = { ok: false, rejection: { reason: "badName" } };
 
@@ -636,6 +637,17 @@ describe("Splits stored by each shipped release", () => {
       recentChanges: [],
     };
   };
+
+  test("a version 1 row of 51 two-unit lines reads as 102 rows at version 4, since version 1 holds at most 100 Items, and reads back after a Claim", () => {
+    const row = legacyRow(Array.from({ length: 51 }, (_, index) => ({ id: `i${index}`, name: "Beer", price: 1000, split: { by: "even", units: [["ann"], ["bob"]] } })));
+
+    const split = accepted(parseSplit(row));
+    const claimed = accepted(applyOperation(split, { by: participantId("bob"), type: "claim", itemId: itemId("i0"), participantId: participantId("bob") }, { creator: true }));
+
+    expect([split.receipt.items.length, split.schemaVersion, claimed.schemaVersion]).toEqual([102, 4, 4]);
+    expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
+    expect(parseSplit(JSON.parse(JSON.stringify(claimed)))).toEqual({ ok: true, split: claimed });
+  });
 
   test("a version 1 line whose units hold the same amounts reads as one line whose amounts scale by the quantity", () => {
     const split = accepted(parseSplit(legacyRow([{ id: "beer", name: "Beer", price: 300, split: { by: "amount", units: [[["ann", 50]], [["ann", 50]], [["ann", 50]]] } }])));
