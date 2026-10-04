@@ -17,9 +17,8 @@ import { ItemSheet } from "../../src/ui/item-sheet";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { Breakdown } from "../../src/ui/split-view/breakdown";
 import { SplitHeader } from "../../src/ui/split-view/header";
-import { LinkLine } from "../../src/ui/split-view/link-line";
 import { OweLine } from "../../src/ui/split-view/owe-line";
-import { circleTap } from "../../src/ui/split-view/model";
+import { barFor, circleTap } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
@@ -102,11 +101,9 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
 
   const shares = useMemo(() => computeShares(split), [split]);
   const people = split.participants;
-  const [host] = people;
   const picked = new Set(split.picks.map(({ participantId }) => participantId));
   const selectedPerson = people.find((person) => person.id === (selected ?? me)) ?? null;
   const creating = memory.creatorSecret !== undefined;
-  const unshared = creating && !memory.shared;
   const act = (op: Operation) => send(op).then((answer) => answer.ok);
 
   const choose = async (participantId: ParticipantId, takeOver: boolean) => {
@@ -159,7 +156,6 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
 
   const share = async () => {
     const url = splitUrl(splitId);
-    remember({ shared: true });
     if (typeof navigator.share === "function") await navigator.share({ url }).catch(() => {});
     else await navigator.clipboard?.writeText(url).catch(() => {});
   };
@@ -190,26 +186,23 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
       />
     </View>
   );
+  const bar = barFor(me, expanded, selectedPerson?.id ?? null);
+  const shown = bar.kind === "breakdown" ? people.find(({ id }) => id === bar.person) : undefined;
   const regular = (
     <View style={styles.regular}>
-      {!me ? (
+      {bar.kind === "ask" ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
           <Button label={say.question} onPress={() => setPhase("pick")} outsideScroll />
         </>
-      ) : (
-        <>
-          {unshared ? <LinkLine url={splitUrl(splitId)} onShared={() => remember({ shared: true })} /> : null}
-          {expanded && selectedPerson ? (
-            <View>
-              <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} />
-              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
-            </View>
-          ) : unshared ? null : (
-            <OweLine label={me === host.id ? say.yourShare : say.youOwe} amount={myShare} onPress={() => setExpanded(true)} />
-          )}
-        </>
-      )}
+      ) : bar.kind === "share" ? (
+        <OweLine label={say.yourShare} amount={myShare} onPress={() => setExpanded(true)} />
+      ) : shown ? (
+        <View>
+          <Breakdown split={split} person={shown} viewer={bar.me} onPaid={(paid) => void markPaid(bar.me, paid)} />
+          {payProblem && shown.id === bar.me ?<Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -240,16 +233,16 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
         rises={false}
         lowered={overlay !== null && !closing}
         onHeight={setSheetHeight}
-        onDown={phase === "pick" ? () => setPhase("regular") : expanded ? collapse : undefined}
-        onUp={phase === "regular" && me && !expanded ? () => setExpanded(true) : undefined}
+        onDown={phase === "pick" ? () => setPhase("regular") : bar.kind === "breakdown" ? collapse : undefined}
+        onUp={phase === "regular" && bar.kind === "share" ? () => setExpanded(true) : undefined}
         stays
-        view={phase === "pick" ? "pick" : expanded ? `breakdown-${selectedPerson?.id}` : "bar"}
+        view={phase === "pick" ? "pick" : bar.kind === "breakdown" ? `breakdown-${bar.person}` : bar.kind}
         header={phase === "pick" ? null : chips}
         testID="split-sheet"
       >
         {phase === "pick" ? (
           <>
-            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} onShared={() => remember({ shared: true })} />
+            <PickSheet rows={pickRows(split, device)} intro={intro(split, creating)} chosen={chosen} onPick={(pid, takeOver) => void choose(pid, takeOver)} onAdd={addYourself} onClose={() => setPhase("regular")} url={splitUrl(splitId)} />
             {pickProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
           </>
         ) : (

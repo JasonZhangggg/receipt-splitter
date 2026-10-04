@@ -16,7 +16,7 @@ Only the device that picked a name can record or clear that person's Payment. Th
 
 ## How to get to it (user POV)
 
-- Pick your name, check a line, and tap "You owe" or your own chip.
+- Pick your name, check a line, and tap "Your share" or your own chip.
 - Tap another person's chip to see their status.
 - Tap the clock icon for History.
 

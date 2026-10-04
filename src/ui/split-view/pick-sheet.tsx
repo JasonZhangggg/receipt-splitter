@@ -20,10 +20,9 @@ type Props = {
   onAdd: (name: string) => Promise<string | null>;
   onClose: () => void;
   url: string;
-  onShared: () => void;
 };
 
-export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url, onShared }: Props) {
+export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [typing, setTyping] = useState<string | null>(null);
@@ -87,7 +86,7 @@ export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url, on
         </View>
       )}
       <View style={styles.link}>
-        <LinkLine url={url} onShared={onShared} />
+        <LinkLine url={url} />
       </View>
     </View>
   );

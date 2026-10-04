@@ -54,6 +54,21 @@ const circle = (page: Page, item: string, name: string) => page.getByRole("butto
 const owe = (page: Page) => page.getByTestId("owe");
 const breakdown = (page: Page) => page.getByTestId("breakdown");
 
+test("a guest's collapsed bar shows Your share and no pay button, and the pay button waits in the breakdown it pulls up", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, [venmo]));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  const sheet = sam.getByTestId("split-sheet");
+  const bar = sheet.getByRole("button", { name: "Your share $14.20, Show what you owe" });
+  await expect(bar).toBeVisible(live);
+  await expect(sheet.getByRole("link")).toHaveCount(0);
+  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
+
+  await bar.click();
+  await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Venmo" })).toBeVisible(live);
+  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
+});
+
 test("Sam's breakdown links each pay app at his $14.20 Share and shows the Zelle card, and Priya's shows Not paid with no buttons", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, everyApp);
   const sam = await open(browser, link);

@@ -91,19 +91,22 @@ test("Create split link takes the Host to the tall pick sheet, and a second brow
   await expect(rows(sam)).toHaveText(["JJasonPicked", "SSam", "PPriya"]);
 });
 
-test("before the link is shared, the Host taps Sam's chip and sees Sam's breakdown under the link row", async ({ page }) => {
+test("after the Host picks on a link not yet shared, the bar shows Your share with no link row, and Sam's breakdown has none either", async ({ page }) => {
   await readyHome(page, ["Sam"]);
   await createLink(page);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
 
+  const sheet = page.getByTestId("split-sheet");
+  await expect(sheet.getByRole("button", { name: "Your share $0.00, Show what you owe" })).toBeVisible();
+  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
+  await expect(sheet.getByRole("button", { name: "Copy" })).toHaveCount(0);
+
   const samChip = page.getByRole("button", { name: "Sam", exact: true });
   await expect(samChip).toHaveCount(1);
   await samChip.click();
-  const sheet = page.getByTestId("split-sheet");
   await expect(sheet.getByTestId("breakdown").getByText("Sam owes")).toBeVisible();
-  await expect(sheet.getByTestId("split-link")).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Copy" })).toBeVisible();
+  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
 });
 
 test("a browser not on the list adds itself, the Host's home opens fresh with only the Venmo handle kept, and a reload remembers the pick", async ({ page, browser }) => {
@@ -177,21 +180,21 @@ test("a reload of home clears the receipt and the names, and the kept Venmo hand
   expect((await sent).postDataJSON().split.paymentHandles).toEqual([{ service: "venmo", handle: "jason-z" }]);
 });
 
-test("without a system share sheet the link has Copy alone", async ({ page }) => {
+test("without a system share sheet the pick sheet's link has Copy alone", async ({ page }) => {
   await page.addInitScript(() => {
     Reflect.deleteProperty(Navigator.prototype, "share");
     Reflect.deleteProperty(navigator, "share");
   });
   await readyHome(page);
   await createLink(page);
-  await page.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(question(page)).toBeVisible();
 
   expect(await page.evaluate(() => typeof navigator.share)).toBe("undefined");
   await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
 });
 
-test("Copy puts the exact link on the clipboard, and Share in the header hands it to the system share sheet", async ({ page, context }) => {
+test("Copy on the pick sheet puts the exact link on the clipboard, and after a pick Share in the header hands it to the system share sheet", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => {
     const shared: ShareData[] = [];
@@ -200,14 +203,15 @@ test("Copy puts the exact link on the clipboard, and Share in the header hands i
   });
   await readyHome(page);
   const link = await createLink(page);
-  await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(question(page)).toBeHidden();
+  await expect(question(page)).toBeVisible();
 
   await page.getByRole("button", { name: "Copy" }).click();
   await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
   await expect(page.getByRole("button", { name: "Copied" })).toHaveCount(0);
 
+  await page.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(question(page)).toBeHidden();
   await page.getByRole("button", { name: "Share link" }).click();
   expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
 });
