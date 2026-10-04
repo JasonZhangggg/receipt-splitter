@@ -933,17 +933,17 @@ Decisions.
 - Home shows the 5 newest. The device keeps at most 50 Splits and drops the oldest past that, so storage stays near 15 KB.
 - A Split expires 60 days after its last change, which the device cannot see. An entry leaves the list 60 days after this device last opened its Split, and at once when its link says the Split has expired. An entry can outlive its Split when nobody opens it; the tap then shows **This split has expired** and the entry is gone on the way back.
 - The list shows only on the empty home, before a receipt is added, so it never competes with the editor. After Create, home is fresh (preferences 36), and the new Split tops the list.
-- On a phone the list sits in the scrolling page between the hero and the panel. The panel stays shown and never collapses (preferences 33), and the hero gives up its spare room to the list. From 900 px it sits under **Create split link** in the one centered column (preferences 32).
+- On a phone the list sits in the scrolling page between the hero and the panel. The panel stays shown and never collapses (preferences 33). While the list shows, the hero draws compact, as on a short screen, so three entries fit above the panel at 390 by 844. A fourth and fifth scroll under the panel. From 900 px it sits under **Create split link** in the one centered column (preferences 32).
 - With no Splits there is no heading and no placeholder. A first-time Host sees today's home.
 - The app does not move anything for the keyboard (preferences 17). The list scrolls with the page.
-- A row's press fills it with `sheetIn` at once and fades over 200 ms on release, by the `pressIn` and `pressOut` tokens. The list does not animate in, because home shows it on every visit.
+- A row's press fills it with `sheetIn` and fades over 200 ms (`pressOut`) on release. A touch fills after a 150 ms hold, like the hero, so a scroll that starts on a row does not flash; a mouse hover fills at once. The list does not animate in, because home shows it on every visit.
 
 **Files.**
 
 - [ ] Edit `src/device.ts` and add `src/device.test.ts` and `src/ui/home-copy.test.ts`.
 - [ ] Add `src/ui/recent-splits.tsx`. Edit `src/ui/home-copy.ts`, `app/index.tsx`, and `app/s/[id].tsx`.
 - [ ] Add `e2e/history.spec.ts`.
-- [ ] Edit `CONTEXT.md` and `features/home.md` in `verify-receipt-splitter`.
+- [ ] Edit `CONTEXT.md` and `features/home.md` in `verify-receipt-splitter`, and add `history-shots.mjs` there for the screenshot matrix.
 
 **Build.**
 
