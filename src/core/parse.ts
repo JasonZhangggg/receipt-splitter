@@ -444,6 +444,12 @@ function splitFields<R, O, C>({ read, maybe, has, fail }: Fields, rows: { readon
   };
 }
 
+// A page loaded before quantity lines sends unit 0 for the whole line, here and in claims.
+const itemValue = ({ read, maybe }: Fields) => {
+  maybe("unit", literal(0));
+  return { participantId: read("participantId", participantId), value: read("value", count) };
+};
+
 const itemPatch = tagged<ItemPatch>("type", {
   add: strict(({ read }) => ({
     type: read("type", literal("add")),
@@ -457,7 +463,7 @@ const itemPatch = tagged<ItemPatch>("type", {
     ...maybe("price", price),
     ...maybe("detail", text),
     ...maybe("by", oneOf(SPLIT_MODES)),
-    ...maybe("values", array(strict((fields) => ({ participantId: fields.read("participantId", participantId), value: fields.read("value", count) })), MAX_PARTICIPANTS)),
+    ...maybe("values", array(strict(itemValue), MAX_PARTICIPANTS)),
   })),
   split: strict(({ read }) => ({
     type: read("type", literal("split")),
@@ -492,7 +498,6 @@ function op<const Type extends string, Body>(type: Type, body: (fields: Fields) 
 }
 
 const claimFields = ({ read, maybe }: Fields) => {
-  // A page loaded before quantity lines sends unit 0 for the whole line.
   maybe("unit", literal(0));
   return { itemId: read("itemId", itemId), participantId: read("participantId", participantId) };
 };

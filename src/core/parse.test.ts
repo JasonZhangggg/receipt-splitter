@@ -82,17 +82,21 @@ describe("parseOperation", () => {
     expect(parseOperation(claim("0"))).toEqual({ ok: false, rejection: { reason: "malformed", path: "unit" } });
   });
 
-  test("reads a Split patch with one or more new ids, and refuses none, a bad id, a quantity edit, or a unit value", () => {
+  test("reads a by-amount value from a page loaded before quantities with unit 0 as a value on the line, and refuses any other unit", () => {
+    const values = (unit: unknown) => ({ type: "editReceipt", by: null, items: [{ type: "edit", itemId: "beer", by: "amount", values: [{ unit, participantId: "bob", value: 1500 }] }] });
+
+    expect(parseOperation(values(0))).toEqual({ ok: true, op: { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "beer", by: "amount", values: [{ participantId: "bob", value: 1500 }] }] } });
+    expect(parseOperation(values(1))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].values[0].unit" } });
+    expect(parseOperation(values("0"))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].values[0].unit" } });
+  });
+
+  test("reads a Split patch with one or more new ids, and refuses none, a bad id, or a quantity edit", () => {
     const patch = (fields: object) => ({ type: "editReceipt", by: null, items: [{ type: "split", itemId: "beer", ...fields }] });
 
     expect(parseOperation(patch({ ids: ["beer-b", "beer-c"] }))).toEqual({ ok: true, op: { type: "editReceipt", by: null, items: [{ type: "split", itemId: "beer", ids: ["beer-b", "beer-c"] }] } });
     expect(parseOperation(patch({ ids: [] }))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].ids" } });
     expect(parseOperation(patch({ ids: ["x".repeat(25)] }))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].ids[0]" } });
     expect(parseOperation({ type: "editReceipt", by: null, items: [{ type: "edit", itemId: "beer", quantity: 2 }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].quantity" } });
-    expect(parseOperation({ type: "editReceipt", by: null, items: [{ type: "edit", itemId: "beer", by: "shares", values: [{ unit: 0, participantId: "bob", value: 2 }] }] })).toEqual({
-      ok: false,
-      rejection: { reason: "malformed", path: "items[0].values[0].unit" },
-    });
   });
 });
 
