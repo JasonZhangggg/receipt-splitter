@@ -34,6 +34,18 @@ export function Sheet({ children, action, onHeight }: Props) {
   useEffect(() => () => stop.current(), []);
   const position = useRef(0);
 
+  // iOS reveals a focused field by scrolling the window into the room `below` leaves under the page, and never scrolls it back.
+  // It holds the visible page still while the keyboard slides away, so the glide back waits until the keyboard is gone.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const closed = () => {
+      if (window.scrollY > 0 && viewport.height >= document.documentElement.clientHeight) window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
+    };
+    viewport.addEventListener("resize", closed);
+    return () => viewport.removeEventListener("resize", closed);
+  }, [reduce]);
+
   const paint = (value: number) => {
     position.current = value;
     const element = panel.current as unknown as HTMLElement | null;
