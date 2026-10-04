@@ -73,7 +73,7 @@ function Gone({ reason }: { reason: GoneReason }) {
 }
 
 type Phase = "pick" | "collapsing" | "regular";
-type Overlay = { readonly kind: "item"; readonly itemId: ItemId; readonly unit: number } | { readonly kind: "history" } | null;
+type Overlay = { readonly kind: "item"; readonly itemId: ItemId } | { readonly kind: "history" } | null;
 type Send = ReturnType<typeof useLiveSplit>["send"];
 
 const checkFor = 80;
@@ -149,9 +149,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     return null;
   };
 
-  const onCircle = async (item: SplitItem, unit: number) => {
+  const onCircle = async (item: SplitItem) => {
     if (!me || !selectedPerson) return setPhase("pick");
-    for (const op of circleTap(item, unit, selectedPerson.id)) await act({ ...op, by: me });
+    for (const op of circleTap(item, selectedPerson.id)) await act({ ...op, by: me });
   };
 
   const collapse = () => {
@@ -231,8 +231,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
               shares={shares}
               selected={me ? selectedPerson : null}
               me={me}
-              onCircle={(item, unit) => void onCircle(item, unit)}
-              onOpen={(item, unit) => setOverlay({ kind: "item", itemId: item.id, unit })}
+              onCircle={(item) => void onCircle(item)}
+              onOpen={(item) => setOverlay({ kind: "item", itemId: item.id })}
             />
           </View>
         </View>
@@ -266,11 +266,10 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
             <ItemSheet
               split={split}
               itemId={overlay.itemId}
-              unit={overlay.unit}
               me={me}
               send={act}
               onAddPerson={(typed) =>
-                void addPerson(typed).then((added) => "id" in added && act({ by: me, type: "claim", itemId: overlay.itemId, participantId: added.id, unit: overlay.unit }))
+                void addPerson(typed).then((added) => "id" in added && act({ by: me, type: "claim", itemId: overlay.itemId, participantId: added.id }))
               }
               onClose={closeOverlay}
             />

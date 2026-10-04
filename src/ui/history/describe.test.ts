@@ -32,23 +32,21 @@ function split(...ops: Operation[]): Split {
 }
 
 describe("historyOf", () => {
-  test("lists a price change, a split change, a quantity change, and a Payment newest first, and leaves out picks, Claims, added people, and the Undo itself, and only a Payment cannot be reverted", () => {
+  test("lists a price change, a split change, and a Payment newest first, and leaves out picks, Claims, added people, and the Undo itself, and only a Payment cannot be reverted", () => {
     const history = historyOf(
       split(
         { by: sam, type: "pick", participantId: sam, device: deviceId("phone"), takeOver: false },
         { by: sam, type: "claim", itemId: sprite, participantId: sam },
         { by: null, type: "addParticipant", participant: { id: participantId("lee"), name: "Lee" } },
         { by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(275) }] },
-        { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ unit: 0, participantId: sam, value: 2 }] }] },
+        { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ participantId: sam, value: 2 }] }] },
         { by: ann, type: "undo", revision: 5 },
-        { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, quantity: 2 }] },
         { by: sam, type: "recordPayment", participantId: sam, device: deviceId("phone"), amount: cents(300) },
       ),
     );
 
     expect(history).toEqual([
-      { revision: 8, lead: "Sam paid $3.00", more: 0, sentAs: "sam", name: "Sam", at: 8_000, reverted: false, revertible: false },
-      { revision: 7, lead: "Sprite", before: "×1", after: "×2", more: 0, sentAs: "ann", name: "Ann", at: 7_000, reverted: false, revertible: true },
+      { revision: 7, lead: "Sam paid $3.00", more: 0, sentAs: "sam", name: "Sam", at: 7_000, reverted: false, revertible: false },
       { revision: 5, lead: "Sprite split", before: "evenly", after: "by shares", more: 0, sentAs: "ann", name: "Ann", at: 5_000, reverted: true, revertible: true },
       { revision: 4, lead: "Sprite", before: "2.50", after: "2.75", more: 0, sentAs: "sam", name: "Sam", at: 4_000, reverted: false, revertible: true },
     ]);

@@ -51,6 +51,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
       if ("name" in edit && edit.name) return { lead: "", before: edit.name[0], after: edit.name[1] };
+      if ("quantity" in edit && edit.quantity) return { lead: name, before: `×${edit.quantity[0]}`, after: `×${edit.quantity[1]}` };
       if ("price" in edit && edit.price) return { lead: name, before: plainAmount(edit.price[0]), after: plainAmount(edit.price[1]) };
       if ("detail" in edit && edit.detail) {
         const [before = "", after = ""] = edit.detail;
@@ -61,7 +62,6 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       if ("amount" in edit && edit.amount) return { lead: name, before: plainAmount(edit.amount[0]), after: plainAmount(edit.amount[1]) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
-        if (before.units.length !== after.units.length) return { lead: name, before: `×${before.units.length}`, after: `×${after.units.length}` };
         const order = split.participants.map(({ id }) => id);
         return { lead: `${name} split`, before: splitWord(before, order), after: splitWord(after, order) };
       }

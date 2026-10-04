@@ -12,7 +12,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow, type UnitRow } from "./model";
+import { claimersOfItem, lineTag, nameParts, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
 
 const sheetSpring = { response: 0.35, damping: 1 };
 
@@ -21,8 +21,8 @@ type Props = {
   shares: Shares;
   selected: Participant | null;
   me: ParticipantId | null;
-  onCircle: (item: SplitItem, unit: number) => void;
-  onOpen: (item: SplitItem, unit: number) => void;
+  onCircle: (item: SplitItem) => void;
+  onOpen: (item: SplitItem) => void;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -57,17 +57,17 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
       if (!next.delete(id)) next.add(id);
       return next;
     });
-  const line = (row: UnitRow, divided: boolean, inBundle: boolean) => (
+  const line = (item: SplitItem, divided: boolean, inBundle: boolean) => (
     <Line
-      key={`${row.item.id}-${row.unit}`}
-      row={row}
+      key={item.id}
+      item={item}
       order={order}
-      claimers={claimersOf(row.item.split, row.unit).map(person)}
+      claimers={claimersOf(item.split).map(person)}
       selected={selected}
       divided={divided}
       inBundle={inBundle}
-      onCircle={() => onCircle(row.item, row.unit)}
-      onOpen={() => onOpen(row.item, row.unit)}
+      onCircle={() => onCircle(item)}
+      onOpen={() => onOpen(item)}
     />
   );
 
@@ -82,7 +82,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
       </View>
       <View role="list" aria-label={say.item}>
         {rows.map((row, index) => {
-          if (row.kind === "unit") return line(row, index > 0, false);
+          if (row.kind === "item") return line(row.item, index > 0, false);
           const { bundle } = row;
           return (
             <BundleGroup
@@ -95,7 +95,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
               divided={index > 0}
               onToggle={() => toggle(bundle.id)}
             >
-              {bundle.units.map((unit, at) => line(unit, at > 0, true))}
+              {bundle.items.map((item, at) => line(item, at > 0, true))}
               <View style={[styles.discount, { borderTopColor: c.hairline }]}>
                 <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
                   {bundle.discount.label}
@@ -265,7 +265,7 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
 }
 
 type LineProps = {
-  row: UnitRow;
+  item: SplitItem;
   order: readonly ParticipantId[];
   claimers: readonly Participant[];
   selected: Participant | null;
@@ -275,10 +275,11 @@ type LineProps = {
   onOpen: () => void;
 };
 
-function Line({ row: { item, unit, price: cost }, order, claimers, selected, divided, inBundle, onCircle, onOpen }: LineProps) {
+function Line({ item, order, claimers, selected, divided, inBundle, onCircle, onOpen }: LineProps) {
+  const cost = item.price;
   const c = useColors();
   const reduce = useReducedMotion();
-  const tag = lineTag(item, unit, order);
+  const tag = lineTag(item, order);
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
   const ordered = [...claimers].sort((a, b) => Number(a.id === selected?.id) - Number(b.id === selected?.id));
   const price = plainAmount(cost);
@@ -287,7 +288,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, div
   return (
     <View
       role="listitem"
-      testID={`line-${item.id}-${unit}`}
+      testID={`line-${item.id}`}
       style={[
         styles.line,
         divided && [styles.divided, { borderTopColor: c.hairline }],

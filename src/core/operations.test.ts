@@ -10,7 +10,6 @@ import {
   checkSplit,
   claimersOf,
   createSplit,
-  MAX_QUANTITY,
   type Auth,
   type ItemPatch,
   type Operation,
@@ -1790,9 +1789,9 @@ describe("random operations", () => {
           claimedBy.includes(id) ? load / claimedBy.length : 0;
         const was = new Map(computeShares(previous).shares.map(({ participantId, share }) => [participantId, share]));
         for (const { participantId: id, share } of shares) {
-          const exactMove = exactShareOf(item && claimersOf(item.split, 0), id) - exactShareOf(earlier && claimersOf(earlier.split, 0), id);
+          const exactMove = exactShareOf(item && claimersOf(item.split), id) - exactShareOf(earlier && claimersOf(earlier.split), id);
           const drift = Math.abs(share - (was.get(id) ?? 0) - exactMove);
-          const claimer = (item && claimersOf(item.split, 0).includes(id)) || (earlier && claimersOf(earlier.split, 0).includes(id));
+          const claimer = (item && claimersOf(item.split).includes(id)) || (earlier && claimersOf(earlier.split).includes(id));
           if (claimer) worstDrift.claimer = Math.max(worstDrift.claimer, drift);
           else worstDrift.nonClaimer = Math.max(worstDrift.nonClaimer, drift);
         }

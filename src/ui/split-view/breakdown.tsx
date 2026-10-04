@@ -53,8 +53,7 @@ export function Breakdown({ split, person, viewer, onPaid }: Props) {
       </View>
       <View>
         {items.map((line, index) => {
-          const item = split.receipt.items.find(({ id }) => id === line.id);
-          const part = shareLabel(line.fraction, item?.split.units.length ?? 1, plainAmount(line.price));
+          const part = shareLabel(line.fraction, plainAmount(line.price));
           return (
             <View key={line.id} style={[styles.line, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
               <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
