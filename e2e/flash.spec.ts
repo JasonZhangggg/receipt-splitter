@@ -59,33 +59,107 @@ test("on a 300 ms round trip, switching the split type never shows the old type 
   expect(await page.evaluate(() => (window as unknown as { added: string[] }).added)).toEqual(["rows"]);
 });
 
-test("at 4x slowdown, switching the split type fades the old rows out fully before the new rows fade in", async ({ page }) => {
-  await itemShared(page);
-  await page.evaluate(() => {
-    const frames: number[][] = [];
-    Object.assign(window, { copies: frames });
-    const tick = () => {
-      for (const animation of document.getAnimations()) if (animation.playbackRate !== 0.25) animation.playbackRate = 0.25;
+const slowdown = 4;
+type Kind = "even" | "shares" | "amount";
+type Frame = { t: number; mode: string | null; copies: { kind: Kind; opacity: number }[] };
+
+/** Slows every animation and every timer by the same factor, so a leaving layer's removal timer stays in step with its fade. */
+async function slowed(page: Page) {
+  await page.evaluate((factor) => {
+    const wait = window.setTimeout.bind(window);
+    window.setTimeout = ((handler: TimerHandler, ms?: number, ...args: unknown[]) => wait(handler, (ms ?? 0) * factor, ...args)) as typeof window.setTimeout;
+    const frames: Frame[] = [];
+    Object.assign(window, { frames });
+    const tick = (t: number) => {
+      for (const animation of document.getAnimations()) if (animation.playbackRate !== 1 / factor) animation.playbackRate = 1 / factor;
       const group = document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"]');
-      const copies = [...(group?.parentElement?.nextElementSibling?.children ?? [])];
-      frames.push(copies.map((copy) => Number(getComputedStyle(copy).opacity)));
+      const copies = [...(group?.parentElement?.nextElementSibling?.children ?? [])].map((copy) => ({
+        kind: copy.querySelector('[aria-label^="More shares"]') ? ("shares" as const) : copy.querySelector("input") ? ("amount" as const) : ("even" as const),
+        opacity: Number(getComputedStyle(copy).opacity),
+      }));
+      frames.push({ t, mode: group?.querySelector('[aria-pressed="true"]')?.getAttribute("aria-label") ?? null, copies });
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
-  });
-  const modes = page.getByTestId("item-sheet").getByRole("group", { name: "Split" });
-  for (const [mode, rows] of [["By shares", '[aria-label="More shares for Jason"]'], ["By amount", `input[aria-label="Jason's amount"]`]]) {
-    await page.evaluate(() => ((window as unknown as { copies: number[][] }).copies.length = 0));
-    await tap(modes.getByRole("button", { name: mode, exact: true }));
-    await page.locator(rows).first().waitFor();
+  }, slowdown);
+  return {
+    reset: () => page.evaluate(() => ((window as unknown as { frames: unknown[] }).frames.length = 0)),
+    read: () => page.evaluate(() => (window as unknown as { frames: Frame[] }).frames.slice()),
+  };
+}
+
+const shown = (frame: Frame, kind: Kind) => Math.max(0, ...frame.copies.filter((copy) => copy.kind === kind).map((copy) => copy.opacity));
+
+/** Rows of a kind that is not the final incoming rows must never show more than the frame before. 0.15 is one frame of the incoming fade's steep start at 4x slowdown, far below a pop to 1. */
+const rises = (frames: Frame[]) => {
+  const final = frames.at(-1)!.copies[0]?.kind;
+  return frames.flatMap((frame, i) =>
+    i === 0 ? [] : (["even", "shares", "amount"] as const).filter((kind) => kind !== final && shown(frame, kind) > shown(frames[i - 1], kind) + 0.15).map((kind) => ({ i, kind, before: shown(frames[i - 1], kind), after: shown(frame, kind) })),
+  );
+};
+const doubled = (frames: Frame[]) => frames.filter((frame) => frame.copies.filter((copy) => copy.opacity > 0.02).length > 1);
+
+const rowsOf = {
+  "By shares": '[aria-label="More shares for Jason"]',
+  "By amount": `input[aria-label="Jason's amount"]`,
+};
+
+async function switchTo(page: Page, mode: keyof typeof rowsOf) {
+  await page.getByTestId("item-sheet").getByRole("group", { name: "Split" }).getByRole("button", { name: mode, exact: true }).tap({ force: true });
+}
+
+test("at 4x slowdown, switching the split type fades the old rows out fully before the new rows fade in", async ({ page }) => {
+  await itemShared(page);
+  const watch = await slowed(page);
+  for (const mode of ["By shares", "By amount"] as const) {
+    await watch.reset();
+    await switchTo(page, mode);
+    await page.locator(rowsOf[mode]).first().waitFor();
     await page.waitForTimeout(2500);
-    const frames = await page.evaluate(() => (window as unknown as { copies: number[][] }).copies.slice());
-    const doubled = frames.filter((copies) => copies.filter((opacity) => opacity > 0.02).length > 1);
-    expect(frames.some((copies) => copies.length === 2), `${mode}: the old rows were never painted`).toBe(true);
-    expect(doubled, `${mode}: frames showing both copies`).toEqual([]);
-    expect(frames.at(-1)).toEqual([1]);
+    const frames = await watch.read();
+    expect(frames.some(({ copies }) => copies.length === 2), `${mode}: the old rows were never painted`).toBe(true);
+    expect(doubled(frames), `${mode}: frames showing both copies`).toEqual([]);
+    expect(frames.at(-1)!.copies.map(({ opacity }) => opacity)).toEqual([1]);
   }
 });
+
+test("at 4x slowdown, By amount to Evenly fades out fully, fades in, and takes 270 ms", async ({ page }) => {
+  await itemShared(page);
+  const watch = await slowed(page);
+  await switchTo(page, "By amount");
+  await page.locator(rowsOf["By amount"]).first().waitFor();
+  await page.waitForTimeout(2500);
+  await watch.reset();
+  await switchTo(page, "Evenly");
+  await page.waitForTimeout(2500);
+  const frames = await watch.read();
+  const start = frames.find(({ mode }) => mode === "Evenly")!.t;
+  const settled = frames.find((frame) => shown(frame, "even") >= 0.999 && frame.copies.length === 1)!.t;
+  expect(doubled(frames), "frames showing both copies").toEqual([]);
+  expect(rises(frames)).toEqual([]);
+  expect(frames.at(-1)!.copies).toEqual([{ kind: "even", opacity: 1 }]);
+  expect((settled - start) / slowdown).toBeGreaterThan(230);
+  expect((settled - start) / slowdown).toBeLessThan(310);
+});
+
+for (const second of [60, 100, 180]) {
+  test(`at 4x slowdown, a second split-type switch ${second} ms after the first never brings back rows the user did not see`, async ({ page }) => {
+    await itemShared(page);
+    const watch = await slowed(page);
+    await watch.reset();
+    await switchTo(page, "By shares");
+    await page.waitForTimeout(second * slowdown);
+    await switchTo(page, "By amount");
+    await page.locator(rowsOf["By amount"]).first().waitFor();
+    await page.waitForTimeout(2500);
+    const frames = await watch.read();
+    const gap = (frames.find(({ mode }) => mode === "By amount")!.t - frames.find(({ mode }) => mode === "By shares")!.t) / slowdown;
+    expect(gap, "the second tap came inside the first swap").toBeLessThan(270);
+    expect(rises(frames)).toEqual([]);
+    expect(doubled(frames), "frames showing two copies").toEqual([]);
+    expect(frames.at(-1)!.copies).toEqual([{ kind: "amount", opacity: 1 }]);
+  });
+}
 
 test("a closing Bundle paints a smaller height every frame, never the open height again, and ends closed", async ({ page }) => {
   await picked(page);
