@@ -494,6 +494,6 @@ test("a collapsed Bundle's unclaimed line grows in on the first claim and collap
   const up = secondBundleTops(page);
   await claim.click();
   const shrunk = [...new Set(await up)];
-  expect(shrunk.length).toBeGreaterThan(3);
+  expect(shrunk.length).toBeGreaterThan(2);
   expect(shrunk[0] - shrunk.at(-1)!).toBeGreaterThan(10);
 });

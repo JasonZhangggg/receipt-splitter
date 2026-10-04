@@ -159,12 +159,12 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   const reduce = useReducedMotion();
   const region = useId();
   const showInside = !open && (claimers.length > 0 || unclaimed > 0);
-  // The line grows in when a claim brings it, so the rows under it glide down; opening or closing the Bundle already moves them.
+  // The line grows in when a claim brings it and collapses out when a claim removes it, so the rows under it glide; opening or closing the Bundle already moves them.
   const [was, setWas] = useState({ open, showInside });
-  const [growInside, setGrowInside] = useState(false);
+  const [byClaim, setByClaim] = useState(false);
   if (was.open !== open || was.showInside !== showInside) {
     setWas({ open, showInside });
-    setGrowInside(showInside && was.open === open);
+    setByClaim(was.open === open);
   }
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`} style={divided && [styles.divided, { borderTopColor: c.hairline }]}>
@@ -188,16 +188,14 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                 <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
                   {bundle.summary}
                 </Text>
-                {showInside ? (
-                  <Grow enter={growInside}>
-                    <View style={styles.inside}>
-                      {claimers.map((person) => (
-                        <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
-                      ))}
-                      {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
-                    </View>
-                  </Grow>
-                ) : null}
+                <Presence present={showInside} animate={byClaim}>
+                  <View style={styles.inside}>
+                    {claimers.map((person) => (
+                      <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
+                    ))}
+                    {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
+                  </View>
+                </Presence>
               </View>
             </View>
             <Text style={[itemType, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
@@ -294,6 +292,42 @@ function Grow({ enter, children }: { enter: boolean; children: ReactNode }) {
     };
   }, [mount]);
   return <View ref={box}>{children}</View>;
+}
+
+// Children grow in when they mount present with animate set, and collapse out over rowsOut when present turns false with animate set, so the rows under them glide. With animate unset they arrive and leave at once.
+function Presence({ present, animate, children }: { present: boolean; animate: boolean; children: ReactNode }) {
+  const reduce = useReducedMotion();
+  const box = useRef<View>(null);
+  const [last, setLast] = useState(children);
+  const [seen, setSeen] = useState(present);
+  const [leaving, setLeaving] = useState(false);
+  if (present && children !== last) setLast(children);
+  if (seen !== present) {
+    setSeen(present);
+    setLeaving(!present && animate);
+  } else if (leaving && !animate) setLeaving(false);
+  useLayoutEffect(() => {
+    const el = box.current as unknown as HTMLElement | null;
+    if (!leaving) return;
+    const done = () => setLeaving(false);
+    if (typeof el?.animate !== "function") return done();
+    const height = `${el.getBoundingClientRect().height}px`;
+    const frames = reduce
+      ? [{ opacity: 1 }, { opacity: 0 }]
+      : [
+          { height, opacity: 1, overflow: "hidden" },
+          { height: "0px", opacity: 0, overflow: "hidden" },
+        ];
+    const going = el.animate(frames, { duration: reduce ? motion.reducedFade : motion.rowsOut, easing: motion.easeOut, fill: "forwards" });
+    going.onfinish = done;
+    return () => going.cancel();
+  }, [leaving, reduce]);
+  if (present) return <Grow enter={animate}>{children}</Grow>;
+  return leaving ? (
+    <View ref={box} aria-hidden pointerEvents="none">
+      {last}
+    </View>
+  ) : null;
 }
 
 type LineProps = {

@@ -57,6 +57,7 @@ export const motion = {
   toastOut: 180,
   reducedFade: 160,
   rowsIn: 200,
+  rowsOut: 150,
   readingCycle: 1600,
   readingStagger: 150,
   readingBar: 240,

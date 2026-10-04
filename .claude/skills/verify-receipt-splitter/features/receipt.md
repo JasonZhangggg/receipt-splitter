@@ -7,7 +7,7 @@ The receipt card on the Split page `/s/<id>` lists the Receipt as the receipt pr
 - `receipt-quantity` shows a quantity line as one row with "3x" at its full price, claimed whole.
 - `receipt-split` turns a quantity line into one-unit rows from its sheet for every browser, with a History row that **Revert** undoes.
 - `receipt-bundle` opens and closes a Bundle in place by tap, Enter, or Space, with `aria-expanded`, and keeps focus on its header.
-- `receipt-bundle-flag` shows a closed Bundle's unclaimed units in gray. On the first claim the line grows in over 200 ms, so the rows under it glide down.
+- `receipt-bundle-flag` shows a closed Bundle's unclaimed units in gray. On the first claim the line grows in over 200 ms, and on the last it collapses out over 150 ms, so the rows under it glide. Opening or closing the Bundle brings or removes it at once.
 - `receipt-bundle-note` names the Bundle's discount on a Bundle Item's sheet.
 - `receipt-delete` deletes an Item from its sheet for every browser, with a History row that **Revert** undoes.
 - `receipt-desktop` lays the page out from 1024 px as a centered pair, the receipt beside a right pane, with the Item detail, Add item and History as popovers.
