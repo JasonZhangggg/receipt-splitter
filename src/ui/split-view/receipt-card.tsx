@@ -282,7 +282,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, div
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
   const ordered = [...claimers].sort((a, b) => Number(a.id === selected?.id) - Number(b.id === selected?.id));
   const price = plainAmount(cost);
-  const [title, detail] = nameParts(item.name);
+  const [title, detail] = nameParts(item);
   const who = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
   return (
     <View
@@ -323,7 +323,7 @@ function Line({ row: { item, unit, price: cost }, order, claimers, selected, div
                 {tag ? <Text style={[type.caption, { color: c.muted }]}>{`  ${tag}`}</Text> : null}
               </Text>
               {detail ? (
-                <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
+                <Text numberOfLines={2} style={[type.caption, { color: c.muted }]}>
                   {detail}
                 </Text>
               ) : null}

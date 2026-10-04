@@ -67,6 +67,8 @@ export const splitCopy = {
   deleteItem: "Delete item",
   item: "Item",
   itemName: "Item name",
+  itemDetail: "Detail",
+  addDetail: "Add a detail",
   price: "Price",
   each: "each",
   whoHadIt: "Who had it",

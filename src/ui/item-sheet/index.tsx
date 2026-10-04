@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { price as toPrice } from "../../core/money";
-import { MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
+import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
 import { unitPrices } from "../../core/shares";
 import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem, type SplitMode } from "../../core/split";
 import { parseAmount, plainAmount } from "../../draft";
@@ -136,13 +136,26 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
           )}
         </PressTarget>
       </View>
-      <TextInput
-        aria-label={say.itemName}
-        defaultValue={item.name}
-        onChangeText={(name) => name.trim() && edit({ name: name.trim() })}
-        enterKeyHint="done"
-        style={[type.input, styles.field, styles.strong, { color: c.ink, backgroundColor: c.sheetIn }]}
-      />
+      <View style={[styles.nameGroup, { backgroundColor: c.sheetIn }]}>
+        <TextInput
+          aria-label={say.itemName}
+          defaultValue={item.name}
+          onChangeText={(name) => name.trim() && edit({ name: name.trim() })}
+          enterKeyHint="done"
+          style={[type.input, styles.field, styles.strong, { color: c.ink }]}
+        />
+        <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
+        <TextInput
+          aria-label={say.itemDetail}
+          placeholder={say.addDetail}
+          placeholderTextColor={c.muted}
+          defaultValue={item.detail ?? ""}
+          maxLength={MAX_DETAIL_LENGTH}
+          onChangeText={(detail) => edit({ detail: detail.trim() })}
+          enterKeyHint="done"
+          style={[type.input, styles.field, { color: c.muted }]}
+        />
+      </View>
       <View style={[styles.priceField, { backgroundColor: c.sheetIn }]}>
         <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.price}</Text>
         <Text style={[type.input, { color: c.ink }]}>$</Text>
@@ -392,6 +405,8 @@ const styles = StyleSheet.create({
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
+  nameGroup: { borderRadius: layout.fieldRadius, overflow: "hidden" },
+  groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   strong: { fontWeight: "500" },
   priceField: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
   fieldLabel: { marginRight: "auto" },

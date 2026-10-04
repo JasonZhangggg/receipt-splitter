@@ -35,8 +35,12 @@ The printed bill the Host photographs, and the items and totals read from it.
 One priced row on the receipt, such as a dish or drink. Its price includes its quantity and any modifiers or discounts printed under it.
 _Avoid_: Line, entry, product
 
+**Detail**:
+Supplementary text under an Item's name, such as a size, a flavor, a weight, an unpriced modifier, or a discount folded into its price ("$2.00 off"). One line of at most 120 characters. The name alone identifies the Item. Anyone can edit it, and History lists the edit.
+_Avoid_: Description, note
+
 **Adjustment**:
-A charge or credit on the receipt that is not an Item: tax, tip, a service charge, a receipt-level discount, or a Bundle's discount.
+A charge or credit on the receipt that is not an Item: tax, tip, a service charge, a receipt-level discount, or a Bundle's discount. A bag fee or a bottle deposit the receipt prints is a service charge.
 _Avoid_: Fee, extra
 
 **Bundle**:

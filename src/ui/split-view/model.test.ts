@@ -31,7 +31,7 @@ describe("lineTag", () => {
 });
 
 test("nameParts moves a printed size and what follows it to a second line, and leaves a name with no size, or one that starts with a count or a size, whole", () => {
-  expect(["Michelob Ultra 16oz Aluminum Bottle", "Guinness Draught 14.9oz Can", "High Noon Watermelon 12oz Can", "Gameplay", "2 Tacos", "Coke 2", "Water 1L", "16oz Draft"].map(nameParts)).toEqual([
+  expect(["Michelob Ultra 16oz Aluminum Bottle", "Guinness Draught 14.9oz Can", "High Noon Watermelon 12oz Can", "Gameplay", "2 Tacos", "Coke 2", "Water 1L", "16oz Draft"].map((name) => nameParts({ name }))).toEqual([
     ["Michelob Ultra", "16oz Aluminum Bottle"],
     ["Guinness Draught", "14.9oz Can"],
     ["High Noon Watermelon", "12oz Can"],
@@ -41,6 +41,10 @@ test("nameParts moves a printed size and what follows it to a second line, and l
     ["Water", "1L"],
     ["16oz Draft", null],
   ]);
+});
+
+test("nameParts shows an Item's detail under its whole name instead of splitting the name", () => {
+  expect(nameParts({ name: "Guinness Draught 14.9oz Can", detail: "$2.00 off" })).toEqual(["Guinness Draught 14.9oz Can", "$2.00 off"]);
 });
 
 test("shareLabel reads whole units of a line as 1 of 2, part of the price as ½ of 1.00, and all of an Item as nothing", () => {

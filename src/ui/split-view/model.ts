@@ -1,7 +1,7 @@
 import { claimersOf, type Operation } from "../../core/operations";
 import { unitPrices, type ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
-import type { Adjustment, AdjustmentId, ItemId, NonEmpty, ParticipantId, Receipt, SplitItem } from "../../core/split";
+import type { Adjustment, AdjustmentId, ItemId, ItemRow, NonEmpty, ParticipantId, Receipt, SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
 import { gapNote, plainAmount } from "../../draft";
 import { splitCopy as say } from "../split-copy";
@@ -46,7 +46,9 @@ export function circleTap(item: SplitItem, unit: number, participantId: Particip
 
 const SIZE = /^\d+(?:\.\d+)?(?:oz|ml|cl|l|lb|g|kg)$/i;
 
-export function nameParts(name: string): readonly [title: string, detail: string | null] {
+/** The Item's name and the line under it: its detail when set, or else a size printed on the name line and what follows it. */
+export function nameParts({ name, detail }: Pick<ItemRow, "name" | "detail">): readonly [title: string, detail: string | null] {
+  if (detail !== undefined) return [name, detail];
   const words = name.split(" ");
   const at = words.findIndex((word, index) => index > 0 && SIZE.test(word));
   return at < 0 ? [name, null] : [words.slice(0, at).join(" "), words.slice(at).join(" ")];

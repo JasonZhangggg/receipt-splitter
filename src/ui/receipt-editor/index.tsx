@@ -71,6 +71,7 @@ export function ReceiptEditor({ receipt, flagged, dispatch, locked = false }: Pr
                 />
                 {locked ? null : <Button kind="icon" icon="x" name={editorCopy.remove(label)} onPress={() => dispatch({ type: "removeItem", id: item.id })} />}
               </View>
+              {item.detail ? <Text style={[type.caption, styles.note, { color: c.muted }]}>{item.detail}</Text> : null}
               {note ? <Text style={[type.caption, styles.note, { color: c.muted }]}>{note}</Text> : null}
             </View>
           );
