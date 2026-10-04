@@ -478,7 +478,7 @@ function splitWrites(split: Split, index: number, ids: NonEmpty<ItemId>): readon
   const prices = unitPrices(line.price, quantity).map(asPrice);
   const [first, ...rest] = splitRows(line.split, prices);
   const edit = diff({ quantity, price: line.price, split: line.split }, { quantity: 1, price: prices[0], split: first });
-  if (edit === null || edit === "emptyEdit") return edit ?? "conflict";
+  if (!edit || edit === "emptyEdit") return "conflict";
   return [
     { kind: "item", id: line.id, edit },
     ...ids.map((id, at): Write => ({ kind: "item", id, added: { index: index + 1 + at, name: line.name, price: prices[at + 1], ...(line.detail !== undefined && { detail: line.detail }), split: rest[at] } })),

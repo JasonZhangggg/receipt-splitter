@@ -32,7 +32,6 @@ import {
   type Part,
   type SchemaVersion,
   type Split,
-  type SplitItem,
   type Write,
 } from "./split";
 
@@ -410,7 +409,7 @@ const LEGACY_ROWS = { 1: legacyRows(1), 2: legacyRows(2), 3: legacyRows(3) } as 
 
 const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", itemId, itemFields, itemEdit);
 const currentChange: Parser<Change> = change(true, itemWrite);
-const CURRENT_ROWS = { receipt: receipt<SplitItem, ReturnType<typeof anyAdjustment>>(item, anyAdjustment), original: receipt(receiptItem, anyAdjustment), change: currentChange };
+const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment), original: receipt(receiptItem, anyAdjustment), change: currentChange };
 
 /** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */
 const split: Parser<Split> = strict((fields) => {
