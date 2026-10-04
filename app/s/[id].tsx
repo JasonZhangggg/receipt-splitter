@@ -293,6 +293,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     </View>
   );
 
+  const showingNow = closing ? null : overlay;
   const receipt = (
     <ReceiptCard
       split={split}
@@ -302,9 +303,10 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       onCircle={(item) => void onCircle(item)}
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
+      showing={showingNow?.kind === "item" ? showingNow.itemId : showingNow?.kind === "add" ? "add" : null}
     />
   );
-  const header = <SplitHeader onReceipt={photo ? () => setViewing(true) : undefined} onHistory={(from) => open({ kind: "history" }, from)} onShare={() => void share()} />;
+  const header = <SplitHeader onReceipt={photo ? () => setViewing(true) : undefined} onHistory={(from) => open({ kind: "history" }, from)} historyOpen={showingNow?.kind === "history"} onShare={() => void share()} />;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>

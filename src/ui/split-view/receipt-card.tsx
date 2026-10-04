@@ -21,6 +21,8 @@ type Props = {
   onCircle: (item: SplitItem) => void;
   onOpen: (item: SplitItem, press: Press) => void;
   onAdd: (press: Press) => void;
+  /** The line whose Item detail is open, or the Add item form, so its trigger reads as expanded. */
+  showing: ItemId | "add" | null;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -39,7 +41,7 @@ const bleed = 12;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, showing }: Props) {
   const c = useColors();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
   const { items, subtotal, total } = split.receipt;
@@ -69,6 +71,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         inBundle={inBundle}
         onCircle={() => onCircle(item)}
         onOpen={(press) => onOpen(item, press)}
+        expanded={showing === item.id}
       />
     </Grow>
   );
@@ -108,7 +111,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           );
         })}
       </View>
-      <AddRow divided={rows.length > 0} onPress={onAdd} />
+      <AddRow divided={rows.length > 0} expanded={showing === "add"} onPress={onAdd} />
       {note ? (
         <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
           {note}
@@ -339,9 +342,10 @@ type LineProps = {
   inBundle: boolean;
   onCircle: () => void;
   onOpen: (press: Press) => void;
+  expanded: boolean;
 };
 
-function Line({ item, order, claimers, selected, divided, inBundle, onCircle, onOpen }: LineProps) {
+function Line({ item, order, claimers, selected, divided, inBundle, onCircle, onOpen, expanded }: LineProps) {
   const cost = item.price;
   const c = useColors();
   const reduce = useReducedMotion();
@@ -383,7 +387,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
           </View>
         )}
       </PressTarget>
-      <PressTarget name={`${say.open(label)}, $${price}, ${who}`} onPress={onOpen} style={() => styles.body}>
+      <PressTarget name={`${say.open(label)}, $${price}, ${who}`} popup="dialog" expanded={expanded} onPress={onOpen} style={() => styles.body}>
         {() => (
           <View style={styles.bodyRow}>
             <View style={styles.name}>
@@ -406,11 +410,11 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   );
 }
 
-function AddRow({ divided, onPress }: { divided: boolean; onPress: (press: Press) => void }) {
+function AddRow({ divided, expanded, onPress }: { divided: boolean; expanded: boolean; onPress: (press: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={say.addItem} onPress={onPress} style={(pressed) => [styles.line, styles.add, divided && [styles.divided, { borderTopColor: c.hairline }], pressStyle(pressed, reduce)]}>
+    <PressTarget name={say.addItem} popup="dialog" expanded={expanded} onPress={onPress} style={(pressed) => [styles.line, styles.add, divided && [styles.divided, { borderTopColor: c.hairline }], pressStyle(pressed, reduce)]}>
       {() => (
         <>
           <View style={styles.addIcon}>

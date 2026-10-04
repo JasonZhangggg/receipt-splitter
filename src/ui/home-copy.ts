@@ -50,6 +50,8 @@ export const joinCopy = {
   joinFailed: "Couldn't join. Try again.",
   atTheTable: "At the table",
   newSplit: "Split a receipt",
+  /** The Split page's wordmark opens a fresh home; its name starts with the visible wordmark (WCAG 2.5.3). */
+  wordmarkHome: "Receipt Splitter, split a receipt",
   expired: { title: "This split has expired", hint: "A split lasts 60 days after its last change." },
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };

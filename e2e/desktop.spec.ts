@@ -74,6 +74,16 @@ async function box(target: Locator): Promise<Box> {
   return found;
 }
 
+/** Presses Tab `presses` times and says, for each press, whether focus stayed inside `dialog`. */
+async function tabsInside(dialog: Locator, presses: number, key = "Tab") {
+  const stayed: boolean[] = [];
+  for (let i = 0; i < presses; i += 1) {
+    await dialog.page().keyboard.press(key);
+    stayed.push(await dialog.evaluate((el) => el.contains(document.activeElement)));
+  }
+  return stayed;
+}
+
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 const inside = (a: Box, { width, height }: { width: number; height: number }) => a.x >= 0 && a.y >= 0 && a.x + a.width <= width && a.y + a.height <= height;
 
@@ -81,6 +91,7 @@ test("the wordmark is the page's only level-1 heading, and the pane's question i
   await open(page, await createSplit(request, workerIndex));
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveAccessibleName("Receipt Splitter, split a receipt");
   await expect(pane(page).getByRole("heading", { name: "Which one are you?", level: 2 })).toBeVisible();
 });
 
@@ -155,6 +166,85 @@ test("Split on a quantity-3 line leaves three one-unit rows, and Delete item on 
 
   await expect(itemPopover(page)).toHaveCount(0, live);
   await expect(cans(page)).toHaveCount(2, live);
+});
+
+test("after a Delete item, Enter on the line that takes focus opens its popover, and Tab and Shift+Tab never leave it", async ({ page, request }, { workerIndex }) => {
+  const ultra = page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first();
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+  await gameplay(page).click();
+  await itemPopover(page).getByRole("button", { name: "Delete item" }).click();
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(ultra).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(itemPopover(page)).toBeVisible();
+
+  expect(await tabsInside(itemPopover(page), 12)).toEqual(Array(12).fill(true));
+  expect(await tabsInside(itemPopover(page), 12, "Shift+Tab")).toEqual(Array(12).fill(true));
+  await page.keyboard.press("Escape");
+  await expect(ultra).toBeFocused();
+});
+
+test("at 1280 px with a Bundle open, the Add item popover opens above its row, and Tab and Shift+Tab never leave it", async ({ page, request }, { workerIndex }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+  const addRow = receipt(page).getByRole("button", { name: "Add item", exact: true });
+  const form = page.getByRole("dialog", { name: "New item" });
+
+  await addRow.click();
+
+  await expect(form).toBeVisible();
+  const popover = await box(form);
+  expect(popover.y + popover.height).toBeLessThan((await box(addRow)).y + 2);
+  expect(await tabsInside(form, 16)).toEqual(Array(16).fill(true));
+  expect(await tabsInside(form, 16, "Shift+Tab")).toEqual(Array(16).fill(true));
+});
+
+test("a line, Add item and History each announce a dialog popup, and expanded follows their popover", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const state = (trigger: Locator) => trigger.evaluate((el) => [el.getAttribute("aria-haspopup"), el.getAttribute("aria-expanded")]);
+  const triggers = [
+    { trigger: gameplay(page), popover: itemPopover(page) },
+    { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), popover: page.getByRole("dialog", { name: "New item" }) },
+    { trigger: page.getByRole("button", { name: "History", exact: true }), popover: page.getByRole("dialog", { name: "History" }) },
+  ];
+  for (const { trigger, popover } of triggers) {
+    expect(await state(trigger)).toEqual(["dialog", "false"]);
+    await trigger.click();
+    await expect(popover).toBeVisible();
+    expect(await state(trigger)).toEqual(["dialog", "true"]);
+    await page.keyboard.press("Escape");
+    await expect(popover).toHaveCount(0);
+    expect(await state(trigger)).toEqual(["dialog", "false"]);
+  }
+});
+
+test("at phone width Escape closes the Item, Add item and History sheets and hands focus back to what opened them", async ({ page, request }, { workerIndex }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(await createSplit(request, workerIndex));
+  const asked = page.getByRole("dialog", { name: "Which one are you?" });
+  await asked.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(asked).toHaveCount(0, live);
+  const sheets = [
+    { trigger: gameplay(page), sheet: page.getByTestId("item-sheet") },
+    { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), sheet: page.getByTestId("add-sheet") },
+    { trigger: page.getByRole("button", { name: "History", exact: true }), sheet: page.getByTestId("history-sheet") },
+  ];
+  for (const { trigger, sheet } of sheets) {
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await expect(sheet).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(trigger).toBeFocused();
+  }
 });
 
 test("another device's Delete item closes the open popover and hands focus to the next line", async ({ page, browser, request }, { workerIndex }) => {

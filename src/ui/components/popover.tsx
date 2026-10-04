@@ -39,6 +39,26 @@ export function useEscape(active: boolean, onEscape: () => void) {
   }, [active]);
 }
 
+const tabbable = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Keeps Tab and Shift+Tab cycling inside `surface` while it is mounted, since the backdrop already keeps the pointer in. */
+function useTabTrap(surface: { current: View | null }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const box = surface.current as unknown as HTMLElement | null;
+      if (event.key !== "Tab" || !box) return;
+      const stops = [...box.querySelectorAll<HTMLElement>(tabbable)].filter((el) => el.getClientRects().length > 0);
+      const at = document.activeElement;
+      const edge = event.shiftKey ? stops[0] : stops.at(-1);
+      if (stops.length > 0 && box.contains(at) && at !== box && at !== edge) return;
+      event.preventDefault();
+      (event.shiftKey ? (stops.at(-1) ?? box) : (stops[0] ?? box)).focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [surface]);
+}
+
 export function Popover({ anchor, label, closing, instant, onClose, onGone, children }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -48,6 +68,7 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, chil
   const leave = useEffectEvent(onGone);
   const close = useEffectEvent(onClose);
   useEscape(!closing, onClose);
+  useTabTrap(surface);
 
   // Placed before the first paint from the surface's natural height, so no frame shows it in the wrong place.
   useLayoutEffect(() => {

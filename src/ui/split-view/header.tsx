@@ -9,9 +9,9 @@ import { pressStyle, useReducedMotion, webAnimation } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 
-type Props = { onReceipt?: () => void; onHistory?: (press: Press) => void; onShare?: () => void };
+type Props = { onReceipt?: () => void; onHistory?: (press: Press) => void; historyOpen?: boolean; onShare?: () => void };
 
-export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
+export function SplitHeader({ onReceipt, onHistory, historyOpen = false, onShare }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   // A photo already there when the page opens shows at once; one that lands later scales in (fades under reduced motion).
@@ -19,7 +19,7 @@ export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
   return (
     <View style={styles.header}>
       <View role="heading" aria-level={1}>
-        <PressTarget name={joinCopy.newSplit} onPress={() => router.push("/")} style={(pressed) => [styles.home, pressStyle(pressed, reduce)]}>
+        <PressTarget name={joinCopy.wordmarkHome} onPress={() => router.push("/")} style={(pressed) => [styles.home, pressStyle(pressed, reduce)]}>
           {() => <Text style={[type.wordmark, { color: c.ink }]}>{copy.wordmark}</Text>}
         </PressTarget>
       </View>
@@ -29,7 +29,7 @@ export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
             <Button kind="icon" icon="receipt" name={say.viewReceipt} onPress={onReceipt} />
           </View>
         ) : null}
-        {onHistory ? <Button kind="icon" icon="history" name={say.history} onPress={onHistory} /> : null}
+        {onHistory ? <Button kind="icon" icon="history" name={say.history} popup="dialog" expanded={historyOpen} onPress={onHistory} /> : null}
         {onShare ? <Button kind="icon" icon="share" name={say.shareLink} onPress={onShare} /> : null}
       </View>
     </View>
