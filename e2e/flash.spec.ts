@@ -148,6 +148,26 @@ for (const second of [60, 100, 180]) {
   });
 }
 
+// An icon drawn from an image source can paint blank until the browser decodes it, which iOS does a frame late and the DOM never shows; vector shapes in the page paint with the frame that adds them.
+test("the first open of the Item sheet draws every icon, the close button's x included, as vector shapes from the sheet's first frame", async ({ page }) => {
+  await picked(page);
+  const frames = await sample<string[] | null>(
+    page,
+    `(() => {
+      const sheet = document.querySelector('[data-testid="item-sheet"]');
+      if (!sheet) return null;
+      const drawn = (icon) => [...icon.querySelectorAll("svg path, svg circle, svg rect")].some((shape) => shape.getBoundingClientRect().width > 0);
+      return [...sheet.querySelectorAll("[data-icon]")].map((icon) => icon.getAttribute("data-icon") + (drawn(icon) ? "" : " blank"));
+    })()`,
+  );
+  await tap(page.getByRole("button", { name: /^Open Rice/ }));
+  await page.getByTestId("item-sheet").waitFor();
+  await page.waitForTimeout(400);
+  const open = (await frames()).filter((icons) => icons !== null);
+  expect(open[0].map((icon) => icon.split(" ")[0])).toContain("x");
+  expect(open.flat().filter((icon) => icon.endsWith(" blank"))).toEqual([]);
+});
+
 test("a closing Bundle paints a smaller height every frame, never the open height again, and ends closed", async ({ page }) => {
   await picked(page);
   await openBundle(page);

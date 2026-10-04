@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { plainAmount } from "../../draft";
+import { money } from "../../draft";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
@@ -11,12 +11,12 @@ export function OweLine({ label, amount, onPress }: { label: string; amount: num
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={`${label} $${plainAmount(amount)}, ${say.showBreakdown}`} outsideScroll onPress={onPress} style={(pressed) => pressStyle(pressed, reduce)}>
+    <PressTarget name={`${label} ${money(amount)}, ${say.showBreakdown}`} outsideScroll onPress={onPress} style={(pressed) => pressStyle(pressed, reduce)}>
       {() => (
         <View style={styles.line}>
           <Text style={[type.button, { color: c.ink }]}>{label}</Text>
           <View style={styles.end}>
-            <Text testID="owe" style={[type.total, styles.amount, { color: c.ink }]}>{`$${plainAmount(amount)}`}</Text>
+            <Text testID="owe" style={[type.total, styles.amount, { color: c.ink }]}>{money(amount)}</Text>
             <View style={styles.chevron}>
               <Icon name="chevron" size={18} color={c.muted} />
             </View>

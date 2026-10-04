@@ -2,7 +2,7 @@ import type { ReadAdjustment, ReadBundle, ReadDiscount, ReadItem, ScanReply } fr
 import { cents, isCents, isPrice, price, type Cents } from "../core/money";
 import { isDetail, MAX_DETAIL_LENGTH, MAX_QUANTITY } from "../core/operations";
 import { adjustmentId, itemId, type Adjustment, type Item, type NonEmpty, type Receipt, type ReceiptLevelKind } from "../core/split";
-import { plainAmount } from "../draft";
+import { money } from "../draft";
 import type { TextBox } from "../ocr/types";
 import { groupRows } from "../parse/rows";
 
@@ -55,7 +55,7 @@ const sum = (amounts: readonly number[]) => amounts.reduce((total, amount) => to
 
 /** The Item's detail lines and folded discounts as one line, such as "Large, oat milk, $2.00 off", or undefined when there are none or it cannot be shown. */
 function detailLine({ details, discounts }: ReadItem): string | undefined {
-  const parts = [...details, ...discounts.map(({ amount }) => `$${plainAmount(Math.abs(amount))} off`)];
+  const parts = [...details, ...discounts.map(({ amount }) => `${money(Math.abs(amount))} off`)];
   const line = parts.map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean).join(", ");
   const characters = [...line];
   const clipped = characters.length > MAX_DETAIL_LENGTH ? `${characters.slice(0, MAX_DETAIL_LENGTH - 1).join("").trimEnd()}…` : line;

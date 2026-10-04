@@ -1,7 +1,7 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 
 import type { Cents } from "../../core/money";
-import { plainAmount } from "../../draft";
+import { money } from "../../draft";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { copy } from "../home-copy";
@@ -23,7 +23,7 @@ const tabular = { fontVariant: ["tabular-nums" as const] };
 export function ReceiptSummary({ name, items, total, thumbnail, onView, onReplace, stacked = false }: Props) {
   const c = useColors();
   const count = `${items} ${items === 1 ? "item" : "items"}`;
-  const amount = `$${plainAmount(total)}`;
+  const amount = money(total);
   const thumb = <Thumbnail thumbnail={thumbnail} onView={onView} size={stacked ? sizes.stacked : sizes.row} />;
   const replace = <Button kind="icon" icon="camera" name={copy.replace} onPress={onReplace} />;
   if (stacked) {

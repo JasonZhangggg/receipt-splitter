@@ -4,11 +4,12 @@ import type { Cents } from "../../core/money";
 import { handleText } from "../../core/operations";
 import { payLink } from "../../core/pay-links";
 import type { PaymentHandle } from "../../core/split";
+import { money } from "../../draft";
 import { Button } from "../components/button";
 import { paymentApps } from "../home-copy";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
-import { dollars, type PayState } from "./model";
+import type { PayState } from "./model";
 import { ZelleCard } from "./zelle-card";
 
 type Props = { host: string; handles: readonly PaymentHandle[]; state: PayState; onPaid: (paid: boolean) => void };
@@ -49,7 +50,7 @@ function PayWays({ host, handles, amount }: { host: string; handles: readonly Pa
           key={handle.service}
           kind={index === 0 ? "primary" : "soft"}
           glyph={paymentApps[handle.service].glyph}
-          label={say.payOn(host, dollars(amount), paymentApps[handle.service].name)}
+          label={say.payOn(host, money(amount), paymentApps[handle.service].name)}
           href={href}
           fallbackHref={fallbackHref}
           outsideScroll

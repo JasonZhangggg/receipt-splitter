@@ -1,5 +1,5 @@
 import { cents, type Cents } from "../../core/money";
-import { plainAmount } from "../../draft";
+import { money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 
 export type PayState =
@@ -17,10 +17,8 @@ export function payState(share: Cents, paid: Cents | null): PayState {
 
 export type Viewer = "payer" | "host" | "other";
 
-export const dollars = (amount: Cents) => `$${plainAmount(amount)}`;
-
 export function differenceNote(state: PayState, viewer: Viewer, payer: string, host: string): string | null {
-  if (state.kind === "over") return say.paidOver(viewer, payer, host, dollars(state.paid), dollars(state.back));
-  if (state.kind === "short") return say.paidShort(viewer, payer, dollars(state.paid), dollars(state.rest));
+  if (state.kind === "over") return say.paidOver(viewer, payer, host, money(state.paid), money(state.back));
+  if (state.kind === "short") return say.paidShort(viewer, payer, money(state.paid), money(state.rest));
   return null;
 }

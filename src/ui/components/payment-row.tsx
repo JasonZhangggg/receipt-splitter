@@ -4,6 +4,7 @@ import { StyleSheet, TextInput, View } from "react-native";
 import { PAYMENT_SERVICES } from "../../core/split";
 import type { DraftAction, HandleRow } from "../../draft";
 import { copy, paymentApps } from "../home-copy";
+import { fieldGroup } from "../document";
 import { layout, type, useColors } from "../theme";
 import { AppPicker } from "./app-picker";
 import { Button } from "./button";
@@ -20,7 +21,7 @@ export function PaymentRows({ handles, dispatch, firstHandle, outsideScroll }: P
         const choices = PAYMENT_SERVICES.filter((choice) => choice === service || !handles.some((row) => row.service === choice));
         return (
           <View key={service} style={styles.row}>
-            <View style={[styles.field, { backgroundColor: c.sheetIn }]}>
+            <View {...fieldGroup} style={[styles.field, { backgroundColor: c.sheetIn }]}>
               <AppPicker service={service} choices={choices} onPick={(next) => dispatch({ type: "setService", index, service: next })} />
               <TextInput
                 ref={index === 0 ? firstHandle : undefined}

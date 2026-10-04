@@ -1,7 +1,6 @@
 import { router } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
-
 import { useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
 import { Button, PressTarget, type Press } from "../components/button";
 import { copy, joinCopy } from "../home-copy";

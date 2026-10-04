@@ -27,11 +27,11 @@ const everyApp = [venmo, { service: "cashApp", handle: "jasonz" }, { service: "p
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, paymentHandles: readonly object[]): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, paymentHandles: readonly object[], receipt: object = menu): Promise<string> {
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.51.${110 + workerIndex}.${creates}` },
-    data: { split: { receipt: menu, participants: people, paymentHandles } },
+    data: { split: { receipt, participants: people, paymentHandles } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
@@ -67,6 +67,28 @@ test("a guest's collapsed bar shows Your share and no pay button, and the pay bu
   await bar.click();
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Venmo" })).toBeVisible(live);
   await expect(sheet.getByTestId("split-link")).toHaveCount(0);
+});
+
+test("amounts of $1,000 and up show grouped by thousands on the receipt, the bar, the breakdown and the Zelle card, while pay links keep the plain amount", async ({ browser, request }, { workerIndex }) => {
+  const banquet = {
+    items: [
+      { id: "omakase", name: "Omakase", price: 123_456 },
+      { id: "tea", name: "Tea", price: 1_600 },
+    ],
+    adjustments: [],
+    subtotal: 125_056,
+    total: 125_056,
+  };
+  const sam = await open(browser, await createSplit(request, workerIndex, [venmo, { service: "zelle", handle: "jason@example.com" }], banquet));
+  await expect(sam.getByTestId("total")).toHaveText("$1,250.56");
+  await pick(sam, "Sam");
+  await circle(sam, "Omakase", "Sam").click();
+  await expect(owe(sam)).toHaveText("$1,234.56", live);
+
+  await owe(sam).click();
+  await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $1,234.56 on Venmo" })).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=1234.56&note=Receipt%20split");
+  await expect(breakdown(sam).getByTestId("zelle").getByText("$1,234.56", { exact: true })).toBeVisible();
+  await expect(breakdown(sam).getByText("$1,234.56", { exact: true })).not.toHaveCount(0);
 });
 
 test("Sam's breakdown links each pay app at his $14.20 Share and shows the Zelle card, and Priya's shows Not paid with no buttons", async ({ browser, request }, { workerIndex }) => {

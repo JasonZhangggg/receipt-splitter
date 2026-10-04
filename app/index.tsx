@@ -32,6 +32,8 @@ const ringChange = webStyle({ transitionProperty: "border-color", transitionDura
 
 // Back remounts home without a reload, so the Draft lives as long as the page; a reload keeps only the handles.
 let pageDraft: Draft | null = null;
+/** The cleaned copy of the scanned photo that Create sends, kept beside the Draft and keyed to the scan's file. */
+let pageCopy: { file: ReceiptFile; copy: Promise<ReceiptJpeg | null> } | null = null;
 /** The reading bar's share for on-device OCR. The rest waits on the server's reading, which reports no progress. */
 const OCR_SHARE = 0.8;
 
@@ -51,7 +53,6 @@ export default function Home() {
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
   const scanning = useRef(0);
-  const receiptCopy = useRef<{ scan: number; copy: Promise<ReceiptJpeg | null> } | null>(null);
   const handleInput = useRef<TextInput>(null);
   useEffect(prefetchModel, []);
   useEffect(() => {
@@ -78,7 +79,7 @@ export default function Home() {
     globalThis.performance?.mark?.("copy-start");
     const copying = receiptCopyOf(photo, boxes ?? []).catch(() => null);
     void copying.then(() => globalThis.performance?.mark?.("copy-done"));
-    if (scan === scanning.current) receiptCopy.current = { scan, copy: copying };
+    if (scan === scanning.current) pageCopy = { file, copy: copying };
     const receipt = boxes && ((await readOnServer(photo, boxes)) ?? parseReceipt(boxes));
     globalThis.performance?.mark?.("scan-read");
     if (scan === scanning.current) dispatch({ type: "read", file, receipt });
@@ -87,7 +88,7 @@ export default function Home() {
   const choose = () => pickPhoto(read);
   const example = () => {
     scanning.current++;
-    receiptCopy.current = null;
+    pageCopy = null;
     setPhoto(null);
     dispatch({ type: "example" });
   };
@@ -105,7 +106,7 @@ export default function Home() {
   const create = async (split: Ready) => {
     const request = splitRequest(split, newParticipantId);
     const scan = scanning.current;
-    const photoCopy = receiptCopy.current?.scan === scan ? receiptCopy.current.copy : null;
+    const photoCopy = draft.scan.status === "read" && pageCopy?.file === draft.scan.file ? pageCopy.copy : null;
     setCreating(true);
     setFailure(null);
     const created = await createSplitLink({ split: request });
@@ -114,7 +115,7 @@ export default function Home() {
     rememberSplit(created.id, { creatorSecret: created.creatorSecret });
     void photoCopy?.then((jpeg) => jpeg && sendPhoto(created.id, created.creatorSecret, jpeg));
     if (scan === scanning.current) {
-      receiptCopy.current = null;
+      pageCopy = null;
       setPhoto(null);
       apply({ type: "created" });
     }

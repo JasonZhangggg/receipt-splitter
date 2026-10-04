@@ -3,7 +3,7 @@ import type { ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
 import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
-import { gapNote, plainAmount } from "../../draft";
+import { gapNote, groupedAmount, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 
 const UNICODE_FRACTIONS: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾", "1/5": "⅕", "1/6": "⅙", "1/8": "⅛" };
@@ -56,7 +56,7 @@ export type BreakdownLine = { readonly id: ItemId; readonly quantity: string | n
 
 /** One line per row on the Split page: a quantity line is one line with its quantity, never "1 of 3". */
 export function breakdownLines(breakdown: ShareBreakdown): BreakdownLine[] {
-  return breakdown.items.map((line) => ({ id: line.id, quantity: quantityText(line), name: line.name, part: shareLabel(line.fraction, plainAmount(line.price)), portion: line.portion }));
+  return breakdown.items.map((line) => ({ id: line.id, quantity: quantityText(line), name: line.name, part: shareLabel(line.fraction, groupedAmount(line.price)), portion: line.portion }));
 }
 
 const MAX_ID_LENGTH = 24;
@@ -133,7 +133,7 @@ function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>): BundleRow {
     name: row.bundle.name,
     items,
     discount: { label: label.charAt(0).toUpperCase() + label.slice(1), amount: row.amount },
-    summary: say.bundleSummary(units, percent ? `${percent}%` : `$${plainAmount(Math.abs(row.amount))}`),
+    summary: say.bundleSummary(units, percent ? `${percent}%` : money(Math.abs(row.amount))),
     net: items.reduce((total, { price }) => total + price, 0) + row.amount,
   };
 }
@@ -147,7 +147,7 @@ export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId, price: n
   if (!row) return null;
   const inBundle = receipt.items.filter(({ id }) => row.bundle.items.includes(id)).reduce((total, { price }) => total + price, 0);
   const off = inBundle === 0 ? 0 : Math.round((price * Math.abs(row.amount)) / inBundle);
-  return say.inBundle(row.bundle.name, percentOff(row.name), `$${plainAmount(off)}`);
+  return say.inBundle(row.bundle.name, percentOff(row.name), money(off));
 }
 
 export function breakdownCharges(receipt: Receipt<SplitItem>, breakdown: ShareBreakdown): ShareBreakdown["adjustments"] {

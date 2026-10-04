@@ -53,6 +53,20 @@ describe("historyOf", () => {
     ]);
   });
 
+  test("groups a price change and a Payment of $1,000 and up by thousands", () => {
+    const history = historyOf(
+      split(
+        { by: sam, type: "pick", participantId: sam, device: deviceId("phone"), takeOver: false },
+        { by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(123_456) }] },
+        { by: sam, type: "recordPayment", participantId: sam, device: deviceId("phone"), amount: cents(100_000) },
+      ),
+    );
+    expect(history.map(({ lead, before, after }) => ({ lead, before, after }))).toEqual([
+      { lead: "Sam paid $1,000.00", before: undefined, after: undefined },
+      { lead: "Sprite", before: "2.50", after: "1,234.56" },
+    ]);
+  });
+
   test("names a rename by its old and new names, and someone who sent no name as null", () => {
     expect(historyOf(split({ by: null, type: "editReceipt", items: [{ type: "edit", itemId: sprite, name: "Sprite Zero" }] }))).toEqual([
       { revision: 1, lead: "", before: "Sprite", after: "Sprite Zero", more: 0, sentAs: null, name: null, at: 1_000, reverted: false, revertible: true },

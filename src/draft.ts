@@ -163,11 +163,15 @@ export function parseAmount(text: string): Cents | null {
   return amount > MAX_CENTS ? null : cents(amount);
 }
 
+/** For fields and copied values, which other apps parse: no thousands separator. */
 export const plainAmount = (amount: number) => `${amount < 0 ? "-" : ""}${(Math.abs(amount) / 100).toFixed(2)}`;
 
-const dollars = (amount: number) => `$${plainAmount(amount)}`;
+/** For reading: "1,234.56". */
+export const groupedAmount = (amount: number) => plainAmount(amount).replace(/\d(?=(\d{3})+\.)/g, "$&,");
 
-const gapText = (what: string, gap: number, against: string) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short of" : "over"} the ${against}.`;
+export const money = (amount: number) => `${amount < 0 ? "-" : ""}$${groupedAmount(Math.abs(amount))}`;
+
+const gapText = (what: string, gap: number, against: string) => `${what} ${money(Math.abs(gap))} ${gap > 0 ? "short of" : "over"} the ${against}.`;
 
 export function gapNote({ subtotalGap, totalGap }: FailedTotalCheck): string {
   if (subtotalGap !== 0) return gapText("Items are", subtotalGap, "subtotal");

@@ -625,21 +625,16 @@ const glyphs = {
 test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from assistive tech, at 390 px", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  const icons = await page.locator("[data-icon]").evaluateAll((wrappers) =>
-    wrappers.map((wrapper) => {
-      const img = wrapper.querySelector("img")!;
-      const svg = new DOMParser().parseFromString(decodeURIComponent(img.src.replace(/^data:image\/svg\+xml;utf8,/, "")), "image/svg+xml").documentElement;
-      return {
-        icon: wrapper.getAttribute("data-icon"),
-        hidden: wrapper.getAttribute("aria-hidden"),
-        alt: img.getAttribute("alt"),
-        stroke: svg.getAttribute("stroke"),
-        width: svg.getAttribute("stroke-width"),
-        glyph: svg.innerHTML.replaceAll(' xmlns="http://www.w3.org/2000/svg"', ""),
-      };
-    }),
+  const icons = await page.locator("[data-icon]").evaluateAll((svgs) =>
+    svgs.map((svg) => ({
+      icon: svg.getAttribute("data-icon"),
+      hidden: svg.getAttribute("aria-hidden"),
+      stroke: svg.getAttribute("stroke"),
+      width: svg.getAttribute("stroke-width"),
+      glyph: [...svg.children].map((shape) => new XMLSerializer().serializeToString(shape).replace(' xmlns="http://www.w3.org/2000/svg"', "")).join(""),
+    })),
   );
-  const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", alt: "", stroke, width: "1.5", glyph: glyphs[name] });
+  const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", stroke, width: "1.5", glyph: glyphs[name] });
   expect(icons).toEqual([icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
 });
 

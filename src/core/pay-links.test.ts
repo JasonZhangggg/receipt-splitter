@@ -17,6 +17,12 @@ describe("payLink", () => {
     expect(payLink({ service: "zelle", handle: "jason@example.com" }, cents(1420), "Tacos")).toBe(null);
   });
 
+  test("puts a $99,980.52 amount in the link with no thousands separator", () => {
+    expect(payLink({ service: "venmo", handle: "jason-z" }, cents(9_998_052), "Tacos")).toBe("https://venmo.com/jason-z?txn=pay&amount=99980.52&note=Tacos");
+    expect(payLink({ service: "cashApp", handle: "jasonz" }, cents(9_998_052), "Tacos")).toBe("https://cash.app/$jasonz/99980.52");
+    expect(payLink({ service: "paypal", handle: "jasonz" }, cents(9_998_052), "Tacos")).toBe("https://paypal.me/jasonz/99980.52USD");
+  });
+
   test("encodes a note with spaces and an ampersand", () => {
     expect(payLink({ service: "venmo", handle: "jason-z" }, cents(1420), "Tacos & beer")).toBe(
       "https://venmo.com/jason-z?txn=pay&amount=14.20&note=Tacos%20%26%20beer",

@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { shareBreakdown } from "../../core/shares";
 import type { Participant, ParticipantId, Split } from "../../core/split";
-import { plainAmount } from "../../draft";
+import { groupedAmount, money } from "../../draft";
 import { Icon } from "../components/icon";
 import { differenceNote, payState } from "../pay/model";
 import { PayBlock } from "../pay/pay-block";
@@ -18,8 +18,6 @@ type Props = {
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
-const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
-
 export function Breakdown({ split, person, viewer, onPaid }: Props) {
   const c = useColors();
   const breakdown = shareBreakdown(split, person.id);
@@ -59,7 +57,7 @@ export function Breakdown({ split, person, viewer, onPaid }: Props) {
               {line.name}
               {line.part ? <Text style={[type.caption, { color: c.muted }]}>{`  ${line.part}`}</Text> : null}
             </Text>
-            <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(line.portion)}</Text>
+            <Text style={[type.body, tabular, { color: c.ink }]}>{groupedAmount(line.portion)}</Text>
           </View>
         ))}
       </View>
@@ -70,7 +68,7 @@ export function Breakdown({ split, person, viewer, onPaid }: Props) {
               <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
                 {row.name}
               </Text>
-              <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{dollars(row.portion)}</Text>
+              <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
             </View>
           ))}
         </View>
@@ -78,7 +76,7 @@ export function Breakdown({ split, person, viewer, onPaid }: Props) {
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
         <Text style={[type.button, { color: c.ink }]}>{label}</Text>
         <Text testID="share" style={[type.total, tabular, { color: c.ink }]}>
-          {dollars(share)}
+          {money(share)}
         </Text>
       </View>
       {note ? (

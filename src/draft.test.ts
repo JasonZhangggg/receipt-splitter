@@ -413,7 +413,7 @@ describe("a read the Split would refuse as it is", () => {
     const [first, ...rest] = receipt1040.items;
     const receipt: Receipt = { ...receipt1040, items: [first, ...rest.slice(0, 3), { ...rest[3], price: price(MAX_CENTS + 350) }], subtotal: cents(-1), total: cents(MAX_CENTS + 2804) };
     expect(totalsOf(receipt)).toEqual([10_000_000, 10_000_000]);
-    expect(mismatchNote(readReady(receipt))).toBe("Items are $99980.52 short of the subtotal.");
+    expect(mismatchNote(readReady(receipt))).toBe("Items are $99,980.52 short of the subtotal.");
   });
 
   test("a read with more Items than a Split holds keeps Create split link off and says why", () => {
