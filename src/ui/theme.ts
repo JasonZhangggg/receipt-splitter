@@ -62,6 +62,7 @@ export const motion = {
   receiptIn: 240,
   photoIn: 240,
   photoOut: 180,
+  controlIn: 200,
   dragOver: 150,
   spinnerTurn: 800,
 } as const;

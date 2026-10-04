@@ -1,6 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
 import type { CreateSplitRequest } from "../core/operations";
-import { createSplitLink } from "./client";
+import { isRoutableSplitId } from "../core/split";
+import { receiptJpeg } from "../ui/receipt-input/jpeg";
+import { createSplitLink, sendPhoto } from "./client";
 
 const zone = process.env.TZ;
 
@@ -31,4 +33,31 @@ it.each([
   vi.stubGlobal("fetch", async () => Response.json({ refused: "dailyLimit" }, { status: 429 }));
 
   expect(await createSplitLink(request)).toEqual({ ok: false, reason });
+});
+
+const photo = receiptJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0x11, 0xff, 0xd9]))!;
+const id = "abcdefghjkmnpqrstuvwxy";
+
+it.each([
+  ["stores on the first PUT", [204], "stored", 1],
+  ["retries once after a server error", [503, 204], "stored", 2],
+  ["retries once after a network error, and no more", ["network", "network"], "failed", 2],
+  ["gives up at once on a refusal", [403], "refused", 1],
+  ["gives up after a refused retry", [500, 429], "refused", 2],
+] as const)("the receipt photo upload %s", async (_, answers, outcome, puts) => {
+  const sent: { url: string; method?: string; type: string | null; authorization: string | null; bytes: number }[] = [];
+  const queue: (number | "network")[] = [...answers];
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    const headers = new Headers(init.headers);
+    sent.push({ url, method: init.method, type: headers.get("content-type"), authorization: headers.get("authorization"), bytes: (init.body as Blob).size });
+    const answer = queue.shift();
+    if (answer === "network") throw new TypeError("Failed to fetch");
+    return new Response(null, { status: answer });
+  });
+  if (!isRoutableSplitId(id)) throw new Error("test id is not routable");
+
+  expect(await sendPhoto(id, "creator-secret", photo)).toBe(outcome);
+  expect(sent).toEqual(
+    Array.from({ length: puts }, () => ({ url: `/api/splits/${id}/photo`, method: "PUT", type: "image/jpeg", authorization: "Bearer creator-secret", bytes: 9 })),
+  );
 });

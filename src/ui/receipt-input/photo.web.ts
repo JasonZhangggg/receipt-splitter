@@ -1,5 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 
+import { drawCropped } from "../../scan/client";
+import { receiptJpeg } from "./jpeg";
 import type * as Photo from "./photo";
 
 export const isPhoto: typeof Photo.isPhoto = (file) => file.type.startsWith("image/");
@@ -86,6 +88,25 @@ export const thumbnailOf: typeof Photo.thumbnailOf = async (file) => {
   } finally {
     image.close();
   }
+};
+
+// A busy photo that still misses 150 KB at the lowest quality gets a smaller long edge.
+const COPY_LONG_EDGES = [1280, 960];
+const COPY_QUALITIES = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3];
+
+const jpegOf = (canvas: HTMLCanvasElement, quality: number) => new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+
+export const receiptCopyOf: typeof Photo.receiptCopyOf = async (photo, boxes) => {
+  for (const longEdge of COPY_LONG_EDGES) {
+    const canvas = await drawCropped(photo, boxes, longEdge);
+    if (!canvas) return null;
+    for (const quality of COPY_QUALITIES) {
+      const encoded = await jpegOf(canvas, quality);
+      const copy = encoded && receiptJpeg(new Uint8Array(await encoded.arrayBuffer()));
+      if (copy) return copy;
+    }
+  }
+  return null;
 };
 
 export const photoUri: typeof Photo.photoUri = (file) => URL.createObjectURL(file);

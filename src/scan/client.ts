@@ -123,25 +123,32 @@ export function cropOf(boxes: readonly TextBox[], width: number, height: number)
   return right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : { x: 0, y: 0, width, height };
 }
 
-/** The request body: the photo cropped to the text, at most 2048 px on its long edge, as a JPEG with no EXIF, at the highest quality that fits 1 MB. */
-async function scanBody(photo: Blob, boxes: readonly TextBox[]): Promise<string | null> {
+/** The upright photo cropped to the text and scaled down to at most `longEdge` px on its long edge, on a canvas, or null when the canvas cannot draw. */
+export async function drawCropped(photo: Blob, boxes: readonly TextBox[], longEdge: number): Promise<HTMLCanvasElement | null> {
   const image = await createImageBitmap(photo, { imageOrientation: "from-image" });
   try {
     const crop = cropOf(boxes, image.width, image.height);
-    const scale = Math.min(1, LONG_EDGE / Math.max(crop.width, crop.height));
+    const scale = Math.min(1, longEdge / Math.max(crop.width, crop.height));
     const canvas = Object.assign(document.createElement("canvas"), { width: Math.round(crop.width * scale), height: Math.round(crop.height * scale) });
     const context = canvas.getContext("2d");
     if (!context) return null;
     context.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
-    const ocrLines = groupRows(boxes).map((row) => row.text);
-    for (const quality of QUALITIES) {
-      const body = JSON.stringify({ photo: canvas.toDataURL("image/jpeg", quality), ocrLines });
-      if (new TextEncoder().encode(body).length <= MAX_SCAN_BYTES) return body;
-    }
-    return null;
+    return canvas;
   } finally {
     image.close();
   }
+}
+
+/** The request body: the photo cropped to the text, at most 2048 px on its long edge, as a JPEG with no EXIF, at the highest quality that fits 1 MB. */
+async function scanBody(photo: Blob, boxes: readonly TextBox[]): Promise<string | null> {
+  const canvas = await drawCropped(photo, boxes, LONG_EDGE);
+  if (!canvas) return null;
+  const ocrLines = groupRows(boxes).map((row) => row.text);
+  for (const quality of QUALITIES) {
+    const body = JSON.stringify({ photo: canvas.toDataURL("image/jpeg", quality), ocrLines });
+    if (new TextEncoder().encode(body).length <= MAX_SCAN_BYTES) return body;
+  }
+  return null;
 }
 
 /** Reads the receipt through `POST /api/scan`, or null on any refusal, failure, malformed reply, or no reply within the timeout. */

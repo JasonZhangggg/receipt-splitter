@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CreateSplitRefusal, CreateSplitRequest, CreateSplitResponse, Operation, ServerMessage, WireRejection } from "../core/operations";
 import { isRoutableSplitId, participantId, randomId, type ParticipantId, type Split, type SplitId } from "../core/split";
 import { createCopy } from "../ui/home-copy";
+import type { ReceiptJpeg } from "../ui/receipt-input/jpeg";
 
 export type GoneReason = "notFound" | "unreadable";
 
@@ -106,6 +107,25 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
   }
   const refusal: CreateSplitRefusal | null = await response.json().catch(() => null);
   return { ok: false, reason: refusalReason(refusal) };
+}
+
+export type PhotoSent = "stored" | "refused" | "failed";
+
+/** The Worker takes two PUTs per Split, so the upload tries twice at most, and a refusal is final. */
+export async function sendPhoto(id: SplitId, creatorSecret: string, photo: ReceiptJpeg): Promise<PhotoSent> {
+  let sent: PhotoSent = "failed";
+  for (let attempt = 0; attempt < 2 && sent === "failed"; attempt += 1) {
+    const status = await fetch(`/api/splits/${id}/photo`, {
+      method: "PUT",
+      headers: { "content-type": "image/jpeg", authorization: `Bearer ${creatorSecret}` },
+      body: photo,
+    }).then(
+      (response) => response.status,
+      () => 0,
+    );
+    sent = status >= 200 && status < 300 ? "stored" : status >= 400 && status < 500 ? "refused" : "failed";
+  }
+  return sent;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
