@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { price as toPrice } from "../../core/money";
@@ -106,9 +106,10 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     return () => clearTimeout(timer);
   }, [pending]);
   useEffect(() => () => flushRef.current(), []);
+  const closeTaken = useEffectEvent(onClose);
   useEffect(() => {
-    if (taken) onClose();
-  }, [taken, onClose]);
+    if (taken) closeTaken();
+  }, [taken]);
 
   if (item && shown && item.split.by !== shown.split.by) {
     const { from, left } = fade ?? settled;
