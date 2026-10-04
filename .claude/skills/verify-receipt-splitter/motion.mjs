@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium, devices, webkit } from "@playwright/test";
 
-import { judge, limits, record, scenarios } from "../../../e2e/motion.ts";
+import { addLatency, judge, limits, record, scenarios } from "../../../e2e/motion.ts";
 
 const { values } = parseArgs({
   options: {
@@ -68,12 +68,13 @@ for (const laneName of values.lanes.split(",")) {
         page.on("pageerror", (error) => errors.push(String(error)));
         let row;
         try {
+          if (scenario.latencyMs) await addLatency(page, scenario.latencyMs);
           await scenario.setup(page);
           if (speed !== 1) {
             if (laneName.startsWith("chromium")) await (await context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: speed });
             else await page.evaluate(slowWebKit, speed);
           }
-          const trace = await record(page, scenario.probes, () => scenario.act(page), { maxMs: speed === 1 ? 4000 : 8000 });
+          const trace = await record(page, scenario.probes, () => scenario.act(page), { quietMs: scenario.quietMs, maxMs: speed === 1 ? 4000 : 8000 });
           const verdict = judge(trace, scenario.probes, { speed, instant: scenario.instant });
           if (errors.length) verdict.failures.push(`page error: ${errors[0]}`);
           writeFileSync(join(out, `${laneName}-x${speed}-${scenario.id}${run ? `-${run}` : ""}.trace.json`), JSON.stringify(trace));
@@ -92,9 +93,9 @@ for (const laneName of values.lanes.split(",")) {
 
 const cell = (value) => (value === null || value === undefined ? "n/a" : String(value));
 const table = [
-  "| Animation | Lane | CPU | Max gap ms | p95 gap ms | Dropped | Long tasks | Jump px/frame | Opacity step | Result |",
-  "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-  ...rows.map((r) => `| ${r.name} | ${r.lane} | ${r.speed === 1 ? "1x" : r.lane.startsWith("webkit") ? `${r.speed}x busy loop` : `${r.speed}x`} | ${cell(r.maxGap)} | ${cell(r.p95Gap)} | ${cell(r.dropped)} | ${cell(r.longTasks)} | ${cell(r.jumpPx)} | ${cell(r.opacityStep)} | ${r.pass ? "pass" : `fail: ${r.failures.join("; ")}`} |`),
+  "| Animation | Lane | CPU | Max gap ms | p95 gap ms | Dropped | Long tasks | Jump px/frame | Opacity step | Detour px | Painted px | Result |",
+  "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+  ...rows.map((r) => `| ${r.name} | ${r.lane} | ${r.speed === 1 ? "1x" : r.lane.startsWith("webkit") ? `${r.speed}x busy loop` : `${r.speed}x`} | ${cell(r.maxGap)} | ${cell(r.p95Gap)} | ${cell(r.dropped)} | ${cell(r.longTasks)} | ${cell(r.jumpPx)} | ${cell(r.opacityStep)} | ${cell(r.detourPx)} | ${cell(r.paintedPx)} | ${r.pass ? "pass" : `fail: ${r.failures.join("; ")}`} |`),
 ].join("\n");
 writeFileSync(join(out, "results.json"), JSON.stringify({ limits, rows }, null, 1));
 writeFileSync(join(out, "table.md"), `${table}\n`);

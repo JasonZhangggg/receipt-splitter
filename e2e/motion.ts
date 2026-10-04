@@ -5,17 +5,24 @@ import type { Locator, Page } from "@playwright/test";
  * Node runs this file directly with type stripping, so it holds erasable types only and imports types only.
  */
 
-export type ProbeKind = "top" | "left" | "height" | "opacity" | "scale" | "angle";
+/**
+ * `painted` is a height read by a ResizeObserver, which reports after every rAF callback and layout, just before paint.
+ * A rAF sampler runs before later rAF callbacks in the same frame, so it misses a size one of them sets and a later task undoes.
+ */
+export type ProbeKind = "top" | "left" | "height" | "opacity" | "scale" | "angle" | "painted";
 /** `find` is a JS expression evaluated in the page each frame; it returns the element or null. */
 export type Probe = { key: string; find: string; kind: ProbeKind };
 export type Frame = { t: number; v: Record<string, number | null> };
-export type Trace = { frames: Frame[]; start: number; release: number; end: number; longTasks: { start: number; duration: number }[] | null };
+export type Paint = { t: number; key: string; v: number };
+export type Trace = { frames: Frame[]; painted: Paint[]; start: number; release: number; end: number; longTasks: { start: number; duration: number }[] | null };
 
 export type Scenario = {
   name: string;
   /** Short id used to select scenarios on the command line. */
   id: string;
   reduce?: boolean;
+  latencyMs?: number;
+  quietMs?: number;
   /** The change is meant to land in one frame: under reduced motion, or after a keyboard action, which never animates. */
   instant?: boolean;
   setup: (page: Page) => Promise<void>;
@@ -41,14 +48,25 @@ export const limits = {
   /** A move against the direction of travel larger than this is a reversal. */
   reversePx: 2,
   reverseOpacity: 0.04,
+  detourPx: 16,
+  paintedPx: 1,
 };
 
 const sampler = (probes: Probe[]) => {
-  type Win = typeof window & { __motion?: { frames: Frame[]; lastChange: number; stop: boolean; longTasks: { start: number; duration: number }[] | null } };
+  type Win = typeof window & { __motion?: { frames: Frame[]; painted: Paint[]; lastChange: number; stop: boolean; longTasks: { start: number; duration: number }[] | null } };
   const win = window as Win;
-  const finders = probes.map((probe) => ({ ...probe, get: new Function(`return (${probe.find});`) as () => Element | null }));
-  const state = { frames: [] as Frame[], lastChange: performance.now(), stop: false, longTasks: null as { start: number; duration: number }[] | null };
+  const finders = probes.map((probe) => ({ ...probe, get: new Function(`return (${probe.find});`) as () => Element | null, watched: null as Element | null }));
+  const state = { frames: [] as Frame[], painted: [] as Paint[], lastChange: performance.now(), stop: false, longTasks: null as { start: number; duration: number }[] | null };
   win.__motion = state;
+  const watch = (probe: (typeof finders)[number], el: Element | null) => {
+    if (!el || el === probe.watched) return;
+    probe.watched = el;
+    new ResizeObserver((entries) => {
+      if (state.stop) return;
+      for (const entry of entries) state.painted.push({ t: performance.now(), key: probe.key, v: Math.round(entry.contentRect.height * 10) / 10 });
+      state.lastChange = performance.now();
+    }).observe(el);
+  };
   if (PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
     const tasks: { start: number; duration: number }[] = [];
     state.longTasks = tasks;
@@ -72,7 +90,8 @@ const sampler = (probes: Probe[]) => {
     return value;
   };
   const read = (el: Element, kind: ProbeKind) => {
-    if (kind === "top") return el.getBoundingClientRect().top;
+    // On screen, so iOS panning the visual viewport for the keyboard counts as movement.
+    if (kind === "top") return el.getBoundingClientRect().top - (window.visualViewport?.offsetTop ?? 0);
     if (kind === "left") return el.getBoundingClientRect().left;
     if (kind === "height") return el.getBoundingClientRect().height;
     if (kind === "opacity") return opacity(el);
@@ -91,6 +110,10 @@ const sampler = (probes: Probe[]) => {
       } catch {
         el = null;
       }
+      if (probe.kind === "painted") {
+        watch(probe, el);
+        continue;
+      }
       v[probe.key] = el ? Number(read(el, probe.kind).toFixed(3)) : null;
       const was = previous[probe.key];
       const now = v[probe.key];
@@ -105,7 +128,7 @@ const sampler = (probes: Probe[]) => {
 };
 
 /** Samples the probes on every animation frame while `act` runs, until nothing has changed for `quietMs`. */
-export async function record(page: Page, probes: Probe[], act: () => Promise<void>, { quietMs = 400, maxMs = 5000 } = {}): Promise<Trace> {
+export async function record(page: Page, probes: Probe[], act: () => Promise<void>, { quietMs = 400, maxMs = 5000 }: { quietMs?: number; maxMs?: number } = {}): Promise<Trace> {
   await page.evaluate(sampler, probes);
   await page.waitForTimeout(250);
   const now = () => page.evaluate(() => performance.now());
@@ -119,10 +142,10 @@ export async function record(page: Page, probes: Probe[], act: () => Promise<voi
   }
   return page.evaluate(
     ({ start, release }) => {
-      const state = (window as unknown as { __motion: { frames: Frame[]; lastChange: number; stop: boolean; longTasks: { start: number; duration: number }[] | null } }).__motion;
+      const state = (window as unknown as { __motion: { frames: Frame[]; painted: Paint[]; lastChange: number; stop: boolean; longTasks: { start: number; duration: number }[] | null } }).__motion;
       state.stop = true;
       const end = Math.max(state.lastChange, release) + 20;
-      return { frames: state.frames, start, release, end, longTasks: state.longTasks && state.longTasks.filter((task) => task.start + task.duration > start && task.start < end) };
+      return { frames: state.frames, painted: state.painted, start, release, end, longTasks: state.longTasks && state.longTasks.filter((task) => task.start + task.duration > start && task.start < end) };
     },
     { start, release },
   );
@@ -143,6 +166,8 @@ export type Verdict = {
   spikes: number;
   /** Frames where a position sits strictly between where it started and where it ended. Zero means it changed in one step. */
   inBetween: number;
+  detourPx: number;
+  paintedPx: number;
   moved: boolean;
   failures: string[];
 };
@@ -166,6 +191,8 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
   let reversals = 0;
   let spikes = 0;
   let inBetween = 0;
+  let detourPx = 0;
+  let paintedPx = 0;
   let moved = false;
   for (const probe of probes) {
     const value = (frame: Frame) => (probe.kind === "opacity" ? (frame.v[probe.key] ?? 0) : frame.v[probe.key]);
@@ -184,6 +211,10 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
       // Before release a synthetic finger sets the pace, so only the motion the page drives is judged.
       spikes += perFrame.filter((step, i) => series[i + 1].t > trace.release && step > limits.spikeMinPx && step > limits.spikeRatio * Math.max(perFrame[i - 1] ?? 0, perFrame[i + 1] ?? 0)).length;
     }
+    if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") {
+      const travelled = afterRelease.slice(1).reduce((sum, point, i) => sum + Math.abs(point.v - afterRelease[i].v), 0);
+      detourPx = Math.max(detourPx, travelled - Math.abs(last - from));
+    }
     for (let i = 1; i < series.length; i += 1) {
       const step = series[i].v - series[i - 1].v;
       if (probe.kind === "top" || probe.kind === "left" || probe.kind === "height") jumpPx = Math.max(jumpPx, perFrame[i - 1]);
@@ -199,6 +230,15 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
     }
   }
 
+  for (const probe of probes.filter(({ kind }) => kind === "painted")) {
+    const sizes = (trace.painted ?? []).filter(({ key }) => key === probe.key);
+    const series = [sizes.filter(({ t }) => t <= trace.start).at(-1), ...sizes.filter(({ t }) => t > trace.start && t <= trace.end)].filter((paint): paint is Paint => paint !== undefined);
+    if (series.length < 2) continue;
+    const direction = Math.sign(series.at(-1)!.v - series[0].v);
+    moved ||= direction !== 0;
+    paintedPx = Math.max(paintedPx, ...series.slice(1).map(({ v }, i) => (direction === 0 ? Math.abs(v - series[i].v) : (series[i].v - v) * direction)));
+  }
+
   const tasks = trace.longTasks;
   const failures: string[] = [];
   if (speed === 1 && maxGap > limits.gapMs) failures.push(`frame gap ${round(maxGap)} ms > ${limits.gapMs}`);
@@ -211,6 +251,8 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
     if (opacityStep > limits.opacityStep) failures.push(`opacity pop ${round(opacityStep * 100) / 100}/frame > ${limits.opacityStep}`);
   }
   if (reversals > 0) failures.push(`${reversals} reversals`);
+  if (detourPx > limits.detourPx) failures.push(`went ${round(detourPx)} px out and back`);
+  if (paintedPx > limits.paintedPx) failures.push(`painted a height ${round(paintedPx)} px back against its change`);
   if (!moved) failures.push("nothing changed");
   return {
     frames: inside.length,
@@ -225,6 +267,8 @@ export function judge(trace: Trace, probes: Probe[], { speed = 1, instant = fals
     reversals,
     spikes,
     inBetween,
+    detourPx: round(detourPx),
+    paintedPx: round(paintedPx),
     moved,
     failures,
   };
@@ -314,6 +358,53 @@ export async function still(target: Locator) {
   throw new Error("did not hold still");
 }
 
+/**
+ * iOS 27 Safari's keyboard, as measured in the simulator. Shortly after a text field takes focus the visual viewport shrinks by `px`,
+ * and iOS pans it down (`offsetTop`) far enough to reveal the field where it stood when it took focus. `innerHeight` then reads the
+ * layout height minus the pan. On blur both go back. The layout viewport (`clientHeight`) keeps its size throughout.
+ * Runs in the page, so it closes over nothing.
+ */
+export function iosKeyboard(px: number) {
+  const viewport = window.visualViewport!;
+  const layout = () => document.documentElement.clientHeight;
+  const real = (proto: object, key: string) => Object.getOwnPropertyDescriptor(proto, key)!.get!;
+  const height = real(VisualViewport.prototype, "height");
+  const offsetTop = real(VisualViewport.prototype, "offsetTop");
+  let covered = 0;
+  let pan = 0;
+  Object.defineProperty(viewport, "height", { configurable: true, get: () => height.call(viewport) - covered });
+  Object.defineProperty(viewport, "offsetTop", { configurable: true, get: () => offsetTop.call(viewport) + pan });
+  Object.defineProperty(window, "innerHeight", { configurable: true, get: () => layout() - pan });
+  const set = (keyboard: number, reveal: number) => {
+    if (covered === keyboard && pan === reveal) return;
+    covered = keyboard;
+    pan = reveal;
+    viewport.dispatchEvent(new Event("resize"));
+    viewport.dispatchEvent(new Event("scroll"));
+  };
+  const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+  document.addEventListener("focusin", ({ target }) => {
+    if (!typing(target)) return;
+    const reveal = Math.min(px, Math.max(pan, Math.ceil((target as Element).getBoundingClientRect().bottom + 8 - (layout() - px))));
+    setTimeout(() => set(px, reveal), 60);
+  });
+  document.addEventListener("focusout", () => setTimeout(() => !typing(document.activeElement) && set(0, 0), 60));
+}
+
+export async function simulateKeyboard(page: Page, px = 336) {
+  await page.addInitScript(iosKeyboard, px);
+}
+
+export async function addLatency(page: Page, ms: number) {
+  await page.routeWebSocket(/\/parties\//, (client) => {
+    const server = client.connectToServer();
+    client.onMessage((message) => setTimeout(() => server.send(message), ms / 2));
+    server.onMessage((message) => setTimeout(() => client.send(message), ms / 2));
+  });
+}
+
+export const blur = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
 /* The Split page. */
 
 const dinner = {
@@ -330,11 +421,15 @@ const dinner = {
 
 let creates = 0;
 
-async function openSplit(page: Page) {
+type Person = { id: string; name: string };
+const table: Person[] = [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }, { id: "priya", name: "Priya" }];
+export const fitsOneRow = table.slice(0, 2);
+
+async function openSplit(page: Page, people = table) {
   creates += 1;
   const response = await page.request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.19.${(Date.now() >> 8) % 250}.${creates % 250}` },
-    data: { split: { receipt: dinner, participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }, { id: "priya", name: "Priya" }], paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
+    data: { split: { receipt: dinner, participants: people, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
   });
   if (response.status() !== 201) throw new Error(`creating a Split answered ${response.status()}`);
   if (engine(page) === "webkit") await page.addInitScript(() => Object.assign(Element.prototype, { setPointerCapture() {}, releasePointerCapture() {} }));
@@ -347,8 +442,8 @@ const sheet = (page: Page) => page.getByTestId("split-sheet");
 const pickJason = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true });
 const meChip = (page: Page) => page.getByRole("button", { name: "Jason, you", exact: true });
 
-async function picked(page: Page) {
-  await openSplit(page);
+export async function picked(page: Page, people = table) {
+  await openSplit(page, people);
   await tap(pickJason(page));
   await page.getByTestId("owe").waitFor();
   await still(sheet(page));
@@ -383,6 +478,7 @@ const breakdownFade: Probe = { key: "breakdown", find: testId("breakdown"), kind
 const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-expanded]')`;
 const bundleProbes: Probe[] = [
   { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
+  { key: "regionPainted", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "painted" },
   { key: "regionFade", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild.firstElementChild`, kind: "opacity" },
   { key: "chevron", find: `[...${bundleHeader}.querySelectorAll("div")].find((el) => getComputedStyle(el).transform !== "none") ?? null`, kind: "angle" },
   { key: "below", find: testId("total"), kind: "top" },
@@ -413,6 +509,35 @@ async function itemOpen(page: Page) {
   await openItem(page);
   await still(page.getByTestId("item-sheet"));
 }
+
+export async function itemShared(page: Page) {
+  await itemOpen(page);
+  const had = page.getByTestId("item-sheet").getByRole("group", { name: "Who had it" });
+  for (const name of ["Jason", "Sam"]) {
+    await tap(had.getByRole("button", { name, exact: true }));
+    await had.locator(`[aria-label="${name}"][aria-pressed="true"]`).waitFor();
+  }
+  await still(page.getByTestId("item-sheet"));
+}
+
+async function addingName(page: Page) {
+  await picked(page, fitsOneRow);
+  await tap(sheet(page).getByRole("button", { name: "Add a person" }));
+  await page.waitForTimeout(500);
+}
+
+async function priceFocused(page: Page) {
+  await itemOpen(page);
+  await tap(page.getByTestId("item-sheet").locator('input[aria-label="Price"]'));
+  await page.waitForTimeout(500);
+}
+
+const withKeyboard =
+  (setup: (page: Page) => Promise<void>) =>
+  async (page: Page): Promise<void> => {
+    await simulateKeyboard(page);
+    await setup(page);
+  };
 
 /* Home and the photo viewer. */
 
@@ -498,6 +623,17 @@ const photoProbes: Probe[] = [
   { key: "photoScale", find: label("Close photo"), kind: "scale" },
 ];
 
+const segmentThumb = `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"]')?.firstElementChild ?? null`;
+const nameField = `document.querySelector('[data-testid="split-sheet"] input[aria-label="Name"]')`;
+const priceField = `document.querySelector('[data-testid="item-sheet"] input[aria-label="Price"]')`;
+
+const slow = (scenario: Scenario, latencyMs: number): Scenario => ({
+  ...scenario,
+  id: `slow-${scenario.id}`,
+  name: `${latencyMs} ms network: ${scenario.name.charAt(0).toLowerCase()}${scenario.name.slice(1)}`,
+  latencyMs,
+});
+
 const reduced = (scenario: Scenario): Scenario => ({
   ...scenario,
   id: `reduced-${scenario.id}`,
@@ -537,6 +673,24 @@ const bundleExpand: Scenario = {
   setup: picked,
   act: openBundle,
   probes: bundleProbes,
+};
+const bundleCollapse: Scenario = {
+  id: "bundle-collapse",
+  name: "Bundle collapses, chevron turns back",
+  setup: bundleOpen,
+  act: openBundle,
+  probes: bundleProbes,
+};
+const splitType: Scenario = {
+  id: "split-type",
+  name: "Item sheet: split type changes once, through the save",
+  setup: itemShared,
+  act: (page) => tap(page.getByTestId("item-sheet").getByRole("button", { name: "By shares", exact: true })),
+  quietMs: 1200,
+  probes: [
+    { key: "thumb", find: segmentThumb, kind: "left" },
+    { key: "rows", find: label("More shares for Jason"), kind: "opacity" },
+  ],
 };
 const itemOpenScenario: Scenario = {
   id: "item-open",
@@ -593,13 +747,7 @@ export const scenarios: Scenario[] = [
     probes: [splitTop, breakdownFade],
   },
   bundleExpand,
-  {
-    id: "bundle-collapse",
-    name: "Bundle collapses, chevron turns back",
-    setup: bundleOpen,
-    act: openBundle,
-    probes: bundleProbes,
-  },
+  bundleCollapse,
   itemOpenScenario,
   {
     id: "item-close",
@@ -633,6 +781,40 @@ export const scenarios: Scenario[] = [
       { key: "fieldLeft", find: `document.querySelector('input[aria-label="Name"]')`, kind: "left" },
     ],
   },
+  splitType,
+  slow(splitType, 300),
+  {
+    id: "keyboard-name-up",
+    name: "Split sheet: the page pans up in one step when the name field takes focus",
+    instant: true,
+    setup: withKeyboard((page) => picked(page, fitsOneRow)),
+    act: (page) => tap(sheet(page).getByRole("button", { name: "Add a person" })),
+    probes: [splitTop, { key: "field", find: nameField, kind: "top" }],
+  },
+  {
+    id: "keyboard-name-down",
+    name: "Split sheet: the page pans back in one step on blur",
+    instant: true,
+    setup: withKeyboard(addingName),
+    act: blur,
+    probes: [splitTop],
+  },
+  {
+    id: "keyboard-price-up",
+    name: "Item sheet: the page pans up in one step when the price field takes focus",
+    instant: true,
+    setup: withKeyboard(itemOpen),
+    act: (page) => tap(page.getByTestId("item-sheet").locator('input[aria-label="Price"]')),
+    probes: [{ key: "item", find: testId("item-sheet"), kind: "top" }, { key: "field", find: priceField, kind: "top" }, splitTop],
+  },
+  {
+    id: "keyboard-price-down",
+    name: "Item sheet: the page pans back in one step on blur, and the bar behind it stays down",
+    instant: true,
+    setup: withKeyboard(priceFocused),
+    act: blur,
+    probes: [{ key: "item", find: testId("item-sheet"), kind: "top" }, splitTop],
+  },
   photoOpen,
   {
     id: "photo-close",
@@ -645,6 +827,7 @@ export const scenarios: Scenario[] = [
   reduced(openTap),
   reduced(collapseTap),
   reduced(bundleExpand),
+  reduced(bundleCollapse),
   reduced(itemOpenScenario),
   reduced(photoOpen),
   {

@@ -1,8 +1,9 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet, useWindowDimensions, View, type PointerEvent } from "react-native";
+import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { glide, glideFor, releaseIntent, releaseVelocity, rubberband } from "../components/sheet-motion";
+import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, motion, useColors } from "../theme";
 
@@ -11,6 +12,8 @@ const fadeIn = 200;
 const fadeOut = 150;
 const tapSlop = 10;
 const grabHeight = 29;
+// The scroller clips, so its content keeps this much room on the top and sides for a focused field's ring.
+const ringRoom = 4;
 const contain = webStyle({ overscrollBehavior: "contain" });
 const holdsGesture = webStyle({ touchAction: "none" });
 
@@ -30,27 +33,31 @@ type Props = {
   lowered?: boolean;
   closing?: boolean;
   onHeight?: (height: number) => void;
-  /** Names what the sheet shows. When it changes, the old content fades out over the new one as it fades in. */
+  /** Names what the sheet shows. When it changes, the old content fades out, then the new content fades in, so the two never show together. */
   view?: string;
+  /** Stays in place above the content when `view` changes. */
+  header?: ReactNode;
   label: string;
   testID?: string;
 };
 
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; samples: { y: number; t: number }[] };
 
-export function BottomSheet({ children, scrim = false, onDown, onUp, stays = false, closing = false, onHeight, view, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
+export function BottomSheet({ children, scrim = false, onDown, onUp, stays = false, closing = false, onHeight, view, header, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
-  const { height: windowHeight } = useWindowDimensions();
-  const tallest = windowHeight - insets.top - 38;
+  // The keyboard neither moves nor shrinks the sheet. iOS pans the page to reveal the focused field.
+  const tallest = useLayoutHeight() - insets.top - 38;
   const [content, setContent] = useState(0);
   const natural = content + grabHeight + 30 + insets.bottom;
   const visible = content === 0 ? 0 : Math.min(Math.max(natural, minHeight), tallest);
   const scrolls = natural > tallest;
+  const rest = tallest - visible;
   const surface = useRef<View>(null);
   const body = useRef<View>(null);
   const shade = useRef<View>(null);
+  const swapped = useRef<View>(null);
   const offset = useRef<number | null>(null);
   const drag = useRef<Drag | null>(null);
   const leaving = useRef(false);
@@ -65,12 +72,12 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     setShown({ view, children });
   } else if (children !== shown.children) setShown({ view, children });
   useLayoutEffect(() => {
-    const box = body.current as unknown as HTMLElement | null;
-    if (outgoing) box?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: fadeIn, easing: motion.easeOut });
+    const box = swapped.current as unknown as HTMLElement | null;
+    if (outgoing) box?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: fadeIn, delay: fadeOut, easing: motion.easeOut, fill: "backwards" });
   }, [outgoing]);
 
   const element = () => surface.current as unknown as HTMLElement | null;
-  const dimFor = (value: number) => (visible > 0 ? Math.max(0, Math.min(1, 1 - (value - (tallest - visible)) / visible)) : 0);
+  const dimFor = (value: number) => (visible > 0 ? Math.max(0, Math.min(1, 1 - (value - rest) / visible)) : 0);
 
   const place = (to: number, ms: number) => {
     offset.current = to;
@@ -103,7 +110,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const leave = (velocity: number) => {
     if (stays) {
       handoff.current = velocity;
-      settle(tallest - visible, velocity);
+      settle(rest, velocity);
       return onDown?.();
     }
     if (leaving.current) return;
@@ -114,11 +121,11 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const follow = useEffectEvent(() => {
     if (offset.current === null) place(tallest, 0);
     if (visible === 0 || drag.current?.moved || leaving.current) return;
-    const rest = lowered ? tallest : tallest - visible;
+    const to = lowered ? tallest : rest;
     const firstPlacement = !placed.current;
     placed.current = true;
-    if (!rises && firstPlacement) return place(rest, 0);
-    settle(rest, handoff.current);
+    if (!rises && firstPlacement) return place(to, 0);
+    settle(to, handoff.current);
     handoff.current = 0;
   });
   useLayoutEffect(() => follow(), [visible, tallest, lowered]);
@@ -142,7 +149,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     if (drag.current || !gestures || !isPrimary || leaving.current) return;
     const onGrab = (event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]") != null;
     if (scrolls && !onGrab) return;
-    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: offset.current ?? tallest - visible, moved: false, samples: [{ y: clientY, t: event.timeStamp }] };
+    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: offset.current ?? rest, moved: false, samples: [{ y: clientY, t: event.timeStamp }] };
     // The grab bar holds no buttons, so it can take the pointer at once. A mouse, which has no implicit capture, would otherwise leave the sheet on the first move up.
     if (onGrab) (event.currentTarget as unknown as HTMLElement).setPointerCapture?.(pointerId);
   };
@@ -160,7 +167,6 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
       (event.currentTarget as unknown as HTMLElement).setPointerCapture?.(pointerId);
     }
     current.samples = [...current.samples.slice(-4), { y: clientY, t: event.timeStamp }];
-    const rest = tallest - visible;
     const at = current.from + (clientY - current.startY);
     const below = at - rest;
     place(rest + (below > 0 && onDown ? below : rubberband(below, visible)), 0);
@@ -171,7 +177,6 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     if (!current || current.pointer !== event.nativeEvent.pointerId) return;
     drag.current = null;
     if (!current.moved) return;
-    const rest = tallest - visible;
     const velocity = releaseVelocity(current.samples, event.timeStamp);
     const intent = releaseIntent((offset.current ?? rest) - rest, velocity, visible);
     if (intent === "down" && onDown) return leave(velocity);
@@ -182,7 +187,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const onPointerCancel = (event: PointerEvent) => {
     if (drag.current?.pointer !== event.nativeEvent.pointerId) return;
     drag.current = null;
-    settle(tallest - visible, 0);
+    settle(rest, 0);
   };
 
   const measure = () => {
@@ -210,15 +215,18 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
         onPointerCancel={onPointerCancel}
         style={[styles.sheet, { height: tallest, backgroundColor: c.sheet, boxShadow: c.sheetShadow }, fits, layer]}
       >
-        <View style={[styles.column, { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
+        <View style={[styles.column, { paddingLeft: layout.gutter - ringRoom + insets.left, paddingRight: layout.gutter - ringRoom + insets.right }]}>
           <View {...{ dataSet: { sheetGrab: "" } }} style={[styles.grabArea, grip]}>
             <View style={[styles.grab, { backgroundColor: c.hairline }]} />
           </View>
-          <ScrollView style={[{ maxHeight: tallest - grabHeight }, contain, fits]} contentContainerStyle={[{ paddingBottom: 30 + insets.bottom }, fits]}>
+          <ScrollView style={[{ maxHeight: tallest - grabHeight + ringRoom }, contain, fits]} contentContainerStyle={[{ paddingTop: ringRoom, paddingHorizontal: ringRoom, paddingBottom: 30 + insets.bottom }, fits]}>
             <View ref={body} onLayout={measure} {...{ dataSet: { sheetBody: "" } }}>
-              {children}
+              {header}
+              <View>
+                <View ref={swapped}>{children}</View>
+                {outgoing ? <Outgoing key={outgoing.view} onDone={() => setOutgoing(null)}>{outgoing.content}</Outgoing> : null}
+              </View>
             </View>
-            {outgoing ? <Outgoing key={outgoing.view} onDone={() => setOutgoing(null)}>{outgoing.content}</Outgoing> : null}
           </ScrollView>
         </View>
       </View>
@@ -258,7 +266,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
-  grabArea: { alignSelf: "stretch", height: grabHeight, alignItems: "center", paddingTop: 10 },
+  grabArea: { alignSelf: "stretch", height: grabHeight - ringRoom, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },
   outgoing: { position: "absolute", top: 0, left: 0, right: 0 },
 });

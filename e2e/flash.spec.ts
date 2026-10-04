@@ -1,0 +1,196 @@
+import { addLatency, blur, drag, fitsOneRow, itemShared, picked, simulateKeyboard, tap } from "./motion";
+import { expect, test, type Locator, type Page } from "./without-ocr";
+
+test.setTimeout(90_000);
+
+const keyboard = 336;
+const bundle = (page: Page) => page.locator('[data-testid^="bundle-"]');
+const bundleHeader = (page: Page) => bundle(page).locator("[aria-expanded]");
+
+async function openBundle(page: Page) {
+  await tap(bundleHeader(page));
+  await bundle(page).locator('[aria-expanded="true"]').waitFor();
+  await page.waitForFunction(() => {
+    const region = document.querySelector('[data-testid^="bundle-"]')!.lastElementChild as HTMLElement;
+    return region.style.height === "" && region.style.opacity === "" && region.getAnimations().length === 0;
+  });
+}
+
+async function sample<T>(page: Page, read: string) {
+  await page.evaluate((read) => {
+    const get = new Function(`return (${read});`) as () => unknown;
+    const frames: unknown[] = [];
+    Object.assign(window, { sampled: frames });
+    const tick = () => {
+      frames.push(get());
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, read);
+  return () => page.evaluate(() => (window as unknown as { sampled: T[] }).sampled.slice()) as Promise<T[]>;
+}
+
+const runs = <T>(values: T[]) => values.filter((value, i) => i === 0 || value !== values[i - 1]);
+
+const inView = (field: Locator) =>
+  field.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const viewport = window.visualViewport!;
+    const top = viewport.offsetTop;
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return { inside: box.top >= top && box.bottom <= top + viewport.height, uncovered: hit !== null && el.contains(hit) };
+  });
+
+test("on a 300 ms round trip, switching the split type never shows the old type again and builds the new rows once", async ({ page }) => {
+  await addLatency(page, 300);
+  await itemShared(page);
+  await page.evaluate(() => {
+    const added: string[] = [];
+    Object.assign(window, { added });
+    new MutationObserver((records) => {
+      for (const record of records)
+        for (const node of record.addedNodes) if (node instanceof Element && node.querySelector('[aria-label="More shares for Jason"]')) added.push("rows");
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  const modes = await sample<string | null>(page, `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"] [aria-pressed="true"]')?.getAttribute("aria-label") ?? null`);
+  await tap(page.getByTestId("item-sheet").getByRole("button", { name: "By shares", exact: true }));
+  await page.waitForTimeout(2000);
+  expect(runs(await modes())).toEqual(["Evenly", "By shares"]);
+  expect(await page.evaluate(() => (window as unknown as { added: string[] }).added)).toEqual(["rows"]);
+});
+
+test("a closing Bundle paints a smaller height every frame, never the open height again, and ends closed", async ({ page }) => {
+  await picked(page);
+  await openBundle(page);
+  const open = await page.evaluate(() => {
+    const region = document.querySelector('[data-testid^="bundle-"]')!.lastElementChild!;
+    const painted: number[] = [];
+    Object.assign(window, { painted });
+    new ResizeObserver(([entry]) => painted.push(entry.contentRect.height)).observe(region);
+    return region.getBoundingClientRect().height;
+  });
+  expect(open).toBeGreaterThan(100);
+  await tap(bundleHeader(page));
+  await page.waitForFunction(() => document.querySelector('[data-testid^="bundle-"]')!.lastElementChild!.childElementCount === 0);
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  const painted = await page.evaluate(() => (window as unknown as { painted: number[] }).painted);
+  expect(painted.filter((height, i) => height > (painted[i - 1] ?? open) + 0.5)).toEqual([]);
+  expect(painted.at(-1)).toBe(0);
+});
+
+test("under reduced motion, a closing Bundle's rows never return to full opacity once the fade starts", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await picked(page);
+  await openBundle(page);
+  const frames = await sample<{ rows: boolean; opacity: number }>(
+    page,
+    `(() => { const region = document.querySelector('[data-testid^="bundle-"]').lastElementChild; return { rows: region.childElementCount > 0, opacity: Number(getComputedStyle(region).opacity) }; })()`,
+  );
+  await tap(bundleHeader(page));
+  await page.waitForTimeout(800);
+  const seen = await frames();
+  const fading = seen.findIndex(({ opacity }) => opacity < 1);
+  expect(fading).toBeGreaterThan(-1);
+  expect(seen.slice(fading).filter(({ rows, opacity }) => rows && opacity === 1)).toEqual([]);
+  expect(seen.at(-1)).toEqual({ rows: false, opacity: expect.any(Number) });
+});
+
+// iOS pans the page to reveal the focused field, so a sheet that also moved for the keyboard would move twice.
+test("the bar stays where it lies in the page while the keyboard opens and closes", async ({ page }) => {
+  await simulateKeyboard(page, keyboard);
+  await picked(page, fitsOneRow);
+  const resting = Math.round((await page.getByTestId("split-sheet").boundingBox())!.y);
+  const tops = await sample<number>(page, `Math.round(document.querySelector('[data-testid="split-sheet"]').getBoundingClientRect().top)`);
+  await tap(page.getByTestId("split-sheet").getByRole("button", { name: "Add a person" }));
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => visualViewport!.offsetTop)).toBeGreaterThan(0);
+  await blur(page);
+  await page.waitForTimeout(800);
+  expect(runs(await tops())).toEqual([resting]);
+});
+
+test("the item sheet stays where it lies in the page while the price field's keyboard opens and closes", async ({ page }) => {
+  await simulateKeyboard(page, keyboard);
+  await itemShared(page);
+  const item = page.getByTestId("item-sheet");
+  const resting = Math.round((await item.boundingBox())!.y);
+  const tops = await sample<number>(page, `Math.round(document.querySelector('[data-testid="item-sheet"]').getBoundingClientRect().top)`);
+  await tap(item.locator('input[aria-label="Price"]'));
+  await page.waitForTimeout(800);
+  await blur(page);
+  await page.waitForTimeout(800);
+  expect(runs(await tops())).toEqual([resting]);
+});
+
+test("with the keyboard up, the item sheet's price and name fields stay in view, uncovered", async ({ page }) => {
+  await simulateKeyboard(page, keyboard);
+  await itemShared(page);
+  const item = page.getByTestId("item-sheet");
+  await tap(item.locator('input[aria-label="Price"]'));
+  await page.waitForTimeout(600);
+  expect(await inView(item.locator('input[aria-label="Price"]'))).toEqual({ inside: true, uncovered: true });
+
+  await blur(page);
+  await page.waitForTimeout(600);
+  await tap(item.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Add a person" }));
+  await page.waitForTimeout(600);
+  expect(await inView(item.locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
+});
+
+test("with the keyboard up, the name field added from the bar's plus stays in view, uncovered", async ({ page }) => {
+  await simulateKeyboard(page, keyboard);
+  await picked(page);
+  await tap(page.getByTestId("split-sheet").getByRole("button", { name: "Add a person" }));
+  await page.waitForTimeout(600);
+  expect(await inView(page.getByTestId("split-sheet").locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
+});
+
+test("swiping the bar open and flicking it shut never shows the bar and the breakdown together, and the chips never dim", async ({ page }) => {
+  await picked(page);
+  const sheet = page.getByTestId("split-sheet");
+  const grab = async () => {
+    const box = (await sheet.boundingBox())!;
+    return { x: box.x + box.width / 2, y: box.y + 14 };
+  };
+  const frames = await sample<{ chip: number; owe: boolean; breakdown: boolean }>(
+    page,
+    `(() => {
+      const opacity = (el) => { let value = el ? 1 : 0; for (let node = el; node; node = node.parentElement) value *= Number(getComputedStyle(node).opacity); return value; };
+      const layer = (id) => [...document.querySelectorAll('[data-testid="' + id + '"], [data-left-testid="' + id + '"]')].some((el) => opacity(el) > 0.01);
+      const chip = document.querySelector('[data-testid="split-sheet"] [aria-label="Jason, you"]');
+      return { chip: Math.round(opacity(chip) * 100) / 100, owe: layer("owe"), breakdown: layer("breakdown") };
+    })()`,
+  );
+  await drag(page, await grab(), -200, 150);
+  await page.getByTestId("breakdown").waitFor();
+  await page.waitForTimeout(700);
+  await drag(page, await grab(), 220, 100);
+  await page.getByTestId("owe").waitFor();
+  await page.waitForTimeout(700);
+  const seen = await frames();
+  expect(seen.filter(({ owe, breakdown }) => owe && breakdown)).toEqual([]);
+  expect(seen.filter(({ chip }) => chip < 1)).toEqual([]);
+});
+
+test("the bar's name field has room around it for its focus ring inside every clipping box", async ({ page }) => {
+  await picked(page);
+  await tap(page.getByTestId("split-sheet").getByRole("button", { name: "Add a person" }));
+  const field = page.getByTestId("split-sheet").locator('input[aria-label="Name"]');
+  await field.waitFor();
+  await page.waitForTimeout(400);
+  const clipped = await field.evaluate((el) => {
+    const ring = 3;
+    const box = el.getBoundingClientRect();
+    const sides: string[] = [];
+    for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+      const clip = node.getBoundingClientRect();
+      if (box.top - ring < clip.top) sides.push("top");
+      if (box.left - ring < clip.left) sides.push("left");
+      if (box.right + ring > clip.right) sides.push("right");
+    }
+    return sides;
+  });
+  expect(clipped).toEqual([]);
+});
