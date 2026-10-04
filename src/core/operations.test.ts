@@ -889,17 +889,51 @@ describe("quantity lines", () => {
     expect(apply(split, { by: cat, type: "undo", revision: split.revision }).receipt).toEqual(amounts.receipt);
   });
 
-  test("Revert of a Split after a claim on a new row drops that row with its claim, and the line keeps the first row's claimers", () => {
+  test("Revert of a Split answers conflict after any row's price, claims, mode or amounts change, so it never moves money", () => {
     const claimed = apply(atThePub(), claim(bob), claim(cat));
     const split = apply(claimed, splitLine([beerB, beerC]));
-    const since = apply(split, claim(ann, beerB), unclaim(cat));
+    const since = {
+      "a claim on the second row": claim(ann, beerB),
+      "an unclaim on the second row": unclaim(cat, beerB),
+      "an unclaim on the first row": unclaim(cat),
+      "a price on the second row": edit({ price: price(800) }, beerB),
+      "a price on the last row": edit({ price: price(100) }, beerC),
+      "a price on the first row": edit({ price: price(800) }),
+      "a mode on the second row": edit({ by: "shares", values: [{ participantId: bob, value: 2 }] }, beerB),
+    };
+
+    for (const [what, op] of Object.entries(since)) {
+      expect([what, reasonFor(apply(split, op), { by: cat, type: "undo", revision: split.revision })]).toEqual([what, "conflict"]);
+    }
+  });
+
+  test("Revert of a Split on the Topgolf Guinness answers conflict after a row-2 price or amount edit, and the Shares stay put", () => {
+    const amounts = apply(topgolf({ guinness1: [jason, priya] }), {
+      by: jason,
+      type: "editReceipt",
+      items: [{ type: "edit", itemId: itemId("guinness1"), by: "amount", values: [{ participantId: jason, value: cents(1000) }, { participantId: priya, value: cents(900) }] }],
+    });
+    const split = apply(amounts, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] });
+    const pricier = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), price: price(800) }] });
+    const lessForJason = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), values: [{ participantId: jason, value: cents(0) }] }] });
+
+    expect(shares(pricier)).toEqual([1094, 985]);
+    expect(reasonFor(pricier, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
+    expect(reasonFor(lessForJason, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
+  });
+
+  test("Revert of a Split after every row takes the same new claimer brings back the line with that claimer, since no Share moves", () => {
+    const claimed = apply(atThePub(), claim(bob), claim(cat));
+    const split = apply(claimed, splitLine([beerB, beerC]));
+    const since = apply(split, claim(ann), claim(ann, beerB), claim(ann, beerC), { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: beerB, name: "Stout" }] });
 
     const reverted = apply(since, { by: cat, type: "undo", revision: split.revision });
 
     expect(rows(reverted)).toEqual([
       ["fries", 800, 1, { by: "even", units: [[]] }],
-      ["beer", 2187, 3, { by: "even", units: [["bob"]] }],
+      ["beer", 2187, 3, { by: "even", units: [["ann", "bob", "cat"]] }],
     ]);
+    expect(shares(reverted)).toEqual([729, 729, 729]);
   });
 
   test("Revert of adding a 3x line after it was Split answers conflict instead of removing only the first row", () => {

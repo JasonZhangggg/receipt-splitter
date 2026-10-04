@@ -34,7 +34,7 @@ import {
   type SplitMode,
   type Write,
 } from "./split";
-import { unitPrices } from "./shares";
+import { computeShares, unitPrices } from "./shares";
 
 export const MAX_ITEMS = 100;
 export const MAX_ADJUSTMENTS = 20;
@@ -414,9 +414,11 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
     }
     case "split": {
       const current = split.receipt.items.find(({ id }) => id === write.id);
-      if (!current || current.price !== unitPrices(write.line.price, write.line.quantity)[0]) return "conflict";
+      if (!current) return "conflict";
       const before = write.line.split;
-      return [{ kind: "unsplit", id: write.id, ids: write.ids, line: { ...write.line, split: withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id)) } }];
+      const unsplit: Write = { kind: "unsplit", id: write.id, ids: write.ids, line: { ...write.line, split: withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id)) } };
+      const after = unsplitLine(split, unsplit);
+      return typeof after !== "string" && sameMoney(split, after) ? [unsplit] : "conflict";
     }
     case "unsplit": {
       const current = split.receipt.items.find(({ id }) => id === write.id);
@@ -437,6 +439,14 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
     case "joined":
       return [];
   }
+}
+
+function sameMoney(a: Split, b: Split): boolean {
+  const money = (split: Split) => {
+    const { shares, unclaimed } = computeShares(split);
+    return JSON.stringify([shares, unclaimed.total]);
+  };
+  return money(a) === money(b);
 }
 
 function indexOf<RowId>(rows: readonly { readonly id: RowId }[], id: RowId): number {
