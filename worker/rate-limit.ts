@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { HISTORY_BURST_BYTES } from "../src/core/limits";
+import { HISTORY_BURST_BYTES } from "../src/core/operations";
 
 export type Bucket = { readonly tokens: number; readonly at: number };
 

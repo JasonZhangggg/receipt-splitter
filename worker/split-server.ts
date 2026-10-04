@@ -1,9 +1,8 @@
 import { Server, type Connection } from "partyserver";
-import { applyOperation, type ClientMessage, type ServerMessage, type WireRejection } from "../src/core/operations";
+import { MAX_STORED_BYTES, applyOperation, type ClientMessage, type ServerMessage, type WireRejection } from "../src/core/operations";
 import { parseClientMessage, parseSplit } from "../src/core/parse";
 import { serializedBytes, type Split } from "../src/core/split";
 import { HISTORY_LIMIT, OPERATION_LIMIT, takeToken, type Bucket } from "./rate-limit";
-import { MAX_STORED_BYTES } from "../src/core/limits";
 
 const MAX_MESSAGE_BYTES = 40 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;

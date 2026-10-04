@@ -1,6 +1,14 @@
 import { fromLegacy, type LegacyChange, type LegacyItemSplit, type LegacyItemWrite, type LegacySplit } from "./legacy";
 import { isCents, isPrice } from "./money";
 import {
+  MAX_ADJUSTMENTS,
+  MAX_ITEMS,
+  MAX_PARTICIPANTS,
+  MAX_QUANTITY,
+  MAX_STORED_ITEMS,
+  MAX_STORED_WRITES_PER_CHANGE,
+  MAX_WRITES_PER_CHANGE,
+  RECENT_CHANGES_LIMIT,
   checkSplit,
   createSplit,
   type AdjustmentPatch,
@@ -27,62 +35,18 @@ import {
   type SchemaVersion,
   type Split,
   type Write,
-  SPLIT_BYTE_BUDGET,
-  serializedBytes,
 } from "./split";
-import {
-  MAX_ADJUSTMENTS,
-  MAX_ITEMS,
-  MAX_PARTICIPANTS,
-  MAX_QUANTITY,
-  MAX_STORED_ITEMS,
-  MAX_STORED_WRITES_PER_CHANGE,
-  MAX_WRITES_PER_CHANGE,
-  RECENT_CHANGES_LIMIT,
-} from "./limits";
 
 export function parseOperation(input: unknown): { readonly ok: true; readonly op: Operation } | Rejected {
   const parsed = parse(operation, input);
   return parsed.ok ? { ok: true, op: parsed.value } : parsed;
 }
 
-/** Reads a stored or sent Split, an old one mapped to the current model and labelled with the version that holds it now. */
 export function parseSplit(input: unknown): { readonly ok: true; readonly split: Split } | Rejected {
-  const read = readSplit(input);
-  if (!read.ok || read.split.schemaVersion === 4) return read;
-  return { ok: true, split: { ...read.split, schemaVersion: storedVersion(read.split) } };
-}
-
-/**
- * The lowest version whose reader gives this Split back unchanged, so a rollback to an older Worker keeps reading it.
- * Version 4 holds every Split. Versions 1 to 3 read with the limits their release had, so a Split past those stores at 4.
- */
-export function storedVersion(split: Split): SchemaVersion {
-  const row: object = JSON.parse(JSON.stringify(split));
-  const readsBack = (version: SchemaVersion) => {
-    const stamped = { ...row, schemaVersion: version };
-    const read = readSplit(stamped);
-    return read.ok && canonical(read.split) === canonical(stamped);
-  };
-  return LEGACY_VERSIONS.find(readsBack) ?? 4;
-}
-
-const LEGACY_VERSIONS = [1, 2, 3] as const;
-
-function canonical(value: unknown): string {
-  return JSON.stringify(value, (_, field: unknown) =>
-    field !== null && typeof field === "object" && !Array.isArray(field) ? Object.fromEntries(Object.entries(field).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : field,
-  );
-}
-
-function readSplit(input: unknown): { readonly ok: true; readonly split: Split } | Rejected {
-  const parsed = parse(storedRow, input);
+  const parsed = parse(split, input);
   if (!parsed.ok) return parsed;
-  const { value } = parsed;
-  if ("legacy" in value && serializedBytes(value.legacy) > SPLIT_BYTE_BUDGET) return { ok: false, rejection: { reason: "tooLarge" } };
-  const read = "legacy" in value ? fromLegacy(value.legacy) : value.split;
-  const rejection = checkSplit(read);
-  return rejection ? { ok: false, rejection } : { ok: true, split: read };
+  const rejection = checkSplit(parsed.value);
+  return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
 }
 
 /** A ClientMessage, or its rejection with the ref to answer under, which is null when the ref itself is unreadable. */
@@ -458,11 +422,12 @@ const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", ite
 const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit"), perUnit }, MAX_STORED_WRITES_PER_CHANGE);
 const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment, MAX_STORED_ITEMS), original: receipt(receiptItem, anyAdjustment), change: currentChange };
 
-/** Versions 1 to 3 stored one claim set per unit; they read with their own parsers before they map to the current model. */
-const storedRow: Parser<{ readonly split: Split } | { readonly legacy: LegacySplit }> = strict((fields) => {
+/** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */
+const split: Parser<Split> = strict((fields) => {
   const version = fields.read("schemaVersion", schemaVersion);
-  if (version === 4) return { split: { schemaVersion: version, ...splitFields(fields, CURRENT_ROWS) } };
-  return { legacy: { schemaVersion: version, ...splitFields(fields, LEGACY_ROWS[version]) } };
+  if (version === 4) return { schemaVersion: version, ...splitFields(fields, CURRENT_ROWS) };
+  const legacy: LegacySplit = { schemaVersion: version, ...splitFields(fields, LEGACY_ROWS[version]) };
+  return fromLegacy(legacy);
 });
 
 function splitFields<R, O, C>({ read, maybe, has, fail }: Fields, rows: { readonly receipt: Parser<R>; readonly original: Parser<O>; readonly change: Parser<C> }) {

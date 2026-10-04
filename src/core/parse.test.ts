@@ -1,13 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { cents, price } from "./money";
-import { applyOperation, createSplit } from "./operations";
+import { MAX_PARTICIPANTS, applyOperation, createSplit } from "./operations";
 import { parseCreateSplitRequest, parseNewSplit, parseOperation, parseSplit } from "./parse";
 import { computeShares } from "./shares";
 import { adjustmentId, itemId, participantId, type Split } from "./split";
 import { mintedId } from "./test-ids";
 import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
-import { MAX_PARTICIPANTS } from "./limits";
 
 const badName = { ok: false, rejection: { reason: "badName" } };
 
@@ -200,7 +199,7 @@ describe("parseSplit", () => {
   });
 
   test("reads a line-level claimedBy as one even unit, and refuses claimers out of order or repeated, in either shape", () => {
-    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const stored = { ...JSON.parse(JSON.stringify(storedSplit())), schemaVersion: 1 };
     const [fries, pitcher] = stored.receipt.items;
     const { split: _, ...pitcherRow } = pitcher;
     const withPitcher = (row: object) => ({ ...stored, receipt: { ...stored.receipt, items: [fries, row] } });
@@ -232,7 +231,7 @@ describe("parseSplit bounds", () => {
   const refusedAt = (path: string) => ({ ok: false, rejection: { reason: "malformed", path } });
 
   test("refuses each oversized array of a stored Split by its count, before reading the first element", () => {
-    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const stored = { ...JSON.parse(JSON.stringify(storedSplit())), schemaVersion: 1 };
     const [addBob, priceEdit, third] = stored.recentChanges;
     const withChange = (index: number, change: object) => ({
       ...stored,
@@ -262,7 +261,7 @@ describe("parseSplit bounds", () => {
   });
 
   test("reads a stored Change of 121 writes, one per Item patch, one per Adjustment patch, and the totals, and refuses 122", () => {
-    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const stored = { ...JSON.parse(JSON.stringify(storedSplit())), schemaVersion: 1 };
     const withWrites = (count: number) => {
       const writes = Array.from({ length: count }, () => ({ kind: "totals", subtotalDelta: 0, totalDelta: 0 }));
       return { ...stored, recentChanges: [{ ...stored.recentChanges[0], writes }, ...stored.recentChanges.slice(1)] };
@@ -314,7 +313,7 @@ describe("parseNewSplit", () => {
     expect(parseNewSplit(JSON.parse(JSON.stringify(body)), minted)).toEqual({
       ok: true,
       split: {
-        schemaVersion: 1,
+        schemaVersion: 4,
         id: "q7Xv0Lr9_aZ-3mKp",
         currency: "USD",
         receipt: {
@@ -488,13 +487,13 @@ describe("parseCreateSplitRequest with Bundles", () => {
     expect(parseSplit(JSON.parse(JSON.stringify(created.split)))).toEqual({ ok: true, split: created.split });
   });
 
-  test("stores the same request without its Bundles at version 4, and without its quantities too at version 1", () => {
+  test("stores the same request at version 4 without its Bundles, and without its quantities too", () => {
     const plain = receipt.adjustments.map((row) => (row.kind === "bundleDiscount" ? { id: row.id, kind: "discount", name: row.name, amount: row.amount } : row));
     const lineByLine = request(plain);
     const items = lineByLine.split.receipt.items.map(({ id, name, price }) => ({ id, name, price }));
 
     expect(parseCreateSplitRequest(request(plain), minted)).toMatchObject({ ok: true, split: { schemaVersion: 4 } });
-    expect(parseCreateSplitRequest({ split: { ...lineByLine.split, receipt: { ...lineByLine.split.receipt, items } } }, minted)).toMatchObject({ ok: true, split: { schemaVersion: 1 } });
+    expect(parseCreateSplitRequest({ split: { ...lineByLine.split, receipt: { ...lineByLine.split.receipt, items } } }, minted)).toMatchObject({ ok: true, split: { schemaVersion: 4 } });
   });
 
   test("refuses a Bundle that names an Item the request does not hold", () => {

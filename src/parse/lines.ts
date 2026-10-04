@@ -1,6 +1,6 @@
 import { cents, price, type Cents, type Price } from "../core/money";
+import { MAX_QUANTITY } from "../core/operations";
 import type { Row } from "./rows";
-import { MAX_QUANTITY } from "../core/limits";
 
 export type Quantity = { readonly count: number; readonly unitPrice: Price };
 

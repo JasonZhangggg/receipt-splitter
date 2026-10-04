@@ -2,6 +2,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
 import {
+  MAX_CHANGE_BYTES,
+  MAX_PARTICIPANT_NAME_LENGTH,
+  MAX_ROW_NAME_LENGTH,
+  RECENT_CHANGES_LIMIT,
   applyOperation,
   checkSplit,
   claimersOf,
@@ -29,7 +33,6 @@ import {
 import { mintedId } from "./test-ids";
 import { runTotalCheck } from "./total-check";
 import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
-import { MAX_CHANGE_BYTES, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, RECENT_CHANGES_LIMIT } from "./limits";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -103,7 +106,7 @@ function priceEdit(by: ParticipantId, id: typeof fries, from: number, to: number
 describe("createSplit", () => {
   test("starts a Split with the Host, every Item Unclaimed, and no changes", () => {
     expect(created()).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 4,
       id: "q7Xv0Lr9_aZ-3mKp",
       currency: "USD",
       receipt: {
@@ -562,12 +565,11 @@ describe("editing the Receipt", () => {
     expect(restored.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, split: { by: "even", units: [["bob", "cat"]] } });
   });
 
-  test("a detail edit lands as a receipt change at version 3, and undoing it restores the Item without one", () => {
+  test("a detail edit lands as a receipt change, and undoing it restores the Item without one", () => {
     const split = withBobAndCat();
     const detailed = apply(split, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "Large, $2.00 off" }] });
 
     expect(detailed.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, detail: "Large, $2.00 off", split: { by: "even", units: [[]] } });
-    expect(detailed.schemaVersion).toBe(3);
     expect(detailed.recentChanges.at(-1)?.writes).toEqual([{ kind: "item", id: "fries", edit: { detail: ["", "Large, $2.00 off"] } }]);
     expect(parseSplit(JSON.parse(JSON.stringify(detailed)))).toEqual({ ok: true, split: detailed });
 
@@ -981,13 +983,13 @@ describe("quantity lines", () => {
     ]);
   });
 
-  test("a Split is stored at version 4 while it or its history holds a quantity, and a Split with neither a quantity nor a detail at version 1 or 2", () => {
+  test("every write stores version 4, with or without a quantity, and a line with no quantity stores none", () => {
     const start = atThePub();
     const split = apply(start, splitLine([beerB, beerC]));
 
     expect([start.schemaVersion, split.schemaVersion]).toEqual([4, 4]);
-    expect(apply({ ...split, recentChanges: [] }, claim(bob, beerB)).schemaVersion).toBe(1);
-    expect(created().schemaVersion).toBe(1);
+    expect(apply({ ...split, recentChanges: [] }, claim(bob, beerB)).schemaVersion).toBe(4);
+    expect(created().schemaVersion).toBe(4);
     expect(JSON.parse(JSON.stringify(created())).receipt.items[0]).toEqual({ id: "pasta", name: "Pasta", price: 1400, split: { by: "even", units: [[]] } });
   });
 
@@ -1359,6 +1361,7 @@ describe("changes stored before per-unit claims and device picks", () => {
     const revision = split.revision + 1;
     const parsed = parseSplit({
       ...json,
+      schemaVersion: 1,
       ...fields,
       receipt: { ...json.receipt, items },
       revision,
@@ -1968,28 +1971,10 @@ describe("Bundles", () => {
 
   const lineByLine = (split: Split): Split => {
     const [first, ...rest] = split.receipt.items.map(({ quantity, ...row }) => row);
-    return { ...split, schemaVersion: 2, receipt: { ...split.receipt, items: [first, ...rest] } };
+    return { ...split, receipt: { ...split.receipt, items: [first, ...rest] } };
   };
 
-  test("a Split is stored at version 2 while it or its history holds a Bundle, and at version 1 once neither does", () => {
-    const start = lineByLine(claimed());
-    const unbundled = apply(start, {
-      by: jason,
-      type: "editReceipt",
-      adjustments: [
-        { type: "delete", adjustmentId: adjustmentId("bucket1") },
-        { type: "delete", adjustmentId: adjustmentId("bucket2") },
-      ],
-      totalDelta: cents(914),
-    });
-    const forgotten = { ...unbundled, recentChanges: [] };
-
-    expect([start.schemaVersion, unbundled.schemaVersion, unbundled.receipt.adjustments.map(({ kind }) => kind)]).toEqual([2, 2, ["tax", "tip"]]);
-    expect(apply(forgotten, { by: priya, type: "claim", itemId: itemId("gameplay"), participantId: priya }).schemaVersion).toBe(1);
-    expect(created().schemaVersion).toBe(1);
-  });
-
-  test("a Bundle discount keeps its kind, stays at or below $0.00, and its Split keeps version 2", () => {
+  test("a Bundle discount keeps its kind and stays at or below $0.00", () => {
     const start = lineByLine(claimed());
     const bucket = adjustmentId("bucket1");
 
@@ -1998,7 +1983,7 @@ describe("Bundles", () => {
 
     const renamed = apply(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, name: "Bucket" }] });
 
-    expect([renamed.schemaVersion, bundleItems(renamed)]).toEqual([2, bundleItems(start)]);
+    expect(bundleItems(renamed)).toEqual(bundleItems(start));
   });
 
   const withOriginal = (start: Split, adjustments: Split["receipt"]["adjustments"] = start.receipt.adjustments): Split => {

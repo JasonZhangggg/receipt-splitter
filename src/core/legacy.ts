@@ -1,4 +1,5 @@
 import { cents, price, type Cents } from "./money";
+import { MAX_SHARES } from "./operations";
 import { unitPrices } from "./shares";
 import {
   MAX_ID_LENGTH,
@@ -17,7 +18,6 @@ import {
   type SplitItem,
   type Write,
 } from "./split";
-import { MAX_SHARES } from "./limits";
 
 /** How versions 1 to 3 stored an Item's split: one claim set per unit, so the quantity is `units.length`. */
 export type LegacyItemSplit =
@@ -40,7 +40,6 @@ export type LegacySplit = Omit<Split, "schemaVersion" | "receipt" | "recentChang
 /**
  * Reads a version 1, 2, or 3 Split as the current model, keeping each person's money and each Item's detail.
  * A line whose units differ becomes rows, one per distinct claim set, so every Share stays exact.
- * The result keeps the version it was read at; `storedVersion` says which version holds it now.
  */
 export function fromLegacy(legacy: LegacySplit): Split {
   const taken = new Set<string>(legacy.receipt.items.map(({ id }) => id));
@@ -58,7 +57,7 @@ export function fromLegacy(legacy: LegacySplit): Split {
     const marked = [first, ...rest].find((write) => perUnit(write, now));
     return { ...change, writes: [asWrite(first), ...rest.map(asWrite), ...(marked ? [{ kind: "perUnit", id: marked.id } as const] : [])] };
   });
-  return { ...legacy, receipt, recentChanges };
+  return { ...legacy, schemaVersion: 4, receipt, recentChanges };
 }
 
 /** One line with the quantity and one claim set for all its units, which only an old History write needs once its units differ. */

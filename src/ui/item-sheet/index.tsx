@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { price as toPrice } from "../../core/money";
-import { applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
+import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
 import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem, type SplitMode } from "../../core/split";
 import { parseAmount, plainAmount } from "../../draft";
 import { Button, PressTarget } from "../components/button";
@@ -12,7 +12,6 @@ import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
 import { bundleNote, lineAmounts, splitIds } from "../split-view/model";
-import { MAX_DETAIL_LENGTH, MAX_SHARES } from "../../core/limits";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
 

@@ -188,11 +188,11 @@ export type Change = {
   readonly at?: number;
 };
 
-/** Version 2 adds Bundles, version 3 adds an Item's detail, and version 4 stores a quantity line as one claim set. */
+/** Version 2 adds Bundles, version 3 adds an Item's detail, and version 4 stores a quantity line as one claim set. Every write stores version 4. */
 export type SchemaVersion = 1 | 2 | 3 | 4;
 
 export type Split = {
-  readonly schemaVersion: SchemaVersion;
+  readonly schemaVersion: 4;
   readonly id: SplitId;
   readonly currency: "USD";
   readonly receipt: Receipt<SplitItem>;
