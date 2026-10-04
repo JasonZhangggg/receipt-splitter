@@ -7,5 +7,17 @@ declare namespace Cloudflare {
   interface Env {
     SplitServer: DurableObjectNamespace<import("./split-server").SplitServer>;
     CreateLimiter: DurableObjectNamespace<import("./rate-limit").CreateLimiter>;
+    OPENROUTER_API_KEY?: string;
+    SCAN_PER_MINUTE: string;
+    SCAN_PER_DAY: string;
+    SCAN_DAILY_CAP: string;
+    SCAN_PASS1_MODEL: string;
+    SCAN_PASS1_HOSTS: string;
+    SCAN_PASS1_EFFORT: string;
+    SCAN_PASS1_TIMEOUT_MS: string;
+    SCAN_PASS2_MODEL: string;
+    SCAN_PASS2_HOSTS: string;
+    SCAN_PASS2_EFFORT: string;
+    SCAN_PASS2_TIMEOUT_MS: string;
   }
 }

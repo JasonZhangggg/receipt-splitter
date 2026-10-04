@@ -2,6 +2,7 @@ import { routePartykitRequest } from "partyserver";
 import { isRoutableSplitId } from "../src/core/split";
 import { createSplit } from "./create";
 import { servePhoto } from "./photo";
+import { scanReceipt } from "./scan/route";
 
 export { CreateLimiter } from "./rate-limit";
 export { SplitServer } from "./split-server";
@@ -14,6 +15,11 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/splits") {
       const response = await createSplit(request, env);
+      response.headers.set("x-content-type-options", "nosniff");
+      return response;
+    }
+    if (url.pathname === "/api/scan") {
+      const response = await scanReceipt(request, env);
       response.headers.set("x-content-type-options", "nosniff");
       return response;
     }
