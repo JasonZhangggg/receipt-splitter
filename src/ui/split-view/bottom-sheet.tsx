@@ -3,13 +3,12 @@ import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { glide, glideFor, releaseIntent, releaseVelocity, rubberband } from "../components/sheet-motion";
+import { Swap } from "../components/swap";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, motion, useColors } from "../theme";
 
 const reducedFade = 200;
-const fadeIn = 200;
-const fadeOut = 150;
 const tapSlop = 10;
 const grabHeight = 29;
 // The scroller clips, so its content keeps this much room on the top and sides for a focused field's ring.
@@ -58,7 +57,6 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const surface = useRef<View>(null);
   const body = useRef<View>(null);
   const shade = useRef<View>(null);
-  const swapped = useRef<View>(null);
   const offset = useRef<number | null>(null);
   const drag = useRef<Drag | null>(null);
   const leaving = useRef(false);
@@ -66,16 +64,6 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   const placed = useRef(false);
   const left = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gestures = onDown !== undefined || onUp !== undefined;
-  const [shown, setShown] = useState({ view, children });
-  const [outgoing, setOutgoing] = useState<{ view: string | undefined; content: ReactNode } | null>(null);
-  if (view !== shown.view) {
-    setOutgoing({ view: shown.view, content: shown.children });
-    setShown({ view, children });
-  } else if (children !== shown.children) setShown({ view, children });
-  useLayoutEffect(() => {
-    const box = swapped.current as unknown as HTMLElement | null;
-    if (outgoing) box?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: fadeIn, delay: fadeOut, easing: motion.easeOut, fill: "backwards" });
-  }, [outgoing]);
 
   const element = () => surface.current as unknown as HTMLElement | null;
   const dimFor = (value: number) => (visible > 0 ? Math.max(0, Math.min(1, 1 - (value - rest) / visible)) : 0);
@@ -230,38 +218,12 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
           <ScrollView style={[{ maxHeight: tallest - grabHeight + ringRoom }, contain, fits]} contentContainerStyle={[{ paddingTop: ringRoom, paddingHorizontal: ringRoom, paddingBottom: 30 + insets.bottom }, fits]}>
             <View ref={body} onLayout={measure} {...{ dataSet: { sheetBody: "" } }}>
               {header}
-              <View>
-                <View ref={swapped}>{children}</View>
-                {outgoing ? <Outgoing key={outgoing.view} onDone={() => setOutgoing(null)}>{outgoing.content}</Outgoing> : null}
-              </View>
+              <Swap view={view}>{children}</Swap>
             </View>
           </ScrollView>
         </View>
       </View>
     </>
-  );
-}
-
-function Outgoing({ children, onDone }: { children: ReactNode; onDone: () => void }) {
-  const copy = useRef<View>(null);
-  const done = useEffectEvent(onDone);
-  useLayoutEffect(() => {
-    const node = copy.current as unknown as HTMLElement | null;
-    // The copy is a picture of what left, so it gives up the ids and test ids the live content now holds.
-    node?.querySelectorAll<HTMLElement>("[id], [data-testid]").forEach((el) => {
-      el.removeAttribute("id");
-      if (el.dataset.testid) el.dataset.leftTestid = el.dataset.testid;
-      delete el.dataset.testid;
-    });
-    const fade = node?.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: fadeOut, easing: motion.easeOut, fill: "forwards" });
-    if (!fade) return done();
-    fade.onfinish = () => done();
-    return () => fade.cancel();
-  }, []);
-  return (
-    <View ref={copy} aria-hidden pointerEvents="none" style={styles.outgoing}>
-      {children}
-    </View>
   );
 }
 
@@ -276,5 +238,4 @@ const styles = StyleSheet.create({
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   grabArea: { alignSelf: "stretch", height: grabHeight - ringRoom, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },
-  outgoing: { position: "absolute", top: 0, left: 0, right: 0 },
 });
