@@ -2092,3 +2092,57 @@ describe("random operations on the golden rows", () => {
     },
   );
 });
+
+describe("adding an Item with who had it", () => {
+  const tea = itemId("tea");
+  const addTea = (who: readonly ParticipantId[], index = 3): Operation => ({
+    by: bob,
+    type: "editReceipt",
+    items: [{ type: "add", item: { id: tea, name: "Tea", price: price(300) }, index, who }],
+  });
+
+  test("lands claimed evenly by the people named, so their Shares hold it to the cent", () => {
+    const split = apply(withBobAndCat(), addTea([ann, bob]));
+
+    expect(split.receipt.items.at(-1)).toEqual({ id: tea, name: "Tea", price: 300, split: { by: "even", units: [[ann, bob]] } });
+    expect(shareOf(split, "ann")?.share).toBe(150);
+    expect(shareOf(split, "bob")?.share).toBe(150);
+    expect(shareOf(split, "cat")?.share).toBe(0);
+  });
+
+  test("is one History change, and its Revert takes the row and its claims off", () => {
+    const before = withBobAndCat();
+    const split = apply(before, addTea([cat]));
+    const reverted = apply(split, { by: ann, type: "undo", revision: split.recentChanges.at(-1)!.revision });
+
+    expect(split.recentChanges).toHaveLength(before.recentChanges.length + 1);
+    expect(reverted.receipt.items.map(({ id }) => id)).toEqual([pasta, fries, pitcher]);
+    expect(shareOf(split, "cat")?.share).toBe(300);
+    expect(shareOf(reverted, "cat")?.share).toBe(0);
+  });
+
+  test("refuses a person not in the Split as unknownParticipant and a person named twice as duplicateId", () => {
+    expect(reasonFor(withBobAndCat(), addTea([ann, dan]))).toBe("unknownParticipant");
+    expect(reasonFor(withBobAndCat(), addTea([bob, bob]))).toBe("duplicateId");
+  });
+
+  test("reads who from the wire, and an add without it lands unclaimed", () => {
+    const add = { type: "add", item: { id: "tea", name: "Tea", price: 300 }, index: 3 };
+    expect(parseOperation({ by: "bob", type: "editReceipt", items: [{ ...add, who: ["ann"] }] })).toEqual({
+      ok: true,
+      op: { by: bob, type: "editReceipt", items: [{ type: "add", item: { id: tea, name: "Tea", price: 300 }, index: 3, who: [ann] }] },
+    });
+    expect(parseOperation({ by: "bob", type: "editReceipt", items: [{ ...add, who: [7] }] }).ok).toBe(false);
+
+    const unclaimed = apply(withBobAndCat(), { by: bob, type: "editReceipt", items: [{ type: "add", item: { id: tea, name: "Tea", price: price(300) }, index: 3 }] });
+    expect(unclaimed.receipt.items.at(-1)?.split).toEqual({ by: "even", units: [[]] });
+  });
+
+  test("at the end of a Split with Bundles joins no Bundle", () => {
+    const split = topgolf();
+    const added = apply(split, { by: jason, type: "editReceipt", items: [{ type: "add", item: { id: tea, name: "Fries", price: price(650) }, index: split.receipt.items.length, who: [priya] }] });
+
+    expect(added.receipt.items.at(-1)).toMatchObject({ id: tea, name: "Fries", split: { by: "even", units: [[priya]] } });
+    expect(added.receipt.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? row.bundle.items : []))).toEqual([...bucketOne, ...bucketTwo]);
+  });
+});
