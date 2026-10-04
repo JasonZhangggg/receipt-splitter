@@ -35,15 +35,17 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   return { ...pending, ...next, values: reshaped ? (next.values ?? []) : values };
 }
 
-export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Props) {
+export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClose }: Props) {
   const c = useColors();
+  // Split and Delete item change the Item at once; the sheet keeps showing the Split as it was at the tap until it has left.
+  const [leavingFrom, setLeavingFrom] = useState<Split | null>(null);
+  const split = leavingFrom ?? current;
   const reduce = useReducedMotion();
   const [pending, setPending] = useState<ItemEdit>({});
   const [sent, setSent] = useState<readonly ItemEdit[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
   const flushRef = useRef<() => void>(() => {});
-  const splitting = useRef(false);
   const [shown, setShown] = useState<SplitItem | undefined>(() => split.receipt.items.find(({ id }) => id === itemId));
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [enterAfter, setEnterAfter] = useState<number | null>(null);
@@ -111,26 +113,30 @@ export function ItemSheet({ split, itemId, me, send, onAddPerson, onClose }: Pro
     flush();
     onClose();
   };
+  const leave = (op: Operation) => {
+    setLeavingFrom(split);
+    void send(op).then((ok) => {
+      if (ok) return onClose();
+      setLeavingFrom(null);
+      setProblem(say.saveFailed);
+    });
+  };
   const remove = () => {
+    if (leavingFrom) return;
     flushRef.current = () => {};
-    void send({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }).then((ok) => (ok ? onClose() : setProblem(say.saveFailed)));
+    leave({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] });
   };
   const note = bundleNote(split.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
   const splitLine = () => {
     const [first, ...rest] = splitIds(split.receipt, item);
-    if (!first || splitting.current) return;
-    splitting.current = true;
+    if (!first || leavingFrom) return;
     flush();
-    void send({ by: me, type: "editReceipt", items: [{ type: "split", itemId, ids: [first, ...rest] }] }).then((ok) => {
-      splitting.current = false;
-      if (ok) onClose();
-      else setProblem(say.saveFailed);
-    });
+    leave({ by: me, type: "editReceipt", items: [{ type: "split", itemId, ids: [first, ...rest] }] });
   };
 
   return (
-    <View style={styles.sheet}>
+    <View style={styles.sheet} pointerEvents={leavingFrom ? "none" : "auto"}>
       <View style={styles.topline}>
         <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
           {say.item}

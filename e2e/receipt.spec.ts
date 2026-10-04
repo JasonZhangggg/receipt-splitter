@@ -197,6 +197,77 @@ test("no frame shows the 3x row beside the rows Split adds, or two 3x rows", asy
   expect(seen).toEqual(["3x", "7.29 7.29 7.29"]);
 });
 
+async function slowFramesOpen(browser: Browser, link: string, rafDelay: number): Promise<Page> {
+  const page = await (await newContext(browser)).newPage();
+  await page.addInitScript((delay) => {
+    const frame = window.requestAnimationFrame.bind(window);
+    Object.assign(window, { sampleFrame: frame });
+    if (delay > 0) window.requestAnimationFrame = (callback) => frame(() => setTimeout(() => frame(callback), delay));
+  }, rafDelay);
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+  return page;
+}
+
+/** What the Item sheet shows on each frame until it is gone: its heading, the Price field, and every amount in its text. */
+function sheetFrames(page: Page) {
+  return page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const frame = (window as unknown as { sampleFrame: typeof requestAnimationFrame }).sampleFrame;
+        const seen: string[] = [];
+        const started = performance.now();
+        const sample = () => {
+          const sheet = document.querySelector('[role="dialog"][aria-label="Item"]');
+          if (sheet) {
+            const heading = sheet.querySelector('[role="heading"]')?.textContent ?? "no heading";
+            const price = (sheet.querySelector('input[aria-label="Price"]') as HTMLInputElement | null)?.value ?? "no price";
+            const amounts = [...new Set((sheet.textContent ?? "").match(/\$\d+\.\d\d/g) ?? [])].join(" ");
+            seen.push(`${heading} | ${price} | ${amounts}`);
+          }
+          if (performance.now() - started < 5000) frame(sample);
+          else resolve(seen);
+        };
+        frame(sample);
+      }),
+  );
+}
+
+for (const rafDelay of [0, 200]) {
+  test(`the Item sheet keeps showing the 3x line at 21.87 on every frame while Split closes it, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex), rafDelay);
+    await pick(sam, "Sam");
+    await firstBucket(sam).click();
+    await guinnessCircle(sam, "Sam").click();
+    await expect(guinnessCircle(sam, "Sam")).toHaveAttribute("aria-pressed", "true", live);
+    await guinness(sam).click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
+    const frames = sheetFrames(sam);
+
+    await sheet.getByRole("button", { name: "Split into 3" }).click();
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(cans(sam)).toHaveCount(3);
+    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19 $21.87"]);
+  });
+
+  test(`the Item sheet keeps showing the deleted Item on every frame while Delete item closes it, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex), rafDelay);
+    await pick(sam, "Sam");
+    await firstBucket(sam).click();
+    await sam.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first().click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("6.29");
+    const frames = sheetFrames(sam);
+
+    await sheet.getByRole("button", { name: "Delete item" }).click();
+
+    await expect(sheet).toHaveCount(0, live);
+    expect([...new Set(await frames)]).toEqual(["Item | 6.29 | $0.63"]);
+  });
+}
+
 test("Delete item takes a Bundle Item off for everyone, and Revert brings it back", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
