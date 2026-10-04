@@ -1,6 +1,6 @@
 import { cents, price, type Cents } from "./money";
 import { MAX_SHARES, checkSplit } from "./operations";
-import { unitPrices } from "./shares";
+import { leastCommonMultiple, unitPrices } from "./shares";
 import {
   isId,
   storedVersion,
@@ -125,12 +125,6 @@ function exactCents(split: LegacyItemSplit, linePrice: number): Part<Cents>[] {
   const short = claimed - floors.reduce((sum, { cents: floor }) => sum + floor, 0);
   const roundedUp = new Set([...floors].sort((a, b) => (a.remainder === b.remainder ? 0 : a.remainder > b.remainder ? -1 : 1)).slice(0, short));
   return floors.map((part): Part<Cents> => [part.id, cents(part.cents + (roundedUp.has(part) ? 1 : 0))]);
-}
-
-function leastCommonMultiple(a: bigint, b: bigint): bigint {
-  let [x, y] = [a, b];
-  while (y !== 0n) [x, y] = [y, x % y];
-  return (a / x) * b;
 }
 
 /** One claim set for the whole line: equal units keep their claims with cents times the quantity, and differing units merge everyone who had any, with shares or cents summed. */
