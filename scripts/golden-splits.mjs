@@ -6,7 +6,7 @@ import { build } from "esbuild";
 
 const releases = process.argv.length > 2
   ? process.argv.slice(2).map((pair) => pair.split("="))
-  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"], ["v2-2", "1ed0165", "topgolfBundles"], ["v2-7b", "29547a1", "topgolfDetails"]];
+  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"], ["v2-2", "1ed0165", "topgolfBundles"], ["v2-7b", "29547a1", "topgolfDetails"], ["v2-q", "ed1afcd", "topgolfQuantities"]];
 
 const dinner = `
 import { applyOperation, createSplit } from "./src/core/operations";
@@ -56,7 +56,7 @@ const bucketTwo = ["ultra2", "guinness2", "pineapple2", "watermelon2"];
 
 const details = { gameplay: "2 bays, 1 hour", guinness1: "$2.00 off" };
 
-const topgolf = (bucketKind, detailed = false) => `
+const topgolf = (bucketKind, { detailed = false, laterOps = [] } = {}) => `
 import { applyOperation, createSplit } from "./src/core/operations";
 const items = [
   ["gameplay", "Gameplay", 8775, 1],
@@ -95,6 +95,7 @@ const ops = [
   ...items.flatMap(([id, , , quantity]) => Array.from({ length: quantity }, (_, unit) => ({ by: owner(id), type: "claim", itemId: id, participantId: owner(id), unit }))),
   { by: "jason", type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: "tip", name: "Tip (18%)" }] },
   ...(${detailed} ? [{ by: "priya", type: "editReceipt", items: [{ type: "edit", itemId: "ultra1", detail: "Ice cold" }] }] : []),
+  ...${JSON.stringify(laterOps)},
 ];
 for (const op of ops) {
   const result = applyOperation(split, op, { creator: true }, 1767225600000);
@@ -119,7 +120,8 @@ const drivers = {
   dinner: { source: dinner, finish: (json) => json },
   topgolf: { source: topgolf("discount"), finish: asV2_2Writes },
   topgolfBundles: { source: topgolf("bundle"), finish: pretty },
-  topgolfDetails: { source: topgolf("bundle", true), finish: pretty },
+  topgolfDetails: { source: topgolf("bundle", { detailed: true }), finish: pretty },
+  topgolfQuantities: { source: topgolf("bundle", { detailed: true, laterOps: [{ by: "jason", type: "editReceipt", items: [{ type: "split", itemId: "guinness2", ids: ["guinness2-b"] }] }] }), finish: pretty },
 };
 
 const root = resolve(import.meta.dirname, "..");
