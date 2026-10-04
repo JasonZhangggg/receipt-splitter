@@ -449,6 +449,43 @@ describe("the Payment handles and names", () => {
   });
 });
 
+describe("a read the Split would refuse as it is", () => {
+  const readReady = (receipt: Receipt | null) => withVenmo(run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt }));
+  const sentOf = (receipt: Receipt) => {
+    const request = requestOf(readReady(receipt), counter());
+    if (!request) throw new Error(`not ready: ${JSON.stringify(reasonOf(readReady(receipt)))}`);
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("problem-read-0000000"));
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+    return request.receipt;
+  };
+
+  test("sends a priced Item it could not name as Item and its place, for the Split page to rename", () => {
+    const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: " ", price: price(150) }], subtotal: cents(2448), total: cents(2954) };
+    expect(sentOf(receipt).items.at(-1)).toEqual({ id: "i6", name: "Item 6", price: 150 });
+  });
+
+  test("sends a price over the limit as $0.00, and the note names the gap the Split page fixes", () => {
+    const [first, ...rest] = receipt1040.items;
+    const receipt: Receipt = { ...receipt1040, items: [first, ...rest.slice(0, 3), { ...rest[3], price: price(MAX_CENTS + 350) }] };
+    expect(sentOf(receipt).items.at(-1)).toEqual({ id: "i5", name: "Perrier Sparkling Water", price: 0 });
+    expect(mismatchNote(readReady(receipt))).toBe("Items are $3.50 short of the subtotal.");
+  });
+
+  test("sends an Adjustment over the limit as $0.00", () => {
+    const receipt: Receipt = { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(MAX_CENTS + 161) }, receipt1040.adjustments[1]] };
+    expect(sentOf(receipt).adjustments.map(({ name, amount }) => `${name} ${amount}`)).toEqual(["Tax 0", "Service fees on tables 345", "Tip 0"]);
+  });
+
+  test("sends a Subtotal over the limit as the Items' sum, and a Total over the limit as the Subtotal and Adjustments", () => {
+    const sent = sentOf({ ...receipt1040, subtotal: cents(MAX_CENTS + 2298), total: cents(MAX_CENTS + 2804) });
+    expect([sent.subtotal, sent.total]).toEqual([2298, 2804]);
+  });
+
+  test("a read with no Items keeps Create split link off, since a Split holds at least one Item", () => {
+    expect(reasonOf(readReady(null))).toBe("Couldn't read any items. Try another photo.");
+  });
+});
+
 describe("where the Host fixes Items", () => {
   test("a read the Split can take as it is leaves the Items to the Split page", () => {
     expect(editsOnHome(read1040())).toBe(false);
