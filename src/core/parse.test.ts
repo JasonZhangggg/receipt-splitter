@@ -183,6 +183,16 @@ describe("parseSplit", () => {
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });
 
+  test("reads a pick stored with a browser's raw device id as that browser's id for this Split, and keeps other ids", () => {
+    const stored = JSON.parse(JSON.stringify(storedSplit()));
+    const raw = "AbCdEfGh01234567";
+
+    expect(accepted(parseSplit({ ...stored, picks: [{ participantId: "bob", device: raw }] })).picks).toEqual([{ participantId: "bob", device: "nZstfGZMUIJIL7ugC8HRh8" }]);
+    expect(accepted(parseSplit({ ...stored, picks: [{ participantId: "bob", device: "nZstfGZMUIJIL7ugC8HRh8" }] })).picks).toEqual([
+      { participantId: "bob", device: "nZstfGZMUIJIL7ugC8HRh8" },
+    ]);
+  });
+
   test("reads a Split stored before joins, with joined ids, or with picks that have no device, as picked by no one for those names, and refuses picks out of order, twice, or for someone not in the Split", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
     const { picks, ...beforeJoins } = stored;

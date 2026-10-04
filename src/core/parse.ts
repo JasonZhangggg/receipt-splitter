@@ -1,5 +1,6 @@
 import { fromLegacy, type LegacyChange, type LegacyItemSplit, type LegacyItemWrite, type LegacySplit } from "./legacy";
 import { isCents, isPrice } from "./money";
+import { pickDevice } from "./pick-device";
 import {
   MAX_ADJUSTMENTS,
   MAX_ITEMS,
@@ -46,7 +47,9 @@ export function parseSplit(input: unknown): { readonly ok: true; readonly split:
   const parsed = parse(split, input);
   if (!parsed.ok) return parsed;
   const rejection = checkSplit(parsed.value);
-  return rejection ? { ok: false, rejection } : { ok: true, split: parsed.value };
+  if (rejection) return { ok: false, rejection };
+  const { id, picks } = parsed.value;
+  return { ok: true, split: { ...parsed.value, picks: picks.map((held) => ({ ...held, device: pickDevice(held.device, id) })) } };
 }
 
 /** A ClientMessage, or its rejection with the ref to answer under, which is null when the ref itself is unreadable. */

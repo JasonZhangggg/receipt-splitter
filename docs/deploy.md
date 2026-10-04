@@ -13,7 +13,22 @@ Production is the Worker `app` on the account subdomain `splitwith`, so the addr
 	- `CLOUDFLARE_ACCOUNT_ID` holds the account ID from step 1.
 4. Optional. Under Settings, Environments, open `production` and add required reviewers or a branch rule. Every deploy job uses that environment.
 
-The Worker needs no secrets or variables. To run the first deploy, open Actions, select Deploy, and choose Run workflow on `main`.
+The Worker needs two secrets. Set each once with Wrangler, which prompts for the value and stores it on the Worker without a deploy.
+
+- `SPLIT_ID_SECRET` signs every new Split id (ADR 0009). Without it, `POST /api/splits` answers 503 and existing Splits keep working. Generate a value and paste it at the prompt. Never change it afterwards, because every link signed with the old value stops opening.
+
+	```sh
+	openssl rand -base64 32
+	npx wrangler secret put SPLIT_ID_SECRET --name app
+	```
+
+- `OPENROUTER_API_KEY` reads receipts on the server (ADR 0008). Without it, scans fall back to the on-device reading.
+
+	```sh
+	npx wrangler secret put OPENROUTER_API_KEY --name app
+	```
+
+To run the first deploy, open Actions, select Deploy, and choose Run workflow on `main`.
 
 ## Remove the Turnstile setup
 

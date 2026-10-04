@@ -81,5 +81,58 @@ export async function leftovers(id: string): Promise<{ tables: unknown[]; keys: 
   }));
 }
 
+type Meter = () => number;
+
+/** Counts the rows a Durable Object writes from now on, as billing counts them: SQL rowsWritten, one per key put, one per alarm set, and every row deleteAll drops. */
+export function billedRowWrites(storage: DurableObjectStorage): Meter {
+  const counts: Meter[] = [];
+  const { sql } = storage;
+  const exec = sql.exec.bind(sql);
+  sql.exec = ((query: string, ...bindings: unknown[]) => {
+    const cursor = exec(query, ...bindings);
+    counts.push(() => cursor.rowsWritten);
+    return cursor;
+  }) as typeof sql.exec;
+  const put = storage.put.bind(storage) as (key: string, value: unknown) => Promise<void>;
+  storage.put = (async (key: string, value: unknown) => {
+    counts.push(() => 1);
+    await put(key, value);
+  }) as typeof storage.put;
+  const setAlarm = storage.setAlarm.bind(storage);
+  storage.setAlarm = async (time) => {
+    counts.push(() => 1);
+    await setAlarm(time);
+  };
+  const deleteAll = storage.deleteAll.bind(storage);
+  storage.deleteAll = async () => {
+    const tables = exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\'").toArray();
+    const rows = tables.reduce((sum, { name }) => sum + Number(exec(`SELECT count(*) AS n FROM "${String(name)}"`).one().n), 0);
+    const keys = (await storage.list()).size;
+    counts.push(() => rows + keys);
+    await deleteAll();
+  };
+  return () => counts.reduce((sum, count) => sum + count(), 0);
+}
+
+/** Runs `run` and returns the rows the Split Durable Object named `id` wrote meanwhile. */
+export async function rowsWrittenBy(id: string, run: () => Promise<unknown>): Promise<number> {
+  const meter = await runInDurableObject(env.SplitServer.getByName(id), (_, state) => billedRowWrites(state.storage));
+  await run();
+  return meter();
+}
+
+export type Probed ={ readonly status: number; readonly first?: ServerMessage; readonly closed?: { code: number; reason: string } };
+
+/** Opens the Split socket and waits for the server to end it. */
+export async function probe(id: string, fetcher: (request: Request) => Promise<Response> = (request) => exports.default.fetch(request)): Promise<Probed> {
+  const response = await fetcher(new Request(`http://localhost/parties/split-server/${id}`, { headers: { upgrade: "websocket" } }));
+  const socket = response.webSocket;
+  if (!socket) return { status: response.status };
+  const first = new Promise<ServerMessage>((resolve) => socket.addEventListener("message", ({ data }) => resolve(JSON.parse(String(data)))));
+  const closed = new Promise<{ code: number; reason: string }>((resolve) => socket.addEventListener("close", ({ code, reason }) => resolve({ code, reason })));
+  socket.accept();
+  return { status: response.status, first: await first, closed: await closed };
+}
+
 /** Durable Object alarms run on the real clock, so a fake now in the past would fire every 60-day expiry alarm mid-test. */
 export const T0 = Date.parse("2100-01-01T12:00:00Z");

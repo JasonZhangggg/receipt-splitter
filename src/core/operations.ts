@@ -1,4 +1,5 @@
 import { MAX_CENTS, cents, isCents, price as asPrice, type Cents, type Price } from "./money";
+import { pickDevice } from "./pick-device";
 import {
   SPLIT_BYTE_BUDGET,
   serializedBytes,
@@ -217,7 +218,8 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const index = indexOf(split.participants, participantId);
       if (index === -1) return reject("unknownParticipant");
       if (index === 0) return reject("host");
-      if (!split.picks.some((pick) => pick.participantId === participantId && pick.device === op.device)) return reject("payerOnly");
+      const device = pickDevice(op.device, split.id);
+      if (!split.picks.some((pick) => pick.participantId === participantId && pick.device === device)) return reject("payerOnly");
       const before = paymentOf(split, participantId);
       const after = op.type === "recordPayment" ? op.amount : null;
       return commit(split, [() => (before === after ? [] : [{ kind: "payment", participantId, before, after }])]);
@@ -229,7 +231,8 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       return { ok: true, split: { ...split, paymentHandles }, record: null };
     }
     case "pick": {
-      const { participantId, device, takeOver } = op;
+      const { participantId, takeOver } = op;
+      const device = pickDevice(op.device, split.id);
       if (!findParticipant(split, participantId)) return reject("unknownParticipant");
       const held = split.picks.find((pick) => pick.participantId === participantId);
       if (held?.device === device) return unchanged(split);

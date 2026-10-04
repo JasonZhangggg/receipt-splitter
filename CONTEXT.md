@@ -69,7 +69,7 @@ How an Item's whole price divides among the people who had it: evenly, by whole-
 _Avoid_: Split type, method
 
 **Pick**:
-A device saying which Participant it is. One device holds a name at a time, and **That's me** moves a picked name to the device that asks, with no check and no History entry. A Pick is not a Claim.
+A device saying which Participant it is. One device holds a name at a time, and **That's me** moves a picked name to the device that asks, with no check and no History entry. A Pick is not a Claim. A Pick stores the device under an id made for that Split alone, so two Splits cannot tell they share a phone (ADR 0009).
 _Avoid_: Join, login
 
 **Unclaimed item**:

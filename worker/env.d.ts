@@ -8,6 +8,7 @@ declare namespace Cloudflare {
     SplitServer: DurableObjectNamespace<import("./split-server").SplitServer>;
     CreateLimiter: DurableObjectNamespace<import("./rate-limit").CreateLimiter>;
     OPENROUTER_API_KEY?: string;
+    SPLIT_ID_SECRET?: string;
     SCAN_PER_MINUTE: string;
     SCAN_PER_DAY: string;
     SCAN_DAILY_CAP: string;

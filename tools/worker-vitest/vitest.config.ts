@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: `${repo}/wrangler.jsonc` },
+      miniflare: { bindings: { SPLIT_ID_SECRET: "worker-tests-only-split-id-secret-0000000000" } },
     }),
   ],
   test: { dir: `${repo}/worker`, include: ["**/*.test.ts"] },
