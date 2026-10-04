@@ -23,7 +23,7 @@ export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
       </PressTarget>
       <View style={styles.buttons}>
         {onReceipt ? (
-          <View style={[styles.receipt, !hadReceipt && receiptIn]}>
+          <View style={[styles.receipt, !hadReceipt && (reduce ? receiptFade : receiptIn)]}>
             <Button kind="link" icon="receipt" label={say.viewReceipt} onPress={onReceipt} />
           </View>
         ) : null}
@@ -41,9 +41,12 @@ const styles = StyleSheet.create({
   home: { minHeight: 44, justifyContent: "center" },
 });
 
-const receiptIn = webAnimation({
-  animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
-  animationDuration: `${motion.controlIn}ms`,
-  animationTimingFunction: motion.easeOut,
-  animationFillMode: "both",
-});
+const arrival = (from: Record<string, number | string>) =>
+  webAnimation({
+    animationKeyframes: [{ from, to: { opacity: 1, transform: "scale(1)" } }],
+    animationDuration: `${motion.controlIn}ms`,
+    animationTimingFunction: motion.easeOut,
+    animationFillMode: "both",
+  });
+const receiptIn = arrival({ opacity: 0, transform: "scale(0.96)" });
+const receiptFade = arrival({ opacity: 0 });

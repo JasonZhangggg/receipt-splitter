@@ -1,6 +1,6 @@
 # Receipt photo
 
-The Host's device sends one downscaled JPEG of the receipt after the Split is created, and everyone with the link can open it for 14 days. The Worker stores it in a `photo` table in the Split's Durable Object, beside the `split` row. Every `state` frame carries `"photo":true` or `"photo":false`, and the Worker broadcasts a `state` frame when the photo lands or goes. Fourteen days after the create, the Split's alarm deletes the photo and the Split stays. ADR 0007 has the rules. No page sends or shows a photo until V2-6b.
+The Host's device sends one downscaled JPEG of the receipt after the Split is created, and everyone with the link can open it for 14 days. The Worker stores it in a `photo` table in the Split's Durable Object, beside the `split` row. Every `state` frame carries `"photo":true` or `"photo":false`, and the Worker broadcasts a `state` frame when the photo lands or goes. Fourteen days after the create, the Split's alarm deletes the photo and the Split stays. ADR 0007 has the rules.
 
 ## Sub-features
 
@@ -8,11 +8,15 @@ The Host's device sends one downscaled JPEG of the receipt after the Split is cr
 - `photo-get` serves it with `GET /api/splits/<id>/photo`.
 - `photo-refusals` answers 403 without the Creator secret, 413 over 150 KB, 415 for a `content-type` other than `image/jpeg`, 400 for bytes that do not start with the JPEG marker, that hold any segment other than APP0, DQT, DHT, SOFn, DRI, COM, and SOS (so no EXIF, XMP, or IPTC), or that carry bytes after the end marker, 404 for a Split that does not exist, and 410 from 14 days after the create.
 - `photo-flag` turns the snapshot's `photo` flag on for every connected client when the photo lands, and off when it goes.
+- `photo-upload` sends the Host's copy after **Create split link**. Home makes the copy when the scan reads the photo. It crops the photo to the OCR boxes, scales it to at most 1280 px on its long edge (960 px if 1280 cannot fit), lowers the JPEG quality from 0.8 to 0.3 until the copy fits 150 KB, and keeps only the image segments, so no EXIF, GPS, ICC profile, or comment goes up. The PUT carries `authorization: Bearer <creatorSecret>`. A network error or a 5xx gets one retry, and any 4xx ends the upload without a message. The link shows at once and does not wait for the upload.
+- `view-receipt` shows **View receipt** in the Split page header while the flag is on, on every device with the link. It opens the photo viewer on `GET /api/splits/<id>/photo`. A photo that lands after the page opened fades the button in. The button hides when the flag turns off.
 - `photo-delete` deletes the photo 14 days after the create, then sets the alarm for the Split's 60-day expiry. From day 14 the GET answers 404 and the flag is false even if the alarm has not run.
 
 ## How to get to it (user POV)
 
-- None until V2-6b. The Host's device will send the PUT after **Create split link**, and the Split page will show **View receipt** while the flag is on.
+- Scan a receipt on home, fill the payment handle and a name, and tap **Create split link**. The Host's device sends the PUT right after the link opens.
+- On any browser with the link, close "Which one are you?" and tap **View receipt** in the header. **Close photo** closes the viewer.
+- A Split made with **Example**, or before V2-6b, has no photo and no **View receipt**.
 
 ## Driving it with verify.mjs
 
@@ -27,8 +31,11 @@ Preconditions:
 - **Flag (`photo-flag`).** Run `live-clients idle --port 8811 --id <id> --clients 1 --idle-s 20 --log <out>/photo-flag.json`, and send the Put command during the idle seconds. The transcript shows a `state` frame with `"photo":false` on connect and one with `"photo":true` after the PUT.
 - **Delete (`photo-delete`).** `wrangler dev` runs alarms on the real clock, and no command moves it 14 days. `worker/split-server.test.ts` proves the delete with `runDurableObjectAlarm` at a fake time. Run `npm run test:worker -- split-server` and read the `the receipt photo's 14-day delete` cases.
 
+- **Upload and View receipt (`photo-upload`, `view-receipt`).** Run `PORT=<port> npx playwright test e2e/photo.spec.ts`. It scans `e2e/fixtures/topgolf-synthetic.png`, creates the link, checks the PUT body, and opens **View receipt** on a second browser. Its last case runs the copy pipeline in Chromium and WebKit on a 12 MP photo and on `e2e/fixtures/srd-1040-exif-rotated.jpg`, and the Worker stores both copies.
+
 ## Gotchas
 
 - The Worker checks the `content-type`, the size, and the JPEG segments before it reaches the Durable Object, so a request with bad bytes and no secret gets 400 or 413, not 403.
 - `GET` answers 404 for a missing photo and for a missing Split alike.
 - Each create with a photo and its one replace costs 19 row writes. `DAILY_CREATE_CAP` follows from that count, as ADR 0005 explains. A new write on the create path fails `worker/create-cost.test.ts` until the cap moves.
+- WebKit and Chromium may write an ICC profile (APP2) into a canvas JPEG, and the Worker refuses any APP2 with 400. The home copy drops every segment but the image's own before the upload, so the Worker's allowlist stays as it is.
