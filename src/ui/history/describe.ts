@@ -1,5 +1,5 @@
 import type { Change, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
-import { plainAmount } from "../../draft";
+import { groupedAmount, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 import { ratio } from "../split-view/model";
 
@@ -52,14 +52,14 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       const edit = write.edit;
       if ("name" in edit && edit.name) return { lead: "", before: edit.name[0], after: edit.name[1] };
       if ("quantity" in edit && edit.quantity) return { lead: name, before: `×${edit.quantity[0]}`, after: `×${edit.quantity[1]}` };
-      if ("price" in edit && edit.price) return { lead: name, before: plainAmount(edit.price[0]), after: plainAmount(edit.price[1]) };
+      if ("price" in edit && edit.price) return { lead: name, before: groupedAmount(edit.price[0]), after: groupedAmount(edit.price[1]) };
       if ("detail" in edit && edit.detail) {
         const [before = "", after = ""] = edit.detail;
         if (!before) return { lead: `Added "${after}" to ${name}` };
         if (!after) return { lead: `Removed "${before}" from ${name}` };
         return { lead: name, before, after };
       }
-      if ("amount" in edit && edit.amount) return { lead: name, before: plainAmount(edit.amount[0]), after: plainAmount(edit.amount[1]) };
+      if ("amount" in edit && edit.amount) return { lead: name, before: groupedAmount(edit.amount[0]), after: groupedAmount(edit.amount[1]) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
         const order = split.participants.map(({ id }) => id);
@@ -70,10 +70,10 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
     case "split":
       return { lead: `Split ${split.receipt.items.find(({ id }) => id === write.id)?.name ?? "An item"} into ${write.line.quantity}` };
     case "totals":
-      return { lead: write.totalDelta < 0 ? `Total down $${plainAmount(-write.totalDelta)}` : `Total up $${plainAmount(write.totalDelta)}` };
+      return { lead: write.totalDelta < 0 ? `Total down ${money(-write.totalDelta)}` : `Total up ${money(write.totalDelta)}` };
     case "payment": {
       const payer = split.participants.find(({ id }) => id === write.participantId)?.name ?? "Someone";
-      return write.after === null ? { lead: `${payer} marked unpaid` } : { lead: `${payer} paid $${plainAmount(write.after)}` };
+      return write.after === null ? { lead: `${payer} marked unpaid` } : { lead: `${payer} paid ${money(write.after)}` };
     }
   }
 }

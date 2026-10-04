@@ -33,6 +33,11 @@ describe("differenceNote", () => {
     ]);
   });
 
+  test("groups amounts of $1,000 and up by thousands", () => {
+    expect(differenceNote(payState(cents(100_000), cents(123_456)), "payer", "Sam", "Jason")).toBe("You paid $1,234.56. Jason owes you $234.56.");
+    expect(differenceNote(payState(cents(10_099_999), cents(99_999)), "other", "Sam", "Jason")).toBe("Sam paid $999.99 and owes $100,000.00 more.");
+  });
+
   test("tells the payer and everyone else what is still owed", () => {
     expect([differenceNote(short, "payer", "Sam", "Jason"), differenceNote(short, "host", "Sam", "Jason"), differenceNote(short, "other", "Sam", "Jason")]).toEqual([
       "You paid $22.00. You owe $4.00 more.",

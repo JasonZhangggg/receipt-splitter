@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { Receipt } from "../../src/core/split";
 import { runTotalCheck } from "../../src/core/total-check";
+import { money } from "../../src/draft";
 import { recognize, type TextBox } from "../../src/ocr";
 import { parseReceipt } from "../../src/parse";
 
@@ -115,7 +116,7 @@ function ParsedReceipt({ receipt }: { receipt: Receipt | null }) {
       <ul aria-labelledby="parse-items" data-testid="parse-items" style={list}>
         {receipt.items.map((item) => (
           <li key={item.id}>
-            {item.name} {dollars(item.price)}
+            {item.name} {money(item.price)}
           </li>
         ))}
       </ul>
@@ -127,25 +128,21 @@ function ParsedReceipt({ receipt }: { receipt: Receipt | null }) {
           <ul aria-labelledby="parse-adjustments" style={list}>
             {receipt.adjustments.map((adjustment) => (
               <li key={adjustment.id}>
-                {adjustment.name} {dollars(adjustment.amount)}
+                {adjustment.name} {money(adjustment.amount)}
               </li>
             ))}
           </ul>
         </>
       )}
-      <p style={{ margin: "12px 0 0" }}>Subtotal {dollars(receipt.subtotal)}</p>
-      <p style={{ margin: 0, fontWeight: 600 }}>Total {dollars(receipt.total)}</p>
+      <p style={{ margin: "12px 0 0" }}>Subtotal {money(receipt.subtotal)}</p>
+      <p style={{ margin: 0, fontWeight: 600 }}>Total {money(receipt.total)}</p>
       <p data-testid="parse-check" style={{ margin: "12px 0 0" }}>
         {check.ok
           ? "Total check passed."
-          : `Total check failed. Items are off by ${dollars(check.subtotalGap)} and the total by ${dollars(check.totalGap)}.`}
+          : `Total check failed. Items are off by ${money(check.subtotalGap)} and the total by ${money(check.totalGap)}.`}
       </p>
     </section>
   );
-}
-
-function dollars(cents: number): string {
-  return `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toFixed(2)}`;
 }
 
 const systemFont = { fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 16 };

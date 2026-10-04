@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
 import type { AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
-import { plainAmount } from "../../draft";
+import { groupedAmount, money } from "../../draft";
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
@@ -26,7 +26,6 @@ type Props = {
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
-const dollars = (amount: number) => `${amount < 0 ? "-" : ""}$${plainAmount(Math.abs(amount))}`;
 const dotSize = 16;
 // One step under type.body on the same leading ratio, so the receipt reads denser without going under 14 px.
 const itemType = { ...type.body, fontSize: 14, lineHeight: 20.5 };
@@ -105,7 +104,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                 <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
                   {bundle.discount.label}
                 </Text>
-                <Text style={[type.secondary, tabular, { color: c.muted }]}>{plainAmount(bundle.discount.amount)}</Text>
+                <Text style={[type.secondary, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
               </View>
             </BundleGroup>
           );
@@ -126,14 +125,14 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
         <Text style={[type.button, { color: c.ink }]}>{say.total}</Text>
         <Text testID="total" style={[type.total, tabular, { color: c.ink }]}>
-          {dollars(total)}
+          {money(total)}
         </Text>
       </View>
       {started ? (
         <View style={styles.unclaimed}>
           <Text style={[type.secondary, { color: c.muted }]}>{say.unclaimed}</Text>
           <Text testID="unclaimed" style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>
-            {dollars(shares.unclaimed.total)}
+            {money(shares.unclaimed.total)}
           </Text>
         </View>
       ) : null}
@@ -201,7 +200,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                 </Presence>
               </View>
             </View>
-            <Text style={[itemType, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
+            <Text style={[itemType, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
           </>
         )}
       </PressTarget>
@@ -352,7 +351,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   const tag = lineTag(item, order);
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
   const ordered = [...claimers].sort((a, b) => Number(a.id === selected?.id) - Number(b.id === selected?.id));
-  const price = plainAmount(cost);
+  const price = groupedAmount(cost);
   const [title, detail] = nameParts(item);
   const count = quantityText(item);
   const label = count ? `${count} ${item.name}` : item.name;
@@ -434,7 +433,7 @@ function Row({ label, amount }: { label: string; amount: number }) {
       <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
         {label}
       </Text>
-      <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{dollars(amount)}</Text>
+      <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(amount)}</Text>
     </View>
   );
 }

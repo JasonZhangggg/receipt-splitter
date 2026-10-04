@@ -3,11 +3,11 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Reac
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import type { RecentSplit } from "../device";
+import { money } from "../draft";
 import { Button, scrollViewTouchDelay } from "./components/button";
 import { useLayoutHeight } from "./components/viewport";
 import { historyCopy as say } from "./home-copy";
 import { useReducedMotion, webStyle } from "./motion";
-import { dollars } from "./pay/model";
 import { BottomSheet } from "./split-view/bottom-sheet";
 import { motion, type, useColors } from "./theme";
 
@@ -132,7 +132,7 @@ function Entries({ splits, now, onPick }: { splits: readonly RecentSplit[]; now:
       {splits.map(({ id, names, total, added }) => {
         const who = say.names(names);
         const when = say.when(added, now);
-        const amount = dollars(total);
+        const amount = money(total);
         return (
           <Link key={id} href={`/s/${id}`} asChild>
             <Pressable {...web} aria-label={say.row(who, when, amount)} onPress={onPick}>

@@ -2,12 +2,11 @@ import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { Cents } from "../../core/money";
-import { plainAmount } from "../../draft";
+import { money, plainAmount } from "../../draft";
 import { Button } from "../components/button";
 import { paymentApps } from "../home-copy";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
-import { dollars } from "./model";
 
 const copiedFor = 1600;
 
@@ -24,7 +23,7 @@ export function ZelleCard({ host, handle, amount }: { host: string; handle: stri
           <Text style={[type.button, { color: c.ink }]}>{say.payOnZelle(host)}</Text>
         </View>
         <CopyRow shown={handle} value={handle} onFail={() => setProblem(true)} />
-        <CopyRow shown={dollars(amount)} value={plainAmount(amount)} onFail={() => setProblem(true)} />
+        <CopyRow shown={money(amount)} value={plainAmount(amount)} onFail={() => setProblem(true)} />
       </View>
       {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>

@@ -4,7 +4,7 @@ import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { price as toPrice } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
 import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem, type SplitMode } from "../../core/split";
-import { parseAmount, plainAmount } from "../../draft";
+import { money, parseAmount, plainAmount } from "../../draft";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
@@ -349,7 +349,7 @@ function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
                 />
               </View>
             ) : (
-              <Text style={[type.body, tabular, styles.amount, { color: c.ink }]}>{`$${plainAmount(amount)}`}</Text>
+              <Text style={[type.body, tabular, styles.amount, { color: c.ink }]}>{money(amount)}</Text>
             )}
           </View>
         );
@@ -369,10 +369,10 @@ function SumLine({ item: { split, price } }: { item: SplitItem }) {
   const left = price - counted;
   return (
     <View style={styles.sumRow}>
-      <Text style={[type.caption, { color: c.muted }]}>{say.ofTotal(`$${plainAmount(counted)}`, `$${plainAmount(price)}`)}</Text>
+      <Text style={[type.caption, { color: c.muted }]}>{say.ofTotal(money(counted), money(price))}</Text>
       <View style={styles.sumEnd}>
         {left === 0 ? <Icon name="check" size={14} color={c.ink} /> : null}
-        <Text style={[type.caption, styles.strong, { color: c.ink }]}>{left === 0 ? say.addsUp : say.left(`$${plainAmount(left)}`)}</Text>
+        <Text style={[type.caption, styles.strong, { color: c.ink }]}>{left === 0 ? say.addsUp : say.left(money(left))}</Text>
       </View>
     </View>
   );

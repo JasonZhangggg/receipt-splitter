@@ -8,7 +8,7 @@ import type { Operation } from "../../src/core/operations";
 import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
-import { newName, plainAmount } from "../../src/draft";
+import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
@@ -369,7 +369,7 @@ function pickRows(split: Split, device: DeviceId) {
 }
 
 function intro(split: Split, creating: boolean) {
-  const total = `$${plainAmount(split.receipt.total)}`;
+  const total = money(split.receipt.total);
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
 
