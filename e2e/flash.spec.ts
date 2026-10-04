@@ -59,6 +59,34 @@ test("on a 300 ms round trip, switching the split type never shows the old type 
   expect(await page.evaluate(() => (window as unknown as { added: string[] }).added)).toEqual(["rows"]);
 });
 
+test("at 4x slowdown, switching the split type fades the old rows out fully before the new rows fade in", async ({ page }) => {
+  await itemShared(page);
+  await page.evaluate(() => {
+    const frames: number[][] = [];
+    Object.assign(window, { copies: frames });
+    const tick = () => {
+      for (const animation of document.getAnimations()) if (animation.playbackRate !== 0.25) animation.playbackRate = 0.25;
+      const group = document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"]');
+      const copies = [...(group?.parentElement?.nextElementSibling?.children ?? [])];
+      frames.push(copies.map((copy) => Number(getComputedStyle(copy).opacity)));
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  const modes = page.getByTestId("item-sheet").getByRole("group", { name: "Split" });
+  for (const [mode, rows] of [["By shares", '[aria-label="More shares for Jason"]'], ["By amount", `input[aria-label="Jason's amount"]`]]) {
+    await page.evaluate(() => ((window as unknown as { copies: number[][] }).copies.length = 0));
+    await tap(modes.getByRole("button", { name: mode, exact: true }));
+    await page.locator(rows).first().waitFor();
+    await page.waitForTimeout(2500);
+    const frames = await page.evaluate(() => (window as unknown as { copies: number[][] }).copies.slice());
+    const doubled = frames.filter((copies) => copies.filter((opacity) => opacity > 0.02).length > 1);
+    expect(frames.some((copies) => copies.length === 2), `${mode}: the old rows were never painted`).toBe(true);
+    expect(doubled, `${mode}: frames showing both copies`).toEqual([]);
+    expect(frames.at(-1)).toEqual([1]);
+  }
+});
+
 test("a closing Bundle paints a smaller height every frame, never the open height again, and ends closed", async ({ page }) => {
   await picked(page);
   await openBundle(page);

@@ -47,6 +47,7 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
   const flushRef = useRef<() => void>(() => {});
   const [shown, setShown] = useState<SplitItem | undefined>(() => split.receipt.items.find(({ id }) => id === itemId));
   const [leaving, setLeaving] = useState<SplitItem | null>(null);
+  const [swapped, setSwapped] = useState(false);
   useEffect(() => {
     if (!leaving) return;
     const timer = setTimeout(() => setLeaving(null), rowsFadeOut);
@@ -83,6 +84,7 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
 
   if (item && shown && item.split.by !== shown.split.by) {
     setLeaving(shown);
+    setSwapped(true);
     setShown(item);
   }
   if (!item || unit >= item.split.units.length) return null;
@@ -195,7 +197,7 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
       <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.split}</Text>
       <Segments value={item.split.by} onChange={(by) => edit({ by })} />
       <View>
-        <View key={item.split.by} style={reduce ? null : rowsEnter}>
+        <View key={item.split.by} style={reduce ? null : swapped ? rowsEnterAfter : rowsEnter}>
           <SplitRows item={item} unit={unit} me={me} nameOf={nameOf} edit={edit} />
         </View>
         {leaving && !reduce ? (
@@ -339,6 +341,14 @@ const rowsFadeOut = 120;
 const rowsEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
   animationDuration: `${rowsFadeIn}ms`,
+  animationTimingFunction: motion.easeOut,
+});
+// After a swap the old rows fade out fully first, so the two copies are never both visible.
+const rowsEnterAfter = webAnimation({
+  animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
+  animationDuration: `${rowsFadeIn}ms`,
+  animationDelay: `${rowsFadeOut}ms`,
+  animationFillMode: "backwards",
   animationTimingFunction: motion.easeOut,
 });
 const rowsLeave = webAnimation({
