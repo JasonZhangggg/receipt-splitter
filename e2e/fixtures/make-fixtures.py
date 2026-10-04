@@ -36,7 +36,7 @@ example = [
     ("1 California Tropic And Miso", "7.99"),
     ("1 Add Two Tostones", "1.00"),
     ("1 Sprite", "2.50"),
-    ("1 Perrier Sparkling Water", "3.50"),
+    ("1 Perrier Sparkling Water", "1,000,003.50"),
     ("Subtotal", "22.98"),
     ("Tax", "1.61"),
     ("Service fees on tables", "3.45"),
@@ -48,7 +48,7 @@ for row, (label, amount) in enumerate(example):
     y = 40 + 40 * row
     draw.text((40, y), label, fill="black", font=font)
     draw.text((860, y), amount, fill="black", font=font, anchor="ra")
-over.save(root / "e2e/fixtures/example-total-over-limit.png")
+over.save(root / "e2e/fixtures/example-price-over-limit.png")
 
 scan = root / "bench/scan/fixtures"
 for tsv in sorted(scan.glob("*.tsv")):

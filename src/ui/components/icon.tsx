@@ -10,7 +10,6 @@ const paths = {
   trash: '<path d="M5 7h14M10 7V5h4v2"/><path d="M7 7l1 12.5h8L17 7"/>',
   bag: '<path d="M6 8h12l-1 12H7z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
   x: '<path d="M7 7l10 10M17 7 7 17"/>',
-  pencil: '<path d="M14.5 5.5l4 4L9 19H5v-4z"/>',
   share: '<path d="M12 4v11M8 8l4-4 4 4"/><path d="M6 12v6.5A1.5 1.5 0 0 0 7.5 20h9a1.5 1.5 0 0 0 1.5-1.5V12"/>',
   copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6.5A1.5 1.5 0 0 0 14.5 5h-8A1.5 1.5 0 0 0 5 6.5v8A1.5 1.5 0 0 0 6.5 16H8"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',

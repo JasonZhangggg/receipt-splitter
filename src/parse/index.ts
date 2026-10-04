@@ -5,9 +5,8 @@ import type { TextBox } from "../ocr/types";
 import { classifyLines, echoes, hasWords, type Line, type Quantity } from "./lines";
 import { groupRows } from "./rows";
 
-type DraftItem = Omit<ParsedItem, "id" | "quantity"> & { readonly quantity: Quantity | null; readonly count?: number };
+type DraftItem = Omit<Item, "id" | "quantity"> & { readonly quantity: Quantity | null; readonly count?: number };
 
-export type ParsedItem = Item & { readonly discountExceededPrice?: true };
 type ReceiptLevelDraft = Exclude<AdjustmentFields, { readonly kind: "bundleDiscount" }>;
 type BundleDiscountDraft = { readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: { readonly name: string; readonly itemIndexes: NonEmpty<number> } };
 type DraftAdjustment = ReceiptLevelDraft | BundleDiscountDraft;
@@ -32,7 +31,7 @@ type Section = "items" | "adjustments" | "closed";
 
 const ONE_READ_AS_SEVEN = 7;
 
-export function parseReceipt(boxes: readonly TextBox[]): Receipt<ParsedItem> | null {
+export function parseReceipt(boxes: readonly TextBox[]): Receipt | null {
   const lines = classifyLines(groupRows(boxes));
   const readings = [lines, lines.map(strayMinusAsItem)].flatMap(readingsOf).flatMap((draft) => {
     if (draft.items.length === 0 || draft.total === null) return [];
@@ -156,7 +155,7 @@ function foldInto(items: DraftItem[], name: string, amount: Cents): void {
     return;
   }
   const folded = above.price + amount;
-  items[items.length - 1] = folded < 0 ? { ...above, price: price(0), discountExceededPrice: true } : { ...above, price: price(folded) };
+  items[items.length - 1] = { ...above, price: price(Math.max(folded, 0)) };
 }
 
 function isRunningTotal(line: ReceiptLevelDraft, items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotals: readonly Cents[]): boolean {
@@ -181,7 +180,7 @@ function subtotalOf({ items, adjustments, subtotals, discountBeforeSubtotal }: D
   return cents(read.find((amount) => amount === itemsSum) ?? read[0]);
 }
 
-function repairs(receipt: Receipt<ParsedItem>, draft: Draft): Receipt<ParsedItem>[] {
+function repairs(receipt: Receipt, draft: Draft): Receipt[] {
   const laterTotals = draft.laterTotals.map((later) => ({ ...receipt, total: later }));
   const onesReadAsSevens = draft.items.flatMap(({ quantity }, index) => {
     if (quantity?.count !== ONE_READ_AS_SEVEN) return [];
@@ -191,13 +190,12 @@ function repairs(receipt: Receipt<ParsedItem>, draft: Draft): Receipt<ParsedItem
   return [...laterTotals, ...onesReadAsSevens];
 }
 
-function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotal: Cents, total: Cents): Receipt<ParsedItem> {
-  const [first, ...rest] = items.map(({ name, price: amount, count, discountExceededPrice }, i) => ({
+function toReceipt(items: readonly DraftItem[], adjustments: readonly DraftAdjustment[], subtotal: Cents, total: Cents): Receipt {
+  const [first, ...rest] = items.map(({ name, price: amount, count }, i) => ({
     id: itemId(`i${i + 1}`),
     name,
     price: amount,
     ...(count && { quantity: count }),
-    ...(discountExceededPrice && { discountExceededPrice }),
   }));
   return {
     items: [first, ...rest],

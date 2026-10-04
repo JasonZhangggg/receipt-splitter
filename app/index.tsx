@@ -3,8 +3,9 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { cents } from "../src/core/money";
 import { recentSplits, rememberSplit } from "../src/device";
-import { editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, totalOf, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
+import { mismatchNote, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
@@ -19,7 +20,6 @@ import { Toast } from "../src/ui/components/toast";
 import { copy, createCopy, joinCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
-import { ReceiptEditor } from "../src/ui/receipt-editor";
 import { RecentSplits } from "../src/ui/recent-splits";
 import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
 import { isPhoto, photoUri, pickPhoto, receiptCopyOf, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
@@ -142,8 +142,6 @@ export default function Home() {
   };
   const removeName = (name: string) => dispatch({ type: "removeName", name });
   const compact = !wide && height - insets.top - insets.bottom < shortScreen;
-  const editor = editsOnHome(draft);
-  const ticket = !wide && !editor;
   const columnWidth = roomy ? 480 : 440;
   const view = photo ? () => setViewing(true) : undefined;
   const zoneHeight = roomy ? 380 : 336;
@@ -189,18 +187,17 @@ export default function Home() {
         <Reading progress={progress} title={copy.reading} />
       </View>
     ) : (
-      <View style={[!wide && (editor ? [styles.doc, sides] : [styles.hero, sides]), styles.stack]}>
-        <View style={[styles.cardColumn, ticket && styles.ticketColumn]}>
+      <View style={[!wide && [styles.hero, sides], styles.stack]}>
+        <View style={[styles.cardColumn, !wide && styles.ticketColumn]}>
           <ReceiptSummary
             name={scan.file.name}
-            items={scan.receipt.items.length}
-            total={totalOf(scan.receipt)}
+            items={scan.receipt?.items.length ?? 0}
+            total={scan.receipt?.total ?? cents(0)}
             thumbnail={scan.file.thumbnail}
             onView={view}
             onReplace={choose}
-            stacked={ticket}
+            stacked={!wide}
           />
-          {editor ? <ReceiptEditor receipt={scan.receipt} flagged={flaggedRows(draft)} dispatch={dispatch} locked={creating} /> : null}
         </View>
       </View>
     );
@@ -263,7 +260,6 @@ const styles = StyleSheet.create({
   dropCompact: { paddingVertical: 14 },
   fills: { paddingTop: 44, paddingBottom: 48 },
   dropFills: { flexGrow: 1, justifyContent: "center" },
-  doc: { paddingTop: 12, paddingBottom: 20 },
   stack: { alignSelf: "stretch" },
   cardColumn: { alignSelf: "center", width: "100%", maxWidth: 480, gap: layout.blockGap },
   ticketColumn: { maxWidth: 440 },
