@@ -21,6 +21,7 @@ type DraftItem = {
   readonly id: string;
   readonly name: string;
   readonly price: Price;
+  readonly detail?: string;
   readonly quantity?: number;
   readonly discountExceededPrice?: true;
   readonly unreadPrice?: true;
@@ -145,7 +146,7 @@ function editReceipt(receipt: DraftReceipt, action: ReceiptEdit): DraftReceipt {
         if (item.id !== action.id) return item;
         const name = action.name === undefined ? item.name : clip(action.name);
         if (action.price === undefined) return { ...item, name };
-        return { id: item.id, name, price: action.price, ...(item.quantity && { quantity: item.quantity }), retyped: true as const };
+        return { id: item.id, name, price: action.price, ...(item.detail && { detail: item.detail }), ...(item.quantity && { quantity: item.quantity }), retyped: true as const };
       });
       return { ...receipt, items };
     }
@@ -189,9 +190,9 @@ function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
     const name = clip(item.name.trim());
     if (!name && item.price === 0) return [];
     const flags = item.discountExceededPrice ? { discountExceededPrice: true as const } : {};
-    const quantity = item.quantity && { quantity: item.quantity };
-    if (item.price > MAX_CENTS) return [{ id: item.id, name, price: price(0), ...quantity, unreadPrice: true }];
-    return [{ id: item.id, name, price: item.price, ...quantity, ...flags }];
+    const extras = { ...(item.detail && { detail: item.detail }), ...(item.quantity && { quantity: item.quantity }) };
+    if (item.price > MAX_CENTS) return [{ id: item.id, name, price: price(0), ...extras, unreadPrice: true }];
+    return [{ id: item.id, name, price: item.price, ...extras, ...flags }];
   });
   const tip = receipt.adjustments.filter((row) => row.kind === "tip").reduce((sum, row) => sum + row.amount, 0);
   const kept = new Set(items.map((item) => item.id));
@@ -238,7 +239,13 @@ const sum = (values: readonly number[]) => values.reduce((total, value) => total
 const adjustmentNames: Record<DraftAdjustment["kind"], string> = { tax: "Tax", serviceCharge: "Service charge", discount: "Discount", bundleDiscount: "Discount" };
 
 function receiptOf(receipt: DraftReceipt): Receipt | null {
-  const [first, ...rest] = receipt.items.map((item) => ({ id: itemId(item.id), name: item.name.trim(), price: item.price, ...(item.quantity && { quantity: item.quantity }) }));
+  const [first, ...rest] = receipt.items.map((item) => ({
+    id: itemId(item.id),
+    name: item.name.trim(),
+    price: item.price,
+    ...(item.detail && { detail: item.detail }),
+    ...(item.quantity && { quantity: item.quantity }),
+  }));
   if (!first) return null;
   const adjustments = receipt.adjustments.map((row): Adjustment => {
     const named = { id: adjustmentId(row.id), name: row.name.trim() || adjustmentNames[row.kind], amount: row.amount };

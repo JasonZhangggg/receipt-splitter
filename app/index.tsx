@@ -8,6 +8,7 @@ import { editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, readiness, 
 import { createSplitLink, newParticipantId } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
+import { readOnServer } from "../src/scan/client";
 import { Button, PressTarget } from "../src/ui/components/button";
 import { NameChips } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
@@ -28,6 +29,8 @@ const ringChange = webStyle({ transitionProperty: "border-color", transitionDura
 
 // Back remounts home without a reload, so the Draft lives as long as the page; a reload keeps only the handles.
 let pageDraft: Draft | null = null;
+/** The reading bar's share for on-device OCR. The rest waits on the server's reading, which reports no progress. */
+const OCR_SHARE = 0.8;
 
 export default function Home() {
   const c = useColors();
@@ -63,7 +66,10 @@ export default function Home() {
     setPhoto(uri === null ? null : { uri, name: file.name });
     setProgress(0);
     dispatch({ type: "reading", file });
-    const receipt = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction)).then(parseReceipt, () => null);
+    globalThis.performance?.mark?.("scan-picked");
+    const boxes = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction * OCR_SHARE)).catch(() => null);
+    const receipt = boxes && ((await readOnServer(photo, boxes)) ?? parseReceipt(boxes));
+    globalThis.performance?.mark?.("scan-read");
     if (scan === scanning.current) dispatch({ type: "read", file, receipt });
   }, [dispatch]);
   const dragging = usePhotoDrop(read, draft.scan.status === "empty");
