@@ -303,7 +303,7 @@ describe("loading a stored Split", () => {
     expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
   });
 
-  it("reads the V2-1 golden row with two Bundles after a wake, and stores it back at version 2 after a Claim", async () => {
+  it("reads the V2-1 golden row with two Bundles and its quantity lines after a wake, and stores it back at version 4 after a Claim", async () => {
     const { id } = await createSplit();
     const stub = env.SplitServer.getByName(id);
     await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify({ ...topgolfRow, id })));
@@ -317,9 +317,9 @@ describe("loading a stored Split", () => {
     const again = await open(id);
 
     if (a.hello.type !== "state" || claimed.type !== "state" || again.hello.type !== "state") throw new Error("expected state");
-    expect([a.hello.split.schemaVersion, kinds(a.hello.split)]).toEqual([2, ["bundleDiscount", "bundleDiscount", "tax", "tip"]]);
+    expect([a.hello.split.schemaVersion, kinds(a.hello.split)]).toEqual([4, ["bundleDiscount", "bundleDiscount", "tax", "tip"]]);
     expect(again.hello.split).toEqual(claimed.split);
-    expect([again.hello.split.schemaVersion, again.hello.split.receipt.items[0].split.units]).toEqual([2, [["jason", "priya"]]]);
+    expect([again.hello.split.schemaVersion, again.hello.split.receipt.items[0].split.units, again.hello.split.receipt.items[2].quantity]).toEqual([4, [["jason", "priya"]], 3]);
   });
 
   it("refuses a stored row over 32 KB after a wake without parsing it", async () => {

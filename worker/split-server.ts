@@ -238,7 +238,8 @@ export class SplitServer extends Server<Cloudflare.Env> {
     return {
       kind: "live",
       split: parsed.split,
-      json: row.json,
+      // A version 1 or 2 row reads mapped to the current model, so clients get the mapped Split rather than the stored text.
+      json: JSON.stringify(parsed.split),
       changedAt: row.changed_at,
       secret: new Uint8Array(row.creator_secret),
       rate: { operations: bucketOf(row.operations_tokens, row.operations_at), history: bucketOf(row.history_tokens, row.history_at) },
