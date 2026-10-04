@@ -405,6 +405,24 @@ export async function addLatency(page: Page, ms: number) {
 
 export const blur = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
+/** Reads `read` in the page on every frame from now on; the returned function collects the readings. */
+export async function sample<T>(page: Page, read: string) {
+  await page.evaluate((read) => {
+    const get = new Function(`return (${read});`) as () => unknown;
+    const frames: unknown[] = [];
+    Object.assign(window, { sampled: frames });
+    const tick = () => {
+      frames.push(get());
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, read);
+  return () => page.evaluate(() => (window as unknown as { sampled: T[] }).sampled.slice()) as Promise<T[]>;
+}
+
+/** Values with consecutive repeats collapsed. */
+export const runs = <T>(values: T[]) => values.filter((value, i) => i === 0 || value !== values[i - 1]);
+
 /* The Split page. */
 
 const dinner = {

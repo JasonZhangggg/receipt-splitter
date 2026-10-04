@@ -1,6 +1,6 @@
 import { fallbackSamples } from "../src/ui/home-copy";
 import { openExample } from "./files";
-import { simulateKeyboard } from "./motion";
+import { runs, sample, simulateKeyboard } from "./motion";
 import { mountHarness } from "./harness";
 import { expect, test, type Locator, type Page } from "./without-ocr";
 
@@ -156,33 +156,70 @@ const aboveKeyboard = (field: Locator) =>
     return top >= offsetTop && bottom <= offsetTop + height;
   });
 
+const keyboardUp = (page: Page) => expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(page.viewportSize()!.height - iphoneKeyboard);
+const keyboardDown = (page: Page) => expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(page.viewportSize()!.height);
+
+// Design A (operator, 2026-10-03): iOS pans the page to reveal the focused field, and the app leaves the panel where it lies.
+// Create may sit under the keyboard while someone types.
 test.describe("with the iPhone keyboard up", () => {
-  test("the focused handle field and name field sit above the keyboard, and the panel returns to rest when it goes down", async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await simulateKeyboard(page, iphoneKeyboard);
     await page.goto("/");
     await settle(page);
-    const rest = await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
+  });
 
+  test("the focused handle field and name field stay in view above the keyboard", async ({ page }) => {
     const handle = page.getByRole("textbox", { name: "Venmo handle" });
     await handle.tap();
     await expect(handle).toBeFocused();
-    await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height - iphoneKeyboard);
+    await keyboardUp(page);
     await expect.poll(() => aboveKeyboard(handle)).toBe(true);
 
     await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
     const name = page.getByRole("textbox", { name: "Your name", exact: true });
     await expect(name).toBeFocused();
     await expect.poll(() => aboveKeyboard(name)).toBe(true);
+  });
 
+  test("the panel stays where it lies in the page, so on screen it moves only with iOS's pan, in one direction", async ({ page }) => {
+    const rest = Math.round(await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top));
+    const tops = await sample<{ page: number; screen: number }>(
+      page,
+      `(() => { const top = document.querySelector("[data-sheet-surface]").getBoundingClientRect().top; return { page: Math.round(top), screen: Math.round(top - visualViewport.offsetTop) }; })()`,
+    );
+    await page.getByRole("textbox", { name: "Venmo handle" }).tap();
+    await keyboardUp(page);
+    await page.waitForTimeout(800);
+    const rising = (await tops()).map((top) => top.screen);
+    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
+    await page.waitForTimeout(800);
     await page.locator("h1").tap();
-    await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height);
-    await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top)).toBe(rest);
+    await keyboardDown(page);
+    await page.waitForTimeout(800);
+
+    expect(runs((await tops()).map((top) => top.page))).toEqual([rest]);
+    expect(rising.filter((top, i) => i > 0 && top > rising[i - 1])).toEqual([]);
+    expect(rising.at(-1)).toBeLessThan(rest);
+  });
+
+  test("the hero keeps its layout while the keyboard is up", async ({ page }) => {
+    const drop = `[...document.querySelectorAll("[role='button'] div")].find((el) => getComputedStyle(el).borderTopStyle === "dashed")`;
+    const size = (box: { width: number; height: number }) => `${Math.round(box.width)}x${Math.round(box.height)}`;
+    const before = size(await page.evaluate(`${drop}.getBoundingClientRect()`));
+    const sizes = await sample<string>(page, `(() => { const box = ${drop}.getBoundingClientRect(); return Math.round(box.width) + "x" + Math.round(box.height); })()`);
+    await page.getByRole("textbox", { name: "Venmo handle" }).tap();
+    await keyboardUp(page);
+    await page.waitForTimeout(800);
+    await page.locator("h1").tap();
+    await keyboardDown(page);
+    await page.waitForTimeout(800);
+    expect(runs(await sizes())).toEqual([before]);
   });
 });
 
 test.describe("with the iPhone keyboard up and twelve names", () => {
   for (const height of [phone.height, 667]) {
-    test(`the whole panel, grab included, stays inside the visible area at ${height} px tall`, async ({ page }) => {
+    test(`the focused name field stays in view above the keyboard at ${height} px tall`, async ({ page }) => {
       await page.setViewportSize({ width: phone.width, height });
       await simulateKeyboard(page, iphoneKeyboard);
       await page.goto("/");
@@ -197,11 +234,8 @@ test.describe("with the iPhone keyboard up and twelve names", () => {
       await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(12);
       const field = page.getByRole("textbox", { name: "Name", exact: true });
       await expect(field).toBeFocused();
-      await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(height - iphoneKeyboard);
-
-      await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top - window.visualViewport!.offsetTop)).toBeGreaterThanOrEqual(0);
+      await keyboardUp(page);
       await expect.poll(() => aboveKeyboard(field)).toBe(true);
-      await expect.poll(() => aboveKeyboard(action(page))).toBe(true);
     });
   }
 });

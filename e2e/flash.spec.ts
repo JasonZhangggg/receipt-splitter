@@ -1,4 +1,4 @@
-import { addLatency, blur, drag, fitsOneRow, itemShared, picked, simulateKeyboard, tap } from "./motion";
+import { addLatency, blur, drag, fitsOneRow, itemShared, picked, runs, sample, simulateKeyboard, tap } from "./motion";
 import { expect, test, type Locator, type Page } from "./without-ocr";
 
 test.setTimeout(90_000);
@@ -15,22 +15,6 @@ async function openBundle(page: Page) {
     return region.style.height === "" && region.style.opacity === "" && region.getAnimations().length === 0;
   });
 }
-
-async function sample<T>(page: Page, read: string) {
-  await page.evaluate((read) => {
-    const get = new Function(`return (${read});`) as () => unknown;
-    const frames: unknown[] = [];
-    Object.assign(window, { sampled: frames });
-    const tick = () => {
-      frames.push(get());
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, read);
-  return () => page.evaluate(() => (window as unknown as { sampled: T[] }).sampled.slice()) as Promise<T[]>;
-}
-
-const runs = <T>(values: T[]) => values.filter((value, i) => i === 0 || value !== values[i - 1]);
 
 const inView = (field: Locator) =>
   field.evaluate((el) => {
