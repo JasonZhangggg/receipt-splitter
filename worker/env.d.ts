@@ -15,9 +15,12 @@ declare namespace Cloudflare {
     SCAN_PASS1_HOSTS: string;
     SCAN_PASS1_EFFORT: string;
     SCAN_PASS1_TIMEOUT_MS: string;
+    SCAN_PASS1_MAX_TOKENS: string;
     SCAN_PASS2_MODEL: string;
     SCAN_PASS2_HOSTS: string;
     SCAN_PASS2_EFFORT: string;
     SCAN_PASS2_TIMEOUT_MS: string;
+    SCAN_PASS2_MAX_TOKENS: string;
+    SCAN_DEBUG_HEADERS: string;
   }
 }

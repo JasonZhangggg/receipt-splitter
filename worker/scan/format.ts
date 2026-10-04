@@ -186,7 +186,7 @@ export type Edited = { readonly lines: string[]; readonly applied: number; reado
 
 /**
  * Applies pass 2's edits to pass 1's lines, numbered from 1. `after|n` lands below line n's `+` and `-` lines,
- * so an edit never separates an Item from its detail or its discount. A `drop` of a fee or deposit line is refused.
+ * so an edit never separates an Item from its detail or its discount. A `drop` of a fee or deposit line, or a `fix` that turns it into another kind, is refused.
  */
 export function applyEdits(lines: readonly string[], text: string): Edited {
   const head: string[] = [];
@@ -213,8 +213,11 @@ export function applyEdits(lines: readonly string[], text: string): Edited {
         applied += 1;
       }
     } else if (op === "fix" && inRange(n) && rest) {
-      slots[n - 1][0] = rest;
-      applied += 1;
+      if (tagOf(lines[n - 1]) === "f" && tagOf(rest) !== "f") refused += 1;
+      else {
+        slots[n - 1][0] = rest;
+        applied += 1;
+      }
     } else if (op === "after" && inRange(n) && rest) {
       let below = n - 1;
       while (below + 1 < lines.length && ["+", "-"].includes(tagOf(lines[below + 1]))) below += 1;

@@ -11,7 +11,14 @@ const PHOTO = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ";
 const PASSING = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100";
 const SHORT = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|500\nt|Tax|100";
 
-type Call = { readonly model: string; readonly hosts: readonly string[]; readonly ignore: readonly string[]; readonly allowFallbacks: boolean };
+type Call = {
+  readonly model: string;
+  readonly hosts: readonly string[];
+  readonly ignore: readonly string[];
+  readonly allowFallbacks: boolean;
+  readonly maxTokens: number;
+  readonly prompt: string;
+};
 type Answer = (call: Call, signal: AbortSignal) => Response | Promise<Response>;
 
 const completion = (content: string, provider = "Parasail") =>
@@ -25,7 +32,14 @@ function stubOpenRouter(...answers: Answer[]): Call[] {
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     if (String(input) !== "https://openrouter.ai/api/v1/chat/completions") throw new Error(`unexpected fetch of ${String(input)}`);
     const body = JSON.parse(String(init?.body));
-    const call: Call = { model: body.model, hosts: body.provider.order, ignore: body.provider.ignore, allowFallbacks: body.provider.allow_fallbacks };
+    const call: Call = {
+      model: body.model,
+      hosts: body.provider.order,
+      ignore: body.provider.ignore,
+      allowFallbacks: body.provider.allow_fallbacks,
+      maxTokens: body.max_tokens,
+      prompt: body.messages[0].content[0].text,
+    };
     calls.push(call);
     const answer = answers[calls.length - 1];
     if (answer === undefined) throw new Error(`no answer for call ${calls.length}`);
@@ -45,7 +59,7 @@ function scanRequest({ ip = `198.51.100.${nextAddress++}`, origin = ORIGIN, body
 }
 
 const scan = (request = scanRequest(), vars: Partial<Cloudflare.Env> = {}) =>
-  scanReceipt(request, { ...env, OPENROUTER_API_KEY: "test-key", SCAN_PASS1_TIMEOUT_MS: "200", ...vars });
+  scanReceipt(request, { ...env, OPENROUTER_API_KEY: "test-key", SCAN_PASS1_TIMEOUT_MS: "200", SCAN_DEBUG_HEADERS: "true", ...vars });
 
 const seedScansToday = (count: number) =>
   runInDurableObject(env.CreateLimiter.getByName(SCAN_DAILY_CAP_NAME), (_, state) => state.storage.put("tally", { day: Math.floor(Date.now() / DAY), count }));
@@ -86,6 +100,15 @@ describe("POST /api/scan refusals", () => {
       ),
     );
     expect(statuses).toEqual([400, 400, 400, 400]);
+  });
+
+  it("refuses OCR text over 8,000 characters in all with 400 and calls no model, and accepts exactly 8,000", async () => {
+    const calls = stubOpenRouter(() => completion(PASSING));
+    const lines = (count: number, length: number) => Array.from({ length: count }, () => "A".repeat(length));
+    const over = await scan(scanRequest({ body: { photo: PHOTO, ocrLines: [...lines(26, 300), "A".repeat(201)] } }));
+    expect([over.status, await over.json(), calls.length]).toEqual([400, { refused: "rejected" }, 0]);
+    const exact = await scan(scanRequest({ body: { photo: PHOTO, ocrLines: [...lines(26, 300), "A".repeat(200)] } }));
+    expect([exact.status, calls.length]).toEqual([200, 1]);
   });
 
   it("answers 503 and calls no model when the key is not set", async () => {
@@ -147,7 +170,37 @@ describe("reading", () => {
         check: { passed: true, gaps: { subtotal: 0, total: 0 } },
       },
     ]);
-    expect(calls).toEqual([{ model: "z-ai/glm-5.3-flash", hosts: ["parasail"], ignore: ["openai/flex"], allowFallbacks: false }]);
+    expect(calls.map(({ prompt: _prompt, ...call }) => call)).toEqual([
+      { model: "z-ai/glm-5.3-flash", hosts: ["parasail"], ignore: ["openai/flex"], allowFallbacks: false, maxTokens: 3000 },
+    ]);
+  });
+
+  it("sends neither cost header unless SCAN_DEBUG_HEADERS is true", async () => {
+    stubOpenRouter(() => completion(PASSING), () => completion(PASSING));
+    const off = await scan(scanRequest(), { SCAN_DEBUG_HEADERS: "false" });
+    const on = await scan(scanRequest(), { SCAN_DEBUG_HEADERS: "true" });
+    expect([off.status, off.headers.get("x-scan-cost"), off.headers.get("x-scan-passes"), on.headers.get("x-scan-cost"), on.headers.get("x-scan-passes")]).toEqual([200, null, null, "0.000400", "1"]);
+  });
+
+  it("sends no cost headers with the shipped wrangler.jsonc vars", async () => {
+    stubOpenRouter(() => completion(PASSING));
+    const response = await scanReceipt(scanRequest(), { ...env, OPENROUTER_API_KEY: "test-key" });
+    expect([response.status, response.headers.get("x-scan-cost"), response.headers.get("x-scan-passes")]).toEqual([200, null, null]);
+  });
+
+  it("serializes the photo once and sends the same messages on the retry host", async () => {
+    const bodies: string[] = [];
+    const stringify = JSON.stringify;
+    const request = scanRequest({ body: { photo: PHOTO + "QUJD", ocrLines: ["BURGER  9.00"] } });
+    const spy = vi.spyOn(JSON, "stringify").mockImplementation((...args: Parameters<typeof JSON.stringify>) => {
+      const text = stringify(...args);
+      if (text.includes("QUJD")) bodies.push(text);
+      return text;
+    });
+    stubOpenRouter(() => completion(""), () => completion(PASSING));
+    const response = await scan(request, { SCAN_PASS1_HOSTS: "parasail,baseten" });
+    spy.mockRestore();
+    expect([response.status, bodies.length]).toEqual([200, 1]);
   });
 
   it("retries pass 1 on the second host when the first runs past its limit", async () => {
@@ -176,6 +229,27 @@ describe("reading", () => {
       ["z-ai/glm-5.3-flash", ["parasail"]],
       ["openai/gpt-6-luna", ["azure", "openai"]],
     ]);
+  });
+
+  it("caps pass 2's reply at 1,500 tokens", async () => {
+    const calls = stubOpenRouter(() => completion(SHORT), () => completion("ok"));
+    await scan();
+    expect(calls.map((call) => call.maxTokens)).toEqual([3000, 1500]);
+  });
+
+  it("gives pass 2 the Bundle rules when pass 1 returned no usable lines, and keeps the Bundle it rebuilds", async () => {
+    const rebuilt = "add|SUB|1400\nadd|TOT|1400\nadd|b|Beer Bucket\nadd|>i|Lager|900\nadd|>i|Stout|900\nadd|>d|Bucket deal|-400";
+    const calls = stubOpenRouter(() => completion("I cannot read this receipt."), () => completion(rebuilt));
+    const reply = await (await scan()).json<{ items: { name: string; price: number }[]; bundles: { name: string }[] }>();
+    expect(calls[1].prompt).toContain("Bundle: when items are printed under a header with no price or $0.00");
+    expect([reply.items.map((item) => [item.name, item.price]), reply.bundles.map((bundle) => bundle.name)]).toEqual([[["Lager", 900], ["Stout", 900]], ["Beer Bucket"]]);
+  });
+
+  it("refuses a pass-2 fix that turns a fee line into another kind, as it refuses a drop", async () => {
+    const withFee = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100\nf|Bag fee|10";
+    stubOpenRouter(() => completion(withFee), () => completion("fix|7|i|Bag fee|10"));
+    const reply = await (await scan()).json<{ items: { name: string }[]; adjustments: { kind: string; name: string }[] }>();
+    expect([reply.items.map((item) => item.name), reply.adjustments]).toEqual([["Burger", "Fries"], [{ kind: "tax", name: "Tax", amount: 100 }, { kind: "fee", name: "Bag fee", amount: 10 }]]);
   });
 
   it("returns a reading that still fails the check as a 200 when pass 2 does not fix it", async () => {

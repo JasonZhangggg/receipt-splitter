@@ -54,7 +54,7 @@ Preconditions:
 
 Preconditions:
 
-- `.dev.vars` in the worktree root holds the key. Write it without printing it: `node -e 'const fs=require("fs");const k=fs.readFileSync(process.env.HOME+"/.config/receipt-eval/env","utf8").match(/OPENROUTER_API_KEY=(\S+)/)[1];fs.writeFileSync(".dev.vars","OPENROUTER_API_KEY="+k+"\n",{mode:0o600})'`. `.dev.vars` is gitignored, and `.dev.vars.example` names the key with an empty value. Never commit, print, or log the key.
+- `.dev.vars` in the worktree root holds the key. Write it without printing it: `node -e 'const fs=require("fs");const k=fs.readFileSync(process.env.HOME+"/.config/receipt-eval/env","utf8").match(/OPENROUTER_API_KEY=(\S+)/)[1];fs.writeFileSync(".dev.vars","OPENROUTER_API_KEY="+k+"\nSCAN_DEBUG_HEADERS=true\n",{mode:0o600})'`. `SCAN_DEBUG_HEADERS=true` makes the route send `x-scan-cost` and `x-scan-passes`, which `run.mjs` reads. It is `false` in `wrangler.jsonc`, so production never sends them. `.dev.vars` is gitignored, and `.dev.vars.example` names the key with an empty value. Never commit, print, or log the key.
 - `verify.mjs launch --port 9211` reported `"ok":true` after `.dev.vars` was written. Wrangler reads `.dev.vars` only at start.
 - Live scans cost money. Check the balance before and after a run with `node ~/receipts-eval/credits.mjs`.
 

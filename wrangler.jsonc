@@ -19,10 +19,13 @@
     "SCAN_PASS1_HOSTS": "parasail,baseten",
     "SCAN_PASS1_EFFORT": "minimal",
     "SCAN_PASS1_TIMEOUT_MS": "25000",
+    "SCAN_PASS1_MAX_TOKENS": "3000",
     "SCAN_PASS2_MODEL": "openai/gpt-6-luna",
     "SCAN_PASS2_HOSTS": "azure,openai",
     "SCAN_PASS2_EFFORT": "low",
-    "SCAN_PASS2_TIMEOUT_MS": "30000"
+    "SCAN_PASS2_TIMEOUT_MS": "30000",
+    "SCAN_PASS2_MAX_TOKENS": "1500",
+    "SCAN_DEBUG_HEADERS": "false"
   },
   "assets": {
     "directory": "./dist",

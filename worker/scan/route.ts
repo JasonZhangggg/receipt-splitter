@@ -8,6 +8,11 @@ export const MAX_SCAN_BODY_BYTES = 1024 * 1024;
 
 const MAX_OCR_LINES = 400;
 const MAX_OCR_LINE_LENGTH = 300;
+/**
+ * The most OCR text one scan may carry. A real receipt is about 1,000 characters. Past this the route refuses with 400
+ * rather than truncating, because dropped lines would give a reading that adds up wrongly, and the client falls back to the device reader on a refusal.
+ */
+const MAX_OCR_CHARS = 8000;
 const JPEG_DATA_URL = "data:image/jpeg;base64,";
 
 export const SCAN_DAILY_CAP_NAME = "scan-daily-cap";
@@ -29,10 +34,13 @@ type ScanEnv = Pick<
   | "SCAN_PASS1_HOSTS"
   | "SCAN_PASS1_EFFORT"
   | "SCAN_PASS1_TIMEOUT_MS"
+  | "SCAN_PASS1_MAX_TOKENS"
   | "SCAN_PASS2_MODEL"
   | "SCAN_PASS2_HOSTS"
   | "SCAN_PASS2_EFFORT"
   | "SCAN_PASS2_TIMEOUT_MS"
+  | "SCAN_PASS2_MAX_TOKENS"
+  | "SCAN_DEBUG_HEADERS"
 >;
 
 /** Reads the scan settings from the Worker's vars and secret, or names what is missing or wrong. */
@@ -49,10 +57,11 @@ export function scanConfig(env: ScanEnv): ScanConfig | { readonly error: string 
       .filter(Boolean);
     const effort = env[`SCAN_PASS${n}_EFFORT`];
     const timeoutMs = count(`SCAN_PASS${n}_TIMEOUT_MS`);
-    if (!model || !effort || timeoutMs === null || host === undefined) return `SCAN_PASS${n}_* is missing or invalid`;
+    const maxTokens = count(`SCAN_PASS${n}_MAX_TOKENS`);
+    if (!model || !effort || timeoutMs === null || maxTokens === null || host === undefined) return `SCAN_PASS${n}_* is missing or invalid`;
     const hosts: NonEmpty<string> = [host, ...more];
     if (hosts.some((name) => (BANNED_HOSTS as readonly string[]).includes(name))) return `SCAN_PASS${n}_HOSTS lists a banned host`;
-    return { model, hosts, effort, timeoutMs };
+    return { model, hosts, effort, timeoutMs, maxTokens };
   };
   const [perMinute, perDay, dailyCap] = [count("SCAN_PER_MINUTE"), count("SCAN_PER_DAY"), count("SCAN_DAILY_CAP")];
   const [pass1, pass2] = [pass(1), pass(2)];
@@ -69,6 +78,7 @@ function parseScanInput(value: unknown): ScanInput | null {
   if (typeof photo !== "string" || !photo.startsWith(JPEG_DATA_URL) || photo.length === JPEG_DATA_URL.length) return null;
   if (!Array.isArray(ocrLines) || ocrLines.length > MAX_OCR_LINES) return null;
   if (!ocrLines.every((line): line is string => typeof line === "string" && line.length <= MAX_OCR_LINE_LENGTH)) return null;
+  if (ocrLines.reduce((total, line) => total + line.length, 0) > MAX_OCR_CHARS) return null;
   return { photo: photo as JpegDataUrl, ocrLines };
 }
 
@@ -113,9 +123,8 @@ export async function scanReceipt(request: Request, env: ScanEnv): Promise<Respo
     }),
   );
   if (reply === null) return refuse(502, "unreadable");
-  return Response.json(reply, {
-    headers: { "cache-control": "no-store", "x-scan-cost": cost.toFixed(6), "x-scan-passes": String(new Set(calls.map((call) => call.pass)).size) },
-  });
+  const debug: Record<string, string> = env.SCAN_DEBUG_HEADERS === "true" ? { "x-scan-cost": cost.toFixed(6), "x-scan-passes": String(new Set(calls.map((call) => call.pass)).size) } : {};
+  return Response.json(reply, { headers: { "cache-control": "no-store", ...debug } });
 }
 
 function parseJson(text: string): unknown {

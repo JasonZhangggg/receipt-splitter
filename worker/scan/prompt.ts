@@ -14,6 +14,8 @@ d|Coupon|-100
 f|Bag fee|10
 t|Tax|290`;
 
+const BUNDLE_RULE = `- Bundle: when items are printed under a header with no price or $0.00 and followed by a discount that covers only those items, write b|<header>, then that group's items and its discount with > in front (>i|..., >d|...). The header is not an item. + lines under a bundle item need no >.`;
+
 /** Pass 1's prompt. `/nothink` roughly halves GLM's reasoning and stops runaways. */
 export const PASS1_PROMPT = `/nothink
 Read this receipt photo. The OCR text of the same receipt is below as a hint; it is usually right about characters but can misread faint digits, so trust the photo when they disagree.
@@ -36,7 +38,7 @@ Rules:
 - Detail: a + line under its item holds only supplementary information, such as size, volume, flavor, weight and modifiers without a price (SMALL, ADD 2 EGGS). Write one + line per printed modifier line.
 - A discount, coupon, promo or price override printed under an item is a -|<name>|<cents> line under that item (after its + lines). A d line is only for a discount on the whole order.
 - When the receipt lists the same savings twice, once under each item and again in a summary block, keep the per-item lines and skip the summary block.
-- Bundle: when items are printed under a header with no price or $0.00 and followed by a discount that covers only those items, write b|<header>, then that group's items and its discount with > in front (>i|..., >d|...). The header is not an item. + lines under a bundle item need no >.
+${BUNDLE_RULE}
 - Amount is the price printed on that line. Never multiply quantity by price yourself.
 - Add |pre to SUB when the printed subtotal is before discounts are taken off.
 - Leave SKU, UPC and PLU numbers, department codes, and tax-flag letters printed beside a price out of names.
@@ -51,12 +53,13 @@ export const ocrText = (lines: readonly string[]) => `OCR text:\n${lines.join("\
 
 /** Pass 2's prompt. It asks for edits against pass 1's numbered lines, never a rewrite. */
 export function pass2Prompt(problems: readonly string[], lines: readonly string[]): string {
+  const bundleRules = lines.length === 0 ? `\nThere is no usable first reading, so build the whole reading with add lines, each in the first reading's line format. Rules for lines you add:\n${BUNDLE_RULE}\n` : "";
   const numbered = lines.length === 0 ? "(none)" : lines.map((line, at) => `${at + 1}. ${line}`).join("\n");
   return `A first reading of this receipt photo failed its arithmetic check: ${problems.join("; ")}.
 
 First reading, numbered (SUB subtotal[|pre = before discounts], TOT total; k|name|cents[|qty] with k: i item, d discount, t tax, p tip, s service charge, f fee; +|detail is a detail of the item above; -|name|cents is a discount of the item above; b|header opens a bundle and > marks its items and discount):
 ${numbered}
-
+${bundleRules}
 Look at the photo and reply ONLY with the edits that fix it, one per line, nothing else:
 fix|<line number>|<corrected line>
 drop|<line number>

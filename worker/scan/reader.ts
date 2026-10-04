@@ -14,6 +14,7 @@ export type PassConfig = {
   readonly hosts: NonEmpty<string>;
   readonly effort: string;
   readonly timeoutMs: number;
+  readonly maxTokens: number;
 };
 
 export type ReaderConfig = { readonly key: string; readonly pass1: PassConfig; readonly pass2: PassConfig };
@@ -40,6 +41,9 @@ export type ReadResult = { readonly reply: ScanReply | null; readonly calls: rea
 
 type Content = readonly ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
 
+/** The messages as JSON text. It holds the photo, so a pass serializes it once and every call of the pass reuses it. */
+const messagesJson = (content: Content) => JSON.stringify([{ role: "user", content }]);
+
 type OpenRouterBody = {
   choices?: { message?: { content?: unknown } }[];
   provider?: unknown;
@@ -48,7 +52,7 @@ type OpenRouterBody = {
 
 const numberOr = <Fallback>(value: unknown, fallback: Fallback) => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
 
-async function callModel(pass: 1 | 2, config: PassConfig, hosts: NonEmpty<string>, key: string, content: Content): Promise<{ text: string; log: CallLog }> {
+async function callModel(pass: 1 | 2, config: PassConfig, hosts: NonEmpty<string>, key: string, messages: string): Promise<{ text: string; log: CallLog }> {
   const started = Date.now();
   const failed = (outcome: Outcome) => ({
     text: "",
@@ -60,15 +64,14 @@ async function callModel(pass: 1 | 2, config: PassConfig, hosts: NonEmpty<string
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       signal: AbortSignal.timeout(config.timeoutMs),
-      body: JSON.stringify({
+      body: `${JSON.stringify({
         model: config.model,
         ...(config.model.startsWith("openai/") ? {} : { temperature: 0 }),
         reasoning: { effort: config.effort },
-        max_tokens: 8000,
+        max_tokens: config.maxTokens,
         usage: { include: true },
         provider: { order: hosts, allow_fallbacks: false, ignore: BANNED_HOSTS },
-        messages: [{ role: "user", content }],
-      }),
+      }).slice(0, -1)},"messages":${messages}}`,
     });
   } catch (error) {
     return failed(error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : "error");
@@ -118,11 +121,11 @@ const problemCount = (pass: Pass) => (pass.check === null ? Infinity : pass.chec
 export async function readReceipt(input: ScanInput, config: ReaderConfig): Promise<ReadResult> {
   const image = { type: "image_url" as const, image_url: { url: input.photo } };
   const calls: CallLog[] = [];
-  const pass1Content: Content = [{ type: "text", text: PASS1_PROMPT }, { type: "text", text: ocrText(input.ocrLines) }, image];
+  const pass1Messages = messagesJson([{ type: "text", text: PASS1_PROMPT }, { type: "text", text: ocrText(input.ocrLines) }, image]);
 
   let text = "";
   for (const host of config.pass1.hosts.slice(0, 2)) {
-    const call = await callModel(1, config.pass1, [host], config.key, pass1Content);
+    const call = await callModel(1, config.pass1, [host], config.key, pass1Messages);
     calls.push(call.log);
     text = call.text;
     if (call.log.outcome === "ok") break;
@@ -133,7 +136,7 @@ export async function readReceipt(input: ScanInput, config: ReaderConfig): Promi
   if (first.check?.passed !== true) {
     const problems = first.check === null ? ["the first reading could not be parsed"] : first.check.passed ? [] : first.check.problems;
     const numbered = first.reading === null ? [] : first.lines;
-    const call = await callModel(2, config.pass2, config.pass2.hosts, config.key, [{ type: "text", text: pass2Prompt(problems, numbered) }, image]);
+    const call = await callModel(2, config.pass2, config.pass2.hosts, config.key, messagesJson([{ type: "text", text: pass2Prompt(problems, numbered) }, image]));
     calls.push(call.log);
     if (call.log.outcome === "ok") {
       const second = passOf(applyEdits(numbered, call.text).lines);

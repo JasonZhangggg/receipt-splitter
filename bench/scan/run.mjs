@@ -17,6 +17,7 @@ Posts each fixture to <url>/api/scan and scores every reading.
   --concurrency <n>     requests in flight (default 2)
   --out <file.json>     write every run's result
 
+The route sends the cost and pass count only when SCAN_DEBUG_HEADERS=true, so put that in .dev.vars before a run.
 Prints fixture ids only, never item names or amounts. Exits 1 below the floor or on a network error.`;
 
 /** One row per printed line, the label and amount joined by two spaces. */
@@ -199,6 +200,7 @@ async function main() {
       : `Fully correct ${(fullyCorrect * 100).toFixed(1)}%, no floor.`,
   );
   if (values.out) writeFileSync(values.out, `${JSON.stringify(results, null, 2)}\n`);
+  if (results.some(({ status, cost }) => status === 200 && cost === null)) console.error("A reading came back with no x-scan-cost header, so the spend above is incomplete. Set SCAN_DEBUG_HEADERS=true in .dev.vars and relaunch.");
   if (rateLimited) console.error("The route refused scans past its per-day limit. Raise SCAN_PER_MINUTE and SCAN_PER_DAY in .dev.vars for harness runs.");
   if (networkErrors > 0) console.error(`${networkErrors} request(s) failed at the network level.`);
   return met && networkErrors === 0 ? 0 : 1;
