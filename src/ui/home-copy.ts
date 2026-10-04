@@ -70,6 +70,28 @@ export const editorCopy = {
   discountExceededPrice: "Its discount was more than its price.",
 };
 
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayOf = (time: number) => new Date(time).setHours(0, 0, 0, 0);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const historyCopy = {
+  title: "Recent splits",
+  names: (names: readonly string[]) => {
+    if (names.length <= 2) return names.join(" and ");
+    const [first, second, ...rest] = names;
+    return `${first}, ${second}, and ${rest.length === 1 ? rest[0] : `${rest.length} more`}`;
+  },
+  when: (added: number, now: number) => {
+    const days = Math.round((dayOf(now) - dayOf(added)) / DAY_MS);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    const date = new Date(added);
+    const day = `${months[date.getMonth()]} ${date.getDate()}`;
+    return date.getFullYear() === new Date(now).getFullYear() ? day : `${day}, ${date.getFullYear()}`;
+  },
+  row: (names: string, when: string, total: string) => `${names}, ${when}, ${total}`,
+};
+
 export const paymentApps: Record<PaymentService, { name: string; glyph: string; hint: string }> = {
   venmo: { name: "Venmo", glyph: "V", hint: "@username" },
   cashApp: { name: "Cash App", glyph: "$", hint: "$cashtag" },

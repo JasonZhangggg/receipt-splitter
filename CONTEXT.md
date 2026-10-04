@@ -80,6 +80,10 @@ _Avoid_: Unassigned item
 One Participant's part of the bill: their Claimed Items, a part of each Bundle discount proportional to their Items in that Bundle, and a part of the other Adjustments proportional to their Items after Bundle discounts.
 _Avoid_: Portion, amount owed, balance
 
+**Recent split**:
+A Split this device created or opened, listed on home with its names, the day the device first saw it, and its total. It stays on the device only, and leaves the list 60 days after the device last opened it or once its link says it has expired.
+_Avoid_: History, which is the Split page's list of payments and receipt changes
+
 **Payment**:
 A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer. Only the device that picked the name records or clears its Payment. That rule stops honest mistakes and is not a security check, because **That's me** lets any device take a name. History shows a Payment but cannot revert it.
 _Avoid_: Settlement, transaction

@@ -351,17 +351,17 @@ type Store = Pick<Storage, "getItem" | "setItem">;
 const key = "receipt-splitter:draft";
 
 /** A reload of home starts a new split, so only the Payment handles are stored. */
-export function saveDraft({ handles }: Draft, storage: Store | undefined = globalThis.localStorage): void {
+export function saveDraft({ handles }: Draft, storage?: Store): void {
   try {
-    storage?.setItem(key, JSON.stringify({ version: 2, handles }));
+    (storage ?? globalThis.localStorage)?.setItem(key, JSON.stringify({ version: 2, handles }));
   } catch {
     return;
   }
 }
 
-export function loadDraft(storage: Store | undefined = globalThis.localStorage): Draft {
+export function loadDraft(storage?: Store): Draft {
   try {
-    const handles = storedHandles(JSON.parse(storage?.getItem(key) ?? "null"));
+    const handles = storedHandles(JSON.parse((storage ?? globalThis.localStorage)?.getItem(key) ?? "null"));
     return handles ? { ...emptyDraft, handles } : emptyDraft;
   } catch {
     return emptyDraft;

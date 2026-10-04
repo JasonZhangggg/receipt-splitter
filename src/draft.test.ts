@@ -211,6 +211,21 @@ describe("a reload of home", () => {
     expect(JSON.parse(storage.getItem("receipt-splitter:draft") ?? "null")).toEqual({ version: 2, handles: [{ service: "venmo", handle: "@jason-z" }] });
   });
 
+  test("blocked storage loads the empty draft and saves without throwing", () => {
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("The operation is insecure.", "SecurityError");
+      },
+    });
+    try {
+      expect(loadDraft()).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], names: [] });
+      expect(() => saveDraft(emptyDraft)).not.toThrow();
+    } finally {
+      Reflect.deleteProperty(globalThis, "localStorage");
+    }
+  });
+
   test("an empty, unreadable, or foreign value loads the empty draft", () => {
     const storage = new MemoryStorage();
     const loads = (value: unknown) => {

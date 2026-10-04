@@ -7,7 +7,7 @@ import { cents } from "../../src/core/money";
 import type { Operation } from "../../src/core/operations";
 import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
-import { rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
+import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { newName, plainAmount } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
 import { Button } from "../../src/ui/components/button";
@@ -33,6 +33,10 @@ export default function SplitScreen() {
   const insets = useSafeAreaInsets();
   const splitId = isRoutableSplitId(id) ? id : null;
   const { live, send } = useLiveSplit(id);
+  const expired = live.status === "gone" && live.reason === "notFound";
+  useEffect(() => {
+    if (expired && splitId) forgetSplit(splitId);
+  }, [expired, splitId]);
 
   if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} send={send} />;
   return (
@@ -98,6 +102,7 @@ function SplitPage({ splitId, split, send }: { splitId: SplitId; split: Split; s
   const [sheetHeight, setSheetHeight] = useState(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => noteSplit(split), [split]);
 
   const shares = useMemo(() => computeShares(split), [split]);
   const people = split.participants;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, View, type LayoutChangeEvent, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -26,6 +26,7 @@ export function Sheet({ children, action, onHeight }: Props) {
   const reduce = useReducedMotion();
   const [height, setHeight] = useState(0);
   const [overflows, setOverflows] = useState(false);
+  const anchor = useRef<View>(null);
   const panel = useRef<View>(null);
   const scroller = useRef<ScrollView>(null);
   const drag = useRef<Drag | null>(null);
@@ -39,7 +40,9 @@ export function Sheet({ children, action, onHeight }: Props) {
     if (element) element.style.transform = value ? `translateY(${value}px)` : "";
   };
 
-  useEffect(() => onHeight(height), [height, onHeight]);
+  // onLayout reports after the first paint, and the page lays out around this height, so the first frame reads it before paint.
+  useLayoutEffect(() => setHeight((anchor.current as unknown as HTMLElement).getBoundingClientRect().height), []);
+  useLayoutEffect(() => onHeight(height), [height, onHeight]);
 
   const onPointerDown = (event: PointerEvent) => {
     const { pointerId, pointerType, clientY } = event.nativeEvent;
@@ -76,7 +79,7 @@ export function Sheet({ children, action, onHeight }: Props) {
 
   return (
     // The keyboard leaves the panel where it lies; iOS pans the page to reveal the focused field.
-    <View {...sheetMarker} style={styles.anchor} onLayout={measure}>
+    <View ref={anchor} {...sheetMarker} style={styles.anchor} onLayout={measure}>
       <View
         ref={panel}
         {...surfaceMarker}
