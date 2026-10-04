@@ -12,7 +12,7 @@ import { splitCopy as say } from "../split-copy";
 import { fieldGroup } from "../document";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
-import { bundleNote, lineAmounts, splitIds } from "../split-view/model";
+import { bundleNote, lineAmounts, nameParts, splitIds } from "../split-view/model";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
 
@@ -34,6 +34,14 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   );
   const reshaped = next.by !== undefined && next.by !== pending.by;
   return { ...pending, ...next, values: reshaped ? (next.values ?? []) : values };
+}
+
+function showsAsBefore(item: SplitItem, edit: ItemEdit): boolean {
+  const { name, detail, values = [], ...rest } = edit;
+  if (values.length > 0 || Object.keys(rest).length > 0) return false;
+  const [title, line] = nameParts(item);
+  const [nextTitle, nextLine] = nameParts({ name: name ?? item.name, detail: detail === undefined ? item.detail : detail });
+  return nextTitle === title && (nextLine || null) === (line || null);
 }
 
 export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClose }: Props) {
@@ -88,6 +96,12 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
 
   const flush = () => {
     if (Object.keys(pending).length === 0 || refusal || leavingFrom) return;
+    const withSent = live && sent.length > 0 ? applyOperation(split, patch(sent.reduce(merge, {})), { creator: false }) : null;
+    const base = withSent?.ok ? withSent.split.receipt.items.find(({ id }) => id === itemId) : live;
+    if (base && showsAsBefore(base, pending)) {
+      setPending({});
+      return;
+    }
     const sending = pending;
     setPending({});
     setSent((was) => [...was, sending]);
@@ -150,6 +164,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     flushRef.current = () => {};
     leave({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] });
   };
+  // The fields show the row's two lines. When the row splits a size off the name, the first edit to either field saves that size as the detail, so the row keeps both lines.
+  const [title, line] = nameParts(item);
+  const sized = item.detail === undefined && line !== null;
   const note = bundleNote(seen.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
   const splitLine = () => {
@@ -177,8 +194,8 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
         <TextInput
           aria-label={say.itemName}
           key={fields}
-          defaultValue={item.name}
-          onChangeText={(name) => name.trim() && edit({ name: name.trim() })}
+          defaultValue={title}
+          onChangeText={(name) => name.trim() && edit({ name: name.trim(), ...(sized && { detail: line }) })}
           enterKeyHint="done"
           style={[type.input, styles.field, styles.strong, { color: c.ink }]}
         />
@@ -188,9 +205,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           placeholder={say.addDetail}
           placeholderTextColor={c.muted}
           key={fields}
-          defaultValue={item.detail ?? ""}
+          defaultValue={line ?? ""}
           maxLength={MAX_DETAIL_LENGTH}
-          onChangeText={(detail) => edit({ detail: detail.trim() })}
+          onChangeText={(detail) => edit({ detail: detail.trim(), ...(sized && { name: title }) })}
           enterKeyHint="done"
           style={[type.input, styles.field, { color: c.ink }]}
         />
@@ -234,6 +251,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
         <PressTarget name={say.splitInto(quantity)} outsideScroll onPress={splitLine} style={(pressed) => pressStyle(pressed, reduce)}>
           {() => (
             <View style={[styles.wide, { backgroundColor: c.sheetIn }]}>
+              <Icon name="split" size={18} color={c.ink} />
               <Text style={[type.button, { color: c.ink }]}>{say.splitInto(quantity)}</Text>
             </View>
           )}

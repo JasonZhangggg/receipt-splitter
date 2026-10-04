@@ -134,6 +134,55 @@ test("the Guinness line is one 3x row at 21.87, and its circle claims the whole 
   await expect(firstBucket(page).getByText("3 unclaimed", { exact: true })).toBeVisible();
 });
 
+test("the Item sheet shows the gray line under a row's name in its Detail field, and renaming the Item keeps that line", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const field = (name: string) => sheet.getByRole("textbox", { name, exact: true });
+
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  await expect(field("Item name")).toHaveValue("Gameplay");
+  await expect(field("Detail")).toHaveValue("");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await firstBucket(page).click();
+  const ultra = page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / });
+  await expect(ultra.getByText("16oz Aluminum Bottle", { exact: true })).toBeVisible();
+  await ultra.click();
+  await expect(field("Item name")).toHaveValue("Michelob Ultra");
+  await expect(field("Detail")).toHaveValue("16oz Aluminum Bottle");
+
+  await field("Item name").fill("Michelob Ultra Lite");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  const renamed = page.getByRole("button", { name: /^Open Michelob Ultra Lite, / });
+  await expect(renamed.getByText("Michelob Ultra Lite", { exact: true })).toBeVisible(live);
+  await expect(renamed.getByText("16oz Aluminum Bottle", { exact: true })).toBeVisible();
+});
+
+test("typing a sized row's name back to what it was saves nothing, so History has no empty row", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const field = (name: string) => sheet.getByRole("textbox", { name, exact: true });
+
+  await firstBucket(page).click();
+  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).click();
+  await field("Item name").fill("Michelob Ultra Lite");
+  await field("Item name").fill("Michelob Ultra");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).click();
+  await field("Detail").fill("16oz Can");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await page.getByRole("button", { name: "History" }).click();
+  await expect(page.getByRole("button", { name: /^Revert / })).toHaveCount(1, live);
+  await expect(page.getByRole("button", { name: /^Revert Michelob Ultra/ })).toHaveCount(1);
+});
+
 test("Split turns the 3x Guinness line into three rows at 7.29 with its claims for everyone, and Revert brings back the one 3x row", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
@@ -497,4 +546,39 @@ test("a collapsed Bundle's unclaimed line grows in on the first claim and collap
   const shrunk = [...new Set(await up)];
   expect(shrunk.length).toBeGreaterThan(2);
   expect(shrunk[0] - shrunk.at(-1)!).toBeGreaterThan(10);
+});
+
+test("typing the original name back while the first edit is unconfirmed still saves it, so the row ends as it began", async ({ browser, request }, { workerIndex }) => {
+  const context = await newContext(browser);
+  const page = await context.newPage();
+  const held: { forward: () => void }[] = [];
+  let holding = false;
+  await page.routeWebSocket(/\/parties\//, (client) => {
+    const server = client.connectToServer();
+    server.onMessage((message) => client.send(message));
+    client.onMessage((message) => {
+      if (holding && String(message).includes("editReceipt")) held.push({ forward: () => server.send(message) });
+      else server.send(message);
+    });
+  });
+  await page.goto(await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const name = sheet.getByRole("textbox", { name: "Item name", exact: true });
+
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  holding = true;
+  await name.fill("Lite");
+  await expect.poll(() => held.length, live).toBe(1);
+  await name.fill("Gameplay");
+  await page.waitForTimeout(1_500);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  holding = false;
+  held.forEach(({ forward }) => forward());
+  await expect(page.getByRole("button", { name: /^Open Gameplay, / })).toBeVisible(live);
+  await page.waitForTimeout(1_000);
+  await expect(page.getByRole("button", { name: /^Open Lite, / })).toHaveCount(0);
+  await context.close();
 });

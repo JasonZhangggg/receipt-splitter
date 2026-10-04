@@ -83,7 +83,7 @@ export const splitCopy = {
   item: "Item",
   itemName: "Item name",
   itemDetail: "Detail",
-  addDetail: "Add a detail",
+  addDetail: "Add detail (optional)",
   price: "Price",
   quantity: "Quantity",
   splitInto: (count: number) => `Split into ${count}`,

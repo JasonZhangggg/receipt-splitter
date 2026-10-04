@@ -1,7 +1,7 @@
 import type { Change, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
-import { ratio } from "../split-view/model";
+import { nameParts, ratio } from "../split-view/model";
 
 export type Entry = {
   readonly revision: number;
@@ -50,6 +50,10 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       const rows: readonly { readonly id: string; readonly name: string }[] = write.kind === "item" ? split.receipt.items : split.receipt.adjustments;
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
+      if ("name" in edit && edit.name && "detail" in edit && edit.detail && !edit.detail[0]) {
+        const [before, after] = [nameParts({ name: edit.name[0], detail: undefined }), edit.name[1]];
+        if (before[1] !== null && after === before[0] && edit.detail[1]) return { lead: name, before: before[1], after: edit.detail[1] };
+      }
       if ("name" in edit && edit.name) return { lead: "", before: edit.name[0], after: edit.name[1] };
       if ("quantity" in edit && edit.quantity) return { lead: name, before: `×${edit.quantity[0]}`, after: `×${edit.quantity[1]}` };
       if ("price" in edit && edit.price) return { lead: name, before: groupedAmount(edit.price[0]), after: groupedAmount(edit.price[1]) };

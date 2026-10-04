@@ -84,6 +84,49 @@ describe("historyOf", () => {
   });
 });
 
+describe("a row with a printed size", () => {
+  const ultra = itemId("ultra");
+  const sized = (edit: object): Split => {
+    const created = createSplit({
+      id: "q7Xv0Lr9_aZ-3mKpAbCdEf" as MintedSplitId,
+      receipt: { items: [{ id: ultra, name: "Michelob Ultra 16oz Aluminum Bottle", price: price(700) }], adjustments: [], subtotal: cents(700), total: cents(700) },
+      participants: [{ id: ann, name: "Ann" }],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+    });
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+    const edited = applyOperation(created.split, { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: ultra, ...edit }] }, { creator: false }, 1_000);
+    if (!edited.ok) throw new Error(JSON.stringify(edited.rejection));
+    return edited.split;
+  };
+  const read = (edit: object) => historyOf(sized(edit)).map(({ lead, before, after }) => [lead, before, after]);
+
+  test("reads a first edit to the Detail field as the size changing", () => {
+    expect(read({ name: "Michelob Ultra", detail: "16oz Can" })).toEqual([["Michelob Ultra", "16oz Aluminum Bottle", "16oz Can"]]);
+  });
+
+  test("reads a rename by the old and new names", () => {
+    expect(read({ name: "Miller Lite", detail: "16oz Aluminum Bottle" })).toEqual([["", "Michelob Ultra 16oz Aluminum Bottle", "Miller Lite"]]);
+  });
+
+  test("reads clearing the Detail field as the name losing its size", () => {
+    expect(read({ name: "Michelob Ultra", detail: "" })).toEqual([["", "Michelob Ultra 16oz Aluminum Bottle", "Michelob Ultra"]]);
+  });
+});
+
+test("reads a stored-detail row whose name shortens while its detail changes as a rename, not a size change", () => {
+  const foo = itemId("foo");
+  const created = createSplit({
+    id: "q7Xv0Lr9_aZ-3mKpAbCdEf" as MintedSplitId,
+    receipt: { items: [{ id: foo, name: "Foo 12oz Bar", detail: "Large", price: price(700) }], adjustments: [], subtotal: cents(700), total: cents(700) },
+    participants: [{ id: ann, name: "Ann" }],
+    paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+  });
+  if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+  const edited = applyOperation(created.split, { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: foo, name: "Foo", detail: "Mega" }] }, { creator: false }, 1_000);
+  if (!edited.ok) throw new Error(JSON.stringify(edited.rejection));
+  expect(historyOf(edited.split).map(({ lead, before, after }) => [lead, before, after])).toEqual([["", "Foo 12oz Bar", "Foo"]]);
+});
+
 test("reads a Split as one entry, Split Guinness Draught 14.9oz Can into 3, that can be reverted", () => {
   const guinness = itemId("guinness");
   const created = createSplit({
