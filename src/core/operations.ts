@@ -324,11 +324,23 @@ function editedSplit(split: ItemSplit, { by, values }: Extract<ItemPatch, { type
   return next;
 }
 
-/** The rows a Split leaves: each copies the line's claimers and mode, and each claimer's cents spread over the rows as the price does. */
+/**
+ * The rows a Split leaves: each copies the line's claimers and mode.
+ * By amount, the rows fill in order, each claimer taking what is left of their cents up to what is left of the row's price, so every claimer's total and the unclaimed rest stay the same.
+ */
 function splitRows(split: ItemSplit, prices: readonly number[]): ItemSplit[] {
   if (split.by !== "amount") return prices.map(() => split);
-  const spread = new Map(split.units[0].map(([id, amount]) => [id, unitPrices(amount, prices.length)]));
-  return prices.map((rowPrice, row) => evenIfOverPrice(withClaimers("amount", claimersOf(split), (id) => spread.get(id)?.[row]), rowPrice));
+  const left = new Map<ParticipantId, number>(split.units[0]);
+  return prices.map((rowPrice) => {
+    let room = rowPrice;
+    const parts = split.units[0].map(([id]): Part<Cents> => {
+      const taken = Math.min(left.get(id) ?? 0, room);
+      left.set(id, (left.get(id) ?? 0) - taken);
+      room -= taken;
+      return [id, cents(taken)];
+    });
+    return { by: "amount", units: [parts] };
+  });
 }
 
 function fieldsOf({ id, ...fields }: Adjustment): AdjustmentFields {

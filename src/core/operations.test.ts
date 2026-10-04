@@ -780,27 +780,60 @@ describe("quantity lines", () => {
     ]);
   });
 
-  test("Split of a by-amount line spreads each claimer's cents over the rows, so they still pay the same", () => {
+  test("Split of a by-amount line fills the rows in order with each claimer's cents, so they still pay the same", () => {
     const amounts = apply(atThePub(), claim(bob), claim(cat), edit({ by: "amount", values: [{ participantId: bob, value: 1000 }, { participantId: cat, value: 600 }] }));
 
     const split = apply(amounts, splitLine([beerB, beerC]));
 
     expect(rows(split).slice(1)).toEqual([
-      ["beer", 729, 1, { by: "amount", units: [[["bob", 334], ["cat", 200]]] }],
-      ["beer-b", 729, 1, { by: "amount", units: [[["bob", 333], ["cat", 200]]] }],
-      ["beer-c", 729, 1, { by: "amount", units: [[["bob", 333], ["cat", 200]]] }],
+      ["beer", 729, 1, { by: "amount", units: [[["bob", 729], ["cat", 0]]] }],
+      ["beer-b", 729, 1, { by: "amount", units: [[["bob", 271], ["cat", 458]]] }],
+      ["beer-c", 729, 1, { by: "amount", units: [[["bob", 0], ["cat", 142]]] }],
     ]);
     expect(shares(split)).toEqual([0, 1000, 600]);
+    expect(computeShares(split).unclaimed.total).toBe(1387);
   });
 
-  test("Split turns a by-amount row even when the spread cents would pass its price", () => {
+  test("Split of a by-amount line that covers the price keeps every row by amount and every Share to the cent", () => {
     const amounts = apply(atThePub(), claim(bob), claim(cat), edit({ by: "amount", values: [{ participantId: bob, value: 1094 }, { participantId: cat, value: 1093 }] }));
 
-    expect(rows(apply(amounts, splitLine([beerB, beerC]))).slice(1)).toEqual([
-      ["beer", 729, 1, { by: "even", units: [["bob", "cat"]] }],
+    const split = apply(amounts, splitLine([beerB, beerC]));
+
+    expect(rows(split).slice(1)).toEqual([
+      ["beer", 729, 1, { by: "amount", units: [[["bob", 729], ["cat", 0]]] }],
       ["beer-b", 729, 1, { by: "amount", units: [[["bob", 365], ["cat", 364]]] }],
-      ["beer-c", 729, 1, { by: "amount", units: [[["bob", 364], ["cat", 364]]] }],
+      ["beer-c", 729, 1, { by: "amount", units: [[["bob", 0], ["cat", 729]]] }],
     ]);
+    expect(shares(split)).toEqual([0, 1094, 1093]);
+  });
+
+  test("Split keeps every Share to the cent for any by-amount pair on the Topgolf Guinness", () => {
+    const differences: string[] = [];
+    for (let jasons = 0; jasons <= 2187; jasons += 1) {
+      for (const priyas of [2187 - jasons, Math.floor((2187 - jasons) / 2), 0]) {
+        const values = [{ participantId: jason, value: jasons }, { participantId: priya, value: priyas }];
+        const amounts = apply(topgolf({ guinness1: [jason, priya] }), { by: jason, type: "editReceipt", items: [{ type: "edit", itemId: itemId("guinness1"), by: "amount", values }] });
+        const split = apply(amounts, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] });
+        const before = computeShares(amounts);
+        const after = computeShares(split);
+        if (JSON.stringify(after.shares) !== JSON.stringify(before.shares) || after.unclaimed.total !== before.unclaimed.total) differences.push(`${jasons}/${priyas}`);
+      }
+    }
+
+    expect(differences).toEqual([]);
+  });
+
+  test("Split keeps every Share to the cent for evenly and by-shares lines at any price", () => {
+    const differences: string[] = [];
+    for (const cents of [1, 2, 3, 4, 5, 999, 1000, 1001, 1002, 2186, 2187, 2188]) {
+      for (const shape of [edit({ by: "even" }), edit({ by: "shares", values: [{ participantId: bob, value: 2 }, { participantId: cat, value: 7 }] })]) {
+        const line = apply(atThePub(), claim(ann), claim(bob), claim(cat), edit({ price: price(cents) }), shape);
+        const split = apply(line, splitLine([beerB, beerC]));
+        if (JSON.stringify(computeShares(split)) !== JSON.stringify(computeShares(line))) differences.push(`${cents} ${line.receipt.items[1].split.by}`);
+      }
+    }
+
+    expect(differences).toEqual([]);
   });
 
   test("Split inside a Bundle lists the new rows right after the line, and the Topgolf Shares stay $157.77 and $49.52", () => {
