@@ -124,6 +124,33 @@ test("five stored Splits show three on the phone, with the list ending above the
   expect(panel - (list.y + list.height)).toBeLessThanOrEqual(40);
 });
 
+const shownAbovePanel = (page: Page) =>
+  page.evaluate(() => {
+    const panel = document.querySelector("[data-sheet-surface]")!.getBoundingClientRect().top;
+    const bottoms = [...document.querySelectorAll('[aria-label="Recent splits"] a')].map((row) => row.getBoundingClientRect().bottom);
+    return { shown: bottoms.length, above: bottoms.filter((bottom) => bottom <= panel).length };
+  });
+
+test("on a shorter phone, Recent splits shows only the rows that end above the panel, and shows more once there is room", async ({ page }) => {
+  await seed(page, [ana, jason, priya, kim, omar]);
+  expect(await shownAbovePanel(page)).toEqual({ shown: 3, above: 3 });
+
+  await page.setViewportSize({ width: 390, height: 700 });
+  await seed(page, [ana, jason, priya, kim, omar]);
+  const at700 = await shownAbovePanel(page);
+  expect(at700.above).toBe(at700.shown);
+  expect(at700.shown).toBeLessThan(3);
+
+  await page.setViewportSize({ width: 390, height: 600 });
+  await seed(page, [ana, jason, priya, kim, omar]);
+  const at600 = await shownAbovePanel(page);
+  expect(at600.above).toBe(at600.shown);
+  expect(at600.shown).toBeLessThanOrEqual(at700.shown);
+
+  await page.setViewportSize(phone);
+  await expect.poll(() => shownAbovePanel(page)).toEqual({ shown: 3, above: 3 });
+});
+
 test("at 1440 px five stored Splits show five, under Create split link, sharing the column's left edge and width", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await seed(page, [ana, jason, priya, kim, omar]);

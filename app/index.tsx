@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -49,6 +49,8 @@ export default function Home() {
   const [viewing, setViewing] = useState(false);
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
+  const [fit, setFit] = useState<{ room: string; rows: number } | null>(null);
+  const historyBox = useRef<View>(null);
   const scanning = useRef(0);
   const handleInput = useRef<TextInput>(null);
   useEffect(prefetchModel, []);
@@ -131,8 +133,10 @@ export default function Home() {
     return null;
   };
   const removeName = (name: string) => dispatch({ type: "removeName", name });
-  const recent = stored.slice(0, wide ? RECENT_WIDE : RECENT_NARROW);
-  const listing = draft.scan.status === "empty" && recent.length > 0;
+  // On a phone the list shows only the rows that end above the panel, measured with every row laid out once per page size.
+  const room = `${width}x${height}:${sheetHeight}`;
+  const recent = stored.slice(0, wide ? RECENT_WIDE : fit?.room === room ? fit.rows : RECENT_NARROW);
+  const listing = draft.scan.status === "empty" && stored.length > 0;
   // With Recent splits under it, the hero yields its spare room so the list sits above the panel.
   const compact = !wide && (listing || height - insets.top - insets.bottom < shortScreen);
   const editor = editsOnHome(draft);
@@ -140,7 +144,16 @@ export default function Home() {
   const columnWidth = roomy ? 480 : 440;
   const view = photo ? () => setViewing(true) : undefined;
   const zoneHeight = roomy ? 380 : 336;
-  const history = listing ? <RecentSplits splits={recent} now={now} /> : null;
+  const history = listing && recent.length > 0 ? <RecentSplits splits={recent} now={now} /> : null;
+
+  useLayoutEffect(() => {
+    const box = historyBox.current as unknown as HTMLElement | null;
+    if (wide || !box || sheetHeight === 0 || fit?.room === room) return;
+    const page = box.parentElement!.getBoundingClientRect().top;
+    const bottoms = [...box.querySelectorAll("a")].map((row) => row.getBoundingClientRect().bottom - page);
+    const below = box.getBoundingClientRect().bottom - page - bottoms[bottoms.length - 1];
+    setFit({ room, rows: bottoms.filter((bottom) => bottom + below <= height - sheetHeight).length });
+  }, [wide, listing, sheetHeight, fit?.room, room, height]);
 
   const action = (
     <Button
@@ -220,7 +233,11 @@ export default function Home() {
         ) : (
           <>
             {receipt}
-            {history ? <View style={[sides, styles.history]}>{history}</View> : null}
+            {history ? (
+              <View ref={historyBox} style={[sides, styles.history]}>
+                {history}
+              </View>
+            ) : null}
           </>
         )}
       </ScrollView>
