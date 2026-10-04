@@ -18,7 +18,8 @@ type Props = {
   chosen: ParticipantId | null;
   onPick: (id: ParticipantId, takeOver: boolean) => void;
   onAdd: (name: string) => Promise<string | null>;
-  onClose: () => void;
+  /** Absent where the pick content is part of the page, as in the desktop right pane. */
+  onClose?: () => void;
   url: string;
 };
 
@@ -41,11 +42,13 @@ export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url }: 
           {intro.rest}
           {intro.strong ? <Text style={[styles.strong, { color: c.ink }]}>{intro.strong}</Text> : null}
         </Text>
-        <View style={styles.close}>
-          <Button kind="icon" icon="x" name={say.closePick} onPress={onClose} outsideScroll />
-        </View>
+        {onClose ? (
+          <View style={styles.close}>
+            <Button kind="icon" icon="x" name={say.closePick} onPress={onClose} outsideScroll />
+          </View>
+        ) : null}
       </View>
-      <Text role="heading" aria-level={1} style={[type.hero, styles.ask, { color: c.ink }]}>
+      <Text role="heading" aria-level={2} style={[type.hero, styles.ask, { color: c.ink }]}>
         {say.question}
       </Text>
       <PickRows rows={rows} chosen={chosen} onPick={onPick} />

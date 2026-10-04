@@ -73,6 +73,12 @@ export function splitIds(receipt: Receipt<SplitItem>, line: SplitItem): ItemId[]
   return ids;
 }
 
+/** Where focus goes when the line for `gone` leaves the receipt, nearest first: the lines after it, then the ones before it. */
+export function linesNear(order: readonly ItemId[], gone: ItemId): ItemId[] {
+  const at = order.indexOf(gone);
+  return at < 0 ? [] : [...order.slice(at + 1), ...order.slice(0, at).reverse()];
+}
+
 export function circleTap(item: SplitItem, participantId: ParticipantId): Operation[] {
   const had = claimersOf(item.split).includes(participantId);
   return [{ by: participantId, type: had ? "unclaim" : "claim", itemId: item.id, participantId }];

@@ -95,7 +95,7 @@ const probeSource = {
   itemTop: `() => { const el = document.querySelector('[data-testid="item-sheet"]'); return el ? el.getBoundingClientRect().top - visualViewport.offsetTop : null; }`,
   sheetTop: `() => { const el = document.querySelector('[data-testid="split-sheet"]'); return el ? el.getBoundingClientRect().top - visualViewport.offsetTop : null; }`,
   sheetHeight: `() => document.querySelector('[data-testid="split-sheet"]')?.getBoundingClientRect().height ?? null`,
-  expanded: `() => document.querySelector('[data-testid^="bundle-"] [aria-expanded]')?.getAttribute("aria-expanded") ?? null`,
+  expanded: `() => document.querySelector('[data-testid^="bundle-"] [aria-controls]')?.getAttribute("aria-expanded") ?? null`,
   region: `() => document.querySelector('[data-testid^="bundle-"]')?.lastElementChild?.getBoundingClientRect().height ?? null`,
   regionShown: `() => (document.querySelector('[data-testid^="bundle-"]')?.lastElementChild?.childElementCount ?? 0) > 0 ? "rows" : "empty"`,
   vvHeight: `() => visualViewport.height`,
@@ -144,7 +144,7 @@ async function itemOpen(page) {
   await still(page.getByTestId("item-sheet"));
 }
 const segment = (page, name) => page.getByTestId("item-sheet").getByRole("button", { name, exact: true });
-const bundleHeader = (page) => page.locator('[data-testid^="bundle-"]').locator("[aria-expanded]");
+const bundleHeader = (page) => page.locator('[data-testid^="bundle-"]').locator("[aria-controls]");
 const grab = async (page) => {
   const box = await page.getByTestId("split-sheet").boundingBox();
   return { x: box.x + box.width / 2, y: box.y + 14 };

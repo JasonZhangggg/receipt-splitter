@@ -5,16 +5,13 @@ import type { Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
 import type { AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
 import { plainAmount } from "../../draft";
-import { PressTarget } from "../components/button";
+import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
-import { animateSpring } from "../components/sheet-motion";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
 import { claimersOfItem, lineTag, nameParts, quantityText, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
-
-const sheetSpring = { response: 0.35, damping: 1 };
 
 type Props = {
   split: Split;
@@ -22,8 +19,10 @@ type Props = {
   selected: Participant | null;
   me: ParticipantId | null;
   onCircle: (item: SplitItem) => void;
-  onOpen: (item: SplitItem) => void;
-  onAdd: () => void;
+  onOpen: (item: SplitItem, press: Press) => void;
+  onAdd: (press: Press) => void;
+  /** The line whose Item detail is open, or the Add item form, so its trigger reads as expanded. */
+  showing: ItemId | "add" | null;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -42,7 +41,7 @@ const bleed = 12;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, showing }: Props) {
   const c = useColors();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
   const { items, subtotal, total } = split.receipt;
@@ -71,7 +70,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         divided={divided}
         inBundle={inBundle}
         onCircle={() => onCircle(item)}
-        onOpen={() => onOpen(item)}
+        onOpen={(press) => onOpen(item, press)}
+        expanded={showing === item.id}
       />
     </Grow>
   );
@@ -111,7 +111,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           );
         })}
       </View>
-      <AddRow divided={rows.length > 0} onPress={onAdd} />
+      <AddRow divided={rows.length > 0} expanded={showing === "add"} onPress={onAdd} />
       {note ? (
         <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
           {note}
@@ -161,6 +161,14 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   const c = useColors();
   const reduce = useReducedMotion();
   const region = useId();
+  const showInside = !open && (claimers.length > 0 || unclaimed > 0);
+  // The line grows in when a claim brings it and collapses out when a claim removes it, so the rows under it glide; opening or closing the Bundle already moves them.
+  const [was, setWas] = useState({ open, showInside });
+  const [byClaim, setByClaim] = useState(false);
+  if (was.open !== open || was.showInside !== showInside) {
+    setWas({ open, showInside });
+    setByClaim(was.open === open);
+  }
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`} style={divided && [styles.divided, { borderTopColor: c.hairline }]}>
       <PressTarget
@@ -183,14 +191,14 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                 <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
                   {bundle.summary}
                 </Text>
-                {!open && (claimers.length > 0 || unclaimed > 0) ? (
+                <Presence present={showInside} animate={byClaim}>
                   <View style={styles.inside}>
                     {claimers.map((person) => (
                       <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
                     ))}
                     {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
                   </View>
-                ) : null}
+                </Presence>
               </View>
             </View>
             <Text style={[itemType, tabular, { color: c.ink }]}>{plainAmount(bundle.net)}</Text>
@@ -205,64 +213,44 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   );
 }
 
+const collapseFor = 250;
+
+// A grid-template-rows transition from 0fr to 1fr reaches the content's own height with no measuring and no script per frame, and a second tap mid-flight retargets from where it is.
 function Collapse({ open, id, label, children }: { open: boolean; id: string; label: string; children: ReactNode }) {
   const reduce = useReducedMotion();
   const [shown, setShown] = useState(open);
   const outer = useRef<View>(null);
-  const inner = useRef<View>(null);
-  const stop = useRef<() => void>(() => {});
   const first = useRef(true);
   if (open && !shown) setShown(true);
 
   useLayoutEffect(() => {
+    const box = outer.current as unknown as HTMLElement | null;
+    if (!box) return;
     if (first.current) {
       first.current = false;
+      Object.assign(box.style, { display: "grid", gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? "" : "0" });
       return;
     }
-    const box = outer.current as unknown as HTMLElement | null;
-    const content = inner.current as unknown as HTMLElement | null;
-    if (!box || !content) return;
-    stop.current();
-    const to = open ? content.getBoundingClientRect().height : 0;
-    const clearOpenStyles = () => {
-      box.style.height = "";
-      box.style.opacity = "";
-    };
-    const unmountWhileHidden = () => setShown(false);
-    const settled = open ? clearOpenStyles : unmountWhileHidden;
-    if (reduce) {
-      box.style.height = "";
-      const fade = box.animate([{ opacity: open ? 0 : 1 }, { opacity: open ? 1 : 0 }], { duration: motion.reducedFade, easing: "ease", fill: "forwards" });
-      fade.onfinish = open
-        ? () => {
-            fade.cancel();
-            clearOpenStyles();
-          }
-        : unmountWhileHidden;
-      stop.current = () => fade.cancel();
-      return;
-    }
-    const from = open && !box.style.height ? 0 : box.getBoundingClientRect().height;
-    box.style.height = `${from}px`;
-    const height = Math.max(to, 1);
-    stop.current = animateSpring(
-      from,
-      to,
-      0,
-      (value) => {
-        box.style.height = `${Math.max(0, value)}px`;
-        box.style.opacity = String(Math.min(1, Math.max(0, value / height)));
-      },
-      settled,
-      sheetSpring,
-    );
+    const ms = reduce ? motion.reducedFade : collapseFor;
+    const ease = `${ms}ms ${motion.easeOut}`;
+    box.style.transition = reduce ? `opacity ${ease}` : `grid-template-rows ${ease}, opacity ${ease}`;
+    if (open && reduce) box.style.gridTemplateRows = "1fr";
+    // Rows mounted in this commit take the closed state first, so the first painted frame is still closed.
+    box.getBoundingClientRect();
+    box.style.opacity = open ? "1" : "0";
+    if (!reduce) box.style.gridTemplateRows = open ? "1fr" : "0fr";
+    const done = setTimeout(() => {
+      if (open) return void (box.style.opacity = "");
+      box.style.gridTemplateRows = "0fr";
+      setShown(false);
+    }, ms);
+    return () => clearTimeout(done);
   }, [open, reduce]);
-  useLayoutEffect(() => () => stop.current(), []);
 
   return (
     <View ref={outer} nativeID={id} style={styles.collapse}>
       {shown ? (
-        <View ref={inner} role="list" aria-label={label}>
+        <View role="list" aria-label={label} style={styles.collapsed}>
           {children}
         </View>
       ) : null}
@@ -309,6 +297,42 @@ function Grow({ enter, children }: { enter: boolean; children: ReactNode }) {
   return <View ref={box}>{children}</View>;
 }
 
+// Children grow in when they mount present with animate set, and collapse out over rowsOut when present turns false with animate set, so the rows under them glide. With animate unset they arrive and leave at once.
+function Presence({ present, animate, children }: { present: boolean; animate: boolean; children: ReactNode }) {
+  const reduce = useReducedMotion();
+  const box = useRef<View>(null);
+  const [last, setLast] = useState(children);
+  const [seen, setSeen] = useState(present);
+  const [leaving, setLeaving] = useState(false);
+  if (present && children !== last) setLast(children);
+  if (seen !== present) {
+    setSeen(present);
+    setLeaving(!present && animate);
+  } else if (leaving && !animate) setLeaving(false);
+  useLayoutEffect(() => {
+    const el = box.current as unknown as HTMLElement | null;
+    if (!leaving) return;
+    const done = () => setLeaving(false);
+    if (typeof el?.animate !== "function") return done();
+    const height = `${el.getBoundingClientRect().height}px`;
+    const frames = reduce
+      ? [{ opacity: 1 }, { opacity: 0 }]
+      : [
+          { height, opacity: 1, overflow: "hidden" },
+          { height: "0px", opacity: 0, overflow: "hidden" },
+        ];
+    const going = el.animate(frames, { duration: reduce ? motion.reducedFade : motion.rowsOut, easing: motion.easeOut, fill: "forwards" });
+    going.onfinish = done;
+    return () => going.cancel();
+  }, [leaving, reduce]);
+  if (present) return <Grow enter={animate}>{children}</Grow>;
+  return leaving ? (
+    <View ref={box} aria-hidden pointerEvents="none">
+      {last}
+    </View>
+  ) : null;
+}
+
 type LineProps = {
   item: SplitItem;
   order: readonly ParticipantId[];
@@ -317,10 +341,11 @@ type LineProps = {
   divided: boolean;
   inBundle: boolean;
   onCircle: () => void;
-  onOpen: () => void;
+  onOpen: (press: Press) => void;
+  expanded: boolean;
 };
 
-function Line({ item, order, claimers, selected, divided, inBundle, onCircle, onOpen }: LineProps) {
+function Line({ item, order, claimers, selected, divided, inBundle, onCircle, onOpen, expanded }: LineProps) {
   const cost = item.price;
   const c = useColors();
   const reduce = useReducedMotion();
@@ -362,7 +387,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
           </View>
         )}
       </PressTarget>
-      <PressTarget name={`${say.open(label)}, $${price}, ${who}`} onPress={onOpen} style={() => styles.body}>
+      <PressTarget name={`${say.open(label)}, $${price}, ${who}`} popup="dialog" expanded={expanded} onPress={onOpen} style={() => styles.body}>
         {() => (
           <View style={styles.bodyRow}>
             <View style={styles.name}>
@@ -385,11 +410,11 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   );
 }
 
-function AddRow({ divided, onPress }: { divided: boolean; onPress: () => void }) {
+function AddRow({ divided, expanded, onPress }: { divided: boolean; expanded: boolean; onPress: (press: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={say.addItem} onPress={onPress} style={(pressed) => [styles.line, styles.add, divided && [styles.divided, { borderTopColor: c.hairline }], pressStyle(pressed, reduce)]}>
+    <PressTarget name={say.addItem} popup="dialog" expanded={expanded} onPress={onPress} style={(pressed) => [styles.line, styles.add, divided && [styles.divided, { borderTopColor: c.hairline }], pressStyle(pressed, reduce)]}>
       {() => (
         <>
           <View style={styles.addIcon}>
@@ -434,6 +459,7 @@ const styles = StyleSheet.create({
   inside: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   chevron: { width: dotSize, height: dotSize, marginRight: nameStart - dotSize - priceGap, alignItems: "center", justifyContent: "center" },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
+  collapsed: { minHeight: 0 },
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
   add: { minHeight: tapSize },

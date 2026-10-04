@@ -1,0 +1,350 @@
+import { expect, newContext, test, type APIRequestContext, type Locator, type Page } from "./without-ocr";
+
+const desktop = { width: 1440, height: 900 };
+test.use({ viewport: desktop, isMobile: false, hasTouch: false });
+test.setTimeout(90_000);
+
+const live = { timeout: 15_000 };
+
+const bucket = (run: 1 | 2, guinness: number, watermelon: number) => [
+  { id: `ultra${run}`, name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
+  { id: `guinness${run}`, name: "Guinness Draught 14.9oz Can", price: 729 * guinness, quantity: guinness },
+  { id: `pineapple${run}`, name: "High Noon Pineapple 12oz Can", price: 849 },
+  { id: `watermelon${run}`, name: "High Noon Watermelon 12oz Can", price: 849 * watermelon, ...(watermelon > 1 ? { quantity: watermelon } : {}) },
+];
+
+const topgolf = {
+  items: [{ id: "gameplay", name: "Gameplay", price: 8775 }, ...bucket(1, 3, 1), ...bucket(2, 2, 2)],
+  adjustments: [
+    { id: "bucket1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["ultra1", "guinness1", "pineapple1", "watermelon1"] } },
+    { id: "bucket2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: { name: "Beer Bucket", items: ["ultra2", "guinness2", "pineapple2", "watermelon2"] } },
+    { id: "tax", kind: "tax", name: "Tax", amount: 494 },
+    { id: "tip", kind: "tip", name: "Tip", amount: 3226 },
+  ],
+  subtotal: 17923,
+  total: 20729,
+};
+
+let creates = 0;
+
+async function createSplit(request: APIRequestContext, workerIndex: number): Promise<string> {
+  creates += 1;
+  const response = await request.post("/api/splits", {
+    headers: { "cf-connecting-ip": `198.55.${100 + workerIndex}.${creates}` },
+    data: {
+      split: {
+        receipt: topgolf,
+        participants: [
+          { id: "jason", name: "Jason" },
+          { id: "sam", name: "Sam" },
+          { id: "priya", name: "Priya" },
+        ],
+        paymentHandles: [{ service: "venmo", handle: "jason-z" }],
+      },
+    },
+  });
+  expect(response.status()).toBe(201);
+  const { id } = await response.json();
+  return new URL(`/s/${id}`, response.url()).href;
+}
+
+const pane = (page: Page) => page.getByRole("complementary");
+const receipt = (page: Page) => page.getByTestId("receipt");
+const itemPopover = (page: Page) => page.getByRole("dialog", { name: "Item" });
+const gameplay = (page: Page) => page.getByRole("button", { name: /^Open Gameplay, \$87\.75, / });
+const firstBucket = (page: Page) => page.getByRole("button", { name: /^Beer Bucket, / }).first();
+const guinness = (page: Page) => page.getByRole("button", { name: /^Open 3x Guinness Draught 14\.9oz Can, \$21\.87, / });
+const cans = (page: Page) => page.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, \$7\.29, / });
+
+async function open(page: Page, link: string) {
+  await page.goto(link);
+  await expect(pane(page).getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+}
+
+async function pick(page: Page, name: string) {
+  await pane(page).getByRole("button", { name, exact: true }).click();
+  await expect(pane(page).getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+
+async function box(target: Locator): Promise<Box> {
+  const found = await target.boundingBox();
+  if (!found) throw new Error("not laid out");
+  return found;
+}
+
+/** Presses Tab `presses` times and says, for each press, whether focus stayed inside `dialog`. */
+async function tabsInside(dialog: Locator, presses: number, key = "Tab") {
+  const stayed: boolean[] = [];
+  for (let i = 0; i < presses; i += 1) {
+    await dialog.page().keyboard.press(key);
+    stayed.push(await dialog.evaluate((el) => el.contains(document.activeElement)));
+  }
+  return stayed;
+}
+
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+const inside = (a: Box, { width, height }: { width: number; height: number }) => a.x >= 0 && a.y >= 0 && a.x + a.width <= width && a.y + a.height <= height;
+
+test("the wordmark is the page's only level-1 heading, and the pane's question is level 2", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveAccessibleName("Receipt Splitter, split a receipt");
+  await expect(pane(page).getByRole("heading", { name: "Which one are you?", level: 2 })).toBeVisible();
+});
+
+test("a click on a line opens its detail as a popover under that line, while the right pane stays in view", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+
+  await gameplay(page).click();
+
+  await expect(itemPopover(page)).toBeVisible();
+  await expect(page.getByTestId("item-sheet")).toHaveCount(0);
+  const line = await box(gameplay(page));
+  const popover = await box(itemPopover(page));
+  expect(popover.y).toBeGreaterThanOrEqual(line.y + line.height);
+  expect(popover.y).toBeLessThan(line.y + line.height + 24);
+  expect(inside(popover, desktop)).toBe(true);
+  await expect(pane(page).getByTestId("share")).toBeVisible();
+  expect(overlaps(popover, await box(pane(page)))).toBe(false);
+});
+
+test("Enter opens a line's popover, and Escape closes it with focus back on the line", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+
+  await gameplay(page).focus();
+  await page.keyboard.press("Enter");
+  await expect(itemPopover(page)).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(itemPopover(page)).toHaveCount(0);
+  await expect(gameplay(page)).toBeFocused();
+});
+
+test("a click outside the popover closes it", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await gameplay(page).click();
+  await expect(itemPopover(page)).toBeVisible();
+
+  await page.mouse.click(20, desktop.height - 20);
+
+  await expect(itemPopover(page)).toHaveCount(0);
+});
+
+test("a Claim in the popover updates Your share in the right pane", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await expect(pane(page).getByTestId("share")).toHaveText("$0.00");
+
+  await gameplay(page).click();
+  await itemPopover(page).getByRole("button", { name: "Sam", exact: true }).click();
+
+  await expect(pane(page).getByTestId("share")).toHaveText("$106.94", live);
+  await expect(itemPopover(page)).toBeVisible();
+  await expect(pane(page)).toContainText("Gameplay");
+});
+
+test("Split on a quantity-3 line leaves three one-unit rows, and Delete item on one leaves two", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+
+  await guinness(page).click();
+  await itemPopover(page).getByRole("button", { name: "Split into 3" }).click();
+
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(guinness(page)).toHaveCount(0);
+  await expect(cans(page)).toHaveCount(3, live);
+
+  await cans(page).nth(1).click();
+  await itemPopover(page).getByRole("button", { name: "Delete item" }).click();
+
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(cans(page)).toHaveCount(2, live);
+});
+
+test("after a Delete item, Enter on the line that takes focus opens its popover, and Tab and Shift+Tab never leave it", async ({ page, request }, { workerIndex }) => {
+  const ultra = page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first();
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+  await gameplay(page).click();
+  await itemPopover(page).getByRole("button", { name: "Delete item" }).click();
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(ultra).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(itemPopover(page)).toBeVisible();
+
+  expect(await tabsInside(itemPopover(page), 12)).toEqual(Array(12).fill(true));
+  expect(await tabsInside(itemPopover(page), 12, "Shift+Tab")).toEqual(Array(12).fill(true));
+  await page.keyboard.press("Escape");
+  await expect(ultra).toBeFocused();
+});
+
+test("at 1280 px with a Bundle open, the Add item popover opens above its row, and Tab and Shift+Tab never leave it", async ({ page, request }, { workerIndex }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+  const addRow = receipt(page).getByRole("button", { name: "Add item", exact: true });
+  const form = page.getByRole("dialog", { name: "New item" });
+
+  await addRow.click();
+
+  await expect(form).toBeVisible();
+  const popover = await box(form);
+  expect(popover.y + popover.height).toBeLessThan((await box(addRow)).y + 2);
+  expect(await tabsInside(form, 16)).toEqual(Array(16).fill(true));
+  expect(await tabsInside(form, 16, "Shift+Tab")).toEqual(Array(16).fill(true));
+});
+
+test("a line, Add item and History each announce a dialog popup, and expanded follows their popover", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const state = (trigger: Locator) => trigger.evaluate((el) => [el.getAttribute("aria-haspopup"), el.getAttribute("aria-expanded")]);
+  const triggers = [
+    { trigger: gameplay(page), popover: itemPopover(page) },
+    { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), popover: page.getByRole("dialog", { name: "New item" }) },
+    { trigger: page.getByRole("button", { name: "History", exact: true }), popover: page.getByRole("dialog", { name: "History" }) },
+  ];
+  for (const { trigger, popover } of triggers) {
+    expect(await state(trigger)).toEqual(["dialog", "false"]);
+    await trigger.click();
+    await expect(popover).toBeVisible();
+    expect(await state(trigger)).toEqual(["dialog", "true"]);
+    await page.keyboard.press("Escape");
+    await expect(popover).toHaveCount(0);
+    expect(await state(trigger)).toEqual(["dialog", "false"]);
+  }
+});
+
+test("at phone width Escape closes the Item, Add item and History sheets and hands focus back to what opened them", async ({ page, request }, { workerIndex }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(await createSplit(request, workerIndex));
+  const asked = page.getByRole("dialog", { name: "Which one are you?" });
+  await asked.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(asked).toHaveCount(0, live);
+  const sheets = [
+    { trigger: gameplay(page), sheet: page.getByTestId("item-sheet") },
+    { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), sheet: page.getByTestId("add-sheet") },
+    { trigger: page.getByRole("button", { name: "History", exact: true }), sheet: page.getByTestId("history-sheet") },
+  ];
+  for (const { trigger, sheet } of sheets) {
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await expect(sheet).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(trigger).toBeFocused();
+  }
+});
+
+test("another device's Delete item closes the open popover and hands focus to the next line", async ({ page, browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const ultra = (on: Page) => on.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first();
+  await open(page, link);
+  await pick(page, "Sam");
+  await firstBucket(page).click();
+  await ultra(page).click();
+  await expect(itemPopover(page)).toBeVisible();
+  const priya = await (await newContext(browser)).newPage();
+  await priya.setViewportSize(desktop);
+  await open(priya, link);
+  await pick(priya, "Priya");
+  await firstBucket(priya).click();
+  await ultra(priya).click();
+
+  await itemPopover(priya).getByRole("button", { name: "Delete item" }).click();
+
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(ultra(page)).toHaveCount(0);
+  await expect(guinness(page)).toBeFocused();
+});
+
+test("Add item opens its form as a popover from its row, and the new row lands in the receipt with its claim", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const addRow = receipt(page).getByRole("button", { name: "Add item", exact: true });
+  const form = page.getByRole("dialog", { name: "New item" });
+
+  await addRow.click();
+
+  await expect(form).toBeVisible();
+  await expect(page.getByTestId("add-sheet")).toHaveCount(0);
+  const row = await box(addRow);
+  const popover = await box(form);
+  expect(inside(popover, desktop)).toBe(true);
+  expect(popover.y >= row.y + row.height || popover.y + popover.height <= row.y).toBe(true);
+
+  await form.getByRole("textbox", { name: "Item name", exact: true }).fill("Fries");
+  await form.getByRole("textbox", { name: "Price", exact: true }).fill("6.50");
+  await form.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await form.getByRole("button", { name: "Add item", exact: true }).click();
+
+  await expect(form).toHaveCount(0, live);
+  await expect(page.getByRole("button", { name: "Open Fries, $6.50, had by Sam" })).toBeVisible(live);
+  await expect(pane(page)).toContainText("Fries");
+});
+
+test("History opens as a popover from its button, and Escape hands focus back to the button", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  const history = page.getByRole("button", { name: "History", exact: true });
+  const list = page.getByRole("dialog", { name: "History" });
+
+  await history.click();
+
+  await expect(list).toBeVisible();
+  await expect(page.getByTestId("history-sheet")).toHaveCount(0);
+  const button = await box(history);
+  const popover = await box(list);
+  expect(popover.y).toBeGreaterThanOrEqual(button.y + button.height);
+  expect(inside(popover, desktop)).toBe(true);
+
+  await page.keyboard.press("Escape");
+  await expect(list).toHaveCount(0);
+  await expect(history).toBeFocused();
+});
+
+for (const width of [1024, 1440]) {
+  test(`at ${width} px the receipt and the right pane sit side by side in the middle, and a popover stays on screen and off the pane`, async ({ page, request }, { workerIndex }) => {
+    const viewport = { width, height: 800 };
+    await page.setViewportSize(viewport);
+    await open(page, await createSplit(request, workerIndex));
+
+    const card = await box(receipt(page));
+    const side = await box(pane(page));
+    expect(overlaps(card, side)).toBe(false);
+    expect(side.x).toBeGreaterThan(card.x + card.width);
+    expect(Math.abs(side.y - card.y)).toBeLessThan(2);
+    const left = card.x;
+    const right = width - (side.x + side.width);
+    expect(Math.abs(left - right)).toBeLessThan(2);
+    await expect(page.getByTestId("split-sheet")).toHaveCount(0);
+
+    await pick(page, "Sam");
+    await page.getByRole("button", { name: /^Beer Bucket, / }).last().click();
+    const last = page.getByRole("button", { name: /^Open 2x High Noon Watermelon 12oz Can, / });
+    await last.scrollIntoViewIfNeeded();
+    await last.click();
+    const popover = await box(itemPopover(page));
+    expect(inside(popover, viewport)).toBe(true);
+    expect(overlaps(popover, await box(pane(page)))).toBe(false);
+  });
+}
+
+test("under 1024 px the Split page keeps the phone layout with its bottom sheet", async ({ page, request }, { workerIndex }) => {
+  await page.setViewportSize({ width: 1023, height: 800 });
+  await page.goto(await createSplit(request, workerIndex));
+
+  await expect(page.getByRole("dialog", { name: "Which one are you?" })).toBeVisible(live);
+  await expect(page.getByRole("complementary")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+});

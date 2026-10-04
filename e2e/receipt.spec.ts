@@ -90,7 +90,8 @@ test("a Beer Bucket opens and closes from the keyboard in place, says so through
   await expect(page.locator(`[id="${region}"]`).getByRole("list")).toHaveCount(0);
 });
 
-test("a Beer Bucket grows open over several frames instead of jumping to its full height", async ({ browser, request }, { workerIndex }) => {
+// It samples the height on every animation frame, while the CSS transition runs on wall-clock time, so slow frames see too few steps.
+test("a Beer Bucket grows open over several frames instead of jumping to its full height", { tag: "@frame-timing" }, async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
   const region = await firstBucket(page).getAttribute("aria-controls");
@@ -378,6 +379,27 @@ for (const rafDelay of [0, 200]) {
     await expect(guinness(sam)).toHaveCount(0);
     expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
   });
+
+  test(`another device's Delete item closes an open Item sheet on the Item as it was, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
+    const link = await createSplit(request, workerIndex);
+    const sam = await slowFramesOpen(browser, link, rafDelay);
+    const priya = await open(browser, link);
+    await pick(sam, "Sam");
+    await pick(priya, "Priya");
+    await firstBucket(sam).click();
+    await firstBucket(priya).click();
+    await guinness(sam).click();
+    const sheet = sam.getByRole("dialog", { name: "Item" });
+    await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
+    const frames = sheetFrames(sam);
+
+    await guinness(priya).click();
+    await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Delete item" }).click();
+
+    await expect(sheet).toHaveCount(0, live);
+    await expect(guinness(sam)).toHaveCount(0);
+    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
+  });
 }
 
 test("Delete item takes a Bundle Item off for everyone, and Revert brings it back", async ({ browser, request }, { workerIndex }) => {
@@ -439,4 +461,40 @@ test("the pick sheet takes no taps while it leaves, so its Copy cannot fire afte
   await expect(copy.click({ trial: true, timeout: 1_000 })).rejects.toThrow(/pointer events/);
   release();
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
+});
+
+const secondBundleTops = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const header = [...document.querySelectorAll<HTMLElement>('[data-testid^="bundle-"]')][1];
+        const seen: number[] = [];
+        const started = performance.now();
+        const sample = () => {
+          seen.push(Math.round(header.getBoundingClientRect().top * 10) / 10);
+          if (performance.now() - started < 1500) requestAnimationFrame(sample);
+          else resolve(seen);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+
+test("a collapsed Bundle's unclaimed line grows in on the first claim and collapses out on the last, so the rows under it glide", { tag: "@frame-timing" }, async ({ page, request }, { workerIndex }) => {
+  await page.goto(await createSplit(request, workerIndex));
+  await pick(page, "Sam");
+  const second = page.getByRole("button", { name: /^Beer Bucket, / }).nth(1);
+  await expect(second).toBeVisible(live);
+  const claim = page.getByRole("button", { name: "Gameplay, check for Sam" });
+
+  const down = secondBundleTops(page);
+  await claim.click();
+  const grown = [...new Set(await down)];
+  expect(grown.length).toBeGreaterThan(3);
+  expect(grown.at(-1)! - grown[0]).toBeGreaterThan(10);
+
+  const up = secondBundleTops(page);
+  await claim.click();
+  const shrunk = [...new Set(await up)];
+  expect(shrunk.length).toBeGreaterThan(2);
+  expect(shrunk[0] - shrunk.at(-1)!).toBeGreaterThan(10);
 });

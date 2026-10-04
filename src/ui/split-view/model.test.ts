@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { shareBreakdown } from "../../core/shares";
-import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, lineAmounts, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedUnits } from "./model";
+import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedUnits } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -49,6 +49,13 @@ test("shareLabel reads part of a line's price as ½ of 1.00, never as units of a
     "2/7 of 7.00",
     null,
   ]);
+});
+
+describe("linesNear", () => {
+  test("lists the lines after the gone one, then the ones before it from nearest, and nothing for a line it never had", () => {
+    const order = ["a", "b", "c", "d"].map(itemId);
+    expect([linesNear(order, itemId("b")), linesNear(order, itemId("d")), linesNear(order, itemId("z"))]).toEqual([["c", "d", "a"], ["c", "b", "a"], []]);
+  });
 });
 
 describe("circleTap", () => {

@@ -1,5 +1,5 @@
-import { useId, useState, type ReactNode } from "react";
-import { Linking, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { useId, useRef, useState, type ReactNode } from "react";
+import { Linking, Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 
 import type { Colors } from "../colors";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
@@ -9,7 +9,10 @@ import { Icon, type IconName } from "./icon";
 
 export const scrollViewTouchDelay = 150;
 
-export type Action = { onPress: () => void; href?: undefined; fallbackHref?: undefined } | { href: string; fallbackHref?: string; onPress?: undefined };
+/** The control a press came from and whether a key made it, so a popover can hang from the control and skip its entrance for a key. */
+export type Press = { readonly trigger: HTMLElement; readonly keyboard: boolean };
+
+export type Action = { onPress: (press: Press) => void; href?: undefined; fallbackHref?: undefined } | { href: string; fallbackHref?: string; onPress?: undefined };
 
 type TargetProps = Action & {
   name?: string;
@@ -29,10 +32,12 @@ const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
 export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
+  const self = useRef<View>(null);
   if (disabled && held) setHeld(false);
   const web = Platform.OS === "web" ? { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay, ...(href === undefined ? {} : { href, hrefAttrs: newTab }) } : {};
   return (
     <Pressable
+      ref={self}
       role={href === undefined ? "button" : "link"}
       aria-label={name}
       aria-describedby={describedBy}
@@ -44,9 +49,9 @@ export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll =
       disabled={disabled}
       onPressIn={() => setHeld(!disabled)}
       onPressOut={() => setHeld(false)}
-      onPress={() => {
+      onPress={(event) => {
         if (disabled) return;
-        if (href === undefined) onPress();
+        if (href === undefined) onPress({ trigger: self.current as unknown as HTMLElement, keyboard: pressedByKey(event) });
         else if (Platform.OS !== "web") void openWithFallback((url) => Linking.openURL(url), href, fallbackHref);
       }}
       {...web}
@@ -56,6 +61,9 @@ export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll =
     </Pressable>
   );
 }
+
+// A role="button" target renders as a native <button>, so Enter and Space reach onPress as a click with detail 0, since no pointer clicked.
+const pressedByKey = (event: GestureResponderEvent) => (event.nativeEvent as unknown as MouseEvent).detail === 0;
 
 type Tone = { fill?: string; ink: string; ring?: string };
 

@@ -364,14 +364,23 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 
 ## Center the Split page on desktop with a popover and a right pane (V2-4)
 
-**Depends on.** V2-3, `fix/flash-root`, the bar after a pick, and quantities follow the receipt. The second and third change the phone sheet that this layout replaces from 1024 px. The last changes the rows and the detail that the desktop draws.
+**Depends on.** V2-3, `fix/flash-root`, the bar after a pick, quantities follow the receipt, and Add Item on the Split page. It branches from `feat/add-item` at `ee95e6c` and the root restacks it onto `main` once Add Item merges.
+
+**Rulings since approval, 2026-10-04.** These change this section, and the boxes below already follow them.
+
+- Quantities (preferences 58). A quantity line is one row with "3x" in its text, and its popover has **Split into 3**, which leaves three one-unit rows. The split modes apply to the whole line (preferences 5).
+- **Add item** (preferences 30). From 1024 px the **Add item** row opens the add form as a popover anchored to that row, not a bottom sheet.
+- History. From 1024 px the header's History button opens History as a popover anchored to the button.
+- **View receipt** is an icon in the header with the accessible name "View receipt" (preferences 67). It already is, and the photo viewer opens over the page on desktop as it does on the phone.
+- Precedent. **Recent splits on home** (PR 50) opens its list from 900 px as a popover anchored to its icon, with a keydown listener for Escape and focus handed back to the icon. V2-4's popovers follow that pattern through one shared popover in `src/ui/components/popover.tsx`, which renders in the page's own layer instead of React Native Web's `Modal`, so the accessibility tree holds one named dialog. Recent splits keeps its own popover. It opens from home's header, where no layer covers the page, so leaving the `Modal` would need a portal or the list's state lifted to the home screen. Its approved look also differs (360 px wide, a hairline border, 8 px padding, flush with the icon), so the move would be a visual change of its own. Its `Modal` already keeps Tab inside.
+- Open notes folded in from `notes.md`. A touch on a gliding sheet freezes it at once. A Bundle opens and closes with a CSS `grid-template-rows` transition instead of the main-thread spring. The Split page's wordmark sits in a level-1 heading. Reduced-motion fades use `motion.easeOut`. The Item, Add item, and History sheets close on Escape. A popover opened from the keyboard shows at once, with no entrance.
 
 **Amended after approval.** This section follows **Amendments since approval**. Where the desktop frames in `docs/design/receipt-v2/round3.html` disagree with a ruling, the ruling wins. Build from those frames otherwise.
 
 **Files.**
 
-- [ ] Edit `app/s/[id].tsx` and `src/ui/split-view/**`.
-- [ ] Create `src/ui/item-sheet/popover.tsx`, and share the detail fields with `src/ui/item-sheet/index.tsx`.
+- [ ] Edit `app/s/[id].tsx`, `src/ui/split-view/**`, and `src/ui/theme.ts` for the 1024 px breakpoint.
+- [ ] Create `src/ui/components/popover.tsx`. The Item detail, the add form, and History render their existing content, `ItemSheet`, `AddItemSheet`, and `HistorySheet`, inside it from 1024 px and inside `BottomSheet` below.
 - [ ] Create `e2e/desktop.spec.ts`.
 
 **Build.**
@@ -383,6 +392,7 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 - [ ] Keep the header's Home button and **Share** button (preferences 28).
 - [ ] Draw the rows as the phone does. Rows follow the receipt. A line printed with a quantity is one row with the quantity in its text, such as "3x", styled like the "6 items" count on a Bundle header. A line printed on its own is its own row. Rows have about 14 px text, a 16 px circle, a 44 px tap target, and no × (preferences 58, 20, and 21).
 - [ ] Draw Bundles as the phone does. They start closed, the chevron sits in the header's leading slot, and a closed Bundle shows a gray "N unclaimed" (preferences 22 and 23). Nothing on the page is yellow (preferences 15).
+- [ ] Open **Add item** and History as popovers anchored to their row and button. Escape and a click outside close them, and focus returns to the trigger. A popover opened with Enter shows at once.
 - [ ] Open a row's detail as a popover anchored to its line. It holds the phone sheet's fields: the price, **Who had it**, **Evenly**, **By shares**, **By amount**, **Delete item**, and, on a row with a quantity above 1, **Split**. The split modes apply to the whole line, quantity or not (preferences 5). **Split** turns the row into that many one-unit rows, each claimed as a one-line Item (preferences 58). Name and price edits apply to the whole Item. The popover flips above the line when there is no room below. Escape and a click outside close it, and focus returns to the line.
 - [ ] Show a person's breakdown as the Split page shows the rows, with no "1 of 3" (preferences 24). A quantity line is one line with its quantity, and split rows are separate lines.
 - [ ] Offer no control that edits a Payment handle (preferences 10).
@@ -399,7 +409,7 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `e2e/desktop.spec.ts` gains opening the popover by click and by Enter, closing it with Escape with focus back on the line, a Claim in the popover that updates the right pane, **Split** on a quantity-3 row that leaves three one-unit rows, and **Delete item** on one of those rows. The cases hold the CI-robustness rule. Run `npm run e2e`.
+- [ ] `e2e/desktop.spec.ts` gains opening the popover by click and by Enter, closing it with Escape with focus back on the line, a Claim in the popover that updates the right pane, **Split** on a quantity-3 row that leaves three one-unit rows, **Delete item** on one of those rows, **Add item** from its popover, History from its popover, and no overlap of the receipt, the right pane, and an open popover at 1024 and 1440 px. The cases hold the CI-robustness rule and pass with every `requestAnimationFrame` 200 ms late (`SLOW_RAF=200`). Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
 

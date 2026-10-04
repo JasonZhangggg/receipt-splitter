@@ -25,9 +25,9 @@ const out = resolve(values.out ?? `/tmp/verify-receipt-splitter/${values.port}/m
 mkdirSync(out, { recursive: true });
 
 const lanes = {
-  "webkit-iphone": { engine: webkit, device: devices["iPhone 15"] },
-  "chromium-mobile": { engine: chromium, device: devices["Pixel 7"] },
-  "chromium-desktop": { engine: chromium, device: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+  "webkit-iphone": { engine: webkit, device: devices["iPhone 15"], layout: "phone" },
+  "chromium-mobile": { engine: chromium, device: devices["Pixel 7"], layout: "phone" },
+  "chromium-desktop": { engine: chromium, device: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } }, layout: "desktop" },
 };
 
 // WebKit has no CPU throttle, so its slow lane runs a busy loop that takes 3 of every 4 ms on the main thread.
@@ -46,9 +46,10 @@ const rows = [];
 for (const laneName of values.lanes.split(",")) {
   const lane = lanes[laneName];
   if (!lane) throw new Error(`unknown lane ${laneName}`);
+  const fits = picked.filter((scenario) => !scenario.layout || scenario.layout === lane.layout);
   if (values.rejudge) {
     for (const speed of values.speeds.split(",").map(Number)) {
-      for (const scenario of picked) {
+      for (const scenario of fits) {
         const file = join(values.rejudge, `${laneName}-x${speed}-${scenario.id}.trace.json`);
         const verdict = existsSync(file) ? judge(JSON.parse(readFileSync(file, "utf8")), scenario.probes, { speed, instant: scenario.instant }) : { failures: ["no trace: the run did not finish"] };
         rows.push({ lane: laneName, speed, id: scenario.id, name: scenario.name, ...verdict, pass: verdict.failures.length === 0 });
@@ -58,7 +59,7 @@ for (const laneName of values.lanes.split(",")) {
   }
   const browser = await lane.engine.launch();
   for (const speed of values.speeds.split(",").map(Number)) {
-    for (const scenario of picked) {
+    for (const scenario of fits) {
       for (let run = 0; run < Number(values.repeat); run += 1) {
         const context = await browser.newContext({ ...lane.device, baseURL: base });
         await context.route("**/models/**", (route) => route.abort());
