@@ -25,7 +25,7 @@ const inView = (field: Locator) =>
     return { inside: box.top >= top && box.bottom <= top + viewport.height, uncovered: hit !== null && el.contains(hit) };
   });
 
-test("on a 300 ms round trip, switching the split type never shows the old type again and builds the new rows once", async ({ page }) => {
+test("on a 300 ms round trip, switching the split type never shows the old type again and builds the new rows once", { tag: "@frame-timing" }, async ({ page }) => {
   await addLatency(page, 300);
   await itemShared(page);
   await page.evaluate(() => {
@@ -92,7 +92,7 @@ async function switchTo(page: Page, mode: "Evenly" | keyof typeof rowsOf) {
   await page.getByTestId("item-sheet").getByRole("group", { name: "Split" }).getByRole("button", { name: mode, exact: true }).tap({ force: true });
 }
 
-test("at 4x slowdown, switching the split type fades the old rows out fully before the new rows fade in", async ({ page }) => {
+test("at 4x slowdown, switching the split type fades the old rows out fully before the new rows fade in", { tag: "@frame-timing" }, async ({ page }) => {
   await itemShared(page);
   const watch = await slowed(page);
   for (const mode of ["By shares", "By amount"] as const) {
@@ -107,7 +107,7 @@ test("at 4x slowdown, switching the split type fades the old rows out fully befo
   }
 });
 
-test("at 4x slowdown, By amount to Evenly fades out fully, fades in, and takes 270 ms", async ({ page }) => {
+test("at 4x slowdown, By amount to Evenly fades out fully, fades in, and takes 270 ms", { tag: "@frame-timing" }, async ({ page }) => {
   await itemShared(page);
   const watch = await slowed(page);
   await switchTo(page, "By amount");

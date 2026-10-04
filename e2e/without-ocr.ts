@@ -2,11 +2,34 @@ import { test as base, type Browser, type BrowserContext } from "@playwright/tes
 
 export { expect, type APIRequestContext, type Browser, type Locator, type Page } from "@playwright/test";
 
+/** SLOW_RAF=200 delays every requestAnimationFrame callback by that many ms, the way a loaded Linux CI runner does (150-330 ms frames). */
+const slowRafMs = Number(process.env.SLOW_RAF ?? 0);
+
+function delayAnimationFrames(delay: number) {
+  const nativeFrame = window.requestAnimationFrame.bind(window);
+  const nativeTimeout = window.setTimeout.bind(window);
+  const pending = new Map<number, number>();
+  let next = 1;
+  window.requestAnimationFrame = (callback) => {
+    const id = next++;
+    nativeFrame(() => pending.set(id, nativeTimeout(() => {
+      pending.delete(id);
+      callback(performance.now());
+    }, delay)));
+    return id;
+  };
+  window.cancelAnimationFrame = (id) => {
+    window.clearTimeout(pending.get(id));
+    pending.delete(id);
+  };
+}
+
 /**
  * Every home load prefetches about 13 MB of OCR models. Specs that never scan skip them,
  * because under CI load those downloads make local wrangler drop its worker mid-request.
  */
 async function withoutOcrModels(context: BrowserContext): Promise<BrowserContext> {
+  if (slowRafMs > 0) await context.addInitScript(delayAnimationFrames, slowRafMs);
   await context.route("**/models/**", (route) => route.abort());
   await context.route("**/ort/**", (route) => route.abort());
   return context;
