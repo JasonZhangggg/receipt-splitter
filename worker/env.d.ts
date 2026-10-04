@@ -11,6 +11,9 @@ declare namespace Cloudflare {
     SCAN_PER_MINUTE: string;
     SCAN_PER_DAY: string;
     SCAN_DAILY_CAP: string;
+    SCAN_DAILY_BUDGET_USD: string;
+    SCAN_WORST_CASE_USD: string;
+    SCAN_MAX_IMAGE_PX: string;
     SCAN_PASS1_MODEL: string;
     SCAN_PASS1_HOSTS: string;
     SCAN_PASS1_EFFORT: string;

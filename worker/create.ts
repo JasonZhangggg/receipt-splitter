@@ -19,11 +19,11 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
     return refuse(503, { refused: "unavailable" });
   }
   const cap = env.CreateLimiter.getByName(DAILY_CAP_NAME);
-  const room = await cap.peekToday(DAILY_CREATE_CAP);
+  const room = await cap.peekToday({ cap: DAILY_CREATE_CAP });
   if (!room.ok) return tooMany("dailyLimit", room.retryAfterMs);
   const admission = await env.CreateLimiter.getByName(limiterKey(ip)).admit(CREATE_LIMIT);
   if (!admission.ok) return tooMany(admission.refused, admission.retryAfterMs);
-  const today = await cap.admitToday(DAILY_CREATE_CAP);
+  const today = await cap.admitToday({ cap: DAILY_CREATE_CAP });
   if (!today.ok) return tooMany("dailyLimit", today.retryAfterMs);
 
   const created = await env.SplitServer.getByName(id).create(parsed.split);

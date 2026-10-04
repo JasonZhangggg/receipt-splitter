@@ -2,11 +2,12 @@ import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { T0 } from "../testing";
+import { JPEG_2560_WIDE, JPEG_2561_TALL, SMALL_JPEG } from "./jpeg-fixtures";
 import { SCAN_DAILY_CAP_NAME, scanReceipt } from "./route";
 
 const DAY = 24 * 60 * 60 * 1000;
 const ORIGIN = "https://app.example";
-const PHOTO = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ";
+const PHOTO = SMALL_JPEG;
 
 const PASSING = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100";
 const SHORT = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|500\nt|Tax|100";
@@ -21,8 +22,8 @@ type Call = {
 };
 type Answer = (call: Call, signal: AbortSignal) => Response | Promise<Response>;
 
-const completion = (content: string, provider = "Parasail") =>
-  Response.json({ choices: [{ message: { content } }], provider, usage: { prompt_tokens: 1200, completion_tokens: 90, cost: 0.0004 } });
+const completion = (content: string, provider = "Parasail", usage: object = { prompt_tokens: 1200, completion_tokens: 90, cost: 0.0004 }) =>
+  Response.json({ choices: [{ message: { content } }], provider, usage });
 
 const hang: Answer = (_, signal) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
 
@@ -61,8 +62,8 @@ function scanRequest({ ip = `198.51.100.${nextAddress++}`, origin = ORIGIN, body
 const scan = (request = scanRequest(), vars: Partial<Cloudflare.Env> = {}) =>
   scanReceipt(request, { ...env, OPENROUTER_API_KEY: "test-key", SCAN_PASS1_TIMEOUT_MS: "200", SCAN_DEBUG_HEADERS: "true", ...vars });
 
-const seedScansToday = (count: number) =>
-  runInDurableObject(env.CreateLimiter.getByName(SCAN_DAILY_CAP_NAME), (_, state) => state.storage.put("tally", { day: Math.floor(Date.now() / DAY), count }));
+const seedScansToday = (count: number, spentUsd?: number) =>
+  runInDurableObject(env.CreateLimiter.getByName(SCAN_DAILY_CAP_NAME), (_, state) => state.storage.put("tally", { day: Math.floor(Date.now() / DAY), count, spentUsd }));
 
 beforeEach(() => {
   vi.setSystemTime(T0);
@@ -111,6 +112,21 @@ describe("POST /api/scan refusals", () => {
     expect([exact.status, calls.length]).toEqual([200, 1]);
   });
 
+  it("reads the JPEG frame header and refuses a photo whose longest side is over 2,560 px with 400, calling no model", async () => {
+    const calls = stubOpenRouter(() => completion(PASSING));
+    const atLimit = await scan(scanRequest({ body: { photo: JPEG_2560_WIDE, ocrLines: [] } }));
+    const over = await scan(scanRequest({ body: { photo: JPEG_2561_TALL, ocrLines: [] } }));
+    const notJpeg = await scan(scanRequest({ body: { photo: "data:image/jpeg;base64,iVBORw0KGgoAAAA", ocrLines: [] } }));
+    expect([atLimit.status, over.status, await over.json(), notJpeg.status, calls.length]).toEqual([200, 400, { refused: "rejected" }, 400, 1]);
+  });
+
+  it("takes the image size limit from SCAN_MAX_IMAGE_PX", async () => {
+    stubOpenRouter(() => completion(PASSING));
+    const refused = await scan(scanRequest({ body: { photo: JPEG_2560_WIDE, ocrLines: [] } }), { SCAN_MAX_IMAGE_PX: "2559" });
+    const read = await scan(scanRequest({ body: { photo: JPEG_2561_TALL, ocrLines: [] } }), { SCAN_MAX_IMAGE_PX: "2561" });
+    expect([refused.status, read.status]).toEqual([400, 200]);
+  });
+
   it("answers 503 and calls no model when the key is not set", async () => {
     const calls = stubOpenRouter();
     const response = await scan(scanRequest(), { OPENROUTER_API_KEY: "" });
@@ -147,6 +163,36 @@ describe("scan limits", () => {
     expect((await scan()).status).toBe(200);
     const refused = await scan();
     expect([refused.status, await refused.json()]).toEqual([429, { refused: "dailyLimit" }]);
+  });
+});
+
+describe("daily dollar budget", () => {
+  const budget = { SCAN_DAILY_BUDGET_USD: "0.0013", SCAN_WORST_CASE_USD: "0.0008" };
+
+  it("refuses every address with 429 dailyLimit and calls no model once today's spend plus one worst-case scan would pass the budget", async () => {
+    vi.setSystemTime(T0 + 10 * DAY + 6 * 60 * 60 * 1000);
+    await seedScansToday(5, 2.99);
+    const calls = stubOpenRouter();
+    const refused = await scan(scanRequest(), { SCAN_DAILY_BUDGET_USD: "3", SCAN_WORST_CASE_USD: "0.015" });
+    expect([refused.status, refused.headers.get("retry-after"), await refused.json(), calls.length]).toEqual([429, String(6 * 60 * 60), { refused: "dailyLimit" }, 0]);
+  });
+
+  it("counts each scan's reported cost, so the third scan of a day is refused", async () => {
+    vi.setSystemTime(T0 + 11 * DAY);
+    stubOpenRouter(() => completion(PASSING), () => completion(PASSING), () => completion(PASSING));
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) statuses.push((await scan(scanRequest(), budget)).status);
+    expect(statuses).toEqual([200, 200, 429]);
+  });
+
+  it("counts a reply with no usage.cost as a worst-case scan, and starts the budget over the next UTC day", async () => {
+    vi.setSystemTime(T0 + 12 * DAY);
+    stubOpenRouter(() => completion(PASSING, "Parasail", { prompt_tokens: 1200, completion_tokens: 90 }), () => completion(PASSING));
+    const first = await scan(scanRequest(), budget);
+    const second = await scan(scanRequest(), budget);
+    vi.setSystemTime(T0 + 13 * DAY);
+    const nextDay = await scan(scanRequest(), budget);
+    expect([first.status, first.headers.get("x-scan-cost"), second.status, nextDay.status]).toEqual([200, "0.000800", 429, 200]);
   });
 });
 

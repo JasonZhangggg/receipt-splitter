@@ -33,7 +33,8 @@ export type CallLog = {
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
   readonly reasoningTokens: number | null;
-  readonly cost: number;
+  /** Dollars as OpenRouter reported them, or null when it reported none. */
+  readonly cost: number | null;
   readonly outcome: Outcome;
 };
 
@@ -56,7 +57,7 @@ async function callModel(pass: 1 | 2, config: PassConfig, hosts: NonEmpty<string
   const started = Date.now();
   const failed = (outcome: Outcome) => ({
     text: "",
-    log: { pass, host: hosts.length === 1 ? hosts[0] : null, ms: Date.now() - started, inputTokens: null, outputTokens: null, reasoningTokens: null, cost: 0, outcome },
+    log: { pass, host: hosts.length === 1 ? hosts[0] : null, ms: Date.now() - started, inputTokens: null, outputTokens: null, reasoningTokens: null, cost: null, outcome },
   });
   let response: Response;
   try {
@@ -98,7 +99,7 @@ async function callModel(pass: 1 | 2, config: PassConfig, hosts: NonEmpty<string
       inputTokens: numberOr(usage?.prompt_tokens, null),
       outputTokens: numberOr(usage?.completion_tokens, null),
       reasoningTokens: numberOr(usage?.completion_tokens_details?.reasoning_tokens, null),
-      cost: numberOr(usage?.cost, 0),
+      cost: numberOr(usage?.cost, null),
       outcome: text.trim() === "" ? "empty" : "ok",
     },
   };

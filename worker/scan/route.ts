@@ -1,9 +1,10 @@
 import type { NonEmpty } from "../../src/core/split";
 import { readCapped } from "../create";
-import { limiterKey, type IpLimit } from "../rate-limit";
+import { limiterKey, type DayLimit, type IpLimit } from "../rate-limit";
+import { jpegLongestSide } from "./jpeg";
 import { BANNED_HOSTS, readReceipt, type JpegDataUrl, type PassConfig, type ReaderConfig, type ScanInput } from "./reader";
 
-/** The client downsizes the photo to fit this. The Worker never decodes it, because Workers Free allows 10 ms of CPU a request. */
+/** The client downsizes the photo to fit this. The Worker never decodes its pixels, because Workers Free allows 10 ms of CPU a request. */
 export const MAX_SCAN_BODY_BYTES = 1024 * 1024;
 
 const MAX_OCR_LINES = 400;
@@ -21,7 +22,12 @@ export const scanLimiterName = (ip: string) => `scan:${limiterKey(ip)}`;
 
 export type ScanRefusal = { readonly refused: "origin" | "bodyTooLarge" | "rejected" | "unavailable" | "rateLimited" | "dailyLimit" | "unreadable" };
 
-type ScanConfig = { readonly perIp: IpLimit; readonly dailyCap: number; readonly reader: ReaderConfig };
+type ScanConfig = {
+  readonly perIp: IpLimit;
+  readonly today: DayLimit & { readonly budget: NonNullable<DayLimit["budget"]> };
+  readonly maxImagePx: number;
+  readonly reader: ReaderConfig;
+};
 
 type ScanEnv = Pick<
   Cloudflare.Env,
@@ -30,6 +36,9 @@ type ScanEnv = Pick<
   | "SCAN_PER_MINUTE"
   | "SCAN_PER_DAY"
   | "SCAN_DAILY_CAP"
+  | "SCAN_DAILY_BUDGET_USD"
+  | "SCAN_WORST_CASE_USD"
+  | "SCAN_MAX_IMAGE_PX"
   | "SCAN_PASS1_MODEL"
   | "SCAN_PASS1_HOSTS"
   | "SCAN_PASS1_EFFORT"
@@ -49,6 +58,10 @@ export function scanConfig(env: ScanEnv): ScanConfig | { readonly error: string 
     const value = Number(env[name]);
     return Number.isSafeInteger(value) && value > 0 ? value : null;
   };
+  const dollars = (name: keyof ScanEnv) => {
+    const value = Number(env[name]);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  };
   const pass = (n: 1 | 2): PassConfig | string => {
     const model = env[`SCAN_PASS${n}_MODEL`];
     const [host, ...more] = String(env[`SCAN_PASS${n}_HOSTS`] ?? "")
@@ -63,13 +76,15 @@ export function scanConfig(env: ScanEnv): ScanConfig | { readonly error: string 
     if (hosts.some((name) => (BANNED_HOSTS as readonly string[]).includes(name))) return `SCAN_PASS${n}_HOSTS lists a banned host`;
     return { model, hosts, effort, timeoutMs, maxTokens };
   };
-  const [perMinute, perDay, dailyCap] = [count("SCAN_PER_MINUTE"), count("SCAN_PER_DAY"), count("SCAN_DAILY_CAP")];
+  const [perMinute, perDay, dailyCap, maxImagePx] = [count("SCAN_PER_MINUTE"), count("SCAN_PER_DAY"), count("SCAN_DAILY_CAP"), count("SCAN_MAX_IMAGE_PX")];
+  const [usd, reserveUsd] = [dollars("SCAN_DAILY_BUDGET_USD"), dollars("SCAN_WORST_CASE_USD")];
   const [pass1, pass2] = [pass(1), pass(2)];
   if (!env.OPENROUTER_API_KEY) return { error: "the OPENROUTER_API_KEY secret is not set" };
   if (perMinute === null || perDay === null || dailyCap === null) return { error: "SCAN_PER_MINUTE, SCAN_PER_DAY, or SCAN_DAILY_CAP is missing or invalid" };
+  if (usd === null || reserveUsd === null || maxImagePx === null) return { error: "SCAN_DAILY_BUDGET_USD, SCAN_WORST_CASE_USD, or SCAN_MAX_IMAGE_PX is missing or invalid" };
   if (typeof pass1 === "string") return { error: pass1 };
   if (typeof pass2 === "string") return { error: pass2 };
-  return { perIp: { perMinute, perDay }, dailyCap, reader: { key: env.OPENROUTER_API_KEY, pass1, pass2 } };
+  return { perIp: { perMinute, perDay }, today: { cap: dailyCap, budget: { usd, reserveUsd } }, maxImagePx, reader: { key: env.OPENROUTER_API_KEY, pass1, pass2 } };
 }
 
 function parseScanInput(value: unknown): ScanInput | null {
@@ -96,22 +111,28 @@ export async function scanReceipt(request: Request, env: ScanEnv): Promise<Respo
     console.error(`scan is not configured: ${config.error}`);
     return refuse(503, "unavailable");
   }
+  const longestSide = jpegLongestSide(input.photo.slice(JPEG_DATA_URL.length));
+  if (longestSide === null || longestSide > config.maxImagePx) return refuse(400, "rejected");
   const ip = request.headers.get("cf-connecting-ip");
   if (ip === null) {
     console.error("a scan arrived with no cf-connecting-ip, so it cannot be rate limited");
     return refuse(503, "unavailable");
   }
   const cap = env.CreateLimiter.getByName(SCAN_DAILY_CAP_NAME);
-  const room = await cap.peekToday(config.dailyCap);
+  const room = await cap.peekToday(config.today);
   if (!room.ok) return tooMany("dailyLimit", room.retryAfterMs);
   const admission = await env.CreateLimiter.getByName(scanLimiterName(ip)).admit(config.perIp);
   if (!admission.ok) return tooMany(admission.refused, admission.retryAfterMs);
-  const today = await cap.admitToday(config.dailyCap);
+  const today = await cap.admitToday(config.today);
   if (!today.ok) return tooMany("dailyLimit", today.retryAfterMs);
 
   const started = Date.now();
   const { reply, calls, skipped } = await readReceipt(input, config.reader);
-  const cost = calls.reduce((total, call) => total + call.cost, 0);
+  const reserved = config.today.budget.reserveUsd;
+  const reported = calls.reduce((total, call) => total + (call.cost ?? 0), 0);
+  // A call with no reported cost, such as one that timed out, may still be billed, so the scan counts as its worst case.
+  const cost = calls.every((call) => call.cost !== null) ? reported : Math.max(reported, reserved);
+  await cap.settleToday(today.day, reserved, cost);
   console.log(
     JSON.stringify({
       event: "scan",
