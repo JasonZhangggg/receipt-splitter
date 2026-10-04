@@ -844,8 +844,8 @@ The Split page shows lines as the receipt prints them (preferences 58). Lines pr
 - A one-unit Item reads unchanged.
 - A quantity line whose units all hold the same claims reads as one line with that quantity and those claims. Cents scale by the quantity, so each claimer pays the same.
 - A quantity line whose units differ reads as one-unit rows in its place, as **Split** would leave it, and each row keeps the line's detail. The first row keeps the id, the rest take `<id>-2`, `<id>-3`, and so on, with prices from `unitPrices`, and a Bundle lists them where it listed the line.
-- When those ids are taken or too long, or the rows would break a limit such as 100 Items or the 32 KB budget, the line reads as one line instead, claimed by everyone who had any unit, with their shares or cents summed. The Split still loads.
-- Item writes in old `recentChanges` map their claim sets the same way, with the one-line rule, and an old quantity edit becomes a quantity pair. Reverting such a change after the deploy may answer `conflict`, which changes nothing.
+- When those ids are taken or too long, or the rows would break a limit such as 100 Items or the 32 KB budget, that line reads as one line instead, by amount, with each person's exact cents of it. Lines before it that fit still read as rows. Every Share stays the same; when an exact share holds a fraction of a cent, the line's claimed cents go out by largest remainder. The Split still loads.
+- Item writes in old `recentChanges` map their claim sets the same way, with the one-line rule, and an old quantity edit becomes a quantity pair. A write whose Revert would no longer undo what it did gets a `{ kind: "perUnit", id }` mark, and Revert of its change answers `conflict`, which changes nothing: its line now reads as rows, its units differed, or its quantity is not the line's quantity now.
 - `original` already stores quantities and reads unchanged, so **Restore receipt** brings a split line back as one line.
 
 **Files.**

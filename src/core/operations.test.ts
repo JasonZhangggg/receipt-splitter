@@ -902,6 +902,13 @@ describe("quantity lines", () => {
     ]);
   });
 
+  test("Revert of adding a 3x line after it was Split answers conflict instead of removing only the first row", () => {
+    const added = apply(atThePub(), { by: bob, type: "editReceipt", items: [{ type: "add", index: 2, item: { id: itemId("ale"), name: "Ale", price: price(900), quantity: 3 } }] });
+    const split = apply(added, splitLine([itemId("ale-b"), itemId("ale-c")], itemId("ale")));
+
+    expect(reasonFor(split, { by: cat, type: "undo", revision: added.revision })).toBe("conflict");
+  });
+
   test("Revert of a Split inside a Bundle restores the Bundle's list", () => {
     const start = topgolf({ ...eachOf(bucketOne, priya) });
     const split = apply(start, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("guinness1-b"), itemId("guinness1-c")] }] });

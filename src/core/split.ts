@@ -168,6 +168,8 @@ export type Write =
     };
 
 export type LegacyWrite =
+  /** Marks an old change to a line that a release before quantity lines stored per unit and that no longer reads as it did, so its Revert answers conflict. */
+  | { readonly kind: "perUnit"; readonly id: ItemId }
   | { readonly kind: "joined"; readonly participantId: ParticipantId; readonly joined: boolean }
   | {
       readonly kind: "claims";
@@ -191,7 +193,7 @@ export type SchemaVersion = 1 | 2 | 3 | 4;
 export function storedVersion({ receipt, original, recentChanges }: Pick<Split, "receipt" | "original" | "recentChanges">): SchemaVersion {
   const writes = recentChanges.flatMap((change) => change.writes);
   const writesQuantity = (write: Write | LegacyWrite) =>
-    write.kind === "split" || write.kind === "unsplit" || (write.kind === "item" && ("edit" in write ? "quantity" in write.edit : ("added" in write ? write.added : write.removed).quantity !== undefined));
+    write.kind === "split" || write.kind === "unsplit" || write.kind === "perUnit" || (write.kind === "item" && ("edit" in write ? "quantity" in write.edit : ("added" in write ? write.added : write.removed).quantity !== undefined));
   if (receipt.items.some(({ quantity }) => quantity !== undefined) || writes.some(writesQuantity)) return 4;
   const detailed = (items: readonly ItemRow[]) => items.some((item) => item.detail !== undefined);
   const writesDetail = (write: Write | LegacyWrite) => write.kind === "item" && ("edit" in write ? "detail" in write.edit : ("added" in write ? write.added : write.removed).detail !== undefined);

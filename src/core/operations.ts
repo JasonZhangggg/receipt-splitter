@@ -405,7 +405,8 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
     case "item": {
       const at = indexOf(split.receipt.items, write.id);
       const current = split.receipt.items[at];
-      if ("added" in write && current) return [ITEM_ROWS.remove(current, at)];
+      // A line added with a quantity that was Split since, or that an old Split now reads as rows, is more than this row.
+      if ("added" in write && current) return (current.quantity ?? 1) === (write.added.quantity ?? 1) ? [ITEM_ROWS.remove(current, at)] : "conflict";
       const inverted = invertRow(write, at);
       if (!("edit" in inverted) || !("edit" in write) || !write.edit.split || !current) return [{ kind: "item", ...inverted }];
       const [before] = write.edit.split;
@@ -430,6 +431,8 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
       return [{ kind: "totals", subtotalDelta: cents(0 - write.subtotalDelta), totalDelta: cents(0 - write.totalDelta) }];
     case "payment":
       return [{ kind: "payment", participantId: write.participantId, before: write.after, after: write.before }];
+    case "perUnit":
+      return "conflict";
     case "claims":
     case "joined":
       return [];

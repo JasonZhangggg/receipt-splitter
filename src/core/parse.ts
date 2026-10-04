@@ -310,12 +310,14 @@ function rowWrite<const Kind extends string, RowId, Full, Edit>(
   });
 }
 
-type RowsWrite = Extract<Write, { readonly kind: "split" | "unsplit" }>;
+type RowsWrite = Extract<Write | LegacyWrite, { readonly kind: "split" | "unsplit" | "perUnit" }>;
 type OtherWrite = Exclude<Write | LegacyWrite, { readonly kind: "item" } | RowsWrite>;
 
 const quantityLine = strict(({ read }) => ({ quantity: read("quantity", storedQuantity), price: read("price", price), split: read("split", itemSplit) }));
 
-function rowsWrite<const Kind extends RowsWrite["kind"]>(kind: Kind) {
+const perUnit = strict(({ read }) => ({ kind: read("kind", literal("perUnit")), id: read("id", itemId) }));
+
+function rowsWrite<const Kind extends "split" | "unsplit">(kind: Kind) {
   return strict(({ read }) => ({ kind: read("kind", literal(kind)), id: read("id", itemId), ids: read("ids", nonEmpty(itemId, MAX_QUANTITY - 1)), line: read("line", quantityLine) }));
 }
 
@@ -415,7 +417,7 @@ function legacyRows(version: LegacySplit["schemaVersion"]) {
 const LEGACY_ROWS = { 1: legacyRows(1), 2: legacyRows(2), 3: legacyRows(3) } as const;
 
 const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", itemId, itemFields, itemEdit);
-const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit") });
+const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit"), perUnit });
 const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment), original: receipt(receiptItem, anyAdjustment), change: currentChange };
 
 /** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */
