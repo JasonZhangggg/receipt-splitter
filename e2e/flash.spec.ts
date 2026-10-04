@@ -143,7 +143,8 @@ test("at 4x slowdown, By amount to Evenly fades out fully, fades in, and takes 2
 });
 
 for (const second of [60, 100, 180]) {
-  test(`at 4x slowdown, a second split-type switch ${second} ms after the first never brings back rows the user did not see`, async ({ page }) => {
+  // The windows differ by 160 to 320 ms of wall time, about one 150-330 ms Linux WebKit frame. There the tap, the playbackRate patch and the first sample each land a frame late, so the first swap has run its course before the second tap and rises() reads a whole fade as one step.
+  test(`at 4x slowdown, a second split-type switch ${second} ms after the first never brings back rows the user did not see`, { tag: "@frame-timing" }, async ({ page }) => {
     await itemShared(page);
     const watch = await slowed(page);
     await watch.reset();
