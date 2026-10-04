@@ -5,7 +5,7 @@ import type { Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
 import type { AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
 import { plainAmount } from "../../draft";
-import { PressTarget } from "../components/button";
+import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
@@ -19,8 +19,8 @@ type Props = {
   selected: Participant | null;
   me: ParticipantId | null;
   onCircle: (item: SplitItem) => void;
-  onOpen: (item: SplitItem) => void;
-  onAdd: () => void;
+  onOpen: (item: SplitItem, press: Press) => void;
+  onAdd: (press: Press) => void;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -68,7 +68,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         divided={divided}
         inBundle={inBundle}
         onCircle={() => onCircle(item)}
-        onOpen={() => onOpen(item)}
+        onOpen={(press) => onOpen(item, press)}
       />
     </Grow>
   );
@@ -294,7 +294,7 @@ type LineProps = {
   divided: boolean;
   inBundle: boolean;
   onCircle: () => void;
-  onOpen: () => void;
+  onOpen: (press: Press) => void;
 };
 
 function Line({ item, order, claimers, selected, divided, inBundle, onCircle, onOpen }: LineProps) {
@@ -362,7 +362,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   );
 }
 
-function AddRow({ divided, onPress }: { divided: boolean; onPress: () => void }) {
+function AddRow({ divided, onPress }: { divided: boolean; onPress: (press: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (

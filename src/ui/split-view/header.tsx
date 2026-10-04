@@ -3,13 +3,13 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { useState } from "react";
 
-import { Button, PressTarget } from "../components/button";
+import { Button, PressTarget, type Press } from "../components/button";
 import { copy, joinCopy } from "../home-copy";
 import { pressStyle, useReducedMotion, webAnimation } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 
-type Props = { onReceipt?: () => void; onHistory?: () => void; onShare?: () => void };
+type Props = { onReceipt?: () => void; onHistory?: (press: Press) => void; onShare?: () => void };
 
 export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
   const c = useColors();

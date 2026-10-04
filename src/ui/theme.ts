@@ -9,7 +9,7 @@ export function useColors(): Colors {
 
 export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24, xxl: 32, xxxl: 48, huge: 64 } as const;
 
-export const breakpoints = { exampleFrom: 768, columnFrom: 900, roomyFrom: 1280 } as const;
+export const breakpoints = { exampleFrom: 768, columnFrom: 900, pairFrom: 1024, roomyFrom: 1280 } as const;
 
 export const layout = {
   gutter: 22,

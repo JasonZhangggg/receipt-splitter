@@ -24,6 +24,8 @@ const light = {
   lift: "drop-shadow(0 1px 1px rgba(17, 18, 20, 0.06)) drop-shadow(0 12px 20px rgba(17, 18, 20, 0.08))",
   cardLift: "0 1px 1px rgba(17, 18, 20, 0.06), 0 12px 20px rgba(17, 18, 20, 0.08)",
   sheetShadow: "0 -1px 0 #E3E5E8, 0 -12px 32px rgba(17, 18, 20, 0.06)",
+  panelShadow: "0 0 0 1px #E3E5E8, 0 12px 32px rgba(17, 18, 20, 0.06)",
+  popShadow: "0 0 0 1px rgba(17, 18, 20, 0.06), 0 2px 4px rgba(17, 18, 20, 0.04), 0 18px 40px rgba(17, 18, 20, 0.14)",
 };
 
 export type Colors = Record<keyof typeof light, string>;
@@ -54,6 +56,8 @@ const dark: Colors = {
   lift: "drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4)) drop-shadow(0 12px 18px rgba(0, 0, 0, 0.35))",
   cardLift: "0 1px 1px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.35)",
   sheetShadow: "0 -1px 0 #2F3135, 0 -14px 36px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+  panelShadow: "0 0 0 1px #2F3135, 0 12px 32px rgba(0, 0, 0, 0.3)",
+  popShadow: "0 0 0 1px #34363B, 0 18px 40px rgba(0, 0, 0, 0.5)",
 };
 
 export const colors = { light, dark };

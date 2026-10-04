@@ -30,6 +30,8 @@ type WebOnly = Partial<
     | "overscrollBehavior"
     | "touchAction"
     | "willChange"
+    | "position"
+    | "top"
     | "cursor",
     string
   >
