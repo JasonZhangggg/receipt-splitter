@@ -10,7 +10,6 @@ import {
   checkSplit,
   claimersOf,
   createSplit,
-  MAX_QUANTITY,
   type Auth,
   type ItemPatch,
   type Operation,
@@ -107,7 +106,7 @@ function priceEdit(by: ParticipantId, id: typeof fries, from: number, to: number
 describe("createSplit", () => {
   test("starts a Split with the Host, every Item Unclaimed, and no changes", () => {
     expect(created()).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 4,
       id: "q7Xv0Lr9_aZ-3mKp",
       currency: "USD",
       receipt: {
@@ -566,12 +565,11 @@ describe("editing the Receipt", () => {
     expect(restored.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, split: { by: "even", units: [["bob", "cat"]] } });
   });
 
-  test("a detail edit lands as a receipt change at version 3, and undoing it restores the Item without one", () => {
+  test("a detail edit lands as a receipt change, and undoing it restores the Item without one", () => {
     const split = withBobAndCat();
     const detailed = apply(split, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "Large, $2.00 off" }] });
 
     expect(detailed.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, detail: "Large, $2.00 off", split: { by: "even", units: [[]] } });
-    expect(detailed.schemaVersion).toBe(3);
     expect(detailed.recentChanges.at(-1)?.writes).toEqual([{ kind: "item", id: "fries", edit: { detail: ["", "Large, $2.00 off"] } }]);
     expect(parseSplit(JSON.parse(JSON.stringify(detailed)))).toEqual({ ok: true, split: detailed });
 
@@ -600,28 +598,17 @@ describe("editing the Receipt", () => {
   });
 });
 
-describe("Item quantity and split", () => {
+describe("Item split modes", () => {
   const edit = (patch: Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">, itemId = pitcher): Operation => ({
     by: bob,
     type: "editReceipt",
     items: [{ type: "edit", itemId, ...patch }],
   });
-  const claim = (itemId: typeof fries, participantId: ParticipantId, unit = 0): Operation => ({ by: participantId, type: "claim", itemId, participantId, unit });
-
-  test("two pitchers on one $30.00 line, Ann and Bob on one and Cat on the other, cost $7.50, $7.50, and $15.00", () => {
-    const split = apply(withBobAndCat(), edit({ quantity: 2 }), claim(pitcher, ann, 0), claim(pitcher, bob, 0), claim(pitcher, cat, 1));
-
-    expect(split.receipt.items[2].split).toEqual({ by: "even", units: [["ann", "bob"], ["cat"]] });
-    expect(computeShares(split).shares.map(({ share }) => share)).toEqual([750, 750, 1500]);
-  });
-
-  test("a claim on a unit the Item does not have is refused as badIndex", () => {
-    expect(reasonFor(withBobAndCat(), claim(pitcher, bob, 1))).toBe("badIndex");
-  });
+  const claim = (itemId: typeof fries, participantId: ParticipantId): Operation => ({ by: participantId, type: "claim", itemId, participantId });
 
   test("switching to shares and setting 2:1 is one recorded change, and Undo puts back the even split while keeping a claim made since", () => {
     const claimed = apply(withBobAndCat(), claim(pitcher, ann), claim(pitcher, bob));
-    const shaped = apply(claimed, edit({ by: "shares", values: [{ unit: 0, participantId: ann, value: 2 }] }));
+    const shaped = apply(claimed, edit({ by: "shares", values: [{ participantId: ann, value: 2 }] }));
 
     expect(shaped.receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 2], ["bob", 1]]] });
     expect(shaped.recentChanges.at(-1)?.writes).toEqual([
@@ -634,47 +621,36 @@ describe("Item quantity and split", () => {
     expect(undone.receipt.items[2].split).toEqual({ by: "even", units: [["ann", "bob", "cat"]] });
   });
 
-  test("Undo of a quantity change puts the units back, and drops the claim Cat made on the unit that went away", () => {
-    const doubled = apply(withBobAndCat(), edit({ quantity: 2 }));
-    const claimed = apply(doubled, claim(pitcher, cat, 1));
-
-    const undone = apply(claimed, { by: ann, type: "undo", revision: doubled.revision });
-
-    expect(undone.receipt.items[2].split).toEqual({ by: "even", units: [[]] });
-  });
-
   test("an amount split may leave cents Unclaimed, but one over the price is refused, and so is a price edit under it", () => {
     const claimed = apply(withBobAndCat(), claim(fries, bob), claim(fries, cat));
-    const amounts = apply(claimed, edit({ by: "amount", values: [{ unit: 0, participantId: bob, value: 500 }, { unit: 0, participantId: cat, value: 200 }] }, fries));
+    const amounts = apply(claimed, edit({ by: "amount", values: [{ participantId: bob, value: 500 }, { participantId: cat, value: 200 }] }, fries));
 
     expect(computeShares(amounts).unclaimed).toEqual({ itemIds: ["pasta", "fries", "pitcher"], total: 1400 + 100 + 3000 });
-    expect(reasonFor(amounts, edit({ values: [{ unit: 0, participantId: cat, value: 301 }] }, fries))).toBe("amountOverPrice");
+    expect(reasonFor(amounts, edit({ values: [{ participantId: cat, value: 301 }] }, fries))).toBe("amountOverPrice");
     expect(reasonFor(amounts, edit({ price: price(600) }, fries))).toBe("amountOverPrice");
   });
 
   test("amounts that add up to the price exactly are accepted, and leave nothing Unclaimed on that line", () => {
     const claimed = apply(withBobAndCat(), claim(fries, bob), claim(fries, cat));
-    const exact = apply(claimed, edit({ by: "amount", values: [{ unit: 0, participantId: bob, value: 500 }, { unit: 0, participantId: cat, value: 300 }] }, fries));
+    const exact = apply(claimed, edit({ by: "amount", values: [{ participantId: bob, value: 500 }, { participantId: cat, value: 300 }] }, fries));
 
     expect(computeShares(exact).unclaimed.itemIds).toEqual(["pasta", "pitcher"]);
   });
 
-  test("a value for someone who did not have the unit, a share count of 0, or a quantity of 0 or 21 is refused", () => {
+  test("a value for someone who did not claim the line, or a share count of 0, is refused", () => {
     const claimed = apply(withBobAndCat(), claim(fries, bob));
 
-    expect(reasonFor(claimed, edit({ by: "shares", values: [{ unit: 0, participantId: cat, value: 2 }] }, fries))).toBe("conflict");
-    expect(reasonFor(claimed, edit({ by: "shares", values: [{ unit: 0, participantId: bob, value: 0 }] }, fries))).toBe("amountOutOfRange");
-    expect(reasonFor(claimed, edit({ values: [{ unit: 0, participantId: bob, value: 2 }] }, fries))).toBe("conflict");
-    expect(reasonFor(claimed, edit({ quantity: 0 }, fries))).toBe("amountOutOfRange");
-    expect(reasonFor(claimed, edit({ quantity: MAX_QUANTITY + 1 }, fries))).toBe("amountOutOfRange");
+    expect(reasonFor(claimed, edit({ by: "shares", values: [{ participantId: cat, value: 2 }] }, fries))).toBe("conflict");
+    expect(reasonFor(claimed, edit({ by: "shares", values: [{ participantId: bob, value: 0 }] }, fries))).toBe("amountOutOfRange");
+    expect(reasonFor(claimed, edit({ values: [{ participantId: bob, value: 2 }] }, fries))).toBe("conflict");
   });
 
   test("a share count of 99 is accepted and 100 is refused", () => {
     const claimed = apply(withBobAndCat(), claim(fries, bob), claim(fries, cat), edit({ by: "shares" }, fries));
-    const most = apply(claimed, edit({ values: [{ unit: 0, participantId: bob, value: 99 }] }, fries));
+    const most = apply(claimed, edit({ values: [{ participantId: bob, value: 99 }] }, fries));
 
     expect(most.receipt.items.find(({ id }) => id === fries)?.split).toEqual({ by: "shares", units: [[[bob, 99], [cat, 1]]] });
-    expect(reasonFor(claimed, edit({ values: [{ unit: 0, participantId: bob, value: 100 }] }, fries))).toBe("amountOutOfRange");
+    expect(reasonFor(claimed, edit({ values: [{ participantId: bob, value: 100 }] }, fries))).toBe("amountOutOfRange");
   });
 
   test("the same mode sent again changes nothing", () => {
@@ -683,23 +659,16 @@ describe("Item quantity and split", () => {
     expect(applyOperation(shaped, edit({ by: "shares" }), anyone)).toEqual({ ok: true, split: shaped, changed: false });
   });
 
-  test("a deleted Item comes back with its units and split on Undo", () => {
-    const shaped = apply(withBobAndCat(), edit({ quantity: 2, by: "shares" }, fries), claim(fries, bob, 1));
+  test("a deleted Item comes back with its split on Undo", () => {
+    const shaped = apply(withBobAndCat(), edit({ by: "shares" }, fries), claim(fries, bob));
     const deleted = apply(shaped, { by: ann, type: "editReceipt", items: [{ type: "delete", itemId: fries }] });
 
     expect(apply(deleted, { by: cat, type: "undo", revision: deleted.revision }).receipt).toEqual(shaped.receipt);
   });
 
-  test("Undo of adding someone who holds a unit is refused while they hold it", () => {
-    const added = apply(withBobAndCat(), { by: null, type: "addParticipant", participant: { id: dan, name: "Dan" } });
-    const claimed = apply(added, edit({ quantity: 2 }), claim(pitcher, dan, 1));
-
-    expect(reasonFor(claimed, { by: bob, type: "undo", revision: added.revision })).toBe("participantInUse");
-  });
-
-  test("restoring the Receipt puts back each quantity and price, keeps the claims on units that stay, and turns an amount split over the restored price back to even", () => {
-    const priced = apply(withBobAndCat(), priceEdit(bob, fries, 800, 1200), claim(fries, bob), claim(pitcher, cat), edit({ quantity: 3 }));
-    const shaped = apply(priced, edit({ by: "amount", values: [{ unit: 0, participantId: bob, value: 1000 }] }, fries));
+  test("restoring the Receipt puts back each price, keeps the claims, and turns an amount split over the restored price back to even", () => {
+    const priced = apply(withBobAndCat(), priceEdit(bob, fries, 800, 1200), claim(fries, bob), claim(pitcher, cat));
+    const shaped = apply(priced, edit({ by: "amount", values: [{ participantId: bob, value: 1000 }] }, fries));
 
     const restored = apply(shaped, { by: cat, type: "restoreReceipt" });
 
@@ -710,87 +679,324 @@ describe("Item quantity and split", () => {
     ]);
   });
 
-  test("deleting one unit of three drops that unit and its price, keeps the claims on the other two, and Undo brings it back", () => {
-    const three = apply(withBobAndCat(), edit({ quantity: 3, price: price(1000) }), claim(pitcher, ann, 0), claim(pitcher, bob, 1), claim(pitcher, cat, 2));
-
-    const dropped = apply(three, edit({ quantity: 2, price: price(666), drop: 0 }));
-
-    expect(dropped.receipt.items[2]).toEqual({ id: "pitcher", name: "Pitcher", price: 666, split: { by: "even", units: [["bob"], ["cat"]] } });
-    expect(apply(dropped, { by: cat, type: "undo", revision: dropped.revision }).receipt).toEqual(three.receipt);
-    const claimedSince = apply(dropped, claim(pitcher, ann, 1));
-    expect(apply(claimedSince, { by: cat, type: "undo", revision: dropped.revision }).receipt.items[2].split).toEqual({ by: "even", units: [["ann"], ["bob"], ["ann", "cat"]] });
-  });
-
-  test("drop names a unit the Item has, and only when the quantity goes down by one", () => {
-    const three = apply(withBobAndCat(), edit({ quantity: 3 }));
-
-    expect([
-      reasonFor(three, edit({ quantity: 2, drop: 3 })),
-      reasonFor(three, edit({ quantity: 2, drop: -1 })),
-      reasonFor(three, edit({ quantity: 2, drop: 0.5 })),
-      reasonFor(three, edit({ quantity: 1, drop: 0 })),
-      reasonFor(three, edit({ drop: 0 })),
-    ]).toEqual(["badIndex", "badIndex", "badIndex", "conflict", "conflict"]);
-  });
-
-  test("in shares mode a dropped unit takes its own share with it, so dropping unit 0 or unit 1 of [ann:1],[ann:2],[ann:5] leaves the other two with their shares", () => {
-    const shares = apply(withBobAndCat(), edit({ quantity: 3, by: "shares" }), claim(pitcher, ann, 0), claim(pitcher, ann, 1), claim(pitcher, ann, 2), edit({ values: [{ unit: 1, participantId: ann, value: 2 }, { unit: 2, participantId: ann, value: 5 }] }));
-    expect(shares.receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 1]], [["ann", 2]], [["ann", 5]]] });
-
-    expect(apply(shares, edit({ quantity: 2, drop: 0 })).receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 2]], [["ann", 5]]] });
-    expect(apply(shares, edit({ quantity: 2, drop: 1 })).receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 1]], [["ann", 5]]] });
-  });
-
-  test("a stale drop of the old last unit is a conflict, not badIndex", () => {
-    const two = apply(withBobAndCat(), edit({ quantity: 2 }));
-
-    expect(reasonFor(two, edit({ quantity: 2, drop: 2 }))).toBe("conflict");
-  });
-
-  test("Undo of a drop between units with the same claimers but different shares puts the shares back on the right units after a later claim", () => {
-    const priced = apply(withBobAndCat(), edit({ quantity: 3, by: "shares", price: price(1000) }), claim(pitcher, ann, 0), claim(pitcher, ann, 1), edit({ values: [{ unit: 1, participantId: ann, value: 2 }] }));
-    const dropped = apply(priced, edit({ quantity: 2, price: price(666), drop: 0 }));
-    const claimedSince = apply(dropped, claim(pitcher, bob, 0));
-
-    expect(apply(claimedSince, { by: cat, type: "undo", revision: dropped.revision }).receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 1]], [["ann", 2], ["bob", 1]], []] });
-  });
-
-  test("Undo of a drop between identical units puts the unit back after the last identical one, deterministically", () => {
-    const priced = apply(withBobAndCat(), edit({ quantity: 3, price: price(1000) }), claim(pitcher, ann, 0), claim(pitcher, ann, 1));
-    const dropped = apply(priced, edit({ quantity: 2, price: price(666), drop: 0 }));
-    const claimedSince = apply(dropped, claim(pitcher, bob, 0));
-
-    expect(apply(claimedSince, { by: cat, type: "undo", revision: dropped.revision }).receipt.items[2].split).toEqual({ by: "even", units: [["ann", "bob"], ["ann"], []] });
-  });
-
-  test("a dropped unit is stored as the plain split and price edit that the deployed parser already reads", () => {
-    const three = apply(withBobAndCat(), edit({ quantity: 3 }), claim(pitcher, bob, 1));
-    const dropped = apply(three, edit({ quantity: 2, price: price(2000), drop: 1 }));
-    const stored = JSON.stringify(dropped);
-
-    expect(parseOperation({ by: "bob", type: "editReceipt", items: [{ type: "edit", itemId: "pitcher", quantity: 2, price: 2000, drop: 1 }] })).toEqual({
-      ok: true,
-      op: { by: "bob", type: "editReceipt", items: [{ type: "edit", itemId: "pitcher", quantity: 2, price: 2000, drop: 1 }] },
-    });
-
-    expect(stored.includes("drop")).toBe(false);
-    expect(dropped.recentChanges.at(-1)?.writes).toEqual([
-      { kind: "item", id: "pitcher", edit: { price: [3000, 2000], split: [{ by: "even", units: [[], ["bob"], []] }, { by: "even", units: [[], []] }] } },
-    ]);
-    expect(parseSplit(JSON.parse(stored))).toEqual({ ok: true, split: dropped });
-  });
-
   test("a change made at a known time carries it", () => {
     const result = applyOperation(withBobAndCat(), edit({ price: price(700) }, fries), anyone, 1_790_000_000_000);
 
     expect(result.ok && result.split.recentChanges.at(-1)?.at).toBe(1_790_000_000_000);
   });
 
-  test("a Split with units, modes, picks, and change times survives a round trip through parseSplit", () => {
-    const shaped = accepted(applyOperation(apply(withBobAndCat(), claim(fries, bob)), edit({ quantity: 2, by: "amount" }, fries), anyone, 5));
+  test("a Split with modes, picks, and change times survives a round trip through parseSplit", () => {
+    const shaped = accepted(applyOperation(apply(withBobAndCat(), claim(fries, bob)), edit({ by: "amount" }, fries), anyone, 5));
     const picked = apply(shaped, { by: bob, type: "pick", participantId: bob, device: deviceId("phone-one"), takeOver: false });
 
     expect(parseSplit(JSON.parse(JSON.stringify(picked)))).toEqual({ ok: true, split: picked });
+  });
+});
+
+describe("quantity lines", () => {
+  const beer = itemId("beer");
+  const beerB = itemId("beer-b");
+  const beerC = itemId("beer-c");
+  const pub: Receipt = {
+    items: [
+      { id: fries, name: "Fries", price: price(800) },
+      { id: beer, name: "Guinness", price: price(2187), quantity: 3 },
+    ],
+    adjustments: [],
+    subtotal: cents(2987),
+    total: cents(2987),
+  };
+  const atThePub = () =>
+    apply(
+      created(pub),
+      { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } },
+      { by: ann, type: "addParticipant", participant: { id: cat, name: "Cat" } },
+    );
+  const claim = (participantId: ParticipantId, id = beer): Operation => ({ by: participantId, type: "claim", itemId: id, participantId });
+  const unclaim = (participantId: ParticipantId, id = beer): Operation => ({ by: participantId, type: "unclaim", itemId: id, participantId });
+  const edit = (patch: Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">, id = beer): Operation => ({ by: bob, type: "editReceipt", items: [{ type: "edit", itemId: id, ...patch }] });
+  const splitLine = (ids: readonly [typeof beer, ...(typeof beer)[]], id = beer): Operation => ({ by: bob, type: "editReceipt", items: [{ type: "split", itemId: id, ids }] });
+  const shares = (split: Split) => computeShares(split).shares.map(({ share }) => share);
+  const rows = (split: Split) => split.receipt.items.map(({ id, price: cents, quantity, split: shape }) => [id, cents, quantity ?? 1, shape]);
+
+  test("a new Split stores the line once with its quantity and one empty claim set", () => {
+    expect(atThePub().receipt.items[1]).toEqual({ id: "beer", name: "Guinness", price: 2187, quantity: 3, split: { by: "even", units: [[]] } });
+  });
+
+  test("a claim on a quantity line names the whole line", () => {
+    const claimed = apply(atThePub(), claim(bob));
+
+    expect(claimed.receipt.items[1]).toEqual({ id: "beer", name: "Guinness", price: 2187, quantity: 3, split: { by: "even", units: [["bob"]] } });
+    expect(shares(claimed)).toEqual([0, 2187, 0]);
+    expect(computeShares(claimed).unclaimed).toEqual({ itemIds: ["fries"], total: 800 });
+    expect(shares(apply(claimed, claim(cat), unclaim(bob)))).toEqual([0, 0, 2187]);
+  });
+
+  test("by shares and by amount on a quantity line divide the whole line", () => {
+    const claimed = apply(atThePub(), claim(bob), claim(cat));
+
+    const byShares = apply(claimed, edit({ by: "shares", values: [{ participantId: bob, value: 2 }] }));
+    expect(byShares.receipt.items[1].split).toEqual({ by: "shares", units: [[["bob", 2], ["cat", 1]]] });
+    expect(shares(byShares)).toEqual([0, 1458, 729]);
+
+    const byAmount = apply(claimed, edit({ by: "amount", values: [{ participantId: bob, value: 1500 }, { participantId: cat, value: 687 }] }));
+    expect(byAmount.receipt.items[1].split).toEqual({ by: "amount", units: [[["bob", 1500], ["cat", 687]]] });
+    expect(shares(byAmount)).toEqual([0, 1500, 687]);
+    expect(reasonFor(byAmount, edit({ values: [{ participantId: cat, value: 688 }] }))).toBe("amountOverPrice");
+
+    const evenAgain = apply(byAmount, edit({ by: "even" }));
+    expect(evenAgain.receipt.items[1].split).toEqual({ by: "even", units: [["bob", "cat"]] });
+  });
+
+  test("Split turns 3x $21.87 into three $7.29 rows that keep the claims, as one recorded change", () => {
+    const claimed = apply(atThePub(), claim(bob), claim(cat), edit({ by: "shares", values: [{ participantId: bob, value: 2 }] }));
+
+    const split = apply(claimed, splitLine([beerB, beerC]));
+
+    const owners = { by: "shares", units: [[["bob", 2], ["cat", 1]]] };
+    expect(split.receipt.items.slice(1)).toEqual([
+      { id: "beer", name: "Guinness", price: 729, split: owners },
+      { id: "beer-b", name: "Guinness", price: 729, split: owners },
+      { id: "beer-c", name: "Guinness", price: 729, split: owners },
+    ]);
+    expect(split.recentChanges.at(-1)?.writes).toEqual([{ kind: "split", id: "beer", ids: ["beer-b", "beer-c"], line: { quantity: 3, price: 2187, split: owners } }]);
+    expect(shares(split)).toEqual(shares(claimed));
+    expect(shares(split)).toEqual([0, 1458, 729]);
+  });
+
+  test("Split of an uneven price gives the first rows the extra cents, so the rows add up to the line", () => {
+    const uneven = apply(atThePub(), edit({ price: price(1000) }));
+
+    expect(rows(apply(uneven, splitLine([beerB, beerC])))).toEqual([
+      ["fries", 800, 1, { by: "even", units: [[]] }],
+      ["beer", 334, 1, { by: "even", units: [[]] }],
+      ["beer-b", 333, 1, { by: "even", units: [[]] }],
+      ["beer-c", 333, 1, { by: "even", units: [[]] }],
+    ]);
+  });
+
+  test("Split of a by-amount line fills the rows in order with each claimer's cents, so they still pay the same", () => {
+    const amounts = apply(atThePub(), claim(bob), claim(cat), edit({ by: "amount", values: [{ participantId: bob, value: 1000 }, { participantId: cat, value: 600 }] }));
+
+    const split = apply(amounts, splitLine([beerB, beerC]));
+
+    expect(rows(split).slice(1)).toEqual([
+      ["beer", 729, 1, { by: "amount", units: [[["bob", 729], ["cat", 0]]] }],
+      ["beer-b", 729, 1, { by: "amount", units: [[["bob", 271], ["cat", 458]]] }],
+      ["beer-c", 729, 1, { by: "amount", units: [[["bob", 0], ["cat", 142]]] }],
+    ]);
+    expect(shares(split)).toEqual([0, 1000, 600]);
+    expect(computeShares(split).unclaimed.total).toBe(1387);
+  });
+
+  test("Split of a by-amount line that covers the price keeps every row by amount and every Share to the cent", () => {
+    const amounts = apply(atThePub(), claim(bob), claim(cat), edit({ by: "amount", values: [{ participantId: bob, value: 1094 }, { participantId: cat, value: 1093 }] }));
+
+    const split = apply(amounts, splitLine([beerB, beerC]));
+
+    expect(rows(split).slice(1)).toEqual([
+      ["beer", 729, 1, { by: "amount", units: [[["bob", 729], ["cat", 0]]] }],
+      ["beer-b", 729, 1, { by: "amount", units: [[["bob", 365], ["cat", 364]]] }],
+      ["beer-c", 729, 1, { by: "amount", units: [[["bob", 0], ["cat", 729]]] }],
+    ]);
+    expect(shares(split)).toEqual([0, 1094, 1093]);
+  });
+
+  test("Split keeps every Share to the cent for any by-amount pair on the Topgolf Guinness", () => {
+    const differences: string[] = [];
+    for (let jasons = 0; jasons <= 2187; jasons += 1) {
+      for (const priyas of [2187 - jasons, Math.floor((2187 - jasons) / 2), 0]) {
+        const values = [{ participantId: jason, value: jasons }, { participantId: priya, value: priyas }];
+        const amounts = apply(topgolf({ guinness1: [jason, priya] }), { by: jason, type: "editReceipt", items: [{ type: "edit", itemId: itemId("guinness1"), by: "amount", values }] });
+        const split = apply(amounts, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] });
+        const before = computeShares(amounts);
+        const after = computeShares(split);
+        if (JSON.stringify(after.shares) !== JSON.stringify(before.shares) || after.unclaimed.total !== before.unclaimed.total) differences.push(`${jasons}/${priyas}`);
+      }
+    }
+
+    expect(differences).toEqual([]);
+  });
+
+  test("Split keeps every Share to the cent for evenly and by-shares lines at any price", () => {
+    const differences: string[] = [];
+    for (const cents of [1, 2, 3, 4, 5, 999, 1000, 1001, 1002, 2186, 2187, 2188]) {
+      for (const shape of [edit({ by: "even" }), edit({ by: "shares", values: [{ participantId: bob, value: 2 }, { participantId: cat, value: 7 }] })]) {
+        const line = apply(atThePub(), claim(ann), claim(bob), claim(cat), edit({ price: price(cents) }), shape);
+        const split = apply(line, splitLine([beerB, beerC]));
+        if (JSON.stringify(computeShares(split)) !== JSON.stringify(computeShares(line))) differences.push(`${cents} ${line.receipt.items[1].split.by}`);
+      }
+    }
+
+    expect(differences).toEqual([]);
+  });
+
+  test("Split inside a Bundle lists the new rows right after the line, and the Topgolf Shares stay $157.77 and $49.52", () => {
+    const start = topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
+
+    const split = apply(start, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("guinness1-b"), itemId("guinness1-c")] }] });
+
+    expect(split.receipt.items.slice(1, 6).map(({ id, price: cents }) => [id, cents])).toEqual([
+      ["ultra1", 629],
+      ["guinness1", 729],
+      ["guinness1-b", 729],
+      ["guinness1-c", 729],
+      ["pineapple1", 849],
+    ]);
+    expect(split.receipt.adjustments[0]).toMatchObject({ bundle: { name: "Beer Bucket", items: ["ultra1", "guinness1", "guinness1-b", "guinness1-c", "pineapple1", "watermelon1"] } });
+    expect(split.recentChanges.at(-1)?.writes.map(({ kind }) => kind)).toEqual(["split"]);
+    expect(computeShares(split).shares.map(({ share }) => share)).toEqual([15777, 4952]);
+  });
+
+  test("Split of a 20x line with 10 claimers, a long name and a long detail fits one recorded change, and Revert brings the line back", () => {
+    const people = [bob, cat, ...Array.from({ length: 7 }, (_, at) => participantId(`guest-${String(at).padStart(2, "0")}-xxxxxxxxxxxxxxx`))];
+    const big: Receipt = { items: [{ id: fries, name: "W".repeat(80), detail: "D".repeat(120), price: price(200000), quantity: 20 }], adjustments: [], subtotal: cents(200000), total: cents(200000) };
+    const everyone = apply(
+      created(big),
+      ...people.map((id): Operation => ({ by: ann, type: "addParticipant", participant: { id, name: id } })),
+      ...[ann, ...people].map((id) => claim(id, fries)),
+      edit({ by: "amount", values: [ann, ...people].map((participantId, at) => ({ participantId, value: 6000 + at })) }, fries),
+    );
+    const ids = Array.from({ length: 19 }, (_, at) => itemId(`fries-row-${String(at + 2).padStart(2, "0")}-xxxxxxxxxx`));
+
+    const result = applyOperation(everyone, splitLine([ids[0], ...ids.slice(1)], fries), anyone);
+
+    expect(result.ok ? result.split.receipt.items.length : result.rejection).toBe(20);
+    const split = accepted(result);
+    expect(shares(split)).toEqual(shares(everyone));
+    expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
+    const reverted = apply(split, { by: cat, type: "undo", revision: split.revision });
+    expect(reverted.receipt).toEqual(everyone.receipt);
+    expect(apply(reverted, { by: cat, type: "undo", revision: reverted.revision }).receipt).toEqual(split.receipt);
+  });
+
+  test("Split of a one-unit line, with the wrong number of ids, or with an id already used is refused", () => {
+    const start = atThePub();
+
+    expect(reasonFor(start, splitLine([beerB], fries))).toBe("conflict");
+    expect(reasonFor(start, splitLine([beerB]))).toBe("conflict");
+    expect(reasonFor(start, splitLine([beerB, beerC, itemId("beer-d")]))).toBe("conflict");
+    expect(reasonFor(start, splitLine([fries, beerC]))).toBe("duplicateId");
+    expect(reasonFor(start, splitLine([beerB, beerB]))).toBe("duplicateId");
+    expect(reasonFor(start, splitLine([beer, beerB]))).toBe("duplicateId");
+  });
+
+  test("Revert of a Split brings back the one quantity line", () => {
+    const amounts = apply(atThePub(), claim(bob), claim(cat), edit({ by: "amount", values: [{ participantId: bob, value: 1000 }, { participantId: cat, value: 600 }] }));
+    const split = apply(amounts, splitLine([beerB, beerC]));
+
+    expect(apply(split, { by: cat, type: "undo", revision: split.revision }).receipt).toEqual(amounts.receipt);
+  });
+
+  test("Revert of a Split answers conflict after any row's price, claims, mode or amounts change, so it never moves money", () => {
+    const claimed = apply(atThePub(), claim(bob), claim(cat));
+    const split = apply(claimed, splitLine([beerB, beerC]));
+    const since = {
+      "a claim on the second row": claim(ann, beerB),
+      "an unclaim on the second row": unclaim(cat, beerB),
+      "an unclaim on the first row": unclaim(cat),
+      "a price on the second row": edit({ price: price(800) }, beerB),
+      "a price on the last row": edit({ price: price(100) }, beerC),
+      "a price on the first row": edit({ price: price(800) }),
+      "a mode on the second row": edit({ by: "shares", values: [{ participantId: bob, value: 2 }] }, beerB),
+    };
+
+    for (const [what, op] of Object.entries(since)) {
+      expect([what, reasonFor(apply(split, op), { by: cat, type: "undo", revision: split.revision })]).toEqual([what, "conflict"]);
+    }
+  });
+
+  test("Revert of a Split on the Topgolf Guinness answers conflict after a row-2 price or amount edit, and the Shares stay put", () => {
+    const amounts = apply(topgolf({ guinness1: [jason, priya] }), {
+      by: jason,
+      type: "editReceipt",
+      items: [{ type: "edit", itemId: itemId("guinness1"), by: "amount", values: [{ participantId: jason, value: cents(1000) }, { participantId: priya, value: cents(900) }] }],
+    });
+    const split = apply(amounts, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] });
+    const pricier = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), price: price(800) }] });
+    const lessForJason = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), values: [{ participantId: jason, value: cents(0) }] }] });
+
+    expect(shares(pricier)).toEqual([1094, 985]);
+    expect(reasonFor(pricier, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
+    expect(reasonFor(lessForJason, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
+  });
+
+  test("Revert of a Split on the unclaimed Topgolf Guinness answers conflict after a row-2 price edit, and the edit stays", () => {
+    const start = topgolf({});
+    const split = apply(start, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] });
+    const edited = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), price: price(650) }] });
+
+    expect(reasonFor(edited, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
+    expect(edited.receipt.items.find(({ id }) => id === "g2")?.price).toBe(650);
+  });
+
+  test("Revert of a Split answers conflict after every row takes the same new claimer or a row is renamed, since the rows no longer match the Split", () => {
+    const claimed = apply(atThePub(), claim(bob), claim(cat));
+    const split = apply(claimed, splitLine([beerB, beerC]));
+    const since = {
+      "the same claimer on every row": apply(split, claim(ann), claim(ann, beerB), claim(ann, beerC)),
+      "a rename of the second row": apply(split, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: beerB, name: "Stout" }] }),
+      "a detail on the first row": apply(split, edit({ detail: "Pint" })),
+    };
+
+    for (const [what, state] of Object.entries(since)) {
+      expect([what, reasonFor(state, { by: cat, type: "undo", revision: split.revision })]).toEqual([what, "conflict"]);
+    }
+  });
+
+  test("Revert of adding a 3x line after it was Split answers conflict instead of removing only the first row", () => {
+    const added = apply(atThePub(), { by: bob, type: "editReceipt", items: [{ type: "add", index: 2, item: { id: itemId("ale"), name: "Ale", price: price(900), quantity: 3 } }] });
+    const split = apply(added, splitLine([itemId("ale-b"), itemId("ale-c")], itemId("ale")));
+
+    expect(reasonFor(split, { by: cat, type: "undo", revision: added.revision })).toBe("conflict");
+  });
+
+  test("Revert of a Split inside a Bundle restores the Bundle's list", () => {
+    const start = topgolf({ ...eachOf(bucketOne, priya) });
+    const split = apply(start, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("guinness1-b"), itemId("guinness1-c")] }] });
+
+    expect(apply(split, { by: jason, type: "undo", revision: split.revision }).receipt).toEqual(start.receipt);
+  });
+
+  test("Split of a line with a detail gives every row the detail, and Revert brings back the one line with it", () => {
+    const detailed = apply(atThePub(), claim(bob), edit({ detail: "Pint" }));
+
+    const split = apply(detailed, splitLine([beerB, beerC]));
+
+    expect(split.receipt.items.slice(1)).toEqual([
+      { id: "beer", name: "Guinness", price: 729, detail: "Pint", split: { by: "even", units: [["bob"]] } },
+      { id: "beer-b", name: "Guinness", price: 729, detail: "Pint", split: { by: "even", units: [["bob"]] } },
+      { id: "beer-c", name: "Guinness", price: 729, detail: "Pint", split: { by: "even", units: [["bob"]] } },
+    ]);
+    expect(split.schemaVersion).toBe(4);
+    expect(apply(split, { by: cat, type: "undo", revision: split.revision }).receipt).toEqual(detailed.receipt);
+    expect(detailed.receipt.items[1]).toEqual({ id: "beer", name: "Guinness", price: 2187, detail: "Pint", quantity: 3, split: { by: "even", units: [["bob"]] } });
+  });
+
+  test("restoring the Receipt brings a split line back as one line", () => {
+    const claimed = apply(atThePub(), claim(bob));
+    const split = apply(claimed, splitLine([beerB, beerC]));
+
+    expect(rows(apply(split, { by: cat, type: "restoreReceipt" }))).toEqual([
+      ["fries", 800, 1, { by: "even", units: [[]] }],
+      ["beer", 2187, 3, { by: "even", units: [["bob"]] }],
+    ]);
+  });
+
+  test("every write stores version 4, with or without a quantity, and a line with no quantity stores none", () => {
+    const start = atThePub();
+    const split = apply(start, splitLine([beerB, beerC]));
+
+    expect([start.schemaVersion, split.schemaVersion]).toEqual([4, 4]);
+    expect(apply({ ...split, recentChanges: [] }, claim(bob, beerB)).schemaVersion).toBe(4);
+    expect(created().schemaVersion).toBe(4);
+    expect(JSON.parse(JSON.stringify(created())).receipt.items[0]).toEqual({ id: "pasta", name: "Pasta", price: 1400, split: { by: "even", units: [[]] } });
+  });
+
+  test("a version 4 Split reads back unchanged", () => {
+    const split = apply(atThePub(), claim(bob), splitLine([beerB, beerC]), claim(cat, beerC));
+
+    expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
 });
 
@@ -1155,6 +1361,7 @@ describe("changes stored before per-unit claims and device picks", () => {
     const revision = split.revision + 1;
     const parsed = parseSplit({
       ...json,
+      schemaVersion: 1,
       ...fields,
       receipt: { ...json.receipt, items },
       revision,
@@ -1683,9 +1890,9 @@ describe("random operations", () => {
           claimedBy.includes(id) ? load / claimedBy.length : 0;
         const was = new Map(computeShares(previous).shares.map(({ participantId, share }) => [participantId, share]));
         for (const { participantId: id, share } of shares) {
-          const exactMove = exactShareOf(item && claimersOf(item.split, 0), id) - exactShareOf(earlier && claimersOf(earlier.split, 0), id);
+          const exactMove = exactShareOf(item && claimersOf(item.split), id) - exactShareOf(earlier && claimersOf(earlier.split), id);
           const drift = Math.abs(share - (was.get(id) ?? 0) - exactMove);
-          const claimer = (item && claimersOf(item.split, 0).includes(id)) || (earlier && claimersOf(earlier.split, 0).includes(id));
+          const claimer = (item && claimersOf(item.split).includes(id)) || (earlier && claimersOf(earlier.split).includes(id));
           if (claimer) worstDrift.claimer = Math.max(worstDrift.claimer, drift);
           else worstDrift.nonClaimer = Math.max(worstDrift.nonClaimer, drift);
         }
@@ -1751,7 +1958,7 @@ describe("Bundles", () => {
 
   test("restoring the original Receipt brings back a Bundle whose Items were all deleted", () => {
     const start = claimed();
-    const [first, ...rest] = start.receipt.items.map(({ id, name, price, split }): Item => ({ id, name, price, quantity: split.units.length }));
+    const [first, ...rest] = start.receipt.items.map(({ id, name, price, quantity }): Item => ({ id, name, price, quantity }));
     const original = { ...start.receipt, items: [first, ...rest] as const };
     const emptied = apply({ ...start, original }, ...bucketOne.map(deleteItem));
 
@@ -1762,26 +1969,13 @@ describe("Bundles", () => {
     expect(restored.receipt.total).toBe(20729);
   });
 
-  test("a Split is stored at version 2 while it or its history holds a Bundle, and at version 1 once neither does", () => {
-    const start = claimed();
-    const unbundled = apply(start, {
-      by: jason,
-      type: "editReceipt",
-      adjustments: [
-        { type: "delete", adjustmentId: adjustmentId("bucket1") },
-        { type: "delete", adjustmentId: adjustmentId("bucket2") },
-      ],
-      totalDelta: cents(914),
-    });
-    const forgotten = { ...unbundled, recentChanges: [] };
+  const lineByLine = (split: Split): Split => {
+    const [first, ...rest] = split.receipt.items.map(({ quantity, ...row }) => row);
+    return { ...split, receipt: { ...split.receipt, items: [first, ...rest] } };
+  };
 
-    expect([start.schemaVersion, unbundled.schemaVersion, unbundled.receipt.adjustments.map(({ kind }) => kind)]).toEqual([2, 2, ["tax", "tip"]]);
-    expect(apply(forgotten, { by: priya, type: "claim", itemId: itemId("gameplay"), participantId: priya }).schemaVersion).toBe(1);
-    expect(created().schemaVersion).toBe(1);
-  });
-
-  test("a Bundle discount keeps its kind, stays at or below $0.00, and its Split keeps version 2", () => {
-    const start = claimed();
+  test("a Bundle discount keeps its kind and stays at or below $0.00", () => {
+    const start = lineByLine(claimed());
     const bucket = adjustmentId("bucket1");
 
     expect(reasonFor(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, kind: "discount" }] })).toBe("conflict");
@@ -1789,11 +1983,11 @@ describe("Bundles", () => {
 
     const renamed = apply(start, { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: bucket, name: "Bucket" }] });
 
-    expect([renamed.schemaVersion, bundleItems(renamed)]).toEqual([2, bundleItems(start)]);
+    expect(bundleItems(renamed)).toEqual(bundleItems(start));
   });
 
   const withOriginal = (start: Split, adjustments: Split["receipt"]["adjustments"] = start.receipt.adjustments): Split => {
-    const [first, ...rest] = start.receipt.items.map(({ id, name, price, split }): Item => ({ id, name, price, quantity: split.units.length }));
+    const [first, ...rest] = start.receipt.items.map(({ id, name, price, quantity }): Item => ({ id, name, price, quantity }));
     return { ...start, original: { ...start.receipt, items: [first, ...rest], adjustments } };
   };
   const reloaded = (split: Split) => parseSplit(JSON.parse(JSON.stringify(split)));
@@ -1845,7 +2039,7 @@ describe("random operations on the golden rows", () => {
     const roll = next();
     if (roll < 0.25) {
       const item = pick(items);
-      return { by, type: next() < 0.6 ? "claim" : "unclaim", itemId: item.id, unit: Math.floor(next() * item.split.units.length), participantId: pick(people) };
+      return { by, type: next() < 0.6 ? "claim" : "unclaim", itemId: item.id, participantId: pick(people) };
     }
     if (roll < 0.35) {
       const item = pick(items);
@@ -1853,7 +2047,9 @@ describe("random operations on the golden rows", () => {
     }
     if (roll < 0.45) {
       const item = pick(items);
-      return { by, type: "editReceipt", items: [{ type: "edit", itemId: item.id, quantity: 1 + Math.floor(next() * 4) }] };
+      const quantity = item.quantity ?? 1;
+      const [first, ...rest] = Array.from({ length: Math.max(1, quantity - 1) }, () => itemId(fresh()));
+      return { by, type: "editReceipt", items: [{ type: "split", itemId: item.id, ids: [first, ...rest] }] };
     }
     if (roll < 0.55 && adjustments.length > 0) {
       const row = pick(adjustments);

@@ -2,6 +2,7 @@ import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "c
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientMessage, ServerMessage } from "../src/core/operations";
+import { computeShares } from "../src/core/shares";
 import type { Split } from "../src/core/split";
 import topgolfRow from "../src/core/golden/v2-1.json";
 import { connect, createSplit, leftovers, T0, type Client } from "./testing";
@@ -279,7 +280,7 @@ describe("Payment handles", () => {
 describe("loading a stored Split", () => {
   const corruptions: [string, (json: string) => string][] = [
     ["JSON that does not parse", (json) => json.slice(0, -1)],
-    ["JSON over 32 KB", () => JSON.stringify("x".repeat(33 * 1024))],
+    ["JSON over 640 KB", () => JSON.stringify("x".repeat(641 * 1024))],
     ["a Split under another id", (json) => json.replace(/"id":"[^"]+"/, '"id":"anotherSplit0000000000"')],
   ];
 
@@ -303,7 +304,7 @@ describe("loading a stored Split", () => {
     expect(await leftovers(id)).toEqual({ tables: [], keys: [], alarm: null });
   });
 
-  it("reads the V2-1 golden row with two Bundles after a wake, and stores it back at version 2 after a Claim", async () => {
+  it("reads the V2-1 golden row with two Bundles and its quantity lines after a wake, and stores it back at version 4 after a Claim", async () => {
     const { id } = await createSplit();
     const stub = env.SplitServer.getByName(id);
     await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify({ ...topgolfRow, id })));
@@ -317,15 +318,15 @@ describe("loading a stored Split", () => {
     const again = await open(id);
 
     if (a.hello.type !== "state" || claimed.type !== "state" || again.hello.type !== "state") throw new Error("expected state");
-    expect([a.hello.split.schemaVersion, kinds(a.hello.split)]).toEqual([2, ["bundleDiscount", "bundleDiscount", "tax", "tip"]]);
+    expect([a.hello.split.schemaVersion, kinds(a.hello.split)]).toEqual([4, ["bundleDiscount", "bundleDiscount", "tax", "tip"]]);
     expect(again.hello.split).toEqual(claimed.split);
-    expect([again.hello.split.schemaVersion, again.hello.split.receipt.items[0].split.units]).toEqual([2, [["jason", "priya"]]]);
+    expect([again.hello.split.schemaVersion, again.hello.split.receipt.items[0].split.units, again.hello.split.receipt.items[2].quantity]).toEqual([4, [["jason", "priya"]], 3]);
   });
 
-  it("refuses a stored row over 32 KB after a wake without parsing it", async () => {
+  it("refuses a stored row over 640 KB, the most an old Split can read as, after a wake without parsing it", async () => {
     const { id } = await createSplit();
     const stub = env.SplitServer.getByName(id);
-    const oversized = JSON.stringify({ pad: "x".repeat(33 * 1024) });
+    const oversized = JSON.stringify({ pad: "x".repeat(641 * 1024) });
     await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", oversized));
     await evictDurableObject(stub);
     const parse = vi.spyOn(JSON, "parse");
@@ -338,6 +339,104 @@ describe("loading a stored Split", () => {
     expect(reply).toEqual({ type: "unavailable", reason: "unreadable" });
     expect(await client.closed).toMatchObject({ code: 4500 });
     expect(parsedRow).toBe(false);
+  });
+
+  it("reads an old row whose differing units read as 180 rows over 32 KB, takes a Claim, refuses an added Item, and reads back after a wake", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    const name = "Pale Ale ".repeat(8).trim();
+    const items = Array.from({ length: 60 }, (_, index) => ({ id: `l${index}`, name, price: 600, detail: "Draft pour from the tap, served in a frosted glass", split: { by: "even", units: [["ann"], ["bob"], ["cat"], ["ann"]] } }));
+    const row = {
+      schemaVersion: 3,
+      id,
+      currency: "USD",
+      receipt: { items, adjustments: [], subtotal: 36000, total: 36000 },
+      participants: [{ id: "ann", name: "Ann" }, { id: "bob", name: "Bob" }, { id: "cat", name: "Cat" }],
+      picks: [],
+      payments: [],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      revision: 0,
+      recentChanges: [],
+    };
+    await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify(row)));
+    await evictDurableObject(stub);
+
+    const a = await open(id);
+    a.client.send(claim("c1", "l0-3", "bob"));
+    const claimed = await a.client.next();
+    a.client.send(JSON.parse(JSON.stringify({ ref: "add", op: { type: "editReceipt", by: "bob", items: [{ type: "add", index: 0, item: { id: "tea", name: "Tea", price: 100 } }] } })));
+    const added = await a.client.next();
+    await evictDurableObject(stub);
+    const again = await open(id);
+
+    if (a.hello.type !== "state" || claimed.type !== "state" || again.hello.type !== "state") throw new Error("expected state");
+    expect([a.hello.split.receipt.items.length, a.hello.split.receipt.items.slice(0, 3).map(({ id: itemId, price, quantity }) => [itemId, price, quantity ?? 1])]).toEqual([180, [["l0", 300, 2], ["l0-2", 150, 1], ["l0-3", 150, 1]]]);
+    expect(added).toEqual({ type: "rejected", ref: "add", rejection: { reason: "tooManyItems" } });
+    expect(again.hello.split).toEqual(claimed.split);
+    expect([again.hello.split.schemaVersion, JSON.stringify(again.hello.split).length > 32 * 1024, again.hello.split.receipt.items[2].split.units]).toEqual([4, true, [["bob", "cat"]]]);
+  });
+
+  it("reads an old row of 51 two-unit lines as 102 rows, takes a Claim, and reads back after a wake with the same Shares", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    const items = Array.from({ length: 51 }, (_, index) => ({ id: `i${index}`, name: `Beer ${index}`, price: 1000, split: { by: "even", units: [["ann"], ["bob"]] } }));
+    const row = {
+      schemaVersion: 1,
+      id,
+      currency: "USD",
+      receipt: { items, adjustments: [], subtotal: 51000, total: 51000 },
+      participants: [{ id: "ann", name: "Ann" }, { id: "bob", name: "Bob" }],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      payments: [],
+      picks: [],
+      revision: 0,
+      recentChanges: [],
+    };
+    await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify(row)));
+    await evictDurableObject(stub);
+
+    const a = await open(id);
+    a.client.send(claim("c1", "i0", "bob"));
+    const claimed = await a.client.next();
+    await evictDurableObject(stub);
+    const again = await open(id);
+
+    if (a.hello.type !== "state" || claimed.type !== "state") throw new Error("expected state");
+    const shares = (split: Split) => computeShares(split).shares.map(({ participantId, share }) => [participantId, share]);
+    expect([a.hello.split.receipt.items.length, a.hello.split.schemaVersion, shares(a.hello.split)]).toEqual([102, 4, [["ann", 25500], ["bob", 25500]]]);
+    expect(again.hello).toEqual({ type: "state", ref: null, photo: false, split: claimed.split });
+    expect(shares(claimed.split)).toEqual([["ann", 25250], ["bob", 25750]]);
+  });
+
+  it("reads an old Restore of 121 writes whose Items read as rows, stores it at version 4 after a Claim, and reads it back with the same Shares after a wake", async () => {
+    const { id } = await createSplit();
+    const stub = env.SplitServer.getByName(id);
+    const ids = Array.from({ length: 100 }, (_, index) => `b${index}`);
+    const taxes = Array.from({ length: 20 }, (_, index) => ({ kind: "adjustment", id: `t${index}`, removed: { index, kind: "tax", name: "Tax", amount: 10 } }));
+    const row = {
+      schemaVersion: 3,
+      id,
+      currency: "USD",
+      receipt: { items: ids.map((itemId) => ({ id: itemId, name: "Beer", price: 200, split: { by: "even", units: [["ann"], []] } })), adjustments: [], subtotal: 20000, total: 20000 },
+      participants: [{ id: "ann", name: "Ann" }, { id: "bob", name: "Bob" }],
+      picks: [],
+      payments: [],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      revision: 1,
+      recentChanges: [{ revision: 1, by: "ann", undoes: null, undoneBy: null, at: T0, writes: [...ids.map((itemId) => ({ kind: "item", id: itemId, edit: { split: [{ by: "even", units: [[], []] }, { by: "even", units: [["ann"], []] }] } })), ...taxes, { kind: "totals", subtotalDelta: 0, totalDelta: -200 }] }],
+    };
+    await runInDurableObject(stub, (_, state) => void state.storage.sql.exec("UPDATE split SET json = ?", JSON.stringify(row)));
+    await evictDurableObject(stub);
+
+    const a = await open(id);
+    a.client.send(claim("c1", "b0-2", "bob"));
+    const claimed = await a.client.next();
+    await evictDurableObject(stub);
+    const again = await open(id);
+
+    if (a.hello.type !== "state" || claimed.type !== "state") throw new Error("expected state");
+    expect(again.hello).toEqual({ type: "state", ref: null, photo: false, split: claimed.split });
+    expect([claimed.split.schemaVersion, claimed.split.recentChanges.map(({ writes }) => writes.length)]).toEqual([4, [122]]);
   });
 
   it("accepts the creator secret after the Durable Object wakes from storage", async () => {

@@ -8,7 +8,7 @@ import { differenceNote, payState } from "../pay/model";
 import { PayBlock } from "../pay/pay-block";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
-import { breakdownCharges, shareLabel } from "./model";
+import { breakdownCharges, breakdownLines } from "./model";
 
 type Props = {
   split: Split;
@@ -38,7 +38,7 @@ export function Breakdown({ split, person, viewer, onPaid }: Props) {
   return (
     <View testID="breakdown" style={styles.box}>
       <View style={styles.head}>
-        <Text style={[type.caption, { color: c.muted }]}>{say.items(items.length)}</Text>
+        <Text style={[type.caption, { color: c.muted }]}>{say.items(items.reduce((units, { quantity = 1 }) => units + quantity, 0))}</Text>
         {isHost ? null : paid ? (
           <View style={[styles.status, { backgroundColor: c.action }]}>
             <Icon name="check" size={15} color={c.onAction} />
@@ -52,19 +52,16 @@ export function Breakdown({ split, person, viewer, onPaid }: Props) {
         )}
       </View>
       <View>
-        {items.map((line, index) => {
-          const item = split.receipt.items.find(({ id }) => id === line.id);
-          const part = shareLabel(line.fraction, item?.split.units.length ?? 1, plainAmount(line.price));
-          return (
-            <View key={line.id} style={[styles.line, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
-              <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
-                {line.name}
-                {part ? <Text style={[type.caption, { color: c.muted }]}>{`  ${part}`}</Text> : null}
-              </Text>
-              <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(line.portion)}</Text>
-            </View>
-          );
-        })}
+        {breakdownLines(breakdown).map((line, index) => (
+          <View key={line.id} style={[styles.line, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
+            <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
+              {line.quantity ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${line.quantity}  `}</Text> : null}
+              {line.name}
+              {line.part ? <Text style={[type.caption, { color: c.muted }]}>{`  ${line.part}`}</Text> : null}
+            </Text>
+            <Text style={[type.body, tabular, { color: c.ink }]}>{plainAmount(line.portion)}</Text>
+          </View>
+        ))}
       </View>
       {adjustments.length > 0 || difference !== 0 ? (
         <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>

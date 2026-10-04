@@ -16,9 +16,10 @@ export type Entry = {
   readonly revertible: boolean;
 };
 
-type Shown = Extract<Write, { kind: "item" | "adjustment" | "totals" | "payment" }>;
+type Shown = Extract<Write, { kind: "item" | "split" | "adjustment" | "totals" | "payment" }>;
 
-const shown = (write: Change["writes"][number]): write is Shown => write.kind === "item" || write.kind === "adjustment" || write.kind === "totals" || write.kind === "payment";
+const shown = (write: Change["writes"][number]): write is Shown =>
+  write.kind === "item" || write.kind === "split" || write.kind === "adjustment" || write.kind === "totals" || write.kind === "payment";
 
 export function historyOf(split: Split): Entry[] {
   return split.recentChanges
@@ -26,16 +27,15 @@ export function historyOf(split: Split): Entry[] {
     .map((change) => {
       const writes = change.writes.filter(shown);
       const lead = writes.find((write) => write.kind !== "totals") ?? writes[0];
-      const words = describe(lead, split);
       return {
         revision: change.revision,
-        ...words,
+        ...describe(lead, split),
         more: writes.filter((write) => write.kind !== "totals" && write !== lead).length,
         sentAs: change.by,
         name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
         at: change.at,
         reverted: change.undoneBy !== null,
-        revertible: !writes.some((write) => write.kind === "payment"),
+        revertible: !change.writes.some((write) => write.kind === "payment" || write.kind === "perUnit"),
       };
     })
     .reverse();
@@ -51,6 +51,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
       if ("name" in edit && edit.name) return { lead: "", before: edit.name[0], after: edit.name[1] };
+      if ("quantity" in edit && edit.quantity) return { lead: name, before: `×${edit.quantity[0]}`, after: `×${edit.quantity[1]}` };
       if ("price" in edit && edit.price) return { lead: name, before: plainAmount(edit.price[0]), after: plainAmount(edit.price[1]) };
       if ("detail" in edit && edit.detail) {
         const [before = "", after = ""] = edit.detail;
@@ -61,12 +62,13 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       if ("amount" in edit && edit.amount) return { lead: name, before: plainAmount(edit.amount[0]), after: plainAmount(edit.amount[1]) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
-        if (before.units.length !== after.units.length) return { lead: name, before: `×${before.units.length}`, after: `×${after.units.length}` };
         const order = split.participants.map(({ id }) => id);
         return { lead: `${name} split`, before: splitWord(before, order), after: splitWord(after, order) };
       }
       return { lead: name };
     }
+    case "split":
+      return { lead: `Split ${split.receipt.items.find(({ id }) => id === write.id)?.name ?? "An item"} into ${write.line.quantity}` };
     case "totals":
       return { lead: write.totalDelta < 0 ? `Total down $${plainAmount(-write.totalDelta)}` : `Total up $${plainAmount(write.totalDelta)}` };
     case "payment": {

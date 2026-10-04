@@ -523,14 +523,12 @@ describe("Bundles", () => {
     const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("topgolf-draft-000000"));
     if (!created.ok) throw new Error(JSON.stringify(created.rejection));
     const owner = (id: string) => (bucketOne.items.includes(id) ? "p1" : "p0");
-    const claimed = created.split.receipt.items.reduce((split, { id, split: { units } }) =>
-      units.reduce((next, _, unit) => {
-        const result = applyOperation(next, { type: "claim", by: null, itemId: id, participantId: participantId(owner(id)), unit }, { creator: true });
-        if (!result.ok) throw new Error(JSON.stringify(result.rejection));
-        return result.split;
-      }, split),
-    created.split);
-    expect(created.split.schemaVersion).toBe(2);
+    const claimed = created.split.receipt.items.reduce((split, { id }) => {
+      const result = applyOperation(split, { type: "claim", by: null, itemId: id, participantId: participantId(owner(id)) }, { creator: true });
+      if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+      return result.split;
+    }, created.split);
+    expect(created.split.schemaVersion).toBe(4);
     expect(computeShares(claimed).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
       ["p0", 15777],
       ["p1", 4952],

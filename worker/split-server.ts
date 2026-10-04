@@ -1,7 +1,7 @@
 import { Server, type Connection } from "partyserver";
-import { applyOperation, type ClientMessage, type ServerMessage, type WireRejection } from "../src/core/operations";
+import { MAX_STORED_BYTES, applyOperation, type ClientMessage, type ServerMessage, type WireRejection } from "../src/core/operations";
 import { parseClientMessage, parseSplit } from "../src/core/parse";
-import { SPLIT_BYTE_BUDGET, serializedBytes, type Split } from "../src/core/split";
+import { serializedBytes, type Split } from "../src/core/split";
 import { HISTORY_LIMIT, OPERATION_LIMIT, takeToken, type Bucket } from "./rate-limit";
 
 const MAX_MESSAGE_BYTES = 40 * 1024;
@@ -231,14 +231,15 @@ export class SplitServer extends Server<Cloudflare.Env> {
       console.error(`SplitServer ${this.name} stored Split is unreadable: ${why}`);
       return { kind: "unreadable", changedAt: row.changed_at };
     };
-    if (row.bytes > SPLIT_BYTE_BUDGET) return unreadable(`${row.bytes} bytes is over ${SPLIT_BYTE_BUDGET}`);
+    if (row.bytes > MAX_STORED_BYTES) return unreadable(`${row.bytes} bytes is over ${MAX_STORED_BYTES}`);
     const parsed = parseSplit(parseJson(row.json));
     if (!parsed.ok) return unreadable(JSON.stringify(parsed.rejection));
     if (parsed.split.id !== this.name) return unreadable(`it belongs to ${parsed.split.id}`);
     return {
       kind: "live",
       split: parsed.split,
-      json: row.json,
+      // A version 1 or 2 row reads mapped to the current model, so clients get the mapped Split rather than the stored text.
+      json: JSON.stringify(parsed.split),
       changedAt: row.changed_at,
       secret: new Uint8Array(row.creator_secret),
       rate: { operations: bucketOf(row.operations_tokens, row.operations_at), history: bucketOf(row.history_tokens, row.history_at) },

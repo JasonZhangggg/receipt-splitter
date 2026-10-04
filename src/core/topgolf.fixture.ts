@@ -36,11 +36,11 @@ function bucket(id: string, amount: number, items: NonEmpty<TopgolfItem>): Adjus
 export function topgolf(claims: Partial<Record<TopgolfItem, readonly ParticipantId[]>> = {}): Split {
   const items = rows.map(([id, name, amount, quantity]): SplitItem => {
     const claimers = [...(claims[id] ?? [])].sort();
-    const units = Array.from({ length: quantity }, () => claimers);
-    return { id: itemId(id), name, price: price(amount), split: { by: "even", units: [units[0], ...units.slice(1)] } };
+    const row: SplitItem = { id: itemId(id), name, price: price(amount), split: { by: "even", units: [claimers] } };
+    return quantity === 1 ? row : { ...row, quantity };
   });
   return {
-    schemaVersion: 2,
+    schemaVersion: 4,
     id: mintedId("topgolf-split-0000000"),
     currency: "USD",
     receipt: {

@@ -1,8 +1,7 @@
-import { MAX_CENTS, cents, isCents, type Cents, type Price } from "./money";
+import { MAX_CENTS, cents, isCents, price as asPrice, type Cents, type Price } from "./money";
 import {
   SPLIT_BYTE_BUDGET,
   serializedBytes,
-  storedVersion,
   type Adjustment,
   type AdjustmentFields,
   type AdjustmentId,
@@ -34,7 +33,7 @@ import {
   type SplitMode,
   type Write,
 } from "./split";
-import { unitPrices } from "./shares";
+import { computeShares, unitPrices } from "./shares";
 
 export const MAX_ITEMS = 100;
 export const MAX_ADJUSTMENTS = 20;
@@ -45,7 +44,12 @@ export const MAX_DETAIL_LENGTH = 120;
 export const MAX_QUANTITY = 20;
 export const MAX_SHARES = 99;
 export const RECENT_CHANGES_LIMIT = 64;
+/** An old Split's line of up to MAX_QUANTITY units can read as that many rows, so a stored Split may hold more Items than a write may add. */
+export const MAX_STORED_ITEMS = MAX_ITEMS * MAX_QUANTITY;
+export const MAX_STORED_BYTES = MAX_QUANTITY * SPLIT_BYTE_BUDGET;
 export const MAX_WRITES_PER_CHANGE = MAX_ITEMS + MAX_ADJUSTMENTS + 1;
+/** An old change reads with one perUnit mark added, so a stored change may hold one write more than a new one. */
+export const MAX_STORED_WRITES_PER_CHANGE = MAX_WRITES_PER_CHANGE + 1;
 export const PAYMENT_RESERVE_BYTES = 2 * 1024;
 export const MAX_CHANGE_BYTES = 5 * 1024;
 /** Bytes of recorded changes a Split may write in one burst before the Worker's history rate refuses more. */
@@ -62,18 +66,16 @@ export type ItemPatch =
       readonly price?: Price;
       /** "" removes the detail. */
       readonly detail?: string;
-      /** Adds empty units or drops the last ones. */
-      readonly quantity?: number;
-      /** Drops this unit instead of the last when `quantity` is one less than now. */
-      readonly drop?: number;
       /** A new mode starts every claimer at 1 share or $0.00. */
       readonly by?: SplitMode;
       readonly values?: readonly ItemValue[];
     }
+  /** Turns a quantity line into one-unit rows. The client mints `ids`, one per row after the first. */
+  | { readonly type: "split"; readonly itemId: ItemId; readonly ids: NonEmpty<ItemId> }
   | { readonly type: "delete"; readonly itemId: ItemId };
 
-/** One claimer's share count or cents on one unit, applied after `quantity` and `by`. */
-export type ItemValue = { readonly unit: number; readonly participantId: ParticipantId; readonly value: number };
+/** One claimer's share count or cents on the line, applied after `by`. */
+export type ItemValue = { readonly participantId: ParticipantId; readonly value: number };
 
 export type AdjustmentPatch =
   | { readonly type: "add"; readonly adjustment: ReceiptLevelAdjustment; readonly index: number }
@@ -162,17 +164,16 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
   if (step.split === split) return { ok: true, split, changed: false };
   const revision = split.revision + 1;
   const state: Split = { ...step.split, revision, recentChanges: [] };
-  const rejection = checkState(state);
+  const rejection = checkState(state) ?? capRejection(state, split);
   if (rejection) return { ok: false, rejection };
   if (repeatedNames(state.participants) > repeatedNames(split.participants)) return reject("nameTaken");
   let recentChanges = step.split.recentChanges;
   if (step.record) {
     const change: Change = { revision, by: op.by, undoes: step.record.undoes, undoneBy: null, writes: step.record.writes, ...(at === undefined ? {} : { at }) };
-    if (serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
+    if (change.writes.length <= MAX_WRITES_PER_CHANGE && serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
     else if (op.type !== "restoreReceipt") return reject("tooLarge");
   }
-  const stored = { ...state, recentChanges: fitChanges(state, recentChanges) };
-  return { ok: true, split: { ...stored, schemaVersion: storedVersion(stored) }, changed: true };
+  return { ok: true, split: { ...state, recentChanges: fitChanges(state, recentChanges, split) }, changed: true };
 }
 
 function run(split: Split, op: Operation, auth: Auth): Step {
@@ -203,11 +204,9 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       if (index === -1) return reject("unknownItem");
       if (!findParticipant(split, op.participantId)) return reject("unknownParticipant");
       const item = split.receipt.items[index];
-      const unit = op.unit ?? 0;
-      if (!Number.isInteger(unit) || unit < 0 || unit >= item.split.units.length) return reject("badIndex");
       const claimed = op.type === "claim";
-      if (claimersOf(item.split, unit).includes(op.participantId) === claimed) return unchanged(split);
-      const next = { ...item, split: toggleClaimer(item.split, unit, op.participantId, claimed) };
+      if (claimersOf(item.split).includes(op.participantId) === claimed) return unchanged(split);
+      const next = { ...item, split: toggleClaimer(item.split, op.participantId, claimed) };
       const [first, ...rest] = split.receipt.items.map((row, at) => (at === index ? next : row));
       return { ok: true, split: { ...split, receipt: { ...split.receipt, items: [first, ...rest] } }, record: null };
     }
@@ -268,13 +267,13 @@ const ITEM_ROWS: RowCodec<SplitItem, Item> = {
   add: ({ id, name, price, detail, quantity = 1 }, index, moved) => ({
     kind: "item",
     id,
-    added: { index, name, price, ...(detail !== undefined && { detail }), split: evenIfOverPrice(resize(moved?.split ?? evenUnits(1), quantity), price) },
+    added: { index, name, price, ...(detail !== undefined && { detail }), ...(quantity === 1 ? {} : { quantity }), split: evenIfOverPrice(moved?.split ?? unclaimedSplit(), price) },
   }),
   remove: (row, index) => ({ kind: "item", id: row.id, removed: { index, ...itemFieldsOf(row) } }),
-  edit: ({ id, name, price, detail = "", split }, to) => {
+  edit: ({ id, name, price, detail = "", quantity = 1, split }, to) => {
     const edit = diff(
-      { name, price, detail, split },
-      { name: to.name, price: to.price, detail: to.detail ?? "", split: evenIfOverPrice(resize(split, to.quantity ?? 1), to.price) },
+      { name, price, detail, quantity, split },
+      { name: to.name, price: to.price, detail: to.detail ?? "", quantity: to.quantity ?? 1, split: evenIfOverPrice(split, to.price) },
     );
     return edit === null || edit === "emptyEdit" ? [] : [{ kind: "item", id, edit }];
   },
@@ -284,87 +283,67 @@ function itemFieldsOf({ id, ...fields }: SplitItem): ItemFields {
   return fields;
 }
 
-export function evenUnits(quantity: number): ItemSplit {
-  return { by: "even", units: [[], ...Array.from({ length: quantity - 1 }, () => [])] };
+export function unclaimedSplit(): ItemSplit {
+  return { by: "even", units: [[]] };
 }
 
-export function claimersOf(split: ItemSplit, unit: number): readonly ParticipantId[] {
-  return split.by === "even" ? split.units[unit] : split.units[unit].map(([id]) => id);
-}
-
-function unitsOf(split: ItemSplit): (readonly ParticipantId[])[] {
-  return split.units.map((_, unit) => claimersOf(split, unit));
+export function claimersOf(split: ItemSplit): readonly ParticipantId[] {
+  return split.by === "even" ? split.units[0] : split.units[0].map(([id]) => id);
 }
 
 const STARTING_VALUE = { shares: 1, amount: 0 } as const;
 
-function withClaimers(by: SplitMode, claimers: readonly (readonly ParticipantId[])[], valueOf: (unit: number, id: ParticipantId) => number | undefined): ItemSplit {
-  const [first = [], ...rest] = claimers;
-  if (by === "even") return { by, units: [first, ...rest] };
-  const value = (unit: number, id: ParticipantId) => valueOf(unit, id) ?? STARTING_VALUE[by];
-  if (by === "shares") {
-    const shares = (ids: readonly ParticipantId[], unit: number) => ids.map((id): Part<number> => [id, value(unit, id)]);
-    return { by, units: [shares(first, 0), ...rest.map((ids, unit) => shares(ids, unit + 1))] };
-  }
-  const amounts = (ids: readonly ParticipantId[], unit: number) => ids.map((id): Part<Cents> => [id, cents(value(unit, id))]);
-  return { by, units: [amounts(first, 0), ...rest.map((ids, unit) => amounts(ids, unit + 1))] };
+function withClaimers(by: SplitMode, claimers: readonly ParticipantId[], valueOf: (id: ParticipantId) => number | undefined): ItemSplit {
+  if (by === "even") return { by, units: [claimers] };
+  const value = (id: ParticipantId) => valueOf(id) ?? STARTING_VALUE[by];
+  if (by === "shares") return { by, units: [claimers.map((id): Part<number> => [id, value(id)])] };
+  return { by, units: [claimers.map((id): Part<Cents> => [id, cents(value(id))])] };
 }
 
-function valueIn(split: ItemSplit, unit: number, id: ParticipantId): number | undefined {
-  return split.by === "even" ? undefined : split.units[unit]?.find(([claimer]) => claimer === id)?.[1];
+function valueIn(split: ItemSplit, id: ParticipantId): number | undefined {
+  return split.by === "even" ? undefined : split.units[0].find(([claimer]) => claimer === id)?.[1];
 }
 
-function toggleClaimer(split: ItemSplit, unit: number, id: ParticipantId, claimed: boolean): ItemSplit {
-  const units = unitsOf(split).map((ids, at) => (at !== unit ? ids : claimed ? sortByCodeUnit([...ids, id]) : ids.filter((claimer) => claimer !== id)));
-  return withClaimers(split.by, units, (at, claimer) => valueIn(split, at, claimer));
-}
-
-function resize(split: ItemSplit, quantity: number): ItemSplit {
-  const now = unitsOf(split);
-  return withClaimers(split.by, Array.from({ length: quantity }, (_, unit) => now[unit] ?? []), (unit, id) => valueIn(split, unit, id));
-}
-
-function withoutUnit(split: ItemSplit, drop: number): ItemSplit {
-  return withClaimers(split.by, unitsOf(split).filter((_, unit) => unit !== drop), (unit, id) => valueIn(split, unit < drop ? unit : unit + 1, id));
+function toggleClaimer(split: ItemSplit, id: ParticipantId, claimed: boolean): ItemSplit {
+  const claimers = claimersOf(split);
+  return withClaimers(split.by, claimed ? sortByCodeUnit([...claimers, id]) : claimers.filter((claimer) => claimer !== id), (claimer) => valueIn(split, claimer));
 }
 
 function evenIfOverPrice(split: ItemSplit, price: number): ItemSplit {
-  return overPrice(split, price) ? withClaimers("even", unitsOf(split), () => undefined) : split;
+  return overPrice(split, price) ? withClaimers("even", claimersOf(split), () => undefined) : split;
 }
 
 function overPrice(split: ItemSplit, price: number): boolean {
-  if (split.by !== "amount") return false;
-  const prices = unitPrices(price, split.units.length);
-  return split.units.some((unit, index) => unit.reduce((total, [, cents]) => total + cents, 0) > prices[index]);
+  return split.by === "amount" && split.units[0].reduce((total, [, cents]) => total + cents, 0) > price;
 }
 
-function editedSplit(split: ItemSplit, { quantity, drop, by, values }: Extract<ItemPatch, { type: "edit" }>): ItemSplit | RejectionReason {
-  if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY)) return "amountOutOfRange";
-  if (drop !== undefined && quantity !== split.units.length - 1) return "conflict";
-  if (drop !== undefined && (!Number.isInteger(drop) || drop < 0 || drop >= split.units.length)) return "badIndex";
-  let next = quantity === undefined ? split : drop === undefined ? resize(split, quantity) : withoutUnit(split, drop);
-  if (by !== undefined && by !== next.by) next = withClaimers(by, unitsOf(next), () => undefined);
-  for (const { unit, participantId, value } of values ?? []) {
-    if (!Number.isInteger(unit) || unit < 0 || unit >= next.units.length) return "badIndex";
-    if (next.by === "even" || !claimersOf(next, unit).includes(participantId)) return "conflict";
+function editedSplit(split: ItemSplit, { by, values }: Extract<ItemPatch, { type: "edit" }>): ItemSplit | RejectionReason {
+  let next = by !== undefined && by !== split.by ? withClaimers(by, claimersOf(split), () => undefined) : split;
+  for (const { participantId, value } of values ?? []) {
+    if (next.by === "even" || !claimersOf(next).includes(participantId)) return "conflict";
     const current = next;
-    next = withClaimers(current.by, unitsOf(current), (at, id) => (at === unit && id === participantId ? value : valueIn(current, at, id)));
+    next = withClaimers(current.by, claimersOf(current), (id) => (id === participantId ? value : valueIn(current, id)));
   }
   return next;
 }
 
-function keepClaimersRestoreShape(target: ItemSplit, edited: ItemSplit, current: ItemSplit): ItemSplit {
-  const now = unitsOf(current);
-  const gone = droppedUnit(target, edited);
-  const kept = (unit: number) => (gone === null || unit < gone ? now[unit] : unit === gone ? undefined : now[unit - 1]);
-  return withClaimers(target.by, unitsOf(target).map((ids, unit) => kept(unit) ?? ids), (unit, id) => valueIn(target, unit, id));
-}
-
-function droppedUnit(before: ItemSplit, after: ItemSplit): number | null {
-  if (before.units.length !== after.units.length + 1) return null;
-  const claims = before.by === after.by ? (split: ItemSplit, unit: number) => JSON.stringify(split.units[unit]) : (split: ItemSplit, unit: number) => claimersOf(split, unit).join();
-  const moved = after.units.findIndex((_, unit) => claims(after, unit) !== claims(before, unit));
-  return moved === -1 ? null : moved;
+/**
+ * The rows a Split leaves: each copies the line's claimers and mode.
+ * By amount, the rows fill in order, each claimer taking what is left of their cents up to what is left of the row's price, so every claimer's total and the unclaimed rest stay the same.
+ */
+function splitRows(split: ItemSplit, prices: readonly number[]): ItemSplit[] {
+  if (split.by !== "amount") return prices.map(() => split);
+  const left = new Map<ParticipantId, number>(split.units[0]);
+  return prices.map((rowPrice) => {
+    let room = rowPrice;
+    const parts = split.units[0].map(([id]): Part<Cents> => {
+      const taken = Math.min(left.get(id) ?? 0, room);
+      left.set(id, (left.get(id) ?? 0) - taken);
+      room -= taken;
+      return [id, cents(taken)];
+    });
+    return { by: "amount", units: [parts] };
+  });
 }
 
 function fieldsOf({ id, ...fields }: Adjustment): AdjustmentFields {
@@ -424,16 +403,34 @@ function undo(split: Split, revision: number): Step {
   return { ok: true, split: { ...step.split, recentChanges }, record: { writes: step.record.writes, undoes: revision } };
 }
 
-function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] {
+function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | RejectionReason {
   switch (write.kind) {
     case "item": {
       const at = indexOf(split.receipt.items, write.id);
       const current = split.receipt.items[at];
-      if ("added" in write && current) return [{ kind: "item", id: write.id, removed: { index: at, ...itemFieldsOf(current) } }];
+      // A line added with a quantity that was Split since, or that an old Split now reads as rows, is more than this row.
+      if ("added" in write && current) return (current.quantity ?? 1) === (write.added.quantity ?? 1) ? [ITEM_ROWS.remove(current, at)] : "conflict";
       const inverted = invertRow(write, at);
       if (!("edit" in inverted) || !("edit" in write) || !write.edit.split || !current) return [{ kind: "item", ...inverted }];
-      const [before, after] = write.edit.split;
-      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, keepClaimersRestoreShape(before, after, current.split)] } }];
+      const [before] = write.edit.split;
+      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id))] } }];
+    }
+    case "split": {
+      // Only rows exactly as the Split made them fold back, so a Revert never drops a later edit, even one that moves no money.
+      const prices = unitPrices(write.line.price, write.line.quantity);
+      const claims = splitRows(write.line.split, prices);
+      const rows = [write.id, ...write.ids].map((id) => split.receipt.items.find((item) => item.id === id));
+      const [head] = rows;
+      const asSplit = rows.every((row, at) => row !== undefined && holds(row, { name: head?.name, detail: head?.detail, price: prices[at], split: claims[at] }));
+      if (!asSplit) return "conflict";
+      const unsplit: Write = { kind: "unsplit", id: write.id, ids: write.ids, line: write.line };
+      const after = unsplitLine(split, unsplit);
+      return typeof after !== "string" && sameMoney(split, after) ? [unsplit] : "conflict";
+    }
+    case "unsplit": {
+      const current = split.receipt.items.find(({ id }) => id === write.id);
+      if (!current) return "conflict";
+      return [{ kind: "split", id: write.id, ids: write.ids, line: { quantity: current.quantity ?? 1, price: current.price, split: current.split } }];
     }
     case "adjustment":
       return [{ kind: "adjustment", ...invertRow(write, indexOf(split.receipt.adjustments, write.id)) }];
@@ -443,10 +440,20 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] {
       return [{ kind: "totals", subtotalDelta: cents(0 - write.subtotalDelta), totalDelta: cents(0 - write.totalDelta) }];
     case "payment":
       return [{ kind: "payment", participantId: write.participantId, before: write.after, after: write.before }];
+    case "perUnit":
+      return "conflict";
     case "claims":
     case "joined":
       return [];
   }
+}
+
+function sameMoney(a: Split, b: Split): boolean {
+  const money = (split: Split) => {
+    const { shares, unclaimed } = computeShares(split);
+    return JSON.stringify([shares, unclaimed.total]);
+  };
+  return money(a) === money(b);
 }
 
 function indexOf<RowId>(rows: readonly { readonly id: RowId }[], id: RowId): number {
@@ -460,7 +467,7 @@ function invertPresence<RowId, Fields>(write: Presence<RowId, Fields>, at: numbe
 
 function invertRow<RowId, Fields>(write: RowWrite<RowId, Fields>, at: number): RowWrite<RowId, Fields> {
   if (!("edit" in write)) return invertPresence(write, at);
-  const swapped: { [Key in keyof Fields]?: readonly [Fields[Key], Fields[Key]] } = {};
+  const swapped: { [Key in keyof Fields]?: readonly [Required<Fields>[Key], Required<Fields>[Key]] } = {};
   for (const key in write.edit) {
     const change = write.edit[key];
     if (change) swapped[key] = [change[1], change[0]];
@@ -496,12 +503,60 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
   const index = indexOf(items, patch.itemId);
   if (index === -1) return "unknownItem";
   if (patch.type === "delete") return [ITEM_ROWS.remove(items[index], index), ...leaveBundle(split, patch.itemId)];
+  if (patch.type === "split") return splitWrites(split, index, patch.ids);
   const { name, price, detail = "", split: shape } = items[index];
-  const reshaped = patch.quantity !== undefined || patch.drop !== undefined || patch.by !== undefined || patch.values !== undefined;
+  const reshaped = patch.by !== undefined || patch.values !== undefined;
   const next = reshaped ? editedSplit(shape, patch) : undefined;
   if (typeof next === "string") return next;
   const edit = diff({ name, price, detail, split: shape }, { name: patch.name, price: patch.price, detail: patch.detail, split: next });
   return typeof edit === "string" ? edit : edit ? [{ kind: "item", id: patch.itemId, edit }] : [];
+}
+
+function splitWrites(split: Split, index: number, ids: NonEmpty<ItemId>): readonly Write[] | RejectionReason {
+  const { items } = split.receipt;
+  const { id, quantity = 1, price, split: claims } = items[index];
+  if (ids.length !== quantity - 1) return "conflict";
+  if (new Set([...items.map((item) => item.id), ...ids]).size !== items.length + ids.length) return "duplicateId";
+  return [{ kind: "split", id, ids, line: { quantity, price, split: claims } }];
+}
+
+/** Turns the line into its rows, with the new ids right after the line's in any Bundle that lists it. */
+function splitLine(split: Split, { id, ids, line }: Extract<Write, { kind: "split" }>): Split | RejectionReason {
+  const { items, adjustments } = split.receipt;
+  const at = indexOf(items, id);
+  const current = items[at];
+  if (!current || !holds({ quantity: current.quantity ?? 1, price: current.price, split: current.split }, line)) return "conflict";
+  if (ids.length !== line.quantity - 1 || ids.some((rowId) => indexOf(items, rowId) !== -1)) return "conflict";
+  const prices = unitPrices(line.price, line.quantity).map(asPrice);
+  const [first, ...rest] = splitRows(line.split, prices);
+  const { quantity: _, ...named } = current;
+  const rows = ids.map((rowId, row): SplitItem => ({ ...named, id: rowId, price: prices[row + 1], split: rest[row] }));
+  const [head, ...tail] = [...items.slice(0, at), { ...named, price: prices[0], split: first }, ...rows, ...items.slice(at + 1)];
+  const bundled = adjustments.map((row) => (row.kind === "bundleDiscount" && row.bundle.items.includes(id) ? { ...row, bundle: { ...row.bundle, items: withRowsAfter(row.bundle.items, id, ids) } } : row));
+  return { ...split, receipt: { ...split.receipt, items: [head, ...tail], adjustments: bundled } };
+}
+
+/** Folds the rows back into the line and drops them from every Bundle. */
+function unsplitLine(split: Split, { id, ids, line }: Extract<Write, { kind: "unsplit" }>): Split | RejectionReason {
+  const { items, adjustments } = split.receipt;
+  const current = items.find((item) => item.id === id);
+  if (!current || current.quantity !== undefined || ids.some((rowId) => indexOf(items, rowId) === -1)) return "conflict";
+  if (!claimersOf(line.split).every((claimer) => findParticipant(split, claimer))) return "conflict";
+  const gone = new Set<ItemId>(ids);
+  const restored: SplitItem = { ...current, price: line.price, ...(line.quantity !== 1 && { quantity: line.quantity }), split: line.split };
+  const [head, ...tail] = items.filter((item) => !gone.has(item.id)).map((item) => (item.id === id ? restored : item));
+  const bundles = adjustments.map((row) => {
+    if (row.kind !== "bundleDiscount") return row;
+    const [first, ...rest] = row.bundle.items.filter((itemId) => !gone.has(itemId));
+    return first === undefined ? null : { ...row, bundle: { ...row.bundle, items: [first, ...rest] as const } };
+  });
+  if (bundles.includes(null)) return "conflict";
+  return { ...split, receipt: { ...split.receipt, items: [head, ...tail], adjustments: bundles.filter((row) => row !== null) } };
+}
+
+function withRowsAfter(list: NonEmpty<ItemId>, id: ItemId, ids: NonEmpty<ItemId>): NonEmpty<ItemId> {
+  const [head, ...tail] = list.flatMap((itemId) => (itemId === id ? [itemId, ...ids] : [itemId]));
+  return [head ?? id, ...tail];
 }
 
 function leaveBundle(split: Split, itemId: ItemId): readonly Write[] {
@@ -534,10 +589,10 @@ function adjustmentWrites(split: Split, patch: AdjustmentPatch): readonly Write[
 }
 
 function diff<Fields>(
-  row: Fields,
-  patch: { readonly [Key in keyof Fields]?: Fields[Key] },
+  row: Required<Fields>,
+  patch: { readonly [Key in keyof Fields]?: Required<Fields>[Key] },
 ): Edit<Fields> | "emptyEdit" | null {
-  const edit: { [Key in keyof Fields]?: readonly [Fields[Key], Fields[Key]] } = {};
+  const edit: { [Key in keyof Fields]?: readonly [Required<Fields>[Key], Required<Fields>[Key]] } = {};
   let named = false;
   let changed = false;
   for (const key in patch) {
@@ -557,11 +612,11 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
   switch (write.kind) {
     case "item": {
       if (!keepsNameValid(write, MAX_ROW_NAME_LENGTH) || !keepsDetailValid(write)) return "badName";
-      if ("added" in write && !unitsOf(write.added.split).flat().every((id) => findParticipant(split, id))) return "conflict";
-      const blanked = receipt.items.map((item) => ({ ...item, detail: item.detail ?? "" }));
-      const rows = putRow(blanked, write, 0, ({ name, price, detail = "", split: shape }) => ({ id: write.id, name, price, detail, split: shape }));
+      if ("added" in write && !claimersOf(write.added.split).every((id) => findParticipant(split, id))) return "conflict";
+      const filled = receipt.items.map((item) => ({ ...item, detail: item.detail ?? "", quantity: item.quantity ?? 1 }));
+      const rows = putRow(filled, write, 0, ({ index, detail = "", quantity = 1, ...fields }) => ({ id: write.id, ...fields, detail, quantity }));
       if (typeof rows === "string") return rows;
-      const [first, ...rest] = rows.map(({ detail, ...item }): SplitItem => (detail === "" ? item : { ...item, detail }));
+      const [first, ...rest] = rows.map(({ detail, quantity, split: shape, ...row }): SplitItem => ({ ...row, ...(detail !== "" && { detail }), ...(quantity !== 1 && { quantity }), split: shape }));
       if (first === undefined) return "lastItem";
       return { ...split, receipt: { ...receipt, items: [first, ...rest] } };
     }
@@ -575,13 +630,17 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       if (write.id === host.id) return "host";
       if (!keepsNameValid(write, MAX_PARTICIPANT_NAME_LENGTH)) return "badName";
       if ("removed" in write) {
-        const claimed = split.receipt.items.some((item) => unitsOf(item.split).some((ids) => ids.includes(write.id)));
+        const claimed = split.receipt.items.some((item) => claimersOf(item.split).includes(write.id));
         const picked = split.picks.some((pick) => pick.participantId === write.id);
         if (claimed || picked || paymentOf(split, write.id) !== null) return "participantInUse";
       }
       const rows = putRow(others, write, 1, ({ name }) => ({ id: write.id, name }));
       return typeof rows === "string" ? rows : { ...split, participants: [host, ...rows] };
     }
+    case "split":
+      return splitLine(split, write);
+    case "unsplit":
+      return unsplitLine(split, write);
     case "totals": {
       const subtotal = receipt.subtotal + write.subtotalDelta;
       const total = receipt.total + write.totalDelta;
@@ -650,11 +709,16 @@ function holds(row: object, expected: object): boolean {
   );
 }
 
-function fitChanges(state: Split, changes: readonly Change[]): readonly Change[] {
+/**
+ * History fills the 32 KB budget left by the rest of the Split. An old Split whose rows read past that budget keeps the room for history a Split
+ * at the core cap has, and never loses a change to a budget it was already over before this write.
+ */
+function fitChanges(state: Split, changes: readonly Change[], before: Split): readonly Change[] {
+  const budget = Math.max(SPLIT_BYTE_BUDGET, coreBytes(state) + PAYMENT_RESERVE_BYTES + HISTORY_RESERVE_BYTES, serializedBytes(before));
   const sizes = changes.map(serializedBytes);
   let bytes = serializedBytes(state) + sizes.reduce((sum, size) => sum + size + 1, -1);
   let start = 0;
-  while (start < changes.length - 1 && (changes.length - start > RECENT_CHANGES_LIMIT || bytes > SPLIT_BYTE_BUDGET)) {
+  while (start < changes.length - 1 && (changes.length - start > RECENT_CHANGES_LIMIT || bytes > budget)) {
     bytes -= sizes[start] + 1;
     start += 1;
   }
@@ -745,11 +809,11 @@ export type ServerMessage =
 export function createSplit(input: NewSplit): { readonly ok: true; readonly split: Split } | Rejected {
   const { items, adjustments, subtotal, total } = input.receipt;
   const plain = ({ quantity = 1, ...row }: Item): Item => (quantity === 1 ? row : { ...row, quantity });
-  const unclaimed = ({ quantity = 1, ...row }: Item): SplitItem => ({ ...row, split: evenUnits(quantity) });
+  const unclaimed = (item: Item): SplitItem => ({ ...plain(item), split: unclaimedSplit() });
   const [first, ...rest] = items;
   const receipt: Receipt<SplitItem> = { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total };
   const bare: Split = {
-    schemaVersion: storedVersion({ receipt, recentChanges: [] }),
+    schemaVersion: 4,
     id: input.id,
     currency: "USD",
     receipt,
@@ -761,8 +825,9 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
     recentChanges: [],
   };
   const withOriginal: Split = { ...bare, original: { items: [plain(first), ...rest.map(plain)], adjustments, subtotal, total } };
-  const split = checkSplit(withOriginal) === null ? withOriginal : bare;
-  const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : checkSplit(split);
+  const check = (candidate: Split) => checkSplit(candidate) ?? capRejection(candidate, null);
+  const split = check(withOriginal) === null ? withOriginal : bare;
+  const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : check(split);
   return rejection ? { ok: false, rejection } : { ok: true, split };
 }
 
@@ -777,7 +842,7 @@ export function checkSplit(split: Split): Rejection | null {
   if (!isStrictlySorted(revisions) || revisions.some((revision) => revision > split.revision)) {
     return { reason: "malformed", path: "recentChanges" };
   }
-  if (split.recentChanges.length > RECENT_CHANGES_LIMIT || serializedBytes(split) > SPLIT_BYTE_BUDGET) {
+  if (split.recentChanges.length > RECENT_CHANGES_LIMIT || serializedBytes(split) > MAX_STORED_BYTES) {
     return { reason: "tooLarge" };
   }
   return null;
@@ -786,7 +851,7 @@ export function checkSplit(split: Split): Rejection | null {
 function checkState(split: Split): Rejection | null {
   const { receipt, participants, payments, paymentHandles } = split;
   const { items, adjustments, subtotal, total } = receipt;
-  if (items.length > MAX_ITEMS) return { reason: "tooManyItems" };
+  if (items.length > MAX_STORED_ITEMS) return { reason: "tooManyItems" };
   if (adjustments.length > MAX_ADJUSTMENTS) return { reason: "tooManyAdjustments" };
   if (participants.length > MAX_PARTICIPANTS) return { reason: "tooManyParticipants" };
   if (!hasUniqueIds(items) || !hasUniqueIds(adjustments) || !hasUniqueIds(participants)) return { reason: "duplicateId" };
@@ -806,11 +871,11 @@ function checkState(split: Split): Rejection | null {
 
   const ids = new Set<ParticipantId>(participants.map(({ id }) => id));
   const [host] = participants;
-  const unsorted = items.findIndex(({ split }) => split.units.length > MAX_QUANTITY || !unitsOf(split).every(isStrictlySorted));
+  const unsorted = items.findIndex(({ split }) => !isStrictlySorted(claimersOf(split)));
   if (unsorted !== -1) return { reason: "malformed", path: `receipt.items[${unsorted}].split` };
   if (!items.every(({ split }) => valuesInRange(split))) return { reason: "amountOutOfRange" };
   if (items.some(({ split, price }) => overPrice(split, price))) return { reason: "amountOverPrice" };
-  const claimsValid = items.every(({ split }) => unitsOf(split).flat().every((id) => ids.has(id)));
+  const claimsValid = items.every(({ split }) => claimersOf(split).every((id) => ids.has(id)));
   const paidBy = payments.map(({ participantId }) => participantId);
   const paymentsValid = isStrictlySorted(paidBy) && paidBy.every((id) => ids.has(id) && id !== host.id);
   const picked = split.picks.map(({ participantId }) => participantId);
@@ -821,8 +886,23 @@ function checkState(split: Split): Rejection | null {
   const handlesValid = paymentHandles.every(({ service, handle }) => HANDLE_RULES[service].pattern.test(handle) && !HIDDEN_CHARACTERS.test(handle));
   if (!handlesValid || new Set(services).size !== services.length) return { reason: "badHandle" };
 
-  const core = serializedBytes({ ...split, payments: [], recentChanges: [] });
-  if (core > SPLIT_BYTE_BUDGET - PAYMENT_RESERVE_BYTES - HISTORY_RESERVE_BYTES) return { reason: "tooLarge" };
+  return null;
+}
+
+const coreBytes = (split: Split) => serializedBytes({ ...split, payments: [], recentChanges: [] });
+
+/**
+ * The Item and byte caps hold for a new Split and for any write that adds Items. A stored old Split can read past them, since its
+ * differing units read as rows; it still takes writes that add no Item, and one within the byte cap never grows past it.
+ */
+function capRejection(split: Split, before: Split | null): Rejection | null {
+  const items = split.receipt.items.length;
+  const grew = before === null || items > before.receipt.items.length;
+  if (grew && items > MAX_ITEMS) return { reason: "tooManyItems" };
+  const core = coreBytes(split);
+  const room = PAYMENT_RESERVE_BYTES + HISTORY_RESERVE_BYTES;
+  if (core > MAX_STORED_BYTES - room) return { reason: "tooLarge" };
+  if (core > SPLIT_BYTE_BUDGET - room && (grew || coreBytes(before) <= SPLIT_BYTE_BUDGET - room)) return { reason: "tooLarge" };
   return null;
 }
 
@@ -844,7 +924,7 @@ function bundleRejection({ items, adjustments }: Receipt, path: string): Rejecti
 function valuesInRange(split: ItemSplit): boolean {
   if (split.by === "even") return true;
   const [low, high] = split.by === "amount" ? [0, MAX_CENTS] : [1, MAX_SHARES];
-  return split.units.every((unit) => unit.every(([, value]) => Number.isSafeInteger(value) && value >= low && value <= high));
+  return split.units[0].every(([, value]) => Number.isSafeInteger(value) && value >= low && value <= high);
 }
 
 const HIDDEN_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u2028-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uD800-\uDFFF]/u;

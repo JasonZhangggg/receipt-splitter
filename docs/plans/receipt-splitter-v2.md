@@ -10,7 +10,7 @@ The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b. V2-
 - Merged and deployed, in this order: V2-1 as PR 29 (`9e3a34d`), V2-2 as PR 30 (`ade639d`), V2-5 as PR 31 (`f5e5b8e`), V2-6a as PR 32 (`461b37a`), and V2-3 as PR 33 (`2da1e47`).
 - Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create. [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36) (`19c8e93`), `fix/create-silent`, which makes every Create tap act and keeps the home panel open. [PR 37](https://github.com/JasonZhangggg/receipt-splitter/pull/37) (`fe301a4`), docs only, which adds the receipt-reading research and brings this plan up to rulings 55 to 59.
 - In flight. `fix/flash-root` is a local branch, not pushed. It fixes the Split page flashes at their causes.
-- Queued, in order: server-side receipt reading as V2-7a then V2-7b, the bar after a pick, quantities follow the receipt, a home reload that keeps only the payment handles, Add Item on the Split page, Recent splits on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. V2-7a and V2-7b have full sections. The next five have short sections before **Close the program**.
+- Queued, in order: server-side receipt reading as V2-7a then V2-7b, the bar after a pick, quantities follow the receipt (full section below), a home reload that keeps only the payment handles, Add Item on the Split page, Recent splits on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. V2-7a and V2-7b have full sections. The next five have short sections before **Close the program**.
 - "Preferences N" means ruling N in `~/.claude/orchestrate/receipt-splitter/preferences.md`.
 
 ## How to read this
@@ -296,7 +296,7 @@ Build from the phone frames in `docs/design/receipt-v2/round3.html`, and read it
 
 **Amendment: one row per unit.** The operator dropped the quantity column after round 3. An Item with quantity N shows N rows, one per unit, each with its own circle, the Item's name, and the unit price. The README's "Amendment: no quantity column" wins over the Build and You see lines below where they mention quantity.
 
-**Changed after it shipped.** The boxes below record what PR 33 shipped. Preferences 58 replaces one row per unit from here on. A line printed with a quantity becomes one row, claimed as a whole, with a **Split** button in its detail. See **Queued: quantities follow the receipt**.
+**Changed after it shipped.** The boxes below record what PR 33 shipped. Preferences 58 replaces one row per unit from here on. A line printed with a quantity becomes one row, claimed as a whole, with a **Split** button in its detail. See **Quantities follow the receipt**.
 
 **Files.**
 
@@ -824,9 +824,86 @@ After someone picks their name, the collapsed bar shows **Your share** with thei
 
 - [ ] Metric. Brotli bytes of every script `dist/index.html` loads. Probe `npm run size` at trunk and head. Rule. Fail on any growth over 1 KB.
 
-## Queued: quantities follow the receipt
+## Quantities follow the receipt
 
-Intent only. A full section with boxes comes before the build. The Split page shows lines as the receipt prints them (preferences 58). Lines printed separately stay separate rows. A line printed with a quantity, such as Guinness x3, is one row with "3x" in its text, styled like the "6 items" count on a Bundle header. Unsplit, it is claimed like any one-line Item. **Who had it**, **Evenly**, **By shares**, and **By amount** apply to the whole line, with no per-unit claims (preferences 5). Its detail has a **Split** button that splits it into three one-unit rows, and each of those is claimed as a one-line Item. A person's breakdown lists what the Split page shows, so a quantity line is one line (preferences 24). This replaces V2-3's one row per unit.
+**Depends on.** None. It branches from `main` after V2-7b. It touches two lines of `app/s/[id].tsx` and one function of `src/ui/split-view/model.ts`, which `feat/bar-after-pick` also edits, so whichever lands second rebases over a small overlap.
+
+The Split page shows lines as the receipt prints them (preferences 58). Lines printed separately stay separate rows. A line printed with a quantity, such as Guinness x3, is one row with "3x" in its text, styled like the "6 items" count on a Bundle header. Unsplit, it is claimed like any one-line Item. **Who had it**, **Evenly**, **By shares**, and **By amount** apply to the whole line, with no per-unit claims (preferences 5). Its detail has a **Split** button that turns it into three one-unit rows, and each of those is claimed as a one-line Item. A person's breakdown lists what the Split page shows, so a quantity line is one line with its quantity (preferences 24). **Split** is a manual receipt change, so History lists it and Revert undoes it (preferences 3 and 29). This replaces V2-3's one row per unit.
+
+**Data shape.** Decided before the build.
+
+- An Item keeps its quantity. `SplitItem` is `Item & { split }`, so it carries `quantity` from 2 to 20, and an absent `quantity` means 1. Inside an Edit pair a quantity is a number, and 1 means one.
+- `ItemSplit` keeps the stored key `units`, typed as a list of exactly one claim set: who had the whole line, with their shares or cents. The in-memory type is a one-tuple, so no code can index a second unit.
+- `Claim` and `ItemValue` lose `unit`. `ItemPatch` loses `quantity` and `drop`. The parser still accepts `"unit": 0` on a claim from a page loaded before the deploy and drops it. Any other unit is malformed.
+- **Split** is a new `ItemPatch`, `{ type: "split", itemId, ids }`. The client mints `ids`, one per new row, as it mints ids for an added Item. The server owns the math. It records one Change with one `split` write, `{ kind: "split", id, ids, line: { quantity, price, split } }`, which holds the line as it was. The rows follow from it, so the record stays under the 5 KB change cap at any quantity. The line takes `quantity` 1, the first of `unitPrices(price, quantity)`, and the first row's claims. Each further row takes the next index and the next unit price. When the line is in a Bundle, the new ids go right after the line's id. Every row starts with the line's claimers and mode. Shares copy over. By amount, the rows fill in order: each claimer takes what is left of their cents, up to what is left of the row's price. Every claimer keeps their total and the unclaimed rest stays the same, so every Share stays the same to the cent, and no row turns even. The cents of the rows add up to the line's price.
+- Revert of a Split is the existing undo. It records an `unsplit` write that removes the added rows, restores the Bundle's list, and gives the line back the quantity, price, and claims it had before the Split. It answers `conflict` unless every row the Split made still has its split-time price and claims, and all of them still share one name and detail, so a Revert never drops a later edit: a row gone, a price edit on any row (claimed or not), a rename, a detail, or any claim, mode, or amount edit all answer `conflict`. It also answers `conflict` unless every Share and the unclaimed total are the same before and after it.
+- Every write stores `schemaVersion` 4, whatever the Split holds. `parseSplit` reads versions 1, 2, and 3 with the old per-unit parsers and maps them, as ADR 0004 and V2-2 read old rows, so an old row loads and its next write stores it at version 4. Version 3 is V2-7b's, so the mapping keeps each Item's detail. Each version reads every earlier one. Storage rolls forward only: a Worker from before this PR cannot read a version 4 row, so a rollback past this release is not supported (Appendix C).
+
+**How old Splits map.** A Split stored at version 1, 2, or 3 keeps its money and its details.
+
+- A one-unit Item reads unchanged.
+- A quantity line whose units all hold the same claims reads as one line with that quantity and those claims. Cents scale by the quantity, so each claimer pays the same.
+- A quantity line whose units differ reads as rows in its place, one per distinct claim set, in the order the units first show it. Each row takes that set's units as its quantity, the sum of their prices from `unitPrices`, and the set's claims, with cents scaled by the quantity. Equal units map exactly, so every Share stays the same to the cent, and each row keeps the line's detail. The first row keeps the id. The rest take the next free `<id>-2`, `<id>-3`, and so on, cutting the base so the id fits 24 characters, and a Bundle lists them where it listed the line. Money is never folded into one line.
+- The 100-Item cap and the 32 KB budget hold for a new Split and for writes that add Items (**Add item**, **Split**), never for reading a stored row. An old row whose rows pass them still loads with the same Shares, takes claims and edits, and refuses an added Item or a **Split** as `tooManyItems` or `tooLarge`. A Split within the 32 KB budget never grows past it. A stored row reads up to 2,000 Items and 640 KB, the most an old row can read as.
+- Item writes in old `recentChanges` map their claim sets the same way, with the one-line rule, and an old quantity edit becomes a quantity pair. A write whose Revert would no longer undo what it did gets a `{ kind: "perUnit", id }` mark, and Revert of its change answers `conflict`, which changes nothing: its line now reads as rows, its units differed, or its quantity is not the line's quantity now.
+- `original` already stores quantities and reads unchanged, so **Restore receipt** brings a split line back as one line.
+
+**Files.**
+
+- [ ] Edit `src/core/split.ts`, `src/core/operations.ts`, `src/core/parse.ts`, `src/core/shares.ts`, and their tests. Add a golden row in `src/core/golden/` with `scripts/golden-splits.mjs`.
+- [ ] Edit `src/ui/split-view/model.ts`, `src/ui/split-view/receipt-card.tsx`, `src/ui/split-view/breakdown.tsx`, `src/ui/item-sheet/index.tsx`, `src/ui/history/describe.ts`, `src/ui/split-copy.ts`, and `app/s/[id].tsx`, with their tests.
+- [ ] Edit `CONTEXT.md`: **Unit**, **Claim**, **Split mode**, and **Unclaimed item**.
+- [ ] Edit `e2e/claim.spec.ts`, `e2e/receipt.spec.ts`, `e2e/sheet.spec.ts`, and `e2e/motion.ts`.
+- [ ] Edit `features/claim.md`, `features/receipt.md`, `live-clients.mjs`, and `split-flow.mjs` in `verify-receipt-splitter`.
+
+**Build.**
+
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` on the UI text before the PR.
+- [ ] Change the model to the **Data shape** above, and map old Splits as **How old Splits map** says.
+- [ ] Rows follow Items. A row is one Item. Its circle and its detail act on the whole line. Rows keep 14 px text, the 16 px circle, the 44 px tap target, and no × (preferences 20 and 21).
+- [ ] Show the quantity of a line above 1 as "3x" before the name, in the type and color of the "6 items" count on a Bundle header. A Bundle header still counts units, so the Topgolf bucket reads "6 items". A closed Bundle's "N unclaimed" counts the units of its unclaimed lines.
+- [ ] The detail shows the line's price, with no "each", and its quantity. **Who had it**, **Evenly**, **By shares**, **By amount**, and **Delete item** act on the whole line. A line with a quantity above 1 has a **Split** button that reads "Split into 3".
+- [ ] A tap on **Split** sends the patch and closes the detail. The first row stays where it is. The new rows open below it, height and opacity from 0, about 200 ms, ease-out, and the rows under them slide down with them. Under reduced motion the rows appear without the height change. No frame shows "3x" beside the new rows, or the old row twice (preferences 18).
+- [ ] A person's breakdown lists one line per row on the page. A quantity line shows its quantity. It shows no "1 of 3" (preferences 24).
+- [ ] History reads a Split as one entry, "Split Guinness Draught 14.9oz Can into 3", with no count of more writes. Revert asks for confirmation as any other change does (preferences 3).
+
+**You see.**
+
+- [ ] On the Topgolf Split at 390 px, the Beer Bucket opens to four rows, one of them "3x Guinness Draught" at $21.87. A tap on its circle claims the whole line for the picked name. Its detail shows **Split into 3**. After **Split**, three Guinness rows at $7.29 sit inside the Bundle. History shows the Split, and Revert brings back the one "3x" row.
+
+**Seams.**
+
+- [ ] The stored shape and the old-row mapping in `src/core/parse.test.ts`, through literal version 2 Splits and the golden rows.
+- [ ] Claims, **Split**, and its revert through `applyOperation` in `src/core/operations.test.ts`.
+- [ ] Shares in `src/core/shares.test.ts`.
+- [ ] Rows, the breakdown lines, and History entries as pure functions in `src/ui/split-view/model.test.ts` and `src/ui/history/describe.test.ts`.
+- [ ] The Split page through Playwright in `e2e/claim.spec.ts` and `e2e/receipt.spec.ts`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `src/core/operations.test.ts` gains a claim on a quantity line that names the whole line, each split mode on a quantity line, **Split** of a 3x line at $21.87 into rows of $7.29, $7.29, and $7.29 with the claims copied, **Split** of an uneven price whose rows add up to the cent, **Split** of a by-amount line whose rows' cents add up to the line's, **Split** inside a Bundle with the ids in place, a refused **Split** of a one-unit line and of an id already used, and Revert of a **Split**, alone and after a claim on a new row. Run `npm test`.
+- [ ] `src/core/parse.test.ts` gains a version 2 Split with equal units read as one line with its quantity, one with different units read as rows with `<id>-2` ids and the same Shares, one whose differing units group into quantity rows with the next free ids, one whose rows pass 100 Items and 32 KB that still loads and refuses an added Item, an old claim with `"unit": 0` accepted and `"unit": 1` refused, a version 3 Split with a detail on a quantity line read as one line or as rows that each keep the detail, a version 4 Split read back unchanged, and a one-line Split written at version 2. Every golden row reads, with the Topgolf Shares unchanged. Run `npm test`.
+- [ ] `src/core/shares.test.ts` gains the Topgolf Shares with Guinness claimed by two people as a whole line, and the same Shares after **Split** with each row claimed by the same two. Run `npm test`.
+- [ ] `src/ui/split-view/model.test.ts` and `src/ui/history/describe.test.ts` gain the Bundle rows with "3x", the unclaimed count in units, the breakdown line for a quantity line, and the Split entry. Run `npm test`.
+- [ ] `e2e/receipt.spec.ts` gains **Split** on the Guinness line inside the Bucket, the three rows in a second browser, and Revert in History. `e2e/claim.spec.ts` claims a quantity line from one browser and sees the Share in another. The cases hold the CI-robustness rule. Run `npm run e2e`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe, on ports 9100 to 9199.
+
+- [ ] Lane 1. Regression lane against trunk. Create the Topgolf Split and Claim one Item from a second browser, citing `features/claim.md`, at trunk and head. Pass when both reach the same Shares.
+- [ ] Lane 2. Screenshot matrix at 390 px and 1440 px, in light and dark, citing `features/receipt.md`: the open Bucket with the "3x" row, its detail with **Split into 3**, and the three rows after **Split**. Save `quantities/<case>.png`.
+- [ ] Run `motion.mjs` on every lane and the flash census with `flash-census.mjs`. Pass when the motion lanes pass and every "Runs with flash" cell reads 0. The root schedules the real-iOS census for the **Split** motion (preferences 44).
+
+**Feature map.**
+
+- [ ] Update `features/receipt.md` with the "3x" row, **Split**, and its revert, and `features/claim.md` with whole-line claims.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. `npm run size` and `npm run bench:core`. Probe at trunk and head. Rule. Fail when size passes its budget or the Share bench slows by more than 10%.
+
+**Review gate.** The root merges on a clean verdict and green CI (preferences 40). The screenshots go to the operator after the merge.
+
+- [ ] Copy lane 2's screenshots into `~/.claude/orchestrate/receipt-splitter/review/quantities/`.
 
 ## A home reload keeps only the payment handles
 
@@ -1022,6 +1099,7 @@ The design questions were settled by three rounds of mockups, not by code protot
 - Spend on the model API. It lands in V2-7a. The scan limits and the daily cap of 2,000 hold spend near $2 a UTC day, and a refused scan falls back to the on-device reader in V2-7b.
 - A swapped per-item discount passes every check. It lands in V2-7a and V2-7b. The eval put r4's split right in 2 of 3 readings. The "$2.00 off" detail line makes a discount on the wrong Item visible, and anyone fixes it on the Split page.
 - The stored `detail` field. It lands in V2-7b. Only a Split with a detail is written as version 3, so a rollback to V2-7a makes only those Splits unreadable, and the fix is a roll forward.
+- Quantity lines change the stored shape of every Split. It lands with quantities. From this release, storage changes roll forward only. Every write stores version 4, which no earlier Worker reads, so a rollback past this release makes every Split written since unreadable and is not supported. The fix for a bad release is a roll forward. Four rounds of fixes that kept old versions readable after a write each failed audit on a limit the older Worker enforced, and the version probe cost 30 to 40 times the CPU of a write, so the operator dropped that goal. Old rows at versions 1 to 3 still load, with every Share exact.
 - Bundle reading is proven only on the synthetic t1, with perfect OCR. A real Bundle photo may score lower. V2-7a's harness takes a directory outside the repo, so a real photo can be scored without committing it.
 
 ## Appendix D. Links and reading list

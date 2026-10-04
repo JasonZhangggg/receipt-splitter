@@ -164,7 +164,7 @@ test("That's me on a second browser takes the name, and the first browser drops 
   await expect(first.getByRole("button", { name: "Sam, you", exact: true })).toHaveCount(0, live);
 });
 
-test("Tostones split 2:1 by shares and a pitcher on its second unit reach the other browser's Share", async ({ browser, request }, { workerIndex }) => {
+test("Tostones split 2:1 by shares and the 2x Pitchers line claimed whole reach the other browser's Share", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
   const jason = await open(browser, link);
@@ -182,12 +182,14 @@ test("Tostones split 2:1 by shares and a pitcher on its second unit reach the ot
   await expect(owe(sam)).toHaveText("$0.33", live);
   await expect(jason.getByText("2:1")).toBeVisible(live);
 
-  await expect(jason.getByRole("button", { name: /^Open Pitchers, \$12\.00, / })).toHaveCount(2);
-  await jason.getByRole("button", { name: /^Open Pitchers/ }).nth(1).click();
+  await expect(jason.getByRole("button", { name: /^Open Pitchers/ })).toHaveCount(0);
+  await expect(jason.getByRole("button", { name: /^Open 2x Pitchers, \$24\.00, / })).toHaveCount(1);
+  await jason.getByRole("button", { name: /^Open 2x Pitchers/ }).click();
   await jason.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
   await expect(jason.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" })).toHaveAttribute("aria-pressed", "true", live);
   await jason.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
-  await expect(owe(sam)).toHaveText("$12.33", live);
+  await expect(owe(sam)).toHaveText("$24.33", live);
+  await expect(sam.getByRole("button", { name: "Open 2x Pitchers, $24.00, had by Sam" })).toHaveCount(1, live);
 });
 
 test("a price change shows the mismatch everywhere, and a revert from another browser asks first and puts the price back", async ({ browser, request }, { workerIndex }) => {
@@ -212,6 +214,18 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await expect(jason.getByText("Reverted")).toBeVisible(live);
   await expect(sam.getByText("Items are $0.25 over the subtotal.")).toHaveCount(0, live);
   await expect(sam.getByRole("button", { name: /^Open Sprite, \$2\.50/ })).toBeVisible(live);
+});
+
+test("a breakdown counts a 2x line as 2 items, as a Bundle header counts it", async ({ browser, request }, { workerIndex }) => {
+  const priya = await open(browser, await createSplit(request, workerIndex));
+  await pick(priya, "Priya");
+  await circle(priya, "2x Pitchers", "Priya").click();
+  await circle(priya, "Sprite", "Priya").click();
+  await expect(owe(priya)).toHaveText("$26.50", live);
+
+  await owe(priya).click();
+
+  await expect(priya.getByTestId("breakdown").getByText("3 items", { exact: true })).toBeVisible(live);
 });
 
 test("the payer marks themselves paid, and another browser sees Paid on their breakdown", async ({ browser, request }, { workerIndex }) => {
