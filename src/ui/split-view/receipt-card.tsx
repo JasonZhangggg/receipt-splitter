@@ -23,6 +23,7 @@ type Props = {
   me: ParticipantId | null;
   onCircle: (item: SplitItem) => void;
   onOpen: (item: SplitItem) => void;
+  onAdd: () => void;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -41,7 +42,7 @@ const bleed = 12;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd }: Props) {
   const c = useColors();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
   const { items, subtotal, total } = split.receipt;
@@ -110,6 +111,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen }: P
           );
         })}
       </View>
+      <AddRow divided={rows.length > 0} onPress={onAdd} />
       {note ? (
         <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
           {note}
@@ -377,6 +379,23 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   );
 }
 
+function AddRow({ divided, onPress }: { divided: boolean; onPress: () => void }) {
+  const c = useColors();
+  const reduce = useReducedMotion();
+  return (
+    <PressTarget name={say.addItem} onPress={onPress} style={(pressed) => [styles.line, styles.add, divided && [styles.divided, { borderTopColor: c.hairline }], pressStyle(pressed, reduce)]}>
+      {() => (
+        <>
+          <View style={styles.addIcon}>
+            <Icon name="plus" size={dotSize} color={c.muted} />
+          </View>
+          <Text style={[itemType, { color: c.muted }]}>{say.addItem}</Text>
+        </>
+      )}
+    </PressTarget>
+  );
+}
+
 function Row({ label, amount }: { label: string; amount: number }) {
   const c = useColors();
   return (
@@ -411,6 +430,8 @@ const styles = StyleSheet.create({
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
+  add: { minHeight: tapSize },
+  addIcon: { width: circleColumn, alignItems: "flex-start" },
   why: { marginTop: 8, marginBottom: 2 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.adjustmentRow, gap: 12 },

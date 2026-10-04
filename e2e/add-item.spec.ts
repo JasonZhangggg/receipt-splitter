@@ -13,9 +13,10 @@ const hundred: Row[] = Array.from({ length: 100 }, (_, at) => ({ id: `i${at}`, n
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice): Promise<string> {
+/** The printed Subtotal counts `missing` cents more than `items`, as when the reading missed a line. */
+async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, missing = 0): Promise<string> {
   creates += 1;
-  const subtotal = items.reduce((sum, { price }) => sum + price, 0);
+  const subtotal = items.reduce((sum, { price }) => sum + price, missing);
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.54.${100 + workerIndex}.${creates}` },
     data: {
@@ -70,17 +71,19 @@ async function shareOf(page: Page, name: string): Promise<string> {
 }
 
 test("an Item added on one phone shows on another with who had it, and the Shares follow a claim on it", async ({ browser, request }, { workerIndex }) => {
-  const link = await createSplit(request, workerIndex);
+  const link = await createSplit(request, workerIndex, rice, 650);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
+  const totalNote = sam.getByRole("status").filter({ hasText: "$6.50" });
+  await expect(totalNote).toBeVisible();
 
   await addFries(sam, ["Sam"]);
   await expect(sam.getByRole("button", { name: "Open Fries, $6.50, had by Sam" })).toBeVisible(live);
   await expect(priya.getByRole("button", { name: "Open Fries, $6.50, had by Sam" })).toBeVisible(live);
   await expect(sam.getByTestId("owe")).toHaveText("$6.50");
-  await expect(sam.getByRole("status").filter({ hasText: "6.50" })).toBeVisible();
+  await expect(totalNote).toHaveCount(0);
 
   await priya.getByRole("button", { name: "Fries, check for Priya" }).click();
   await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, had by (Sam, Priya|Priya, Sam)$/ })).toBeVisible(live);

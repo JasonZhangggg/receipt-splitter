@@ -2101,8 +2101,16 @@ describe("adding an Item with who had it", () => {
     items: [{ type: "add", item: { id: tea, name: "Tea", price: price(300) }, index, who }],
   });
 
+  // The printed Subtotal already counts the Tea the reading missed, as on most adds.
+  const missingTea = () =>
+    apply(
+      created({ ...dinner, subtotal: cents(5500), total: cents(5500) }),
+      { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } },
+      { by: ann, type: "addParticipant", participant: { id: cat, name: "Cat" } },
+    );
+
   test("lands claimed evenly by the people named, so their Shares hold it to the cent", () => {
-    const split = apply(withBobAndCat(), addTea([ann, bob]));
+    const split = apply(missingTea(), addTea([ann, bob]));
 
     expect(split.receipt.items.at(-1)).toEqual({ id: tea, name: "Tea", price: 300, split: { by: "even", units: [[ann, bob]] } });
     expect(shareOf(split, "ann")?.share).toBe(150);
@@ -2111,7 +2119,7 @@ describe("adding an Item with who had it", () => {
   });
 
   test("is one History change, and its Revert takes the row and its claims off", () => {
-    const before = withBobAndCat();
+    const before = missingTea();
     const split = apply(before, addTea([cat]));
     const reverted = apply(split, { by: ann, type: "undo", revision: split.recentChanges.at(-1)!.revision });
 
