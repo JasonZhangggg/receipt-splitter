@@ -217,7 +217,7 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
     if (!box) return;
     if (first.current) {
       first.current = false;
-      Object.assign(box.style, { display: "grid", gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? "1" : "0" });
+      Object.assign(box.style, { display: "grid", gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? "" : "0" });
       return;
     }
     const ms = reduce ? motion.reducedFade : collapseFor;
@@ -228,8 +228,8 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
     box.getBoundingClientRect();
     box.style.opacity = open ? "1" : "0";
     if (!reduce) box.style.gridTemplateRows = open ? "1fr" : "0fr";
-    if (open) return;
     const done = setTimeout(() => {
+      if (open) return void (box.style.opacity = "");
       box.style.gridTemplateRows = "0fr";
       setShown(false);
     }, ms);
