@@ -1069,11 +1069,11 @@ Home stops editing Items. With **Add item** on the Split page, every fix a Host 
 
 Decisions.
 
-- A read is turned into the Receipt Create sends once, when it lands. The Draft holds that Receipt (or nothing, when no Item was read), not an editable copy. A read the core would refuse is repaired at that moment, so Create acts on it (preferences 34) and the Split page fixes the rows. Rows are not dropped, because a dropped row is a missing charge nobody sees, while a sent row is one tap from fixed.
+- A read is turned into the Receipt Create sends once, when it lands. The Draft holds that Receipt (or nothing, when no Item was read), not an editable copy. `sendable` repairs a read the core would refuse at that moment, so Create acts on it (preferences 34) and the Split page fixes the rows. Rows are not dropped, because a dropped row is a missing charge nobody sees, while a sent row is one tap from fixed.
 - An Item with no name but a price is sent as "Item N", N its place on the receipt. The core refuses a blank name (`badName`), and the price is what matters to the Shares. Anyone renames it on the Split page.
 - A price over $100,000 is sent as $0.00, as the editor already read it, and so is an Adjustment over the limit. The core refuses the amount (`amountOutOfRange`). The Total check then fails, and the quiet gray note on home and on the Split page names the gap (preferences 6), which points at the $0.00 row.
 - A Subtotal over the limit is sent as the Items' sum, and a Total over the limit as the Subtotal plus the Adjustments. They are read lines like any other, and a misread one should not block the link.
-- A read with no Items blocks Create, because a Split holds at least one Item: the core types the Items as non-empty and refuses deleting the last one (`lastItem`). **Create split link** stays off with "Couldn't read any items. Try another photo." The card's camera replaces the photo, and **Example** still fills home.
+- A read with no Items blocks Create, because a Split holds at least one Item. The core types the Items as non-empty and refuses to delete the last one (`lastItem`). **Create split link** stays off with "Couldn't read any items. Try another photo." The card's camera replaces the photo, and **Example** still fills home.
 - The parser's `discountExceededPrice` flag goes. Only the editor showed it, and the Item it marks is already $0.00.
 - Home keeps the compact card for every read, the same card and layout a good read gets. Nothing new animates.
 
