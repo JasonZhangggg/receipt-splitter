@@ -54,8 +54,8 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       if ("price" in edit && edit.price) return { lead: name, before: plainAmount(edit.price[0]), after: plainAmount(edit.price[1]) };
       if ("detail" in edit && edit.detail) {
         const [before = "", after = ""] = edit.detail;
-        if (!before) return { lead: `Added “${after}” to ${name}` };
-        if (!after) return { lead: `Removed “${before}” from ${name}` };
+        if (!before) return { lead: `Added "${after}" to ${name}` };
+        if (!after) return { lead: `Removed "${before}" from ${name}` };
         return { lead: name, before, after };
       }
       if ("amount" in edit && edit.amount)return { lead: name, before: plainAmount(edit.amount[0]), after: plainAmount(edit.amount[1]) };

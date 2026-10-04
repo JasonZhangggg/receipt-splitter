@@ -64,9 +64,9 @@ describe("historyOf", () => {
     const detail = (text: string): Operation => ({ by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, detail: text }] });
 
     expect(historyOf(split(detail("Large"), detail("Small"), detail(""))).map(({ lead, before, after, revertible }) => [lead, before, after, revertible])).toEqual([
-      ["Removed “Small” from Sprite", undefined, undefined, true],
+      ['Removed "Small" from Sprite', undefined, undefined, true],
       ["Sprite", "Large", "Small", true],
-      ["Added “Large” to Sprite", undefined, undefined, true],
+      ['Added "Large" to Sprite', undefined, undefined, true],
     ]);
   });
 });
