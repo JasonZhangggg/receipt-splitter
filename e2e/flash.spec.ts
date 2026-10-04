@@ -3,6 +3,8 @@ import { expect, test, type Locator, type Page } from "./without-ocr";
 
 test.setTimeout(90_000);
 
+// @frame-timing tests sample or time animations on every frame, so they fail when frames gap 150 ms or more (SLOW_RAF=200, the Linux CI runner); CI skips them on Linux and motion.mjs covers WebKit locally.
+
 const keyboard = 336;
 const bundle = (page: Page) => page.locator('[data-testid^="bundle-"]');
 const bundleHeader = (page: Page) => bundle(page).locator("[aria-expanded]");
