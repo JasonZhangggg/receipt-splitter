@@ -551,9 +551,9 @@ test.describe("reading through the server", () => {
     await action(page).click();
     await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
 
-    await expect(page.getByTestId("line-i1-0")).toContainText("$2.00 off");
-    await expect(page.getByTestId("line-i2-0")).toContainText("Large, oat milk");
-    await expect(page.getByTestId("line-i2-0")).not.toContainText("off");
+    await expect(page.getByTestId("line-i1")).toContainText("$2.00 off");
+    await expect(page.getByTestId("line-i2")).toContainText("Large, oat milk");
+    await expect(page.getByTestId("line-i2")).not.toContainText("off");
   });
 
   for (const [status, why] of [
