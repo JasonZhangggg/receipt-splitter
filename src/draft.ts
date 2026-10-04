@@ -1,52 +1,15 @@
-import { cents, MAX_CENTS, price, type Cents, type Price } from "./core/money";
+import { cents, MAX_CENTS, price, type Cents } from "./core/money";
 import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
-import {
-  adjustmentId,
-  itemId,
-  PAYMENT_SERVICES,
-  type ReceiptLevelKind,
-  type Adjustment,
-  type NonEmpty,
-  type ParticipantId,
-  type PaymentHandle,
-  type PaymentService,
-  type Receipt,
-} from "./core/split";
+import { adjustmentId, itemId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
-import type { ParsedItem } from "./parse";
 
 export type ReceiptFile = { readonly name: string; readonly thumbnail: string | null };
 
-type DraftItem = {
-  readonly id: string;
-  readonly name: string;
-  readonly price: Price;
-  readonly detail?: string;
-  readonly quantity?: number;
-  readonly discountExceededPrice?: true;
-  readonly unreadPrice?: true;
-  readonly retyped?: true;
-};
-
-type DraftAdjustment =
-  | { readonly id: string; readonly kind: Exclude<ReceiptLevelKind, "tip">; readonly name: string; readonly amount: Cents }
-  | { readonly id: string; readonly kind: "bundleDiscount"; readonly name: string; readonly amount: Cents; readonly bundle: DraftBundle };
-
-type DraftBundle = { readonly name: string; readonly items: NonEmpty<string> };
-
-export type DraftReceipt = {
-  readonly items: readonly DraftItem[];
-  readonly adjustments: readonly DraftAdjustment[];
-  readonly subtotal: Cents | null;
-  readonly tip: Cents;
-  readonly totalBeforeTip: Cents;
-  readonly nextId: number;
-};
-
+/** A read holds the Receipt Create split link sends, or null when it found no Item, since a Split holds at least one. */
 type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
-  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: DraftReceipt; readonly fixOnHome?: true };
+  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null };
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
 
@@ -54,17 +17,9 @@ export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[
 
 export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
-  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt<ParsedItem> | null }
+  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null }
   | { readonly type: "example" }
   | { readonly type: "created" }
-  | { readonly type: "editItem"; readonly id: string; readonly name?: string; readonly price?: Price }
-  | { readonly type: "addItem" }
-  | { readonly type: "removeItem"; readonly id: string }
-  | { readonly type: "editAdjustment"; readonly id: string; readonly amount: Cents }
-  | { readonly type: "removeAdjustment"; readonly id: string }
-  | { readonly type: "editSubtotal"; readonly amount: Cents }
-  | { readonly type: "editTip"; readonly amount: Cents }
-  | { readonly type: "editTotal"; readonly amount: Cents }
   | { readonly type: "setService"; readonly index: number; readonly service: PaymentService }
   | { readonly type: "setHandle"; readonly index: number; readonly handle: string }
   | { readonly type: "addHandle" }
@@ -103,13 +58,10 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
   switch (action.type) {
     case "reading":
       return { ...draft, scan: { status: "reading", file: action.file } };
-    case "read": {
-      const receipt = action.receipt ? fromReceipt(action.receipt) : typedReceipt;
-      const fixOnHome = itemProblem(receipt) ? { fixOnHome: true as const } : {};
-      return { ...draft, scan: { status: "read", file: action.file, receipt, ...fixOnHome } };
-    }
+    case "read":
+      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt) } };
     case "example":
-      return { ...draft, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: fromReceipt(example1040) } };
+      return { ...draft, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: sendable(example1040) } };
     case "created":
       return { ...emptyDraft, handles: draft.handles };
     case "setService":
@@ -128,90 +80,51 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     }
     case "removeName":
       return { ...draft, names: draft.names.filter((name) => name !== action.name) };
-    default: {
-      if (draft.scan.status !== "read") return draft;
-      const receipt = editReceipt(draft.scan.receipt, action);
-      return receipt === draft.scan.receipt ? draft : { ...draft, scan: { ...draft.scan, receipt } };
-    }
-  }
-}
-
-type ReceiptEdit = Extract<DraftAction, { type: "editItem" | "addItem" | "removeItem" | "editAdjustment" | "removeAdjustment" | "editSubtotal" | "editTip" | "editTotal" }>;
-
-function editReceipt(receipt: DraftReceipt, action: ReceiptEdit): DraftReceipt {
-  switch (action.type) {
-    case "editItem": {
-      if (action.price !== undefined && action.price > MAX_CENTS) return receipt;
-      const items = receipt.items.map((item) => {
-        if (item.id !== action.id) return item;
-        const name = action.name === undefined ? item.name : clip(action.name);
-        if (action.price === undefined) return { ...item, name };
-        return { id: item.id, name, price: action.price, ...(item.detail && { detail: item.detail }), ...(item.quantity && { quantity: item.quantity }), retyped: true as const };
-      });
-      return { ...receipt, items };
-    }
-    case "addItem":
-      return { ...receipt, items: [...receipt.items, { id: `i${receipt.nextId}`, name: "", price: price(0) }], nextId: receipt.nextId + 1 };
-    case "removeItem":
-      return { ...receipt, items: receipt.items.filter((item) => item.id !== action.id), adjustments: receipt.adjustments.flatMap((row) => leaveBundle(row, action.id)) };
-    case "editAdjustment":
-      if (Math.abs(action.amount) > MAX_CENTS) return receipt;
-      return { ...receipt, adjustments: receipt.adjustments.map((row) => (row.id === action.id ? { ...row, amount: action.amount } : row)) };
-    case "removeAdjustment":
-      return { ...receipt, adjustments: receipt.adjustments.filter((row) => row.id !== action.id) };
-    case "editSubtotal":
-      return action.amount > MAX_CENTS ? receipt : { ...receipt, subtotal: action.amount };
-    case "editTip":
-      return action.amount > MAX_CENTS ? receipt : { ...receipt, tip: action.amount };
-    case "editTotal":
-      return action.amount > MAX_CENTS ? receipt : { ...receipt, totalBeforeTip: cents(action.amount - receipt.tip) };
     default:
       return action satisfies never;
   }
 }
 
-function leaveBundle(row: DraftAdjustment, id: string): DraftAdjustment[] {
-  if (row.kind !== "bundleDiscount") return [row];
-  const [first, ...rest] = row.bundle.items.filter((item) => item !== id);
-  return first === undefined ? [] : [{ ...row, bundle: { ...row.bundle, items: [first, ...rest] } }];
-}
+const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
 
-const typedReceipt: DraftReceipt = {
-  items: [],
-  adjustments: [{ id: "a1", kind: "tax", name: "Tax", amount: cents(0) }],
-  subtotal: null,
-  tip: cents(0),
-  totalBeforeTip: cents(0),
-  nextId: 1,
-};
+const inRange = (amount: number) => Math.abs(amount) <= MAX_CENTS;
 
-function fromReceipt(receipt: Receipt<ParsedItem>): DraftReceipt {
-  const items = receipt.items.flatMap((item): DraftItem[] => {
+const adjustmentNames: Record<Adjustment["kind"], string> = { tax: "Tax", tip: "Tip", serviceCharge: "Service charge", discount: "Discount", bundleDiscount: "Discount" };
+
+/**
+ * The Receipt a read sends, repaired where the Split would refuse it, so the rows reach the Split page to be fixed there:
+ * an unnamed Item is called by its place, and an amount over the limit is sent as $0.00, or as the sum it should be for the Subtotal and Total.
+ */
+function sendable(read: Receipt): Receipt | null {
+  const named = read.items.flatMap((item) => {
     const name = clip(item.name.trim());
-    if (!name && item.price === 0) return [];
-    const flags = item.discountExceededPrice ? { discountExceededPrice: true as const } : {};
-    const extras = { ...(item.detail && { detail: item.detail }), ...(item.quantity && { quantity: item.quantity }) };
-    if (item.price > MAX_CENTS) return [{ id: item.id, name, price: price(0), ...extras, unreadPrice: true }];
-    return [{ id: item.id, name, price: item.price, ...extras, ...flags }];
+    return !name && item.price === 0 ? [] : [{ ...item, name }];
   });
-  const tip = receipt.adjustments.filter((row) => row.kind === "tip").reduce((sum, row) => sum + row.amount, 0);
-  const kept = new Set(items.map((item) => item.id));
-  const adjustments = receipt.adjustments.flatMap((row): DraftAdjustment[] => {
-    const name = clip(row.name.trim());
+  const [first, ...rest] = named.map(
+    ({ id, name, price: amount, detail, quantity }, i): Item => ({
+      id,
+      name: name || `Item ${i + 1}`,
+      price: inRange(amount) ? amount : price(0),
+      ...(detail && { detail }),
+      ...(quantity && { quantity }),
+    }),
+  );
+  if (!first) return null;
+  const items: NonEmpty<Item> = [first, ...rest];
+  const kept = new Set(items.map(({ id }) => id));
+  const adjustments = read.adjustments.flatMap((row): Adjustment[] => {
     if (row.kind === "tip") return [];
-    if (row.kind !== "bundleDiscount") return [{ id: row.id, kind: row.kind, name, amount: row.amount }];
-    const [first, ...rest] = row.bundle.items.filter((id) => kept.has(id));
-    if (first === undefined) return [{ id: row.id, kind: "discount", name, amount: row.amount }];
-    return [{ id: row.id, kind: row.kind, name, amount: row.amount, bundle: { name: clip(row.bundle.name.trim()), items: [first, ...rest] } }];
+    const fields = { id: row.id, name: clip(row.name.trim()) || adjustmentNames[row.kind], amount: inRange(row.amount) ? row.amount : cents(0) };
+    if (row.kind !== "bundleDiscount") return [{ ...fields, kind: row.kind }];
+    const [inside, ...others] = row.bundle.items.filter((id) => kept.has(id));
+    if (inside === undefined) return [{ ...fields, kind: "discount" }];
+    return [{ ...fields, kind: row.kind, bundle: { name: clip(row.bundle.name.trim()), items: [inside, ...others] } }];
   });
-  return {
-    items,
-    adjustments,
-    subtotal: receipt.subtotal,
-    tip: cents(tip),
-    totalBeforeTip: cents(receipt.total - tip),
-    nextId: receipt.items.length + 1,
-  };
+  const tip = sum(read.adjustments.filter((row) => row.kind === "tip").map((row) => row.amount));
+  const withTip = [...adjustments, { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(inRange(tip) ? tip : 0) }];
+  const subtotal = inRange(read.subtotal) ? read.subtotal : cents(sum(items.map((item) => item.price)));
+  const total = inRange(read.total) ? read.total : cents(subtotal + sum(withTip.map((row) => row.amount)));
+  return { items, adjustments: withTip, subtotal, total };
 }
 
 const example1040: Receipt = {
@@ -230,42 +143,6 @@ const example1040: Receipt = {
   total: cents(2804),
 };
 
-export function totalOf(receipt: DraftReceipt): Cents {
-  return cents(receipt.totalBeforeTip + receipt.tip);
-}
-
-const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
-
-const adjustmentNames: Record<DraftAdjustment["kind"], string> = { tax: "Tax", serviceCharge: "Service charge", discount: "Discount", bundleDiscount: "Discount" };
-
-function receiptOf(receipt: DraftReceipt): Receipt | null {
-  const [first, ...rest] = receipt.items.map((item) => ({
-    id: itemId(item.id),
-    name: item.name.trim(),
-    price: item.price,
-    ...(item.detail && { detail: item.detail }),
-    ...(item.quantity && { quantity: item.quantity }),
-  }));
-  if (!first) return null;
-  const adjustments = receipt.adjustments.map((row): Adjustment => {
-    const named = { id: adjustmentId(row.id), name: row.name.trim() || adjustmentNames[row.kind], amount: row.amount };
-    if (row.kind !== "bundleDiscount") return { ...named, kind: row.kind };
-    const [first, ...rest] = row.bundle.items.map(itemId);
-    return { ...named, kind: row.kind, bundle: { name: row.bundle.name, items: [first, ...rest] } };
-  });
-  return {
-    items: [first, ...rest],
-    adjustments: [...adjustments, { id: adjustmentId("tip"), kind: "tip", name: "Tip", amount: receipt.tip }],
-    subtotal: receipt.subtotal ?? cents(sum(receipt.items.map((item) => item.price))),
-    total: totalOf(receipt),
-  };
-}
-
-function totalCheck(receipt: DraftReceipt) {
-  const core = receiptOf(receipt);
-  return core && runTotalCheck(core);
-}
-
 export const filledHandles = (handles: readonly HandleRow[]): PaymentHandle[] =>
   handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
 
@@ -273,37 +150,30 @@ export function splitRequest({ receipt, paymentHandles, names: [host, ...others]
   return { receipt, participants: [{ id: newId(), name: host }, ...others.map((name) => ({ id: newId(), name }))], paymentHandles };
 }
 
-const unsignedAmount = /^\d{0,6}(\.\d{0,2})?$/;
-const signedAmount = /^-?\d{0,6}(\.\d{0,2})?$/;
+const amountPattern = /^\d{0,6}(\.\d{0,2})?$/;
 
-export function parseAmount(text: string, allowNegative = false): Cents | null {
-  if (!(allowNegative ? signedAmount : unsignedAmount).test(text)) return null;
-  const [whole = "", part = ""] = text.replace("-", "").split(".");
+export function parseAmount(text: string): Cents | null {
+  if (!amountPattern.test(text)) return null;
+  const [whole = "", part = ""] = text.split(".");
   const amount = Number(whole || 0) * 100 + Number(part.padEnd(2, "0"));
-  if (amount > MAX_CENTS) return null;
-  return cents(text.startsWith("-") ? -amount : amount);
+  return amount > MAX_CENTS ? null : cents(amount);
 }
 
 export const plainAmount = (amount: number) => `${amount < 0 ? "-" : ""}${(Math.abs(amount) / 100).toFixed(2)}`;
 
 const dollars = (amount: number) => `$${plainAmount(amount)}`;
 
-function hasAmountOverLimit(receipt: DraftReceipt): boolean {
-  const amounts = [...receipt.items.map((item) => item.price), ...receipt.adjustments.map((row) => row.amount), receipt.subtotal ?? 0, receipt.tip, totalOf(receipt)];
-  return amounts.some((amount) => Math.abs(amount) > MAX_CENTS);
-}
-
 const gapText = (what: string, gap: number, against: string) => `${what} ${dollars(Math.abs(gap))} ${gap > 0 ? "short of" : "over"} the ${against}.`;
 
-export function gapNote({ subtotalGap, totalGap }: FailedTotalCheck, subtotalPrinted: boolean): string {
+export function gapNote({ subtotalGap, totalGap }: FailedTotalCheck): string {
   if (subtotalGap !== 0) return gapText("Items are", subtotalGap, "subtotal");
-  return gapText(subtotalPrinted ? "Tax and charges are" : "Items are", totalGap, "total");
+  return gapText("Tax and charges are", totalGap, "total");
 }
 
 export function mismatchNote({ scan }: Draft): string | null {
-  if (scan.status !== "read") return null;
-  const check = totalCheck(scan.receipt);
-  return check && !check.ok ? gapNote(check, scan.receipt.subtotal !== null) : null;
+  if (scan.status !== "read" || !scan.receipt) return null;
+  const check = runTotalCheck(scan.receipt);
+  return check.ok ? null : gapNote(check);
 }
 
 export type Blocker = { readonly kind: "note"; readonly note: string } | { readonly kind: "noHandle" };
@@ -312,38 +182,15 @@ export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonl
 
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
-function itemProblem(receipt: DraftReceipt): Blocker | null {
-  if (hasAmountOverLimit(receipt)) return note(`An amount is over $${(MAX_CENTS / 100).toLocaleString("en-US")}.`);
-  if (!receiptOf(receipt)) return note("Add an item.");
-  if (receipt.items.some((item) => !item.name.trim())) return note("Name every item.");
-  return null;
-}
-
-export const editsOnHome = ({ scan }: Draft): boolean => scan.status === "read" && scan.fixOnHome === true;
-
 export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
   if (scan.status === "empty") return note("Add a receipt.");
   if (scan.status === "reading") return note("Reading the receipt.");
-  const problem = itemProblem(scan.receipt);
-  if (problem) return problem;
-  const receipt = receiptOf(scan.receipt);
-  if (!receipt) return note("Add an item.");
+  if (!scan.receipt) return note("Couldn't read any items. Try another photo.");
   const [first, ...rest] = filledHandles(handles);
   if (!first) return { kind: "noHandle" };
   const [host, ...others] = names;
   if (host === undefined) return note("Add your name.");
-  return { kind: "ready", receipt, paymentHandles: [first, ...rest], names: [host, ...others] };
-}
-
-export function flaggedRows(draft: Draft): string[] {
-  if (draft.scan.status !== "read") return [];
-  const check = totalCheck(draft.scan.receipt);
-  const { items } = draft.scan.receipt;
-  const unread = items.filter((item) => item.unreadPrice).map((item) => item.id);
-  if (!check || check.ok) return unread;
-  const retyped = items.filter((item) => item.retyped).map((item) => item.id);
-  const named = [...check.itemIds, ...check.adjustmentIds.filter((id) => id !== "tip")];
-  return [...new Set([...unread, ...named, ...retyped])];
+  return { kind: "ready", receipt: scan.receipt, paymentHandles: [first, ...rest], names: [host, ...others] };
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;

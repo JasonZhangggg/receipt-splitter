@@ -54,22 +54,6 @@ export const joinCopy = {
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
 
-export const editorCopy = {
-  items: "Items",
-  itemNumber: (n: number) => `item ${n}`,
-  itemName: (n: number) => `Name of item ${n}`,
-  namePlaceholder: "Item",
-  priceOf: (name: string, flagged: boolean) => `Price of ${name}${flagged ? ", check this price" : ""}`,
-  remove: (name: string) => `Remove ${name}`,
-  addItem: "Add item",
-  check: "Check",
-  subtotal: "Subtotal",
-  tip: "Tip",
-  total: "Total",
-  unreadPrice: "Could not read this price.",
-  discountExceededPrice: "Its discount was more than its price.",
-};
-
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dayOf = (time: number) => new Date(time).setHours(0, 0, 0, 0);
 const DAY_MS = 24 * 60 * 60 * 1000;

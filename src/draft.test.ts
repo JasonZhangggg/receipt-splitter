@@ -7,9 +7,9 @@ import { parseCreateSplitRequest } from "./core/parse";
 import { computeShares } from "./core/shares";
 import { mintedId } from "./core/test-ids";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
-import { parseReceipt, type ParsedItem } from "./parse";
+import { parseReceipt } from "./parse";
 import { box } from "./parse/fixtures/boxes";
-import { editsOnHome, emptyDraft, mismatchNote, flaggedRows, newName, parseAmount, loadDraft, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
+import { emptyDraft, mismatchNote, newName, parseAmount, loadDraft, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
 const receipt1040: Receipt = {
   items: [
@@ -83,18 +83,6 @@ describe("readiness", () => {
     ]);
   });
 
-  test("refuses an amount over MAX_CENTS, which Create split link would be refused for", () => {
-    const withAdjustment = (amount: number): Receipt => ({ ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(amount) }] });
-    const reason = "An amount is over $100,000.";
-    expect({
-      adjustment: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(99_999_999) }))),
-      negativeAdjustment: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: withAdjustment(-99_999_999) }))),
-      total: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, total: cents(MAX_CENTS + 1) } }))),
-      subtotal: reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, subtotal: cents(MAX_CENTS + 1) } }))),
-      tipOnTop: reasonOf(withVenmo(run(read1040(), { type: "editTip", amount: cents(MAX_CENTS) }))),
-    }).toEqual({ adjustment: reason, negativeAdjustment: reason, total: reason, subtotal: reason, tipOnTop: reason });
-  });
-
   test("lets an amount of exactly MAX_CENTS through", () => {
     const receipt: Receipt = { items: [{ id: itemId("i1"), name: "Car", price: price(MAX_CENTS) }], adjustments: [], subtotal: cents(MAX_CENTS), total: cents(MAX_CENTS) };
     expect(reasonOf(withVenmo(run(emptyDraft, { type: "read", file, receipt })))).toBeNull();
@@ -102,8 +90,9 @@ describe("readiness", () => {
 
   test("a failed Total check blocks nothing and reads as a note against the subtotal", () => {
     const ready = withVenmo(read1040());
-    const short = run(ready, { type: "editItem", id: "i5", price: price(300) });
-    const over = run(ready, { type: "editItem", id: "i5", price: price(400) });
+    const perrierAt = (cost: number) => withVenmo(run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, items: [receipt1040.items[0], ...receipt1040.items.slice(1, 4), { id: itemId("i5"), name: "Perrier Sparkling Water", price: price(cost) }] } }));
+    const short = perrierAt(300);
+    const over = perrierAt(400);
     expect({ blocker: reasonOf(short), short: mismatchNote(short), over: mismatchNote(over), ready: mismatchNote(ready), reading: mismatchNote(run(emptyDraft, { type: "reading", file })) }).toEqual({
       blocker: null,
       short: "Items are $0.50 short of the subtotal.",
@@ -114,59 +103,30 @@ describe("readiness", () => {
   });
 
   test("notes tax and charges when the Items match the subtotal but the total does not", () => {
-    const draft = withVenmo(read1040());
-    expect(mismatchNote(run(draft, { type: "editAdjustment", id: "a1", amount: cents(100) }))).toBe("Tax and charges are $0.61 short of the total.");
-    expect(mismatchNote(run(draft, { type: "editAdjustment", id: "a1", amount: cents(200) }))).toBe("Tax and charges are $0.39 over the total.");
-  });
-
-  test("notes the Items against the total for a typed receipt, which has no subtotal", () => {
-    const typed = run(emptyDraft, { type: "read", file, receipt: null }, { type: "addItem" }, { type: "editItem", id: "i1", name: "Pad thai", price: price(1800) });
-    expect(mismatchNote(withVenmo(typed))).toBe("Items are $18.00 over the total.");
-    expect(reasonOf(withVenmo(typed))).toBeNull();
+    const taxed = (amount: number) => run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(amount) }, receipt1040.adjustments[1]] } });
+    expect(mismatchNote(taxed(100))).toBe("Tax and charges are $0.61 short of the total.");
+    expect(mismatchNote(taxed(200))).toBe("Tax and charges are $0.39 over the total.");
   });
 
   test("a handle of only spaces is no way to pay the Host", () => {
     expect(reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "   " }))).toEqual({ kind: "noHandle" });
   });
-
-  test("needs a named Item before a typed receipt can go out", () => {
-    const typed = withVenmo(run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt: null }));
-    expect(reasonOf(typed)).toBe("Add an item.");
-    const blank = run(typed, { type: "addItem" }, { type: "editItem", id: "i1", price: price(1000) }, { type: "editTotal", amount: cents(1000) });
-    expect(reasonOf(blank)).toBe("Name every item.");
-    expect(reasonOf(run(blank, { type: "editItem", id: "i1", name: "Pad thai" }))).toBeNull();
-  });
 });
 
 describe("the tip", () => {
-  test("reads $0.00 when the receipt prints none, and a tip edit moves the total by the same amount", () => {
-    const draft = withVenmo(read1040());
-    expect(draft.scan.status === "read" && [draft.scan.receipt.tip, totalOf(draft)]).toEqual([0, 2804]);
-    const tipped = run(draft, { type: "editTip", amount: cents(460) });
-    expect(tipped.scan.status === "read" && [tipped.scan.receipt.tip, totalOf(tipped)]).toEqual([460, 3264]);
-    expect(reasonOf(tipped)).toBeNull();
-  });
-
-  test("comes from the receipt's tip lines", () => {
+  test("comes from the receipt's tip lines as one Tip, and is $0.00 when the receipt prints none", () => {
     const tipped: Receipt = {
       ...receipt1040,
       adjustments: [...receipt1040.adjustments, { id: adjustmentId("a3"), kind: "tip", name: "Tip", amount: cents(460) }],
       total: cents(3264),
     };
-    const draft = run(emptyDraft, { type: "read", file, receipt: tipped });
-    expect(draft.scan.status === "read" && [draft.scan.receipt.tip, draft.scan.receipt.adjustments.map((a) => a.name), totalOf(draft)]).toEqual([
-      460,
-      ["Tax", "Service fees on tables"],
-      3264,
-    ]);
+    const sent = (receipt: Receipt) => requestOf(withVenmo(run(emptyDraft, { type: "read", file, receipt })), counter())?.receipt;
+    expect([sent(tipped)?.adjustments.map(({ name, amount }) => `${name} ${amount}`), sent(tipped)?.total]).toEqual([["Tax 161", "Service fees on tables 345", "Tip 460"], 3264]);
+    expect(sent(receipt1040)?.adjustments.at(-1)).toEqual({ id: "tip", kind: "tip", name: "Tip", amount: 0 });
   });
 });
 
-function totalOf(draft: Draft) {
-  if (draft.scan.status !== "read") throw new Error("no receipt");
-  const { totalBeforeTip, tip } = draft.scan.receipt;
-  return totalBeforeTip + tip;
-}
+const itemsOf = (draft: Draft) => (draft.scan.status === "read" && draft.scan.receipt ? draft.scan.receipt.items : []);
 
 describe("a reload of home", () => {
   test("starts a new split: no Receipt and no names, and the two Payment handles in their order", () => {
@@ -268,125 +228,44 @@ describe("reading OCR into the draft", () => {
     const long = `${"👨‍👩‍👧".repeat(79)}Lasagna`;
     const receipt: Receipt = { ...receipt1040, items: [{ ...receipt1040.items[0], name: long }, ...receipt1040.items.slice(1)] };
     const draft = run(emptyDraft, { type: "read", file, receipt });
-    const name = draft.scan.status === "read" ? draft.scan.receipt.items[0].name : "";
-    expect(name).toBe(`${"👨‍👩‍👧".repeat(79)}L`);
+    expect(itemsOf(draft)[0]?.name).toBe(`${"👨‍👩‍👧".repeat(79)}L`);
   });
 
   test("drops blank OCR rows that carry no price", () => {
     const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: "  ", price: price(0) }] };
     const draft = run(emptyDraft, { type: "read", file, receipt });
-    expect(draft.scan.status === "read" && draft.scan.receipt.items.length).toBe(5);
-  });
-
-  test("keeps a priced OCR row with a blank name, for the Host to name", () => {
-    const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: " ", price: price(150) }] };
-    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt });
-    expect(draft.scan.status === "read" && draft.scan.receipt.items.at(-1)).toEqual({ id: "i6", name: "", price: 150 });
-  });
-
-  test("an Item added after a dropped blank row gets an id no row has, and editing it touches only it", () => {
-    const receipt: Receipt = {
-      items: [
-        { id: itemId("i1"), name: "Fries", price: price(100) },
-        { id: itemId("i2"), name: "", price: price(0) },
-        { id: itemId("i3"), name: "Soda", price: price(200) },
-      ],
-      adjustments: [],
-      subtotal: cents(300),
-      total: cents(300),
-    };
-    const draft = run(emptyDraft, { type: "read", file, receipt }, { type: "addItem" }, { type: "editItem", id: "i4", name: "Water", price: price(0) });
-    if (draft.scan.status !== "read") throw new Error("no receipt");
-    expect(draft.scan.receipt.items.map(({ id, name, price }) => `${id} ${name} ${price}`)).toEqual(["i1 Fries 100", "i3 Soda 200", "i4 Water 0"]);
+    expect(itemsOf(draft).length).toBe(5);
   });
 
   test("keeps a 0-cent Item, such as a kitchen note printed as a line", () => {
     const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: "APPS OUT FIRST", price: price(0) }] };
     const draft = run(emptyDraft, { type: "read", file, receipt });
-    expect(draft.scan.status === "read" && draft.scan.receipt.items.at(-1)).toEqual({ id: "i6", name: "APPS OUT FIRST", price: 0 });
+    expect(itemsOf(draft).at(-1)).toEqual({ id: "i6", name: "APPS OUT FIRST", price: 0 });
   });
 
-  test("refuses an OCR price over MAX_CENTS by reading it as 0 and flagging the row", () => {
-    const receipt: Receipt = { ...receipt1040, items: [{ ...receipt1040.items[0], price: price(MAX_CENTS + 1) }, ...receipt1040.items.slice(1)] };
-    const draft = run(emptyDraft, { type: "read", file, receipt });
-    expect(draft.scan.status === "read" && draft.scan.receipt.items[0]).toEqual({ id: "i1", name: "Chicken Fried Rice And Egg", price: 0, unreadPrice: true });
-  });
-
-  test("marks an Item that a discount took below zero", () => {
+  test("sends an Item's printed count to the Split", () => {
     const [first, ...rest] = receipt1040.items;
-    const receipt: Receipt<ParsedItem> = { ...receipt1040, items: [{ ...first, price: price(0), discountExceededPrice: true }, ...rest] };
-    const draft = run(emptyDraft, { type: "read", file, receipt });
-    expect(draft.scan.status === "read" && draft.scan.receipt.items[0]).toEqual({ id: "i1", name: "Chicken Fried Rice And Egg", price: 0, discountExceededPrice: true });
-  });
-
-  test("sends an Item's printed count to the Split, through a price edit", () => {
-    const [first, ...rest] = receipt1040.items;
-    const receipt: Receipt = { ...receipt1040, items: [{ ...first, name: "Guinness Draught", quantity: 3 }, ...rest] };
-    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt }, { type: "editItem", id: "i1", price: price(2187) });
+    const receipt: Receipt = { ...receipt1040, items: [{ ...first, name: "Guinness Draught", price: price(2187), quantity: 3 }, ...rest] };
+    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt });
 
     const request = requestOf(draft, () => participantId("p1"));
 
     expect(request?.receipt.items[0]).toEqual({ id: "i1", name: "Guinness Draught", price: 2187, quantity: 3 });
   });
 
-  test("sends an Item's detail to the Split, through a price edit", () => {
+  test("sends an Item's detail to the Split", () => {
     const [first, ...rest] = receipt1040.items;
-    const receipt: Receipt = { ...receipt1040, items: [{ ...first, detail: "Large, $2.00 off", quantity: 2 }, ...rest] };
-    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt }, { type: "editItem", id: "i1", price: price(899) });
+    const receipt: Receipt = { ...receipt1040, items: [{ ...first, price: price(899), detail: "Large, $2.00 off", quantity: 2 }, ...rest] };
+    const draft = run(withVenmo(emptyDraft), { type: "read", file, receipt });
 
     const request = requestOf(draft, () => participantId("p1"));
 
     expect(request?.receipt.items[0]).toEqual({ id: "i1", name: "Chicken Fried Rice And Egg", price: 899, detail: "Large, $2.00 off", quantity: 2 });
   });
 
-  test("a failed read opens the empty editor and keeps the file", () => {
+  test("a failed read keeps the file and no Receipt", () => {
     const draft = run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt: null });
-    expect(draft.scan).toEqual({
-      status: "read",
-      file,
-      receipt: { items: [], adjustments: [{ id: "a1", kind: "tax", name: "Tax", amount: 0 }], subtotal: null, tip: 0, totalBeforeTip: 0, nextId: 1 },
-      fixOnHome: true,
-    });
-  });
-});
-
-describe("editing", () => {
-  test("refuses a typed price over MAX_CENTS and keeps the price it had", () => {
-    const draft = read1040();
-    expect(run(draft, { type: "editItem", id: "i1", price: price(MAX_CENTS + 1) })).toEqual(draft);
-  });
-
-  test("cuts a typed Item name to 80 graphemes", () => {
-    const draft = run(read1040(), { type: "editItem", id: "i1", name: "x".repeat(81) });
-    expect(draft.scan.status === "read" && draft.scan.receipt.items[0].name).toBe("x".repeat(80));
-  });
-
-  test("adds an Item with a fresh id and deletes rows in one step each", () => {
-    const draft = run(read1040(), { type: "addItem" }, { type: "removeItem", id: "i2" }, { type: "removeAdjustment", id: "a2" });
-    if (draft.scan.status !== "read") throw new Error("no receipt");
-    expect(draft.scan.receipt.items.map(({ id, name }) => `${id} ${name}`)).toEqual([
-      "i1 Chicken Fried Rice And Egg",
-      "i3 Add Two Tostones",
-      "i4 Sprite",
-      "i5 Perrier Sparkling Water",
-      "i6 ",
-    ]);
-    expect(draft.scan.receipt.adjustments.map(({ id }) => id)).toEqual(["a1"]);
-  });
-
-  test("flags the row a misread explains, and the rows the Host retyped, while the Total check fails", () => {
-    const misread: Receipt = { ...receipt1040, items: [{ ...receipt1040.items[0], price: price(7990) }, ...receipt1040.items.slice(1)] };
-    expect(flaggedRows(run(emptyDraft, { type: "read", file, receipt: misread }))).toEqual(["i1"]);
-    const retyped = run(read1040(), { type: "editItem", id: "i5", price: price(300) });
-    expect(flaggedRows(retyped)).toEqual(["i5"]);
-    expect(flaggedRows(run(retyped, { type: "editItem", id: "i5", price: price(350) }))).toEqual([]);
-    expect(flaggedRows(read1040())).toEqual([]);
-  });
-
-  test("a typed total sets the Total the Host sees, with the tip on top", () => {
-    const typed = run(emptyDraft, { type: "read", file, receipt: null }, { type: "editTip", amount: cents(200) }, { type: "editTotal", amount: cents(1200) });
-    expect(totalOf(typed)).toBe(1200);
-    expect(totalOf(run(typed, { type: "editTip", amount: cents(300) }))).toBe(1300);
+    expect(draft.scan).toEqual({ status: "read", file, receipt: null });
   });
 });
 
@@ -395,7 +274,6 @@ describe("parseAmount", () => {
     expect(["3", "3.5", "3.50", ".5", "", "100000.00", "100000.01", "3.505", "1e3", "-2.00"].map((text) => parseAmount(text))).toEqual([
       300, 350, 350, 50, 0, MAX_CENTS, null, null, null, null,
     ]);
-    expect(["-2.00", "-", "--1"].map((text) => parseAmount(text, true))).toEqual([-200, -0, null]);
   });
 });
 
@@ -486,41 +364,19 @@ describe("a read the Split would refuse as it is", () => {
   });
 });
 
-describe("where the Host fixes Items", () => {
-  test("a read the Split can take as it is leaves the Items to the Split page", () => {
-    expect(editsOnHome(read1040())).toBe(false);
-    expect(editsOnHome(run(emptyDraft, { type: "example" }))).toBe(false);
-  });
-
-  test("a failed read keeps the editor on home while the Host types Items", () => {
-    const typing = run(emptyDraft, { type: "read", file, receipt: null }, { type: "addItem" }, { type: "editItem", id: "i1", name: "Pad thai", price: price(1400) });
-    expect(editsOnHome(typing)).toBe(true);
-  });
-
-  test("a read with a priced Item it could not name keeps the editor on home", () => {
-    const receipt: Receipt = { ...receipt1040, items: [...receipt1040.items, { id: itemId("i6"), name: " ", price: price(150) }] };
-    expect(editsOnHome(run(emptyDraft, { type: "read", file, receipt }))).toBe(true);
-  });
-
-  test("replacing a failed read with a good one leaves the Items to the Split page", () => {
-    expect(editsOnHome(run(emptyDraft, { type: "read", file, receipt: null }, { type: "read", file, receipt: receipt1040 }))).toBe(false);
-  });
-});
-
 describe("the Example", () => {
   test("is SRD receipt 1040 as its checked label reads, and keeps the Host's handles", () => {
     const draft = run(withVenmo(emptyDraft), { type: "example" });
     expect(draft.handles).toEqual([{ service: "venmo", handle: "@jason-z" }]);
     expect(draft.scan.status === "read" && draft.scan.file).toEqual({ name: "Example receipt", thumbnail: null });
-    if (draft.scan.status !== "read") throw new Error("no receipt");
-    expect(draft.scan.receipt.items.map(({ name, price }) => `${name} ${price}`)).toEqual([
+    expect(itemsOf(draft).map(({ name, price }) => `${name} ${price}`)).toEqual([
       "Chicken Fried Rice And Egg 799",
       "California Tropic And Miso 799",
       "Add Two Tostones 100",
       "Sprite 250",
       "Perrier Sparkling Water 350",
     ]);
-    expect([draft.scan.receipt.subtotal, draft.scan.receipt.tip, totalOf(draft)]).toEqual([2298, 0, 2804]);
+    expect(draft.scan.status === "read" && [draft.scan.receipt?.subtotal, draft.scan.receipt?.total]).toEqual([2298, 2804]);
     expect(reasonOf(draft)).toBeNull();
   });
 });
@@ -546,8 +402,8 @@ describe("Bundles", () => {
   const bucketOne = { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] };
   const bucketTwo = { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] };
 
-  test("carry the Topgolf Bundles from the read, through a price edit, into the create body, where Priya on the first owes $49.52", () => {
-    const draft = run(readTopgolf(), { type: "editItem", id: "i3", price: price(2190) }, { type: "editItem", id: "i3", price: price(2187) });
+  test("carry the Topgolf Bundles from the read into the create body, where Priya on the first owes $49.52", () => {
+    const draft = readTopgolf();
 
     const request = requestOf(draft, counter());
 
@@ -572,19 +428,9 @@ describe("Bundles", () => {
     ]);
   });
 
-  test("deleting a Bundle's Item drops it from its Bundle, and deleting its last Item drops its discount", () => {
-    const draft = run(readTopgolf(), { type: "removeItem", id: "i2" });
-
-    expect(adjustmentsOf(draft)?.slice(0, 2)).toEqual([
-      { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["i3", "i4", "i5"] } },
-      { id: "a2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: bucketTwo },
-    ]);
-    expect(adjustmentsOf(run(draft, ...["i3", "i4", "i5"].map((id): DraftAction => ({ type: "removeItem", id }))))?.map(({ id }) => id)).toEqual(["a2", "a3", "tip"]);
-  });
-
   test("a Bundle read with a blank Item leaves that Item out, since the draft drops it", () => {
     const [first, ...rest] = topgolf.items.map((item) => (item.id === "i2" ? { ...item, name: " ", price: price(0) } : item));
-    const blank: Receipt<ParsedItem> = { ...topgolf, items: [first, ...rest] };
+    const blank: Receipt = { ...topgolf, items: [first, ...rest] };
 
     expect(adjustmentsOf(run(readTopgolf(), { type: "read", file, receipt: blank }))?.[0]).toEqual({
       id: "a1",
@@ -598,16 +444,16 @@ describe("Bundles", () => {
   test("a Bundle read with only blank Items keeps its discount on the whole receipt", () => {
     const blank = new Set(["i2", "i3", "i4", "i5"]);
     const [first, ...rest] = topgolf.items.map((item) => (blank.has(item.id) ? { ...item, name: "", price: price(0) } : item));
-    const read: Receipt<ParsedItem> = { ...topgolf, items: [first, ...rest] };
+    const read: Receipt = { ...topgolf, items: [first, ...rest] };
 
     expect(adjustmentsOf(run(readTopgolf(), { type: "read", file, receipt: read }))?.[0]).toEqual({ id: "a1", kind: "discount", name: "Beer Bucket Discount (10%)", amount: -451 });
   });
-
 });
 
 describe("the Split link", () => {
   test("the create body carries the Receipt with its tip as an Adjustment, the Host first as the first name typed, and every handle the Host filled in", () => {
-    const draft = run(withVenmo(read1040()), { type: "editTip", amount: cents(460) }, { type: "addHandle" }, { type: "setHandle", index: 1, handle: "$jasonz" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
+    const tipped: Receipt = { ...receipt1040, adjustments: [...receipt1040.adjustments, { id: adjustmentId("a3"), kind: "tip", name: "Tip", amount: cents(460) }], total: cents(3264) };
+    const draft = run(withVenmo(read1040()), { type: "read", file, receipt: tipped }, { type: "addHandle" }, { type: "setHandle", index: 1, handle: "$jasonz" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
 
     expect(requestOf(draft, counter())).toEqual({
       receipt: {
@@ -638,31 +484,15 @@ describe("the Split link", () => {
     });
   });
 
-  test("a typed receipt goes out with the Items' sum as its subtotal and trimmed names, and an unnamed Adjustment is called by its kind", () => {
-    const typed = run(
-      withVenmo(emptyDraft),
-      { type: "read", file, receipt: null },
-      { type: "addItem" },
-      { type: "editItem", id: "i1", name: " Fries ", price: price(800) },
-      { type: "editAdjustment", id: "a1", amount: cents(72) },
-      { type: "editTotal", amount: cents(872) },
-    );
-    const unnamed = run(withVenmo(emptyDraft), {
+  test("an OCR row goes out with its name trimmed, and an unnamed Adjustment is called by its kind", () => {
+    const read = run(withVenmo(emptyDraft), {
       type: "read",
       file,
-      receipt: { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "discount", name: " ", amount: cents(-100) }], total: cents(2198) },
+      receipt: { ...receipt1040, items: [{ ...receipt1040.items[0], name: " Fries " }, ...receipt1040.items.slice(1)], adjustments: [{ id: adjustmentId("a1"), kind: "discount", name: " ", amount: cents(-100) }], total: cents(2198) },
     });
 
-    expect(requestOf(typed, counter())?.receipt).toEqual({
-      items: [{ id: "i1", name: "Fries", price: 800 }],
-      adjustments: [
-        { id: "a1", kind: "tax", name: "Tax", amount: 72 },
-        { id: "tip", kind: "tip", name: "Tip", amount: 0 },
-      ],
-      subtotal: 800,
-      total: 872,
-    });
-    expect(requestOf(unnamed, counter())?.receipt.adjustments[0]).toEqual({ id: "a1", kind: "discount", name: "Discount", amount: -100 });
+    expect(requestOf(read, counter())?.receipt.items[0]).toEqual({ id: "i1", name: "Fries", price: 799 });
+    expect(requestOf(read, counter())?.receipt.adjustments[0]).toEqual({ id: "a1", kind: "discount", name: "Discount", amount: -100 });
   });
 
   test("creating the Split starts a fresh draft that keeps only the Payment handles", () => {

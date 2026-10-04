@@ -452,7 +452,7 @@ describe("parseReceipt", () => {
     ]);
 
     expect(receipt?.items).toEqual([
-      { id: "i1", name: "Burger", price: 0, discountExceededPrice: true },
+      { id: "i1", name: "Burger", price: 0 },
       { id: "i2", name: "Fries", price: 400 },
     ]);
   });

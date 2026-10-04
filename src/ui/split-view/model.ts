@@ -154,7 +154,7 @@ export function breakdownCharges(receipt: Receipt<SplitItem>, breakdown: ShareBr
 
 export function totalNote(receipt: Receipt<SplitItem>): string | null {
   const check = runTotalCheck(receipt);
-  return check.ok ? null : gapNote(check, true);
+  return check.ok ? null : gapNote(check);
 }
 
 export function lineAmounts({ price, split }: SplitItem): { readonly participantId: ParticipantId; readonly cents: number }[] {
