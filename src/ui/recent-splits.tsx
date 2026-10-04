@@ -54,7 +54,7 @@ export function RecentSplits({ splits, now, wide }: Props) {
   const list = <Entries splits={splits} now={now} onPick={gone} />;
   return (
     <View ref={button}>
-      <Button kind="icon" icon="history" name={say.title} onPress={open} />
+      <Button kind="icon" icon="history" name={say.title} popup="dialog" expanded={shown === "open"} onPress={open} />
       <Modal transparent visible={shown !== "closed"} animationType="none" onRequestClose={close}>
         {wide && anchor ? (
           <Popover anchor={anchor} closing={shown === "closing"} onClose={close} onGone={gone}>

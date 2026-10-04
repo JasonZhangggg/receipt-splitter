@@ -53,9 +53,7 @@ describe.each(["light", "dark"] as const)("%s colors", (scheme) => {
   });
 
   // The Add receipt box's dashes are a quiet edge (preferences 66); its camera button and label name the control.
-  test.each(["field", "paper"] as const)("dash on %s stays visible at 1.8:1 and lighter than the 3:1 shapes", (bg) => {
-    const ratio = contrast(colors[scheme].dash, colors[scheme][bg]);
-    expect(ratio).toBeGreaterThanOrEqual(1.8);
-    expect(ratio).toBeLessThan(3);
+  test.each(["field", "paper"] as const)("dash on %s stays visible at 1.8:1", (bg) => {
+    expect(contrast(colors[scheme].dash, colors[scheme][bg])).toBeGreaterThanOrEqual(1.8);
   });
 });

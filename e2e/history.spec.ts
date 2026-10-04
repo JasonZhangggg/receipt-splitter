@@ -117,6 +117,18 @@ test("the phone sheet closes on a scrim tap and on Escape, and focus returns to 
   expect(await focusedName(page)).toBe("Recent splits");
 });
 
+test("the icon announces a dialog popup and its expanded state follows the sheet", async ({ page }) => {
+  await seed(page, [ana, jason]);
+  const state = () => icon(page).evaluate((el) => [el.getAttribute("aria-haspopup"), el.getAttribute("aria-expanded")]);
+  expect(await state()).toEqual(["dialog", "false"]);
+  await icon(page).click();
+  await expect(rows(page)).toHaveCount(2);
+  expect(await state()).toEqual(["dialog", "true"]);
+  await page.keyboard.press("Escape");
+  await expect(list(page)).toHaveCount(0);
+  expect(await state()).toEqual(["dialog", "false"]);
+});
+
 test("at 1440 px the list is a popover under the icon that closes on an outside click and on Escape, with focus back on the icon", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await seed(page, [ana, jason, priya, kim, omar, lin]);
