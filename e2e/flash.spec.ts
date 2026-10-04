@@ -10,7 +10,10 @@ const bundleHeader = (page: Page) => bundle(page).locator("[aria-expanded]");
 async function openBundle(page: Page) {
   await tap(bundleHeader(page));
   await bundle(page).locator('[aria-expanded="true"]').waitFor();
-  await page.waitForTimeout(700);
+  await page.waitForFunction(() => {
+    const region = document.querySelector('[data-testid^="bundle-"]')!.lastElementChild as HTMLElement;
+    return region.style.height === "" && region.style.opacity === "" && region.getAnimations().length === 0;
+  });
 }
 
 async function sample<T>(page: Page, read: string) {
@@ -68,7 +71,8 @@ test("a closing Bundle paints a smaller height every frame, never the open heigh
   });
   expect(open).toBeGreaterThan(100);
   await tap(bundleHeader(page));
-  await page.waitForTimeout(1000);
+  await page.waitForFunction(() => document.querySelector('[data-testid^="bundle-"]')!.lastElementChild!.childElementCount === 0);
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   const painted = await page.evaluate(() => (window as unknown as { painted: number[] }).painted);
   expect(painted.filter((height, i) => height > (painted[i - 1] ?? open) + 0.5)).toEqual([]);
   expect(painted.at(-1)).toBe(0);
