@@ -6,7 +6,7 @@ import { build } from "esbuild";
 
 const releases = process.argv.length > 2
   ? process.argv.slice(2).map((pair) => pair.split("="))
-  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"], ["v2-2", "1ed0165", "topgolfBundles"], ["v2-7b", "4ae402e", "topgolfDetails"]];
+  : [["rs-8", "6093b46"], ["rs-9", "538ccc0"], ["rs-10", "5ba0cd1"], ["rs-11", "6baf220"], ["v2-1", "df790d5", "topgolf"], ["v2-2", "1ed0165", "topgolfBundles"], ["v2-7b", "29547a1", "topgolfDetails"]];
 
 const dinner = `
 import { applyOperation, createSplit } from "./src/core/operations";

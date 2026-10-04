@@ -153,7 +153,7 @@ export function ItemSheet({ split, itemId, unit, me, send, onAddPerson, onClose 
           maxLength={MAX_DETAIL_LENGTH}
           onChangeText={(detail) => edit({ detail: detail.trim() })}
           enterKeyHint="done"
-          style={[type.input, styles.field, { color: c.muted }]}
+          style={[type.input, styles.field, { color: c.ink }]}
         />
       </View>
       <View style={[styles.priceField, { backgroundColor: c.sheetIn }]}>

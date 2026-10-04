@@ -116,7 +116,7 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
   - [ ] V2-6a needs only `main`. Its owner may start at once, and the root restacks it onto V2-5. *V2-6a merged before V2-3, as PR 32, with no restack.*
   - [ ] V2-6b after V2-4, V2-5, and V2-6a. *Not done: V2-6b is not built.*
   - [ ] V2-7a needs only `main`. *Not built.*
-  - [ ] V2-7b after V2-7a's deploy is live with the secret set. *Built locally on `v2-7b-scan-client` from V2-7a's unmerged head 68e0c63.*
+  - [ ] V2-7b after V2-7a's deploy is live with the secret set. *Built locally on `v2-7b-scan-client`, restacked onto `main` at 629a862 after V2-7a merged as PR 41.*
 - [ ] Hold the file boundaries. *Not held for every PR. See each child.*
   - [ ] V2-1 touches only `src/core/**`, `scripts/golden-splits.mjs`, `worker/**` tests, and the one switch in `src/ui/split-view/receipt-card.tsx` that the new kind breaks. *Not held: its PR body lists the files outside this list.*
   - [ ] V2-2 touches only `src/parse/**`, `src/draft.ts`, `src/draft.test.ts`, `src/core/parse.ts`, `src/core/split.ts`, `src/core/golden/**`, `src/ui/receipt-editor/**`, `e2e/fixtures/**`, and `bench/**`. *Not held: its PR body lists the files outside this list.*
