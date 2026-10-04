@@ -1,3 +1,4 @@
+import { fromLegacy, type LegacyChange, type LegacyItemSplit, type LegacyItemWrite, type LegacySplit } from "./legacy";
 import { isCents, isPrice } from "./money";
 import {
   MAX_ADJUSTMENTS,
@@ -31,6 +32,7 @@ import {
   type Part,
   type SchemaVersion,
   type Split,
+  type SplitItem,
   type Write,
 } from "./split";
 
@@ -177,6 +179,7 @@ const text = check((input): input is string => typeof input === "string");
 const flag = check((input): input is boolean => typeof input === "boolean");
 const count = check((input): input is number => typeof input === "number" && Number.isSafeInteger(input) && input >= 0);
 const quantity = check((input): input is number => typeof input === "number" && Number.isInteger(input) && input >= 1 && input <= MAX_QUANTITY);
+const storedQuantity = check((input): input is number => typeof input === "number" && Number.isInteger(input) && input >= 2 && input <= MAX_QUANTITY);
 const cents = check(isCents);
 const price = check(isPrice);
 const splitId = check(isId<"SplitId">);
@@ -185,7 +188,7 @@ const adjustmentId = check(isId<"AdjustmentId">);
 const participantId = check(isId<"ParticipantId">);
 const deviceId = check(isId<"DeviceId">);
 const receiptLevelKind = oneOf(RECEIPT_LEVEL_KINDS);
-const schemaVersion = check((input): input is SchemaVersion => input === 1 || input === 2 || input === 3);
+const schemaVersion = check((input): input is SchemaVersion => input === 1 || input === 2 || input === 3 || input === 4);
 
 function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
   return (input, path) => {
@@ -201,17 +204,45 @@ function part<Value extends number>(value: Parser<Value>): Parser<Part<Value>> {
   };
 }
 
-function units<T>(parser: Parser<T>) {
+function claimSet<T>(parser: Parser<T>): Parser<readonly [readonly T[]]> {
+  return (input, path) => {
+    if (!Array.isArray(input) || input.length !== 1) throw new Malformed(path);
+    return [array(parser, MAX_PARTICIPANTS)(input[0], at(path, 0))];
+  };
+}
+
+const itemSplit = tagged<ItemSplit>("by", {
+  even: strict(({ read }) => ({ by: read("by", literal("even")), units: read("units", claimSet(participantId)) })),
+  shares: strict(({ read }) => ({ by: read("by", literal("shares")), units: read("units", claimSet(part(count))) })),
+  amount: strict(({ read }) => ({ by: read("by", literal("amount")), units: read("units", claimSet(part(cents))) })),
+});
+
+const itemFields = ({ read, maybe }: Fields) => ({
+  name: read("name", text),
+  price: read("price", price),
+  ...maybe("detail", text),
+  ...maybe("quantity", storedQuantity),
+  split: read("split", itemSplit),
+});
+const itemEdit = ({ maybe }: Fields) => ({
+  ...maybe("name", pair(text)),
+  ...maybe("price", pair(price)),
+  ...maybe("detail", pair(text)),
+  ...maybe("quantity", pair(quantity)),
+  ...maybe("split", pair(itemSplit)),
+});
+
+function unitClaims<T>(parser: Parser<T>) {
   return nonEmpty(array(parser, MAX_PARTICIPANTS), MAX_QUANTITY);
 }
 
 /** Items stored before per-unit claims list who had the whole line, which is one even unit. */
-const lineClaimersAsOneUnit: Parser<ItemSplit> = (input, path) => ({ by: "even", units: [array(participantId, MAX_PARTICIPANTS)(input, path)] });
+const lineClaimersAsOneUnit: Parser<LegacyItemSplit> = (input, path) => ({ by: "even", units: [array(participantId, MAX_PARTICIPANTS)(input, path)] });
 
-const itemSplit = tagged<ItemSplit>("by", {
-  even: strict(({ read }) => ({ by: read("by", literal("even")), units: read("units", units(participantId)) })),
-  shares: strict(({ read }) => ({ by: read("by", literal("shares")), units: read("units", units(part(count))) })),
-  amount: strict(({ read }) => ({ by: read("by", literal("amount")), units: read("units", units(part(cents))) })),
+const legacyItemSplit = tagged<LegacyItemSplit>("by", {
+  even: strict(({ read }) => ({ by: read("by", literal("even")), units: read("units", unitClaims(participantId)) })),
+  shares: strict(({ read }) => ({ by: read("by", literal("shares")), units: read("units", unitClaims(part(count))) })),
+  amount: strict(({ read }) => ({ by: read("by", literal("amount")), units: read("units", unitClaims(part(cents))) })),
 });
 
 /** Reads an Item's `detail` where `detailed` allows one, and refuses the field elsewhere. */
@@ -220,22 +251,22 @@ function detailOf({ maybe, has, fail }: Fields, detailed: boolean): { readonly d
   return maybe("detail", text);
 }
 
-function itemFields(detailed: boolean) {
+function legacyItemFields(detailed: boolean) {
   return (fields: Fields) => {
     const { read, has, fail } = fields;
     const head = { name: read("name", text), price: read("price", price), ...detailOf(fields, detailed) };
     if (has("claimedBy") === has("split")) return fail("split");
-    return { ...head, split: has("split") ? read("split", itemSplit) : read("claimedBy", lineClaimersAsOneUnit) };
+    return { ...head, split: has("split") ? read("split", legacyItemSplit) : read("claimedBy", lineClaimersAsOneUnit) };
   };
 }
-function itemEdit(detailed: boolean) {
+function legacyItemEdit(detailed: boolean) {
   return ({ maybe, has, fail }: Fields) => {
     if (!detailed && has("detail")) return fail("detail");
     return {
       ...maybe("name", pair(text)),
       ...maybe("price", pair(price)),
       ...maybe("detail", pair(text)),
-      ...maybe("split", pair(itemSplit)),
+      ...maybe("split", pair(legacyItemSplit)),
     };
   };
 }
@@ -280,10 +311,10 @@ function rowWrite<const Kind extends string, RowId, Full, Edit>(
   });
 }
 
-function writeVariants(version: SchemaVersion): { readonly [Kind in (Write | LegacyWrite)["kind"]]: Parser<Extract<Write | LegacyWrite, { kind: Kind }>> } {
-  const [bundles, detailed] = [version >= 2, version >= 3];
+type OtherWrite = Exclude<Write | LegacyWrite, { readonly kind: "item" }>;
+
+function otherWrites(bundles: boolean): { readonly [Kind in OtherWrite["kind"]]: Parser<Extract<OtherWrite, { kind: Kind }>> } {
   return {
-    item: rowWrite("item", itemId, itemFields(detailed), itemEdit(detailed)),
     adjustment: rowWrite("adjustment", adjustmentId, adjustmentFields(bundles), adjustmentEdit(bundles)),
     participant: strict((fields) => {
       const head = { kind: fields.read("kind", literal("participant")), id: fields.read("id", participantId) };
@@ -315,8 +346,8 @@ function writeVariants(version: SchemaVersion): { readonly [Kind in (Write | Leg
   };
 }
 
-function change(version: SchemaVersion): Parser<Change> {
-  const write = tagged<Write | LegacyWrite>("kind", writeVariants(version));
+function change<ItemWrite>(bundles: boolean, item: Parser<ItemWrite>) {
+  const write = tagged<ItemWrite | OtherWrite>("kind", { item, ...otherWrites(bundles) });
   return strict(({ read, maybe }) => ({
     revision: read("revision", count),
     by: read("by", nullable(participantId)),
@@ -327,7 +358,8 @@ function change(version: SchemaVersion): Parser<Change> {
   }));
 }
 
-const item = (detailed: boolean) => strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(detailed)(fields) }));
+const item = strict((fields) => ({ id: fields.read("id", itemId), ...itemFields(fields) }));
+const legacyItem = (detailed: boolean) => strict((fields) => ({ id: fields.read("id", itemId), ...legacyItemFields(detailed)(fields) }));
 const receiptItemOf = (detailed: boolean) =>
   strict((fields) => ({
     id: fields.read("id", itemId),
@@ -366,19 +398,30 @@ const createRequest: Parser<CreateSplitRequest> = strict(({ read }) => ({
 
 const pick = strict(({ read, maybe }) => ({ participantId: read("participantId", participantId), ...maybe("device", deviceId) }));
 
-function storedRows(version: SchemaVersion) {
+function legacyRows(version: LegacySplit["schemaVersion"]) {
   const adjustmentRow = version >= 2 ? anyAdjustment : receiptLevelAdjustment;
   const detailed = version >= 3;
-  return { receipt: receipt(item(detailed), adjustmentRow), original: receipt(receiptItemOf(detailed), adjustmentRow), change: change(version) };
+  const itemWrite: Parser<LegacyItemWrite> = rowWrite("item", itemId, legacyItemFields(detailed), legacyItemEdit(detailed));
+  const legacyChange: Parser<LegacyChange> = change(version >= 2, itemWrite);
+  return { receipt: receipt(legacyItem(detailed), adjustmentRow), original: receipt(receiptItemOf(detailed), adjustmentRow), change: legacyChange };
 }
 
-const STORED_ROWS: { readonly [Version in SchemaVersion]: ReturnType<typeof storedRows> } = { 1: storedRows(1), 2: storedRows(2), 3: storedRows(3) };
+const LEGACY_ROWS = { 1: legacyRows(1), 2: legacyRows(2), 3: legacyRows(3) } as const;
 
-const split: Parser<Split> = strict(({ read, maybe, has, fail }) => {
-  const version = read("schemaVersion", schemaVersion);
-  const rows = STORED_ROWS[version];
+const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", itemId, itemFields, itemEdit);
+const currentChange: Parser<Change> = change(true, itemWrite);
+const CURRENT_ROWS = { receipt: receipt<SplitItem, ReturnType<typeof anyAdjustment>>(item, anyAdjustment), original: receipt(receiptItem, anyAdjustment), change: currentChange };
+
+/** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */
+const split: Parser<Split> = strict((fields) => {
+  const version = fields.read("schemaVersion", schemaVersion);
+  if (version === 4) return { schemaVersion: version, ...splitFields(fields, CURRENT_ROWS) };
+  const legacy: LegacySplit = { schemaVersion: version, ...splitFields(fields, LEGACY_ROWS[version]) };
+  return fromLegacy(legacy);
+});
+
+function splitFields<R, O, C>({ read, maybe, has, fail }: Fields, rows: { readonly receipt: Parser<R>; readonly original: Parser<O>; readonly change: Parser<C> }) {
   return {
-    schemaVersion: version,
     id: read("id", splitId),
     currency: read("currency", literal("USD")),
     receipt: read("receipt", rows.receipt),
@@ -400,7 +443,7 @@ const split: Parser<Split> = strict(({ read, maybe, has, fail }) => {
     revision: read("revision", count),
     recentChanges: read("recentChanges", array(rows.change, RECENT_CHANGES_LIMIT)),
   };
-});
+}
 
 const itemPatch = tagged<ItemPatch>("type", {
   add: strict(({ read }) => ({
@@ -414,10 +457,13 @@ const itemPatch = tagged<ItemPatch>("type", {
     ...maybe("name", text),
     ...maybe("price", price),
     ...maybe("detail", text),
-    ...maybe("quantity", quantity),
-    ...maybe("drop", count),
     ...maybe("by", oneOf(SPLIT_MODES)),
-    ...maybe("values", array(strict((fields) => ({ unit: fields.read("unit", count), participantId: fields.read("participantId", participantId), value: fields.read("value", count) })), MAX_QUANTITY * MAX_PARTICIPANTS)),
+    ...maybe("values", array(strict((fields) => ({ participantId: fields.read("participantId", participantId), value: fields.read("value", count) })), MAX_PARTICIPANTS)),
+  })),
+  split: strict(({ read }) => ({
+    type: read("type", literal("split")),
+    itemId: read("itemId", itemId),
+    ids: read("ids", nonEmpty(itemId, MAX_QUANTITY - 1)),
   })),
   delete: strict(({ read }) => ({ type: read("type", literal("delete")), itemId: read("itemId", itemId) })),
 });
@@ -446,7 +492,11 @@ function op<const Type extends string, Body>(type: Type, body: (fields: Fields) 
   }));
 }
 
-const claimFields = ({ read, maybe }: Fields) => ({ itemId: read("itemId", itemId), participantId: read("participantId", participantId), ...maybe("unit", count) });
+const claimFields = ({ read, maybe }: Fields) => {
+  // A page loaded before quantity lines sends unit 0 for the whole line.
+  maybe("unit", literal(0));
+  return { itemId: read("itemId", itemId), participantId: read("participantId", participantId) };
+};
 
 const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<Operation, { type: Type }>> } = {
   editReceipt: op("editReceipt", ({ maybe }) => ({

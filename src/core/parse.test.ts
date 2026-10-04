@@ -656,7 +656,7 @@ describe("Splits stored by each shipped release", () => {
       { kind: "item", id: "wings", removed: { index: 2, name: "Wings", price: 500, detail: "Hot", split: { by: "even", units: [[]] } } },
       { kind: "item", id: "beer", edit: { detail: ["", "Pint"], split: [{ by: "even", units: [["ann"]] }, { by: "even", units: [["ann"], ["bob"]] }] } },
     ];
-    const row = { ...legacyRow([{ id: "beer", name: "Beer", price: 300, claimedBy: [] }]), schemaVersion: 3, revision: 1, recentChanges: [{ revision: 1, by: "ann", writes }] };
+    const row = { ...legacyRow([{ id: "beer", name: "Beer", price: 300, claimedBy: [] }]), schemaVersion: 3, revision: 1, recentChanges: [{ revision: 1, by: "ann", undoes: null, undoneBy: null, writes }] };
 
     expect(accepted(parseSplit(row)).recentChanges[0].writes).toEqual([
       { kind: "item", id: "pitcher", added: { index: 1, name: "Pitcher", price: 1000, detail: "Lager", quantity: 2, split: { by: "even", units: [["ann", "bob"]] } } },

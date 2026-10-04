@@ -40,7 +40,7 @@ export function topgolf(claims: Partial<Record<TopgolfItem, readonly Participant
     return quantity === 1 ? row : { ...row, quantity };
   });
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     id: mintedId("topgolf-split-0000000"),
     currency: "USD",
     receipt: {

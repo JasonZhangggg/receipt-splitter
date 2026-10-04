@@ -22,25 +22,27 @@ export type Shares = {
 
 type Party = ParticipantId | null;
 
-type UnitParts = { readonly parts: ReadonlyMap<Party, bigint>; readonly denominator: bigint };
+type LineParts = { readonly parts: ReadonlyMap<Party, bigint>; readonly denominator: bigint };
 
+/** Splits `price` into `units` parts that add up to it, the first parts taking the extra cents. */
 export function unitPrices(price: number, units: number): number[] {
   const base = Math.floor(price / units);
   return Array.from({ length: units }, (_, index) => base + (index < price % units ? 1 : 0));
 }
 
-function unitParts(split: ItemSplit, index: number, unitPrice: number): UnitParts {
+function lineParts(split: ItemSplit, price: number): LineParts {
+  const { by } = split;
   const entries: readonly (readonly [ParticipantId, bigint])[] =
-    split.by === "even" ? split.units[index].map((id) => [id, 1n]) : split.units[index].map(([id, value]) => [id, BigInt(value)]);
+    split.by === "even" ? split.units[0].map((id) => [id, 1n]) : split.units[0].map(([id, value]) => [id, BigInt(value)]);
   if (entries.length === 0) return { parts: new Map([[null, 1n]]), denominator: 1n };
   const total = sum(entries.map(([, value]) => value));
-  if (split.by !== "amount") return { parts: new Map(entries), denominator: total };
-  if (unitPrice === 0) return { parts: new Map(entries.map(([id]) => [id, 1n])), denominator: BigInt(entries.length) };
-  const whole = BigInt(unitPrice) > total ? BigInt(unitPrice) : total;
+  if (by !== "amount") return { parts: new Map(entries), denominator: total };
+  if (price === 0) return { parts: new Map(entries.map(([id]) => [id, 1n])), denominator: BigInt(entries.length) };
+  const whole = BigInt(price) > total ? BigInt(price) : total;
   return { parts: new Map<Party, bigint>([...entries, [null, whole - total]]), denominator: whole };
 }
 
-type Piece = UnitParts & { readonly item: number; readonly gross: bigint; readonly weight: bigint };
+type Piece = LineParts & { readonly item: number; readonly gross: bigint; readonly weight: bigint };
 
 type Scope = { readonly adjustment: number; readonly items: ReadonlySet<number>; readonly itemsPrice: bigint; readonly carried: bigint };
 
@@ -62,12 +64,10 @@ function pieces(receipt: Receipt<SplitItem>, scoped: readonly Scope[]): readonly
     const scope = scoped.find(({ items }) => items.has(item));
     return scope ? (scope.itemsPrice + scope.carried) * (whole / scope.itemsPrice) : whole;
   });
-  return receipt.items.flatMap(({ price, split }, item) =>
-    unitPrices(price, split.units.length).map((unitPrice, index) => {
-      const gross = anyPriced ? BigInt(unitPrice) : 1n;
-      return { ...unitParts(split, index, unitPrice), item, gross, weight: gross * factors[item] };
-    }),
-  );
+  return receipt.items.map(({ price, split }, item) => {
+    const gross = anyPriced ? BigInt(price) : 1n;
+    return { ...lineParts(split, price), item, gross, weight: gross * factors[item] };
+  });
 }
 
 function weighted(receipt: Receipt<SplitItem>) {
@@ -109,14 +109,21 @@ export function computeShares(split: Pick<Split, "receipt" | "participants" | "p
       }),
     ],
     unclaimed: {
-      itemIds: items.filter((_, index) => all.some((piece) => piece.item === index && (piece.parts.get(null) ?? 0n) > 0n)).map(({ id }) => id),
+      itemIds: items.filter((_, index) => (all[index].parts.get(null) ?? 0n) > 0n).map(({ id }) => id),
       total: cents(rounded.get(null) ?? 0),
     },
   };
 }
 
 export type ShareBreakdown = {
-  readonly items: readonly { readonly id: ItemId; readonly name: string; readonly price: Price; readonly fraction: readonly [number, number]; readonly portion: Cents }[];
+  readonly items: readonly {
+    readonly id: ItemId;
+    readonly name: string;
+    readonly price: Price;
+    readonly quantity?: number;
+    readonly fraction: readonly [number, number];
+    readonly portion: Cents;
+  }[];
   readonly adjustments: readonly { readonly id: AdjustmentId; readonly kind: AdjustmentKind; readonly name: string; readonly portion: Cents }[];
   /** What the Share differs from the lines by when the Items disagree with the printed subtotal, and 0 when they agree. */
   readonly difference: Cents;
@@ -132,23 +139,19 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
   const itemsSum = items.reduce((total, { price }) => total + price, 0);
   const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: cents(itemsSum) });
   const agreeingShare = shareIn({ ...split.receipt, total: cents(itemsSum + adjustments.reduce((total, { amount }) => total + amount, 0)) });
-  const { all, weightOf, grossOf, scoped, multiple: unitsMultiple, denominator } = weighted(split.receipt);
+  const { all, weightOf, grossOf, scoped, multiple, denominator } = weighted(split.receipt);
   const mine = items.flatMap((item, index) => {
-    const units = all.filter((piece) => piece.item === index);
-    const multiple = units.reduce((lcm, { denominator: whole }) => leastCommonMultiple(lcm, whole), 1n);
-    const had = (piece: Piece) => ((piece.parts.get(participantId) ?? 0n) * multiple) / piece.denominator;
-    const unitsHad = sum(units.map(had));
-    if (unitsHad === 0n) return [];
-    const prices = unitPrices(item.price, units.length);
-    const itemCents = sum(units.map((piece, unit) => had(piece) * BigInt(prices[unit])));
-    return [{ item, fraction: [unitsHad, multiple * BigInt(units.length)] as const, cents: [itemCents, multiple] as const }];
+    const { parts, denominator: whole } = all[index];
+    const had = parts.get(participantId) ?? 0n;
+    if (had === 0n) return [];
+    return [{ item, fraction: [had, whole] as const, cents: [had * BigInt(item.price), whole] as const }];
   });
   const claimed = sum(all.map((piece) => weightOf(participantId, piece)));
   const adjustmentParts = adjustments.map(({ amount }, at): Fraction => {
     const scope = scoped.find(({ adjustment }) => adjustment === at);
     if (!scope) return [BigInt(amount) * claimed, denominator];
     const had = sum(all.filter(({ item }) => scope.items.has(item)).map((piece) => grossOf(participantId, piece)));
-    const whole = scope.itemsPrice * unitsMultiple;
+    const whole = scope.itemsPrice * multiple;
     return [(BigInt(amount) - scope.carried) * claimed * whole + scope.carried * had * denominator, denominator * whole];
   });
   const [fewest, most] = roundingRange(adjustmentParts);
@@ -157,7 +160,14 @@ export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "
   const itemPortions = allocate(agreeingShare - adjustmentsPart, mine.map(({ cents }): Fraction => cents));
   const adjustmentPortions = allocate(adjustmentsPart, adjustmentParts);
   return {
-    items: mine.map(({ item: { id, name, price }, fraction }, index) => ({ id, name, price, fraction: reduced(fraction), portion: cents(itemPortions[index]) })),
+    items: mine.map(({ item: { id, name, price, quantity }, fraction }, index) => ({
+      id,
+      name,
+      price,
+      ...(quantity === undefined ? {} : { quantity }),
+      fraction: reduced(fraction),
+      portion: cents(itemPortions[index]),
+    })),
     adjustments: adjustments.map(({ id, kind, name }, index) => ({ id, kind, name, portion: cents(adjustmentPortions[index]) })),
     difference: cents(share - agreeingShare),
     share: cents(share),

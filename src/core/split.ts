@@ -88,17 +88,21 @@ export type Receipt<I extends Item = Item> = {
 
 export type Part<Value extends number> = readonly [participantId: ParticipantId, value: Value];
 
-/** How an Item divides. Each entry of `units` is one unit of the line and lists who had it, sorted by id, so the quantity is `units.length`. */
+/**
+ * How an Item divides: who had the whole line, sorted by id, with their shares or cents.
+ * The one claim set is stored as a one-entry `units` list because Workers before quantity lines read `units` as a list.
+ */
 export type ItemSplit =
-  | { readonly by: "even"; readonly units: NonEmpty<readonly ParticipantId[]> }
-  | { readonly by: "shares"; readonly units: NonEmpty<readonly Part<number>[]> }
-  | { readonly by: "amount"; readonly units: NonEmpty<readonly Part<Cents>[]> };
+  | { readonly by: "even"; readonly units: readonly [readonly ParticipantId[]] }
+  | { readonly by: "shares"; readonly units: readonly [readonly Part<number>[]] }
+  | { readonly by: "amount"; readonly units: readonly [readonly Part<Cents>[]] };
 
 export const SPLIT_MODES = ["even", "shares", "amount"] as const satisfies readonly ItemSplit["by"][];
 
 export type SplitMode = (typeof SPLIT_MODES)[number];
 
-export type SplitItem = ItemRow & { readonly split: ItemSplit };
+/** A stored Item leaves out a quantity of 1. */
+export type SplitItem = Item & { readonly split: ItemSplit };
 
 export type NamePick = { readonly participantId: ParticipantId; readonly device: DeviceId };
 
@@ -107,11 +111,9 @@ export type Participant = {
   readonly name: string;
 };
 
-/** `unit` is the unit's index in the Item, 0 when absent. */
 export type Claim = {
   readonly itemId: ItemId;
   readonly participantId: ParticipantId;
-  readonly unit?: number;
 };
 
 export type Payment = {
@@ -134,8 +136,11 @@ export type ParticipantFields = Omit<Participant, "id">;
 
 export type Placed<Fields> = Fields & { readonly index: number };
 
-/** An Item's `detail` pair writes "" for no detail, so the pair survives JSON. */
-export type Edit<Fields> = { readonly [Key in keyof Fields]?: readonly [before: Fields[Key], after: Fields[Key]] };
+/**
+ * An optional field's pair holds plain values, so a quantity pair reads 1 for a line without one.
+ * An Item's `detail` pair writes "" for no detail, so the pair survives JSON.
+ */
+export type Edit<Fields> = { readonly [Key in keyof Fields]?: readonly [before: Required<Fields>[Key], after: Required<Fields>[Key]] };
 
 export type Presence<RowId, Fields> =
   | { readonly id: RowId; readonly added: Placed<Fields> }
@@ -173,17 +178,19 @@ export type Change = {
   readonly at?: number;
 };
 
-/** Version 2 adds Bundles and version 3 adds an Item's detail. A Split is stored at the lowest version that holds it, so older Workers keep reading it. */
-export type SchemaVersion = 1 | 2 | 3;
+/** Version 2 adds Bundles, version 3 adds an Item's detail, and version 4 stores a quantity line as one claim set. A Split is stored at the lowest version that holds it, so older Workers keep reading it. */
+export type SchemaVersion = 1 | 2 | 3 | 4;
 
 export function storedVersion({ receipt, original, recentChanges }: Pick<Split, "receipt" | "original" | "recentChanges">): SchemaVersion {
   const writes = recentChanges.flatMap((change) => change.writes);
-  const bundled = (adjustments: readonly Adjustment[]) => adjustments.some(({ kind }) => kind === "bundleDiscount");
-  const writesBundle = (write: Write | LegacyWrite) =>
-    write.kind === "adjustment" && ("edit" in write ? "bundle" in write.edit : ("added" in write ? write.added : write.removed).kind === "bundleDiscount");
+  const writesQuantity = (write: Write | LegacyWrite) => write.kind === "item" && ("edit" in write ? "quantity" in write.edit : ("added" in write ? write.added : write.removed).quantity !== undefined);
+  if (receipt.items.some(({ quantity }) => quantity !== undefined) || writes.some(writesQuantity)) return 4;
   const detailed = (items: readonly ItemRow[]) => items.some((item) => item.detail !== undefined);
   const writesDetail = (write: Write | LegacyWrite) => write.kind === "item" && ("edit" in write ? "detail" in write.edit : ("added" in write ? write.added : write.removed).detail !== undefined);
   if (detailed(receipt.items) || detailed(original?.items ?? []) || writes.some(writesDetail)) return 3;
+  const bundled = (adjustments: readonly Adjustment[]) => adjustments.some(({ kind }) => kind === "bundleDiscount");
+  const writesBundle = (write: Write | LegacyWrite) =>
+    write.kind === "adjustment" && ("edit" in write ? "bundle" in write.edit : ("added" in write ? write.added : write.removed).kind === "bundleDiscount");
   return bundled(receipt.adjustments) || bundled(original?.adjustments ?? []) || writes.some(writesBundle) ? 2 : 1;
 }
 
