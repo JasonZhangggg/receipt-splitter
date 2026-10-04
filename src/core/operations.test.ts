@@ -2118,6 +2118,15 @@ describe("adding an Item with who had it", () => {
     expect(shareOf(split, "cat")?.share).toBe(0);
   });
 
+  test("takes who in any order, as people were tapped, and stores the claim the same as in id order", () => {
+    const split = apply(missingTea(), addTea([cat, ann]));
+
+    expect(split.receipt.items.at(-1)).toEqual({ id: tea, name: "Tea", price: 300, split: { by: "even", units: [[ann, cat]] } });
+    expect(shareOf(split, "ann")?.share).toBe(150);
+    expect(shareOf(split, "bob")?.share).toBe(0);
+    expect(shareOf(split, "cat")?.share).toBe(150);
+  });
+
   test("is one History change, and its Revert takes the row and its claims off", () => {
     const before = missingTea();
     const split = apply(before, addTea([cat]));

@@ -502,7 +502,7 @@ function itemWrites(split: Split, patch: ItemPatch): readonly Write[] | Rejectio
     const who = patch.who ?? [];
     if (!who.every((id) => findParticipant(split, id))) return "unknownParticipant";
     if (new Set(who).size !== who.length) return "duplicateId";
-    return [ITEM_ROWS.add(patch.item, patch.index, { ...patch.item, split: withClaimers("even", who, () => undefined) })];
+    return [ITEM_ROWS.add(patch.item, patch.index, { ...patch.item, split: withClaimers("even", sortByCodeUnit(who), () => undefined) })];
   }
   const index = indexOf(items, patch.itemId);
   if (index === -1) return "unknownItem";

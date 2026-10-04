@@ -93,6 +93,16 @@ test("an Item added on one phone shows on another with who had it, and the Share
   expect(await shareOf(priya, "Sam")).toBe("$3.25");
 });
 
+test("people tapped in Who had it against id order (Sam, then Priya) still add the Item split between them", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, rice, 650));
+  await pick(sam, "Sam");
+
+  await addFries(sam, ["Sam", "Priya"]);
+  await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, had by (Sam, Priya|Priya, Sam)$/ })).toBeVisible(live);
+  await expect(sam.getByTestId("owe")).toHaveText("$3.25");
+  expect(await shareOf(sam, "Priya")).toBe("$3.25");
+});
+
 test("History lists the add, and Revert from another phone asks first and takes the row off both", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
