@@ -892,6 +892,37 @@ describe("Splits stored by each shipped release", () => {
     expect(split.recentChanges.length).toBe(5);
   });
 
+  describe("an old row of 17 KB whose 60 lines read as rows past 32 KB", () => {
+    const name = "Pale Ale ".repeat(9).trim();
+    const people = ["ann", "bob", "cat", "dan"];
+    const items = Array.from({ length: 60 }, (_, i) => ({ id: `i${i}`, name, detail: "Draft pour from the tap, served in a frosted pint glass with a lime", price: 400, split: { by: "even", units: people.map((id, unit) => ((i + unit) % 3 === 0 ? [id] : [])) } }));
+    const renames = Array.from({ length: 8 }, (_, c) => ({ revision: c + 1, by: "ann", undoes: null, undoneBy: null, at: 1767225600000 + c, writes: [{ kind: "item", id: `i${c}`, edit: { name: ["Ale", name] } }] }));
+    const row = {
+      schemaVersion: 3,
+      id: "historyRow000000",
+      currency: "USD",
+      receipt: { items, adjustments: [], subtotal: 24000, total: 24000 },
+      participants: people.map((id) => ({ id, name: id.toUpperCase() })),
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      payments: [],
+      picks: [],
+      revision: 8,
+      recentChanges: renames,
+    };
+    const split = accepted(parseSplit(row));
+    const revisions = (result: ReturnType<typeof applyOperation>) => (result.ok ? result.split.recentChanges.map(({ revision }) => revision) : result.rejection);
+
+    test("keeps every rename a person could Revert after a Claim", () => {
+      expect([JSON.stringify(row).length, JSON.stringify(split).length]).toEqual([16788, 35726]);
+      expect(revisions(applyOperation(split, { by: participantId("bob"), type: "claim", itemId: itemId("i1"), participantId: participantId("bob") }, { creator: false }))).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    });
+
+    test("keeps every rename a person could Revert after a recorded edit, and the edit too", () => {
+      const edit = applyOperation(split, { by: participantId("bob"), type: "editReceipt", items: [{ type: "edit", itemId: itemId("i9"), name: "Lager" }] }, { creator: false });
+
+      expect(revisions(edit)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    });
+  });
 });
 
 describe("Bundles in a stored Split", () => {

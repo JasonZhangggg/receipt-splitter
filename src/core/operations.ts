@@ -174,7 +174,7 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
     if (change.writes.length <= MAX_WRITES_PER_CHANGE && serializedBytes(change) <= MAX_CHANGE_BYTES) recentChanges = [...recentChanges, change];
     else if (op.type !== "restoreReceipt") return reject("tooLarge");
   }
-  const stored = { ...state, recentChanges: fitChanges(state, recentChanges) };
+  const stored = { ...state, recentChanges: fitChanges(state, recentChanges, split) };
   return { ok: true, split: { ...stored, schemaVersion: storedVersion(stored) }, changed: true };
 }
 
@@ -707,11 +707,16 @@ function holds(row: object, expected: object): boolean {
   );
 }
 
-function fitChanges(state: Split, changes: readonly Change[]): readonly Change[] {
+/**
+ * History fills the 32 KB budget left by the rest of the Split. An old Split whose rows read past that budget keeps the room for history a Split
+ * at the core cap has, and never loses a change to a budget it was already over before this write.
+ */
+function fitChanges(state: Split, changes: readonly Change[], before: Split): readonly Change[] {
+  const budget = Math.max(SPLIT_BYTE_BUDGET, coreBytes(state) + PAYMENT_RESERVE_BYTES + HISTORY_RESERVE_BYTES, serializedBytes(before));
   const sizes = changes.map(serializedBytes);
   let bytes = serializedBytes(state) + sizes.reduce((sum, size) => sum + size + 1, -1);
   let start = 0;
-  while (start < changes.length - 1 && (changes.length - start > RECENT_CHANGES_LIMIT || bytes > SPLIT_BYTE_BUDGET)) {
+  while (start < changes.length - 1 && (changes.length - start > RECENT_CHANGES_LIMIT || bytes > budget)) {
     bytes -= sizes[start] + 1;
     start += 1;
   }
