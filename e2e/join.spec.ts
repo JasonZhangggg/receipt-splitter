@@ -155,6 +155,28 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
   await expect(question(page)).toHaveCount(0);
 });
 
+test("a reload of home clears the receipt and the names, and the kept Venmo handle creates the next link", async ({ page }) => {
+  await readyHome(page, ["Sam"]);
+  const people = page.getByRole("group", { name: "People at the table" });
+  await expect(page.getByTestId("receipt")).toBeVisible();
+  await expect(people.getByText("Sam", { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
+  await expect(page.getByTestId("receipt")).toHaveCount(0);
+  await expect(people.getByText("Jason", { exact: true })).toHaveCount(0);
+  await expect(people.getByText("Sam", { exact: true })).toHaveCount(0);
+
+  await openExample(page);
+  await page.getByRole("button", { name: "Your name" }).click();
+  await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
+  await page.keyboard.press("Enter");
+  const sent = page.waitForRequest((request) => request.method() === "POST" && new URL(request.url()).pathname === "/api/splits");
+  await createLink(page);
+  expect((await sent).postDataJSON().split.paymentHandles).toEqual([{ service: "venmo", handle: "jason-z" }]);
+});
+
 test("without a system share sheet the link has Copy alone", async ({ page }) => {
   await page.addInitScript(() => {
     Reflect.deleteProperty(Navigator.prototype, "share");
