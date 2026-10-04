@@ -14,7 +14,7 @@ type Props = { onReceipt?: () => void; onHistory?: () => void; onShare?: () => v
 export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
-  // A photo that is there when the page opens arrives with the page; one that lands later fades in.
+  // A photo already there when the page opens shows at once; one that lands later scales in (fades under reduced motion).
   const [hadReceipt] = useState(onReceipt !== undefined);
   return (
     <View style={styles.header}>
@@ -23,8 +23,8 @@ export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
       </PressTarget>
       <View style={styles.buttons}>
         {onReceipt ? (
-          <View style={[styles.receipt, !hadReceipt && (reduce ? receiptFade : receiptIn)]}>
-            <Button kind="link" icon="receipt" label={say.viewReceipt} onPress={onReceipt} />
+          <View style={!hadReceipt && (reduce ? receiptFade : receiptIn)}>
+            <Button kind="icon" icon="receipt" name={say.viewReceipt} onPress={onReceipt} />
           </View>
         ) : null}
         {onHistory ? <Button kind="icon" icon="history" name={say.history} onPress={onHistory} /> : null}
@@ -37,7 +37,6 @@ export function SplitHeader({ onReceipt, onHistory, onShare }: Props) {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.header, paddingTop: 6 },
   buttons: { flexDirection: "row", alignItems: "center", marginRight: -12 },
-  receipt: { marginRight: 6 },
   home: { minHeight: 44, justifyContent: "center" },
 });
 
