@@ -164,6 +164,25 @@ test("Add item with no name focuses the name and says so, and Return walks name,
   await expect(sam.getByText("large", { exact: true })).toBeVisible();
 });
 
+test("the sheet keeps its top and height when a problem line appears", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex));
+  await pick(sam, "Sam");
+  await addRow(sam).click();
+  await expect(field(sam, "Item name")).toBeVisible();
+  await sam.waitForTimeout(800);
+  const box = async () => {
+    const { y, height } = (await sheet(sam).boundingBox())!;
+    return { top: Math.round(y), height: Math.round(height) };
+  };
+  const before = await box();
+
+  await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(sheet(sam).getByText("Add a name.")).toBeVisible();
+  expect(await box()).toEqual(before);
+  await sam.waitForTimeout(400);
+  expect(await box()).toEqual(before);
+});
+
 const iphoneKeyboard = 336;
 
 const aboveKeyboard = (target: Locator) =>

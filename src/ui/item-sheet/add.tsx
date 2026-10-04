@@ -154,11 +154,10 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
       <View style={styles.action}>
         <Button label={say.addItem} busy={sending} outsideScroll onPress={() => void add()} />
       </View>
-      {problem ? (
-        <Text role="status" style={[type.small, styles.problem, { color: c.muted }]}>
-          {problem === "overLimit" ? say.addProblem.overLimit(`$${(MAX_CENTS / 100).toLocaleString("en-US")}`) : say.addProblem[problem]}
-        </Text>
-      ) : null}
+      {/* Always laid out one line tall, so a problem appearing does not resize the sheet. */}
+      <Text role="status" style={[type.small, styles.problem, { minHeight: type.small.lineHeight, color: c.muted }]}>
+        {problem === null ? "" : problem === "overLimit" ? say.addProblem.overLimit(`$${(MAX_CENTS / 100).toLocaleString("en-US")}`) : say.addProblem[problem]}
+      </Text>
     </View>
   );
 }
