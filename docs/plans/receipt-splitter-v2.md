@@ -1063,9 +1063,68 @@ Anyone in the Split can add a new Item from the Split page (preferences 30). The
 
 ## Drop the home editor
 
-**Depends on.** Add Item on the Split page.
+**Depends on.** Add Item on the Split page (PR 52).
 
-Intent only. A full section with boxes comes before the build. With **Add item** on the Split page, home no longer needs the editor that `Scan.fixOnHome` keeps after a read with no Items, an unnamed Item, or an amount over the limit (preferences 38). The open question is what Create sends for such a read: drop the unnamed rows, or name them and let the Split page fix them.
+Home stops editing Items. With **Add item** on the Split page, every fix a Host made in home's editor can now be made on the Split page, where everyone in the Split sees it (preferences 38). This PR deletes the editor that `Scan.fixOnHome` kept after a read with an unnamed Item, an amount over the limit, or no Items, and decides what Create sends for such a read.
+
+Decisions.
+
+- A read is turned into the Receipt Create sends once, when it lands. The Draft holds that Receipt (or nothing, when no Item was read), not an editable copy. A read the core would refuse is repaired at that moment, so Create acts on it (preferences 34) and the Split page fixes the rows. Rows are not dropped, because a dropped row is a missing charge nobody sees, while a sent row is one tap from fixed.
+- An Item with no name but a price is sent as "Item N", N its place on the receipt. The core refuses a blank name (`badName`), and the price is what matters to the Shares. Anyone renames it on the Split page.
+- A price over $100,000 is sent as $0.00, as the editor already read it, and so is an Adjustment over the limit. The core refuses the amount (`amountOutOfRange`). The Total check then fails, and the quiet gray note on home and on the Split page names the gap (preferences 6), which points at the $0.00 row.
+- A Subtotal over the limit is sent as the Items' sum, and a Total over the limit as the Subtotal plus the Adjustments. They are read lines like any other, and a misread one should not block the link.
+- A read with no Items blocks Create, because a Split holds at least one Item: the core types the Items as non-empty and refuses deleting the last one (`lastItem`). **Create split link** stays off with "Couldn't read any items. Try another photo." The card's camera replaces the photo, and **Example** still fills home.
+- The parser's `discountExceededPrice` flag goes. Only the editor showed it, and the Item it marks is already $0.00.
+- Home keeps the compact card for every read, the same card and layout a good read gets. Nothing new animates.
+
+**Files.**
+
+- [ ] Edit `src/draft.ts` and `src/draft.test.ts`. Edit `app/index.tsx` and `src/ui/home-copy.ts`.
+- [ ] Delete `src/ui/receipt-editor/`.
+- [ ] Edit `src/parse/index.ts` and `src/parse/index.test.ts` to drop `discountExceededPrice`. Edit `src/ui/split-view/model.ts` for `gapNote`.
+- [ ] Edit `e2e/scan.spec.ts`. Replace `e2e/fixtures/example-total-over-limit.png` with `example-price-over-limit.png` through `e2e/fixtures/make-fixtures.py`.
+- [ ] Edit `features/scan.md`, `features/home.md` and `features/README.md` in `verify-receipt-splitter`.
+
+**Build.**
+
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before the UI change. Run `review-animations` and `unslop` on the UI text before the PR.
+- [ ] Name the shape first. `Scan`'s read state is `{ status: "read", file, receipt: Receipt | null }`, the core Receipt Create sends. `sendable(read)` builds it from the parser's Receipt, and `readiness` reads it as it is. The edit actions, `DraftReceipt`, `fixOnHome`, `editsOnHome`, `flaggedRows`, `itemProblem`, and `parseAmount`'s editor-only signed form go.
+- [ ] Red tests first, at the behavior level: a read with a price over the limit, an unnamed Item, an Adjustment over the limit, or a Subtotal or Total over the limit is ready, and its create body carries the repaired rows. The e2e case creates the link and fixes the row on the Split page.
+
+**You see.**
+
+- [ ] At 390 px, choose `example-price-over-limit.png`, whose Perrier prints $1,000,003.50 and whose Total prints $1,000,028.04. Home shows the card with "5 items" and "$28.04" and no Item list, with the quiet note "Items are $3.50 short of the subtotal." Create opens the Split page, where Perrier reads $0.00 under the same note. Tap Perrier, type 3.50, and close. The note goes.
+- [ ] Choose `blank.png`. The card shows "0 items" and **Create split link** stays off with "Couldn't read any items. Try another photo."
+
+**Seams.**
+
+- [ ] `reduceDraft`, `readiness`, and `splitRequest` through `src/draft.test.ts`.
+- [ ] Home and the Split page through Playwright in `e2e/scan.spec.ts`.
+
+**Verify, unit.**
+
+- [ ] `src/draft.test.ts`. An unnamed priced Item goes out as "Item 6". A price over the limit goes out as 0, and the note names the gap. An Adjustment over the limit goes out as 0. A Subtotal over the limit goes out as the Items' sum, a Total over the limit as the Subtotal plus Adjustments. A read with no Items says "Couldn't read any items. Try another photo." The created body parses through `parseCreateSplitRequest`. Run `npm test`.
+
+**Verify, e2e.**
+
+- [ ] `e2e/scan.spec.ts`. The over-limit read creates the link and the Split page fixes Perrier, clearing the note. The blank read keeps Create off with its reason and shows no editor. Run `npm run e2e`.
+
+**Verify, live.** Level `standard`, ports 9300 to 9399.
+
+- [ ] Lane 1. Screenshots at 390 px, light and dark: home after the over-limit read, and the Split page with Perrier at $0.00 and the note. Save `drop-home-editor/<case>.png`.
+- [ ] Run `motion.mjs` on every lane and the flash census with `flash-census.mjs`. Pass when the motion lanes pass and every "Runs with flash" cell reads 0.
+
+**Feature map.**
+
+- [ ] Update `features/scan.md`: no editor; the repairs; the no-Items reason.
+
+**Verify, perf.**
+
+- [ ] Metric. `npm run size` at trunk and head. Rule. Fail on any growth. The editor's removal should shrink it.
+
+**Review gate.** The root merges on a clean verdict and green CI (preferences 40). The screenshots go to the operator after the merge.
+
+- [ ] Copy lane 1's screenshots into `~/.claude/orchestrate/receipt-splitter/review/drop-home-editor/`.
 
 ## Recent splits on home
 
