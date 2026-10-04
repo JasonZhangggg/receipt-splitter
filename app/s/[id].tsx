@@ -22,7 +22,7 @@ import { splitCopy as say } from "../../src/ui/split-copy";
 import { Breakdown } from "../../src/ui/split-view/breakdown";
 import { SplitHeader } from "../../src/ui/split-view/header";
 import { OweLine } from "../../src/ui/split-view/owe-line";
-import { barFor, circleTap } from "../../src/ui/split-view/model";
+import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
@@ -76,7 +76,7 @@ function Gone({ reason }: { reason: GoneReason }) {
 }
 
 type Phase = "pick" | "collapsing" | "regular";
-type OverlayKind = { readonly kind: "item"; readonly itemId: ItemId } | { readonly kind: "add" } | { readonly kind: "history" };
+type OverlayKind = { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] } | { readonly kind: "add" } | { readonly kind: "history" };
 /** What is open over the page and the press that opened it: the popover hangs from its trigger, and focus goes back there. */
 type Overlay = OverlayKind & { readonly from: Press };
 /** The right pane shows the pick content until this device has picked, then that person's share. */
@@ -193,9 +193,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const overlayGone = () => {
     setOverlay(null);
     setClosing(false);
-    // After Delete item the line is gone, and focus stays where the browser left it.
-    const trigger = overlay?.from.trigger;
-    if ((wide || overlay?.from.keyboard) && trigger?.isConnected) trigger.focus({ preventScroll: true });
+    if (!overlay || !(wide || overlay.from.keyboard)) return;
+    const trigger = overlay.from.trigger.isConnected ? overlay.from.trigger : overlay.kind === "item" ? nearestLine(overlay.lines, overlay.itemId) : null;
+    trigger?.focus({ preventScroll: true });
   };
   useEscape(overlay !== null && !closing && !wide, closeOverlay);
 
@@ -300,7 +300,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       selected={me ? selectedPerson : null}
       me={me}
       onCircle={(item) => void onCircle(item)}
-      onOpen={(item, from) => open({ kind: "item", itemId: item.id }, from)}
+      onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
     />
   );
@@ -375,6 +375,15 @@ const paneInset = 16;
 // The pane holds still while the receipt scrolls, so Your share stays in view.
 const sticky = webStyle({ position: "sticky", top: `${paneInset}px` });
 const contain = webStyle({ overscrollBehavior: "contain" });
+
+/** After Split or Delete item the line is gone; focus goes to the nearest line still on screen. */
+function nearestLine(lines: readonly ItemId[], gone: ItemId): HTMLElement | null {
+  for (const id of linesNear(lines, gone)) {
+    const open = [...document.querySelectorAll<HTMLElement>(`[data-testid="line-${id}"] [data-pressable]`)].at(-1);
+    if (open && open.getClientRects().length > 0 && open.offsetHeight > 0) return open;
+  }
+  return null;
+}
 
 const styles = StyleSheet.create({
   screen: { flex: 1, overflow: "hidden", ...webStyle({ overflow: "clip" }) },

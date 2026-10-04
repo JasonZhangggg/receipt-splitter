@@ -175,7 +175,7 @@ test("another device's Delete item closes the open popover and hands focus to th
   await itemPopover(priya).getByRole("button", { name: "Delete item" }).click();
 
   await expect(itemPopover(page)).toHaveCount(0, live);
-  await expect(page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / })).toHaveCount(1);
+  await expect(ultra(page)).toHaveCount(0);
   await expect(guinness(page)).toBeFocused();
 });
 

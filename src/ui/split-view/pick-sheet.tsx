@@ -48,7 +48,7 @@ export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url }: 
           </View>
         ) : null}
       </View>
-      <Text role="heading" aria-level={1} style={[type.hero, styles.ask, { color: c.ink }]}>
+      <Text role="heading" aria-level={2} style={[type.hero, styles.ask, { color: c.ink }]}>
         {say.question}
       </Text>
       <PickRows rows={rows} chosen={chosen} onPick={onPick} />

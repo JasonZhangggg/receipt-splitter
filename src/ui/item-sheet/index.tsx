@@ -39,6 +39,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   const c = useColors();
   // Split and Delete item change the Item at once; the sheet keeps showing the Split as it looked at the tap, unsaved edits included, until it has left.
   const [leavingFrom, setLeavingFrom] = useState<Split | null>(null);
+  // Another device's Split or Delete item takes the Item away; the sheet closes the same way, on the Split as it was.
+  const [last, setLast] = useState(current);
+  const [taken, setTaken] = useState(false);
   const split = leavingFrom ?? current;
   const currentRef = useRef(current);
   // The name, detail, price and amount fields are uncontrolled; a lost Split or Delete item remounts them on the Item as it is now.
@@ -72,8 +75,18 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   const item: SplitItem | undefined = seen.receipt.items.find(({ id }) => id === itemId);
   const refusal = preview && !preview.ok ? preview.rejection.reason : null;
 
+  if (last !== current) {
+    setLast(current);
+    const has = (on: Split) => on.receipt.items.some(({ id }) => id === itemId);
+    if (!leavingFrom && has(last) && !has(current)) {
+      const was = Object.keys(unconfirmed).length > 0 ? applyOperation(last, patch(unconfirmed), { creator: false }) : null;
+      setLeavingFrom(was?.ok ? was.split : last);
+      setTaken(true);
+    }
+  }
+
   const flush = () => {
-    if (Object.keys(pending).length === 0 || refusal) return;
+    if (Object.keys(pending).length === 0 || refusal || leavingFrom) return;
     const sending = pending;
     setPending({});
     setSent((was) => [...was, sending]);
@@ -93,6 +106,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     return () => clearTimeout(timer);
   }, [pending]);
   useEffect(() => () => flushRef.current(), []);
+  useEffect(() => {
+    if (taken) onClose();
+  }, [taken, onClose]);
 
   if (item && shown && item.split.by !== shown.split.by) {
     const { from, left } = fade ?? settled;
