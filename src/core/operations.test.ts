@@ -919,18 +919,27 @@ describe("quantity lines", () => {
     expect(reasonFor(lessForJason, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
   });
 
-  test("Revert of a Split after every row takes the same new claimer brings back the line with that claimer, since no Share moves", () => {
+  test("Revert of a Split on the unclaimed Topgolf Guinness answers conflict after a row-2 price edit, and the edit stays", () => {
+    const start = topgolf({});
+    const split = apply(start, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] });
+    const edited = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), price: price(650) }] });
+
+    expect(reasonFor(edited, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
+    expect(edited.receipt.items.find(({ id }) => id === "g2")?.price).toBe(650);
+  });
+
+  test("Revert of a Split answers conflict after every row takes the same new claimer or a row is renamed, since the rows no longer match the Split", () => {
     const claimed = apply(atThePub(), claim(bob), claim(cat));
     const split = apply(claimed, splitLine([beerB, beerC]));
-    const since = apply(split, claim(ann), claim(ann, beerB), claim(ann, beerC), { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: beerB, name: "Stout" }] });
+    const since = {
+      "the same claimer on every row": apply(split, claim(ann), claim(ann, beerB), claim(ann, beerC)),
+      "a rename of the second row": apply(split, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: beerB, name: "Stout" }] }),
+      "a detail on the first row": apply(split, edit({ detail: "Pint" })),
+    };
 
-    const reverted = apply(since, { by: cat, type: "undo", revision: split.revision });
-
-    expect(rows(reverted)).toEqual([
-      ["fries", 800, 1, { by: "even", units: [[]] }],
-      ["beer", 2187, 3, { by: "even", units: [["ann", "bob", "cat"]] }],
-    ]);
-    expect(shares(reverted)).toEqual([729, 729, 729]);
+    for (const [what, state] of Object.entries(since)) {
+      expect([what, reasonFor(state, { by: cat, type: "undo", revision: split.revision })]).toEqual([what, "conflict"]);
+    }
   });
 
   test("Revert of adding a 3x line after it was Split answers conflict instead of removing only the first row", () => {

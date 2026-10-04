@@ -412,10 +412,14 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
       return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id))] } }];
     }
     case "split": {
-      const current = split.receipt.items.find(({ id }) => id === write.id);
-      if (!current) return "conflict";
-      const before = write.line.split;
-      const unsplit: Write = { kind: "unsplit", id: write.id, ids: write.ids, line: { ...write.line, split: withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id)) } };
+      // Only rows exactly as the Split made them fold back, so a Revert never drops a later edit, even one that moves no money.
+      const prices = unitPrices(write.line.price, write.line.quantity);
+      const claims = splitRows(write.line.split, prices);
+      const rows = [write.id, ...write.ids].map((id) => split.receipt.items.find((item) => item.id === id));
+      const [head] = rows;
+      const asSplit = rows.every((row, at) => row !== undefined && holds(row, { name: head?.name, detail: head?.detail, price: prices[at], split: claims[at] }));
+      if (!asSplit) return "conflict";
+      const unsplit: Write = { kind: "unsplit", id: write.id, ids: write.ids, line: write.line };
       const after = unsplitLine(split, unsplit);
       return typeof after !== "string" && sameMoney(split, after) ? [unsplit] : "conflict";
     }
