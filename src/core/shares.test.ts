@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price, type Cents } from "./money";
+import { applyOperation } from "./operations";
 import { computeShares, shareBreakdown, unitPrices, type ShareBreakdown, type Shares } from "./shares";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type Part, type ParticipantId, type ReceiptLevelKind, type Split, type SplitItem } from "./split";
 import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.fixture";
@@ -515,18 +516,6 @@ describe("unitPrices", () => {
       [0, 0],
     ]);
   });
-
-  test("one person on each unit of a $10.00 line of three pays exactly that unit's price, so the unit rows and the Shares agree to the cent", () => {
-    const split = splitWith({ items: [["cans", 1000, []]] });
-    const [first, ...rest] = split.receipt.items.map((item) => ({ ...item, split: { by: "even" as const, units: [[participantId("cat")], [participantId("ann")], [participantId("bob")]] as const } }));
-    const shares = computeShares({ ...split, receipt: { ...split.receipt, items: [first, ...rest] } });
-
-    expect(shareCents(shares)).toEqual([
-      ["ann", 333],
-      ["bob", 333],
-      ["cat", 334],
-    ]);
-  });
 });
 
 describe("Item quantity and split modes", () => {
@@ -568,29 +557,13 @@ describe("Item quantity and split modes", () => {
     expect(shareBreakdown(split, participantId("ann")).items).toEqual([{ id: "tostones", name: "tostones", price: 100, fraction: [3, 5], portion: 60 }]);
   });
 
-  test("two $12.00 pitchers with Jason and Sam on one and Priya on the other cost $6.00, $6.00, and $12.00", () => {
-    const split = withSplit(splitWith({ items: [["pitchers", 2400, []]], participants: ["jason", "sam", "priya"] }), "pitchers", {
-      by: "even",
-      units: [ids("jason,sam"), ids("priya")],
-    });
+  test("two $12.00 pitchers on one line claimed by Jason, Sam, and Priya cost $8.00 each, and the breakdown lists the line once with its quantity", () => {
+    const line = withSplit(splitWith({ items: [["pitchers", 2400, []]], participants: ["jason", "sam", "priya"] }), "pitchers", { by: "even", units: [ids("jason,priya,sam")] });
+    const [first, ...rest] = line.receipt.items.map((item) => ({ ...item, quantity: 2 }));
+    const split = { ...line, receipt: { ...line.receipt, items: [first, ...rest] as const } };
 
-    expect(computeShares(split).shares.map(({ share }) => share)).toEqual([600, 600, 1200]);
-    expect(shareBreakdown(split, participantId("priya")).items).toEqual([{ id: "pitchers", name: "pitchers", price: 2400, fraction: [1, 2], portion: 1200 }]);
-    expect(shareBreakdown(split, participantId("sam")).items).toEqual([{ id: "pitchers", name: "pitchers", price: 2400, fraction: [1, 4], portion: 600 }]);
-  });
-
-  test("a unit nobody had stays Unclaimed: 3 beers at $15.00 with one each for Ann and Bob leave $5.00", () => {
-    const split = withSplit(splitWith({ items: [["beer", 1500, []]] }), "beer", { by: "even", units: [ids("ann"), ids("bob"), []] });
-    const { shares, unclaimed } = computeShares(split);
-
-    expect(shares.map(({ share }) => share)).toEqual([500, 500, 0]);
-    expect(unclaimed).toEqual({ itemIds: ["beer"], total: 500 });
-  });
-
-  test("a $10.00 line of 3 units costs 334, 333, and 333 cents a unit", () => {
-    const split = withSplit(splitWith({ items: [["beer", 1000, []]] }), "beer", { by: "amount", units: [amounts({ ann: 334 }), amounts({ bob: 333 }), amounts({ cat: 333 })] });
-
-    expect(computeShares(split).shares.map(({ share }) => share)).toEqual([334, 333, 333]);
+    expect(computeShares(split).shares.map(({ share }) => share)).toEqual([800, 800, 800]);
+    expect(shareBreakdown(split, participantId("sam")).items).toEqual([{ id: "pitchers", name: "pitchers", price: 2400, quantity: 2, fraction: [1, 3], portion: 800 }]);
   });
 
   test("the design's dinner: Jason and Sam owe $12.06, Priya $3.55, and $4.97 is Unclaimed out of $32.64", () => {
@@ -618,24 +591,19 @@ describe("Item quantity and split modes", () => {
     for (const { split: plain } of seededReceipts(300)) {
       const people = plain.participants.map(({ id }) => id);
       const [first, ...rest] = plain.receipt.items.map((item): SplitItem => {
-        const count = 1 + Math.floor(next() * 3);
-        const prices = unitPrices(item.price, count);
-        const claimers = prices.map(() => people.filter(() => next() < 0.3).sort());
+        const quantity = 1 + Math.floor(next() * 3);
+        const line = quantity === 1 ? item : { ...item, quantity };
+        const claimers = people.filter(() => next() < 0.3).sort();
         const roll = next();
-        if (roll < 0.33) return { ...item, split: { by: "even", units: [claimers[0], ...claimers.slice(1)] } };
-        if (roll < 0.66) {
-          const units = claimers.map((unit) => unit.map((id): Part<number> => [id, 1 + Math.floor(next() * 4)]));
-          return { ...item, split: { by: "shares", units: [units[0], ...units.slice(1)] } };
-        }
-        const units = claimers.map((unit, index) => {
-          let left = prices[index];
-          return unit.map((id): Part<Cents> => {
-            const cents = Math.floor(next() * (left + 1)) as Cents;
-            left -= cents;
-            return [id, cents];
-          });
+        if (roll < 0.33) return { ...line, split: { by: "even", units: [claimers] } };
+        if (roll < 0.66) return { ...line, split: { by: "shares", units: [claimers.map((id): Part<number> => [id, 1 + Math.floor(next() * 4)])] } };
+        let left = item.price as number;
+        const amounts = claimers.map((id): Part<Cents> => {
+          const cents = Math.floor(next() * (left + 1)) as Cents;
+          left -= cents;
+          return [id, cents];
         });
-        return { ...item, split: { by: "amount", units: [units[0], ...units.slice(1)] } };
+        return { ...line, split: { by: "amount", units: [amounts] } };
       });
       const split = { ...plain, receipt: { ...plain.receipt, items: [first, ...rest] as const } };
       const { shares, unclaimed } = computeShares(split);
@@ -783,21 +751,18 @@ describe("shareBreakdown", () => {
       const people = Array.from({ length: int(1, 6) }, (_, index) => `p${index}`);
       const rows = Array.from({ length: int(1, 6) }, (_, index): SplitItem => {
         const amount = pick([0, 1, 2, 99, 223, 1820, int(0, 5000)]);
-        const prices = unitPrices(amount, int(1, 3));
-        const claimers = prices.map(() => people.filter(() => next() < 0.4).map(participantId));
-        const counts = claimers.map((unit) => unit.map((id): Part<number> => [id, int(1, 4)]));
-        const amounts = claimers.map((unit, index) => {
-          let left = prices[index];
-          return unit.map((id): Part<Cents> => {
-            const value = cents(int(0, left));
-            left -= value;
-            return [id, value];
-          });
+        const claimers = people.filter(() => next() < 0.4).map(participantId);
+        const counts = claimers.map((id): Part<number> => [id, int(1, 4)]);
+        let left = amount;
+        const amounts = claimers.map((id): Part<Cents> => {
+          const value = cents(int(0, left));
+          left -= value;
+          return [id, value];
         });
         const split: ItemSplit = pick<ItemSplit>([
-          { by: "even", units: [claimers[0], ...claimers.slice(1)] },
-          { by: "shares", units: [counts[0], ...counts.slice(1)] },
-          { by: "amount", units: [amounts[0], ...amounts.slice(1)] },
+          { by: "even", units: [claimers] },
+          { by: "shares", units: [counts] },
+          { by: "amount", units: [amounts] },
         ]);
         return { id: itemId(`i${index}`), name: `i${index}`, price: price(amount), split };
       });
@@ -897,6 +862,22 @@ describe("Bundles", () => {
     expect(computeShares(bundled).shares.map(({ share }) => share)).toEqual([0, 800, 400]);
   });
 
+  test("Guinness claimed by Jason and Priya as one 3x line costs them what the three rows after Split cost them, each row claimed by the same two", () => {
+    const claims = { ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason), guinness1: [jason, priya] };
+    const whole = topgolf(claims);
+    const rows = applyOperation(whole, { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("guinness1-b"), itemId("guinness1-c")] }] }, { creator: false });
+    if (!rows.ok) throw new Error(JSON.stringify(rows.rejection));
+
+    expect(rows.split.receipt.items.filter(({ name }) => name.startsWith("Guinness")).map(({ id, price: cents, split }) => [id, cents, split])).toEqual([
+      ["guinness1", 729, { by: "even", units: [["jason", "priya"]] }],
+      ["guinness1-b", 729, { by: "even", units: [["jason", "priya"]] }],
+      ["guinness1-c", 729, { by: "even", units: [["jason", "priya"]] }],
+      ["guinness2", 1458, { by: "even", units: [["jason"]] }],
+    ]);
+    expect(computeShares(whole).shares.map(({ share }) => share)).toEqual([16977, 3752]);
+    expect(computeShares(rows.split).shares.map(({ share }) => share)).toEqual([16977, 3752]);
+  });
+
   test("Priya's breakdown shows the first Beer Bucket's whole discount and none of the second's", () => {
     const split = topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
 
@@ -915,8 +896,7 @@ describe("Bundles", () => {
     for (let run = 0; run < 2_000; run += 1) {
       const base = topgolf();
       const [first, ...rest] = base.receipt.items.map((item): SplitItem => {
-        const units = item.split.units.map(() => people.filter(() => next() < 0.4));
-        return { ...item, split: { by: "even", units: [units[0], ...units.slice(1)] } };
+        return { ...item, split: { by: "even", units: [people.filter(() => next() < 0.4)] } };
       });
       const split = { ...base, participants: [...base.participants, { id: people[2], name: "Sam" }] as const, receipt: { ...base.receipt, items: [first, ...rest] as const } };
       const { shares, unclaimed } = computeShares(split);

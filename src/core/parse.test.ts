@@ -10,6 +10,11 @@ import { bucketOne, bucketTwo, eachOf, jason, priya, topgolf } from "./topgolf.f
 
 const badName = { ok: false, rejection: { reason: "badName" } };
 
+function accepted(result: ReturnType<typeof parseSplit>): Split {
+  if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+  return result.split;
+}
+
 const minted = mintedId("q7Xv0Lr9_aZ-3mKp");
 
 function storedSplit(): Split {
@@ -67,6 +72,28 @@ describe("parseOperation", () => {
     });
     expect(parseOperation(claim(""))).toEqual({ ok: true, op: { type: "claim", by: null, itemId: "fries", participantId: "bob" } });
   });
+
+  test("reads a claim from a page loaded before quantities with unit 0 as a claim on the line, and refuses any other unit", () => {
+    const claim = (unit: unknown) => ({ type: "claim", by: null, itemId: "fries", participantId: "bob", unit });
+
+    expect(parseOperation(claim(0))).toEqual({ ok: true, op: { type: "claim", by: null, itemId: "fries", participantId: "bob" } });
+    expect(parseOperation({ ...claim(0), type: "unclaim" })).toEqual({ ok: true, op: { type: "unclaim", by: null, itemId: "fries", participantId: "bob" } });
+    expect(parseOperation(claim(1))).toEqual({ ok: false, rejection: { reason: "malformed", path: "unit" } });
+    expect(parseOperation(claim("0"))).toEqual({ ok: false, rejection: { reason: "malformed", path: "unit" } });
+  });
+
+  test("reads a Split patch with one or more new ids, and refuses none, a bad id, a quantity edit, or a unit value", () => {
+    const patch = (fields: object) => ({ type: "editReceipt", by: null, items: [{ type: "split", itemId: "beer", ...fields }] });
+
+    expect(parseOperation(patch({ ids: ["beer-b", "beer-c"] }))).toEqual({ ok: true, op: { type: "editReceipt", by: null, items: [{ type: "split", itemId: "beer", ids: ["beer-b", "beer-c"] }] } });
+    expect(parseOperation(patch({ ids: [] }))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].ids" } });
+    expect(parseOperation(patch({ ids: ["x".repeat(25)] }))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].ids[0]" } });
+    expect(parseOperation({ type: "editReceipt", by: null, items: [{ type: "edit", itemId: "beer", quantity: 2 }] })).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].quantity" } });
+    expect(parseOperation({ type: "editReceipt", by: null, items: [{ type: "edit", itemId: "beer", by: "shares", values: [{ unit: 0, participantId: "bob", value: 2 }] }] })).toEqual({
+      ok: false,
+      rejection: { reason: "malformed", path: "items[0].values[0].unit" },
+    });
+  });
 });
 
 describe("parseOperation bounds", () => {
@@ -95,16 +122,12 @@ describe("parseOperation bounds", () => {
     });
   });
 
-  test("refuses an added Item of 10,000,000 units, and an edit to 21, at the quantity, within 250 ms; reads 20", () => {
+  test("refuses an added Item of 10,000,000 units at the quantity within 250 ms; reads 20", () => {
     const addPie = (quantity: number) => ({ type: "editReceipt", by: null, items: [{ type: "add", item: { id: "pie", name: "Pie", price: 100, quantity }, index: 0 }] });
     const started = performance.now();
 
     expect(parseOperation(addPie(10_000_000))).toEqual({ ok: false, rejection: { reason: "malformed", path: "items[0].item.quantity" } });
     expect(performance.now() - started).toBeLessThan(250);
-    expect(parseOperation({ type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", quantity: 21 }] })).toEqual({
-      ok: false,
-      rejection: { reason: "malformed", path: "items[0].quantity" },
-    });
     expect(parseOperation(addPie(20))).toEqual({
       ok: true,
       op: { type: "editReceipt", by: null, items: [{ type: "add", item: { id: "pie", name: "Pie", price: 100, quantity: 20 }, index: 0 }] },
@@ -137,7 +160,7 @@ describe("parseSplit", () => {
   test("refuses a stored Split from another schema version or one that breaks an invariant", () => {
     const stored = JSON.parse(JSON.stringify(storedSplit()));
 
-    expect(parseSplit({ ...stored, schemaVersion: 4 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "schemaVersion" } });
+    expect(parseSplit({ ...stored, schemaVersion: 5 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "schemaVersion" } });
     expect(parseSplit({ ...stored, participants: [stored.participants[0]] })).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
     expect(parseSplit({ ...stored, revision: 3 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "recentChanges" } });
   });
@@ -405,7 +428,7 @@ describe("parseCreateSplitRequest with Bundles", () => {
   const request = (adjustments: readonly unknown[] = receipt.adjustments) => ({
     split: {
       receipt: {
-        items: receipt.items.map(({ id, name, price, split: { units } }) => (units.length === 1 ? { id, name, price } : { id, name, price, quantity: units.length })),
+        items: receipt.items.map(({ id, name, price, quantity }) => (quantity === undefined ? { id, name, price } : { id, name, price, quantity })),
         adjustments,
         subtotal: receipt.subtotal,
         total: receipt.total,
@@ -419,21 +442,19 @@ describe("parseCreateSplitRequest with Bundles", () => {
   });
   const claimAll = (split: Split, claims: Record<string, readonly string[]>) =>
     Object.entries(claims).reduce<Split>((current, [item, [who]]) => {
-      const units = current.receipt.items.find(({ id }) => id === item)?.split.units.length ?? 0;
-      return Array.from({ length: units }).reduce<Split>((next, _, unit) => {
-        const parsed = parseOperation({ type: "claim", by: who, itemId: item, participantId: who, unit });
-        if (!parsed.ok) throw new Error(JSON.stringify(parsed.rejection));
-        const result = applyOperation(next, parsed.op, { creator: true });
-        if (!result.ok) throw new Error(JSON.stringify(result.rejection));
-        return result.split;
-      }, current);
+      const parsed = parseOperation({ type: "claim", by: who, itemId: item, participantId: who });
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.rejection));
+      const result = applyOperation(current, parsed.op, { creator: true });
+      if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+      return result.split;
     }, split);
 
-  test("stores the Topgolf request with its two Beer Bucket Bundles at version 2, and Priya on the first Bundle owes $49.52", () => {
+  test("stores the Topgolf request with its two Beer Bucket Bundles and its quantity lines at version 4, and Priya on the first Bundle owes $49.52", () => {
     const created = parseCreateSplitRequest(JSON.parse(JSON.stringify(request())), minted);
     if (!created.ok) throw new Error(JSON.stringify(created.rejection));
 
-    expect(created.split.schemaVersion).toBe(2);
+    expect(created.split.schemaVersion).toBe(4);
+    expect(created.split.receipt.items[2]).toEqual({ id: "guinness1", name: "Guinness Draught 14.9oz Can", price: 2187, quantity: 3, split: { by: "even", units: [[]] } });
     expect(created.split.original?.adjustments).toEqual([
       { id: "bucket1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["ultra1", "guinness1", "pineapple1", "watermelon1"] } },
       { id: "bucket2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: { name: "Beer Bucket", items: ["ultra2", "guinness2", "pineapple2", "watermelon2"] } },
@@ -448,10 +469,13 @@ describe("parseCreateSplitRequest with Bundles", () => {
     expect(parseSplit(JSON.parse(JSON.stringify(created.split)))).toEqual({ ok: true, split: created.split });
   });
 
-  test("stores the same request without its Bundles at version 1", () => {
+  test("stores the same request without its Bundles at version 4, and without its quantities too at version 1", () => {
     const plain = receipt.adjustments.map((row) => (row.kind === "bundleDiscount" ? { id: row.id, kind: "discount", name: row.name, amount: row.amount } : row));
+    const lineByLine = request(plain);
+    const items = lineByLine.split.receipt.items.map(({ id, name, price }) => ({ id, name, price }));
 
-    expect(parseCreateSplitRequest(request(plain), minted)).toMatchObject({ ok: true, split: { schemaVersion: 1 } });
+    expect(parseCreateSplitRequest(request(plain), minted)).toMatchObject({ ok: true, split: { schemaVersion: 4 } });
+    expect(parseCreateSplitRequest({ split: { ...lineByLine.split, receipt: { ...lineByLine.split.receipt, items } } }, minted)).toMatchObject({ ok: true, split: { schemaVersion: 1 } });
   });
 
   test("refuses a Bundle that names an Item the request does not hold", () => {
@@ -470,46 +494,57 @@ describe("Splits stored by each shipped release", () => {
     return parsed.split;
   };
   const claimers = (split: Split) => split.receipt.items.map(({ split: { units } }) => units);
+  const lines = (split: Split) => split.receipt.items.map(({ id, price: cents, quantity, split: { units } }) => [id, cents, quantity ?? 1, units[0]]);
+  const shares = (split: Split) => computeShares(split).shares.map(({ participantId, share }) => [participantId, share]);
 
   test("every golden row reads", () => {
     const labels = readdirSync(new URL("./golden/", import.meta.url)).map((file) => file.replace(/\.json$/, ""));
 
     expect(labels.filter((label) => !parseSplit(golden(label)).ok)).toEqual([]);
-    expect(labels).toEqual(expect.arrayContaining(["v2-1", "v2-2"]));
+    expect(labels).toEqual(expect.arrayContaining(["v2-1", "v2-2", "v2-q"]));
   });
 
-  test("the V2-1 row holds the Topgolf receipt with two Beer Buckets at version 2", () => {
+  test("the V2-1 row reads each Topgolf quantity line, whose units all had Priya or all had Jason, as one line with its quantity", () => {
     const split = read("v2-1");
 
-    expect(split.schemaVersion).toBe(2);
+    expect(split.schemaVersion).toBe(4);
     expect(split.receipt.adjustments.map((adjustment) => (adjustment.kind === "bundleDiscount" ? [adjustment.amount, adjustment.bundle.items.length] : adjustment.kind))).toEqual([
       [-451, 4],
       [-463, 4],
       "tax",
       "tip",
     ]);
-    expect(computeShares(split).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
+    expect(lines(split)).toEqual([
+      ["gameplay", 8775, 1, ["jason"]],
+      ["ultra1", 629, 1, ["priya"]],
+      ["guinness1", 2187, 3, ["priya"]],
+      ["pineapple1", 849, 1, ["priya"]],
+      ["watermelon1", 849, 1, ["priya"]],
+      ["ultra2", 629, 1, ["jason"]],
+      ["guinness2", 1458, 2, ["jason"]],
+      ["pineapple2", 849, 1, ["jason"]],
+      ["watermelon2", 1698, 2, ["jason"]],
+    ]);
+    expect(shares(split)).toEqual([
       ["jason", 15777],
       ["priya", 4952],
     ]);
-    expect(JSON.parse(JSON.stringify(split))).toEqual(golden("v2-1"));
   });
 
   test("the V2-2 row, written by creating the Topgolf Split with its Bundles, is the row V2-1 expected V2-2 to write", () => {
     const split = read("v2-2");
 
-    expect(split.schemaVersion).toBe(2);
-    expect(computeShares(split).shares.map(({ participantId, share }) => [participantId, share])).toEqual([
+    expect(shares(split)).toEqual([
       ["jason", 15777],
       ["priya", 4952],
     ]);
     expect(golden("v2-2")).toEqual(golden("v2-1"));
   });
 
-  test("the V2-7b row holds Item details at version 3, and a version 2 row reads unchanged", () => {
+  test("the V2-7b row reads its Item details onto the mapped lines, and its other fields unchanged", () => {
     const split = read("v2-7b");
 
-    expect(split.schemaVersion).toBe(3);
+    expect(split.schemaVersion).toBe(4);
     expect(split.receipt.items.flatMap(({ id, detail }) => (detail === undefined ? [] : [[id, detail]]))).toEqual([
       ["gameplay", "2 bays, 1 hour"],
       ["ultra1", "Ice cold"],
@@ -520,8 +555,19 @@ describe("Splits stored by each shipped release", () => {
       ["jason", 15777],
       ["priya", 4952],
     ]);
-    expect(JSON.parse(JSON.stringify(split))).toEqual(golden("v2-7b"));
-    expect(JSON.parse(JSON.stringify(read("v2-2")))).toEqual(golden("v2-2"));
+    expect(lines(split)).toEqual([
+      ["gameplay", 8775, 1, ["jason"]],
+      ["ultra1", 629, 1, ["priya"]],
+      ["guinness1", 2187, 3, ["priya"]],
+      ["pineapple1", 849, 1, ["priya"]],
+      ["watermelon1", 849, 1, ["priya"]],
+      ["ultra2", 629, 1, ["jason"]],
+      ["guinness2", 1458, 2, ["jason"]],
+      ["pineapple2", 849, 1, ["jason"]],
+      ["watermelon2", 1698, 2, ["jason"]],
+    ]);
+    const stored = golden("v2-7b") as Split;
+    expect({ ...JSON.parse(JSON.stringify(split)), schemaVersion: 3, receipt: { ...split.receipt, items: stored.receipt.items } }).toEqual(stored);
   });
 
   test("refuses a detail over 120 characters, and a detail in a row stored before version 3", () => {
@@ -534,19 +580,161 @@ describe("Splits stored by each shipped release", () => {
     expect(parseSplit({ ...stored, schemaVersion: 2 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].detail" } });
   });
 
-  test("a row the current release writes reads back unchanged", () => {
-    expect(JSON.parse(JSON.stringify(read("rs-11")))).toEqual(golden("rs-11"));
+  test("a version 2 quantity line whose units differ reads as one-unit rows with <id>-2 ids in its place and in its Bundle, with the same Shares", () => {
+    const row = JSON.parse(JSON.stringify(golden("v2-1")));
+    row.receipt.items[2].split.units = [["priya"], ["jason"], ["priya"]];
+
+    const split = accepted(parseSplit(row));
+
+    expect(lines(split).slice(1, 6)).toEqual([
+      ["ultra1", 629, 1, ["priya"]],
+      ["guinness1", 729, 1, ["priya"]],
+      ["guinness1-2", 729, 1, ["jason"]],
+      ["guinness1-3", 729, 1, ["priya"]],
+      ["pineapple1", 849, 1, ["priya"]],
+    ]);
+    expect(split.receipt.adjustments[0]).toMatchObject({ bundle: { items: ["ultra1", "guinness1", "guinness1-2", "guinness1-3", "pineapple1", "watermelon1"] } });
+    expect(split.receipt.items.find(({ id }) => id === "guinness1")?.name).toBe("Guinness Draught 14.9oz Can");
+    expect(shares(split)).toEqual([
+      ["jason", 16577],
+      ["priya", 4152],
+    ]);
   });
 
-  test("RS-10 rows read with their device picks, units and original Receipt", () => {
+  const legacyRow = (items: readonly object[]) => {
+    const subtotal = items.reduce((total: number, item) => total + ("price" in item && typeof item.price === "number" ? item.price : 0), 0);
+    return {
+      schemaVersion: 1,
+      id: "q7Xv0Lr9_aZ-3mKp",
+      currency: "USD",
+      receipt: { items, adjustments: [], subtotal, total: subtotal },
+      participants: [
+        { id: "ann", name: "Ann" },
+        { id: "bob", name: "Bob" },
+      ],
+      picks: [],
+      payments: [],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+      revision: 0,
+      recentChanges: [],
+    };
+  };
+
+  test("a version 1 line whose units hold the same amounts reads as one line whose amounts scale by the quantity", () => {
+    const split = accepted(parseSplit(legacyRow([{ id: "beer", name: "Beer", price: 300, split: { by: "amount", units: [[["ann", 50]], [["ann", 50]], [["ann", 50]]] } }])));
+
+    expect(split.receipt.items).toEqual([{ id: "beer", name: "Beer", price: 300, quantity: 3, split: { by: "amount", units: [[["ann", 150]]] } }]);
+    expect(shares(split)).toEqual([
+      ["ann", 150],
+      ["bob", 0],
+    ]);
+  });
+
+  test("a version 3 quantity line with a detail whose units are the same reads as one line with the detail and its quantity", () => {
+    const row = { ...legacyRow([{ id: "beer", name: "Beer", price: 300, detail: "Pint", split: { by: "even", units: [["ann"], ["ann"], ["ann"]] } }]), schemaVersion: 3 };
+
+    const split = accepted(parseSplit(row));
+
+    expect(split.schemaVersion).toBe(4);
+    expect(split.receipt.items).toEqual([{ id: "beer", name: "Beer", price: 300, detail: "Pint", quantity: 3, split: { by: "even", units: [["ann"]] } }]);
+  });
+
+  test("a version 3 quantity line with a detail whose units differ reads as rows that each keep the detail", () => {
+    const row = { ...legacyRow([{ id: "beer", name: "Beer", price: 300, detail: "Pint", split: { by: "even", units: [["ann"], ["bob"], []] } }]), schemaVersion: 3 };
+
+    expect(accepted(parseSplit(row)).receipt.items).toEqual([
+      { id: "beer", name: "Beer", price: 100, detail: "Pint", split: { by: "even", units: [["ann"]] } },
+      { id: "beer-2", name: "Beer", price: 100, detail: "Pint", split: { by: "even", units: [["bob"]] } },
+      { id: "beer-3", name: "Beer", price: 100, detail: "Pint", split: { by: "even", units: [[]] } },
+    ]);
+  });
+
+  test("a version 3 history keeps the detail on each Item write it maps", () => {
+    const pitcher = { name: "Pitcher", price: 1000, detail: "Lager", split: { by: "even", units: [["ann"], ["bob"]] } };
+    const writes = [
+      { kind: "item", id: "pitcher", added: { index: 1, ...pitcher } },
+      { kind: "item", id: "wings", removed: { index: 2, name: "Wings", price: 500, detail: "Hot", split: { by: "even", units: [[]] } } },
+      { kind: "item", id: "beer", edit: { detail: ["", "Pint"], split: [{ by: "even", units: [["ann"]] }, { by: "even", units: [["ann"], ["bob"]] }] } },
+    ];
+    const row = { ...legacyRow([{ id: "beer", name: "Beer", price: 300, claimedBy: [] }]), schemaVersion: 3, revision: 1, recentChanges: [{ revision: 1, by: "ann", writes }] };
+
+    expect(accepted(parseSplit(row)).recentChanges[0].writes).toEqual([
+      { kind: "item", id: "pitcher", added: { index: 1, name: "Pitcher", price: 1000, detail: "Lager", quantity: 2, split: { by: "even", units: [["ann", "bob"]] } } },
+      { kind: "item", id: "wings", removed: { index: 2, name: "Wings", price: 500, detail: "Hot", split: { by: "even", units: [[]] } } },
+      { kind: "item", id: "beer", edit: { detail: ["", "Pint"], quantity: [1, 2], split: [{ by: "even", units: [["ann"]] }, { by: "even", units: [["ann", "bob"]] }] } },
+    ]);
+  });
+
+  test("a line whose rows would pass 100 Items, take an id in use, or take an id over 24 characters reads as one line claimed by everyone who had a unit", () => {
+    const fillers = Array.from({ length: 98 }, (_, index) => ({ id: `i${index}`, name: "Tea", price: 100, claimedBy: [] }));
+    const differing = (id: string) => ({ id, name: "Beer", price: 300, split: { by: "even", units: [["ann"], ["bob"], []] } });
+
+    expect(accepted(parseSplit(legacyRow([...fillers, differing("beer")]))).receipt.items.at(-1)).toEqual({
+      id: "beer",
+      name: "Beer",
+      price: 300,
+      quantity: 3,
+      split: { by: "even", units: [["ann", "bob"]] },
+    });
+    expect(lines(accepted(parseSplit(legacyRow([differing("beer"), { id: "beer-3", name: "Tea", price: 100, claimedBy: [] }]))))).toEqual([
+      ["beer", 300, 3, ["ann", "bob"]],
+      ["beer-3", 100, 1, []],
+    ]);
+    expect(lines(accepted(parseSplit(legacyRow([differing("b".repeat(23))]))))).toEqual([["b".repeat(23), 300, 3, ["ann", "bob"]]]);
+    const amounts = { id: "beer", name: "Beer", price: 200, split: { by: "amount", units: [[["ann", 60]], [["ann", 40], ["bob", 50]]] } };
+    expect(lines(accepted(parseSplit(legacyRow([amounts, { id: "beer-2", name: "Tea", price: 100, claimedBy: [] }]))))).toEqual([
+      ["beer", 200, 2, [["ann", 100], ["bob", 50]]],
+      ["beer-2", 100, 1, []],
+    ]);
+  });
+
+  test("a version 4 row refuses a split with more than one claim set, and a stored quantity of 1", () => {
+    const row = JSON.parse(JSON.stringify(golden("v2-q")));
+    const withItem = (change: object) => ({ ...row, receipt: { ...row.receipt, items: [{ ...row.receipt.items[0], ...change }, ...row.receipt.items.slice(1)] } });
+
+    expect(parseSplit(withItem({ split: { by: "even", units: [[], []] } }))).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].split.units" } });
+    expect(parseSplit(withItem({ quantity: 1 }))).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.items[0].quantity" } });
+  });
+
+  test("a row the current release writes reads back unchanged, with a split Guinness line and the Topgolf Shares", () => {
+    const split = read("v2-q");
+
+    expect(split.schemaVersion).toBe(4);
+    expect(JSON.parse(JSON.stringify(split))).toEqual(golden("v2-q"));
+    expect(lines(split).filter(([id]) => String(id).startsWith("guinness"))).toEqual([
+      ["guinness1", 2187, 3, ["priya"]],
+      ["guinness2", 729, 1, ["jason"]],
+      ["guinness2-b", 729, 1, ["jason"]],
+    ]);
+    expect(shares(split)).toEqual([
+      ["jason", 15777],
+      ["priya", 4952],
+    ]);
+  });
+
+  test("RS-11 rows read the pitcher whose two units differ as two rows, and its old quantity change as a quantity pair", () => {
+    const split = read("rs-11");
+
+    expect(split.schemaVersion).toBe(4);
+    expect(lines(split)).toEqual([
+      ["fries", 900, 1, ["bob"]],
+      ["pitcher", 1500, 1, ["ann", "bob"]],
+      ["pitcher-2", 1500, 1, []],
+    ]);
+    expect(split.recentChanges.find(({ revision }) => revision === 8)?.writes).toEqual([
+      { kind: "item", id: "pitcher", edit: { quantity: [1, 2], split: [{ by: "even", units: [["ann", "bob"]] }, { by: "even", units: [["ann", "bob"]] }] } },
+    ]);
+  });
+
+  test("RS-10 rows read with their device picks, split rows and original Receipt", () => {
     const split = read("rs-10");
 
     expect(split.picks).toEqual([{ participantId: "bob", device: "bobs-phone" }]);
-    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"], []]]);
+    expect(claimers(split)).toEqual([[["bob"]], [["ann", "bob"]], [[]]]);
     expect(split.original?.items.map(({ name }) => name)).toEqual(["Fries", "Pitcher"]);
   });
 
-  test("RS-9 rows read their joined names as picked by no one, and line claims as one unit", () => {
+  test("RS-9 rows read their joined names as picked by no one, and line claims as the line's claim set", () => {
     const split = read("rs-9");
 
     expect(split.picks).toEqual([]);
@@ -554,7 +742,7 @@ describe("Splits stored by each shipped release", () => {
     expect(split.participants.map(({ name }) => name)).toEqual(["Ann", "Bob", "Cat"]);
   });
 
-  test("RS-8 rows read as picked by no one, with line claims as one unit", () => {
+  test("RS-8 rows read as picked by no one, with line claims as the line's claim set", () => {
     const split = read("rs-8");
 
     expect(split.picks).toEqual([]);
@@ -572,7 +760,7 @@ describe("Bundles in a stored Split", () => {
   };
   const items = (list: string[]) => (bundle: { name: string }) => ({ bundle: { name: bundle.name, items: list } });
 
-  test("reads a version 2 row with two Bundles back unchanged", () => {
+  test("reads a version 4 row with two Bundles and its quantity lines back unchanged", () => {
     const split = topgolf({ ...eachOf(bucketOne, priya) });
 
     expect(parseSplit(stored(split))).toEqual({ ok: true, split });
@@ -592,7 +780,9 @@ describe("Bundles in a stored Split", () => {
   });
 
   test("refuses a Bundle discount in a version 1 row, and a Bundle on another kind of Adjustment", () => {
-    expect(parseSplit({ ...stored(), schemaVersion: 1 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments[0].kind" } });
+    const row = stored();
+    const lineByLine = { ...row, receipt: { ...row.receipt, items: row.receipt.items.map(({ quantity: _, ...item }: { quantity?: number }) => item) } };
+    expect(parseSplit({ ...lineByLine, schemaVersion: 1 })).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments[0].kind" } });
     expect(parseSplit(withBundle(stored(), 0, () => ({ kind: "discount" })))).toEqual({ ok: false, rejection: { reason: "malformed", path: "receipt.adjustments[0].bundle" } });
   });
 
