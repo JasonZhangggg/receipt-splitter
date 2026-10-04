@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Flash census: drives each reported flash in WebKit and Chromium against `launch --port`, with and without added socket and API latency,
-// and with a simulated iPhone keyboard (visualViewport shrinks on focus and grows on blur, window size unchanged, as in iOS Safari).
+// and with the simulated iOS keyboard from e2e/motion.ts (visualViewport shrinks and pans to the field on focus, and goes back on blur).
 // Per phase it records every probe per frame, socket traffic, visualViewport resizes, and DOM removals and re-additions of the same element,
 // then counts each flash under the signals that fired with it.
 // Usage: flash-census.mjs --port 8873 [--engines webkit,chromium] [--latency 0,250] [--runs 2] [--only item-mode,...] [--out /tmp/flash]
@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium, devices, webkit } from "@playwright/test";
 
-import { drag, still, tap } from "../../../e2e/motion.ts";
+import { drag, iosKeyboard, still, tap } from "../../../e2e/motion.ts";
 
 const { values } = parseArgs({
   options: {
@@ -30,30 +30,15 @@ const keyboardPx = Number(values.keyboard);
 const lanes = { webkit: { engine: webkit, device: devices["iPhone 15"] }, chromium: { engine: chromium, device: devices["Pixel 7"] } };
 
 /* In-page recorder. Times are Date.now() so they merge with the Node-side socket log. */
-const recorder = ({ keyboardPx }) => {
-  const census = { events: [], frames: [], probes: {}, kb: 0, recording: false, auto: true };
+const recorder = () => {
+  const census = { events: [], frames: [], probes: {}, recording: false };
   window.__census = census;
   const log = (event) => census.events.push({ t: Date.now(), ...event });
   const vv = window.visualViewport;
-  const height = Object.getOwnPropertyDescriptor(VisualViewport.prototype, "height").get;
-  Object.defineProperty(vv, "height", { configurable: true, get: () => height.call(vv) - census.kb });
-  census.keyboard = (px) => {
-    if (census.kb === px) return;
-    census.kb = px;
-    log({ src: "keyboard", px });
-    vv.dispatchEvent(new Event("resize"));
-  };
-  vv.addEventListener("resize", () => log({ src: "vv-resize", h: vv.height }));
+  vv.addEventListener("resize", () => log({ src: "vv-resize", h: vv.height, pan: vv.offsetTop }));
   window.addEventListener("resize", () => log({ src: "win-resize", h: innerHeight }));
-  const typing = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
-  document.addEventListener("focusin", (e) => {
-    log({ src: "focus", label: e.target.getAttribute?.("aria-label") });
-    if (census.auto && typing(e.target)) setTimeout(() => census.keyboard(keyboardPx), 60);
-  });
-  document.addEventListener("focusout", (e) => {
-    log({ src: "blur", label: e.target.getAttribute?.("aria-label") });
-    if (census.auto && typing(e.target)) setTimeout(() => !typing(document.activeElement) && census.keyboard(0), 60);
-  });
+  document.addEventListener("focusin", (e) => log({ src: "focus", label: e.target.getAttribute?.("aria-label") }));
+  document.addEventListener("focusout", (e) => log({ src: "blur", label: e.target.getAttribute?.("aria-label") }));
   // A logical element is its test id, or its role and accessible name. Copies under aria-hidden (the sheet's outgoing picture) do not count.
   const keyOf = (el) => {
     const id = el.getAttribute("data-testid");
@@ -107,15 +92,15 @@ const recorder = ({ keyboardPx }) => {
 /* Probes return a number, a string, or null each frame. */
 const probeSource = {
   mode: `() => document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"] [aria-pressed="true"]')?.getAttribute("aria-label") ?? null`,
-  itemTop: `() => document.querySelector('[data-testid="item-sheet"]')?.getBoundingClientRect().top ?? null`,
-  sheetTop: `() => document.querySelector('[data-testid="split-sheet"]')?.getBoundingClientRect().top ?? null`,
+  itemTop: `() => { const el = document.querySelector('[data-testid="item-sheet"]'); return el ? el.getBoundingClientRect().top - visualViewport.offsetTop : null; }`,
+  sheetTop: `() => { const el = document.querySelector('[data-testid="split-sheet"]'); return el ? el.getBoundingClientRect().top - visualViewport.offsetTop : null; }`,
   sheetHeight: `() => document.querySelector('[data-testid="split-sheet"]')?.getBoundingClientRect().height ?? null`,
   expanded: `() => document.querySelector('[data-testid^="bundle-"] [aria-expanded]')?.getAttribute("aria-expanded") ?? null`,
   region: `() => document.querySelector('[data-testid^="bundle-"]')?.lastElementChild?.getBoundingClientRect().height ?? null`,
   regionShown: `() => (document.querySelector('[data-testid^="bundle-"]')?.lastElementChild?.childElementCount ?? 0) > 0 ? "rows" : "empty"`,
   vvHeight: `() => visualViewport.height`,
-  priceCovered: `() => { const el = document.querySelector('input[aria-label="Price"]'); return el ? (el.getBoundingClientRect().bottom > visualViewport.height ? "covered" : "visible") : null; }`,
-  nameCovered: `() => { const el = document.querySelector('[data-testid="split-sheet"] input[aria-label="Name"]'); return el ? (el.getBoundingClientRect().bottom > visualViewport.height ? "covered" : "visible") : null; }`,
+  priceCovered: `() => { const el = document.querySelector('input[aria-label="Price"]'); return el ? (el.getBoundingClientRect().bottom > visualViewport.offsetTop + visualViewport.height ? "covered" : "visible") : null; }`,
+  nameCovered: `() => { const el = document.querySelector('[data-testid="split-sheet"] input[aria-label="Name"]'); return el ? (el.getBoundingClientRect().bottom > visualViewport.offsetTop + visualViewport.height ? "covered" : "visible") : null; }`,
 };
 
 /* Setup: a Split with a Bundle, picked as Jason. */
@@ -298,7 +283,8 @@ for (const engineName of values.engines.split(",")) {
             }, latency / 2);
           });
         });
-        await context.addInitScript(recorder, { keyboardPx });
+        await context.addInitScript(iosKeyboard, keyboardPx);
+        await context.addInitScript(recorder);
         if (engineName === "webkit") await context.addInitScript(() => Object.assign(Element.prototype, { setPointerCapture() {}, releasePointerCapture() {} }));
         const page = await context.newPage();
         const errors = [];

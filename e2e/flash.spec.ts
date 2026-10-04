@@ -91,16 +91,31 @@ test("under reduced motion, a closing Bundle's rows never return to full opacity
   expect(seen.at(-1)).toEqual({ rows: false, opacity: expect.any(Number) });
 });
 
-test("the bar rises onto the keyboard in one step and drops back with it in one step", async ({ page }) => {
+// iOS pans the page to reveal the focused field, so a sheet that also moved for the keyboard would move twice.
+test("the bar stays where it lies in the page while the keyboard opens and closes", async ({ page }) => {
   await simulateKeyboard(page, keyboard);
   await picked(page, fitsOneRow);
   const resting = Math.round((await page.getByTestId("split-sheet").boundingBox())!.y);
   const tops = await sample<number>(page, `Math.round(document.querySelector('[data-testid="split-sheet"]').getBoundingClientRect().top)`);
   await tap(page.getByTestId("split-sheet").getByRole("button", { name: "Add a person" }));
   await page.waitForTimeout(800);
+  expect(await page.evaluate(() => visualViewport!.offsetTop)).toBeGreaterThan(0);
   await blur(page);
   await page.waitForTimeout(800);
-  expect(runs(await tops())).toEqual([resting, resting - keyboard, resting]);
+  expect(runs(await tops())).toEqual([resting]);
+});
+
+test("the item sheet stays where it lies in the page while the price field's keyboard opens and closes", async ({ page }) => {
+  await simulateKeyboard(page, keyboard);
+  await itemShared(page);
+  const item = page.getByTestId("item-sheet");
+  const resting = Math.round((await item.boundingBox())!.y);
+  const tops = await sample<number>(page, `Math.round(document.querySelector('[data-testid="item-sheet"]').getBoundingClientRect().top)`);
+  await tap(item.locator('input[aria-label="Price"]'));
+  await page.waitForTimeout(800);
+  await blur(page);
+  await page.waitForTimeout(800);
+  expect(runs(await tops())).toEqual([resting]);
 });
 
 test("with the keyboard up, the item sheet's price and name fields stay in view, uncovered", async ({ page }) => {

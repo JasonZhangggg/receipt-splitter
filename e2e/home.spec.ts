@@ -1,5 +1,6 @@
 import { fallbackSamples } from "../src/ui/home-copy";
 import { openExample } from "./files";
+import { simulateKeyboard } from "./motion";
 import { mountHarness } from "./harness";
 import { expect, test, type Locator, type Page } from "./without-ocr";
 
@@ -148,35 +149,19 @@ test("with no way to pay, Create split link shows no note until a tap, which put
 
 const iphoneKeyboard = 336;
 
-async function simulateKeyboard(page: Page) {
-  await page.evaluate((keyboard) => {
-    const viewport = window.visualViewport!;
-    const height = Object.getOwnPropertyDescriptor(VisualViewport.prototype, "height")!.get!;
-    let shown = 0;
-    Object.defineProperty(viewport, "height", { configurable: true, get: () => height.call(viewport) - shown });
-    const show = (px: number) => {
-      if (shown === px) return;
-      shown = px;
-      viewport.dispatchEvent(new Event("resize"));
-    };
-    const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
-    document.addEventListener("focusin", (event) => typing(event.target) && setTimeout(() => show(keyboard), 60));
-    document.addEventListener("focusout", () => setTimeout(() => !typing(document.activeElement) && show(0), 60));
-  }, iphoneKeyboard);
-}
-
 const aboveKeyboard = (field: Locator) =>
   field.evaluate((el) => {
     const { top, bottom } = el.getBoundingClientRect();
-    return top >= 0 && bottom <= window.visualViewport!.height;
+    const { offsetTop, height } = window.visualViewport!;
+    return top >= offsetTop && bottom <= offsetTop + height;
   });
 
 test.describe("with the iPhone keyboard up", () => {
   test("the focused handle field and name field sit above the keyboard, and the panel returns to rest when it goes down", async ({ page }) => {
+    await simulateKeyboard(page, iphoneKeyboard);
     await page.goto("/");
     await settle(page);
     const rest = await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top);
-    await simulateKeyboard(page);
 
     const handle = page.getByRole("textbox", { name: "Venmo handle" });
     await handle.tap();
@@ -199,9 +184,9 @@ test.describe("with the iPhone keyboard up and twelve names", () => {
   for (const height of [phone.height, 667]) {
     test(`the whole panel, grab included, stays inside the visible area at ${height} px tall`, async ({ page }) => {
       await page.setViewportSize({ width: phone.width, height });
+      await simulateKeyboard(page, iphoneKeyboard);
       await page.goto("/");
       await settle(page);
-      await simulateKeyboard(page);
 
       const people = page.getByRole("group", { name: "People at the table" });
       await people.getByRole("button", { name: "Your name" }).tap();
@@ -214,7 +199,7 @@ test.describe("with the iPhone keyboard up and twelve names", () => {
       await expect(field).toBeFocused();
       await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(height - iphoneKeyboard);
 
-      await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
+      await expect.poll(() => page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top - window.visualViewport!.offsetTop)).toBeGreaterThanOrEqual(0);
       await expect.poll(() => aboveKeyboard(field)).toBe(true);
       await expect.poll(() => aboveKeyboard(action(page))).toBe(true);
     });

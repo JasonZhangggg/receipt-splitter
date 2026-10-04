@@ -90,7 +90,8 @@ const sampler = (probes: Probe[]) => {
     return value;
   };
   const read = (el: Element, kind: ProbeKind) => {
-    if (kind === "top") return el.getBoundingClientRect().top;
+    // On screen, so iOS panning the visual viewport for the keyboard counts as movement.
+    if (kind === "top") return el.getBoundingClientRect().top - (window.visualViewport?.offsetTop ?? 0);
     if (kind === "left") return el.getBoundingClientRect().left;
     if (kind === "height") return el.getBoundingClientRect().height;
     if (kind === "opacity") return opacity(el);
@@ -357,22 +358,41 @@ export async function still(target: Locator) {
   throw new Error("did not hold still");
 }
 
-/** iOS Safari's keyboard: shortly after a text field takes focus the visual viewport shrinks by `px`, and it grows back on blur. The window keeps its size. */
+/**
+ * iOS 27 Safari's keyboard, as measured in the simulator. Shortly after a text field takes focus the visual viewport shrinks by `px`,
+ * and iOS pans it down (`offsetTop`) far enough to reveal the field where it stood when it took focus. `innerHeight` then reads the
+ * layout height minus the pan. On blur both go back. The layout viewport (`clientHeight`) keeps its size throughout.
+ * Runs in the page, so it closes over nothing.
+ */
+export function iosKeyboard(px: number) {
+  const viewport = window.visualViewport!;
+  const layout = () => document.documentElement.clientHeight;
+  const real = (proto: object, key: string) => Object.getOwnPropertyDescriptor(proto, key)!.get!;
+  const height = real(VisualViewport.prototype, "height");
+  const offsetTop = real(VisualViewport.prototype, "offsetTop");
+  let covered = 0;
+  let pan = 0;
+  Object.defineProperty(viewport, "height", { configurable: true, get: () => height.call(viewport) - covered });
+  Object.defineProperty(viewport, "offsetTop", { configurable: true, get: () => offsetTop.call(viewport) + pan });
+  Object.defineProperty(window, "innerHeight", { configurable: true, get: () => layout() - pan });
+  const set = (keyboard: number, reveal: number) => {
+    if (covered === keyboard && pan === reveal) return;
+    covered = keyboard;
+    pan = reveal;
+    viewport.dispatchEvent(new Event("resize"));
+    viewport.dispatchEvent(new Event("scroll"));
+  };
+  const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+  document.addEventListener("focusin", ({ target }) => {
+    if (!typing(target)) return;
+    const reveal = Math.min(px, Math.max(pan, Math.ceil((target as Element).getBoundingClientRect().bottom + 8 - (layout() - px))));
+    setTimeout(() => set(px, reveal), 60);
+  });
+  document.addEventListener("focusout", () => setTimeout(() => !typing(document.activeElement) && set(0, 0), 60));
+}
+
 export async function simulateKeyboard(page: Page, px = 336) {
-  await page.addInitScript((px) => {
-    const viewport = window.visualViewport!;
-    const height = Object.getOwnPropertyDescriptor(VisualViewport.prototype, "height")!.get!;
-    let covered = 0;
-    Object.defineProperty(viewport, "height", { configurable: true, get: () => height.call(viewport) - covered });
-    const cover = (to: number) => {
-      if (covered === to) return;
-      covered = to;
-      viewport.dispatchEvent(new Event("resize"));
-    };
-    const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
-    document.addEventListener("focusin", ({ target }) => typing(target) && setTimeout(() => cover(px), 60));
-    document.addEventListener("focusout", () => setTimeout(() => !typing(document.activeElement) && cover(0), 60));
-  }, px);
+  await page.addInitScript(iosKeyboard, px);
 }
 
 export async function addLatency(page: Page, ms: number) {
@@ -765,7 +785,7 @@ export const scenarios: Scenario[] = [
   slow(splitType, 300),
   {
     id: "keyboard-name-up",
-    name: "Split sheet: the bar rises with the keyboard when the name field takes focus",
+    name: "Split sheet: the page pans up in one step when the name field takes focus",
     instant: true,
     setup: withKeyboard((page) => picked(page, fitsOneRow)),
     act: (page) => tap(sheet(page).getByRole("button", { name: "Add a person" })),
@@ -773,7 +793,7 @@ export const scenarios: Scenario[] = [
   },
   {
     id: "keyboard-name-down",
-    name: "Split sheet: the bar falls with the keyboard on blur",
+    name: "Split sheet: the page pans back in one step on blur",
     instant: true,
     setup: withKeyboard(addingName),
     act: blur,
@@ -781,7 +801,7 @@ export const scenarios: Scenario[] = [
   },
   {
     id: "keyboard-price-up",
-    name: "Item sheet: the panel rises with the keyboard when the price field takes focus",
+    name: "Item sheet: the page pans up in one step when the price field takes focus",
     instant: true,
     setup: withKeyboard(itemOpen),
     act: (page) => tap(page.getByTestId("item-sheet").locator('input[aria-label="Price"]')),
@@ -789,7 +809,7 @@ export const scenarios: Scenario[] = [
   },
   {
     id: "keyboard-price-down",
-    name: "Item sheet: the panel falls with the keyboard on blur, and the bar behind it stays down",
+    name: "Item sheet: the page pans back in one step on blur, and the bar behind it stays down",
     instant: true,
     setup: withKeyboard(priceFocused),
     act: blur,
