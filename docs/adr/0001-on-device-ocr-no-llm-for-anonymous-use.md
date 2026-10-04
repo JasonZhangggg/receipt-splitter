@@ -5,3 +5,5 @@ Receipt photos never leave the device: OCR and parsing run on the phone, and no 
 Amended by ADR 0007 on 2026-10-01. OCR and parsing still run on the device, but a downscaled copy of the photo goes to the Split when the Host creates the link, so everyone in the Split can view it.
 
 Amended on 2026-10-01. A failing Total check no longer highlights rows or blocks anything. It shows as a quiet note on home and on the Split page, and anyone fixes a line on the Split page.
+
+Replaced in part by ADR 0008 on 2026-10-03. The device still runs OCR, but the server now reads the receipt. The photo and the OCR lines go through `POST /api/scan` to a third-party model. The on-device parser stays as the fallback.
