@@ -178,18 +178,27 @@ const dashedBox = (page: Page) =>
     const box = [hero, ...hero.querySelectorAll("div")].find((el) => getComputedStyle(el).borderTopStyle === "dashed")!.getBoundingClientRect();
     const header = document.querySelector('[role="heading"][aria-level="1"]')!.parentElement!.getBoundingClientRect();
     const panel = document.querySelector("[data-sheet-surface]")!.getBoundingClientRect();
-    return { aboveBox: Math.round(box.top - header.bottom), belowBox: Math.round(panel.top - box.bottom), top: Math.round(box.top), bottom: Math.round(box.bottom) };
+    return { aboveBox: Math.round(box.top - header.bottom), belowBox: Math.round(panel.top - box.bottom), top: Math.round(box.top), bottom: Math.round(box.bottom), height: Math.round(box.height) };
   });
 
-for (const height of [844, 700]) {
-  test(`at 390 by ${height} the dashed Add receipt box fills the page from the header to the panel with 24 px above and 32 px below`, async ({ page }) => {
+for (const height of [844, 740]) {
+  test(`at 390 by ${height} the dashed Add receipt box fills the page from the header to the panel with 44 px above and 48 px below`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height });
     await seed(page, [jason]);
     const { aboveBox, belowBox } = await dashedBox(page);
-    expect(aboveBox).toBe(24);
-    expect(belowBox).toBe(32);
+    expect(aboveBox).toBe(44);
+    expect(belowBox).toBe(48);
   });
 }
+
+test("at 390 by 700 the dashed Add receipt box stays at its 332 px floor with 44 px above and at least 16 px clear of the panel", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 700 });
+  await seed(page, [jason]);
+  const { aboveBox, belowBox, height } = await dashedBox(page);
+  expect(height).toBe(332);
+  expect(aboveBox).toBe(44);
+  expect(belowBox).toBeGreaterThanOrEqual(16);
+});
 
 const blockStorage = (page: Page) =>
   page.addInitScript(() =>
