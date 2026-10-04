@@ -50,12 +50,20 @@ async function apiSplit(request: APIRequestContext, ip: string) {
 const putPhoto = (request: APIRequestContext, id: string, creatorSecret: string, body: Uint8Array) =>
   request.put(`/api/splits/${id}/photo`, { headers: { "content-type": "image/jpeg", authorization: `Bearer ${creatorSecret}` }, data: Buffer.from(body) });
 
-async function scanAndCreate(page: Page) {
+async function scan(page: Page) {
   await page.goto("/");
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: /^(Add|Drop a) receipt/ }).click();
   await (await chooser).setFiles("e2e/fixtures/topgolf-synthetic.png");
   await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
+}
+
+async function scanAndCreate(page: Page) {
+  await scan(page);
+  await create(page);
+}
+
+async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await page.getByRole("button", { name: "Your name" }).click();
   await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
@@ -109,6 +117,26 @@ test.describe("on Chromium", () => {
     await page.getByRole("button", { name: "Split a receipt" }).click();
     await expect(page.getByRole("button", { name: /^(Add|Drop a) receipt/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "View receipt" })).toHaveCount(0);
+  });
+
+  test("a scan kept across a visit to Recent splits and Back still sends its photo after Create", async ({ page, request, browserName }, testInfo) => {
+    test.setTimeout(150_000);
+    const earlier = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
+    await page.goto(`/s/${earlier.id}`);
+    await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+    const puts: Request[] = [];
+    page.on("request", (request) => isPut(request) && puts.push(request));
+
+    await scan(page);
+    await page.getByRole("button", { name: "Recent splits" }).click();
+    await page.getByRole("dialog", { name: "Recent splits" }).getByRole("link").first().click();
+    await expect(page).toHaveURL(new RegExp(`/s/${earlier.id}$`));
+    await page.goBack();
+    await expect(page.getByTestId("receipt")).toBeVisible();
+    await create(page);
+
+    await expect(viewReceipt(page)).toBeVisible({ timeout: 2_000 });
+    expect(puts.map((put) => new URL(put.url()).pathname)).toEqual([new URL(page.url()).pathname.replace(/^\/s\//, "/api/splits/") + "/photo"]);
   });
 
   test("a failed upload is tried once more and then left, and the Split shows no View receipt", async ({ page }) => {
