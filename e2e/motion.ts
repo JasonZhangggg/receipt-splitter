@@ -26,10 +26,14 @@ export type Scenario = {
   quietMs?: number;
   /** The change is meant to land in one frame: under reduced motion, or after a keyboard action, which never animates. */
   instant?: boolean;
+  /** The Split page layout the scenario drives: the phone's sheets under 1024 px, or the desktop pair and popovers. Absent, it runs at any width. */
+  layout?: Layout;
   setup: (page: Page) => Promise<void>;
   act: (page: Page) => Promise<void>;
   probes: Probe[];
 };
+
+export type Layout = "phone" | "desktop";
 
 export const vsync = 1000 / 60;
 
@@ -785,7 +789,7 @@ const photoOpen: Scenario = {
   probes: photoProbes,
 };
 
-export const scenarios: Scenario[] = [
+const sheetAndHome: Scenario[] = [
   pickHandoff,
   {
     id: "chip-entrance",
@@ -938,3 +942,111 @@ export const frames = (page: Page, count: number) =>
   );
 
 export const animationsDone = (page: Page) => page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
+
+const anyWidth = new Set(["home-panel-spring", "name-add", "photo-open", "photo-close", "reduced-photo-open"]);
+
+const pane = (page: Page) => page.getByRole("complementary");
+const itemPopover = `document.querySelector('[role="dialog"][aria-label="Item"]')`;
+const popoverProbes: Probe[] = [
+  { key: "popover", find: itemPopover, kind: "opacity" },
+  { key: "popoverScale", find: itemPopover, kind: "scale" },
+];
+// Both breakdowns carry the same test id during the swap, so each is found by its total's label.
+const breakdownSaying = (words: string) =>
+  `[...document.querySelectorAll('[data-testid="breakdown"], [data-left-testid="breakdown"]')].find((el) => el.textContent.includes("${words}")) ?? null`;
+const riceLine = (page: Page) => page.getByRole("button", { name: /^Open Rice/ });
+
+async function deskSplit(page: Page) {
+  creates += 1;
+  const response = await page.request.post("/api/splits", {
+    headers: { "cf-connecting-ip": `198.19.${(Date.now() >> 8) % 250}.${creates % 250}` },
+    data: { split: { receipt: dinner, participants: table, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
+  });
+  if (response.status() !== 201) throw new Error(`creating a Split answered ${response.status()}`);
+  await page.goto(`/s/${(await response.json()).id}`);
+  await pane(page).getByRole("heading", { name: "Which one are you?" }).waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+}
+
+async function deskPicked(page: Page) {
+  await deskSplit(page);
+  await pane(page).getByRole("button", { name: "Jason", exact: true }).click();
+  await pane(page).getByTestId("breakdown").waitFor();
+  await page.waitForTimeout(600);
+}
+
+async function deskPopover(page: Page) {
+  await deskPicked(page);
+  await riceLine(page).click();
+  await page.getByRole("dialog", { name: "Item" }).waitFor();
+  await page.waitForTimeout(400);
+}
+
+async function deskBundleOpen(page: Page) {
+  await deskPicked(page);
+  await openBundle(page);
+  await page.locator('[data-testid^="bundle-"]').locator('[aria-expanded="true"]').waitFor();
+  await page.waitForTimeout(700);
+}
+
+const deskHandoff: Scenario = {
+  id: "desk-pane-handoff",
+  name: "Desktop pane: the pick content fades through to Your share",
+  layout: "desktop",
+  setup: deskSplit,
+  act: (page) => pane(page).getByRole("button", { name: "Jason", exact: true }).click(),
+  probes: [{ key: "question", find: heading("Which one are you?"), kind: "opacity" }, breakdownFade],
+};
+const deskPopoverOpen: Scenario = {
+  id: "desk-popover-open",
+  name: "Desktop: a line's popover scales in from its corner",
+  layout: "desktop",
+  setup: deskPicked,
+  act: (page) => riceLine(page).click(),
+  probes: popoverProbes,
+};
+const deskBundleExpand: Scenario = { ...bundleExpand, id: "desk-bundle-expand", name: "Desktop: Bundle expands, chevron turns", layout: "desktop", setup: deskPicked };
+const deskBundleCollapse: Scenario = { ...bundleCollapse, id: "desk-bundle-collapse", name: "Desktop: Bundle collapses, chevron turns back", layout: "desktop", setup: deskBundleOpen };
+
+export const scenarios: Scenario[] = [
+  ...sheetAndHome.map((scenario) => (anyWidth.has(scenario.id) ? scenario : { ...scenario, layout: "phone" as const })),
+  deskHandoff,
+  deskPopoverOpen,
+  {
+    id: "desk-popover-close",
+    name: "Desktop: a click outside fades the popover out",
+    layout: "desktop",
+    setup: deskPopover,
+    act: (page) => page.mouse.click(20, 880),
+    probes: popoverProbes,
+  },
+  {
+    id: "desk-popover-key",
+    name: "Desktop: Enter on a line shows its popover at once",
+    layout: "desktop",
+    instant: true,
+    setup: async (page) => {
+      await deskPicked(page);
+      await riceLine(page).focus();
+    },
+    act: (page) => page.keyboard.press("Enter"),
+    probes: popoverProbes,
+  },
+  {
+    id: "desk-chip-swap",
+    name: "Desktop pane: another person's chip fades their breakdown through",
+    layout: "desktop",
+    setup: deskPicked,
+    act: (page) => pane(page).getByRole("button", { name: "Sam", exact: true }).click(),
+    probes: [
+      { key: "mine", find: breakdownSaying("Your share"), kind: "opacity" },
+      { key: "theirs", find: breakdownSaying("Sam owes"), kind: "opacity" },
+    ],
+  },
+  deskBundleExpand,
+  deskBundleCollapse,
+  { ...reduced(deskHandoff), layout: "desktop" },
+  { ...reduced(deskPopoverOpen), layout: "desktop" },
+  { ...reduced(deskBundleExpand), layout: "desktop" },
+  { ...reduced(deskBundleCollapse), layout: "desktop" },
+];
