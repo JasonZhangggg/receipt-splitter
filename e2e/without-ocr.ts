@@ -8,19 +8,20 @@ const slowRafMs = Number(process.env.SLOW_RAF ?? 0);
 function delayAnimationFrames(delay: number) {
   const nativeFrame = window.requestAnimationFrame.bind(window);
   const nativeTimeout = window.setTimeout.bind(window);
-  const pending = new Map<number, number>();
+  const live = new Set<number>();
   let next = 1;
   window.requestAnimationFrame = (callback) => {
     const id = next++;
-    nativeFrame(() => pending.set(id, nativeTimeout(() => {
-      pending.delete(id);
-      callback(performance.now());
-    }, delay)));
+    live.add(id);
+    nativeFrame(() =>
+      nativeTimeout(() => {
+        if (live.delete(id)) callback(performance.now());
+      }, delay),
+    );
     return id;
   };
   window.cancelAnimationFrame = (id) => {
-    window.clearTimeout(pending.get(id));
-    pending.delete(id);
+    if (id != null) live.delete(id);
   };
 }
 
