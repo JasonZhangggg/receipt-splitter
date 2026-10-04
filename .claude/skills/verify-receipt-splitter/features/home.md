@@ -39,7 +39,7 @@ Preconditions:
 ## Gotchas
 
 - **Create split link** does nothing when enabled until RS-9 gives it a handler.
-- The draft survives reloads in one browser context. A fresh Playwright context starts on the empty page.
+- A reload of home keeps only the payment handles, in one browser context. The receipt, the photo, and the names start empty. A fresh Playwright context also starts with no handle.
 - The hero's accessible name is its title and its subline together, such as "Add receipt JPEG, PNG, or WebP". Match it by its start.
 - The fonts are two requests under `/fonts/`. A font file name changes with its content, which is what makes the immutable cache header safe.
 - The Playwright config starts its own server on `PORT`, so never point the spec at a port where `launch` is serving.

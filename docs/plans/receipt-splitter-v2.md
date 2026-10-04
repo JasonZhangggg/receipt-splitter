@@ -793,17 +793,17 @@ A reload of home starts a new split: no receipt, no photo, no names. The payment
 **Files.**
 
 - [ ] Edit `src/draft.ts` and `src/draft.test.ts`.
-- [ ] Edit `app/index.tsx`.
-- [ ] Edit `e2e/home.spec.ts`.
+- [ ] Edit `e2e/join.spec.ts` and `e2e/scan.spec.ts`.
+- [ ] Add `e2e/fixtures/example-total-over-limit.png` through `e2e/fixtures/make-fixtures.py`. The home editor tests reached the editor through a stored Draft; a read whose Total is over the limit reaches it the way a Host does.
 - [ ] Edit `features/home.md` in `verify-receipt-splitter`.
 
 **Build.**
 
 - [ ] Reproduce the prefilled handle in Safari on an iOS Simulator device of the owner's own, before any fix. Record what the field shows against what the Draft holds after a reload, a crash reload of the tab, and a Safari relaunch.
 - [ ] Store only the payment handles. The stored value is `{ version: 2, handles }` under the same key, so the first save after this PR overwrites a version 1 Draft and its receipt thumbnail. A version 1 value still yields its handles, so nobody retypes a handle after the deploy.
-- [ ] Home starts from the empty Draft with the stored handles, and saves only when the handles change.
+- [ ] `loadDraft` returns the empty Draft with the stored handles, and `saveDraft` stores only the handles, so `app/index.tsx` does not change.
 - [ ] Delete the code that only read a stored receipt back: the stored-scan parser and its Item, Adjustment, Bundle, and file checks.
-- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before touching `app/index.tsx`. The PR adds no motion and no UI text.
+- [ ] The PR changes no UI code, no motion, and no UI text.
 
 **You see.**
 
@@ -811,13 +811,13 @@ A reload of home starts a new split: no receipt, no photo, no names. The payment
 
 **Seams.**
 
-- [ ] `saveHandles` and `loadHandles` in `src/draft.ts`, through a memory storage, in `src/draft.test.ts`.
-- [ ] The home page through Playwright in `e2e/home.spec.ts`.
+- [ ] `saveDraft` and `loadDraft` in `src/draft.ts`, through a memory storage, in `src/draft.test.ts`.
+- [ ] The home page through Playwright in `e2e/join.spec.ts`, beside the other fresh-home cases, and `e2e/scan.spec.ts`. Specs that read the stored receipt read the body Create sends instead.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `src/draft.test.ts`. Saved handles load back in order; a full Draft saved by the old build loads back as its handles only; nothing, bad JSON, or another version loads the one empty Venmo row. Run `npm test`.
-- [ ] `e2e/home.spec.ts`. After a handle, the Example receipt, and two names, a reload shows the handle and no receipt card or name chips. Then the Example receipt and a name, and a tap on **Create split link** opens the Split page with that handle. The case holds the CI-robustness rule. Run `npm run e2e`.
+- [ ] `src/draft.test.ts`. A saved Draft loads back as the empty Draft with its handles in order; a kept handle makes the Draft ready once a Receipt and a name are back; a full Draft saved by the old build loads back as its handles only, and the first save overwrites it; nothing, bad JSON, or another version loads the one empty Venmo row. Run `npm test`.
+- [ ] `e2e/join.spec.ts`. After a handle, the Example receipt, and two names, a reload shows the handle and no receipt card or name chips. Then the Example receipt and a name, and a tap on **Create split link** opens the Split page and sends that handle. The case holds the CI-robustness rule. Run `npm run e2e`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
