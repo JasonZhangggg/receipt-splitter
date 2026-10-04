@@ -281,3 +281,45 @@ test("the bar's name field has room around it for its focus ring inside every cl
   });
   expect(clipped).toEqual([]);
 });
+
+test("Back from a Split page paints home settled from its first frame: the hero, Recent splits and the panel never move", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const created = await page.request.post("/api/splits", {
+    headers: { "cf-connecting-ip": "198.53.251.1" },
+    data: {
+      split: {
+        receipt: { items: [{ id: "i1", name: "Pizza", price: 2000 }], adjustments: [], subtotal: 2000, total: 2000 },
+        participants: [
+          { id: "jason", name: "Jason" },
+          { id: "sam", name: "Sam" },
+        ],
+        paymentHandles: [{ service: "venmo", handle: "jason-z" }],
+      },
+    },
+  });
+  const { id } = (await created.json()) as { id: string };
+  await page.goto("/");
+  await page.evaluate((id) => {
+    const now = Date.now();
+    for (const [i, split] of [id, "PriyaJo000000000000003", "AnaBenCy00000000000001"].entries())
+      localStorage.setItem(`receipt-splitter:split:${split}`, JSON.stringify({ recent: { names: ["Jason", "Sam"], total: 2000, added: now - i * 60_000, seen: now - i * 60_000 } }));
+  }, id);
+  await page.reload();
+  await tap(page.getByRole("region", { name: "Recent splits" }).getByRole("link").first());
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 30_000 });
+
+  const layouts = await sample<string | null>(
+    page,
+    `(() => {
+      const hero = document.evaluate("//*[text()='Add receipt']", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      if (!hero) return null;
+      const list = document.querySelector('[aria-label="Recent splits"]');
+      const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : null);
+      return JSON.stringify({ hero: top(hero), list: top(list), rows: list ? list.querySelectorAll("a").length : 0, panel: top(document.querySelector("[data-sheet-surface]")) });
+    })()`,
+  );
+  await page.goBack();
+  await expect(page.getByRole("region", { name: "Recent splits" })).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(runs((await layouts()).filter((layout) => layout !== null))).toHaveLength(1);
+});
