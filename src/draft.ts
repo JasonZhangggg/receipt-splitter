@@ -1,5 +1,5 @@
 import { cents, MAX_CENTS, price, type Cents } from "./core/money";
-import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
+import { canonicalName, isName, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
 import { adjustmentId, itemId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 
@@ -89,6 +89,12 @@ const sum = (values: readonly number[]) => values.reduce((total, value) => total
 
 const inRange = (amount: number) => Math.abs(amount) <= MAX_CENTS;
 
+/** The name as read, or null when it draws nothing, which the Split refuses. */
+function rowName(read: string): string | null {
+  const name = clip(read.trim());
+  return isName(name, MAX_ROW_NAME_LENGTH) ? name : null;
+}
+
 const adjustmentNames: Record<Adjustment["kind"], string> = { tax: "Tax", tip: "Tip", serviceCharge: "Service charge", discount: "Discount", bundleDiscount: "Discount" };
 
 /**
@@ -97,13 +103,13 @@ const adjustmentNames: Record<Adjustment["kind"], string> = { tax: "Tax", tip: "
  */
 function sendable(read: Receipt): Receipt | null {
   const named = read.items.flatMap((item) => {
-    const name = clip(item.name.trim());
-    return !name && item.price === 0 ? [] : [{ ...item, name }];
+    const name = rowName(item.name);
+    return name === null && item.price === 0 ? [] : [{ ...item, name }];
   });
   const [first, ...rest] = named.map(
     ({ id, name, price: amount, detail, quantity }, i): Item => ({
       id,
-      name: name || `Item ${i + 1}`,
+      name: name ?? `Item ${i + 1}`,
       price: inRange(amount) ? amount : price(0),
       ...(detail && { detail }),
       ...(quantity && { quantity }),
@@ -114,7 +120,7 @@ function sendable(read: Receipt): Receipt | null {
   const kept = new Set(items.map(({ id }) => id));
   const adjustments = read.adjustments.flatMap((row): Adjustment[] => {
     if (row.kind === "tip") return [];
-    const fields = { id: row.id, name: clip(row.name.trim()) || adjustmentNames[row.kind], amount: inRange(row.amount) ? row.amount : cents(0) };
+    const fields = { id: row.id, name: rowName(row.name) ?? adjustmentNames[row.kind], amount: inRange(row.amount) ? row.amount : cents(0) };
     if (row.kind !== "bundleDiscount") return [{ ...fields, kind: row.kind }];
     const [inside, ...others] = row.bundle.items.filter((id) => kept.has(id));
     if (inside === undefined) return [{ ...fields, kind: "discount" }];

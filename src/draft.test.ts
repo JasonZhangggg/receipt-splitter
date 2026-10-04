@@ -342,6 +342,18 @@ describe("a read the Split would refuse as it is", () => {
     expect(sentOf(receipt).items.at(-1)).toEqual({ id: "i6", name: "Item 6", price: 150 });
   });
 
+  test("calls an Item or Adjustment whose name draws nothing by its place or kind, since the Split refuses such a name", () => {
+    const receipt: Receipt = {
+      ...receipt1040,
+      items: [...receipt1040.items, { id: itemId("i6"), name: "​", price: price(150) }],
+      adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "​", amount: cents(161) }, receipt1040.adjustments[1]],
+      subtotal: cents(2448),
+      total: cents(2954),
+    };
+    const sent = sentOf(receipt);
+    expect([sent.items.at(-1)?.name, sent.adjustments[0].name]).toEqual(["Item 6", "Tax"]);
+  });
+
   test("sends a price over the limit as $0.00, and the note names the gap the Split page fixes", () => {
     const [first, ...rest] = receipt1040.items;
     const receipt: Receipt = { ...receipt1040, items: [first, ...rest.slice(0, 3), { ...rest[3], price: price(MAX_CENTS + 350) }] };
