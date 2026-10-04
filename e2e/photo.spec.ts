@@ -126,6 +126,37 @@ test.describe("on Chromium", () => {
     await expect(viewReceipt(page)).toHaveCount(0);
   });
 
+  test("View receipt is an icon with no text, and the header fits 320, 360 and 390 px", async ({ browser, request, browserName }, testInfo) => {
+    const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
+    expect((await putPhoto(request, id, creatorSecret, new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0x11, 0xff, 0xd9]))).status()).toBe(204);
+    const seen: Record<string, unknown> = {};
+    for (const width of [320, 360, 390]) {
+      const context = await browser.newContext({ viewport: { width, height: 844 } });
+      const page = await context.newPage();
+      await page.goto(`/s/${id}`);
+      await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+      await page.getByRole("button", { name: "Close, just look" }).click();
+      await expect(viewReceipt(page)).toBeVisible(live);
+      await page.waitForTimeout(400);
+      const offscreen: string[] = [];
+      for (const name of ["Split a receipt", "View receipt", "History", "Share link"]) {
+        const box = await page.getByRole("button", { name }).boundingBox();
+        if (!box || box.x < 0 || box.x + box.width > width) offscreen.push(name);
+      }
+      seen[width] = {
+        receiptText: (await viewReceipt(page).innerText()).trim(),
+        docOverflow: await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+        offscreen,
+      };
+      await context.close();
+    }
+    expect(seen).toEqual({
+      320: { receiptText: "", docOverflow: 0, offscreen: [] },
+      360: { receiptText: "", docOverflow: 0, offscreen: [] },
+      390: { receiptText: "", docOverflow: 0, offscreen: [] },
+    });
+  });
+
   test("View receipt shows only while the Split has a photo", async ({ browser, request, browserName }, testInfo) => {
     const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
