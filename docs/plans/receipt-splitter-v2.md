@@ -3,14 +3,14 @@
 This program rebuilds how the live site shows a Receipt, after launch, from round 3 of the operator's mockups.
 Friends read a receipt by quantity and Bundle instead of a flat list, the Host's home page asks only for what the link needs, and everyone can view the Receipt photo.
 The rules it enforces are that no deploy makes a live Split unreadable and that a failing Total check blocks nothing.
-The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b.
+The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b. V2-7a and V2-7b, server-side receipt reading, were added on 2026-10-03.
 
-**Status at `main` = `19c8e93`.**
+**Status at `main` = `fe301a4`.**
 
 - Merged and deployed, in this order: V2-1 as PR 29 (`9e3a34d`), V2-2 as PR 30 (`ade639d`), V2-5 as PR 31 (`f5e5b8e`), V2-6a as PR 32 (`461b37a`), and V2-3 as PR 33 (`2da1e47`).
-- Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create. [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36) (`19c8e93`), `fix/create-silent`, which makes every Create tap act and keeps the home panel open.
+- Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create. [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36) (`19c8e93`), `fix/create-silent`, which makes every Create tap act and keeps the home panel open. [PR 37](https://github.com/JasonZhangggg/receipt-splitter/pull/37) (`fe301a4`), docs only, which adds the receipt-reading research and brings this plan up to rulings 55 to 59.
 - In flight. `fix/flash-root` is a local branch, not pushed. It fixes the Split page flashes at their causes.
-- Queued, in order: server-side receipt reading, the bar after a pick, quantities follow the receipt, a home reload that keeps only the payment handles, Add Item on the Split page, History on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. The first six have short sections before **Close the program**.
+- Queued, in order: server-side receipt reading as V2-7a then V2-7b, the bar after a pick, quantities follow the receipt, a home reload that keeps only the payment handles, Add Item on the Split page, History on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. V2-7a and V2-7b have full sections. The next five have short sections before **Close the program**.
 - "Preferences N" means ruling N in `~/.claude/orchestrate/receipt-splitter/preferences.md`.
 
 ## How to read this
@@ -78,7 +78,8 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
 - **Preferences 37, 2026-10-02.** History on home lists past Splits stored on this device only. It is queued.
 - **Preferences 44, 2026-10-02.** The real-iOS census in the iOS Simulator is the deciding gate for UI fixes. Every flagged interaction counts 0 on the fix head.
 - **Preferences 45, 2026-10-02.** CI runs WebKit for the functional sheet and claim specs only. WebKit frame timing runs locally through `motion.mjs` on macOS before every UI PR, and Chromium frame timing runs in CI.
-- **Preferences 55 to 57, 2026-10-03.** The server may read receipts, with the photo and a third-party model API. This reverses ADR 0001's on-device OCR rule. The API key is a Worker secret behind a same-origin `/api` route, and scans get their own rate limit and daily cap. An eval on real receipts picks the reading path by price to performance. The provider and model change by config, open-weight models with several hosts come first, and a fallback needs no paid model. It is queued.
+- **Preferences 55 to 57, 2026-10-03.** The server may read receipts, with the photo and a third-party model API. This reverses ADR 0001's on-device OCR rule. The API key is a Worker secret behind a same-origin `/api` route, and scans get their own rate limit and daily cap. An eval on real receipts picks the reading path by price to performance. The provider and model change by config, open-weight models with several hosts come first, and a fallback needs no paid model. V2-7a and V2-7b build it.
+- **Preferences 60 to 62, 2026-10-03.** The operator approved the reading design. Pass 1 is GLM-5.3-Flash at effort minimal with `/nothink`, the photo, and the OCR lines, in the compact format, on pinned hosts. Pass 2 is GPT-6 Luna at effort low via Azure, only on a failed server check. The current OpenRouter key stays in use and becomes the Worker secret, with no rotation first. An Item whose price includes a discount printed under it shows that discount in its detail line, such as "$2.00 off". V2-7a and V2-7b build it.
 - **Preferences 59, 2026-10-03.** A reload of home resets the receipt, the photo, and the names, and keeps the payment handles. Create treats a kept handle as filled, which fixes the bug where a prefilled handle counts as empty until the user types. It is queued.
 
 ## Program checklist
@@ -114,6 +115,8 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
   - [ ] V2-5 needs only the bug-fix PR on `main`. Its owner may start once that merges, and the root restacks it onto V2-4. *V2-5 merged before V2-3 and V2-4, as PR 31, with no restack.*
   - [ ] V2-6a needs only `main`. Its owner may start at once, and the root restacks it onto V2-5. *V2-6a merged before V2-3, as PR 32, with no restack.*
   - [ ] V2-6b after V2-4, V2-5, and V2-6a. *Not done: V2-6b is not built.*
+  - [ ] V2-7a needs only `main`. *Not built.*
+  - [ ] V2-7b after V2-7a's deploy is live with the secret set. *Not built.*
 - [ ] Hold the file boundaries. *Not held for every PR. See each child.*
   - [ ] V2-1 touches only `src/core/**`, `scripts/golden-splits.mjs`, `worker/**` tests, and the one switch in `src/ui/split-view/receipt-card.tsx` that the new kind breaks. *Not held: its PR body lists the files outside this list.*
   - [ ] V2-2 touches only `src/parse/**`, `src/draft.ts`, `src/draft.test.ts`, `src/core/parse.ts`, `src/core/split.ts`, `src/core/golden/**`, `src/ui/receipt-editor/**`, `e2e/fixtures/**`, and `bench/**`. *Not held: its PR body lists the files outside this list.*
@@ -122,7 +125,9 @@ The operator approved this plan with PR 26. The rulings below changed its spec a
   - [ ] V2-5 touches only `app/index.tsx`, `src/ui/home-copy.ts`, `src/ui/receipt-input/**`, `src/ui/receipt-editor/**`, `src/ui/components/**`, `src/ui/photo-viewer/**`, `e2e/home.spec.ts`, `e2e/scan.spec.ts`, and `features/**` in `verify-receipt-splitter`. *Not held: its PR body lists the files outside this list.*
   - [x] V2-6a touches only `worker/**`, `src/core/operations.ts` and `src/live/**` for the snapshot's photo flag, `docs/adr/0005-no-turnstile-per-ip-limit-and-daily-cap.md`, `docs/adr/0007-receipt-photo-stored-with-the-split.md`, `CONTEXT.md`, and `features/photo.md`, `features/README.md`, `features/claim.md`, and `features/join.md` in `verify-receipt-splitter`.
   - [ ] V2-6b touches only `src/draft.ts`, `src/ui/receipt-input/**`, `src/ui/photo-viewer/**`, `src/ui/split-view/**`, `app/index.tsx`, `app/s/[id].tsx`, `src/ui/split-copy.ts`, `e2e/photo.spec.ts`, and `features/**` in `verify-receipt-splitter`. *Not built.*
-- [ ] Hold the review gate. V2-3, V2-4, V2-5, and V2-6b change an interaction. They wait for the operator's review in chat with screenshots and a video before merge. *Held for V2-3 and V2-5. V2-4 and V2-6b are not built.*
+  - [ ] V2-7a touches only `worker/**`, `wrangler.jsonc`, `.dev.vars.example`, `bench/scan/**`, `e2e/fixtures/make-fixtures.py` and the fixtures it draws, `docs/adr/0001-on-device-ocr-no-llm-for-anonymous-use.md`, `docs/adr/0008-server-reads-the-receipt.md`, and `features/scan.md` and `features/README.md` in `verify-receipt-splitter`. *Not built.*
+  - [ ] V2-7b touches only `src/core/**`, `scripts/golden-splits.mjs`, `src/scan/**`, `src/draft.ts`, `app/index.tsx`, `src/ui/receipt-input/**`, `src/ui/split-view/**`, `src/ui/item-sheet/**`, `src/ui/receipt-editor/**`, `src/ui/history/**`, `CONTEXT.md`, `e2e/scan.spec.ts`, and `features/scan.md` in `verify-receipt-splitter`. *Not built.*
+- [ ] Hold the review gate. V2-3, V2-4, V2-5, V2-6b, and V2-7b change an interaction. They wait for the operator's review in chat with screenshots and a video before merge. *Held for V2-3 and V2-5. V2-4 and V2-6b are not built.*
 
 ### PR mechanics, for every PR
 
@@ -617,14 +622,159 @@ Read ADR 0007 first. It sets the size, the checks, the 14-day delete, and the da
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
 - [ ] The root merges V2-6b and confirms the deploy. A production check that needs a new Split uses the handle @test-debug and says so (preferences 54).
 
-## Queued: server-side receipt reading
+## Read the receipt on the server (V2-7a)
 
-Intent only. A full section with boxes comes before the build, and the operator has not approved the design yet. The on-device OCR reads the characters well, but the rule-based parser often gets the receipt wrong (preferences 56). The server reads the receipt instead, with the photo and a third-party model API (preferences 55). A new ADR records this and replaces ADR 0001's on-device OCR rule.
+**Depends on.** None. It branches from `main`. No client calls the route until V2-7b.
 
-- The OpenRouter key is a Worker secret behind a same-origin `/api` route. Scans get their own rate limit and daily cap (preferences 55).
-- The provider and the model change by config. Open-weight models with several hosts come first, and a fallback needs no paid model (preferences 57).
-- `docs/research/receipt-extraction-eval.md` records the eval on real receipts and the recommended two-pass design. `docs/research/receipt-extraction-models.md` compares models and providers.
-- Rotate both OpenRouter keys before the build, because they appeared in chat.
+The on-device OCR reads the characters well, but the rule-based parser often gets the receipt wrong (preferences 56). The server reads the receipt instead, with the photo, the OCR lines, and a third-party model API (preferences 55). The operator approved the design on 2026-10-03 (preferences 60 to 62). V2-7a builds the Worker half: the route, the reader, and a harness that scores it. It changes no client code.
+
+Read `docs/research/receipt-extraction-eval.md` first. Its **Compact formats** section is the spec for pass 1's reply and the server's parsing rules. Its **Guards to build** section lists the guards this PR builds. The OpenRouter key stays the current one, and it becomes the Worker secret (preferences 61).
+
+The receipt-reading work is two PRs, not one. The Worker half and its harness alone is about the size of V2-6a plus a scorer, and the client half changes the stored Split shape and the Split page. Together they pass the 300k-token size for one owner (preferences 47). V2-7a has no interaction, so it ships without the operator's review of screenshots.
+
+**Files.**
+
+- [ ] Create `docs/adr/0008-server-reads-the-receipt.md`. Edit `docs/adr/0001-on-device-ocr-no-llm-for-anonymous-use.md` with an amendment line.
+- [ ] Create `worker/scan/route.ts`, `worker/scan/prompt.ts`, `worker/scan/reader.ts`, `worker/scan/format.ts`, and `worker/scan/check.ts`, with `worker/scan/route.test.ts`, `worker/scan/format.test.ts`, and `worker/scan/check.test.ts`.
+- [ ] Edit `worker/index.ts`, `worker/rate-limit.ts`, `worker/env.d.ts`, and `wrangler.jsonc`. Create `.dev.vars.example`.
+- [ ] Create `bench/scan/run.mjs`, `bench/scan/score.mjs`, `bench/scan/score.test.ts`, and the synthetic fixtures in `bench/scan/fixtures/`. Edit `e2e/fixtures/make-fixtures.py` to draw them.
+
+**Build.**
+
+- [ ] Write ADR 0008. The photo and the on-device OCR lines go to the Worker and on to OpenRouter and its pinned hosts. The key is a Worker secret behind a same-origin `/api` route, and scans have their own rate limit and daily cap. The model and hosts change by config, and the on-device reader stays as the fallback that needs no paid model (preferences 57). Record the operator's approval of the design on 2026-10-03 and link the eval. Add a line to ADR 0001 saying ADR 0008 replaces its on-device OCR rule.
+- [ ] Take `POST /api/scan` in `worker/scan/route.ts`. The body is JSON with the photo as a JPEG data URL and the OCR text as plain lines. Refuse a request whose `origin` is not the site's own with 403, a body over 1 MB with 413, and an image that is not a JPEG data URL with 400. Forward the data URL as is. The Worker never decodes or re-encodes the image, because Workers Free allows 10 ms of CPU per request.
+- [ ] Limit scans apart from creates. Give `CreateLimiter`'s per-IP and daily-cap logic in `worker/rate-limit.ts` a limit argument, and run scans under their own names, `scan:<limiterKey(ip)>` and `scan-daily-cap`. Read the limits from `wrangler.jsonc` vars: `SCAN_PER_MINUTE` 6, `SCAN_PER_DAY` 30, and `SCAN_DAILY_CAP` 2,000. Answer a refused scan with 429 and `retry-after`. At about $0.001 a receipt, the cap holds spend near $2 a UTC day.
+- [ ] Keep every model setting in config (preferences 57). `SCAN_PASS1_MODEL` is `z-ai/glm-5.3-flash`, and `SCAN_PASS1_HOSTS` lists `parasail` and a second host. `SCAN_PASS2_MODEL` is `openai/gpt-6-luna`, and `SCAN_PASS2_HOSTS` lists `azure` and `openai`. Never route to `openai/flex`. The key is the secret `OPENROUTER_API_KEY`. `.dev.vars.example` names it with an empty value.
+- [ ] Run pass 1 in `worker/scan/reader.ts` per preferences 60. Use GLM at `reasoning.effort = "minimal"`, with `/nothink` at the start of the prompt, the photo, and the OCR lines. Pin one host per call with `provider.order` and `allow_fallbacks: false`. Never sort hosts by latency.
+- [ ] Retry pass 1 once on the next host in `SCAN_PASS1_HOSTS` when it runs past 25 s or returns an empty reply. Pick the second host from the harness's latency run, and record the choice in the PR body.
+- [ ] Write the pass-1 prompt in `worker/scan/prompt.ts` from **Compact formats**. Use an invented example, never a real receipt (preferences 53). Tell the model to use per-item promos and skip a summary savings block, and to keep names as printed apart from casing. Ask for no priced `+` lines, unit price, `CNT`, or `?`.
+- [ ] Parse the reply in `worker/scan/format.ts`. Fold each `-` line into the Item above it, and keep the folded amount with the Item so V2-7b can show it. Keep `d` lines order-level. Open a Bundle on `b|` and add the `>` lines to it, with `>d` as its discount. Make every discount amount negative. Send a decimal after an amount to the detail as a weight. Skip a line that does not parse and count it.
+- [ ] Check the reading in `worker/scan/check.ts`. Sum the lines and compare them with `SUB` and `TOT`. With `|pre`, compare the subtotal with the items before any `-`, `d`, or `>d` line. Accept a receipt with no tax line. Accept a gap of up to 3 cents, and return the reading with the gap instead of running pass 2.
+- [ ] Run pass 2 only when the check fails or pass 1's reply is malformed. Use Luna at `reasoning.effort = "low"` on `SCAN_PASS2_HOSTS`, with pass 1's numbered lines. Apply its `fix`, `drop`, `after`, and `add` edits. Refuse a `drop` of an `f` line. `after|<n>` inserts after line n and the `+` and `-` lines under it. Check again.
+- [ ] Reply 200 with the reading: Items with name, price, quantity, detail lines, and folded discounts, Bundles with their discounts, receipt-level Adjustments, subtotal, total, and the check result. A reading that still fails the check is still a 200. The client shows the quiet Total check note (preferences 6). `worker/scan/format.ts` exports the reply's type. Reply 502 when no pass returns a usable reading.
+- [ ] Log timings, token counts, cost, the host, and the check result. Never log the image, the OCR lines, a reply's text, or the key.
+- [ ] Draw the synthetic fixtures with `e2e/fixtures/make-fixtures.py`, each from an invented TSV with a truth file beside it. Cover two items with different discounts printed under them, so a swap shows, a tax-free receipt with a subtotal printed before discounts, a fee and a deposit, per-item promos with a summary savings block, a weighed item, and modifiers on their own lines. t1 is the Topgolf fixture drawn from `src/parse/fixtures/topgolf.tsv`. No fixture comes from a real receipt (preferences 53).
+- [ ] Build the regression harness. `bench/scan/run.mjs` posts each fixture to a running route a set number of times and scores each reading with `bench/scan/score.mjs`. The scorer reports fully correct, items F1 by amount, the per-item discount split, Bundle members and discounts, and readings wrong with a passing check. It prints one table and exits non-zero below a floor committed beside the fixtures. It also takes a directory and truth file outside the repo, so the owner can score `~/receipts-eval/` locally without committing it.
+
+**You see.**
+
+- [ ] A POST of t1 to the route on `wrangler dev` returns both Bundles with their members and discounts, Gameplay outside them, and a passing check. The seventh scan from one IP in a minute gets 429. `node bench/scan/run.mjs` prints its table and passes its floor.
+
+**Seams.**
+
+- [ ] The parser, the fold, and pass 2's edits as pure functions in `worker/scan/format.test.ts`, fed invented replies.
+- [ ] The check in `worker/scan/check.test.ts`.
+- [ ] The route through the worker test harness in `worker/scan/route.test.ts`, with OpenRouter stubbed at `fetch`.
+- [ ] The scorer in `bench/scan/score.test.ts`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `worker/scan/format.test.ts` gains the invented receipt from **Compact formats** parsed to literal Items, Bundles, and Adjustments, an unsigned discount made negative, a weight sent to the detail, a `d` line after an item kept order-level, a skipped bad line counted, and each pass-2 edit, including `after` past a `-` line and a refused `drop` of an `f` line. Run `npm run test:worker`.
+- [ ] `worker/scan/check.test.ts` gains a pass, a 3-cent gap accepted, a 4-cent gap failed, a `|pre` subtotal, and a receipt with no tax. Run `npm run test:worker`.
+- [ ] `worker/scan/route.test.ts` gains each refusal with its status, 429 at each limit, a pass-1 timeout retried on the second host, an empty reply retried, pass 2 run only on a failed check, and 502 when every pass fails. Run `npm run test:worker`.
+- [ ] `bench/scan/score.test.ts` gains a swapped per-item split scored wrong while every amount matches. Run `npm test`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe. The lane puts the key in `.dev.vars` from `~/.config/receipt-eval/env` without printing it.
+
+- [ ] Lane 1. Regression lane against trunk. Create a Split through the home page and Claim one Item from a second browser, citing `features/join.md`, at trunk and head. Save `create-claim.png`. Pass when both behave the same, because no client calls the route yet.
+- [ ] Lane 2. Run `node bench/scan/run.mjs` with 3 runs per fixture against the lane's `wrangler dev`, citing `features/scan.md`. Save the table as `scan-table.txt`. Pass when t1 is fully correct with both Bundles in 3 of 3 runs and the fixtures pass the committed floor. Then set the pass-1 limit to 1 ms and scan once. Pass when the log shows the retry on the second host.
+- [ ] Run the harness once against `~/receipts-eval/` (r1-r8, 3 runs each) and report scores by receipt id only (preferences 53). Pass when at least 18 of 24 readings are fully correct, the eval's 20 of 24 less the noise band.
+
+**Feature map.**
+
+- [ ] Create `features/scan.md` in `verify-receipt-splitter` with the route, the limits, how to set the key in `.dev.vars`, and how to run the harness. Add it to `features/README.md`.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Time per scan, median and worst, and cost per receipt from OpenRouter's reported usage.
+- [ ] Probe. Lane 2's harness run.
+- [ ] Baseline. Trunk has no route, so each metric gets an absolute budget from the eval.
+- [ ] Rule. Fail if the median scan takes over 8 s, any scan takes over 60 s, or the mean cost passes $0.0015 per receipt.
+
+**Review gate.** No interaction changes. The operator confirms the three scan limits in chat before merge, because they set the daily spend.
+
+**Merge.**
+
+- [ ] Root's clean verdict at the exact head SHA.
+- [ ] Bugbot triage done.
+- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
+- [ ] Before the merge, the root sets the production secret with `npx wrangler secret put OPENROUTER_API_KEY`, reading the value from `~/.config/receipt-eval/env` without printing it (preferences 61).
+- [ ] The root merges V2-7a and confirms the deploy. A POST of t1 to `https://app.splitwith.workers.dev/api/scan` returns a reading.
+
+## Read the receipt through the server on home (V2-7b)
+
+**Depends on.** V2-7a, merged and deployed with the secret set.
+
+V2-7b moves home's scan onto the route, with the on-device reader as the fallback, and gives every Item an optional **Detail**. An Item whose price includes a discount printed under it shows that discount in its detail line, so a discount on the wrong Item is easy to spot (preferences 62).
+
+**Files.**
+
+- [ ] Edit `src/core/split.ts`, `src/core/parse.ts`, `src/core/operations.ts`, and their tests. Add a golden row in `src/core/golden/` with `scripts/golden-splits.mjs`.
+- [ ] Create `src/scan/client.ts` and `src/scan/client.test.ts`.
+- [ ] Edit `app/index.tsx`, `src/draft.ts`, `src/ui/receipt-input/photo.web.ts`, and `src/ui/receipt-input/reading.tsx`.
+- [ ] Edit `src/ui/split-view/model.ts`, `src/ui/split-view/receipt-card.tsx`, `src/ui/item-sheet/index.tsx`, `src/ui/receipt-editor/index.tsx`, and `src/ui/history/describe.ts`.
+- [ ] Edit `CONTEXT.md` and `e2e/scan.spec.ts`.
+
+**Build.**
+
+- [ ] Load `emil-design-eng`, `apple-design`, and `mobile-native` before any UI code. Build motion with `animate`. Run `review-animations` and `unslop` before the PR.
+- [ ] Add **Detail** to `CONTEXT.md`. A Detail is supplementary text under an Item's name, such as a size, a flavor, a weight, an unpriced modifier, or a discount folded into its price. The name alone identifies the Item. Avoid "description" and "note".
+- [ ] Give `Item` in `src/core/split.ts` an optional `detail`, one line of at most 120 characters. One string holds both the model's detail and the discount text, so the stored shape gains one field.
+- [ ] Read `detail` in `parseSplit`. Per ADR 0004, bump `schemaVersion` to 3 and read versions 1 and 2 unchanged. Write version 3 only when an Item has a detail, so a Split without one stays readable by the V2-7a Worker, as V2-2 did for Bundles. Add the golden row.
+- [ ] Let anyone edit an Item's detail in the item sheet, beside its name. The edit is a receipt change, so History lists it and Revert restores it (preferences 3).
+- [ ] Call the route in `src/scan/client.ts`. Run the on-device OCR as today. Downscale the photo to about 2048 px on its long edge, crop it to the OCR boxes with a margin, and encode it as a JPEG through a canvas, so it carries no EXIF. Lower the quality in steps until it fits 1 MB. Post it with the OCR plain lines.
+- [ ] Parse the route's reply at the boundary in `src/scan/client.ts`, and map it to a Receipt. Join the detail lines with ", ". Append each folded discount as "$2.00 off". A Bundle becomes an Adjustment of kind `bundleDiscount` per ADR 0006.
+- [ ] Fall back to `parseReceipt` on the same OCR result on any status other than 200, a network failure, a reply that does not parse, or no reply in 60 s. Show no message for the fallback. Home keeps "Reading the receipt." until either reading lands.
+- [ ] On the Split page, show `item.detail` under the name when it is set. Otherwise split the name with `nameParts` in `src/ui/split-view/model.ts`, which stays the fallback for sizes printed on the name line and for on-device readings.
+- [ ] Show no stale or wrong frame when the detail line appears or changes (preferences 18). Nothing is yellow (preferences 15).
+
+**You see.**
+
+- [ ] Scanning `e2e/fixtures/topgolf-synthetic.png` on home reads both Bundles through the route. A fixture with a discount under an Item shows "$2.00 off" in that Item's detail line on the Split page. With the route blocked, the same scan still reads, on the device.
+
+**Seams.**
+
+- [ ] The reply-to-Receipt mapping in `src/scan/client.test.ts`, fed invented replies.
+- [ ] The stored shape in `src/core/parse.test.ts` through the golden rows.
+- [ ] The detail edit in `src/core/operations.test.ts`.
+- [ ] The scan flow through Playwright in `e2e/scan.spec.ts`, with `/api/scan` answered by `page.route`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `src/scan/client.test.ts` gains a reply mapped to a literal Receipt with a joined detail, "$2.00 off", and a Bundle, and a malformed reply that returns null. Run `npm test`.
+- [ ] `src/core/parse.test.ts` reads every golden row, a version 3 row with a detail, and a version 2 row unchanged, and refuses a detail over 120 characters. Run `npm test`.
+- [ ] `src/core/operations.test.ts` gains a detail edit and its revert. Run `npm test`.
+- [ ] `e2e/scan.spec.ts` gains a route reading, the fallback on 429, on 502, and on a 60 s timeout, and an upload at most 1 MB. Run each new case under a 4x CPU throttle. Run `npm run e2e`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe, with the key in `.dev.vars`.
+
+- [ ] Lane 1. Regression lane against trunk. Scan `e2e/fixtures/topgolf-synthetic.png`, create the link, and Claim one Item from a second browser, citing `features/scan.md` and `features/join.md`, at trunk and head. Save `scan-create-claim.png`. Pass when the head reads through the route, both read the same Bundles and Total, and create and Claim behave the same.
+- [ ] Lane 2. Scan the V2-7a fixtures with item discounts and modifiers at 390 px and 1440 px, in light and dark, citing `features/scan.md`. Save `detail-matrix/<case>.png`. Then block `/api/scan` and scan once more. Pass when each detail line reads under its name, "$2.00 off" sits on the right Item, and the blocked scan reads on the device.
+- [ ] Run the WebKit frame-timing checks through `motion.mjs` on macOS for the item sheet with the detail field (preferences 45), and the real-iOS census for opening it and editing the detail (preferences 44). Pass when every flagged interaction counts 0.
+
+**Feature map.**
+
+- [ ] Update `features/scan.md` in `verify-receipt-splitter` with the home flow, the fallback, and how to block the route.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Time from picking the photo to the read receipt on home, the uploaded bytes, and `npm run size`.
+- [ ] Probe. Five scans of `e2e/fixtures/topgolf-synthetic.png` at trunk and head, interleaved, under Playwright mobile emulation with a 4x CPU throttle, timed from the page's performance marks.
+- [ ] Baseline. Record the trunk pick-to-read time first.
+- [ ] Rule. Fail if the head median is more than 5 s over trunk's, any upload is over 1 MB, or `npm run size` passes its budget.
+
+**Review gate.** The operator reviews before merge.
+
+- [ ] Copy lane 1's `scan-create-claim.png` and lane 2's screenshots into `/tmp/receipt-splitter-review/V2-7b-review-<case>.png`.
+- [ ] Save a 30 to 60 second video of scanning a receipt and opening an Item with a discount in its detail as `/tmp/receipt-splitter-review/V2-7b-review.mp4`.
+- [ ] Post the screenshots, the video, and V2-7a's harness table in chat. Stop at merge-ready. Wait for the operator's approval.
+
+**Merge.**
+
+- [ ] Root's clean verdict at the exact head SHA.
+- [ ] Bugbot triage done.
+- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
+- [ ] The root merges V2-7b and confirms the deploy. A production check that needs a new Split uses the handle @test-debug and says so (preferences 54).
 
 ## Queued: the bar after a pick
 
@@ -673,6 +823,9 @@ The design questions were settled by three rounds of mockups, not by code protot
 - Uploading the photo inside `POST /api/splits`. The link would wait on the upload over a slow phone connection, and the 32 KB create body cap would have to grow.
 - A **Fix items** button on the compact card, and showing the Item list on home when the Total check fails. The operator ruled that a failing Total check blocks nothing and that Items are fixed on the Split page.
 - Keeping the photo for the Split's whole life on the Workers Paid plan. The operator chose the Free plan, so ADR 0007 deletes the photo after 14 days.
+- One PR for server-side receipt reading. The Worker route, the reader, and the harness ship without an interaction, and the client half changes the stored Split shape and the Split page. Together they pass the 300k-token size for one owner, so V2-7a and V2-7b split it.
+- A JSON schema for the model's reply. Both hosts enforce one, but it was about 9x slower at the median, cost about 43% more, scored no better, and listed t1's Bundle headers as Items. `docs/research/receipt-extraction-eval.md` records the run.
+- A second stored number for an Item's folded discount. One `detail` string carries the discount text, such as "$2.00 off", so the stored shape gains one field. A price edit leaves the text as it was, and anyone can edit the detail.
 
 ## Appendix C. Risks
 
@@ -684,6 +837,11 @@ The design questions were settled by three rounds of mockups, not by code protot
 - A Host may create a link from a misread receipt, because a failing Total check blocks nothing. It lands in V2-5. The quiet note on home and on the Split page names the gap, and anyone fixes a line on the Split page. No PR here adds a block or a highlight for a mismatch.
 - The Bundle detector misreads a $0.00 line, such as a free refill, as a header. It lands in V2-2. A group forms only when a discount echoes the header, prints a percent, and a run of Items under the header matches it within 1 cent, so a lone $0.00 line stays an Item. An echoing discount with no percent, or an OCR-garbled one, stays receipt-wide. A coincidental run can pull a nearby Item into a Bundle. A $0.00 modifier inside a group replaces the open header and drops the Bundle, which fails safe to receipt-wide. The bench run reports any change.
 - The photo shows card digits and anything else the receipt prints. It lands in V2-6b. The operator accepted it, with no extra line on home. The server refuses EXIF, and the photo is deleted after 14 days.
+- The receipt photo and its OCR lines go to OpenRouter and its pinned hosts. It lands in V2-7a, and ADR 0008 records the operator's ruling. The Worker logs no image, OCR text, or reply text.
+- Spend on the model API. It lands in V2-7a. The scan limits and the daily cap of 2,000 hold spend near $2 a UTC day, and a refused scan falls back to the on-device reader in V2-7b.
+- A swapped per-item discount passes every check. It lands in V2-7a and V2-7b. The eval put r4's split right in 2 of 3 readings. The "$2.00 off" detail line makes a discount on the wrong Item visible, and anyone fixes it on the Split page.
+- The stored `detail` field. It lands in V2-7b. Only a Split with a detail is written as version 3, so a rollback to V2-7a makes only those Splits unreadable, and the fix is a roll forward.
+- Bundle reading is proven only on the synthetic t1, with perfect OCR. A real Bundle photo may score lower. V2-7a's harness takes a directory outside the repo, so a real photo can be scored without committing it.
 
 ## Appendix D. Links and reading list
 
