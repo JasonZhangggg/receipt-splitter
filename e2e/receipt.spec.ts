@@ -221,3 +221,39 @@ test("Delete item takes a Bundle Item off for everyone, and Revert brings it bac
   await expect(sam.getByText("Reverted")).toBeVisible(live);
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 3 unclaimed, collapsed", live);
 });
+
+test("a name already on the Split keeps the cursor in Add yourself after Enter, so the next keys fix it", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  await pickSheet(page).getByRole("button", { name: "Not here? Add yourself" }).click();
+  const field = page.getByRole("textbox", { name: "Your name" });
+  await field.fill("Sam");
+  await field.press("Enter");
+
+  await expect(page.getByText("That name is already here.")).toBeVisible(live);
+  await expect(field).toBeFocused();
+  await page.keyboard.type(" K");
+  await expect(field).toHaveValue("Sam K");
+});
+
+test("the pick sheet takes no taps while it leaves, so its Copy cannot fire after a name is picked", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const page = await (await newContext(browser)).newPage();
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.routeWebSocket(/\/parties\/split-server\//, (socket) => {
+    const server = socket.connectToServer();
+    socket.onMessage((message) => {
+      if (typeof message === "string" && JSON.parse(message).op?.type === "pick") void held.then(() => server.send(message));
+      else server.send(message);
+    });
+  });
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+  const copy = pickSheet(page).getByRole("button", { name: "Copy" });
+  await copy.click({ trial: true });
+
+  await pickSheet(page).getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(copy.click({ trial: true, timeout: 1_000 })).rejects.toThrow(/pointer events/);
+  release();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
+});
