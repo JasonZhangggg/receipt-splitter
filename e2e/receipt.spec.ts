@@ -90,7 +90,8 @@ test("a Beer Bucket opens and closes from the keyboard in place, says so through
   await expect(page.locator(`[id="${region}"]`).getByRole("list")).toHaveCount(0);
 });
 
-test("a Beer Bucket grows open over several frames instead of jumping to its full height", async ({ browser, request }, { workerIndex }) => {
+// It samples the height on every animation frame, while the CSS transition runs on wall-clock time, so slow frames see too few steps.
+test("a Beer Bucket grows open over several frames instead of jumping to its full height", { tag: "@frame-timing" }, async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
   const region = await firstBucket(page).getAttribute("aria-controls");

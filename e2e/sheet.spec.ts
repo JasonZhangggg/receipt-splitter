@@ -182,3 +182,33 @@ test("a finger that catches the sheet mid-glide moves it from where it is, with 
   expect(caught.before).toBeLessThan(rest - 5);
   expect(Math.abs(caught.after - caught.before)).toBeLessThan(16);
 });
+
+// A touch landed 90 ms into a 300 ms glide; a loaded runner can let the glide finish first.
+test("a still touch on the Item sheet mid-glide holds it where it is, and letting go finishes the glide", { tag: "@frame-timing" }, async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  await pickJason(page);
+  const item = page.getByTestId("item-sheet");
+  await page.getByRole("button", { name: /^Open Rice, / }).click();
+  await page.waitForTimeout(90);
+  const touch = await page.evaluate(async () => {
+    const element = document.querySelector<HTMLElement>('[data-testid="item-sheet"]')!;
+    const top = () => element.getBoundingClientRect().top;
+    const atTouch = top();
+    const fire = (type: string) =>
+      element.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: innerWidth / 2, clientY: atTouch + 14 }));
+    fire("pointerdown");
+    const held: number[] = [];
+    for (let i = 0; i < 8; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      held.push(top());
+    }
+    fire("pointerup");
+    return { atTouch, held };
+  });
+  await settled(item);
+  const rest = (await item.boundingBox())!.y;
+
+  expect(touch.atTouch - rest).toBeGreaterThan(20);
+  expect(Math.max(...touch.held) - Math.min(...touch.held)).toBeLessThanOrEqual(2);
+  expect(Math.abs(touch.held[0] - touch.atTouch)).toBeLessThanOrEqual(2);
+});
