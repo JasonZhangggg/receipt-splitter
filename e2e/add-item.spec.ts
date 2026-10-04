@@ -36,9 +36,10 @@ async function createSplit(request: APIRequestContext, workerIndex: number, item
   return new URL(`/s/${id}`, response.url()).href;
 }
 
-async function open(browser: Browser, link: string): Promise<Page> {
+async function open(browser: Browser, link: string, before: (page: Page) => void = () => {}): Promise<Page> {
   const page = await (await newContext(browser)).newPage();
   await page.setViewportSize(phone);
+  before(page);
   await page.goto(link);
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
   return page;
@@ -110,10 +111,12 @@ test("History lists the add, and Revert from another phone asks first and takes 
 });
 
 test("a Split at 100 Items says it is full and sends nothing", async ({ browser, request }, { workerIndex }) => {
-  const sam = await open(browser, await createSplit(request, workerIndex, hundred));
-  await pick(sam, "Sam");
   const sent: string[] = [];
-  sam.on("websocket", (socket) => socket.on("framesent", ({ payload }) => typeof payload === "string" && payload.includes('"add"') && sent.push(payload)));
+  const sam = await open(browser, await createSplit(request, workerIndex, hundred), (page) =>
+    page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => typeof payload === "string" && sent.push(payload))),
+  );
+  await pick(sam, "Sam");
+  await expect.poll(() => sent.some((frame) => frame.includes('"pick"'))).toBe(true);
 
   await addRow(sam).click();
   await field(sam, "Item name").fill("Fries");
@@ -122,7 +125,7 @@ test("a Split at 100 Items says it is full and sends nothing", async ({ browser,
 
   await expect(sheet(sam).getByText("A split holds at most 100 items.")).toBeVisible();
   await expect(field(sam, "Item name")).toHaveValue("Fries");
-  expect(sent).toEqual([]);
+  expect(sent.filter((frame) => frame.includes('"add"'))).toEqual([]);
 });
 
 test("Add item with no name focuses the name and says so, and Return walks name, detail and price, then adds", async ({ browser, request }, { workerIndex }) => {
@@ -226,5 +229,6 @@ for (const rafDelay of [0, 200]) {
     expect(full).toBeGreaterThanOrEqual(44);
     expect(seen.every(({ claimed }) => claimed)).toBe(true);
     expect(seen[0].height < full || seen[0].opacity < 0.5).toBe(true);
+    expect(seen.every(({ height }, at) => at === 0 || height >= seen[at - 1].height)).toBe(true);
   });
 }

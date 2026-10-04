@@ -28,6 +28,11 @@ const typed = (fields: Partial<NewItem> = {}): NewItem => ({ name: "Fries", deta
 const fresh = itemId("fresh");
 
 describe("newItem", () => {
+  test("leaves out of who anyone no longer in the Split", () => {
+    const answer = newItem(splitWith(2), typed({ who: [bob, participantId("gone")] }), fresh, ann);
+    expect(answer.ok && answer.op.type === "editReceipt" && answer.op.items?.[0]).toMatchObject({ who: [bob] });
+  });
+
   test("sends one add at the end of the receipt with who had it", () => {
     expect(newItem(splitWith(2), typed({ name: "  Fries ", who: [bob] }), fresh, ann)).toEqual({
       ok: true,

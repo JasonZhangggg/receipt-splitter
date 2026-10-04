@@ -1,5 +1,5 @@
 import { MAX_CENTS, price as toPrice } from "../../core/money";
-import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type Operation } from "../../core/operations";
+import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type Operation, type WireRejection } from "../../core/operations";
 import type { ItemId, ParticipantId, Split } from "../../core/split";
 import { parseAmount } from "../../draft";
 
@@ -28,12 +28,14 @@ export function newItem(split: Split, typed: NewItem, id: ItemId, by: Participan
   if (cents === null || cents > MAX_CENTS) return { ok: false, problem: "overLimit" };
   const detail = typed.detail.trim();
   const item = { id, name, price: toPrice(cents), ...(typed.quantity > 1 && { quantity: typed.quantity }), ...(detail && { detail }) };
-  const op: Operation = { by, type: "editReceipt", items: [{ type: "add", item, index: split.receipt.items.length, who: typed.who }] };
+  // Someone may leave the Split while the sheet is open; their chip goes, so their claim goes too.
+  const who = typed.who.filter((id) => split.participants.some((person) => person.id === id));
+  const op: Operation = { by, type: "editReceipt", items: [{ type: "add", item, index: split.receipt.items.length, who }] };
   const preview = applyOperation(split, op, { creator: false });
   if (preview.ok) return { ok: true, op };
   return { ok: false, problem: problemFor(preview.rejection.reason) };
 }
 
-export function problemFor(reason: string): NewItemProblem {
+export function problemFor(reason: WireRejection["reason"] | "disconnected"): NewItemProblem {
   return reason === "tooManyItems" || reason === "tooLarge" ? reason : reason === "amountOutOfRange" ? "overLimit" : "failed";
 }

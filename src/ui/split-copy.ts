@@ -75,7 +75,7 @@ export const splitCopy = {
   addProblem: {
     name: "Add a name.",
     price: "Add a price.",
-    overLimit: "That price is over $100,000.",
+    overLimit: (max: string) => `That price is over ${max}.`,
     tooManyItems: "A split holds at most 100 items.",
     tooLarge: "This split is full. Delete an item to add one.",
     failed: "Couldn't save that. Check it and try again.",

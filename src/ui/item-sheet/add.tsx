@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
+import { MAX_CENTS } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_QUANTITY, MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
 import { itemId, randomId, type ParticipantId, type Split } from "../../core/split";
 import type { Answer } from "../../live/client";
@@ -45,6 +46,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
 
   const add = async () => {
     if (sending) return;
+    if (split.receipt.items.some((item) => item.id === id)) return onClose();
     const answer = newItem(split, typed, id, me);
     if (!answer.ok) {
       setProblem(answer.problem);
@@ -154,7 +156,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
       </View>
       {problem ? (
         <Text role="status" style={[type.small, styles.problem, { color: c.muted }]}>
-          {say.addProblem[problem]}
+          {problem === "overLimit" ? say.addProblem.overLimit(`$${(MAX_CENTS / 100).toLocaleString("en-US")}`) : say.addProblem[problem]}
         </Text>
       ) : null}
     </View>
