@@ -3,7 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { rememberSplit } from "../src/device";
+import { recentSplits, rememberSplit } from "../src/device";
 import { editsOnHome, mismatchNote, flaggedRows, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, totalOf, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
@@ -20,6 +20,7 @@ import { copy, createCopy, joinCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { ReceiptEditor } from "../src/ui/receipt-editor";
+import { RecentSplits } from "../src/ui/recent-splits";
 import { isPhoto, photoUri, pickPhoto, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
 import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
 import { Reading } from "../src/ui/receipt-input/reading";
@@ -46,6 +47,8 @@ export default function Home() {
   const [failure, setFailure] = useState<string | null>(null);
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [viewing, setViewing] = useState(false);
+  const [now] = useState(Date.now);
+  const [recent] = useState(() => recentSplits(now));
   const scanning = useRef(0);
   const handleInput = useRef<TextInput>(null);
   useEffect(prefetchModel, []);
@@ -128,12 +131,15 @@ export default function Home() {
     return null;
   };
   const removeName = (name: string) => dispatch({ type: "removeName", name });
-  const compact = !wide && height - insets.top - insets.bottom < shortScreen;
+  const listing = draft.scan.status === "empty" && recent.length > 0;
+  // With Recent splits under it, the hero yields its spare room so the list sits above the panel.
+  const compact = !wide && (listing || height - insets.top - insets.bottom < shortScreen);
   const editor = editsOnHome(draft);
   const ticket = !wide && !editor;
   const columnWidth = roomy ? 480 : 440;
   const view = photo ? () => setViewing(true) : undefined;
   const zoneHeight = roomy ? 380 : 336;
+  const history = listing ? <RecentSplits splits={recent} now={now} /> : null;
 
   const action = (
     <Button
@@ -207,10 +213,14 @@ export default function Home() {
               {receipt}
               {details}
               <View style={styles.wideAction}>{action}</View>
+              {history ? <View style={styles.wideHistory}>{history}</View> : null}
             </View>
           </View>
         ) : (
-          receipt
+          <>
+            {receipt}
+            {history ? <View style={[sides, styles.history]}>{history}</View> : null}
+          </>
         )}
       </ScrollView>
 
@@ -247,4 +257,6 @@ const styles = StyleSheet.create({
   center: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   column: { width: "100%", gap: layout.blockGap },
   wideAction: { paddingTop: layout.blockGap },
+  wideHistory: { paddingTop: 36 },
+  history: { alignSelf: "center", width: "100%", maxWidth: 440 + 2 * layout.gutter, paddingBottom: 16 },
 });
