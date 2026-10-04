@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { expect, test } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -6,7 +7,7 @@ const budgetBytes = 400_000;
 
 test("the first load of a Split link transfers under 400 KB", async ({ page, request }) => {
   const created = await request.post("/api/splits", {
-    headers: { "cf-connecting-ip": "198.51.250.1" },
+    headers: { "cf-connecting-ip": `198.51.${randomInt(200, 256)}.${randomInt(1, 255)}` },
     data: {
       split: {
         receipt: { items: [{ id: "rice", name: "Rice", price: 800 }], adjustments: [], subtotal: 800, total: 800 },
