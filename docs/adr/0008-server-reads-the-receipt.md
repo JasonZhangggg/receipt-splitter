@@ -1,5 +1,7 @@
 # The server reads the receipt with a third-party model, and the device reader stays as the fallback
 
+ADR 0010 replaced the GLM and Luna passes below with Gemini on 2026-10-04, and recomputed `SCAN_WORST_CASE_USD` as $0.03. The route, the input caps, the limits, the dollar budget, and privacy still work as this ADR describes.
+
 On 2026-10-03 the operator ruled that receipt data may leave the device to be read (preferences 55 to 57), and approved the reading design the same day (preferences 60 to 62). This replaces ADR 0001's rule that OCR and parsing run only on the device. The on-device OCR reads characters well. The rule-based parser is what fails. The eval in `docs/research/receipt-extraction-eval.md` picked the design by price to performance on real receipts.
 
 - The Host's device still runs OCR. It sends the photo, as a JPEG data URL, and the OCR text, as plain lines, to `POST /api/scan` on the site's own origin. The Worker forwards both to OpenRouter, which sends them to the pinned model hosts.
