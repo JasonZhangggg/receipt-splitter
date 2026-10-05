@@ -36,7 +36,7 @@ export function Sheet({ children, action, onHeight }: Props) {
   useEffect(() => () => stop.current(), []);
   const position = useRef(0);
 
-  useKeyboardLift(anchor, insets.top, bottomPadding + insets.bottom);
+  useKeyboardLift(anchor, insets.top, bottomPadding + insets.bottom, reduce);
 
   const paint = (value: number) => {
     position.current = value;

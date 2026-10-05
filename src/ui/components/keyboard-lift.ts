@@ -35,7 +35,7 @@ function remember(keyboard: number) {
 const typing = (target: EventTarget | null): target is HTMLElement => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 
 /** Lifts `anchor` above the on-screen keyboard while a field inside it has focus, so the page behind never moves. */
-export function useKeyboardLift(anchor: RefObject<View | null>, top: number, tucked: number) {
+export function useKeyboardLift(anchor: RefObject<View | null>, top: number, tucked: number, reduce: boolean) {
   useEffect(() => {
     const viewport = window.visualViewport;
     const el = anchor.current as unknown as HTMLElement | null;
@@ -58,7 +58,8 @@ export function useKeyboardLift(anchor: RefObject<View | null>, top: number, tuc
     const move = (to: number, motion: keyof typeof motions) => {
       if (to === lifted) return;
       lifted = to;
-      el.style.transition = motions[motion];
+      // Under reduced motion the panel steps into place; its fill hides the keyboard sliding in behind it.
+      el.style.transition = reduce ? "none" : motions[motion];
       el.style.transform = to ? `translateY(${-to}px)` : "";
     };
     const cancelRise = () => {
@@ -133,5 +134,5 @@ export function useKeyboardLift(anchor: RefObject<View | null>, top: number, tuc
       document.removeEventListener("focusout", focusout);
       viewport.removeEventListener("resize", resize);
     };
-  }, [anchor, top, tucked]);
+  }, [anchor, top, tucked, reduce]);
 }
