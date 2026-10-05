@@ -32,12 +32,14 @@ declare namespace Cloudflare {
     SCAN_PASS2_HOSTS: string;
     SCAN_PASS2_RESOLUTION: string;
     SCAN_PASS2_BOUND_USD: string;
+    SCAN_PASS2_IMAGE_DETAIL: string;
     SCAN_PENNY_MODEL: string;
     SCAN_PENNY_EFFORT: string;
     SCAN_PENNY_MAX_TOKENS: string;
     SCAN_PENNY_HOSTS: string;
     SCAN_PENNY_RESOLUTION: string;
     SCAN_PENNY_BOUND_USD: string;
+    SCAN_PENNY_IMAGE_DETAIL: string;
     SCAN_REVIEW_BY_MS: string;
     SCAN_REVIEW_MIN_MS: string;
     SCAN_DEBUG_HEADERS: string;

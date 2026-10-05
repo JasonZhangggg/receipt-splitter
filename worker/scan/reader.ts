@@ -19,6 +19,12 @@ export type Target = {
   readonly boundUsd: number;
 };
 
+/** OpenRouter's `image_url.detail`. */
+export type ImageDetail = "low" | "high" | "auto";
+
+/** A review sends the photo in its own message, so it can ask for its own image detail. null sends none. */
+export type ReviewTarget = Target & { readonly imageDetail: ImageDetail | null };
+
 export type ReaderConfig = {
   readonly key: string;
   /** Pass 1's first call. It is abandoned when no complete reply has come by `deadlineMs`. */
@@ -28,9 +34,9 @@ export type ReaderConfig = {
   /** Pass 1 must have its reading this long after the scan starts, or the scan has none. It also caps the flex deadline. */
   readonly pass1ByMs: number;
   /** The review of a reading whose total fails the check. */
-  readonly pass2: Target;
+  readonly pass2: ReviewTarget;
   /** The review of a reading that passes only inside the tolerance. */
-  readonly penny: Target;
+  readonly penny: ReviewTarget;
   /** A review must answer this long after the scan starts, or pass 1's reading stands. */
   readonly reviewByMs: number;
   /** A review is skipped when less than this remains before `reviewByMs`, because it would not finish. */
@@ -73,7 +79,7 @@ export type ScanPath = {
 
 export type ReadResult = { readonly reply: ScanReply | null; readonly calls: readonly CallLog[]; readonly path: ScanPath; readonly skipped: number };
 
-type Content = readonly ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
+type Content = readonly ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: ImageDetail } })[];
 
 /** The messages as JSON text. It holds the photo, so pass 1 serializes it once and every pass-1 call reuses it. */
 const messagesJson = (content: Content) => JSON.stringify([{ role: "user", content }]);
@@ -209,7 +215,8 @@ export async function readReceipt(input: ScanInput, config: ReaderConfig): Promi
   const numbered = first.reading === null ? [] : first.lines;
   const prompt = [pass2Prompt(review.problems, numbered), first.reading && arithmeticBreakdown(first.reading)].filter(Boolean).join("\n\n");
   const target = config[review.kind];
-  const edits = await call(review.kind, target, target.hosts, messagesJson([{ type: "text", text: prompt }, image]), remainingMs);
+  const reviewImage = target.imageDetail === null ? image : { type: "image_url" as const, image_url: { url: input.photo, detail: target.imageDetail } };
+  const edits = await call(review.kind, target, target.hosts, messagesJson([{ type: "text", text: prompt }, reviewImage]), remainingMs);
   if (edits === null) return finish(first, { kind: review.kind, outcome: "call failed", refusedTotals: 0 });
 
   const edited = applyEdits(numbered, edits);

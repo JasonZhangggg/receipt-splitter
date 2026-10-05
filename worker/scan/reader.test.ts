@@ -19,8 +19,8 @@ const CONFIG: ReaderConfig = {
   flex: { ...FLASH_LITE, resolution: "MEDIA_RESOLUTION_MEDIUM", hosts: ["google-ai-studio/flex"], boundUsd: BOUND.flex, deadlineMs: 80 },
   standard: { ...FLASH_LITE, resolution: null, hosts: ["google-vertex/global", "google-ai-studio"], boundUsd: BOUND.standard },
   pass1ByMs: 500,
-  pass2: { model: "google/gemini-2.5-flash", effort: "off", resolution: null, maxTokens: 1500, hosts: ["google-ai-studio/flex"], boundUsd: 0.0028 },
-  penny: { ...FLASH_LITE, resolution: "MEDIA_RESOLUTION_MEDIUM", maxTokens: 1500, hosts: ["google-ai-studio/flex"], boundUsd: 0.002 },
+  pass2: { model: "google/gemini-3.8-flash", effort: "minimal", resolution: null, imageDetail: "low", maxTokens: 1500, hosts: ["google-ai-studio/flex"], boundUsd: 0.0051 },
+  penny: { ...FLASH_LITE, resolution: "MEDIA_RESOLUTION_MEDIUM", imageDetail: null, maxTokens: 1500, hosts: ["google-ai-studio/flex"], boundUsd: 0.002 },
   reviewByMs: 400,
   reviewMinMs: 20,
 };
@@ -234,14 +234,14 @@ describe("readReceipt pass-1 budget", () => {
 });
 
 describe("readReceipt pass 2", () => {
-  it("reviews a failing total with Gemini 2.5 Flash, reasoning off, on flex, appending the breakdown, and keeps its edits", async () => {
+  it("reviews a failing total with Gemini 3.8 Flash, minimal reasoning, on flex, with a low-detail photo and the breakdown, and keeps its edits", async () => {
     const sent = stubOpenRouter(() => completion(SHORT), () => completion("fix|5|i|Fries|600"));
     const result = await readReceipt(INPUT, CONFIG);
     expect([shapeOf(sent[1]), result.path, result.reply?.check]).toEqual([
       {
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3.8-flash",
         temperature: 0,
-        reasoning: { enabled: false },
+        reasoning: { effort: "minimal" },
         max_tokens: 1500,
         usage: { include: true },
         provider: { order: ["google-ai-studio/flex"], allow_fallbacks: false },
@@ -254,7 +254,13 @@ describe("readReceipt pass 2", () => {
       prompt.startsWith("A first reading of this receipt photo failed its arithmetic check: non-tax lines sum to $13.00"),
       prompt.slice(prompt.indexOf("If nothing is wrong, reply: ok"), prompt.indexOf("Sums of the first reading")),
       sent[1].body.messages[0].content[1],
-    ]).toEqual([true, "If nothing is wrong, reply: ok\n\n", { type: "image_url", image_url: { url: SMALL_JPEG } }]);
+    ]).toEqual([true, "If nothing is wrong, reply: ok\n\n", { type: "image_url", image_url: { url: SMALL_JPEG, detail: "low" } }]);
+  });
+
+  it("turns reasoning off for a review whose effort is off", async () => {
+    const sent = stubOpenRouter(() => completion(SHORT), () => completion("ok"));
+    await readReceipt(INPUT, { ...CONFIG, pass2: { ...CONFIG.pass2, effort: "off" } });
+    expect(sent.map(({ body }) => body.reasoning)).toEqual([{ effort: "minimal" }, { enabled: false }]);
   });
 
   it("drops an edit that adds a line named as a total and applies the rest", async () => {
@@ -330,7 +336,7 @@ describe("readReceipt penny review", () => {
   it("asks 3.1 Flash-Lite at MEDIUM on flex with the penny problems, and keeps edits that reconcile to the cent", async () => {
     const sent = stubOpenRouter(() => completion(PENNY), () => completion("fix|5|i|Fries|602"));
     const result = await readReceipt(INPUT, CONFIG);
-    expect([shapeOf(sent[1]), promptOf(sent[1]).split("\n")[0], result.path.review, result.reply?.items.map((item) => item.price), result.reply?.check]).toEqual([
+    expect([shapeOf(sent[1]), promptOf(sent[1]).split("\n")[0], sent[1].body.messages[0].content[1], result.path.review, result.reply?.items.map((item) => item.price), result.reply?.check]).toEqual([
       {
         model: "google/gemini-3.1-flash-lite",
         temperature: 0,
@@ -341,6 +347,7 @@ describe("readReceipt penny review", () => {
         media_resolution: "MEDIA_RESOLUTION_MEDIUM",
       },
       "A first reading of this receipt photo failed its arithmetic check: all lines miss the printed total by $0.02 (short); a receipt adds up to the cent, so one amount is likely misread by a digit; the lines miss the printed subtotal by $0.02.",
+      { type: "image_url", image_url: { url: SMALL_JPEG } },
       { kind: "penny", outcome: "kept", refusedTotals: 0 },
       [800, 602],
       { passed: true, gaps: { subtotal: 0, total: 0 } },

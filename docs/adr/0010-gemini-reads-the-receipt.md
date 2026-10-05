@@ -2,14 +2,16 @@
 
 On 2026-10-04 the operator replaced the reading passes of ADR 0008 with Gemini (preferences 60). GLM-5.3-Flash then GPT-6 Luna got 20 of 24 readings of the hard receipts right, but GLM's reasoning sometimes ran for 20 s or more, and Luna's pass 2 added 4.6 to 11.8 s. The goal was a scan under 10 s at no loss in accuracy and no rise in cost. ADR 0008 still holds for the route, the input caps, the rate limits, the dollar budget, and privacy. This ADR replaces its pass bullets and its worst-case figure.
 
+On 2026-10-05 the operator moved pass 2 from Gemini 2.5 Flash to Gemini 3.8 Flash at low image detail (preferences 60). 2.5 Flash is to be deprecated, and it answered HTTP 502 on 12% of eval calls. Step 4, the evidence under **Pass 2 on Gemini 3.8 Flash**, the cost figures, and the known limits below say what changed. Pass 1, the penny review, rule R, the breakdown, and the 10 s deadline are unchanged.
+
 ## The pipeline
 
-`readReceipt` in `worker/scan/reader.ts` runs these steps. Every model, host, effort, resolution, deadline, per-call cost bound, and time budget is a var in `wrangler.jsonc`.
+`readReceipt` in `worker/scan/reader.ts` runs these steps. Every model, host, effort, resolution, review image detail, deadline, per-call cost bound, and time budget is a var in `wrangler.jsonc`.
 
 1. **Pass 1 on flex.** Gemini 3.1 Flash-Lite (`SCAN_PASS1_MODEL`) at `reasoning.effort` `minimal`, with `media_resolution` `MEDIA_RESOLUTION_MEDIUM`, pinned to `google-ai-studio/flex` with fallbacks off. It gets the pass-1 prompt, the OCR lines, and the photo. The prompt no longer starts with `/nothink`, which only GLM needed. The eval dropped it for Gemini too.
 2. **Pass 1 on the standard tier.** When the flex call has no complete reply after 3.5 s (`SCAN_PASS1_FLEX_DEADLINE_MS`), the Worker aborts it. It also moves on when the call fails or the reply is empty. It then sends the same messages to `google-vertex/global`, then to `google-ai-studio`, one call each, until one answers. These calls use the model's default resolution, as the eval measured them. Each gets what remains of the pass-1 budget (step 8), so a slow Vertex call leaves AI Studio nothing.
 3. **The check.** As before, the lines must add up to the printed subtotal and total within 3 cents.
-4. **Pass 2, only when the total fails.** Gemini 2.5 Flash with reasoning off (`SCAN_PASS2_EFFORT` is `off`), on `google-ai-studio/flex`. It gets the pass-2 prompt with the arithmetic breakdown from `worker/scan/breakdown.ts` appended, and the photo. Its edits stand when they leave no more problems than pass 1 had. A malformed pass-1 reply also goes to pass 2. A reading whose total reconciles but whose subtotal misses goes back as it is. It still fails the check, and the client shows the gray note (preferences 6).
+4. **Pass 2, only when the total fails.** Gemini 3.8 Flash (`SCAN_PASS2_MODEL`) at `reasoning.effort` `minimal`, on `google-ai-studio/flex` with fallbacks off, at most 1,500 tokens out. It gets the pass-2 prompt with the arithmetic breakdown from `worker/scan/breakdown.ts` appended, and the photo with `image_url.detail` `low` (`SCAN_PASS2_IMAGE_DETAIL`) and no `media_resolution`, as the eval arm `X38sfL` sent it. Until 2026-10-05 this step was Gemini 2.5 Flash with reasoning off. Its edits stand when they leave no more problems than pass 1 had. A malformed pass-1 reply also goes to pass 2. A reading whose total reconciles but whose subtotal misses goes back as it is. It still fails the check, and the client shows the gray note (preferences 6).
 5. **The penny review, only when the total passes off by 1 to 3 cents.** Gemini 3.1 Flash-Lite at `minimal` and MEDIUM on flex gets the pass-2 prompt with the problem "all lines miss the printed total by $0.02 (short); a receipt adds up to the cent, so one amount is likely misread by a digit", plus the subtotal gap when there is one, and the breakdown. Its edits stand only when the reading then reconciles to the cent, which means a total gap of 0 and a subtotal gap of 0. An edit that fixes the total and leaves the subtotal 1 cent off is rejected, and so is the reverse (`reader.test.ts` pins each half). Otherwise pass 1's reading stands.
 6. **Rule R.** `applyEdits` refuses an `add`, `after`, or `fix` from either review that writes an item, discount, fee, or service line whose name contains the word "total". Tax and tip lines are exempt, because some receipts print their only tax line as "Total tax". The other edits apply.
 7. **The review deadline.** Pass 2 or the penny review must answer within 9.8 s of the scan's start (`SCAN_REVIEW_BY_MS`, a 10 s budget less 200 ms). The Worker aborts a late review and returns pass 1's reading. When pass 1 used up the time, no review runs. A review is also skipped when less than 1 s remains (`SCAN_REVIEW_MIN_MS`), because the call would be aborted before it could answer.
@@ -42,6 +44,22 @@ How the design got there, row by row:
 
 The earlier write-ups in `~/receipts-eval/` (`pipeline-eval.md`, `gemini-2pass-eval.md`, `gemini-reasoning-eval.md`, `nothink-breakdown-eval.md`, `timing-breakdown.md`) show the same cause from the other side. GLM's reasoning cannot be switched off through OpenRouter. In `nothink-breakdown-eval.md`, which tried to stop GLM from reasoning, GLM pass 1 alone ran over 10 s on 6 to 8 of 27 readings in each GLM arm. The shipped GLM then Luna pipeline in the table above had 3 readings over 10 s in the later hill-climb batch, so the two counts come from different evals and do not conflict. In the live timing run, the slow scans waited 24 to 25 s on GLM's pass 1.
 
+### Pass 2 on Gemini 3.8 Flash
+
+The rows are `C2`, `I14`, and the same-window control in `I17`, in `decision.tsv`, with the write-up in `~/receipts-eval/testset-v2-results.md`. The test set is testset-v2: 41 receipts (r1 to r9, 18 online receipts, and the 14 hold-out receipts), 3 runs each, 123 readings. Both arms review the same stored pass-1 failures under rules R and P, with the 10 s deadline. The numbers are measured.
+
+| Pass 2 | Batch | Fully correct | Silent | Worst | $ per 10k scans |
+|---|---|---|---|---|---|
+| Gemini 2.5 Flash, reasoning off (`G25f`) | `C2` | 101/123 | 0 | 9.8 s | $5.72 |
+| Gemini 3.8 Flash, minimal, low detail (`X38sfL`) | `I14` | 105/123 | 0 | 9.8 s | $6.63 |
+| Gemini 2.5 Flash, same-window control | `I17` | 103/123 | 0 | 9.8 s | $5.93 |
+| Gemini 3.8 Flash, same-window control | `I17` | 107/123 | 0 | not logged | $6.86 |
+
+- **Accuracy.** 3.8 Flash scored 4 readings more in both batches. It gets r5 on 3 of 3 runs (2.5 Flash 1 of 3), h02 on 3 of 3 (2 of 3), w02 on 2 of 3, and r9 on 1 of 3. 2.5 Flash never gets w02 or r9. It loses r6, 0 of 3 against 2 of 3, because rule R's repair of r6 depends on what 2.5 Flash writes. The check still flags r6, so the user sees the gray note.
+- **Failures.** None of 3.8 Flash's 62 calls failed. 2.5 Flash answered HTTP 502 on 13 of 110 calls (12%).
+- **Cost.** About $0.9 more per 10k scans (+16%).
+- **Risk.** On the stored calls, 3.8 Flash turned a flagged reading into a passing wrong one 4 times in 62 (w02 three times on the standard-tier readings, w04 once), against once for 2.5 Flash. All four are long receipts. None reached the composed pipeline, which had 0 silent errors, only because those readings came through the pass-1 fallback and the review hit the 10 s deadline. A faster pass 1 on a long receipt could let one through. See **Known limits**.
+
 ## One vendor, against preferences 57
 
 Preferences 57 asks for open-weight models served by several providers. Every model call now goes to Google. The operator chose that for speed and recorded the exception. A Google price rise or a model removal now hits every pass at once. Three things limit the damage:
@@ -60,24 +78,24 @@ An abandoned, timed-out, or failed call reports no cost, and Google may still bi
 
 In the 2026-10-04 eval, OpenRouter allowed this account 20 requests a minute per model (observed, and possibly a limit on a new account that a later limit raises). One run hit it on 121 of 162 calls (observed in the same eval). Production uses the same key as the evals (preferences 61). Pass 1 and the penny review both call Gemini 3.1 Flash-Lite, so the whole site gets about 20 scans a minute, fewer while an eval runs. The per-address limit of 6 a minute does not raise that.
 
-When the limit hits, OpenRouter answers 429 with no completion. Pass 1 tries flex, Vertex, and AI Studio, which all refuse at once, because the limit is per model. Pass 2 then runs on Gemini 2.5 Flash, which has its own limit, with the "first reading could not be parsed" problem, and builds a reading from add lines. When pass 2 is refused too, the route answers 502 and the client reads on the device. A refused request costs nothing, so the route counts a 429 at $0 and the budget does not drain during the limit (inferred from OpenRouter billing only completions).
+When the limit hits, OpenRouter answers 429 with no completion. Pass 1 tries flex, Vertex, and AI Studio, which all refuse at once, because the limit is per model. Pass 2 then runs on Gemini 3.8 Flash, which has its own limit, with the "first reading could not be parsed" problem, and builds a reading from add lines. When pass 2 is refused too, the route answers 502 and the client reads on the device. A refused request costs nothing, so the route counts a 429 at $0 and the budget does not drain during the limit (inferred from OpenRouter billing only completions).
 
 ## Cost
 
 Measured on 2026-10-04 with OpenRouter calls at `max_tokens` 16:
 
-- Prices per million tokens, input then output. Gemini 3.1 Flash-Lite is $0.125 and $0.75 on `google-ai-studio/flex`, and $0.25 and $1.50 on `google-vertex/global` and on `google-ai-studio`. Gemini 2.5 Flash is $0.15 and $1.25 on `google-ai-studio/flex`.
+- Prices per million tokens, input then output. Gemini 3.1 Flash-Lite is $0.125 and $0.75 on `google-ai-studio/flex`, and $0.25 and $1.50 on `google-vertex/global` and on `google-ai-studio`. Gemini 2.5 Flash was $0.15 and $1.25 on `google-ai-studio/flex`. Gemini 3.8 Flash is $0.375 and $1.875 there, solved from the billed cost and tokens of its eval calls on 2026-10-05. These prices give the billed cost of each of the 45 successful calls in `~/receipts-eval/out/hc5-x38.txt` exactly.
 - Pass 1's prompt with 8,000 characters of random BMP text is 19,862 tokens. Astral characters (4,000 of them) are 7,234 tokens, and digits 8,302.
-- A 2,560 by 2,560 px JPEG is about 1,087 tokens on 3.1 Flash-Lite at the default resolution, 528 at MEDIUM, and 258 on 2.5 Flash.
+- A 2,560 by 2,560 px JPEG is about 1,087 tokens on 3.1 Flash-Lite at the default resolution, 528 at MEDIUM, and 258 on 2.5 Flash. On the same pass-2 prompts, 3.8 Flash at low detail counted 3 to 8 input tokens more than 2.5 Flash on each of the 40 calls that both made in `hc5-x38.txt` and `hc5-g25.txt`, so its image is at most about 266 tokens (inferred).
 
 The worst scan runs all three pass-1 calls at the input cap and 3,000 output tokens each, then pass 2:
 
 - Flex: 20,390 tokens in at $0.125 and 3,000 out at $0.75 is $0.00480. The Worker may abort it, but it may still bill.
 - Vertex and AI Studio: 20,950 tokens in at $0.25 and 3,000 out at $1.50 is $0.00974 each, $0.01948 for both.
-- Pass 2: at most about 6,000 tokens in (the prompt, up to 3,000 tokens of numbered pass-1 lines, the breakdown, and the image) at $0.15, and 1,500 out at $1.25, is $0.00278. The penny review costs less, $0.00194, and never runs with pass 2.
-- The worst scan is **$0.0271**. `SCAN_WORST_CASE_USD` is $0.03, about 10% above it, up from $0.016. The $3 budget holds 100 worst-case reservations at once.
+- Pass 2: at most about 6,008 tokens in (the prompt, up to 3,000 tokens of numbered pass-1 lines, the breakdown, and the low-detail image) at $0.375, and 1,500 out at $1.875, is $0.00507. The 1,500 tokens out include any reasoning at `minimal`. The penny review costs less, $0.00194, and never runs with pass 2. On 2.5 Flash this line was $0.00278.
+- The worst scan is **$0.0294**. `SCAN_WORST_CASE_USD` is $0.033, about 12% above it, up from $0.03 on 2026-10-05. The $3 budget holds 90 worst-case reservations at once.
 
-**Per-call bounds.** Each call that reports no cost, because it was abandoned at a deadline, timed out, or failed after it may have been billed, counts at its own bound, which is a var: `SCAN_PASS1_FLEX_BOUND_USD` $0.0049 (the flex figure above, rounded up), `SCAN_PASS1_STANDARD_BOUND_USD` $0.0098, `SCAN_PASS2_BOUND_USD` $0.0028, and `SCAN_PENNY_BOUND_USD` $0.0020. The route settles the day's tally at the sum of each call's reported cost or its bound. A call that returned an HTTP error counts $0, and the reservation holds only until the settle. Recompute each bound with `SCAN_WORST_CASE_USD` when a target's model, host, `max_tokens`, or the text or image cap changes.
+**Per-call bounds.** Each call that reports no cost, because it was abandoned at a deadline, timed out, or failed after it may have been billed, counts at its own bound, which is a var: `SCAN_PASS1_FLEX_BOUND_USD` $0.0049 (the flex figure above, rounded up), `SCAN_PASS1_STANDARD_BOUND_USD` $0.0098, `SCAN_PASS2_BOUND_USD` $0.0051 (the pass-2 figure above, rounded up), and `SCAN_PENNY_BOUND_USD` $0.0020. The route settles the day's tally at the sum of each call's reported cost or its bound. A call that returned an HTTP error counts $0, and the reservation holds only until the settle. Recompute each bound with `SCAN_WORST_CASE_USD` when a target's model, host, `max_tokens`, or the text or image cap changes.
 
 A normal scan costs much less. The live check read four receipts for $0.0003 to $0.0008 each, and the eval's mean is $5.58 per 10k scans.
 
@@ -94,4 +112,6 @@ A normal scan costs much less. The live check read four receipts for $0.0003 to 
 - A receipt that prints repeated discount lines and item-naming coupons after the items still fails, as r7 does on 3 of 3 runs. The check catches it, so the user sees the gray note, not a silent error.
 - Rule R and rule P each rest on one receipt, r6 and r3. The hold-out shows that neither rule did harm, and it does not show that they help.
 - How often rule P fires on real receipts is not measured. Each firing adds one Flash-Lite call, which cost $0.00016 on r3.
+- On long receipts, 3.8 Flash as pass 2 turned a flagged reading into a passing wrong one in 4 of 62 raw eval calls (2.5 Flash 1 of 62). The composed pipeline had 0 silent errors only because those readings came through the pass-1 fallback and the review ran out of time. Follow-up: watch the `scan` log for kept pass-2 edits on long receipts, and rerun w02 and w04 with pass 1 on flex.
+- 3.8 Flash loses rule R's repair of r6 (0 of 3, 2.5 Flash 2 of 3). The check still flags r6.
 - Gemini is deterministic per host and resolution, so 3 runs of one receipt are close to one sample. A one-receipt difference between pipelines is noise.
