@@ -6,6 +6,8 @@ The operator ruled on 2026-10-03 that receipt data may go to a server and to a t
 
 ## Recommendation
 
+The current recommendation is Gemini, and [ADR 0010](../adr/0010-gemini-reads-the-receipt.md) records it with its evidence. Gemini 3.1 Flash-Lite reads on Google's flex tier with a 3.5 s deadline and the standard tier behind it. Gemini 2.5 Flash repairs a failing total. A 2026-10-04 eval of that pipeline scored 20/24 with no silent errors, a 4.6 s worst case, and $5.58 per 10,000 scans. The GLM and Luna recommendation below is the 2026-10-03 one, kept for its history.
+
 Two passes, with a free arithmetic check between them.
 
 1. **Pass 1, every receipt:** GLM-5.3-Flash (`z-ai/glm-5.3-flash`) at `reasoning.effort = "minimal"`, with `/nothink` at the start of the prompt. The input is the photo, the on-device OCR text grouped into plain lines, and the compact line format below. Pin a fast host (`provider.order: ["parasail"]`) with fallbacks off, and retry on a second pinned host when pass 1 runs long (see **Guards to build**).

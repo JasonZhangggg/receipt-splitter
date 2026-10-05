@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkReading } from "./check";
+import { checkReading, pennyProblems } from "./check";
 import { readLines } from "./format";
 
 const check = (reply: string) => {
@@ -44,5 +44,27 @@ describe("checkReading", () => {
 
   it("fails a Bundle with no Items", () => {
     expect(check("TOT|900\ni|Burger|900\nb|Empty\nt|Tax|0")).toMatchObject({ passed: false, problems: ['bundle "Empty" has no items'] });
+  });
+});
+
+describe("pennyProblems", () => {
+  it("names a total that passes 2 cents short, with the subtotal gap beside it", () => {
+    expect(pennyProblems(check("SUB|1001\nTOT|1082\ni|Burger|1000\nt|Tax|80"))).toEqual([
+      "all lines miss the printed total by $0.02 (short); a receipt adds up to the cent, so one amount is likely misread by a digit",
+      "the lines miss the printed subtotal by $0.01",
+    ]);
+  });
+
+  it("names a total that passes 3 cents over, alone when the subtotal reconciles", () => {
+    expect(pennyProblems(check("SUB|1000\nTOT|1077\ni|Burger|1000\nt|Tax|80"))).toEqual([
+      "all lines miss the printed total by $0.03 (over); a receipt adds up to the cent, so one amount is likely misread by a digit",
+    ]);
+  });
+
+  it("returns null for an exact total, even beside a subtotal penny gap, and for a failing reading", () => {
+    const exact = pennyProblems(check("SUB|1002\nTOT|1080\ni|Burger|1000\nt|Tax|80"));
+    const failing = pennyProblems(check("SUB|1000\nTOT|1084\ni|Burger|1000\nt|Tax|80"));
+    const penny = pennyProblems(check("SUB|1000\nTOT|1081\ni|Burger|1000\nt|Tax|80"));
+    expect([exact, failing, penny?.length]).toEqual([null, null, 1]);
   });
 });

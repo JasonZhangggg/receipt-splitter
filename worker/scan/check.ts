@@ -46,3 +46,13 @@ export function checkReading(reading: Reading): Check {
   const [first, ...rest] = problems;
   return first === undefined ? { passed: true, gaps } : { passed: false, gaps, problems: [first, ...rest] };
 }
+
+/**
+ * The problems of a reading that passes with a gap of 1 to 3 cents on the total, for one review, or null otherwise.
+ * A subtotal gap is named beside a total gap and never triggers a review alone.
+ */
+export function pennyProblems(check: Check): NonEmpty<string> | null {
+  if (!check.passed || check.gaps.total === 0) return null;
+  const total = `all lines miss the printed total by ${dollars(check.gaps.total)} (${check.gaps.total > 0 ? "short" : "over"}); a receipt adds up to the cent, so one amount is likely misread by a digit`;
+  return check.gaps.subtotal ? [total, `the lines miss the printed subtotal by ${dollars(check.gaps.subtotal)}`] : [total];
+}

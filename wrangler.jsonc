@@ -10,25 +10,46 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SplitServer", "CreateLimiter"] }],
-  // Every scan setting lives here (preferences 57). The three limits await the operator's OK. OPENROUTER_API_KEY is a secret.
+  // Every scan setting lives here (preferences 57). The limits are the operator's (preferences 63). OPENROUTER_API_KEY is a secret.
+  // ADR 0010 explains the reading settings. An empty _RESOLUTION sends no media_resolution, and an _EFFORT of "off" turns reasoning off.
   "vars": {
     "SCAN_PER_MINUTE": "6",
     "SCAN_PER_DAY": "20",
     "SCAN_DAILY_CAP": "2000",
-    // Dollars. ADR 0008 derives the worst case from the pass settings below, so recompute it when they change.
+    // Dollars. ADR 0010 derives the worst case from the reading settings below, so recompute it when they change.
     "SCAN_DAILY_BUDGET_USD": "3",
-    "SCAN_WORST_CASE_USD": "0.016",
+    "SCAN_WORST_CASE_USD": "0.03",
     "SCAN_MAX_IMAGE_PX": "2560",
-    "SCAN_PASS1_MODEL": "z-ai/glm-5.3-flash",
-    "SCAN_PASS1_HOSTS": "parasail,baseten",
+    "SCAN_PASS1_MODEL": "google/gemini-3.1-flash-lite",
     "SCAN_PASS1_EFFORT": "minimal",
-    "SCAN_PASS1_TIMEOUT_MS": "25000",
     "SCAN_PASS1_MAX_TOKENS": "3000",
-    "SCAN_PASS2_MODEL": "openai/gpt-6-luna",
-    "SCAN_PASS2_HOSTS": "azure,openai",
-    "SCAN_PASS2_EFFORT": "low",
-    "SCAN_PASS2_TIMEOUT_MS": "30000",
+    "SCAN_PASS1_FLEX_HOSTS": "google-ai-studio/flex",
+    "SCAN_PASS1_FLEX_RESOLUTION": "MEDIA_RESOLUTION_MEDIUM",
+    "SCAN_PASS1_FLEX_DEADLINE_MS": "3500",
+    // Dollars. Each _BOUND_USD is the most one call to that target can cost (ADR 0010, Cost). A call that reports no cost counts at it. Recompute with SCAN_WORST_CASE_USD.
+    "SCAN_PASS1_FLEX_BOUND_USD": "0.0049",
+    // Pass 1 must have its reading this long after the scan starts. Every pass-1 call ends by then, so a scan with no reading answers 502 and the client reads on the device.
+    "SCAN_PASS1_BY_MS": "8500",
+    // Tried one at a time, in order, after the flex call misses. The eval measured them at the default resolution. Each gets what remains of SCAN_PASS1_BY_MS.
+    "SCAN_PASS1_STANDARD_HOSTS": "google-vertex/global,google-ai-studio",
+    "SCAN_PASS1_STANDARD_RESOLUTION": "",
+    "SCAN_PASS1_STANDARD_BOUND_USD": "0.0098",
+    "SCAN_PASS2_MODEL": "google/gemini-2.5-flash",
+    "SCAN_PASS2_EFFORT": "off",
     "SCAN_PASS2_MAX_TOKENS": "1500",
+    "SCAN_PASS2_HOSTS": "google-ai-studio/flex",
+    "SCAN_PASS2_RESOLUTION": "",
+    "SCAN_PASS2_BOUND_USD": "0.0028",
+    "SCAN_PENNY_MODEL": "google/gemini-3.1-flash-lite",
+    "SCAN_PENNY_EFFORT": "minimal",
+    "SCAN_PENNY_MAX_TOKENS": "1500",
+    "SCAN_PENNY_HOSTS": "google-ai-studio/flex",
+    "SCAN_PENNY_RESOLUTION": "MEDIA_RESOLUTION_MEDIUM",
+    "SCAN_PENNY_BOUND_USD": "0.0020",
+    // A 10 s scan budget less 200 ms. Pass 2 or the penny review must answer by then, or pass 1's reading stands.
+    "SCAN_REVIEW_BY_MS": "9800",
+    // A review is skipped when less than this remains before SCAN_REVIEW_BY_MS, because it would be aborted anyway.
+    "SCAN_REVIEW_MIN_MS": "1000",
     "SCAN_DEBUG_HEADERS": "false"
   },
   "assets": {
