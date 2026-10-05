@@ -30,6 +30,10 @@ type ScanConfig = {
 
 type ScanEnv = Pick<Cloudflare.Env, "CreateLimiter" | "OPENROUTER_API_KEY" | Extract<keyof Cloudflare.Env, `SCAN_${string}`>>;
 
+/** The values `reasoning.effort` takes through OpenRouter, and `off`, which turns reasoning off. */
+const EFFORTS: ReadonlySet<string> = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
+const RESOLUTIONS: ReadonlySet<string> = new Set(["MEDIA_RESOLUTION_UNSPECIFIED", "MEDIA_RESOLUTION_LOW", "MEDIA_RESOLUTION_MEDIUM", "MEDIA_RESOLUTION_HIGH", "MEDIA_RESOLUTION_ULTRA_HIGH"]);
+
 type ScanVar = Extract<keyof ScanEnv, `SCAN_${string}`>;
 
 /** Reads the scan settings from the Worker's vars and secret, or names what is missing or wrong. */
@@ -42,27 +46,32 @@ export function scanConfig(env: ScanEnv): ScanConfig | { readonly error: string 
     const value = Number(env[name]);
     return Number.isFinite(value) && value > 0 ? value : null;
   };
-  const target = (prefix: "SCAN_PASS1" | "SCAN_PASS2" | "SCAN_PENNY", hostsVar: ScanVar, resolutionVar: ScanVar): Target | string => {
+  const target = (prefix: "SCAN_PASS1" | "SCAN_PASS2" | "SCAN_PENNY", hostsVar: ScanVar, resolutionVar: ScanVar, boundVar: ScanVar): Target | string => {
     const [host, ...more] = String(env[hostsVar] ?? "")
       .split(",")
       .map((name) => name.trim())
       .filter(Boolean);
     const [model, effort, maxTokens] = [env[`${prefix}_MODEL`], env[`${prefix}_EFFORT`], count(`${prefix}_MAX_TOKENS`)];
     if (!model || !effort || maxTokens === null) return `${prefix}_MODEL, _EFFORT, or _MAX_TOKENS is missing or invalid`;
+    if (!EFFORTS.has(effort)) return `${prefix}_EFFORT must be one of ${[...EFFORTS].join(", ")}`;
     if (host === undefined) return `${hostsVar} lists no host`;
-    return { model, effort, maxTokens, hosts: [host, ...more], resolution: String(env[resolutionVar] ?? "").trim() || null };
+    const resolution = String(env[resolutionVar] ?? "").trim();
+    if (resolution !== "" && !RESOLUTIONS.has(resolution)) return `${resolutionVar} must be empty or one of ${[...RESOLUTIONS].join(", ")}`;
+    const boundUsd = dollars(boundVar);
+    if (boundUsd === null) return `${boundVar} is missing or invalid`;
+    return { model, effort, maxTokens, hosts: [host, ...more], resolution: resolution || null, boundUsd };
   };
   const [perMinute, perDay, dailyCap, maxImagePx] = [count("SCAN_PER_MINUTE"), count("SCAN_PER_DAY"), count("SCAN_DAILY_CAP"), count("SCAN_MAX_IMAGE_PX")];
   const [usd, reserveUsd] = [dollars("SCAN_DAILY_BUDGET_USD"), dollars("SCAN_WORST_CASE_USD")];
-  const [deadlineMs, timeoutMs, reviewByMs] = [count("SCAN_PASS1_FLEX_DEADLINE_MS"), count("SCAN_PASS1_STANDARD_TIMEOUT_MS"), count("SCAN_REVIEW_BY_MS")];
-  const flex = target("SCAN_PASS1", "SCAN_PASS1_FLEX_HOSTS", "SCAN_PASS1_FLEX_RESOLUTION");
-  const standard = target("SCAN_PASS1", "SCAN_PASS1_STANDARD_HOSTS", "SCAN_PASS1_STANDARD_RESOLUTION");
-  const pass2 = target("SCAN_PASS2", "SCAN_PASS2_HOSTS", "SCAN_PASS2_RESOLUTION");
-  const penny = target("SCAN_PENNY", "SCAN_PENNY_HOSTS", "SCAN_PENNY_RESOLUTION");
+  const [deadlineMs, pass1ByMs, reviewByMs, reviewMinMs] = [count("SCAN_PASS1_FLEX_DEADLINE_MS"), count("SCAN_PASS1_BY_MS"), count("SCAN_REVIEW_BY_MS"), count("SCAN_REVIEW_MIN_MS")];
+  const flex = target("SCAN_PASS1", "SCAN_PASS1_FLEX_HOSTS", "SCAN_PASS1_FLEX_RESOLUTION", "SCAN_PASS1_FLEX_BOUND_USD");
+  const standard = target("SCAN_PASS1", "SCAN_PASS1_STANDARD_HOSTS", "SCAN_PASS1_STANDARD_RESOLUTION", "SCAN_PASS1_STANDARD_BOUND_USD");
+  const pass2 = target("SCAN_PASS2", "SCAN_PASS2_HOSTS", "SCAN_PASS2_RESOLUTION", "SCAN_PASS2_BOUND_USD");
+  const penny = target("SCAN_PENNY", "SCAN_PENNY_HOSTS", "SCAN_PENNY_RESOLUTION", "SCAN_PENNY_BOUND_USD");
   if (!env.OPENROUTER_API_KEY) return { error: "the OPENROUTER_API_KEY secret is not set" };
   if (perMinute === null || perDay === null || dailyCap === null) return { error: "SCAN_PER_MINUTE, SCAN_PER_DAY, or SCAN_DAILY_CAP is missing or invalid" };
   if (usd === null || reserveUsd === null || maxImagePx === null) return { error: "SCAN_DAILY_BUDGET_USD, SCAN_WORST_CASE_USD, or SCAN_MAX_IMAGE_PX is missing or invalid" };
-  if (deadlineMs === null || timeoutMs === null || reviewByMs === null) return { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_STANDARD_TIMEOUT_MS, or SCAN_REVIEW_BY_MS is missing or invalid" };
+  if (deadlineMs === null || pass1ByMs === null || reviewByMs === null || reviewMinMs === null) return { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_BY_MS, SCAN_REVIEW_BY_MS, or SCAN_REVIEW_MIN_MS is missing or invalid" };
   if (typeof flex === "string") return { error: flex };
   if (typeof standard === "string") return { error: standard };
   if (typeof pass2 === "string") return { error: pass2 };
@@ -71,7 +80,7 @@ export function scanConfig(env: ScanEnv): ScanConfig | { readonly error: string 
     perIp: { perMinute, perDay },
     today: { cap: dailyCap, budget: { usd, reserveUsd } },
     maxImagePx,
-    reader: { key: env.OPENROUTER_API_KEY, flex: { ...flex, deadlineMs }, standard: { ...standard, timeoutMs }, pass2, penny, reviewByMs },
+    reader: { key: env.OPENROUTER_API_KEY, flex: { ...flex, deadlineMs }, standard, pass1ByMs, pass2, penny, reviewByMs, reviewMinMs },
   };
 }
 
@@ -117,9 +126,8 @@ export async function scanReceipt(request: Request, env: ScanEnv): Promise<Respo
   const started = Date.now();
   const { reply, calls, path, skipped } = await readReceipt(input, config.reader);
   const reserved = config.today.budget.reserveUsd;
-  const reported = calls.reduce((total, call) => total + (call.cost ?? 0), 0);
-  // A call with no reported cost, such as one that timed out, may still be billed, so the scan counts as its worst case.
-  const cost = calls.every((call) => call.cost !== null) ? reported : Math.max(reported, reserved);
+  // A call with no reported cost, such as one abandoned at a deadline, may still be billed, so it counts at its own worst case.
+  const cost = calls.reduce((total, call) => total + (call.cost ?? call.boundUsd), 0);
   await cap.settleToday(today.day, reserved, cost);
   console.log(
     JSON.stringify({

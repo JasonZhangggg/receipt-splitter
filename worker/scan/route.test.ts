@@ -189,14 +189,14 @@ describe("daily dollar budget", () => {
     expect(statuses).toEqual([200, 200, 429]);
   });
 
-  it("counts a reply with no usage.cost as a worst-case scan, and starts the budget over the next UTC day", async () => {
+  it("counts a reply with no usage.cost at its call's bound, and starts the budget over the next UTC day", async () => {
     vi.setSystemTime(T0 + 12 * DAY);
     stubOpenRouter(() => completion(PASSING, "Google AI Studio", { prompt_tokens: 1200, completion_tokens: 90 }), () => completion(PASSING));
     const first = await scan(scanRequest(), budget);
     const second = await scan(scanRequest(), budget);
     vi.setSystemTime(T0 + 13 * DAY);
     const nextDay = await scan(scanRequest(), budget);
-    expect([first.status, first.headers.get("x-scan-cost"), second.status, nextDay.status]).toEqual([200, "0.000800", 429, 200]);
+    expect([first.status, first.headers.get("x-scan-cost"), second.status, nextDay.status]).toEqual([200, "0.004900", 429, 200]);
   });
 });
 
@@ -239,8 +239,8 @@ describe("reading", () => {
     ]).toEqual([
       { pass1: "flex", review: { kind: "pass2", outcome: "kept", refusedTotals: 1 } },
       [
-        { step: "flex", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, outcome: "ok" },
-        { step: "pass2", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, outcome: "ok" },
+        { step: "flex", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, boundUsd: 0.0049, outcome: "ok" },
+        { step: "pass2", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, boundUsd: 0.0028, outcome: "ok" },
       ],
       0.0008,
       [],
@@ -360,6 +360,35 @@ describe("reading", () => {
   });
 });
 
+describe("scan cost accounting", () => {
+  it("counts a flex call abandoned at its deadline at the flex bound, plus the Vertex call's reported cost, not the whole-scan reservation", async () => {
+    stubOpenRouter(hang, () => completion(PASSING, "Google"));
+    const response = await scan(scanRequest(), { SCAN_PASS1_FLEX_DEADLINE_MS: "50", SCAN_DEBUG_HEADERS: "true" });
+    expect([response.status, response.headers.get("x-scan-cost")]).toEqual([200, "0.005300"]);
+  });
+
+  it("settles that scan's day tally at the same amount", async () => {
+    vi.setSystemTime(T0 + 15 * DAY);
+    stubOpenRouter(hang, () => completion(PASSING, "Google"));
+    await scan(scanRequest(), { SCAN_PASS1_FLEX_DEADLINE_MS: "50" });
+    const day = await runInDurableObject(env.CreateLimiter.getByName(SCAN_DAILY_CAP_NAME), (_, state) => state.storage.get<{ spentUsd: number }>("tally"));
+    expect(day?.spentUsd).toBeCloseTo(0.0053, 10);
+  });
+});
+
+describe("scan time bound", () => {
+  it("answers 502 by the pass-1 budget when no pass-1 call has a reading, and makes no review call", async () => {
+    vi.useRealTimers();
+    const calls = stubOpenRouter(hang, hang);
+    const started = Date.now();
+    const response = await scan(scanRequest(), { SCAN_PASS1_FLEX_DEADLINE_MS: "50", SCAN_PASS1_BY_MS: "300" });
+    const elapsed = Date.now() - started;
+    expect([response.status, calls.map((call) => call.hosts)]).toEqual([502, [["google-ai-studio/flex"], ["google-vertex/global"]]]);
+    expect(elapsed).toBeGreaterThanOrEqual(290);
+    expect(elapsed).toBeLessThan(600);
+  });
+});
+
 describe("scanConfig", () => {
   const vars = { ...env, OPENROUTER_API_KEY: "test-key" };
 
@@ -374,7 +403,12 @@ describe("scanConfig", () => {
       SCAN_PASS1_FLEX_DEADLINE_MS: "3000",
       SCAN_PASS1_STANDARD_HOSTS: "a, b ,c",
       SCAN_PASS1_STANDARD_RESOLUTION: " ",
-      SCAN_PASS1_STANDARD_TIMEOUT_MS: "20000",
+      SCAN_PASS1_BY_MS: "7000",
+      SCAN_PASS1_FLEX_BOUND_USD: "0.004",
+      SCAN_PASS1_STANDARD_BOUND_USD: "0.008",
+      SCAN_PASS2_BOUND_USD: "0.002",
+      SCAN_PENNY_BOUND_USD: "0.001",
+      SCAN_REVIEW_MIN_MS: "500",
       SCAN_PASS2_MODEL: "vendor/fixer",
       SCAN_PASS2_EFFORT: "off",
       SCAN_PASS2_MAX_TOKENS: "1000",
@@ -389,11 +423,13 @@ describe("scanConfig", () => {
     });
     expect("error" in config ? config : config.reader).toEqual({
       key: "test-key",
-      flex: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["cheap/flex"], resolution: "MEDIA_RESOLUTION_LOW", deadlineMs: 3000 },
-      standard: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["a", "b", "c"], resolution: null, timeoutMs: 20000 },
-      pass2: { model: "vendor/fixer", effort: "off", maxTokens: 1000, hosts: ["d", "e"], resolution: null },
-      penny: { model: "vendor/penny", effort: "minimal", maxTokens: 500, hosts: ["f"], resolution: "MEDIA_RESOLUTION_HIGH" },
+      flex: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["cheap/flex"], resolution: "MEDIA_RESOLUTION_LOW", boundUsd: 0.004, deadlineMs: 3000 },
+      standard: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["a", "b", "c"], resolution: null, boundUsd: 0.008 },
+      pass1ByMs: 7000,
+      pass2: { model: "vendor/fixer", effort: "off", maxTokens: 1000, hosts: ["d", "e"], resolution: null, boundUsd: 0.002 },
+      penny: { model: "vendor/penny", effort: "minimal", maxTokens: 500, hosts: ["f"], resolution: "MEDIA_RESOLUTION_HIGH", boundUsd: 0.001 },
       reviewByMs: 8000,
+      reviewMinMs: 500,
     });
   });
 
@@ -404,12 +440,18 @@ describe("scanConfig", () => {
       scanConfig({ ...vars, SCAN_PASS2_MAX_TOKENS: "1.5" }),
       scanConfig({ ...vars, SCAN_REVIEW_BY_MS: "0" }),
       scanConfig({ ...vars, SCAN_PASS1_FLEX_DEADLINE_MS: "soon" }),
+      scanConfig({ ...vars, SCAN_PASS1_FLEX_RESOLUTION: "MEDIA_RESOLUTION_MEDUIM" }),
+      scanConfig({ ...vars, SCAN_PENNY_EFFORT: "maximal" }),
+      scanConfig({ ...vars, SCAN_PASS2_BOUND_USD: "" }),
     ]).toEqual([
       { error: "SCAN_PASS1_STANDARD_HOSTS lists no host" },
       { error: "SCAN_PENNY_MODEL, _EFFORT, or _MAX_TOKENS is missing or invalid" },
       { error: "SCAN_PASS2_MODEL, _EFFORT, or _MAX_TOKENS is missing or invalid" },
-      { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_STANDARD_TIMEOUT_MS, or SCAN_REVIEW_BY_MS is missing or invalid" },
-      { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_STANDARD_TIMEOUT_MS, or SCAN_REVIEW_BY_MS is missing or invalid" },
+      { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_BY_MS, SCAN_REVIEW_BY_MS, or SCAN_REVIEW_MIN_MS is missing or invalid" },
+      { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_BY_MS, SCAN_REVIEW_BY_MS, or SCAN_REVIEW_MIN_MS is missing or invalid" },
+      { error: "SCAN_PASS1_FLEX_RESOLUTION must be empty or one of MEDIA_RESOLUTION_UNSPECIFIED, MEDIA_RESOLUTION_LOW, MEDIA_RESOLUTION_MEDIUM, MEDIA_RESOLUTION_HIGH, MEDIA_RESOLUTION_ULTRA_HIGH" },
+      { error: "SCAN_PENNY_EFFORT must be one of off, minimal, low, medium, high, xhigh" },
+      { error: "SCAN_PASS2_BOUND_USD is missing or invalid" },
     ]);
   });
 
@@ -417,5 +459,12 @@ describe("scanConfig", () => {
     const calls = stubOpenRouter();
     const response = await scan(scanRequest(), { SCAN_PASS2_HOSTS: "" });
     expect([response.status, await response.json(), calls.length]).toEqual([503, { refused: "unavailable" }, 0]);
+  });
+
+  it("answers 503 and calls no model when a resolution or effort is not one the models take", async () => {
+    const calls = stubOpenRouter();
+    const resolution = await scan(scanRequest(), { SCAN_PASS1_FLEX_RESOLUTION: "MEDIUM" });
+    const effort = await scan(scanRequest(), { SCAN_PASS2_EFFORT: "none-at-all" });
+    expect([resolution.status, effort.status, calls.length]).toEqual([503, 503, 0]);
   });
 });

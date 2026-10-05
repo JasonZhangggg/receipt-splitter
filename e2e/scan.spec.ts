@@ -522,8 +522,8 @@ test.describe("reading through the server", () => {
     });
   }
 
-  test("a scan with no reply in 60 s falls back to the on-device reading, and home reads until then", async ({ page }) => {
-    test.setTimeout(240_000);
+  test("a scan with no reply in 15 s falls back to the on-device reading, and home reads until then", async ({ page }) => {
+    test.setTimeout(90_000);
     let askedAt = 0;
     await page.route("**/api/scan", () => {
       askedAt = Date.now();
@@ -533,8 +533,8 @@ test.describe("reading through the server", () => {
     await expect.poll(() => askedAt, scanTimeout).toBeGreaterThan(0);
 
     await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
-    await expect(card(page)).toBeVisible({ timeout: 90_000 });
-    expect(Date.now() - askedAt).toBeGreaterThan(55_000);
+    await expect(card(page)).toBeVisible({ timeout: 30_000 });
+    expect(Date.now() - askedAt).toBeGreaterThan(14_000);
     expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(onDevice);
   });
 

@@ -15,25 +15,34 @@ export type Target = {
   readonly resolution: string | null;
   readonly maxTokens: number;
   readonly hosts: NonEmpty<string>;
+  /** The most one call to this target can cost, in dollars, if it is billed in full: its tokens at the text cap, the image, and `maxTokens`. ADR 0010 derives it. */
+  readonly boundUsd: number;
 };
 
 export type ReaderConfig = {
   readonly key: string;
   /** Pass 1's first call. It is abandoned when no complete reply has come by `deadlineMs`. */
   readonly flex: Target & { readonly deadlineMs: number };
-  /** Pass 1 when the flex call misses: one call per host, in order, until one answers. */
-  readonly standard: Target & { readonly timeoutMs: number };
+  /** Pass 1 when the flex call misses: one call per host, in order, until one answers. Each gets what remains of `pass1ByMs`. */
+  readonly standard: Target;
+  /** Pass 1 must have its reading this long after the scan starts, or the scan has none. It also caps the flex deadline. */
+  readonly pass1ByMs: number;
   /** The review of a reading whose total fails the check. */
   readonly pass2: Target;
   /** The review of a reading that passes only inside the tolerance. */
   readonly penny: Target;
   /** A review must answer this long after the scan starts, or pass 1's reading stands. */
   readonly reviewByMs: number;
+  /** A review is skipped when less than this remains before `reviewByMs`, because it would not finish. */
+  readonly reviewMinMs: number;
 };
 
 export type JpegDataUrl = string & { readonly jpegDataUrl: true };
 
 export type ScanInput = { readonly photo: JpegDataUrl; readonly ocrLines: readonly string[] };
+
+/** A pass-1 call given less than this could not finish, and a timer may also fire a few ms early, so none is made. */
+const MIN_CALL_MS = 100;
 
 type Step = "flex" | "standard" | "pass2" | "penny";
 
@@ -49,6 +58,8 @@ export type CallLog = {
   readonly reasoningTokens: number | null;
   /** Dollars as OpenRouter reported them, or null when the call may have been billed and no cost came back. */
   readonly cost: number | null;
+  /** What the call costs at most, from its target. The route charges it when `cost` is null. */
+  readonly boundUsd: number;
   readonly outcome: Outcome;
 };
 
@@ -81,7 +92,7 @@ async function callModel(step: Step, target: Target, hosts: NonEmpty<string>, ke
   const started = Date.now();
   const failed = (outcome: Outcome, cost: number | null) => ({
     text: "",
-    log: { step, host: hosts.length === 1 ? hosts[0] : null, ms: Date.now() - started, inputTokens: null, outputTokens: null, reasoningTokens: null, cost, outcome },
+    log: { step, host: hosts.length === 1 ? hosts[0] : null, ms: Date.now() - started, inputTokens: null, outputTokens: null, reasoningTokens: null, cost, boundUsd: target.boundUsd, outcome },
   });
   // The signal also covers reading the body, so a reply still streaming in at the deadline is abandoned with it.
   const signal = AbortSignal.timeout(timeoutMs);
@@ -128,6 +139,7 @@ async function callModel(step: Step, target: Target, hosts: NonEmpty<string>, ke
       outputTokens: numberOr(usage?.completion_tokens, null),
       reasoningTokens: numberOr(usage?.completion_tokens_details?.reasoning_tokens, null),
       cost: numberOr(usage?.cost, null),
+      boundUsd: target.boundUsd,
       outcome: text.trim() === "" ? "empty" : "ok",
     },
   };
@@ -157,7 +169,7 @@ export function reviewOf(check: Check | null): Review | null {
 
 /**
  * Pass 1 reads the photo and the OCR lines on the flex host, and on the standard hosts when flex misses its deadline,
- * fails, or comes back empty. Then at most one review, chosen by `reviewOf`, edits pass 1's numbered lines within the scan's time.
+ * fails, or comes back empty. Every pass-1 call ends by `pass1ByMs` after the scan starts, so a scan with no reading by then has none. Then at most one review, chosen by `reviewOf`, edits pass 1's numbered lines within the scan's time.
  * Pass 2's edits stand when they leave no more problems than pass 1 had. The penny review's stand only when the reading then reconciles to the cent.
  */
 export async function readReceipt(input: ScanInput, config: ReaderConfig): Promise<ReadResult> {
@@ -171,11 +183,12 @@ export async function readReceipt(input: ScanInput, config: ReaderConfig): Promi
   };
 
   const pass1Messages = messagesJson([{ type: "text", text: PASS1_PROMPT }, { type: "text", text: ocrText(input.ocrLines) }, image]);
-  let text = await call("flex", config.flex, config.flex.hosts, pass1Messages, config.flex.deadlineMs);
+  const pass1LeftMs = () => config.pass1ByMs - (Date.now() - started);
+  let text = await call("flex", config.flex, config.flex.hosts, pass1Messages, Math.min(config.flex.deadlineMs, pass1LeftMs()));
   let pass1: ScanPath["pass1"] = text === null ? "failed" : "flex";
   for (const host of config.standard.hosts) {
-    if (text !== null) break;
-    text = await call("standard", config.standard, [host], pass1Messages, config.standard.timeoutMs);
+    if (text !== null || pass1LeftMs() < MIN_CALL_MS) break;
+    text = await call("standard", config.standard, [host], pass1Messages, pass1LeftMs());
     if (text !== null) pass1 = "standard";
   }
 
@@ -190,7 +203,8 @@ export async function readReceipt(input: ScanInput, config: ReaderConfig): Promi
   const review = reviewOf(first.check);
   if (review === null) return finish(first, null);
   const remainingMs = config.reviewByMs - (Date.now() - started);
-  if (remainingMs <= 0) return finish(first, { kind: review.kind, outcome: "no time", refusedTotals: 0 });
+  // A pass 1 that ran out of its budget leaves too little for a review that must also build the whole reading, so the scan has none.
+  if (remainingMs < config.reviewMinMs || (text === null && pass1LeftMs() < MIN_CALL_MS)) return finish(first, { kind: review.kind, outcome: "no time", refusedTotals: 0 });
 
   const numbered = first.reading === null ? [] : first.lines;
   const prompt = [pass2Prompt(review.problems, numbered), first.reading && arithmeticBreakdown(first.reading)].filter(Boolean).join("\n\n");

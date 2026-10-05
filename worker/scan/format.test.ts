@@ -86,11 +86,11 @@ describe("readLines", () => {
 });
 
 describe("applyEdits", () => {
-  const lines = ["SUB|1500", "TOT|1600", "i|Burger|900", "+|Medium", "-|Promo|-100", "i|Fries|500", "f|Bottle deposit|10", "t|Tax|100"];
+  const lines = ["SUB|1500", "TOT|1600", "i|Burger|900", "+|Medium", "-|Promo|-100", "i|Fries|500", "f|Crate fee|10", "t|Tax|100"];
 
   it("fixes, drops, and adds lines by number, and replaces the subtotal", () => {
     expect(applyEdits(lines, "fix|6|i|Fries|600\ndrop|8\nadd|t|Sales tax|90\nSUB|1400\nok")).toEqual({
-      lines: ["SUB|1400", "TOT|1600", "i|Burger|900", "+|Medium", "-|Promo|-100", "i|Fries|600", "f|Bottle deposit|10", "t|Sales tax|90"],
+      lines: ["SUB|1400", "TOT|1600", "i|Burger|900", "+|Medium", "-|Promo|-100", "i|Fries|600", "f|Crate fee|10", "t|Sales tax|90"],
       applied: 4,
       refused: { fee: 0, total: 0 },
     });
@@ -105,7 +105,7 @@ describe("applyEdits", () => {
       "-|Promo|-100",
       "i|Shake|400",
       "i|Fries|500",
-      "f|Bottle deposit|10",
+      "f|Crate fee|10",
       "t|Tax|100",
     ]);
   });
@@ -124,24 +124,24 @@ describe("applyEdits", () => {
 
   it("refuses an add, after, or fix that writes an item, discount, fee, or service line named as a total, and applies the rest", () => {
     const edits = [
-      "add|f|Total Bottle Deposit|720",
+      "add|f|Deposit Total|360",
       "after|3|-|Savings total|-100",
       "fix|6|i|Fries TOTAL|600",
       "add|>d|Bucket total|-300",
       "add|s|Service total|200",
-      "add|d|Discount Total|-500",
+      "add|d|Coupon Total|-500",
       "fix|6|i|Fries|600",
     ].join("\n");
     expect(applyEdits(lines, edits)).toEqual({
-      lines: ["SUB|1500", "TOT|1600", "i|Burger|900", "+|Medium", "-|Promo|-100", "i|Fries|600", "f|Bottle deposit|10", "t|Tax|100"],
+      lines: ["SUB|1500", "TOT|1600", "i|Burger|900", "+|Medium", "-|Promo|-100", "i|Fries|600", "f|Crate fee|10", "t|Tax|100"],
       applied: 1,
       refused: { fee: 0, total: 6 },
     });
   });
 
   it("applies a tax or tip line named as a total, and a name where total is only part of a word", () => {
-    expect(applyEdits(lines, "add|t|Total tax|90\nadd|p|Tip total|200\nadd|i|Totally Tubular Tee|1500\nfix|5|-|Subtotaled promo|-100")).toEqual({
-      lines: ["SUB|1500", "TOT|1600", "i|Burger|900", "+|Medium", "-|Subtotaled promo|-100", "i|Fries|500", "f|Bottle deposit|10", "t|Tax|100", "t|Total tax|90", "p|Tip total|200", "i|Totally Tubular Tee|1500"],
+    expect(applyEdits(lines, "add|t|Total sales tax|90\nadd|p|Tip total|200\nadd|i|Totally Tubular Tee|1500\nfix|5|-|Subtotaled promo|-100")).toEqual({
+      lines: ["SUB|1500", "TOT|1600", "i|Burger|900", "+|Medium", "-|Subtotaled promo|-100", "i|Fries|500", "f|Crate fee|10", "t|Tax|100", "t|Total sales tax|90", "p|Tip total|200", "i|Totally Tubular Tee|1500"],
       applied: 4,
       refused: { fee: 0, total: 0 },
     });

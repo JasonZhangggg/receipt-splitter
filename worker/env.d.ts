@@ -23,18 +23,23 @@ declare namespace Cloudflare {
     SCAN_PASS1_FLEX_DEADLINE_MS: string;
     SCAN_PASS1_STANDARD_HOSTS: string;
     SCAN_PASS1_STANDARD_RESOLUTION: string;
-    SCAN_PASS1_STANDARD_TIMEOUT_MS: string;
+    SCAN_PASS1_STANDARD_BOUND_USD: string;
+    SCAN_PASS1_FLEX_BOUND_USD: string;
+    SCAN_PASS1_BY_MS: string;
     SCAN_PASS2_MODEL: string;
     SCAN_PASS2_EFFORT: string;
     SCAN_PASS2_MAX_TOKENS: string;
     SCAN_PASS2_HOSTS: string;
     SCAN_PASS2_RESOLUTION: string;
+    SCAN_PASS2_BOUND_USD: string;
     SCAN_PENNY_MODEL: string;
     SCAN_PENNY_EFFORT: string;
     SCAN_PENNY_MAX_TOKENS: string;
     SCAN_PENNY_HOSTS: string;
     SCAN_PENNY_RESOLUTION: string;
+    SCAN_PENNY_BOUND_USD: string;
     SCAN_REVIEW_BY_MS: string;
+    SCAN_REVIEW_MIN_MS: string;
     SCAN_DEBUG_HEADERS: string;
   }
 }

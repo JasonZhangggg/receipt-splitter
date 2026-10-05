@@ -8,7 +8,8 @@ import { groupRows } from "../parse/rows";
 
 /** The route refuses a body over 1 MB, so the client sends at most this. */
 export const MAX_SCAN_BYTES = 1024 * 1024;
-export const SCAN_TIMEOUT_MS = 60_000;
+/** The route answers within 9.8 s of admission (`SCAN_REVIEW_BY_MS`). This adds the upload and network margin, then the device reader takes over. */
+export const SCAN_TIMEOUT_MS = 15_000;
 const LONG_EDGE = 2048;
 const QUALITIES = [0.85, 0.75, 0.6, 0.45, 0.3];
 

@@ -7,17 +7,22 @@ import { SMALL_JPEG } from "./jpeg-fixtures";
 const PASSING = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100";
 const SHORT = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|500\nt|Tax|100";
 const PENNY = "SUB|1402\nTOT|1502\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100";
+const PENNY_SUB_OFF_1 = "SUB|1401\nTOT|1502\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100";
+const PENNY_TOTAL_OFF_1 = "SUB|1402\nTOT|1501\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100";
 const SUBTOTAL_ONLY = "SUB|1300\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|600\nt|Tax|100";
 
 const FLASH_LITE = { model: "google/gemini-3.1-flash-lite", effort: "minimal", maxTokens: 3000 };
+const BOUND = { flex: 0.0049, standard: 0.0098 };
 
 const CONFIG: ReaderConfig = {
   key: "test-key",
-  flex: { ...FLASH_LITE, resolution: "MEDIA_RESOLUTION_MEDIUM", hosts: ["google-ai-studio/flex"], deadlineMs: 80 },
-  standard: { ...FLASH_LITE, resolution: null, hosts: ["google-vertex/global", "google-ai-studio"], timeoutMs: 1000 },
-  pass2: { model: "google/gemini-2.5-flash", effort: "off", resolution: null, maxTokens: 1500, hosts: ["google-ai-studio/flex"] },
-  penny: { ...FLASH_LITE, resolution: "MEDIA_RESOLUTION_MEDIUM", maxTokens: 1500, hosts: ["google-ai-studio/flex"] },
+  flex: { ...FLASH_LITE, resolution: "MEDIA_RESOLUTION_MEDIUM", hosts: ["google-ai-studio/flex"], boundUsd: BOUND.flex, deadlineMs: 80 },
+  standard: { ...FLASH_LITE, resolution: null, hosts: ["google-vertex/global", "google-ai-studio"], boundUsd: BOUND.standard },
+  pass1ByMs: 500,
+  pass2: { model: "google/gemini-2.5-flash", effort: "off", resolution: null, maxTokens: 1500, hosts: ["google-ai-studio/flex"], boundUsd: 0.0028 },
+  penny: { ...FLASH_LITE, resolution: "MEDIA_RESOLUTION_MEDIUM", maxTokens: 1500, hosts: ["google-ai-studio/flex"], boundUsd: 0.002 },
   reviewByMs: 400,
+  reviewMinMs: 20,
 };
 
 const INPUT = { photo: SMALL_JPEG as JpegDataUrl, ocrLines: ["BURGER  9.00"] };
@@ -106,7 +111,7 @@ describe("readReceipt pass 1", () => {
           media_resolution: "MEDIA_RESOLUTION_MEDIUM",
         },
       ],
-      [{ step: "flex", host: "Google AI Studio", inputTokens: 1900, outputTokens: 240, reasoningTokens: null, cost: 0.0004, outcome: "ok" }],
+      [{ step: "flex", host: "Google AI Studio", inputTokens: 1900, outputTokens: 240, reasoningTokens: null, cost: 0.0004, boundUsd: 0.0049, outcome: "ok" }],
     ]);
   });
 
@@ -176,6 +181,58 @@ describe("readReceipt pass 1", () => {
   });
 });
 
+describe("readReceipt pass-1 budget", () => {
+  it("gives Vertex what remains of the pass-1 budget, skips AI Studio when none is left, and has no reading", async () => {
+    const sent = stubOpenRouter(hang, hang);
+    const started = Date.now();
+    const result = await readReceipt(INPUT, CONFIG);
+    const elapsed = Date.now() - started;
+    expect([sent.length, result.reply, result.path, result.calls.map((call) => [call.step, call.outcome])]).toEqual([
+      2,
+      null,
+      { pass1: "failed", review: { kind: "pass2", outcome: "no time", refusedTotals: 0 } },
+      [
+        ["flex", "timeout"],
+        ["standard", "timeout"],
+      ],
+    ]);
+    expect(elapsed).toBeGreaterThanOrEqual(490);
+    expect(elapsed).toBeLessThan(700);
+  });
+
+  it("ends the flex call at the pass-1 budget when that is sooner than the flex deadline, and tries nothing else", async () => {
+    const sent = stubOpenRouter(hang);
+    const started = Date.now();
+    const result = await readReceipt(INPUT, { ...CONFIG, pass1ByMs: 30 });
+    const elapsed = Date.now() - started;
+    expect([sent.length, result.path]).toEqual([1, { pass1: "failed", review: { kind: "pass2", outcome: "no time", refusedTotals: 0 } }]);
+    expect(elapsed).toBeGreaterThanOrEqual(25);
+    expect(elapsed).toBeLessThan(75);
+  });
+
+  it("makes no review call when less than the minimum review time remains", async () => {
+    const sent = stubOpenRouter(hang, after(250, () => completion(SHORT, "Google")));
+    const result = await readReceipt(INPUT, { ...CONFIG, reviewMinMs: 100 });
+    expect([sent.length, result.path.review]).toEqual([2, { kind: "pass2", outcome: "no time", refusedTotals: 0 }]);
+  });
+
+  it("makes the review call when the time that remains is at least the minimum", async () => {
+    const sent = stubOpenRouter(hang, after(250, () => completion(SHORT, "Google")), () => completion("fix|5|i|Fries|600"));
+    const result = await readReceipt(INPUT, { ...CONFIG, reviewMinMs: 50 });
+    expect([sent.length, result.path.review?.outcome]).toEqual([3, "kept"]);
+  });
+
+  it("charges each call its own bound when no cost came back, and nothing for an HTTP error", async () => {
+    stubOpenRouter(hang, () => new Response("busy", { status: 503 }), () => completion(PASSING, "Google"));
+    const result = await readReceipt(INPUT, CONFIG);
+    expect(result.calls.map((call) => [call.step, call.outcome, call.cost, call.boundUsd])).toEqual([
+      ["flex", "timeout", null, 0.0049],
+      ["standard", "http 503", 0, 0.0098],
+      ["standard", "ok", 0.0004, 0.0098],
+    ]);
+  });
+});
+
 describe("readReceipt pass 2", () => {
   it("reviews a failing total with Gemini 2.5 Flash, reasoning off, on flex, appending the breakdown, and keeps its edits", async () => {
     const sent = stubOpenRouter(() => completion(SHORT), () => completion("fix|5|i|Fries|600"));
@@ -201,7 +258,7 @@ describe("readReceipt pass 2", () => {
   });
 
   it("drops an edit that adds a line named as a total and applies the rest", async () => {
-    stubOpenRouter(() => completion(SHORT), () => completion("add|f|Bottle Deposit Total|100\nfix|5|i|Fries|600"));
+    stubOpenRouter(() => completion(SHORT), () => completion("add|f|Crate Fee Total|100\nfix|5|i|Fries|600"));
     const result = await readReceipt(INPUT, CONFIG);
     expect([result.path.review, result.reply?.adjustments, result.reply?.check.passed]).toEqual([
       { kind: "pass2", outcome: "kept", refusedTotals: 1 },
@@ -298,6 +355,18 @@ describe("readReceipt penny review", () => {
       [800, 600],
       { passed: true, gaps: { subtotal: 2, total: 2 } },
     ]);
+  });
+
+  it("rejects edits that make the total exact while the subtotal stays 1 cent off", async () => {
+    stubOpenRouter(() => completion(PENNY_SUB_OFF_1), () => completion("fix|5|i|Fries|602"));
+    const result = await readReceipt(INPUT, CONFIG);
+    expect([result.path.review, result.reply?.items.map((item) => item.price), result.reply?.check.gaps]).toEqual([{ kind: "penny", outcome: "rejected", refusedTotals: 0 }, [800, 600], { subtotal: 1, total: 2 }]);
+  });
+
+  it("rejects edits that make the subtotal exact while the total stays 1 cent off", async () => {
+    stubOpenRouter(() => completion(PENNY_TOTAL_OFF_1), () => completion("fix|5|i|Fries|602"));
+    const result = await readReceipt(INPUT, CONFIG);
+    expect([result.path.review, result.reply?.items.map((item) => item.price), result.reply?.check.gaps]).toEqual([{ kind: "penny", outcome: "rejected", refusedTotals: 0 }, [800, 600], { subtotal: 2, total: 1 }]);
   });
 
   it("refuses a penny edit that adds a line named as a total, so the reading stays as pass 1 read it", async () => {
