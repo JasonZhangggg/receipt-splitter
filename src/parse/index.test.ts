@@ -426,15 +426,26 @@ describe("parseReceipt", () => {
     expect(parseReceipt(receiptRows([["Subtotal", "10.00"], ["Total", "10.00"]]))).toBeNull();
   });
 
-  test("returns null when no total is printed", () => {
+  test("still reads the Items when no total can be read, and totals them with the tax", () => {
     expect(
       parseReceipt(
         receiptRows([
           ["Burger", "12.00"],
-          ["Subtotal", "12.00"],
+          ["Fries", "4.00"],
+          ["Subtotal", "16.00"],
+          ["Tax", "1.12"],
+          ["TOTAL", "$1"],
         ]),
       ),
-    ).toBeNull();
+    ).toEqual({
+      items: [
+        { id: "i1", name: "Burger", price: 1200 },
+        { id: "i2", name: "Fries", price: 400 },
+      ],
+      adjustments: [{ id: "a1", kind: "tax", name: "Tax", amount: 112 }],
+      subtotal: 1600,
+      total: 1712,
+    });
   });
 
   test("prices an Item at zero when an indented comp exceeds it", () => {

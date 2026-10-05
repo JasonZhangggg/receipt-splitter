@@ -505,6 +505,41 @@ const counter = () => {
   return () => participantId(`p${next++}`);
 };
 
+describe("a coupon worth more than its Item", () => {
+  test("reads to a Split that adds up, and Shares stay at or above $0.00", () => {
+    const reply = {
+      items: [
+        { name: "Beans", price: 150, quantity: null, details: [], discounts: [] },
+        { name: "Treats", price: -300, quantity: null, details: [], discounts: [{ name: "Coupon", amount: -450 }] },
+        { name: "Treats", price: 150, quantity: null, details: [], discounts: [] },
+      ],
+      bundles: [],
+      adjustments: [{ kind: "tax", name: "Tax", amount: 12 }],
+      subtotal: { amount: 0, beforeDiscounts: false },
+      total: 12,
+      check: { passed: true, gaps: { subtotal: 0, total: 0 } },
+    };
+    const draft = run(emptyDraft, { type: "read", file, receipt: receiptOfReply(reply) }, { type: "addName", name: "Ann" }, { type: "addName", name: "Bob" });
+    const request = requestOf(draft, counter());
+    if (!request) throw new Error(JSON.stringify(readiness(draft)));
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("coupon-read-00000000"));
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+    const claimed = [["i1", "p0"], ["i2", "p1"], ["i3", "p0"]].reduce((split, [item, who]) => {
+      const result = applyOperation(split, { type: "claim", by: null, itemId: itemId(item), participantId: participantId(who) }, { creator: true });
+      if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+      return result.split;
+    }, created.split);
+
+    expect({ note: mismatchNote(draft), shares: computeShares(claimed).shares.map(({ participantId, share }) => [participantId, share]) }).toEqual({
+      note: null,
+      shares: [
+        ["p0", 8],
+        ["p1", 4],
+      ],
+    });
+  });
+});
+
 describe("Bundles", () => {
   const topgolfBoxes = readFileSync(new URL("./parse/fixtures/topgolf.tsv", import.meta.url), "utf8")
     .trim()
