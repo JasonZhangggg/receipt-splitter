@@ -4,6 +4,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { copy } from "../home-copy";
 import { layout, type, useColors } from "../theme";
 import { Button } from "./button";
+import { focusInPlace } from "./keyboard-lift";
 
 type Props = {
   names: readonly string[];
@@ -45,7 +46,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       ))}
       {adding ? (
         <TextInput
-          ref={focusOnMount}
+          ref={focusInPlace}
           aria-label={first ? copy.yourName : copy.newName}
           placeholder={first ? copy.yourName : copy.newName}
           placeholderTextColor={c.muted}
@@ -87,9 +88,6 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
     </View>
   );
 }
-
-// The home panel already sits above the keyboard; a scroll to reveal the field would slide the page under it.
-const focusOnMount = (field: TextInput | null) => (field as unknown as HTMLElement | null)?.focus({ preventScroll: true });
 
 const keepFocus = { onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() };
 

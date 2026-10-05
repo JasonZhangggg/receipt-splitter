@@ -11,6 +11,7 @@ import { prefetchModel, recognize } from "../src/ocr";
 import { parseReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
 import { Button, PressTarget } from "../src/ui/components/button";
+import { focusInPlace } from "../src/ui/components/keyboard-lift";
 import { NameChips } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
 import { Sheet } from "../src/ui/components/sheet";
@@ -127,7 +128,7 @@ export default function Home() {
       case "ready":
         return void create(ready);
       case "noHandle":
-        handleInput.current?.focus();
+        focusInPlace(handleInput.current);
         return setFailure(createCopy.noHandle);
       case "note":
         return setFailure(ready.note);
