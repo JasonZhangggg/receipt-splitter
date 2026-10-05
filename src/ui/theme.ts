@@ -34,6 +34,8 @@ export const type = StyleSheet.create({
   total: { fontFamily: sans, fontWeight: "500", fontSize: 26, lineHeight: 30, letterSpacing: -0.52 },
   wordmark: { fontFamily: sans, fontWeight: "500", fontSize: 17, lineHeight: 21, letterSpacing: -0.26 },
   body: { fontFamily: sans, fontWeight: "400", fontSize: 15, lineHeight: 22 },
+  // A receipt line: one step under body on the same leading ratio, so a list of Items reads denser without going under 14 px.
+  item: { fontFamily: sans, fontWeight: "400", fontSize: 14, lineHeight: 20.5 },
   title: { fontFamily: sans, fontWeight: "500", fontSize: 16, lineHeight: 20, letterSpacing: -0.16 },
   input: { fontFamily: sans, fontWeight: "400", fontSize: 16, lineHeight: 23 },
   button: { fontFamily: sans, fontWeight: "500", fontSize: 15, lineHeight: 20 },
@@ -61,6 +63,7 @@ export const motion = {
   readingCycle: 1600,
   readingStagger: 150,
   readingBar: 240,
+  stageIn: 200,
   photoIn: 240,
   photoOut: 180,
   controlIn: 200,

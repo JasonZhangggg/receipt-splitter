@@ -132,7 +132,7 @@ test("Sam's breakdown links each pay app at his $14.20 Share and shows the Zelle
   await expect(breakdown(sam).getByText("Not paid", { exact: true })).toBeVisible(live);
   await expect(breakdown(sam).getByText("Priya owes")).toBeVisible();
   await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
-  await expect(breakdown(sam).getByRole("button")).toHaveCount(0);
+  await expect(breakdown(sam).getByRole("button")).toHaveAccessibleName("Priya owes $0.00, Hide Priya's breakdown");
 });
 
 test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, and both browsers show what Jason owes back", async ({ browser, request }, { workerIndex }) => {

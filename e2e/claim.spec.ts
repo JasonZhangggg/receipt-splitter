@@ -239,7 +239,8 @@ test("the payer marks themselves paid, and another browser sees Paid on their br
 
   await owe(priya).click();
   await priya.getByRole("button", { name: "I already paid" }).click();
-  await expect(priya.getByText("You paid")).toBeVisible(live);
+  await expect(priya.getByTestId("breakdown").getByText("Paid", { exact: true })).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: "I haven't paid" })).toBeVisible();
 
   await sam.getByRole("button", { name: "Priya", exact: true }).click();
   await expect(sam.getByTestId("breakdown").getByText("Paid", { exact: true })).toBeVisible(live);

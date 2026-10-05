@@ -4,7 +4,7 @@ Every animation on the site runs without long frames, jumps, pops or reversals, 
 
 ## Sub-features
 
-- `motion-sheet` covers the Split sheet: the pick sheet handing off to the bar, a flick on the pick sheet, the breakdown opening by tap and by swipe up, and closing by tap, slow drag and flick.
+- `motion-sheet` covers the Split sheet: the pick sheet handing off to the bar, a flick on the pick sheet, the breakdown opening by tap and by swipe up, and closing by tap, slow drag and flick. Its probes are the sheet's top, the share amount's top (one element that moves into place, never faded), the list's opacity and the arrow's angle. The amount and the list follow the sheet's progress, a CSS transition on the sheet's glide with the same duration and curve, so they hold together when a drag catches the sheet mid-glide. The pay block shows only over the last tenth of the way open and holds still on screen while it fades in, so the iOS census sees no frame moving away from the open state. The arrow turns over its own 300 ms glide when the sheet crosses halfway.
 - `motion-crossfade` covers the sheet's content changing: the old content fades out over 150 ms, then the new content fades in over 200 ms, so the two never show together. The people chips sit in the sheet's header and stay in place.
 - `motion-bundle` covers a Bundle opening and closing, with its chevron turning.
 - `motion-item` covers the Item sheet rising over a lowered Split sheet and closing on the scrim.

@@ -240,7 +240,7 @@ describe("reading", () => {
       { pass1: "flex", review: { kind: "pass2", outcome: "kept", refusedTotals: 1 } },
       [
         { step: "flex", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, boundUsd: 0.0049, outcome: "ok" },
-        { step: "pass2", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, boundUsd: 0.0028, outcome: "ok" },
+        { step: "pass2", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, boundUsd: 0.0051, outcome: "ok" },
       ],
       0.0008,
       [],
@@ -299,7 +299,7 @@ describe("reading", () => {
     ]);
     expect(calls.map(({ model, hosts }) => [model, hosts])).toEqual([
       ["google/gemini-3.1-flash-lite", ["google-ai-studio/flex"]],
-      ["google/gemini-2.5-flash", ["google-ai-studio/flex"]],
+      ["google/gemini-3.8-flash", ["google-ai-studio/flex"]],
     ]);
   });
 
@@ -414,11 +414,13 @@ describe("scanConfig", () => {
       SCAN_PASS2_MAX_TOKENS: "1000",
       SCAN_PASS2_HOSTS: "d,e",
       SCAN_PASS2_RESOLUTION: "",
+      SCAN_PASS2_IMAGE_DETAIL: " low ",
       SCAN_PENNY_MODEL: "vendor/penny",
       SCAN_PENNY_EFFORT: "minimal",
       SCAN_PENNY_MAX_TOKENS: "500",
       SCAN_PENNY_HOSTS: "f",
       SCAN_PENNY_RESOLUTION: "MEDIA_RESOLUTION_HIGH",
+      SCAN_PENNY_IMAGE_DETAIL: "",
       SCAN_REVIEW_BY_MS: "8000",
     });
     expect("error" in config ? config : config.reader).toEqual({
@@ -426,8 +428,8 @@ describe("scanConfig", () => {
       flex: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["cheap/flex"], resolution: "MEDIA_RESOLUTION_LOW", boundUsd: 0.004, deadlineMs: 3000 },
       standard: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["a", "b", "c"], resolution: null, boundUsd: 0.008 },
       pass1ByMs: 7000,
-      pass2: { model: "vendor/fixer", effort: "off", maxTokens: 1000, hosts: ["d", "e"], resolution: null, boundUsd: 0.002 },
-      penny: { model: "vendor/penny", effort: "minimal", maxTokens: 500, hosts: ["f"], resolution: "MEDIA_RESOLUTION_HIGH", boundUsd: 0.001 },
+      pass2: { model: "vendor/fixer", effort: "off", maxTokens: 1000, hosts: ["d", "e"], resolution: null, imageDetail: "low", boundUsd: 0.002 },
+      penny: { model: "vendor/penny", effort: "minimal", maxTokens: 500, hosts: ["f"], resolution: "MEDIA_RESOLUTION_HIGH", imageDetail: null, boundUsd: 0.001 },
       reviewByMs: 8000,
       reviewMinMs: 500,
     });
@@ -443,6 +445,7 @@ describe("scanConfig", () => {
       scanConfig({ ...vars, SCAN_PASS1_FLEX_RESOLUTION: "MEDIA_RESOLUTION_MEDUIM" }),
       scanConfig({ ...vars, SCAN_PENNY_EFFORT: "maximal" }),
       scanConfig({ ...vars, SCAN_PASS2_BOUND_USD: "" }),
+      scanConfig({ ...vars, SCAN_PASS2_IMAGE_DETAIL: "LOW" }),
     ]).toEqual([
       { error: "SCAN_PASS1_STANDARD_HOSTS lists no host" },
       { error: "SCAN_PENNY_MODEL, _EFFORT, or _MAX_TOKENS is missing or invalid" },
@@ -452,6 +455,7 @@ describe("scanConfig", () => {
       { error: "SCAN_PASS1_FLEX_RESOLUTION must be empty or one of MEDIA_RESOLUTION_UNSPECIFIED, MEDIA_RESOLUTION_LOW, MEDIA_RESOLUTION_MEDIUM, MEDIA_RESOLUTION_HIGH, MEDIA_RESOLUTION_ULTRA_HIGH" },
       { error: "SCAN_PENNY_EFFORT must be one of off, minimal, low, medium, high, xhigh" },
       { error: "SCAN_PASS2_BOUND_USD is missing or invalid" },
+      { error: "SCAN_PASS2_IMAGE_DETAIL must be empty or one of low, high, auto" },
     ]);
   });
 

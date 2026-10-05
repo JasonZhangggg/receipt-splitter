@@ -1,7 +1,7 @@
 import { readCapped } from "../create";
 import { limiterKey, type DayLimit, type IpLimit } from "../rate-limit";
 import { jpegLongestSide } from "./jpeg";
-import { readReceipt, type JpegDataUrl, type ReaderConfig, type ScanInput, type Target } from "./reader";
+import { readReceipt, type ImageDetail, type JpegDataUrl, type ReaderConfig, type ReviewTarget, type ScanInput, type Target } from "./reader";
 
 /** The client downsizes the photo to fit this. The Worker never decodes its pixels, because Workers Free allows 10 ms of CPU a request. */
 export const MAX_SCAN_BODY_BYTES = 1024 * 1024;
@@ -33,6 +33,7 @@ type ScanEnv = Pick<Cloudflare.Env, "CreateLimiter" | "OPENROUTER_API_KEY" | Ext
 /** The values `reasoning.effort` takes through OpenRouter, and `off`, which turns reasoning off. */
 const EFFORTS: ReadonlySet<string> = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
 const RESOLUTIONS: ReadonlySet<string> = new Set(["MEDIA_RESOLUTION_UNSPECIFIED", "MEDIA_RESOLUTION_LOW", "MEDIA_RESOLUTION_MEDIUM", "MEDIA_RESOLUTION_HIGH", "MEDIA_RESOLUTION_ULTRA_HIGH"]);
+const IMAGE_DETAILS: readonly ImageDetail[] = ["low", "high", "auto"];
 
 type ScanVar = Extract<keyof ScanEnv, `SCAN_${string}`>;
 
@@ -66,8 +67,16 @@ export function scanConfig(env: ScanEnv): ScanConfig | { readonly error: string 
   const [deadlineMs, pass1ByMs, reviewByMs, reviewMinMs] = [count("SCAN_PASS1_FLEX_DEADLINE_MS"), count("SCAN_PASS1_BY_MS"), count("SCAN_REVIEW_BY_MS"), count("SCAN_REVIEW_MIN_MS")];
   const flex = target("SCAN_PASS1", "SCAN_PASS1_FLEX_HOSTS", "SCAN_PASS1_FLEX_RESOLUTION", "SCAN_PASS1_FLEX_BOUND_USD");
   const standard = target("SCAN_PASS1", "SCAN_PASS1_STANDARD_HOSTS", "SCAN_PASS1_STANDARD_RESOLUTION", "SCAN_PASS1_STANDARD_BOUND_USD");
-  const pass2 = target("SCAN_PASS2", "SCAN_PASS2_HOSTS", "SCAN_PASS2_RESOLUTION", "SCAN_PASS2_BOUND_USD");
-  const penny = target("SCAN_PENNY", "SCAN_PENNY_HOSTS", "SCAN_PENNY_RESOLUTION", "SCAN_PENNY_BOUND_USD");
+  const review = (prefix: "SCAN_PASS2" | "SCAN_PENNY"): ReviewTarget | string => {
+    const base = target(prefix, `${prefix}_HOSTS`, `${prefix}_RESOLUTION`, `${prefix}_BOUND_USD`);
+    if (typeof base === "string") return base;
+    const detail = String(env[`${prefix}_IMAGE_DETAIL`] ?? "").trim();
+    const imageDetail = IMAGE_DETAILS.find((known) => known === detail) ?? null;
+    if (detail !== "" && imageDetail === null) return `${prefix}_IMAGE_DETAIL must be empty or one of ${IMAGE_DETAILS.join(", ")}`;
+    return { ...base, imageDetail };
+  };
+  const pass2 = review("SCAN_PASS2");
+  const penny = review("SCAN_PENNY");
   if (!env.OPENROUTER_API_KEY) return { error: "the OPENROUTER_API_KEY secret is not set" };
   if (perMinute === null || perDay === null || dailyCap === null) return { error: "SCAN_PER_MINUTE, SCAN_PER_DAY, or SCAN_DAILY_CAP is missing or invalid" };
   if (usd === null || reserveUsd === null || maxImagePx === null) return { error: "SCAN_DAILY_BUDGET_USD, SCAN_WORST_CASE_USD, or SCAN_MAX_IMAGE_PX is missing or invalid" };

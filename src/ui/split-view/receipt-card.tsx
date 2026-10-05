@@ -27,8 +27,6 @@ type Props = {
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dotSize = 16;
-// One step under type.body on the same leading ratio, so the receipt reads denser without going under 14 px.
-const itemType = { ...type.body, fontSize: 14, lineHeight: 20.5 };
 const tapSize = 44;
 const tapBleed = 13;
 const circleColumn = tapSize - tapBleed;
@@ -184,7 +182,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
             </View>
             <View style={styles.headerLead}>
               <View style={styles.name}>
-                <Text numberOfLines={1} style={[itemType, styles.strong, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[type.item, styles.strong, { color: c.ink }]}>
                   {bundle.name}
                 </Text>
                 <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
@@ -200,7 +198,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                 </Presence>
               </View>
             </View>
-            <Text style={[itemType, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
+            <Text style={[type.item, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
           </>
         )}
       </PressTarget>
@@ -390,7 +388,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
         {() => (
           <View style={styles.bodyRow}>
             <View style={styles.name}>
-              <Text numberOfLines={2} style={[itemType, { color: c.ink }]}>
+              <Text numberOfLines={2} style={[type.item, { color: c.ink }]}>
                 {count ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${count}  `}</Text> : null}
                 {title}
                 {tag ? <Text style={[type.caption, { color: c.muted }]}>{`  ${tag}`}</Text> : null}
@@ -401,7 +399,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
                 </Text>
               ) : null}
             </View>
-            <Text style={[itemType, tabular, { color: c.ink }]}>{price}</Text>
+            <Text style={[type.item, tabular, { color: c.ink }]}>{price}</Text>
           </View>
         )}
       </PressTarget>
@@ -419,7 +417,7 @@ function AddRow({ divided, expanded, onPress }: { divided: boolean; expanded: bo
           <View style={styles.addIcon}>
             <Icon name="plus" size={dotSize} color={c.muted} />
           </View>
-          <Text style={[itemType, { color: c.muted }]}>{say.addItem}</Text>
+          <Text style={[type.item, { color: c.muted }]}>{say.addItem}</Text>
         </>
       )}
     </PressTarget>
