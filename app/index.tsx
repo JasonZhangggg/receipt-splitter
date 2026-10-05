@@ -8,17 +8,17 @@ import { recentSplits, rememberSplit } from "../src/device";
 import { mismatchNote, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
-import { parseReceipt } from "../src/parse";
+import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
 import { Button, PressTarget } from "../src/ui/components/button";
 import { focusInPlace } from "../src/ui/components/keyboard-lift";
-import { NameChips } from "../src/ui/components/name-chips";
+import { NameChips, type NameField } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
 import { Sheet } from "../src/ui/components/sheet";
 import { useLayoutHeight } from "../src/ui/components/viewport";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
-import { copy, createCopy, joinCopy } from "../src/ui/home-copy";
+import { blockerText, copy, joinCopy } from "../src/ui/home-copy";
 import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { RecentSplits } from "../src/ui/recent-splits";
@@ -54,7 +54,8 @@ export default function Home() {
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
   const scanning = useRef(0);
-  const handleInput = useRef<TextInput>(null);
+  const handleInputs = useRef<(TextInput | null)[]>([]);
+  const nameField = useRef<NameField>(null);
   useEffect(prefetchModel, []);
   useEffect(() => {
     pageDraft = draft;
@@ -81,9 +82,10 @@ export default function Home() {
     const copying = receiptCopyOf(photo, boxes ?? []).catch(() => null);
     void copying.then(() => globalThis.performance?.mark?.("copy-done"));
     if (scan === scanning.current) pageCopy = { file, copy: copying };
-    const receipt = boxes && ((await readOnServer(photo, boxes)) ?? parseReceipt(boxes));
+    const onServer = boxes && (await readOnServer(photo, boxes));
+    const onDevice = boxes && !onServer ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
-    if (scan === scanning.current) dispatch({ type: "read", file, receipt });
+    if (scan === scanning.current) dispatch({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
   }, [dispatch]);
   const dragging = usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);
@@ -102,7 +104,9 @@ export default function Home() {
   const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
   const { scan } = draft;
   const ready = readiness(draft);
-  const reason = ready.kind === "note" ? ready.note : null;
+  // Before a read the hero is what is missing, so Create is off and says nothing.
+  const blocked = scan.status === "read" && ready.kind !== "ready";
+  const reason = blocked ? blockerText(ready) : null;
 
   const create = async (split: Ready) => {
     const request = splitRequest(split, newParticipantId);
@@ -127,11 +131,12 @@ export default function Home() {
     switch (ready.kind) {
       case "ready":
         return void create(ready);
-      case "noHandle":
-        focusInPlace(handleInput.current);
-        return setFailure(createCopy.noHandle);
+      case "badHandle":
+        return focusInPlace(handleInputs.current[ready.index] ?? null);
+      case "noName":
+        return nameField.current?.open();
       case "note":
-        return setFailure(ready.note);
+        return scan.status === "read" ? choose() : undefined;
     }
   };
 
@@ -154,15 +159,16 @@ export default function Home() {
       onPress={press}
       outsideScroll={!wide}
       busy={creating}
-      disabled={reason !== null}
-      reason={failure ?? (scan.status === "read" ? (reason ?? undefined) : undefined)}
+      disabled={scan.status !== "read"}
+      blocked={blocked}
+      reason={failure ?? reason ?? undefined}
       note={mismatchNote(draft) ?? undefined}
     />
   );
   const details = (
     <>
-      <PaymentRows handles={draft.handles} dispatch={dispatch} firstHandle={handleInput} outsideScroll={!wide} />
-      <NameChips names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
+      <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} outsideScroll={!wide} />
+      <NameChips ref={nameField} names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
     </>
   );
 

@@ -1,4 +1,6 @@
+import type { HandleProblem } from "../core/operations";
 import type { PaymentService } from "../core/split";
+import type { Blocker, Ready } from "../draft";
 
 export const copy = {
   wordmark: "Receipt Splitter",
@@ -33,9 +35,45 @@ export const createCopy = {
   daily: (opensAt: string, tomorrow: boolean) => `Too many new splits today. Try again ${tomorrow ? "tomorrow " : ""}after ${opensAt}.`,
   network: "Couldn't reach the server. Try again.",
   handle: "Check how to pay you.",
-  noHandle: "Add how to pay you.",
   other: "Couldn't create the link. Try again.",
 };
+
+const handleWords: Record<PaymentService, { one: string; many: string; sigil: string; use: string }> = {
+  venmo: { one: "Venmo username", many: "Venmo usernames", sigil: "@", use: " Use letters, numbers, hyphens or underscores." },
+  cashApp: { one: "cashtag", many: "Cashtags", sigil: "$", use: " Use letters and numbers." },
+  paypal: { one: "PayPal handle", many: "PayPal handles", sigil: "", use: "" },
+  zelle: { one: "Zelle handle", many: "Zelle handles", sigil: "", use: "" },
+};
+
+const characterName = (character: string) => (character === " " ? "a space" : /^[\p{L}\p{N}\p{P}\p{S}]$/u.test(character) ? `"${character}"` : "an invisible character");
+
+function handleReason(service: PaymentService, problem: HandleProblem): string {
+  const { one, many, sigil, use } = handleWords[service];
+  switch (problem.kind) {
+    case "short":
+      return problem.length === 0 ? `Add your ${one} after the ${sigil}.` : `${many} need at least ${problem.limit} characters. This one has ${problem.length}.`;
+    case "long":
+      return `${many} can have at most ${problem.limit} characters. This one has ${problem.length}.`;
+    case "character":
+      return `${many} can't have ${characterName(problem.character)}.${use}`;
+    case "noLetter":
+      return `${many} need at least one letter.`;
+  }
+}
+
+/** The quiet line under a gray Create split link, or null when a tap creates the Split. */
+export function blockerText(found: Blocker | Ready): string | null {
+  switch (found.kind) {
+    case "ready":
+      return null;
+    case "note":
+      return found.note;
+    case "noName":
+      return "Add your name.";
+    case "badHandle":
+      return handleReason(found.service, found.problem);
+  }
+}
 
 export const joinCopy = {
   opening: "Opening split",

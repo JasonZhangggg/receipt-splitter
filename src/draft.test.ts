@@ -64,14 +64,12 @@ describe("readiness", () => {
     expect({
       noReceipt: reasonOf(withVenmo(emptyDraft)),
       reading: reasonOf(withVenmo(run(emptyDraft, { type: "reading", file }))),
-      noHandle: reasonOf(read1040()),
       noName: reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
       ready: reasonOf(ready),
     }).toEqual({
       noReceipt: "Add a receipt.",
       reading: "Reading the receipt.",
-      noHandle: { kind: "noHandle" },
-      noName: "Add your name.",
+      noName: { kind: "noName" },
       ready: null,
     });
   });
@@ -104,14 +102,57 @@ describe("readiness", () => {
     });
   });
 
+  test("notes an on-device reading whose total was not read, since the stand-in total always passes the check", () => {
+    const unread = run(emptyDraft, { type: "read", file, receipt: receipt1040, totalUnread: true });
+
+    expect({ unread: mismatchNote(unread), blocker: reasonOf(withVenmo(unread)), read: mismatchNote(read1040()) }).toEqual({
+      unread: "Couldn't read the total, so check the rows.",
+      blocker: null,
+      read: null,
+    });
+  });
+
   test("notes tax and charges when the Items match the subtotal but the total does not", () => {
     const taxed = (amount: number) => run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(amount) }, receipt1040.adjustments[1]] } });
     expect(mismatchNote(taxed(100))).toBe("Tax and charges are $0.61 short of the total.");
     expect(mismatchNote(taxed(200))).toBe("Tax and charges are $0.39 over the total.");
   });
 
-  test("a handle of only spaces is no way to pay the Host", () => {
-    expect(reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "   " }))).toEqual({ kind: "noHandle" });
+  test("creates with no way to pay, and sends no handle for an empty or blank field", () => {
+    const named = run(read1040(), { type: "addName", name: "Jason" }, { type: "addHandle" });
+    const sent = (handle: string) => {
+      const found = readiness(run(named, { type: "setHandle", index: 0, handle }));
+      return found.kind === "ready" ? found.paymentHandles : found;
+    };
+
+    expect({ empty: sent(""), blank: sent("   ") }).toEqual({ empty: [], blank: [] });
+  });
+
+  test("names the row whose handle its app would refuse, before Create sends it", () => {
+    const named = run(read1040(), { type: "addName", name: "Jason" });
+    const venmo = (handle: string) => reasonOf(run(named, { type: "setHandle", index: 0, handle }));
+    const second = (service: "cashApp" | "paypal" | "zelle", handle: string) =>
+      reasonOf(run(named, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addHandle" }, { type: "setService", index: 1, service }, { type: "setHandle", index: 1, handle }));
+
+    expect({
+      short: venmo("test"),
+      sigil: venmo("@test"),
+      five: venmo("@testt"),
+      space: venmo("jason z"),
+      digits: second("cashApp", "$1234"),
+      cashtag: second("cashApp", "$jz1234"),
+      paypal: second("paypal", "Jason Z / tips"),
+      zelle: second("zelle", "text me"),
+    }).toEqual({
+      short: { kind: "badHandle", index: 0, service: "venmo", problem: { kind: "short", length: 4, limit: 5 } },
+      sigil: { kind: "badHandle", index: 0, service: "venmo", problem: { kind: "short", length: 4, limit: 5 } },
+      five: null,
+      space: { kind: "badHandle", index: 0, service: "venmo", problem: { kind: "character", character: " " } },
+      digits: { kind: "badHandle", index: 1, service: "cashApp", problem: { kind: "noLetter" } },
+      cashtag: null,
+      paypal: null,
+      zelle: null,
+    });
   });
 });
 
@@ -474,6 +515,41 @@ const counter = () => {
   return () => participantId(`p${next++}`);
 };
 
+describe("a coupon worth more than its Item", () => {
+  test("reads to a Split that adds up, and Shares stay at or above $0.00", () => {
+    const reply = {
+      items: [
+        { name: "Beans", price: 150, quantity: null, details: [], discounts: [] },
+        { name: "Treats", price: -300, quantity: null, details: [], discounts: [{ name: "Coupon", amount: -450 }] },
+        { name: "Treats", price: 150, quantity: null, details: [], discounts: [] },
+      ],
+      bundles: [],
+      adjustments: [{ kind: "tax", name: "Tax", amount: 12 }],
+      subtotal: { amount: 0, beforeDiscounts: false },
+      total: 12,
+      check: { passed: true, gaps: { subtotal: 0, total: 0 } },
+    };
+    const draft = run(emptyDraft, { type: "read", file, receipt: receiptOfReply(reply) }, { type: "addName", name: "Ann" }, { type: "addName", name: "Bob" });
+    const request = requestOf(draft, counter());
+    if (!request) throw new Error(JSON.stringify(readiness(draft)));
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("coupon-read-00000000"));
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+    const claimed = [["i1", "p0"], ["i2", "p1"], ["i3", "p0"]].reduce((split, [item, who]) => {
+      const result = applyOperation(split, { type: "claim", by: null, itemId: itemId(item), participantId: participantId(who) }, { creator: true });
+      if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+      return result.split;
+    }, created.split);
+
+    expect({ note: mismatchNote(draft), shares: computeShares(claimed).shares.map(({ participantId, share }) => [participantId, share]) }).toEqual({
+      note: null,
+      shares: [
+        ["p0", 12],
+        ["p1", 0],
+      ],
+    });
+  });
+});
+
 describe("Bundles", () => {
   const topgolfBoxes = readFileSync(new URL("./parse/fixtures/topgolf.tsv", import.meta.url), "utf8")
     .trim()
@@ -598,6 +674,81 @@ describe("the Split link", () => {
     expect([fresh, loadDraft(older)]).toEqual([
       { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] },
       { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] },
+    ]);
+  });
+});
+
+describe("a reading with odd numbers still creates a Split", () => {
+  const item = (name: string, amount: number, discounts: number[] = []) => ({ name, price: amount, quantity: null, details: [], discounts: discounts.map((off) => ({ name: "Coupon", amount: off })) });
+  const reply = (items: ReturnType<typeof item>[], adjustments: { kind: string; name: string; amount: number }[], total: number) => ({
+    items,
+    bundles: [],
+    adjustments,
+    subtotal: null,
+    total,
+    check: { passed: true, gaps: { subtotal: 0, total: 0 } },
+  });
+  const sharesOf = (body: unknown, owners: string[]) => {
+    const draft = run(emptyDraft, { type: "read", file, receipt: receiptOfReply(body) }, { type: "addName", name: "Ann" }, { type: "addName", name: "Bob" });
+    const request = requestOf(draft, counter());
+    if (!request) throw new Error(JSON.stringify(readiness(draft)));
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("odd-numbers-0000000"));
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+    const claimed = created.split.receipt.items.reduce((split, { id }, place) => {
+      const result = applyOperation(split, { type: "claim", by: null, itemId: id, participantId: participantId(owners[place] ?? "p0") }, { creator: true });
+      if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+      return result.split;
+    }, created.split);
+    return { receipt: created.split.receipt, shares: computeShares(claimed).shares.map(({ participantId, share }) => [participantId, share]) };
+  };
+
+  test("a coupon worth more than its Item leaves the other person's Share alone", () => {
+    const { shares } = sharesOf(reply([item("Beans", 300), item("Treats", -100, [-500])], [{ kind: "tax", name: "Tax", amount: 20 }], 220), ["p0", "p1"]);
+
+    expect(shares).toEqual([
+      ["p0", 220],
+      ["p1", 0],
+    ]);
+  });
+
+  test("a receipt that nets to $0.00 shares out $0.00, with and without tax", () => {
+    const beans = [item("Beans", 300), item("Treats", -300, [-700])];
+
+    expect(sharesOf(reply(beans, [], 0), ["p0", "p1"]).shares).toEqual([
+      ["p0", 0],
+      ["p1", 0],
+    ]);
+    expect(sharesOf(reply(beans, [{ kind: "tax", name: "Tax", amount: 12 }], 12), ["p0", "p1"]).shares).toEqual([
+      ["p0", 12],
+      ["p1", 0],
+    ]);
+  });
+
+  test("a cash line the reading calls a negative tip adds no Tip and leaves the Shares unchanged", () => {
+    const items = [item("Beans", 1000), item("Milk", 500)];
+    const withCash = sharesOf(reply(items, [{ kind: "tip", name: "CASH", amount: -112 }], 1500), ["p0", "p1"]);
+    const without = sharesOf(reply(items, [], 1500), ["p0", "p1"]);
+
+    expect(withCash.receipt.adjustments.map(({ kind, amount }) => [kind, amount])).toEqual([["tip", 0]]);
+    expect(withCash.shares).toEqual(without.shares);
+    expect(withCash.shares).toEqual([
+      ["p0", 1000],
+      ["p1", 500],
+    ]);
+  });
+
+  test("more oversized coupons than a Split holds merge into one discount row, so Create stays on", () => {
+    const coupons = Array.from({ length: 20 }, (_, i) => item(`Treat ${i + 1}`, -100, [-200]));
+    const { receipt, shares } = sharesOf(reply([item("Beans", 5000), ...coupons], [{ kind: "tax", name: "Tax", amount: 20 }], 3020), ["p0"]);
+
+    expect(receipt.adjustments.map(({ kind, name, amount }) => [kind, name, amount])).toEqual([
+      ["discount", "Discounts", -2000],
+      ["tax", "Tax", 20],
+      ["tip", "Tip", 0],
+    ]);
+    expect(shares).toEqual([
+      ["p0", 3020],
+      ["p1", 0],
     ]);
   });
 });

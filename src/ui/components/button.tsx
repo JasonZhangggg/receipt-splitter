@@ -105,16 +105,18 @@ type Props = ({ label: string; name?: string } | { label?: undefined; name: stri
   popup?: "dialog";
   reason?: string;
   note?: string;
+  /** Looks off but still takes a press, so a tap can show what is missing. */
+  blocked?: boolean;
 };
 
 const colorChange = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
-export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, expanded, popup, reason, note, ...action }: Props) {
+export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, expanded, popup, reason, note, blocked = false, ...action }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const reasonId = useId();
   const variant = kinds[kind];
-  const tone = variant.tone(c, disabled && !busy);
+  const tone = variant.tone(c, (disabled || blocked) && !busy);
   const target = (
     <PressTarget
       {...action}

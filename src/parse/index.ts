@@ -31,14 +31,19 @@ type Section = "items" | "adjustments" | "closed";
 
 const ONE_READ_AS_SEVEN = 7;
 
-export function parseReceipt(boxes: readonly TextBox[]): Receipt | null {
+export const parseReceipt = (boxes: readonly TextBox[]): Receipt | null => readReceipt(boxes)?.receipt ?? null;
+
+/** The reading, and whether its total was printed and read. When not, the Items and charges stand in for the total, so its check always passes. */
+export function readReceipt(boxes: readonly TextBox[]): { readonly receipt: Receipt; readonly totalRead: boolean } | null {
   const lines = classifyLines(groupRows(boxes));
   const readings = [lines, lines.map(strayMinusAsItem)].flatMap(readingsOf).flatMap((draft) => {
-    if (draft.items.length === 0 || draft.total === null) return [];
-    const receipt = toReceipt(draft.items, draft.adjustments, subtotalOf(draft, draft.total), draft.total);
-    return [receipt, ...repairs(receipt, draft)];
+    if (draft.items.length === 0) return [];
+    // A total the OCR could not read still leaves the Items to split, so the Items and charges stand in for it.
+    const total = draft.total ?? cents(sum(prices(draft.items)) + sum(amounts(draft.adjustments)));
+    const receipt = toReceipt(draft.items, draft.adjustments, subtotalOf(draft, total), total);
+    return [receipt, ...repairs(receipt, draft)].map((found) => ({ receipt: found, totalRead: draft.total !== null }));
   });
-  return readings.find((receipt) => runTotalCheck(receipt).ok) ?? readings[0] ?? null;
+  return readings.find(({ receipt }) => runTotalCheck(receipt).ok) ?? readings[0] ?? null;
 }
 
 function readingsOf(lines: readonly Line[]): Draft[] {

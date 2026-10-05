@@ -203,7 +203,7 @@ export type Split = {
   /** Sorted by id, one per picked name. */
   readonly picks: readonly NamePick[];
   readonly payments: readonly Payment[];
-  readonly paymentHandles: NonEmpty<PaymentHandle>;
+  readonly paymentHandles: readonly PaymentHandle[];
   readonly revision: number;
   readonly recentChanges: readonly Change[];
 };

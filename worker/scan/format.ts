@@ -150,6 +150,10 @@ export function readLines(lines: readonly string[]): Reading | null {
       skipped += 1;
       continue;
     }
+    if (kind === "tip" && printed < 0) {
+      skipped += 1;
+      continue;
+    }
     const name = fields.slice(1, -1).join("|");
     const member = inside ? bundle : null;
     if (kind === "item") {

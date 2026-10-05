@@ -1,5 +1,5 @@
 import { cents, MAX_CENTS, price, type Cents } from "./core/money";
-import { canonicalName, isName, MAX_ADJUSTMENTS, MAX_ITEMS, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
+import { canonicalName, handleProblem, isName, MAX_ADJUSTMENTS, MAX_ITEMS, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type HandleProblem, type NewSplit, type RejectionReason } from "./core/operations";
 import { adjustmentId, itemId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 
@@ -9,7 +9,7 @@ export type ReceiptFile = { readonly name: string; readonly thumbnail: string | 
 type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
-  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null };
+  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true };
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
 
@@ -17,7 +17,7 @@ export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[
 
 export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
-  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null }
+  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true }
   | { readonly type: "example" }
   | { readonly type: "created" }
   | { readonly type: "setService"; readonly index: number; readonly service: PaymentService }
@@ -59,7 +59,7 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     case "reading":
       return { ...draft, scan: { status: "reading", file: action.file } };
     case "read":
-      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt) } };
+      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.totalUnread && { totalUnread: true as const }) } };
     case "example":
       return { ...draft, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: sendable(example1040) } };
     case "created":
@@ -99,6 +99,14 @@ function rowName(read: string): string | null {
   return isName(name, MAX_ROW_NAME_LENGTH) ? name : null;
 }
 
+/** More Adjustments than a Split holds, with the Tip as one, would gray Create, so the whole-receipt discounts become one row. */
+function mergedDiscounts(adjustments: readonly Adjustment[]): Adjustment[] {
+  const discounts = adjustments.filter((row) => row.kind === "discount");
+  if (adjustments.length < MAX_ADJUSTMENTS || discounts.length < 2) return [...adjustments];
+  const merged = { id: discounts[0].id, kind: "discount" as const, name: "Discounts", amount: cents(Math.max(sum(discounts.map((row) => row.amount)), -MAX_CENTS)) };
+  return [merged, ...adjustments.filter((row) => row.kind !== "discount")];
+}
+
 const adjustmentNames: Record<Adjustment["kind"], string> = { tax: "Tax", tip: "Tip", serviceCharge: "Service charge", discount: "Discount", bundleDiscount: "Discount" };
 
 /**
@@ -124,8 +132,9 @@ function sendable(read: Receipt): Receipt | null {
     if (inside === undefined) return [{ ...fields, kind: "discount" }];
     return [{ ...fields, kind: row.kind, bundle: { name: rowName(row.bundle.name) ?? `Bundle ${bundlePlaces.get(row.id)}`, items: [inside, ...others] } }];
   });
-  const tip = sum(read.adjustments.filter((row) => row.kind === "tip").map((row) => row.amount));
-  const withTip = [...adjustments, { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(inRange(tip) ? tip : 0) }];
+  // A tip is never negative: a negative one is a cash tender or a refund the reading took for a tip.
+  const tip = sum(read.adjustments.filter((row) => row.kind === "tip" && readable(row.amount)).map((row) => row.amount));
+  const withTip = [...mergedDiscounts(adjustments), { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(readable(tip) ? tip : 0) }];
   const subtotal = readable(read.subtotal) ? read.subtotal : clamped(sum(read.items.map((item) => Math.min(item.price, MAX_CENTS))));
   const total = readable(read.total) ? read.total : clamped(subtotal + sum(withTip.map((row) => row.amount)));
   return { items, adjustments: withTip, subtotal, total };
@@ -181,12 +190,17 @@ export function gapNote({ subtotalGap, totalGap }: FailedTotalCheck): string {
 export function mismatchNote({ scan }: Draft): string | null {
   if (scan.status !== "read" || !scan.receipt) return null;
   const check = runTotalCheck(scan.receipt);
-  return check.ok ? null : gapNote(check);
+  if (!check.ok) return gapNote(check);
+  return scan.totalUnread ? "Couldn't read the total, so check the rows." : null;
 }
 
-export type Blocker = { readonly kind: "note"; readonly note: string } | { readonly kind: "noHandle" };
+/** A `note` is about the Receipt. `noName` and `badHandle` name the field a tap on Create focuses. */
+export type Blocker =
+  | { readonly kind: "note"; readonly note: string }
+  | { readonly kind: "noName" }
+  | { readonly kind: "badHandle"; readonly index: number; readonly service: PaymentService; readonly problem: HandleProblem };
 
-export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonly paymentHandles: NonEmpty<PaymentHandle>; readonly names: NonEmpty<string> };
+export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonly paymentHandles: readonly PaymentHandle[]; readonly names: NonEmpty<string> };
 
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
@@ -198,11 +212,13 @@ export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
   if (items.length > MAX_ITEMS) return note(`A split holds up to ${MAX_ITEMS} items. This receipt has ${items.length}.`);
   // The Tip is always one of the Adjustments sent, so the receipt's own charges get one fewer.
   if (adjustments.length > MAX_ADJUSTMENTS) return note(`A split holds up to ${MAX_ADJUSTMENTS - 1} taxes, fees and discounts. This receipt has ${adjustments.length - 1}.`);
-  const [first, ...rest] = filledHandles(handles);
-  if (!first) return { kind: "noHandle" };
+  for (const [index, { service, handle }] of handles.entries()) {
+    const problem = handle.trim() === "" ? null : handleProblem({ service, handle: handle.trim() });
+    if (problem) return { kind: "badHandle", index, service, problem };
+  }
   const [host, ...others] = names;
-  if (host === undefined) return note("Add your name.");
-  return { kind: "ready", receipt: scan.receipt, paymentHandles: [first, ...rest], names: [host, ...others] };
+  if (host === undefined) return { kind: "noName" };
+  return { kind: "ready", receipt: scan.receipt, paymentHandles: filledHandles(handles), names: [host, ...others] };
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;

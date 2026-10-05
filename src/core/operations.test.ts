@@ -12,6 +12,7 @@ import {
   createSplit,
   type Auth,
   type ItemPatch,
+  type NewSplit,
   type Operation,
   type Rejected,
 } from "./operations";
@@ -217,6 +218,46 @@ describe("createSplit", () => {
       { service: "venmo", handle: "ann-host" },
       { service: "cashApp", handle: "annpays" },
     ]);
+  });
+
+  test("creates a Split with no way to pay, which loads back as stored", () => {
+    const split = accepted(createSplit({ id: minted, receipt: dinner, participants: [{ id: ann, name: "Ann" }], paymentHandles: [] }));
+
+    expect(split.paymentHandles).toEqual([]);
+    expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
+  });
+
+  test("takes any PayPal or Zelle text, and holds Venmo and Cash App to their own rules", () => {
+    const reason = (paymentHandles: NewSplit["paymentHandles"]) => {
+      const result = createSplit({ id: minted, receipt: dinner, participants: [{ id: ann, name: "Ann" }], paymentHandles });
+      return result.ok ? result.split.paymentHandles : result.rejection.reason;
+    };
+
+    expect({
+      paypal: reason([{ service: "paypal", handle: "Ann Lee / tips" }]),
+      zelle: reason([{ service: "zelle", handle: "text me" }]),
+      hidden: reason([{ service: "paypal", handle: "ann‮lee" }]),
+      venmo: reason([{ service: "venmo", handle: "test" }]),
+      cashApp: reason([{ service: "cashApp", handle: "$1234" }]),
+    }).toEqual({
+      paypal: [{ service: "paypal", handle: "Ann Lee / tips" }],
+      zelle: [{ service: "zelle", handle: "text me" }],
+      hidden: "badHandle",
+      venmo: "badHandle",
+      cashApp: "badHandle",
+    });
+  });
+});
+
+describe("PayPal and Zelle handles with edge whitespace", () => {
+  test("refuse a handle that starts or ends with a space, tab or newline, and keep inner spaces", () => {
+    const created = (handle: string, service: "paypal" | "zelle") => createSplit({ id: minted, receipt: dinner, participants: [{ id: ann, name: "Ann" }], paymentHandles: [{ service, handle }] });
+    const outcome = (handle: string, service: "paypal" | "zelle") => {
+      const result = created(handle, service);
+      return result.ok ? "ok" : result.rejection.reason;
+    };
+
+    expect([outcome(" ann", "paypal"), outcome("ann ", "zelle"), outcome("\tann", "paypal"), outcome("ann\n", "zelle"), outcome("a nn", "paypal")]).toEqual(["badHandle", "badHandle", "badHandle", "badHandle", "ok"]);
   });
 });
 

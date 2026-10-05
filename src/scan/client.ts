@@ -1,5 +1,5 @@
 import type { ReadAdjustment, ReadBundle, ReadDiscount, ReadItem, ScanReply } from "../../worker/scan/format";
-import { cents, isCents, isPrice, price, type Cents } from "../core/money";
+import { cents, isCents, price, type Cents, type Price } from "../core/money";
 import { isDetail, MAX_DETAIL_LENGTH, MAX_QUANTITY } from "../core/operations";
 import { adjustmentId, itemId, type Adjustment, type Item, type NonEmpty, type Receipt, type ReceiptLevelKind } from "../core/split";
 import { money } from "../draft";
@@ -32,7 +32,7 @@ const isDiscount = (value: unknown): value is ReadDiscount => isObject(value) &&
 const isItem = (value: unknown): value is ReadItem =>
   isObject(value) &&
   isText(value.name) &&
-  isPrice(value.price) &&
+  isCents(value.price) &&
   (value.quantity === null || (Number.isSafeInteger(value.quantity) && Number(value.quantity) > 1)) &&
   isList(value.details, isText) &&
   isList(value.discounts, isDiscount);
@@ -64,15 +64,31 @@ function detailLine({ details, discounts }: ReadItem): string | undefined {
 }
 
 /**
+ * An Item's price with the discounts printed under it folded in, as the route reads it. A coupon worth more than its Item takes that below $0.00,
+ * which no Item may be, so the Item goes to $0.00 with as much of its own coupon as its price covers, and only the excess goes on the whole receipt
+ * as `unfolded`. The line's sum is unchanged, and the other Items absorb only the excess.
+ */
+function fold(read: ReadItem): { readonly price: Price; readonly folded: readonly ReadDiscount[]; readonly unfolded: Cents } {
+  if (read.price >= 0) return { price: price(read.price), folded: read.discounts, unfolded: cents(0) };
+  let room = Math.max(read.price - sum(read.discounts.map(({ amount }) => amount)), 0);
+  const folded = read.discounts.flatMap(({ name, amount }): ReadDiscount[] => {
+    const own = Math.min(-amount, room);
+    room -= own;
+    return own > 0 ? [{ name, amount: cents(-own) }] : [];
+  });
+  return { price: price(0), folded, unfolded: read.price };
+}
+
+/**
  * The core subtotal counts Items only. The reply's subtotal is what the receipt printed, which also holds every line but tax and tip,
  * or, when printed before discounts, the Items before their discounts plus the fees and service charges.
  */
-function subtotalOf(reply: ScanReply, items: readonly Item[], adjustments: readonly Adjustment[]): Cents {
+function subtotalOf(reply: ScanReply, items: readonly Item[], adjustments: readonly Adjustment[], folded: readonly ReadDiscount[]): Cents {
   const itemsSum = sum(items.map((item) => item.price));
   if (reply.subtotal === null) return cents(itemsSum);
   const charges = adjustments.filter(({ kind }) => kind !== "tax" && kind !== "tip");
   const counted = reply.subtotal.beforeDiscounts ? charges.filter(({ kind }) => kind === "serviceCharge") : charges;
-  const itemDiscounts = reply.subtotal.beforeDiscounts ? sum(reply.items.flatMap((item) => item.discounts.map(({ amount }) => amount))) : 0;
+  const itemDiscounts = reply.subtotal.beforeDiscounts ? sum(folded.map(({ amount }) => amount)) : 0;
   const subtotal = reply.subtotal.amount + itemDiscounts - sum(counted.map(({ amount }) => amount));
   return isCents(subtotal) ? subtotal : cents(itemsSum);
 }
@@ -81,12 +97,13 @@ function subtotalOf(reply: ScanReply, items: readonly Item[], adjustments: reado
 export function receiptOfReply(value: unknown): Receipt | null {
   const reply = parseReply(value);
   if (reply === null) return null;
+  const folds = reply.items.map(fold);
   const items = reply.items.map((read, index): Item => {
-    const detail = detailLine(read);
+    const detail = detailLine({ ...read, discounts: folds[index].folded });
     return {
       id: itemId(`i${index + 1}`),
       name: read.name,
-      price: price(read.price),
+      price: folds[index].price,
       ...(detail !== undefined && { detail }),
       ...(read.quantity !== null && read.quantity <= MAX_QUANTITY && { quantity: read.quantity }),
     };
@@ -102,10 +119,14 @@ export function receiptOfReply(value: unknown): Receipt | null {
       bundle: { name, items: [first, ...rest] },
     };
   });
+  const coupons = reply.items.flatMap(({ name, discounts }, index): Adjustment[] => {
+    const { unfolded } = folds[index];
+    return unfolded === 0 ? [] : [{ id: adjustmentId(`c${index + 1}`), kind: "discount", name: discounts[0]?.name || name, amount: unfolded }];
+  });
   const charges = reply.adjustments.map(({ kind, name, amount }, index): Adjustment => ({ id: adjustmentId(`a${index + 1}`), kind: KINDS[kind], name, amount }));
-  const adjustments = [...bundles, ...charges];
+  const adjustments = [...bundles, ...coupons, ...charges];
   const [first, ...rest] = items;
-  return { items: [first, ...rest], adjustments, subtotal: subtotalOf(reply, items, adjustments), total: reply.total };
+  return { items: [first, ...rest], adjustments, subtotal: subtotalOf(reply, items, adjustments, folds.flatMap(({ folded }) => folded)), total: reply.total };
 }
 
 export type Crop = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };

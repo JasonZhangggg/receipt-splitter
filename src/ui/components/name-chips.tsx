@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { copy } from "../home-copy";
@@ -12,14 +12,21 @@ type Props = {
   onAdd: (name: string) => string | null;
   onRemove?: (name: string) => void;
   outsideScroll?: boolean;
+  /** Lets Create open the name field when a name is missing. */
+  ref?: Ref<NameField>;
 };
 
-export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
+export type NameField = { readonly open: () => void };
+
+export function NameChips({ names, onAdd, onRemove, outsideScroll, ref }: Props) {
   const c = useColors();
   const [adding, setAdding] = useState(false);
   const [typed, setTyped] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
   const pressing = usePressing(adding);
+  const input = useRef<TextInput | null>(null);
+  // A field that is already open keeps its place: focus comes back to it, and its blur then leaves it open.
+  useImperativeHandle(ref, () => ({ open: () => (adding ? focusInPlace(input.current) : setAdding(true)) }), [adding]);
   const first = names.length === 0;
   const commit = () => {
     if (typed.trim()) setRefusal(onAdd(typed));
@@ -46,7 +53,10 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       ))}
       {adding ? (
         <TextInput
-          ref={focusInPlace}
+          ref={(field) => {
+            input.current = field;
+            focusInPlace(field);
+          }}
           aria-label={first ? copy.yourName : copy.newName}
           placeholder={first ? copy.yourName : copy.newName}
           placeholderTextColor={c.muted}
@@ -62,6 +72,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
           blurOnSubmit={false}
           onBlur={() =>
             afterPress(pressing.current, () => {
+              if (focused(input.current)) return;
               commit();
               setAdding(false);
             })
@@ -109,6 +120,8 @@ function usePressing(listening: boolean) {
   }, [listening]);
   return pressing;
 }
+
+const focused = (field: TextInput | null) => field !== null && (field as unknown as Element) === globalThis.document?.activeElement;
 
 function afterPress(pressing: boolean, run: () => void) {
   if (!pressing) return run();
