@@ -45,7 +45,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       ))}
       {adding ? (
         <TextInput
-          autoFocus
+          ref={focusOnMount}
           aria-label={first ? copy.yourName : copy.newName}
           placeholder={first ? copy.yourName : copy.newName}
           placeholderTextColor={c.muted}
@@ -87,6 +87,9 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
     </View>
   );
 }
+
+// The home panel already sits above the keyboard; a scroll to reveal the field would slide the page under it.
+const focusOnMount = (field: TextInput | null) => (field as unknown as HTMLElement | null)?.focus({ preventScroll: true });
 
 const keepFocus = { onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() };
 

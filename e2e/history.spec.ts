@@ -257,7 +257,7 @@ const aboveKeyboard = (field: Locator) =>
     return top >= offsetTop && bottom <= offsetTop + height;
   });
 
-test("with stored Splits and the iPhone keyboard up, the focused handle field stays above the keyboard and nothing on home moves", async ({ page }) => {
+test("with stored Splits and the iPhone keyboard up, the focused handle field stays above the keyboard and only the panel moves", async ({ page }) => {
   await simulateKeyboard(page, iphoneKeyboard);
   await seed(page, [ana, jason, priya]);
   await expect(icon(page)).toBeVisible();
@@ -269,5 +269,7 @@ test("with stored Splits and the iPhone keyboard up, the focused handle field st
   await expect(handle).toBeFocused();
   await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height - iphoneKeyboard);
   await expect.poll(() => aboveKeyboard(handle)).toBe(true);
-  expect({ panel: await panelTop(), box: await boxTop() }).toEqual(rest);
+  expect(await boxTop()).toBe(rest.box);
+  expect(await panelTop()).toBeLessThan(rest.panel);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });

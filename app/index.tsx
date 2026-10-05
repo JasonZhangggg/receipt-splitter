@@ -204,7 +204,7 @@ export default function Home() {
     );
 
   return (
-    <View style={[styles.screen, { backgroundColor: c.field }]}>
+    <View style={[styles.screen, still, { backgroundColor: c.field }]}>
       <ScrollView style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: wide ? 0 : sheetHeight }]}>
         <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? wideHeader : layout.header) + insets.top }]}>
           <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
@@ -242,6 +242,9 @@ export default function Home() {
     </View>
   );
 }
+
+// With no room past the page, iOS cannot scroll the page to reveal a field, so only the panel moves for the keyboard.
+const still = webStyle({ overflow: "clip" });
 
 const wideHeader = 76;
 
