@@ -20,6 +20,10 @@ const CLOSE_SHORT_SIDE = 1280;
 const CLOSE_MAX_PIXELS = 8_000_000;
 const STRIP_ROWS = 1280;
 const STRIP_OVERLAP = 160;
+// Upside-down text reads at a mean confidence near 0.5, upright text near 0.9, so only an unsure reading pays for the flipped sample.
+const UNSURE = 0.7;
+const FLIP_SAMPLE = 8;
+const FLIP_CROP_WIDTH = 320;
 const DET_MEAN = [0.485, 0.456, 0.406];
 const DET_STD = [0.229, 0.224, 0.225];
 const PIXEL_THRESHOLD = 0.3;
@@ -36,14 +40,20 @@ const DETECTED = 0.7;
 export function ctcDecode(scores, steps, classes, chars, offset = 0) {
   let text = "";
   let previous = 0;
+  let sure = 0;
+  let marks = 0;
   for (let step = 0; step < steps; step++) {
     const row = offset + step * classes;
     let best = 0;
     for (let c = 1; c < classes; c++) if (scores[row + c] > scores[row + best]) best = c;
+    if (best !== 0) {
+      sure += scores[row + best];
+      marks++;
+    }
     if (best !== 0 && best !== previous) text += chars[best] ?? "";
     previous = best;
   }
-  return text;
+  return { text, confidence: marks ? sure / marks : 0 };
 }
 
 export function dbBoxes(prob, width, height) {
@@ -141,6 +151,24 @@ function scaleBox(box, sx, sy) {
   return { cx: box.cx * sx, cy: box.cy * sy, w: box.w * sx, h: box.h * sy, angle: box.angle };
 }
 
+export function sideways(boxes) {
+  let tall = 0;
+  let wide = 0;
+  for (const { w, h } of boxes) {
+    if (h > w) tall += w * h;
+    else wide += w * h;
+  }
+  return tall > 2 * wide;
+}
+
+export function unturn(box, height) {
+  return { cx: box.cy, cy: height - box.cx, w: box.w, h: box.h, angle: box.angle - Math.PI / 2 };
+}
+
+export function flip(box) {
+  return { ...box, angle: box.angle + Math.PI };
+}
+
 function corners(box) {
   const cos = Math.cos(box.angle);
   const sin = Math.sin(box.angle);
@@ -234,10 +262,16 @@ async function createEngine(report) {
   };
 }
 
-function detectionCanvas(image, close) {
-  const { width, height } = detectionSize(image.width, image.height, close);
+function detectionCanvas(image, { turned, close }) {
+  const { width, height } = turned ? detectionSize(image.height, image.width, close) : detectionSize(image.width, image.height, close);
   const context = new OffscreenCanvas(width, height).getContext("2d", { willReadFrequently: true });
-  context.drawImage(image, 0, 0, width, height);
+  if (turned) {
+    context.translate(width, 0);
+    context.rotate(Math.PI / 2);
+    context.drawImage(image, 0, 0, height, width);
+  } else {
+    context.drawImage(image, 0, 0, width, height);
+  }
   return { context, width, height };
 }
 
@@ -301,13 +335,13 @@ async function readCrops({ ort, rec, chars }, crops, report) {
     batch.forEach((ci, bi) => {
       texts[ci] = ctcDecode(output.data, steps, classes, chars, bi * steps * classes);
     });
-    report(DETECTED + ((1 - DETECTED) * Math.min(k + REC_BATCH, order.length)) / order.length);
+    report?.(DETECTED + ((1 - DETECTED) * Math.min(k + REC_BATCH, order.length)) / order.length);
   }
   return texts;
 }
 
-async function detect(loaded, image, close) {
-  const { context, width, height } = detectionCanvas(image, close);
+async function detect(loaded, image, view) {
+  const { context, width, height } = detectionCanvas(image, view);
   const found = [];
   for (const { top, bottom, keepFrom, keepTo } of strips(height)) {
     const rgba = context.getImageData(0, top, width, bottom - top).data;
@@ -317,7 +351,9 @@ async function detect(loaded, image, close) {
       if (cy >= keepFrom && cy < keepTo) found.push({ ...box, cy });
     }
   }
-  const boxes = found.map((box) => scaleBox(box, image.width / width, image.height / height));
+  const boxes = view.turned
+    ? found.map((box) => unturn(scaleBox(box, image.height / width, image.width / height), image.height))
+    : found.map((box) => scaleBox(box, image.width / width, image.height / height));
   return { boxes, textHeight: median(found.map((box) => box.h)) };
 }
 
@@ -326,15 +362,36 @@ function median(values) {
   return sorted.length ? sorted[sorted.length >> 1] : 0;
 }
 
+async function findText(loaded, image) {
+  const upright = await sizedDetect(loaded, image, false);
+  if (!sideways(upright.boxes)) return upright.boxes;
+  return (await sizedDetect(loaded, image, true)).boxes;
+}
+
 export function looksCloser(width, height, textHeight) {
   const small = textHeight < SMALL_TEXT || height > TALL * width;
   return small && detectionSize(width, height, true).width >= CLOSER * detectionSize(width, height).width;
 }
 
-async function findText(loaded, image) {
-  const found = await detect(loaded, image, false);
-  if (!looksCloser(image.width, image.height, found.textHeight)) return found.boxes;
-  return (await detect(loaded, image, true)).boxes;
+async function sizedDetect(loaded, image, turned) {
+  const found = await detect(loaded, image, { turned, close: false });
+  const [width, height] = turned ? [image.height, image.width] : [image.width, image.height];
+  if (!looksCloser(width, height, found.textHeight)) return found;
+  return detect(loaded, image, { turned, close: true });
+}
+
+export function flipSample(boxes) {
+  return boxes
+    .map((_, i) => i)
+    .filter((i) => (REC_HEIGHT * boxes[i].w) / boxes[i].h <= FLIP_CROP_WIDTH)
+    .sort((i, j) => boxes[j].w / boxes[j].h - boxes[i].w / boxes[i].h)
+    .slice(0, FLIP_SAMPLE);
+}
+
+const meanConfidence = (reads) => reads.reduce((sum, read) => sum + read.confidence, 0) / reads.length;
+
+export function upsideDown(upright, flipped) {
+  return flipped.length > 0 && meanConfidence(flipped) > meanConfidence(upright);
 }
 
 async function recognize(blob, report) {
@@ -342,11 +399,19 @@ async function recognize(blob, report) {
   report(ENGINE_READY);
   const image = await createImageBitmap(blob, { imageOrientation: "from-image" });
   try {
-    const boxes = await findText(loaded, image);
+    let boxes = await findText(loaded, image);
     report(DETECTED);
-    const texts = await readCrops(loaded, boxes.map((box) => crop(image, box)), report);
+    let reads = await readCrops(loaded, boxes.map((box) => crop(image, box)), report);
+    if (meanConfidence(reads) < UNSURE) {
+      const sample = flipSample(boxes);
+      const flipped = await readCrops(loaded, sample.map((i) => crop(image, flip(boxes[i]))));
+      if (upsideDown(sample.map((i) => reads[i]), flipped)) {
+        boxes = boxes.map(flip);
+        reads = await readCrops(loaded, boxes.map((box) => crop(image, box)));
+      }
+    }
     return boxes
-      .map((box, i) => ({ text: texts[i].trim(), corners: corners(box) }))
+      .map((box, i) => ({ text: reads[i].text.trim(), corners: corners(box) }))
       .filter((box) => box.text !== "");
   } finally {
     image.close();

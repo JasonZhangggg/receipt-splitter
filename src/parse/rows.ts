@@ -1,4 +1,4 @@
-import type { TextBox } from "../ocr/types";
+import type { Point, TextBox } from "../ocr/types";
 
 export type Row = {
   readonly text: string;
@@ -27,7 +27,7 @@ const SLOPE_REACH = 4;
 const PAIR_WITHIN = 1;
 
 export function groupRows(textBoxes: readonly TextBox[]): Row[] {
-  const boxes = textBoxes.map(measure).filter((box) => box.text.length > 0);
+  const boxes = upright(textBoxes).map(measure).filter((box) => box.text.length > 0);
   const lineHeight = median(boxes.map((box) => box.height));
   const placed = boxes.map((box) => ({ ...box, localSlope: localSlope(box, boxes, lineHeight) }));
   const xref = median(placed.map((box) => box.cx));
@@ -54,6 +54,26 @@ export function groupRows(textBoxes: readonly TextBox[]): Row[] {
   ]
     .sort((a, b) => a.y - b.y)
     .map(({ boxes: row }) => ({ text: row.map((box) => box.text).join(" "), left: wordsStart(row), lineHeight }));
+}
+
+const QUARTER_TURNS: readonly ((point: Point) => Point)[] = [
+  (point) => point,
+  ({ x, y }) => ({ x: y, y: -x }),
+  ({ x, y }) => ({ x: -x, y: -y }),
+  ({ x, y }) => ({ x: -y, y: x }),
+];
+
+/**
+ * The boxes turned so their text runs left to right. A photo taken sideways or upside down has its text running down, left or up,
+ * so the boxes turn by the quarter turn that most of them share.
+ */
+export function upright(boxes: readonly TextBox[]): readonly TextBox[] {
+  const counts = [0, 0, 0, 0];
+  for (const { corners: [tl, tr] } of boxes) counts[Math.round(Math.atan2(tr.y - tl.y, tr.x - tl.x) / (Math.PI / 2)) & 3] += 1;
+  const turn = counts.indexOf(Math.max(...counts));
+  if (turn === 0) return boxes;
+  const turned = QUARTER_TURNS[turn];
+  return boxes.map(({ text, corners: [tl, tr, br, bl] }) => ({ text, corners: [turned(tl), turned(tr), turned(br), turned(bl)] }));
 }
 
 function wordsStart(row: readonly Box[]): number {

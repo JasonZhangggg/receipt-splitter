@@ -112,6 +112,35 @@ describe("strips", () => {
   });
 });
 
+describe("orientation", () => {
+  test("a photo is sideways when tall boxes cover more than twice the area of wide ones", () => {
+    expect(worker.sideways([{ w: 10, h: 40 }, { w: 10, h: 40 }, { w: 30, h: 10 }])).toBe(true);
+    expect(worker.sideways([{ w: 10, h: 40 }, { w: 50, h: 10 }])).toBe(false);
+  });
+
+  test("unturn maps a box found on the photo turned a quarter clockwise back onto the photo, its text running up", () => {
+    expect(worker.unturn({ cx: 30, cy: 10, w: 40, h: 8, angle: 0 }, 100)).toEqual({ cx: 10, cy: 70, w: 40, h: 8, angle: -Math.PI / 2 });
+  });
+
+  test("flip turns a box's text half a turn in place", () => {
+    expect(worker.flip({ cx: 1, cy: 2, w: 3, h: 4, angle: 0 })).toEqual({ cx: 1, cy: 2, w: 3, h: 4, angle: Math.PI });
+  });
+
+  test("the flip sample takes the longest boxes whose crop stays narrow", () => {
+    const boxes = [{ w: 100, h: 10 }, { w: 60, h: 10 }, { w: 20, h: 10 }, { w: 50, h: 10 }].map((size) => ({ ...size, cx: 0, cy: 0, angle: 0 }));
+
+    expect(worker.flipSample(boxes)).toEqual([1, 3, 2]);
+  });
+
+  test("text is upside down only when the flipped sample reads more surely", () => {
+    const read = (confidence: number) => ({ text: "", confidence });
+
+    expect(worker.upsideDown([read(0.4), read(0.5)], [read(0.9)])).toBe(true);
+    expect(worker.upsideDown([read(0.9)], [read(0.4), read(0.5)])).toBe(false);
+    expect(worker.upsideDown([read(0.4)], [])).toBe(false);
+  });
+});
+
 test("threadCount uses four threads only when the page is cross-origin isolated", () => {
   expect([worker.threadCount(true), worker.threadCount(false)]).toEqual([4, 1]);
 });
