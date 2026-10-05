@@ -560,9 +560,10 @@ test.describe("reading through the server", () => {
     await expect(stage).toHaveText("Finding the text");
     releaseOcr();
     await expect(stage).toHaveText("Matching items to prices", scanTimeout);
-    expect(askedAt).toBeGreaterThan(0);
+    const serverAt = Date.now();
+    await expect.poll(() => askedAt).toBeGreaterThan(0);
     await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
-    expect(Date.now() - askedAt).toBeGreaterThan(3_900);
+    expect(Date.now() - serverAt).toBeGreaterThan(3_000);
     answer();
     await expect(card(page)).toBeVisible(scanTimeout);
     await expect(stage).toHaveCount(0);

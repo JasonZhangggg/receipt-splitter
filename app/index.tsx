@@ -87,7 +87,7 @@ export default function Home() {
     void copying.then(() => globalThis.performance?.mark?.("copy-done"));
     if (scan === scanning.current) pageCopy = { file, copy: copying };
     if (boxes && scan === scanning.current) setStage("server");
-    const slow = setTimeout(() => scan === scanning.current && setStage("slow"), SLOW_SERVER_MS);
+    const slow = boxes ? setTimeout(() => scan === scanning.current && setStage("slow"), SLOW_SERVER_MS) : undefined;
     const onServer = boxes && (await readOnServer(photo, boxes));
     clearTimeout(slow);
     const onDevice = boxes && !onServer ? readReceipt(boxes) : null;
