@@ -1,8 +1,7 @@
-import type { NonEmpty } from "../../src/core/split";
 import { readCapped } from "../create";
 import { limiterKey, type DayLimit, type IpLimit } from "../rate-limit";
 import { jpegLongestSide } from "./jpeg";
-import { BANNED_HOSTS, readReceipt, type JpegDataUrl, type PassConfig, type ReaderConfig, type ScanInput } from "./reader";
+import { readReceipt, type JpegDataUrl, type ReaderConfig, type ScanInput, type Target } from "./reader";
 
 /** The client downsizes the photo to fit this. The Worker never decodes its pixels, because Workers Free allows 10 ms of CPU a request. */
 export const MAX_SCAN_BODY_BYTES = 1024 * 1024;
@@ -29,62 +28,51 @@ type ScanConfig = {
   readonly reader: ReaderConfig;
 };
 
-type ScanEnv = Pick<
-  Cloudflare.Env,
-  | "CreateLimiter"
-  | "OPENROUTER_API_KEY"
-  | "SCAN_PER_MINUTE"
-  | "SCAN_PER_DAY"
-  | "SCAN_DAILY_CAP"
-  | "SCAN_DAILY_BUDGET_USD"
-  | "SCAN_WORST_CASE_USD"
-  | "SCAN_MAX_IMAGE_PX"
-  | "SCAN_PASS1_MODEL"
-  | "SCAN_PASS1_HOSTS"
-  | "SCAN_PASS1_EFFORT"
-  | "SCAN_PASS1_TIMEOUT_MS"
-  | "SCAN_PASS1_MAX_TOKENS"
-  | "SCAN_PASS2_MODEL"
-  | "SCAN_PASS2_HOSTS"
-  | "SCAN_PASS2_EFFORT"
-  | "SCAN_PASS2_TIMEOUT_MS"
-  | "SCAN_PASS2_MAX_TOKENS"
-  | "SCAN_DEBUG_HEADERS"
->;
+type ScanEnv = Pick<Cloudflare.Env, "CreateLimiter" | "OPENROUTER_API_KEY" | Extract<keyof Cloudflare.Env, `SCAN_${string}`>>;
+
+type ScanVar = Extract<keyof ScanEnv, `SCAN_${string}`>;
 
 /** Reads the scan settings from the Worker's vars and secret, or names what is missing or wrong. */
 export function scanConfig(env: ScanEnv): ScanConfig | { readonly error: string } {
-  const count = (name: keyof ScanEnv) => {
+  const count = (name: ScanVar) => {
     const value = Number(env[name]);
     return Number.isSafeInteger(value) && value > 0 ? value : null;
   };
-  const dollars = (name: keyof ScanEnv) => {
+  const dollars = (name: ScanVar) => {
     const value = Number(env[name]);
     return Number.isFinite(value) && value > 0 ? value : null;
   };
-  const pass = (n: 1 | 2): PassConfig | string => {
-    const model = env[`SCAN_PASS${n}_MODEL`];
-    const [host, ...more] = String(env[`SCAN_PASS${n}_HOSTS`] ?? "")
+  const target = (prefix: "SCAN_PASS1" | "SCAN_PASS2" | "SCAN_PENNY", hostsVar: ScanVar, resolutionVar: ScanVar): Target | string => {
+    const [host, ...more] = String(env[hostsVar] ?? "")
       .split(",")
       .map((name) => name.trim())
       .filter(Boolean);
-    const effort = env[`SCAN_PASS${n}_EFFORT`];
-    const timeoutMs = count(`SCAN_PASS${n}_TIMEOUT_MS`);
-    const maxTokens = count(`SCAN_PASS${n}_MAX_TOKENS`);
-    if (!model || !effort || timeoutMs === null || maxTokens === null || host === undefined) return `SCAN_PASS${n}_* is missing or invalid`;
-    const hosts: NonEmpty<string> = [host, ...more];
-    if (hosts.some((name) => (BANNED_HOSTS as readonly string[]).includes(name))) return `SCAN_PASS${n}_HOSTS lists a banned host`;
-    return { model, hosts, effort, timeoutMs, maxTokens };
+    const [model, effort, maxTokens] = [env[`${prefix}_MODEL`], env[`${prefix}_EFFORT`], count(`${prefix}_MAX_TOKENS`)];
+    if (!model || !effort || maxTokens === null) return `${prefix}_MODEL, _EFFORT, or _MAX_TOKENS is missing or invalid`;
+    if (host === undefined) return `${hostsVar} lists no host`;
+    return { model, effort, maxTokens, hosts: [host, ...more], resolution: String(env[resolutionVar] ?? "").trim() || null };
   };
   const [perMinute, perDay, dailyCap, maxImagePx] = [count("SCAN_PER_MINUTE"), count("SCAN_PER_DAY"), count("SCAN_DAILY_CAP"), count("SCAN_MAX_IMAGE_PX")];
   const [usd, reserveUsd] = [dollars("SCAN_DAILY_BUDGET_USD"), dollars("SCAN_WORST_CASE_USD")];
-  const [pass1, pass2] = [pass(1), pass(2)];
+  const [deadlineMs, timeoutMs, reviewByMs] = [count("SCAN_PASS1_FLEX_DEADLINE_MS"), count("SCAN_PASS1_STANDARD_TIMEOUT_MS"), count("SCAN_REVIEW_BY_MS")];
+  const flex = target("SCAN_PASS1", "SCAN_PASS1_FLEX_HOSTS", "SCAN_PASS1_FLEX_RESOLUTION");
+  const standard = target("SCAN_PASS1", "SCAN_PASS1_STANDARD_HOSTS", "SCAN_PASS1_STANDARD_RESOLUTION");
+  const pass2 = target("SCAN_PASS2", "SCAN_PASS2_HOSTS", "SCAN_PASS2_RESOLUTION");
+  const penny = target("SCAN_PENNY", "SCAN_PENNY_HOSTS", "SCAN_PENNY_RESOLUTION");
   if (!env.OPENROUTER_API_KEY) return { error: "the OPENROUTER_API_KEY secret is not set" };
   if (perMinute === null || perDay === null || dailyCap === null) return { error: "SCAN_PER_MINUTE, SCAN_PER_DAY, or SCAN_DAILY_CAP is missing or invalid" };
   if (usd === null || reserveUsd === null || maxImagePx === null) return { error: "SCAN_DAILY_BUDGET_USD, SCAN_WORST_CASE_USD, or SCAN_MAX_IMAGE_PX is missing or invalid" };
-  if (typeof pass1 === "string") return { error: pass1 };
+  if (deadlineMs === null || timeoutMs === null || reviewByMs === null) return { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_STANDARD_TIMEOUT_MS, or SCAN_REVIEW_BY_MS is missing or invalid" };
+  if (typeof flex === "string") return { error: flex };
+  if (typeof standard === "string") return { error: standard };
   if (typeof pass2 === "string") return { error: pass2 };
-  return { perIp: { perMinute, perDay }, today: { cap: dailyCap, budget: { usd, reserveUsd } }, maxImagePx, reader: { key: env.OPENROUTER_API_KEY, pass1, pass2 } };
+  if (typeof penny === "string") return { error: penny };
+  return {
+    perIp: { perMinute, perDay },
+    today: { cap: dailyCap, budget: { usd, reserveUsd } },
+    maxImagePx,
+    reader: { key: env.OPENROUTER_API_KEY, flex: { ...flex, deadlineMs }, standard: { ...standard, timeoutMs }, pass2, penny, reviewByMs },
+  };
 }
 
 function parseScanInput(value: unknown): ScanInput | null {
@@ -127,7 +115,7 @@ export async function scanReceipt(request: Request, env: ScanEnv): Promise<Respo
   if (!today.ok) return tooMany("dailyLimit", today.retryAfterMs);
 
   const started = Date.now();
-  const { reply, calls, skipped } = await readReceipt(input, config.reader);
+  const { reply, calls, path, skipped } = await readReceipt(input, config.reader);
   const reserved = config.today.budget.reserveUsd;
   const reported = calls.reduce((total, call) => total + (call.cost ?? 0), 0);
   // A call with no reported cost, such as one that timed out, may still be billed, so the scan counts as its worst case.
@@ -138,13 +126,14 @@ export async function scanReceipt(request: Request, env: ScanEnv): Promise<Respo
       event: "scan",
       ms: Date.now() - started,
       cost,
+      path,
       calls,
       skipped,
       check: reply === null ? null : { passed: reply.check.passed, gaps: reply.check.gaps, problems: reply.check.passed ? 0 : reply.check.problems.length },
     }),
   );
   if (reply === null) return refuse(502, "unreadable");
-  const debug: Record<string, string> = env.SCAN_DEBUG_HEADERS === "true" ? { "x-scan-cost": cost.toFixed(6), "x-scan-passes": String(new Set(calls.map((call) => call.pass)).size) } : {};
+  const debug: Record<string, string> = env.SCAN_DEBUG_HEADERS === "true" ? { "x-scan-cost": cost.toFixed(6), "x-scan-passes": String(calls.some((call) => call.step === "pass2" || call.step === "penny") ? 2 : 1) } : {};
   return Response.json(reply, { headers: { "cache-control": "no-store", ...debug } });
 }
 

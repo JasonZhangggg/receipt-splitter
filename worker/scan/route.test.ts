@@ -3,7 +3,7 @@ import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { T0 } from "../testing";
 import { JPEG_2560_WIDE, JPEG_2561_TALL, JPEG_TWO_FRAME_HEADERS, SMALL_JPEG } from "./jpeg-fixtures";
-import { SCAN_DAILY_CAP_NAME, scanReceipt } from "./route";
+import { SCAN_DAILY_CAP_NAME, scanConfig, scanReceipt } from "./route";
 
 const DAY = 24 * 60 * 60 * 1000;
 const ORIGIN = "https://app.example";
@@ -15,14 +15,13 @@ const SHORT = "SUB|1400\nTOT|1500\ni|Burger|900\n-|Promo|-100\ni|Fries|500\nt|Ta
 type Call = {
   readonly model: string;
   readonly hosts: readonly string[];
-  readonly ignore: readonly string[];
   readonly allowFallbacks: boolean;
   readonly maxTokens: number;
   readonly prompt: string;
 };
 type Answer = (call: Call, signal: AbortSignal) => Response | Promise<Response>;
 
-const completion = (content: string, provider = "Parasail", usage: object = { prompt_tokens: 1200, completion_tokens: 90, cost: 0.0004 }) =>
+const completion = (content: string, provider = "Google AI Studio", usage: object = { prompt_tokens: 1200, completion_tokens: 90, cost: 0.0004 }) =>
   Response.json({ choices: [{ message: { content } }], provider, usage });
 
 const hang: Answer = (_, signal) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
@@ -36,7 +35,6 @@ function stubOpenRouter(...answers: Answer[]): Call[] {
     const call: Call = {
       model: body.model,
       hosts: body.provider.order,
-      ignore: body.provider.ignore,
       allowFallbacks: body.provider.allow_fallbacks,
       maxTokens: body.max_tokens,
       prompt: body.messages[0].content[0].text,
@@ -60,7 +58,7 @@ function scanRequest({ ip = `198.51.100.${nextAddress++}`, origin = ORIGIN, body
 }
 
 const scan = (request = scanRequest(), vars: Partial<Cloudflare.Env> = {}) =>
-  scanReceipt(request, { ...env, OPENROUTER_API_KEY: "test-key", SCAN_PASS1_TIMEOUT_MS: "200", SCAN_DEBUG_HEADERS: "true", ...vars });
+  scanReceipt(request, { ...env, OPENROUTER_API_KEY: "test-key", SCAN_PASS1_FLEX_DEADLINE_MS: "200", SCAN_DEBUG_HEADERS: "true", ...vars });
 
 const seedScansToday = (count: number, spentUsd?: number) =>
   runInDurableObject(env.CreateLimiter.getByName(SCAN_DAILY_CAP_NAME), (_, state) => state.storage.put("tally", { day: Math.floor(Date.now() / DAY), count, spentUsd }));
@@ -193,7 +191,7 @@ describe("daily dollar budget", () => {
 
   it("counts a reply with no usage.cost as a worst-case scan, and starts the budget over the next UTC day", async () => {
     vi.setSystemTime(T0 + 12 * DAY);
-    stubOpenRouter(() => completion(PASSING, "Parasail", { prompt_tokens: 1200, completion_tokens: 90 }), () => completion(PASSING));
+    stubOpenRouter(() => completion(PASSING, "Google AI Studio", { prompt_tokens: 1200, completion_tokens: 90 }), () => completion(PASSING));
     const first = await scan(scanRequest(), budget);
     const second = await scan(scanRequest(), budget);
     vi.setSystemTime(T0 + 13 * DAY);
@@ -203,7 +201,7 @@ describe("daily dollar budget", () => {
 });
 
 describe("reading", () => {
-  it("returns the reading with a passing check after one pass on the first pinned host, never routing to openai/flex", async () => {
+  it("returns the reading with a passing check after one pass-1 call on the shipped flex host", async () => {
     const calls = stubOpenRouter(() => completion(PASSING));
     const response = await scan();
     expect([response.status, response.headers.get("x-scan-passes"), response.headers.get("x-scan-cost"), await response.json()]).toEqual([
@@ -223,7 +221,29 @@ describe("reading", () => {
       },
     ]);
     expect(calls.map(({ prompt: _prompt, ...call }) => call)).toEqual([
-      { model: "z-ai/glm-5.3-flash", hosts: ["parasail"], ignore: ["openai/flex"], allowFallbacks: false, maxTokens: 3000 },
+      { model: "google/gemini-3.1-flash-lite", hosts: ["google-ai-studio/flex"], allowFallbacks: false, maxTokens: 3000 },
+    ]);
+  });
+
+  it("logs the path, each call's step, host, time, tokens, and cost, and never the OCR lines or the reading", async () => {
+    stubOpenRouter(() => completion(SHORT), () => completion("add|f|Deposit total|100\nfix|5|i|Fries|600"));
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await scan();
+    const line = log.mock.calls.map(([text]) => String(text)).find((text) => text.includes('"event":"scan"')) ?? "";
+    const event = JSON.parse(line);
+    expect([
+      event.path,
+      event.calls.map(({ ms: _ms, ...call }: { ms: number }) => call),
+      event.cost,
+      ["BURGER", "Burger", "Fries", "Deposit"].filter((text) => line.includes(text)),
+    ]).toEqual([
+      { pass1: "flex", review: { kind: "pass2", outcome: "kept", refusedTotals: 1 } },
+      [
+        { step: "flex", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, outcome: "ok" },
+        { step: "pass2", host: "Google AI Studio", inputTokens: 1200, outputTokens: 90, reasoningTokens: null, cost: 0.0004, outcome: "ok" },
+      ],
+      0.0008,
+      [],
     ]);
   });
 
@@ -250,25 +270,25 @@ describe("reading", () => {
       return text;
     });
     stubOpenRouter(() => completion(""), () => completion(PASSING));
-    const response = await scan(request, { SCAN_PASS1_HOSTS: "parasail,baseten" });
+    const response = await scan(request);
     spy.mockRestore();
     expect([response.status, bodies.length]).toEqual([200, 1]);
   });
 
-  it("retries pass 1 on the second host when the first runs past its limit", async () => {
+  it("moves pass 1 to the first standard host when the flex call runs past SCAN_PASS1_FLEX_DEADLINE_MS", async () => {
     const calls = stubOpenRouter(hang, () => completion(PASSING));
-    const response = await scan(scanRequest(), { SCAN_PASS1_HOSTS: "parasail,baseten", SCAN_PASS1_TIMEOUT_MS: "50" });
-    expect([response.status, calls.map((call) => call.hosts)]).toEqual([200, [["parasail"], ["baseten"]]]);
+    const response = await scan(scanRequest(), { SCAN_PASS1_FLEX_DEADLINE_MS: "50" });
+    expect([response.status, calls.map((call) => call.hosts)]).toEqual([200, [["google-ai-studio/flex"], ["google-vertex/global"]]]);
   });
 
-  it("retries pass 1 on the second host when the first returns an empty reply", async () => {
-    const calls = stubOpenRouter(() => completion(""), () => completion(PASSING));
-    const response = await scan(scanRequest(), { SCAN_PASS1_HOSTS: "parasail,baseten" });
-    expect([response.status, calls.map((call) => call.hosts)]).toEqual([200, [["parasail"], ["baseten"]]]);
+  it("moves pass 1 to the next host when a call returns an empty reply", async () => {
+    const calls = stubOpenRouter(() => completion(""), () => completion(""), () => completion(PASSING));
+    const response = await scan();
+    expect([response.status, calls.map((call) => call.hosts)]).toEqual([200, [["google-ai-studio/flex"], ["google-vertex/global"], ["google-ai-studio"]]]);
   });
 
-  it("runs pass 2 on its hosts only when pass 1 fails the check, and keeps its edits", async () => {
-    const calls = stubOpenRouter(() => completion(SHORT), () => completion("fix|5|i|Fries|600", "Azure"));
+  it("runs pass 2 only when pass 1's total fails the check, and keeps its edits", async () => {
+    const calls = stubOpenRouter(() => completion(SHORT), () => completion("fix|5|i|Fries|600"));
     const response = await scan();
     const reply = await response.json<{ items: { price: number }[]; check: unknown }>();
     expect([response.status, response.headers.get("x-scan-passes"), reply.items.map((item) => item.price), reply.check]).toEqual([
@@ -278,8 +298,8 @@ describe("reading", () => {
       { passed: true, gaps: { subtotal: 0, total: 0 } },
     ]);
     expect(calls.map(({ model, hosts }) => [model, hosts])).toEqual([
-      ["z-ai/glm-5.3-flash", ["parasail"]],
-      ["openai/gpt-6-luna", ["azure", "openai"]],
+      ["google/gemini-3.1-flash-lite", ["google-ai-studio/flex"]],
+      ["google/gemini-2.5-flash", ["google-ai-studio/flex"]],
     ]);
   });
 
@@ -320,8 +340,82 @@ describe("reading", () => {
   });
 
   it("answers 502 when no pass returns a usable reading", async () => {
-    const calls = stubOpenRouter(() => completion(""), () => new Response("busy", { status: 503 }), () => completion("I cannot read this receipt."));
-    const response = await scan(scanRequest(), { SCAN_PASS1_HOSTS: "parasail,baseten" });
-    expect([response.status, await response.json(), calls.length]).toEqual([502, { refused: "unreadable" }, 3]);
+    const calls = stubOpenRouter(
+      () => completion(""),
+      () => new Response("busy", { status: 503 }),
+      () => completion("I cannot read this receipt."),
+      () => completion("I cannot read this receipt either."),
+    );
+    const response = await scan();
+    expect([response.status, await response.json(), calls.length]).toEqual([502, { refused: "unreadable" }, 4]);
+  });
+
+  it("counts a scan whose every call was refused with an HTTP error as free", async () => {
+    vi.setSystemTime(T0 + 14 * DAY);
+    const refusal = () => new Response("rate limited", { status: 429 });
+    stubOpenRouter(refusal, refusal, refusal, refusal);
+    const response = await scan();
+    const day = await runInDurableObject(env.CreateLimiter.getByName(SCAN_DAILY_CAP_NAME), (_, state) => state.storage.get<{ count: number; spentUsd: number }>("tally"));
+    expect([response.status, day]).toEqual([502, { day: 14 + Math.floor(T0 / DAY), count: 1, spentUsd: 0 }]);
+  });
+});
+
+describe("scanConfig", () => {
+  const vars = { ...env, OPENROUTER_API_KEY: "test-key" };
+
+  it("reads each reading step from its vars, an empty resolution as none and a host list in order", () => {
+    const config = scanConfig({
+      ...vars,
+      SCAN_PASS1_MODEL: "vendor/reader",
+      SCAN_PASS1_EFFORT: "low",
+      SCAN_PASS1_MAX_TOKENS: "2000",
+      SCAN_PASS1_FLEX_HOSTS: " cheap/flex ",
+      SCAN_PASS1_FLEX_RESOLUTION: "MEDIA_RESOLUTION_LOW",
+      SCAN_PASS1_FLEX_DEADLINE_MS: "3000",
+      SCAN_PASS1_STANDARD_HOSTS: "a, b ,c",
+      SCAN_PASS1_STANDARD_RESOLUTION: " ",
+      SCAN_PASS1_STANDARD_TIMEOUT_MS: "20000",
+      SCAN_PASS2_MODEL: "vendor/fixer",
+      SCAN_PASS2_EFFORT: "off",
+      SCAN_PASS2_MAX_TOKENS: "1000",
+      SCAN_PASS2_HOSTS: "d,e",
+      SCAN_PASS2_RESOLUTION: "",
+      SCAN_PENNY_MODEL: "vendor/penny",
+      SCAN_PENNY_EFFORT: "minimal",
+      SCAN_PENNY_MAX_TOKENS: "500",
+      SCAN_PENNY_HOSTS: "f",
+      SCAN_PENNY_RESOLUTION: "MEDIA_RESOLUTION_HIGH",
+      SCAN_REVIEW_BY_MS: "8000",
+    });
+    expect("error" in config ? config : config.reader).toEqual({
+      key: "test-key",
+      flex: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["cheap/flex"], resolution: "MEDIA_RESOLUTION_LOW", deadlineMs: 3000 },
+      standard: { model: "vendor/reader", effort: "low", maxTokens: 2000, hosts: ["a", "b", "c"], resolution: null, timeoutMs: 20000 },
+      pass2: { model: "vendor/fixer", effort: "off", maxTokens: 1000, hosts: ["d", "e"], resolution: null },
+      penny: { model: "vendor/penny", effort: "minimal", maxTokens: 500, hosts: ["f"], resolution: "MEDIA_RESOLUTION_HIGH" },
+      reviewByMs: 8000,
+    });
+  });
+
+  it("names the var that is missing or invalid", () => {
+    expect([
+      scanConfig({ ...vars, SCAN_PASS1_STANDARD_HOSTS: " , " }),
+      scanConfig({ ...vars, SCAN_PENNY_MODEL: "" }),
+      scanConfig({ ...vars, SCAN_PASS2_MAX_TOKENS: "1.5" }),
+      scanConfig({ ...vars, SCAN_REVIEW_BY_MS: "0" }),
+      scanConfig({ ...vars, SCAN_PASS1_FLEX_DEADLINE_MS: "soon" }),
+    ]).toEqual([
+      { error: "SCAN_PASS1_STANDARD_HOSTS lists no host" },
+      { error: "SCAN_PENNY_MODEL, _EFFORT, or _MAX_TOKENS is missing or invalid" },
+      { error: "SCAN_PASS2_MODEL, _EFFORT, or _MAX_TOKENS is missing or invalid" },
+      { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_STANDARD_TIMEOUT_MS, or SCAN_REVIEW_BY_MS is missing or invalid" },
+      { error: "SCAN_PASS1_FLEX_DEADLINE_MS, SCAN_PASS1_STANDARD_TIMEOUT_MS, or SCAN_REVIEW_BY_MS is missing or invalid" },
+    ]);
+  });
+
+  it("answers 503 and calls no model when a reading var is invalid", async () => {
+    const calls = stubOpenRouter();
+    const response = await scan(scanRequest(), { SCAN_PASS2_HOSTS: "" });
+    expect([response.status, await response.json(), calls.length]).toEqual([503, { refused: "unavailable" }, 0]);
   });
 });

@@ -16,9 +16,8 @@ t|Tax|290`;
 
 const BUNDLE_RULE = `- Bundle: when items are printed under a header with no price or $0.00 and followed by a discount that covers only those items, write b|<header>, then that group's items and its discount with > in front (>i|..., >d|...). The header is not an item. + lines under a bundle item need no >.`;
 
-/** Pass 1's prompt. `/nothink` roughly halves GLM's reasoning and stops runaways. */
-export const PASS1_PROMPT = `/nothink
-Read this receipt photo. The OCR text of the same receipt is below as a hint; it is usually right about characters but can misread faint digits, so trust the photo when they disagree.
+/** Pass 1's prompt. */
+export const PASS1_PROMPT = `Read this receipt photo. The OCR text of the same receipt is below as a hint; it is usually right about characters but can misread faint digits, so trust the photo when they disagree.
 
 Answer in this exact plain-text format, nothing else:
 SUB|<printed subtotal in cents, or - if none>[|pre]
