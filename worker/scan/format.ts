@@ -182,18 +182,25 @@ export function toReply(reading: Reading, check: Check): ScanReply {
   };
 }
 
-export type Edited = { readonly lines: string[]; readonly applied: number; readonly refused: number };
+export type Edited = { readonly lines: string[]; readonly applied: number; readonly refused: { readonly fee: number; readonly total: number } };
+
+/**
+ * An item, discount, fee or service line named as a total. Such a receipt line sums other lines (a deposit total, a savings total),
+ * so an edit that writes one counts them twice. Tax and tip are exempt, because some receipts print their only tax line as "Total tax".
+ */
+const isNamedTotal = (line: string) => ["i", "d", "f", "s", "-"].includes(tagOf(line)) && /\btotal\b/i.test(fieldsOf(line)[1] ?? "");
 
 /**
  * Applies pass 2's edits to pass 1's lines, numbered from 1. `after|n` lands below line n's `+` and `-` lines,
- * so an edit never separates an Item from its detail or its discount. A `drop` of a fee or deposit line, or a `fix` that turns it into another kind, is refused.
+ * so an edit never separates an Item from its detail or its discount. A `drop` of a fee or deposit line, or a `fix` that turns it into another kind,
+ * is refused as `fee`. An `add`, `after` or `fix` that writes a line named as a total is refused as `total`.
  */
 export function applyEdits(lines: readonly string[], text: string): Edited {
   const head: string[] = [];
   const slots: (string | null)[][] = lines.map((line) => [line]);
   const tail: string[] = [];
   let applied = 0;
-  let refused = 0;
+  const refused = { fee: 0, total: 0 };
   const inRange = (n: number | null): n is number => n !== null && n >= 1 && n <= lines.length;
 
   for (const edit of replyLines(text)) {
@@ -201,19 +208,21 @@ export function applyEdits(lines: readonly string[], text: string): Edited {
     const op = fields[0].trim().toLowerCase();
     const n = whole(fields[1]);
     const rest = fields.slice(2).join("|").trim();
-    if (op === "sub" || op === "tot") {
+    if (["add", "after", "fix"].includes(op) && isNamedTotal(op === "add" ? fields.slice(1).join("|") : rest)) {
+      refused.total += 1;
+    } else if (op === "sub" || op === "tot") {
       const at = lines.findIndex((line) => tagOf(line) === op);
       if (at >= 0) slots[at][0] = edit;
       else head.push(edit);
       applied += 1;
     } else if (op === "drop" && inRange(n)) {
-      if (tagOf(lines[n - 1]) === "f") refused += 1;
+      if (tagOf(lines[n - 1]) === "f") refused.fee += 1;
       else {
         slots[n - 1][0] = null;
         applied += 1;
       }
     } else if (op === "fix" && inRange(n) && rest) {
-      if (tagOf(lines[n - 1]) === "f" && tagOf(rest) !== "f") refused += 1;
+      if (tagOf(lines[n - 1]) === "f" && tagOf(rest) !== "f") refused.fee += 1;
       else {
         slots[n - 1][0] = rest;
         applied += 1;
