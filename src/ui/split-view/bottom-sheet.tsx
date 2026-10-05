@@ -207,7 +207,12 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     }
     current.samples = [...current.samples.slice(-4), { y: clientY, t: event.timeStamp }];
     const at = current.from + (clientY - current.startY);
-    if (fold) return place(at < rest ? rest + rubberband(at - rest, visible) : at > foldRest ? foldRest + rubberband(at - foldRest, folded) : at, 0);
+    // Past the rest it started from, a folding sheet resists. A drag that reaches the other rest stops there, so a flick that overshoots never springs back against its own direction.
+    if (fold) {
+      const above = fold.open ? rest + rubberband(at - rest, visible) : rest;
+      const below = fold.open ? foldRest : foldRest + rubberband(at - foldRest, folded);
+      return place(at < rest ? above : at > foldRest ? below : at, 0);
+    }
     const below = at - rest;
     place(rest + (below > 0 && onDown ? below : rubberband(below, visible)), 0);
   };
