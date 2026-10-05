@@ -59,6 +59,36 @@ describe("receiptOfReply", () => {
     expect(receiptOfReply({ ...reply, adjustments: [{ kind: "constructor", name: "Fuel", amount: 10 }] })).toBeNull();
   });
 
+  test("keeps an Item a coupon takes below $0.00 at its price, and sends the coupon as a discount on the whole receipt", () => {
+    const coupons = {
+      items: [
+        { name: "Granola Bar", price: 150, quantity: null, details: [], discounts: [] },
+        { name: "Dog Treats", price: -300, quantity: null, details: ["Bacon"], discounts: [{ name: "Store coupon", amount: -450 }] },
+        { name: "Dog Treats", price: 150, quantity: null, details: [], discounts: [] },
+      ],
+      bundles: [],
+      adjustments: [{ kind: "tax", name: "Tax", amount: 12 }],
+      subtotal: { amount: 0, beforeDiscounts: false },
+      total: 12,
+      check: { passed: true, gaps: { subtotal: 0, total: 0 } },
+    };
+
+    expect(receiptOfReply(coupons)).toEqual({
+      items: [
+        { id: "i1", name: "Granola Bar", price: 150 },
+        { id: "i2", name: "Dog Treats", price: 150, detail: "Bacon" },
+        { id: "i3", name: "Dog Treats", price: 150 },
+      ],
+      adjustments: [
+        { id: "c2", kind: "discount", name: "Store coupon", amount: -450 },
+        { id: "a1", kind: "tax", name: "Tax", amount: 12 },
+      ],
+      subtotal: 450,
+      total: 12,
+    });
+    expect(receiptOfReply({ ...coupons, subtotal: { amount: 450, beforeDiscounts: true } })?.subtotal).toBe(450);
+  });
+
   test("clips a long detail to 120 characters", () => {
     const [first, ...rest] = reply.items;
     const detail = receiptOfReply({ ...reply, items: [{ ...first, details: ["x".repeat(130)] }, ...rest] })?.items[0].detail;

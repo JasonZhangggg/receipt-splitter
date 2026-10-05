@@ -147,6 +147,28 @@ test("with no way to pay, Create split link shows no note until a tap, which put
   await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
 });
 
+test("a Venmo username Venmo would refuse keeps the link uncreated, and a tap puts the cursor in it and names Venmo's rule", async ({ page }) => {
+  const creates: string[] = [];
+  page.on("request", (request) => request.url().includes("/api/split") && creates.push(request.url()));
+  await page.goto("/");
+  await settle(page);
+  await openExample(page);
+  const handle = page.getByRole("textbox", { name: "Venmo handle" });
+  await handle.fill("test");
+  await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).click();
+  const name = page.getByRole("textbox", { name: "Your name", exact: true });
+  await name.fill("Jason");
+  await name.press("Enter");
+  await expect(action(page)).not.toHaveAttribute("aria-disabled");
+  await action(page).click();
+  await expect(handle).toBeFocused();
+  await expect(action(page)).toHaveAccessibleDescription("Venmo usernames are 5 to 30 letters, numbers, - or _.");
+  await expect(page).toHaveURL(/\/$/);
+  expect(creates).toEqual([]);
+  await handle.pressSequentially("test");
+  await expect(page.getByText("Venmo usernames are 5 to 30 letters, numbers, - or _.")).toHaveCount(0);
+});
+
 const iphoneKeyboard = 336;
 
 const aboveKeyboard = (field: Locator) =>

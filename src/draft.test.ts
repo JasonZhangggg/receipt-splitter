@@ -113,6 +113,21 @@ describe("readiness", () => {
   test("a handle of only spaces is no way to pay the Host", () => {
     expect(reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "   " }))).toEqual({ kind: "noHandle" });
   });
+
+  test("names the row whose handle its app would refuse, before Create sends it", () => {
+    const named = run(read1040(), { type: "addName", name: "Jason" });
+    const venmo = (handle: string) => reasonOf(run(named, { type: "setHandle", index: 0, handle }));
+    const zelle = (handle: string) => reasonOf(run(named, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addHandle" }, { type: "setService", index: 1, service: "zelle" }, { type: "setHandle", index: 1, handle }));
+
+    expect({ short: venmo("test"), sigil: venmo("@test"), five: venmo("@testt"), space: venmo("jason z"), phone: zelle("555-0100"), email: zelle("sam@example.com") }).toEqual({
+      short: { kind: "badHandle", index: 0, service: "venmo" },
+      sigil: { kind: "badHandle", index: 0, service: "venmo" },
+      five: null,
+      space: { kind: "badHandle", index: 0, service: "venmo" },
+      phone: { kind: "badHandle", index: 1, service: "zelle" },
+      email: null,
+    });
+  });
 });
 
 describe("the tip", () => {
