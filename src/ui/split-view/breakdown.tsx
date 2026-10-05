@@ -50,9 +50,14 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   const mine = person.id === viewer;
   const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
   const paid = state.kind === "settled" || state.kind === "over" || state.kind === "short";
-  const shareWord = mine ? say.yourShare : say.shareOf(person.name);
-  const label =
-    isHost || state.kind === "over" || state.kind === "short" ? shareWord : state.kind === "settled" ? (mine ? say.youPaid : say.paidBy(person.name)) : mine ? say.youOwe : say.owes(person.name);
+  // Your own row always says Your share, so the amount never swaps its words mid-glide. The Paid pill above the list shows the paid state.
+  const label = mine
+    ? say.yourShare
+    : isHost || state.kind === "over" || state.kind === "short"
+      ? say.shareOf(person.name)
+      : state.kind === "settled"
+        ? say.paidBy(person.name)
+        : say.owes(person.name);
   const note = differenceNote(state, mine ? "payer" : viewer === host.id ? "host" : "other", person.name, host.name);
   const charges = [...adjustments, ...(difference === 0 ? [] : [{ id: "difference", name: say.receiptDifference, portion: difference }])];
 
@@ -107,7 +112,7 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
     </>
   );
 
-  if (fold) return <Folding fold={fold} person={person.id} label={mine ? say.yourShare : label} share={share} above={above} below={below} />;
+  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={label} share={share} above={above} below={below} />;
   return (
     <View testID="breakdown" style={styles.shrink}>
       {above}
@@ -122,13 +127,13 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   );
 }
 
-type FoldingProps = { fold: Fold; person: ParticipantId; label: string; share: number; above: ReactNode; below: ReactNode };
+type FoldingProps = { fold: Fold; person: ParticipantId; whose: string | null; label: string; share: number; above: ReactNode; below: ReactNode };
 
 /**
  * The share row is one element in both states. Folded it sits under the chips; open it sits under the list. It moves down the sheet while the sheet rises, so on screen it travels a short way into place,
  * and a cover under it hides the list until the row has passed. The list and the rule fade with the same progress and the pay block over its last tenth, so a drag can stop or turn back at any frame.
  */
-function Folding({ fold, person, label, share, above, below }: FoldingProps) {
+function Folding({ fold, person, whose, label, share, above, below }: FoldingProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const { open, track, onToggle } = fold;
@@ -169,10 +174,7 @@ function Folding({ fold, person, label, share, above, below }: FoldingProps) {
     const crossing = (payFrom - from) / (progress - from);
     const kink = crossing > 0 && crossing < 1 ? [{ offset: crossing, opacity: 0, transform: lift(payFrom) }] : [];
     const frames = [{ offset: 0, opacity: payShows(from), transform: lift(from) }, ...kink, { offset: 1, opacity: payShows(progress), transform: lift(progress) }];
-    if (progress > from) return void pay.animate?.(frames, { duration: ms, easing: glide.easing });
-    // Folding, it fades out over a short ease-out of its own, since the glide's fast start would blink it out in one frame.
-    pay.animate?.(frames.map(({ offset, transform }) => ({ offset, transform })), { duration: ms, easing: glide.easing });
-    pay.animate?.([{ opacity: payShows(from) }, { opacity: 0 }], { duration: Math.min(ms, motion.rowsOut), easing: motion.easeOut });
+    pay.animate?.(frames, { duration: ms, easing: glide.easing });
   });
   useLayoutEffect(() => track.listen((progress, ms, span) => apply(progress, ms, span)), [track]);
   useLayoutEffect(() => apply(track.progress, 0, track.span), [travel, track]);
@@ -197,7 +199,7 @@ function Folding({ fold, person, label, share, above, below }: FoldingProps) {
       </View>
       <View pointerEvents="box-none" style={[styles.track, { height: travel + foldedRow + ringRoom }]}>
         <View ref={mover} pointerEvents="box-none">
-          <PressTarget name={`${label} ${money(share)}, ${open ? say.hideBreakdown : say.showBreakdown}`} expanded={open} outsideScroll onPress={onToggle} style={(pressed) => pressStyle(pressed, reduce)}>
+          <PressTarget name={`${label} ${money(share)}, ${open ? say.hideBreakdown(whose) : say.showBreakdown(whose)}`} expanded={open} outsideScroll onPress={onToggle} style={(pressed) => pressStyle(pressed, reduce)}>
             {() => (
               <View style={[styles.shareRow, { backgroundColor: c.sheet }]}>
                 <Swap view={person} style={styles.grow}>
@@ -239,7 +241,7 @@ function ItemList({ lines, edge, holdsDrag }: { lines: ReturnType<typeof breakdo
         content.current = height;
         check();
       }}
-      style={[styles.list, { marginRight: -edge }, contain, holdsDrag && !scrolls && holdsGesture]}
+      style={[styles.list, { marginRight: -edge }, contain, scrolls && edgeFade, holdsDrag && !scrolls && holdsGesture]}
       contentContainerStyle={{ paddingRight: edge }}
     >
       {lines.map((line, index) => (
@@ -263,6 +265,9 @@ const payShows = (progress: number) => Math.max(0, (progress - payFrom) / (1 - p
 // A focused share row draws its ring this far outside itself, so its track leaves room for it.
 const ringRoom = 4;
 const contain = webStyle({ overscrollBehavior: "contain" });
+// A row scrolled part way out fades at the list's ends instead of being cut through its text. At rest the fade covers only a row's padding.
+const fadeEdge = 16;
+const edgeFade = webStyle({ maskImage: `linear-gradient(transparent, black ${fadeEdge}px, black calc(100% - ${fadeEdge}px), transparent)` });
 const holdsGesture = webStyle({ touchAction: "none" });
 
 const styles = StyleSheet.create({
@@ -270,7 +275,7 @@ const styles = StyleSheet.create({
   // The folded look before the first progress arrives, so the first frame never shows the open layout.
   hidden: { opacity: 0 },
   grow: { flex: 1 },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26, marginHorizontal: 2 },
+  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26, marginHorizontal: 2, marginBottom: 4 },
   status: { flexDirection: "row", alignItems: "center", gap: 4, height: 26, paddingLeft: 7, paddingRight: 10, borderRadius: 13 },
   strong: { fontWeight: "500" },
   list: { flexGrow: 0, flexShrink: 1 },

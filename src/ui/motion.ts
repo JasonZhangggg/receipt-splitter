@@ -26,6 +26,7 @@ type WebOnly = Partial<
     | "animationTimingFunction"
     | "animationIterationCount"
     | "animationFillMode"
+    | "maskImage"
     | "overflow"
     | "overflowX"
     | "overflowY"

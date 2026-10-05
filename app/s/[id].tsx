@@ -277,6 +277,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const bar = barFor(me, expanded, selectedPerson?.id ?? null);
   const shown = bar.kind === "ask" ? undefined : people.find(({ id }) => id === (bar.kind === "breakdown" ? bar.person : bar.me));
   const folds = bar.kind !== "ask" && phase !== "pick";
+  // Open, Your share covers the receipt and only its Item list scrolls. A swipe that lands while the sheet still glides, or a fling still coasting, would otherwise move the receipt behind it.
+  const pageHolds = folds && expanded;
   const regular = (
     <View style={[styles.regular, styles.shrink]}>
       {bar.kind === "ask" ? (
@@ -319,6 +321,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView
         style={styles.page}
+        scrollEnabled={!pageHolds}
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: wide ? 48 : sheetHeight + 16, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
       >
         {wide ? (
