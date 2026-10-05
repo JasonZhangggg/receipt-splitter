@@ -64,14 +64,12 @@ describe("readiness", () => {
     expect({
       noReceipt: reasonOf(withVenmo(emptyDraft)),
       reading: reasonOf(withVenmo(run(emptyDraft, { type: "reading", file }))),
-      noHandle: reasonOf(read1040()),
       noName: reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
       ready: reasonOf(ready),
     }).toEqual({
       noReceipt: "Add a receipt.",
       reading: "Reading the receipt.",
-      noHandle: { kind: "noHandle" },
-      noName: "Add your name.",
+      noName: { kind: "noName" },
       ready: null,
     });
   });
@@ -110,22 +108,40 @@ describe("readiness", () => {
     expect(mismatchNote(taxed(200))).toBe("Tax and charges are $0.39 over the total.");
   });
 
-  test("a handle of only spaces is no way to pay the Host", () => {
-    expect(reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "   " }))).toEqual({ kind: "noHandle" });
+  test("creates with no way to pay, and sends no handle for an empty or blank field", () => {
+    const named = run(read1040(), { type: "addName", name: "Jason" }, { type: "addHandle" });
+    const sent = (handle: string) => {
+      const found = readiness(run(named, { type: "setHandle", index: 0, handle }));
+      return found.kind === "ready" ? found.paymentHandles : found;
+    };
+
+    expect({ empty: sent(""), blank: sent("   ") }).toEqual({ empty: [], blank: [] });
   });
 
   test("names the row whose handle its app would refuse, before Create sends it", () => {
     const named = run(read1040(), { type: "addName", name: "Jason" });
     const venmo = (handle: string) => reasonOf(run(named, { type: "setHandle", index: 0, handle }));
-    const zelle = (handle: string) => reasonOf(run(named, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addHandle" }, { type: "setService", index: 1, service: "zelle" }, { type: "setHandle", index: 1, handle }));
+    const second = (service: "cashApp" | "paypal" | "zelle", handle: string) =>
+      reasonOf(run(named, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addHandle" }, { type: "setService", index: 1, service }, { type: "setHandle", index: 1, handle }));
 
-    expect({ short: venmo("test"), sigil: venmo("@test"), five: venmo("@testt"), space: venmo("jason z"), phone: zelle("555-0100"), email: zelle("sam@example.com") }).toEqual({
-      short: { kind: "badHandle", index: 0, service: "venmo" },
-      sigil: { kind: "badHandle", index: 0, service: "venmo" },
+    expect({
+      short: venmo("test"),
+      sigil: venmo("@test"),
+      five: venmo("@testt"),
+      space: venmo("jason z"),
+      digits: second("cashApp", "$1234"),
+      cashtag: second("cashApp", "$jz1234"),
+      paypal: second("paypal", "Jason Z / tips"),
+      zelle: second("zelle", "text me"),
+    }).toEqual({
+      short: { kind: "badHandle", index: 0, service: "venmo", problem: { kind: "short", length: 4, limit: 5 } },
+      sigil: { kind: "badHandle", index: 0, service: "venmo", problem: { kind: "short", length: 4, limit: 5 } },
       five: null,
-      space: { kind: "badHandle", index: 0, service: "venmo" },
-      phone: { kind: "badHandle", index: 1, service: "zelle" },
-      email: null,
+      space: { kind: "badHandle", index: 0, service: "venmo", problem: { kind: "character", character: " " } },
+      digits: { kind: "badHandle", index: 1, service: "cashApp", problem: { kind: "noLetter" } },
+      cashtag: null,
+      paypal: null,
+      zelle: null,
     });
   });
 });

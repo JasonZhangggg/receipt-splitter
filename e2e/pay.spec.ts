@@ -69,6 +69,21 @@ test("a guest's collapsed bar shows Your share and no pay button, and the pay bu
   await expect(sheet.getByTestId("split-link")).toHaveCount(0);
 });
 
+test("with no way to pay the Host, Sam's breakdown links no pay app and still lets him mark his $14.20 paid", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, []));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await expect(owe(sam)).toHaveText("$14.20", live);
+
+  await owe(sam).click();
+  await expect(breakdown(sam).getByRole("button", { name: "I already paid" })).toBeVisible(live);
+  await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
+  await expect(breakdown(sam).getByTestId("zelle")).toHaveCount(0);
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(breakdown(sam).getByRole("button", { name: "I haven't paid" })).toBeVisible(live);
+  await expect(sam).toHaveURL(/\/s\//);
+});
+
 test("amounts of $1,000 and up show grouped by thousands on the receipt, the bar, the breakdown and the Zelle card, while pay links keep the plain amount", async ({ browser, request }, { workerIndex }) => {
   const banquet = {
     items: [

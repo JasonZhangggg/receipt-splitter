@@ -129,44 +129,58 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
   await page.keyboard.up(" ");
 });
 
-test("with no way to pay, Create split link shows no note until a tap, which puts the cursor in the Venmo handle and says what is missing", async ({ page }) => {
+const venmoRule = "Venmo usernames need at least 5 characters. This one has 4.";
+
+async function addHost(page: Page, name: string) {
+  await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).click();
+  const field = page.getByRole("textbox", { name: "Your name", exact: true });
+  await field.fill(name);
+  await field.press("Enter");
+}
+
+test("with no way to pay, Create split link shows no note and creates the Split", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await openExample(page);
+  await addHost(page, "Jason");
   await expect(action(page)).not.toHaveAttribute("aria-describedby");
   await expect(action(page)).not.toHaveAttribute("aria-disabled");
-  await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
   await action(page).click();
-  const handle = page.getByRole("textbox", { name: "Venmo handle" });
-  await expect(handle).toBeFocused();
-  await expect(handle).toBeInViewport({ ratio: 1 });
-  await expect(action(page)).toHaveAccessibleDescription("Add how to pay you.");
-  await expect(page.getByText("Add how to pay you.")).toBeVisible();
-  await expect(page).toHaveURL(/\/$/);
-  await handle.pressSequentially("@j");
-  await expect(page.getByText("Add how to pay you.")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/s\/[A-Za-z0-9_-]{24}$/);
 });
 
-test("a Venmo username Venmo would refuse keeps the link uncreated, and a tap puts the cursor in it and names Venmo's rule", async ({ page }) => {
+test("with no name, Create split link names what is missing before a tap, and a tap opens the name field without creating", async ({ page }) => {
   const creates: string[] = [];
-  page.on("request", (request) => request.url().includes("/api/split") && creates.push(request.url()));
+  page.on("request", (request) => request.url().includes("/api/splits") && creates.push(request.url()));
+  await page.goto("/");
+  await settle(page);
+  await openExample(page);
+  await expect(action(page)).toHaveAccessibleDescription("Add your name.");
+  await expect(page.getByText("Add your name.")).toBeVisible();
+  await action(page).click();
+  await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
+  await expect(page).toHaveURL(/\/$/);
+  expect(creates).toEqual([]);
+});
+
+test("a Venmo username Venmo would refuse says why before a tap, and a tap puts the cursor in it without creating", async ({ page }) => {
+  const creates: string[] = [];
+  page.on("request", (request) => request.url().includes("/api/splits") && creates.push(request.url()));
   await page.goto("/");
   await settle(page);
   await openExample(page);
   const handle = page.getByRole("textbox", { name: "Venmo handle" });
   await handle.fill("test");
-  await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).click();
-  const name = page.getByRole("textbox", { name: "Your name", exact: true });
-  await name.fill("Jason");
-  await name.press("Enter");
-  await expect(action(page)).not.toHaveAttribute("aria-disabled");
+  await addHost(page, "Jason");
+  await expect(action(page)).toHaveAccessibleDescription(venmoRule);
+  await expect(page.getByText(venmoRule)).toBeVisible();
   await action(page).click();
   await expect(handle).toBeFocused();
-  await expect(action(page)).toHaveAccessibleDescription("Venmo usernames are 5 to 30 letters, numbers, - or _.");
   await expect(page).toHaveURL(/\/$/);
   expect(creates).toEqual([]);
   await handle.pressSequentially("test");
-  await expect(page.getByText("Venmo usernames are 5 to 30 letters, numbers, - or _.")).toHaveCount(0);
+  await expect(page.getByText(venmoRule)).toHaveCount(0);
+  await expect(action(page)).not.toHaveAttribute("aria-describedby");
 });
 
 const iphoneKeyboard = 336;

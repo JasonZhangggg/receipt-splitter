@@ -24,6 +24,15 @@ describe("POST /api/splits", () => {
     expect(hello).not.toContain(creatorSecret);
   });
 
+  it("creates a Split with no way to pay, and its first state frame holds no Payment handles", async () => {
+    const response = await postSplit({ split: { ...newSplit, paymentHandles: [] } }, { ip: "203.0.113.6" });
+    expect(response.status).toBe(201);
+    const { id } = await response.json<{ id: string }>();
+
+    const client = await connect(id);
+    expect(JSON.parse(await client.nextRaw())).toMatchObject({ type: "state", split: { id, paymentHandles: [] } });
+  });
+
   it("answers the eleventh create from one IP within a minute with 429", async () => {
     const statuses: number[] = [];
     for (let attempt = 0; attempt < 11; attempt += 1) {

@@ -106,7 +106,7 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
 test.describe("reading SRD receipt 1040", () => {
   test.setTimeout(120_000);
 
-  test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and Create split link with no handle goes to the Venmo handle", async ({ page }) => {
+  test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and Create split link with no name says so and opens the name field", async ({ page }) => {
     await page.goto("/");
     await choose(page, receipt1040);
     await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
@@ -114,14 +114,13 @@ test.describe("reading SRD receipt 1040", () => {
 
     expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["srd-1040.jpg", "5 items", "$28.04"]);
     await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
-    expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Add your name." });
     await action(page).click();
-    await expect(page.getByRole("textbox", { name: "Venmo handle" })).toBeFocused();
+    await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
     await expect(page).toHaveURL(/\/$/);
 
-    await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
-    expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Add your name." });
-    await addName(page, "Jason");
+    await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
+    await page.keyboard.press("Enter");
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
     expect(itemsOf(await sentReceipt(page))).toEqual(items1040);
   });
@@ -163,7 +162,11 @@ test("a read with no Items keeps Create split link off with its reason, and home
   await addName(page, "Jason");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add item" })).toHaveCount(0);
-  expect(await blockedBy(page)).toEqual({ disabled: "true", reason: "Couldn't read any items. Try another photo." });
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Couldn't read any items. Try another photo." });
+  const picker = page.waitForEvent("filechooser");
+  await action(page).click();
+  await picker;
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("a scan that fails the Total check shows the card, a quiet note, and still creates the link", async ({ page }, testInfo) => {
