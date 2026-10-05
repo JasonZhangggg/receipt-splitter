@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { frames } from "./motion";
+import { frames, runs, sample } from "./motion";
 import { dropFile, dropZone, openExample, pasteFile, photo } from "./files";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -539,6 +539,37 @@ test.describe("reading through the server", () => {
     await expect(card(page)).toBeVisible({ timeout: 30_000 });
     expect(Date.now() - askedAt).toBeGreaterThan(14_000);
     expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(onDevice);
+  });
+
+  test("the line under the reading bar names each stage in turn, one line per frame, and leaves with the bar", async ({ page }) => {
+    test.setTimeout(120_000);
+    const releaseOcr = await holdTheDownload(page);
+    let answer = () => {};
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    let askedAt = 0;
+    await page.route("**/api/scan", async (route) => {
+      askedAt = Date.now();
+      await answered;
+      await route.fulfill({ json: reply });
+    });
+    await page.goto("/");
+    const lines = await sample<string[]>(page, `[...document.querySelectorAll('[data-testid="reading-stage"]')].map((line) => line.textContent)`);
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+
+    const stage = page.getByTestId("reading-stage");
+    await expect(stage).toHaveText("Finding the text");
+    releaseOcr();
+    await expect(stage).toHaveText("Matching items to prices", scanTimeout);
+    expect(askedAt).toBeGreaterThan(0);
+    await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
+    expect(Date.now() - askedAt).toBeGreaterThan(3_900);
+    answer();
+    await expect(card(page)).toBeVisible(scanTimeout);
+    await expect(stage).toHaveCount(0);
+
+    const seen = await lines();
+    expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Finding the text", "Matching items to prices", "Taking a few more seconds", ""]);
   });
 
   test("a large photo uploads at most 1 MB, at most 2048 px on its long edge", async ({ page }) => {

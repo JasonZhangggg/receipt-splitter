@@ -1,6 +1,7 @@
 import type { HandleProblem } from "../core/operations";
 import type { PaymentService } from "../core/split";
 import type { Blocker, Ready } from "../draft";
+import type { ReadingStage } from "./receipt-input/reading";
 
 export const copy = {
   wordmark: "Receipt Splitter",
@@ -10,6 +11,11 @@ export const copy = {
     desktop: { title: "Drop a receipt", hint: "Choose a photo, or paste one" },
   },
   reading: "Reading receipt",
+  readingStage: {
+    text: "Finding the text",
+    server: "Matching items to prices",
+    slow: "Taking a few more seconds",
+  } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
   formats: "JPEG, PNG, or WebP",
   pastedPhoto: "Pasted photo",

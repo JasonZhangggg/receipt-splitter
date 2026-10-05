@@ -25,7 +25,7 @@ import { RecentSplits } from "../src/ui/recent-splits";
 import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
 import { isPhoto, photoUri, pickPhoto, receiptCopyOf, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
 import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
-import { Reading } from "../src/ui/receipt-input/reading";
+import { Reading, type ReadingStage } from "../src/ui/receipt-input/reading";
 import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
 
 
@@ -37,6 +37,8 @@ let pageDraft: Draft | null = null;
 let pageCopy: { file: ReceiptFile; copy: Promise<ReceiptJpeg | null> } | null = null;
 /** The reading bar's share for on-device OCR. The rest waits on the server's reading, which reports no progress. */
 const OCR_SHARE = 0.8;
+/** The server's reading answers in about 1 s at the median (ADR 0010). Past this the wait is a flex fallback or a second pass, so home says it is taking longer. */
+const SLOW_SERVER_MS = 4000;
 
 export default function Home() {
   const c = useColors();
@@ -45,6 +47,7 @@ export default function Home() {
   const height = useLayoutHeight();
   const [draft, apply] = useReducer(reduceDraft, undefined, () => pageDraft ?? loadDraft());
   const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<ReadingStage>("text");
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetHeight, setSheetHeight] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -75,6 +78,7 @@ export default function Home() {
     const uri = photoUri(photo);
     setPhoto(uri === null ? null : { uri, name: file.name });
     setProgress(0);
+    setStage("text");
     dispatch({ type: "reading", file });
     globalThis.performance?.mark?.("scan-picked");
     const boxes = await recognize(photo, (fraction) => scan === scanning.current && setProgress(fraction * OCR_SHARE)).catch(() => null);
@@ -82,7 +86,10 @@ export default function Home() {
     const copying = receiptCopyOf(photo, boxes ?? []).catch(() => null);
     void copying.then(() => globalThis.performance?.mark?.("copy-done"));
     if (scan === scanning.current) pageCopy = { file, copy: copying };
+    if (boxes && scan === scanning.current) setStage("server");
+    const slow = setTimeout(() => scan === scanning.current && setStage("slow"), SLOW_SERVER_MS);
     const onServer = boxes && (await readOnServer(photo, boxes));
+    clearTimeout(slow);
     const onDevice = boxes && !onServer ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
     if (scan === scanning.current) dispatch({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
@@ -192,7 +199,7 @@ export default function Home() {
       </PressTarget>
     ) : scan.status === "reading" ? (
       <View style={[styles.hero, wide ? [styles.zone, styles.reading, { minHeight: zoneHeight }] : sides]}>
-        <Reading progress={progress} title={copy.reading} />
+        <Reading progress={progress} title={copy.reading} stage={stage} line={copy.readingStage[stage]} />
       </View>
     ) : (
       <View style={[!wide && [styles.hero, sides], styles.stack]}>

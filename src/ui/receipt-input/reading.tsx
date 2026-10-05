@@ -31,11 +31,21 @@ const darken = (index: number) => {
 
 const darkening = Object.fromEntries(lines.map((line) => [line, darken(line)]));
 
-export function Reading({ progress, title }: { progress: number; title: string }) {
+/** What the phone can see of a read: its own OCR, the wait on the server's reading, and that wait running long. */
+export type ReadingStage = "text" | "server" | "slow";
+
+const stageIn = webAnimation({
+  animationKeyframes: [{ from: { opacity: 0, transform: "translateY(3px)" }, to: { opacity: 1, transform: "none" } }],
+  animationDuration: `${motion.stageIn}ms`,
+  animationTimingFunction: motion.easeOut,
+  animationFillMode: "both",
+});
+
+export function Reading({ progress, title, stage, line }: { progress: number; title: string; stage: ReadingStage; line: string }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <View role="status" aria-label={title} style={styles.reading}>
+    <View role="status" aria-live="polite" aria-label={title} style={styles.reading}>
       <View style={[styles.slip, { backgroundColor: c.paper, filter: c.lift }]}>
         {lines.map((line) => (
           <View key={line} style={[styles.line, { marginRight: shortLines[line] ?? 0, backgroundColor: c.skeleton }]}>
@@ -54,6 +64,10 @@ export function Reading({ progress, title }: { progress: number; title: string }
           ]}
         />
       </View>
+      {/* A new key swaps the text in one commit, so the old line never shares a frame with the new one. The first stage arrives with the slip. */}
+      <Text key={stage} testID="reading-stage" numberOfLines={1} style={[type.secondary, styles.stage, { color: c.muted }, !reduce && stage !== "text" && stageIn]}>
+        {line}
+      </Text>
     </View>
   );
 }
@@ -65,4 +79,5 @@ const styles = StyleSheet.create({
   ink: { borderRadius: 3 },
   track: { width: 160, height: 4, marginTop: 8, borderRadius: 2, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 2, transformOrigin: "left" },
+  stage: { marginTop: 10, textAlign: "center" },
 });
