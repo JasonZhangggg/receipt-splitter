@@ -249,6 +249,18 @@ describe("createSplit", () => {
   });
 });
 
+describe("PayPal and Zelle handles with edge whitespace", () => {
+  test("refuse a handle that starts or ends with a space, tab or newline, and keep inner spaces", () => {
+    const created = (handle: string, service: "paypal" | "zelle") => createSplit({ id: minted, receipt: dinner, participants: [{ id: ann, name: "Ann" }], paymentHandles: [{ service, handle }] });
+    const outcome = (handle: string, service: "paypal" | "zelle") => {
+      const result = created(handle, service);
+      return result.ok ? "ok" : result.rejection.reason;
+    };
+
+    expect([outcome(" ann", "paypal"), outcome("ann ", "zelle"), outcome("\tann", "paypal"), outcome("ann\n", "zelle"), outcome("a nn", "paypal")]).toEqual(["badHandle", "badHandle", "badHandle", "badHandle", "ok"]);
+  });
+});
+
 describe("applyOperation", () => {
   test("adds a Participant and records the change", () => {
     const result = applyOperation(created(), { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } }, anyone);

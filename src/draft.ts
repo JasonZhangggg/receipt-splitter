@@ -9,7 +9,7 @@ export type ReceiptFile = { readonly name: string; readonly thumbnail: string | 
 type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
-  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null };
+  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true };
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
 
@@ -17,7 +17,7 @@ export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[
 
 export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
-  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null }
+  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true }
   | { readonly type: "example" }
   | { readonly type: "created" }
   | { readonly type: "setService"; readonly index: number; readonly service: PaymentService }
@@ -59,7 +59,7 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     case "reading":
       return { ...draft, scan: { status: "reading", file: action.file } };
     case "read":
-      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt) } };
+      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.totalUnread && { totalUnread: true as const }) } };
     case "example":
       return { ...draft, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: sendable(example1040) } };
     case "created":
@@ -99,6 +99,14 @@ function rowName(read: string): string | null {
   return isName(name, MAX_ROW_NAME_LENGTH) ? name : null;
 }
 
+/** More Adjustments than a Split holds, with the Tip as one, would gray Create, so the whole-receipt discounts become one row. */
+function mergedDiscounts(adjustments: readonly Adjustment[]): Adjustment[] {
+  const discounts = adjustments.filter((row) => row.kind === "discount");
+  if (adjustments.length < MAX_ADJUSTMENTS || discounts.length < 2) return [...adjustments];
+  const merged = { id: discounts[0].id, kind: "discount" as const, name: "Discounts", amount: cents(Math.max(sum(discounts.map((row) => row.amount)), -MAX_CENTS)) };
+  return [merged, ...adjustments.filter((row) => row.kind !== "discount")];
+}
+
 const adjustmentNames: Record<Adjustment["kind"], string> = { tax: "Tax", tip: "Tip", serviceCharge: "Service charge", discount: "Discount", bundleDiscount: "Discount" };
 
 /**
@@ -124,8 +132,9 @@ function sendable(read: Receipt): Receipt | null {
     if (inside === undefined) return [{ ...fields, kind: "discount" }];
     return [{ ...fields, kind: row.kind, bundle: { name: rowName(row.bundle.name) ?? `Bundle ${bundlePlaces.get(row.id)}`, items: [inside, ...others] } }];
   });
-  const tip = sum(read.adjustments.filter((row) => row.kind === "tip").map((row) => row.amount));
-  const withTip = [...adjustments, { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(inRange(tip) ? tip : 0) }];
+  // A tip is never negative: a negative one is a cash tender or a refund the reading took for a tip.
+  const tip = sum(read.adjustments.filter((row) => row.kind === "tip" && readable(row.amount)).map((row) => row.amount));
+  const withTip = [...mergedDiscounts(adjustments), { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(readable(tip) ? tip : 0) }];
   const subtotal = readable(read.subtotal) ? read.subtotal : clamped(sum(read.items.map((item) => Math.min(item.price, MAX_CENTS))));
   const total = readable(read.total) ? read.total : clamped(subtotal + sum(withTip.map((row) => row.amount)));
   return { items, adjustments: withTip, subtotal, total };
@@ -181,7 +190,8 @@ export function gapNote({ subtotalGap, totalGap }: FailedTotalCheck): string {
 export function mismatchNote({ scan }: Draft): string | null {
   if (scan.status !== "read" || !scan.receipt) return null;
   const check = runTotalCheck(scan.receipt);
-  return check.ok ? null : gapNote(check);
+  if (!check.ok) return gapNote(check);
+  return scan.totalUnread ? "Couldn't read the total, so check the rows." : null;
 }
 
 /** A `note` is about the Receipt. `noName` and `badHandle` name the field a tap on Create focuses. */

@@ -65,12 +65,18 @@ function detailLine({ details, discounts }: ReadItem): string | undefined {
 
 /**
  * An Item's price with the discounts printed under it folded in, as the route reads it. A coupon worth more than its Item takes that below $0.00,
- * which no Item may be, so the Item keeps its price before discounts, at least $0.00, and the rest of its line goes on the whole receipt as `unfolded`.
+ * which no Item may be, so the Item goes to $0.00 with as much of its own coupon as its price covers, and only the excess goes on the whole receipt
+ * as `unfolded`. The line's sum is unchanged, and the other Items absorb only the excess.
  */
 function fold(read: ReadItem): { readonly price: Price; readonly folded: readonly ReadDiscount[]; readonly unfolded: Cents } {
   if (read.price >= 0) return { price: price(read.price), folded: read.discounts, unfolded: cents(0) };
-  const before = Math.max(read.price - sum(read.discounts.map(({ amount }) => amount)), 0);
-  return { price: price(before), folded: [], unfolded: cents(read.price - before) };
+  let room = Math.max(read.price - sum(read.discounts.map(({ amount }) => amount)), 0);
+  const folded = read.discounts.flatMap(({ name, amount }): ReadDiscount[] => {
+    const own = Math.min(-amount, room);
+    room -= own;
+    return own > 0 ? [{ name, amount: cents(-own) }] : [];
+  });
+  return { price: price(0), folded, unfolded: read.price };
 }
 
 /**

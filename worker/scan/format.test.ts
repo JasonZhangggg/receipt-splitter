@@ -4,6 +4,11 @@ import { applyEdits, readLines, replyLines } from "./format";
 const read = (reply: string) => readLines(replyLines(reply));
 
 describe("readLines", () => {
+  it("drops a negative tip line, such as a cash tender read as a tip, and counts it as skipped", () => {
+    const reading = read(["TOT|1500", "i|Beans|1000", "i|Milk|500", "p|CASH|-112", "p|Tip|150", "p|Cash|112-"].join("\n"));
+    expect([reading?.adjustments, reading?.skipped]).toEqual([[{ kind: "tip", name: "Tip", amount: 150 }], 2]);
+  });
+
   it("keeps a Bundle header as printed, including a leading 1", () => {
     const reading = read(["SUB|1800", "TOT|1800", "b|1 Beer Bucket", ">i|Lager|900", "b|12 Wing Party", ">i|Wings|900"].join("\n"));
     expect(reading?.bundles.map((bundle) => bundle.name)).toEqual(["1 Beer Bucket", "12 Wing Party"]);

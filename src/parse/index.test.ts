@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { runTotalCheck } from "../core/total-check";
-import { parseReceipt } from ".";
+import { parseReceipt, readReceipt } from ".";
 import { box, receiptRows } from "./fixtures/boxes";
 import receipt1019 from "./fixtures/srd-1019.json";
 import receipt1040 from "./fixtures/srd-1040.json";
@@ -424,6 +424,12 @@ describe("parseReceipt", () => {
 
   test("returns null when a total is printed but no Item is", () => {
     expect(parseReceipt(receiptRows([["Subtotal", "10.00"], ["Total", "10.00"]]))).toBeNull();
+  });
+
+  test("says whether the total was read", () => {
+    const rows = (total: string) => receiptRows([["Burger", "12.00"], ["Fries", "4.00"], ["Subtotal", "16.00"], ["Tax", "1.12"], ["TOTAL", total]]);
+
+    expect([readReceipt(rows("$1"))?.totalRead, readReceipt(rows("17.12"))?.totalRead]).toEqual([false, true]);
   });
 
   test("still reads the Items when no total can be read, and totals them with the tax", () => {
