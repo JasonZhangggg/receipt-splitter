@@ -11,6 +11,15 @@ const DOWNLOADS = [ORT_GLUE, ORT_THREAD_GLUE, ORT_WASM, DET_MODEL, REC_MODEL, RE
 const CACHE = "ocr-3ef68217dfef";
 
 const DET_MAX_SIDE = 960;
+// Text under 19 px at that size, or a photo over twice as tall as wide, is detected again closer, in strips that keep memory near a normal scan.
+// A closer look under 1.5 times as wide found no more amounts on the eval set, and its shifted boxes changed what the model read.
+const SMALL_TEXT = 19;
+const CLOSER = 1.5;
+const TALL = 2;
+const CLOSE_SHORT_SIDE = 1280;
+const CLOSE_MAX_PIXELS = 8_000_000;
+const STRIP_ROWS = 1280;
+const STRIP_OVERLAP = 160;
 const DET_MEAN = [0.485, 0.456, 0.406];
 const DET_STD = [0.229, 0.224, 0.225];
 const PIXEL_THRESHOLD = 0.3;
@@ -116,8 +125,10 @@ function fitRect(pixels, width, mx, my, angle) {
   return { angle, cos, sin, u0, u1, v0, v1, w: u1 - u0 + 1, h: v1 - v0 + 1 };
 }
 
-export function detectionSize(width, height) {
-  const scale = Math.min(1, DET_MAX_SIDE / Math.max(width, height));
+export function detectionSize(width, height, close = false) {
+  const scale = close
+    ? Math.min(1, CLOSE_SHORT_SIDE / Math.min(width, height), Math.sqrt(CLOSE_MAX_PIXELS / (width * height)))
+    : Math.min(1, DET_MAX_SIDE / Math.max(width, height));
   return {
     width: Math.max(32, Math.round((width * scale) / 32) * 32),
     height: Math.max(32, Math.round((height * scale) / 32) * 32),
@@ -223,11 +234,14 @@ async function createEngine(report) {
   };
 }
 
-function detectionInput({ ort }, image) {
-  const { width, height } = detectionSize(image.width, image.height);
-  const context = new OffscreenCanvas(width, height).getContext("2d");
+function detectionCanvas(image, close) {
+  const { width, height } = detectionSize(image.width, image.height, close);
+  const context = new OffscreenCanvas(width, height).getContext("2d", { willReadFrequently: true });
   context.drawImage(image, 0, 0, width, height);
-  const rgba = context.getImageData(0, 0, width, height).data;
+  return { context, width, height };
+}
+
+function detectionTensor({ ort }, rgba, width, height) {
   const n = width * height;
   const bgr = new Float32Array(3 * n);
   for (let i = 0; i < n; i++) {
@@ -235,7 +249,16 @@ function detectionInput({ ort }, image) {
     bgr[n + i] = (rgba[i * 4 + 1] / 255 - DET_MEAN[1]) / DET_STD[1];
     bgr[2 * n + i] = (rgba[i * 4] / 255 - DET_MEAN[2]) / DET_STD[2];
   }
-  return { tensor: new ort.Tensor("float32", bgr, [1, 3, height, width]), width, height };
+  return new ort.Tensor("float32", bgr, [1, 3, height, width]);
+}
+
+/** Overlapping bands of rows, in multiples of 32. A box belongs to the band whose share of the overlap holds its center, so no line is read twice. */
+export function strips(height) {
+  if (height <= STRIP_ROWS) return [{ top: 0, bottom: height, keepFrom: -Infinity, keepTo: Infinity }];
+  const count = Math.ceil((height - STRIP_OVERLAP) / (STRIP_ROWS - STRIP_OVERLAP));
+  const tops = Array.from({ length: count }, (_, k) => Math.round((k * (height - STRIP_ROWS)) / (count - 1) / 32) * 32);
+  const cuts = tops.slice(1).map((top, k) => (tops[k] + STRIP_ROWS + top) / 2);
+  return tops.map((top, k) => ({ top, bottom: top + STRIP_ROWS, keepFrom: cuts[k - 1] ?? -Infinity, keepTo: cuts[k] ?? Infinity }));
 }
 
 function crop(image, box) {
@@ -283,16 +306,43 @@ async function readCrops({ ort, rec, chars }, crops, report) {
   return texts;
 }
 
+async function detect(loaded, image, close) {
+  const { context, width, height } = detectionCanvas(image, close);
+  const found = [];
+  for (const { top, bottom, keepFrom, keepTo } of strips(height)) {
+    const rgba = context.getImageData(0, top, width, bottom - top).data;
+    const detected = await loaded.det.run({ [loaded.det.inputNames[0]]: detectionTensor(loaded, rgba, width, bottom - top) });
+    for (const box of dbBoxes(detected[loaded.det.outputNames[0]].data, width, bottom - top)) {
+      const cy = box.cy + top;
+      if (cy >= keepFrom && cy < keepTo) found.push({ ...box, cy });
+    }
+  }
+  const boxes = found.map((box) => scaleBox(box, image.width / width, image.height / height));
+  return { boxes, textHeight: median(found.map((box) => box.h)) };
+}
+
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.length ? sorted[sorted.length >> 1] : 0;
+}
+
+export function looksCloser(width, height, textHeight) {
+  const small = textHeight < SMALL_TEXT || height > TALL * width;
+  return small && detectionSize(width, height, true).width >= CLOSER * detectionSize(width, height).width;
+}
+
+async function findText(loaded, image) {
+  const found = await detect(loaded, image, false);
+  if (!looksCloser(image.width, image.height, found.textHeight)) return found.boxes;
+  return (await detect(loaded, image, true)).boxes;
+}
+
 async function recognize(blob, report) {
   const loaded = await loadEngine(report);
   report(ENGINE_READY);
   const image = await createImageBitmap(blob, { imageOrientation: "from-image" });
   try {
-    const { tensor, width, height } = detectionInput(loaded, image);
-    const detected = await loaded.det.run({ [loaded.det.inputNames[0]]: tensor });
-    const boxes = dbBoxes(detected[loaded.det.outputNames[0]].data, width, height).map((box) =>
-      scaleBox(box, image.width / width, image.height / height),
-    );
+    const boxes = await findText(loaded, image);
     report(DETECTED);
     const texts = await readCrops(loaded, boxes.map((box) => crop(image, box)), report);
     return boxes

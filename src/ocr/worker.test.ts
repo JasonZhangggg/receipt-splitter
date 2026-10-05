@@ -72,6 +72,44 @@ describe("detectionSize", () => {
   test("keeps a small photo at its own size, rounded to multiples of 32", () => {
     expect(worker.detectionSize(100, 20)).toEqual({ width: 96, height: 32 });
   });
+
+  test("a close look keeps a long receipt at full size, and shrinks a phone photo to 1280 px on its short side", () => {
+    expect(worker.detectionSize(969, 5047, true)).toEqual({ width: 960, height: 5056 });
+    expect(worker.detectionSize(3024, 4032, true)).toEqual({ width: 1280, height: 1696 });
+  });
+
+  test("a close look stays under 8 million pixels", () => {
+    expect(worker.detectionSize(2000, 12000, true)).toEqual({ width: 1152, height: 6944 });
+  });
+});
+
+describe("looksCloser", () => {
+  test("looks again at small text or a long photo when the closer look is at least 1.5 times as wide", () => {
+    expect(worker.looksCloser(3024, 4032, 18)).toBe(true);
+    expect(worker.looksCloser(969, 5047, 30)).toBe(true);
+  });
+
+  test("keeps the first look at large text, or when a closer look would barely be larger", () => {
+    expect(worker.looksCloser(3024, 4032, 25)).toBe(false);
+    expect(worker.looksCloser(960, 1280, 16)).toBe(false);
+    expect(worker.looksCloser(525, 1280, 22)).toBe(false);
+  });
+});
+
+describe("strips", () => {
+  test("detects a short image in one piece", () => {
+    expect(worker.strips(960)).toEqual([{ top: 0, bottom: 960, keepFrom: -Infinity, keepTo: Infinity }]);
+  });
+
+  test("cuts a long image into overlapping 1280-row strips, each keeping the boxes centered up to the middle of its overlaps", () => {
+    expect(worker.strips(5056)).toEqual([
+      { top: 0, bottom: 1280, keepFrom: -Infinity, keepTo: 1120 },
+      { top: 960, bottom: 2240, keepFrom: 1120, keepTo: 2064 },
+      { top: 1888, bottom: 3168, keepFrom: 2064, keepTo: 3008 },
+      { top: 2848, bottom: 4128, keepFrom: 3008, keepTo: 3952 },
+      { top: 3776, bottom: 5056, keepFrom: 3952, keepTo: Infinity },
+    ]);
+  });
 });
 
 test("threadCount uses four threads only when the page is cross-origin isolated", () => {
