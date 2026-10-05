@@ -509,6 +509,13 @@ const heading = (name: string) => `[...document.querySelectorAll('[role="heading
 const splitTop: Probe = { key: "sheet", find: testId("split-sheet"), kind: "top" };
 const oweFade: Probe = { key: "owe", find: testId("owe"), kind: "opacity" };
 const breakdownFade: Probe = { key: "breakdown", find: testId("breakdown"), kind: "opacity" };
+/** The phone's share sheet: the share amount is one element that moves into place while the list and the arrow follow the sheet. */
+const shareSheet: Probe[] = [
+  splitTop,
+  { key: "items", find: testId("breakdown-items"), kind: "opacity" },
+  { key: "amount", find: `document.querySelector('[data-testid="split-sheet"] [data-testid="owe"], [data-testid="split-sheet"] [data-testid="share"]')`, kind: "top" },
+  { key: "arrow", find: testId("share-arrow"), kind: "angle" },
+];
 const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-controls]')`;
 const bundleProbes: Probe[] = [
   { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
@@ -692,14 +699,14 @@ const openTap: Scenario = {
   name: "Split sheet: breakdown opens by tap",
   setup: picked,
   act: (page) => tap(page.getByTestId("owe")),
-  probes: [splitTop, breakdownFade],
+  probes: shareSheet,
 };
 const collapseTap: Scenario = {
   id: "collapse-tap",
   name: "Split sheet: breakdown collapses by tap",
   setup: expanded,
   act: (page) => tap(meChip(page)),
-  probes: [splitTop, breakdownFade],
+  probes: shareSheet,
 };
 const bundleExpand: Scenario = {
   id: "bundle-expand",
@@ -822,21 +829,21 @@ const sheetAndHome: Scenario[] = [
     name: "Split sheet: breakdown opens by swipe up",
     setup: picked,
     act: async (page) => drag(page, await grab(page), -200, 150),
-    probes: [splitTop, breakdownFade],
+    probes: shareSheet,
   },
   {
     id: "collapse-drag",
     name: "Split sheet: breakdown collapses by slow drag",
     setup: expanded,
     act: async (page) => drag(page, await grab(page), 260, 500),
-    probes: [splitTop, breakdownFade],
+    probes: shareSheet,
   },
   {
     id: "collapse-flick",
     name: "Split sheet: breakdown collapses by flick",
     setup: expanded,
     act: async (page) => drag(page, await sheetBody(page), 200, 100),
-    probes: [splitTop, breakdownFade],
+    probes: shareSheet,
   },
   bundleExpand,
   bundleCollapse,
@@ -936,7 +943,7 @@ const sheetAndHome: Scenario[] = [
       await expanded(page);
     },
     act: async (page) => drag(page, await grab(page), 120, 400),
-    probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }, breakdownFade],
+    probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }, { key: "items", find: testId("breakdown-items"), kind: "opacity" }],
   },
 ];
 

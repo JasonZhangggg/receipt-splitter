@@ -254,20 +254,20 @@ test("with the keyboard up, the name field added from the bar's plus stays in vi
   expect(await inView(page.getByTestId("split-sheet").locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
 });
 
-test("swiping the bar open and flicking it shut never shows the bar and the breakdown together, and the chips never dim", async ({ page }) => {
+test("swiping the bar open and flicking it shut moves one share amount into place, never two and never none, and the chips never dim", async ({ page }) => {
   await picked(page);
   const sheet = page.getByTestId("split-sheet");
   const grab = async () => {
     const box = (await sheet.boundingBox())!;
     return { x: box.x + box.width / 2, y: box.y + 14 };
   };
-  const frames = await sample<{ chip: number; owe: boolean; breakdown: boolean }>(
+  const frames = await sample<{ chip: number; amounts: number }>(
     page,
     `(() => {
       const opacity = (el) => { let value = el ? 1 : 0; for (let node = el; node; node = node.parentElement) value *= Number(getComputedStyle(node).opacity); return value; };
-      const layer = (id) => [...document.querySelectorAll('[data-testid="' + id + '"], [data-left-testid="' + id + '"]')].some((el) => opacity(el) > 0.01);
+      const shown = (ids) => ids.flatMap((id) => [...document.querySelectorAll('[data-testid="split-sheet"] [data-testid="' + id + '"], [data-testid="split-sheet"] [data-left-testid="' + id + '"]')]).filter((el) => opacity(el) > 0.01).length;
       const chip = document.querySelector('[data-testid="split-sheet"] [aria-label="Jason, you"]');
-      return { chip: Math.round(opacity(chip) * 100) / 100, owe: layer("owe"), breakdown: layer("breakdown") };
+      return { chip: Math.round(opacity(chip) * 100) / 100, amounts: shown(["owe", "share"]) };
     })()`,
   );
   await drag(page, await grab(), -200, 150);
@@ -277,7 +277,8 @@ test("swiping the bar open and flicking it shut never shows the bar and the brea
   await page.getByTestId("owe").waitFor();
   await page.waitForTimeout(700);
   const seen = await frames();
-  expect(seen.filter(({ owe, breakdown }) => owe && breakdown)).toEqual([]);
+  expect(seen.length).toBeGreaterThan(30);
+  expect(seen.filter(({ amounts }) => amounts !== 1)).toEqual([]);
   expect(seen.filter(({ chip }) => chip < 1)).toEqual([]);
 });
 

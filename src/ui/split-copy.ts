@@ -64,6 +64,7 @@ export const splitCopy = {
   bundleLabel: (name: string, summary: string, inside: string, open: boolean) => `${name}, ${summary.replace(" · ", ", ")}, ${inside ? `${inside}, ` : ""}${open ? "expanded" : "collapsed"}`,
   inBundle: (bundle: string, percent: string | null, off: string) => `In ${bundle}. Its ${percent ? `${percent}% off` : "discount"} takes ${off} off this line.`,
   unclaimedUnits: (count: number) => `${count} unclaimed`,
+  unclaimedItems: (count: number) => `${count} ${count === 1 ? "item" : "items"} unclaimed`,
   itemColumn: "Item",
   priceColumn: "Price",
   deleteItem: "Delete item",

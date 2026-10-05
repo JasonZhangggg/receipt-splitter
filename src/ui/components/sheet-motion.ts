@@ -29,6 +29,9 @@ export function releaseVelocity(samples: readonly { y: number; t: number }[], at
   return Math.max(-fastest, Math.min(fastest, ((last.y - first.y) / (last.t - first.t)) * 1000));
 }
 
+/** Under reduced motion a sheet's content cross-fades for this long instead of moving. */
+export const reducedFade = 200;
+
 export const glide = { ms: 300, shortest: 150, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 const startSlope = 0.72 / 0.32;
 

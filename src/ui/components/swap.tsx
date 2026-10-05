@@ -1,5 +1,5 @@
 import { useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { motion } from "../theme";
 
@@ -10,9 +10,10 @@ type Props = {
   /** Names what the content shows. When it changes, the old content fades out, then the new content fades in, so the two never show together. */
   view: string | undefined;
   children: ReactNode;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function Swap({ view, children }: Props) {
+export function Swap({ view, children, style }: Props) {
   const swapped = useRef<View>(null);
   const [shown, setShown] = useState({ view, children });
   const [outgoing, setOutgoing] = useState<{ view: string | undefined; content: ReactNode } | null>(null);
@@ -25,8 +26,10 @@ export function Swap({ view, children }: Props) {
     if (outgoing) box?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: fadeIn, delay: fadeOut, easing: motion.easeOut, fill: "backwards" });
   }, [outgoing]);
   return (
-    <View>
-      <View ref={swapped}>{children}</View>
+    <View style={style}>
+      <View ref={swapped} style={styles.shrink}>
+        {children}
+      </View>
       {outgoing ? (
         <Outgoing key={outgoing.view} onDone={() => setOutgoing(null)}>
           {outgoing.content}
@@ -60,5 +63,7 @@ function Outgoing({ children, onDone }: { children: ReactNode; onDone: () => voi
 }
 
 const styles = StyleSheet.create({
-  outgoing: { position: "absolute", top: 0, left: 0, right: 0 },
+  // The copy takes the new content's height, so a list inside that fits itself shrinks to it instead of spilling over what sits below.
+  outgoing: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  shrink: { flexShrink: 1 },
 });

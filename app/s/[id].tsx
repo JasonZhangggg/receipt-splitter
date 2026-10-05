@@ -20,15 +20,14 @@ import { ItemSheet } from "../../src/ui/item-sheet";
 import { AddItemSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
-import { Breakdown } from "../../src/ui/split-view/breakdown";
+import { Breakdown, foldedRow } from "../../src/ui/split-view/breakdown";
 import { SplitHeader } from "../../src/ui/split-view/header";
-import { OweLine } from "../../src/ui/split-view/owe-line";
 import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
-import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
+import { BottomSheet, useFoldTrack } from "../../src/ui/split-view/bottom-sheet";
 import { webStyle } from "../../src/ui/motion";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
@@ -112,6 +111,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [closing, setClosing] = useState(false);
   const [sheetHeight, setSheetHeight] = useState(0);
+  const foldTrack = useFoldTrack();
   const [viewing, setViewing] = useState(false);
   const photoUrl = `/api/splits/${splitId}/photo`;
   useEffect(() => {
@@ -230,31 +230,31 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   );
   const paneView: PaneView = me && phase !== "pick" ? "share" : "pick";
   const pane = (
-    <View ref={paneRef} role="complementary" aria-label={say.people} style={[styles.pane, sticky, { maxHeight: pageHeight - 2 * paneInset, backgroundColor: c.sheet, boxShadow: c.panelShadow }]}>
-      <ScrollView style={contain} contentContainerStyle={styles.paneContent}>
-        <Swap view={paneView}>
-          {paneView === "share" && me && selectedPerson ? (
-            <View>
-              <View style={styles.chips}>
-                <PeopleChips
-                  people={people}
-                  picked={picked}
-                  me={me}
-                  selected={selectedPerson.id}
-                  onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
-                  onAdd={(typed) => void addPerson(typed)}
-                />
-              </View>
-              <Swap view={selectedPerson.id}>
-                <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} />
-                {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
-              </Swap>
+    <View ref={paneRef} role="complementary" aria-label={say.people} style={[styles.pane, sticky, { maxHeight: pageHeight - insets.top - layout.header - pairTop - paneInset, backgroundColor: c.sheet, boxShadow: c.panelShadow }]}>
+      <Swap view={paneView} style={styles.shrink}>
+        {paneView === "share" && me && selectedPerson ? (
+          <View style={[styles.paneContent, styles.shrink]}>
+            <View style={styles.chips}>
+              <PeopleChips
+                people={people}
+                picked={picked}
+                me={me}
+                selected={selectedPerson.id}
+                onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
+                onAdd={(typed) => void addPerson(typed)}
+              />
             </View>
-          ) : (
-            pickContent
-          )}
-        </Swap>
-      </ScrollView>
+            <Swap view={selectedPerson.id} style={styles.shrink}>
+              <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} edge={paneEdge} />
+              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
+            </Swap>
+          </View>
+        ) : (
+          <ScrollView style={contain} contentContainerStyle={styles.paneContent}>
+            {pickContent}
+          </ScrollView>
+        )}
+      </Swap>
     </View>
   );
   const overlayContent = overlay ? (
@@ -275,21 +275,27 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   ) : null;
 
   const bar = barFor(me, expanded, selectedPerson?.id ?? null);
-  const shown = bar.kind === "breakdown" ? people.find(({ id }) => id === bar.person) : undefined;
+  const shown = bar.kind === "ask" ? undefined : people.find(({ id }) => id === (bar.kind === "breakdown" ? bar.person : bar.me));
+  const folds = bar.kind !== "ask" && phase !== "pick";
   const regular = (
-    <View style={styles.regular}>
+    <View style={[styles.regular, styles.shrink]}>
       {bar.kind === "ask" ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
           <Button label={say.question} onPress={() => setPhase("pick")} outsideScroll />
         </>
-      ) : bar.kind === "share" ? (
-        <OweLine label={say.yourShare} amount={myShare} onPress={() => setExpanded(true)} />
       ) : shown ? (
-        <View>
-          <Breakdown split={split} person={shown} viewer={bar.me} onPaid={(paid) => void markPaid(bar.me, paid)} />
-          {payProblem && shown.id === bar.me ?<Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
-        </View>
+        <>
+          <Breakdown
+            split={split}
+            person={shown}
+            viewer={bar.me}
+            onPaid={(paid) => void markPaid(bar.me, paid)}
+            edge={layout.gutter}
+            fold={{ open: expanded, track: foldTrack, onToggle: expanded ? collapse : () => setExpanded(true) }}
+          />
+          {payProblem && shown.id === bar.me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
+        </>
       ) : null}
     </View>
   );
@@ -338,10 +344,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           rises={false}
           lowered={overlay !== null && !closing}
           onHeight={setSheetHeight}
-          onDown={phase === "pick" ? () => setPhase("regular") : bar.kind === "breakdown" ? collapse : undefined}
-          onUp={phase === "regular" && bar.kind === "share" ? () => setExpanded(true) : undefined}
+          onDown={phase === "pick" ? () => setPhase("regular") : folds ? collapse : undefined}
+          onUp={folds ? () => setExpanded(true) : undefined}
           stays
-          view={phase === "pick" ? "pick" : bar.kind === "breakdown" ? `breakdown-${bar.person}` : bar.kind}
+          fold={folds ? { open: expanded, peek: foldedRow, track: foldTrack } : undefined}
+          view={phase === "pick" ? "pick" : folds ? "share" : bar.kind}
           header={phase === "pick" ? null : chips}
           testID="split-sheet"
         >
@@ -375,7 +382,9 @@ function intro(split: Split, creating: boolean) {
 }
 
 const paneInset = 16;
-// The pane holds still while the receipt scrolls, so Your share stays in view.
+const pairTop = 6;
+const paneEdge = 20;
+// The pane holds still while the receipt scrolls, so Your share stays in view. It is no taller than the page under the header, so its total shows before any scroll.
 const sticky = webStyle({ position: "sticky", top: `${paneInset}px` });
 const contain = webStyle({ overscrollBehavior: "contain" });
 
@@ -398,10 +407,11 @@ const styles = StyleSheet.create({
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   // Receipt 624, gap 40 and pane 400, from round 3's desktop frames. The receipt gives up width first.
   wrap: { alignSelf: "center", width: "100%", maxWidth: 1064 },
-  pair: { flexDirection: "row", alignItems: "flex-start", gap: 40, paddingTop: 6 },
+  pair: { flexDirection: "row", alignItems: "flex-start", gap: 40, paddingTop: pairTop },
   receiptColumn: { flex: 1, minWidth: 0 },
   pane: { width: 400, borderRadius: 24, overflow: "hidden" },
-  paneContent: { padding: 20 },
+  paneContent: { padding: paneEdge },
+  shrink: { flexShrink: 1 },
   doc: { paddingTop: 6 },
   opening: { paddingTop: 24 },
   gone: { gap: 8, paddingTop: 24 },
