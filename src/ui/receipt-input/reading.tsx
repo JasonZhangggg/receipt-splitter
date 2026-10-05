@@ -41,6 +41,13 @@ const stageIn = webAnimation({
   animationFillMode: "both",
 });
 
+const reducedStageIn = webAnimation({
+  animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }],
+  animationDuration: `${motion.reducedFade}ms`,
+  animationTimingFunction: motion.easeOut,
+  animationFillMode: "both",
+});
+
 export function Reading({ progress, title, stage, line }: { progress: number; title: string; stage: ReadingStage; line: string }) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -65,7 +72,7 @@ export function Reading({ progress, title, stage, line }: { progress: number; ti
         />
       </View>
       {/* A new key swaps the text in one commit, so the old line never shares a frame with the new one. The first stage arrives with the slip. */}
-      <Text key={stage} testID="reading-stage" numberOfLines={1} style={[type.secondary, styles.stage, { color: c.muted }, !reduce && stage !== "text" && stageIn]}>
+      <Text key={stage} testID="reading-stage" numberOfLines={1} style={[type.secondary, styles.stage, { color: c.muted }, stage !== "text" && (reduce ? reducedStageIn : stageIn)]}>
         {line}
       </Text>
     </View>
