@@ -80,6 +80,7 @@ describe("detectionSize", () => {
 
   test("a close look stays under 8 million pixels", () => {
     expect(worker.detectionSize(2000, 12000, true)).toEqual({ width: 1152, height: 6944 });
+    expect(worker.detectionSize(1080, 20000, true)).toEqual({ width: 640, height: 12160 });
   });
 });
 
@@ -112,24 +113,80 @@ describe("strips", () => {
   });
 });
 
+describe("a closer look cut short", () => {
+  const bands = () => worker.strips(5056);
+  const at = (cy: number) => ({ cx: 50, cy, w: 40, h: 8, angle: 0 });
+  const along = (box: { cy: number }) => box.cy / 5056;
+
+  test("the whole closer look runs when finding the bands left and reading every band three times as long fits the time left", () => {
+    expect(worker.fitsWhole(150, 3, 5, 2700)).toBe(true);
+    expect(worker.fitsWhole(150, 3, 5, 2699)).toBe(false);
+    expect(worker.fitsWhole(750, 3, 5, 4000)).toBe(false);
+  });
+
+  test("the seam is where the last band read stops keeping boxes", () => {
+    expect(worker.seam(bands(), 0, 5056)).toBe(0);
+    expect(worker.seam(bands(), 2, 5056)).toBe(2064 / 5056);
+    expect(worker.seam(bands(), 5, 5056)).toBe(Infinity);
+  });
+
+  test("first-look boxes fill in past the seam, and only there", () => {
+    const close = [at(100), at(2000)];
+    const first = [at(500), at(2063), at(2064), at(4000)];
+
+    expect(worker.stitch(close, first, worker.seam(bands(), 2, 5056), along)).toEqual([at(100), at(2000), at(2064), at(4000)]);
+  });
+
+  test("no band read keeps every first-look box, and every band read keeps none", () => {
+    const first = [at(500), at(4000)];
+
+    expect(worker.stitch([], first, worker.seam(bands(), 0, 5056), along)).toEqual(first);
+    expect(worker.stitch([at(10)], first, worker.seam(bands(), 5, 5056), along)).toEqual([at(10)]);
+  });
+});
+
 describe("orientation", () => {
   test("a photo is sideways when tall boxes cover more than twice the area of wide ones", () => {
     expect(worker.sideways([{ w: 10, h: 40 }, { w: 10, h: 40 }, { w: 30, h: 10 }])).toBe(true);
     expect(worker.sideways([{ w: 10, h: 40 }, { w: 50, h: 10 }])).toBe(false);
+    expect(worker.sideways([{ w: 10, h: 30 }, { w: 20, h: 10 }])).toBe(false);
   });
 
-  test("unturn maps a box found on the photo turned a quarter clockwise back onto the photo, its text running up", () => {
-    expect(worker.unturn({ cx: 30, cy: 10, w: 40, h: 8, angle: 0 }, 100)).toEqual({ cx: 10, cy: 70, w: 40, h: 8, angle: -Math.PI / 2 });
+  test("a photo over twice as tall as wide is never turned, one over twice as wide always is, and the boxes decide between", () => {
+    const tall = [{ w: 10, h: 40 }];
+    const wide = [{ w: 40, h: 10 }];
+
+    expect(worker.turns(tall, 969, 5047)).toBe(false);
+    expect(worker.turns(wide, 5047, 969)).toBe(true);
+    expect(worker.turns(wide, 900, 440)).toBe(false);
+    expect(worker.turns(tall, 900, 440)).toBe(true);
+    expect(worker.turns(tall, 3024, 4032)).toBe(true);
+    expect(worker.turns(wide, 3024, 4032)).toBe(false);
+  });
+
+  test("unturn maps a box found on the photo turned 0 to 3 quarters clockwise back onto a 200 by 100 px photo", () => {
+    const box = { cx: 30, cy: 10, w: 40, h: 8, angle: 0 };
+
+    expect(worker.unturn(box, 0, 200, 100)).toEqual(box);
+    expect(worker.unturn(box, 1, 200, 100)).toEqual({ cx: 10, cy: 70, w: 40, h: 8, angle: -Math.PI / 2 });
+    expect(worker.unturn(box, 2, 200, 100)).toEqual({ cx: 170, cy: 90, w: 40, h: 8, angle: -Math.PI });
+    expect(worker.unturn(box, 3, 200, 100)).toEqual({ cx: 190, cy: 30, w: 40, h: 8, angle: (-3 * Math.PI) / 2 });
   });
 
   test("flip turns a box's text half a turn in place", () => {
     expect(worker.flip({ cx: 1, cy: 2, w: 3, h: 4, angle: 0 })).toEqual({ cx: 1, cy: 2, w: 3, h: 4, angle: Math.PI });
   });
 
-  test("the flip sample takes the longest boxes whose crop stays narrow", () => {
-    const boxes = [{ w: 100, h: 10 }, { w: 60, h: 10 }, { w: 20, h: 10 }, { w: 50, h: 10 }].map((size) => ({ ...size, cx: 0, cy: 0, angle: 0 }));
+  test("the flip sample spreads four boxes of more than two characters along the photo, each cut to the start of its text", () => {
+    const box = (w: number, cy: number) => ({ w, h: 10, cx: 100, cy, angle: 0 });
+    const boxes = [box(10, 0), box(20, 6), box(30, 5), box(80, 4), box(40, 3), box(25, 2), box(50, 1)];
 
-    expect(worker.flipSample(boxes)).toEqual([1, 3, 2]);
+    expect(worker.flipSample(boxes, (b: { cy: number }) => b.cy)).toEqual([
+      { w: 100 / 3, h: 10, cx: 100 - (50 - 100 / 3) / 2, cy: 1, angle: 0 },
+      { w: 100 / 3, h: 10, cx: 100 - (40 - 100 / 3) / 2, cy: 3, angle: 0 },
+      { w: 100 / 3, h: 10, cx: 100 - (80 - 100 / 3) / 2, cy: 4, angle: 0 },
+      box(20, 6),
+    ]);
   });
 
   test("text is upside down only when the flipped sample reads more surely", () => {
