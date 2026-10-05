@@ -126,7 +126,7 @@ type FoldingProps = { fold: Fold; person: ParticipantId; label: string; share: n
 
 /**
  * The share row is one element in both states. Folded it sits under the chips; open it sits under the list. It moves down the sheet while the sheet rises, so on screen it travels a short way into place,
- * and a cover under it hides the list until the row has passed. The list, the rule and the pay block fade with the same progress, so a drag can stop or turn back at any frame.
+ * and a cover under it hides the list until the row has passed. The list and the rule fade with the same progress and the pay block over its last tenth, so a drag can stop or turn back at any frame.
  */
 function Folding({ fold, person, label, share, above, below }: FoldingProps) {
   const c = useColors();
@@ -141,7 +141,7 @@ function Folding({ fold, person, label, share, above, below }: FoldingProps) {
   const chevron = useRef<View>(null);
   const travel = listHeight + rowGap;
 
-  const apply = useEffectEvent((progress: number, ms: number) => {
+  const apply = useEffectEvent((progress: number, ms: number, span: number) => {
     const el = (ref: RefObject<View | null>) => ref.current as unknown as HTMLElement | null;
     const timed = (property: string) => (ms > 0 ? `${property} ${ms}ms ${glide.easing}` : "none");
     const move = reduce ? "none" : timed("transform");
@@ -151,13 +151,31 @@ function Folding({ fold, person, label, share, above, below }: FoldingProps) {
       node.style.transition = transition;
       node.style[property] = value;
     };
-    set(el(mover), move, "transform", `translateY(${progress * travel}px)`);
+    const row = el(mover);
+    const from = row && travel > 0 && typeof DOMMatrixReadOnly !== "undefined" ? Math.max(0, Math.min(1, new DOMMatrixReadOnly(getComputedStyle(row).transform).m42 / travel)) : progress;
+    set(row, move, "transform", `translateY(${progress * travel}px)`);
     // The arrow points where a release would take the sheet. It turns on the sheet's own glide rather than with the finger, since a short sheet would spin it half a turn in two frames.
     set(el(chevron), reduce ? "none" : `transform ${glide.ms}ms ${glide.easing}`, "transform", `rotate(${progress > 0.5 ? 0 : 180}deg)`);
-    for (const ref of [top, rest, rule]) set(el(ref), fade, "opacity", String(progress));
+    for (const ref of [top, rule]) set(el(ref), fade, "opacity", String(progress));
+    // The pay block shows only over the last part of the way open, and while it shows it holds still on screen: the sheet's rise is undone by a lift, so the black button never sweeps through the sheet.
+    const pay = el(rest);
+    if (!pay) return;
+    const lift = (at: number) => `translateY(${(Math.max(at, payFrom) - 1) * span}px)`;
+    pay.getAnimations?.().forEach((animation) => animation.cancel());
+    pay.style.transform = lift(progress);
+    set(pay, reduce ? fade : "none", "opacity", String(payShows(progress)));
+    if (reduce || ms === 0 || from === progress) return;
+    // A keyframe sits where the glide's eased progress crosses payFrom, so the block matches payShows and lift at every frame.
+    const crossing = (payFrom - from) / (progress - from);
+    const kink = crossing > 0 && crossing < 1 ? [{ offset: crossing, opacity: 0, transform: lift(payFrom) }] : [];
+    const frames = [{ offset: 0, opacity: payShows(from), transform: lift(from) }, ...kink, { offset: 1, opacity: payShows(progress), transform: lift(progress) }];
+    if (progress > from) return void pay.animate?.(frames, { duration: ms, easing: glide.easing });
+    // Folding, it fades out over a short ease-out of its own, since the glide's fast start would blink it out in one frame.
+    pay.animate?.(frames.map(({ offset, transform }) => ({ offset, transform })), { duration: ms, easing: glide.easing });
+    pay.animate?.([{ opacity: payShows(from) }, { opacity: 0 }], { duration: Math.min(ms, motion.rowsOut), easing: motion.easeOut });
   });
-  useLayoutEffect(() => track.listen((progress, ms) => apply(progress, ms)), [track]);
-  useLayoutEffect(() => apply(track.progress, 0), [travel, track]);
+  useLayoutEffect(() => track.listen((progress, ms, span) => apply(progress, ms, span)), [track]);
+  useLayoutEffect(() => apply(track.progress, 0, track.span), [travel, track]);
 
   useEffect(() => {
     const node = parts.current as unknown as HTMLElement | null;
@@ -238,6 +256,10 @@ function ItemList({ lines, edge, holdsDrag }: { lines: ReturnType<typeof breakdo
   );
 }
 
+// The pay block shows over the last tenth of the way open.
+const payFrom = 0.9;
+const payShows = (progress: number) => Math.max(0, (progress - payFrom) / (1 - payFrom));
+
 // A focused share row draws its ring this far outside itself, so its track leaves room for it.
 const ringRoom = 4;
 const contain = webStyle({ overscrollBehavior: "contain" });
@@ -245,7 +267,7 @@ const holdsGesture = webStyle({ touchAction: "none" });
 
 const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
-  // Folded until the sheet says otherwise, so the first frame never shows the open layout.
+  // The folded look before the first progress arrives, so the first frame never shows the open layout.
   hidden: { opacity: 0 },
   grow: { flex: 1 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26, marginHorizontal: 2 },

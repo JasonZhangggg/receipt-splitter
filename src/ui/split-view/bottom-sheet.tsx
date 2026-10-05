@@ -17,16 +17,18 @@ const holdsGesture = webStyle({ touchAction: "none" });
 // A folding sheet's content sizes itself to fit, so the scroller never scrolls and lets a list inside reach out to the sheet's edge.
 const unclipped = webStyle({ overflowX: "visible", overflowY: "visible" });
 
-type FoldListener = (progress: number, ms: number) => void;
+type FoldListener = (progress: number, ms: number, span: number) => void;
 
-/** Where a folding sheet is between folded (0) and open (1). Its content listens here to move with it, over the same `ms` (0 while the sheet follows a finger). */
+/** Where a folding sheet is between folded (0) and open (1), and how far it travels between them (`span`, px). Its content listens here to move with it, over the same `ms` (0 while the sheet follows a finger). */
 export class FoldTrack {
   progress = 0;
+  span = 0;
   private listener: FoldListener | null = null;
 
-  move(progress: number, ms: number) {
+  move(progress: number, ms: number, span: number) {
     this.progress = progress;
-    this.listener?.(progress, ms);
+    this.span = span;
+    this.listener?.(progress, ms, span);
   }
 
   listen(listener: FoldListener) {
@@ -111,7 +113,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
 
   const place = (to: number, ms: number) => {
     offset.current = to;
-    fold?.track.move(progressAt(to), ms);
+    fold?.track.move(progressAt(to), ms, foldRest - rest);
     const sheet = element();
     const dim = shade.current as unknown as HTMLElement | null;
     const transition = `${ms}ms ${glide.easing}`;

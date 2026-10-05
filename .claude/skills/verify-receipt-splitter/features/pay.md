@@ -27,7 +27,7 @@ Preconditions are the same as [claim.md](./claim.md). Create the Split over `POS
 - **Pills (`pay-pills`).** Inside the test id `breakdown`, each pill is a link named `Pay <Host> $<amount> on <App>` whose `href` is the payment URL from `src/core/pay-links.ts` and whose `target` is `_blank`. Venmo on the web is `https://venmo.com/<user>?txn=pay&amount=14.20&note=Receipt%20split`.
 - **Zelle (`pay-zelle`).** The card holds the buttons `Copy <handle>` and `Copy $<amount>`, which read "Copied" for about 1.6 s.
 - **Mark (`pay-mark`).** Tap **I already paid** inside `breakdown`. The button turns into **I haven't paid**, and the test id `share` shows the paid amount.
-- **Status (`pay-status`).** In another browser, tap the payer's chip. The breakdown shows `Paid` and `<name> paid`, with no links or buttons.
+- **Status (`pay-status`).** In another browser, tap the payer's chip. The breakdown shows `Paid` and `<name> paid`, with no links, and on the phone no button but the share row that folds the sheet.
 - **Difference (`pay-difference`).** After the payer marks paid, change a Claim from another browser so the Share moves. Both browsers show the difference sentence.
 - **Refused (`pay-refused`).** From a page of another device, open `ws://<host>/parties/split-server/<id>` and send `{"ref":"forged","op":{"type":"recordPayment","by":"<id>","participantId":"<id>","device":"not-the-payer","amount":2200}}`. The answer is `{"type":"rejected","ref":"forged","rejection":{"reason":"payerOnly"}}`, and the payer stays Not paid.
 - **History (`pay-history`).** Tap **History**. The Payment row shows no **Revert**.
