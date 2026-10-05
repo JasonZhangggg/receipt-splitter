@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
-import { motion, type, useColors } from "../theme";
+import { motion, space, type, useColors } from "../theme";
 
 const lines = [0, 1, 2, 3, 4, 5, 6];
 
@@ -86,5 +86,5 @@ const styles = StyleSheet.create({
   ink: { borderRadius: 3 },
   track: { width: 160, height: 4, marginTop: 8, borderRadius: 2, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 2, transformOrigin: "left" },
-  stage: { marginTop: 10, textAlign: "center" },
+  stage: { marginTop: space.m, textAlign: "center" },
 });
