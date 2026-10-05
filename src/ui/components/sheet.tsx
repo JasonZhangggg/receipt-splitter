@@ -5,10 +5,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, useColors } from "../theme";
 import { animateSpring, releaseVelocity, rubberband } from "./sheet-motion";
+import { useKeyboardLift } from "./keyboard-lift";
 import { useLayoutHeight } from "./viewport";
 
 type Props = { children: ReactNode; action: ReactNode; onHeight: (height: number) => void };
 
+const bottomPadding = 30;
 const contain = webStyle({ overscrollBehavior: "contain" });
 const pinned = webStyle({ touchAction: "none" });
 const scrolls = webStyle({ touchAction: "pan-y" });
@@ -34,17 +36,7 @@ export function Sheet({ children, action, onHeight }: Props) {
   useEffect(() => () => stop.current(), []);
   const position = useRef(0);
 
-  // iOS reveals a focused field by scrolling the window into the room `below` leaves under the page, and never scrolls it back.
-  // It holds the visible page still while the keyboard slides away, so the glide back waits until the keyboard is gone.
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!viewport) return;
-    const closed = () => {
-      if (window.scrollY > 0 && viewport.height >= document.documentElement.clientHeight) window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
-    };
-    viewport.addEventListener("resize", closed);
-    return () => viewport.removeEventListener("resize", closed);
-  }, [reduce]);
+  useKeyboardLift(anchor, insets.top, bottomPadding + insets.bottom, reduce);
 
   const paint = (value: number) => {
     position.current = value;
@@ -84,13 +76,17 @@ export function Sheet({ children, action, onHeight }: Props) {
     setOverflows(contentHeight > maxContent);
     const content = scroller.current as unknown as HTMLElement | null;
     const focused = document.activeElement;
-    if (focused && content?.contains(focused)) focused.scrollIntoView({ block: "nearest" });
+    if (!focused || !content?.contains(focused)) return;
+    // scrollIntoView would also scroll the page under the keyboard; only the panel's content may move.
+    const box = content.getBoundingClientRect();
+    const field = focused.getBoundingClientRect();
+    content.scrollTop += Math.min(0, field.top - box.top) + Math.max(0, field.bottom - box.bottom);
   };
 
   const measure = ({ nativeEvent }: LayoutChangeEvent) => setHeight(nativeEvent.layout.height);
 
   return (
-    // The keyboard leaves the panel where it lies; iOS pans the page to reveal the focused field.
+    // The keyboard lifts the panel, and `below` fills the panel down behind the keyboard.
     <View ref={anchor} {...sheetMarker} style={styles.anchor} onLayout={measure}>
       <View
         ref={panel}
@@ -102,7 +98,7 @@ export function Sheet({ children, action, onHeight }: Props) {
         style={[
           styles.sheet,
           pinned,
-          { backgroundColor: c.sheet, boxShadow: c.sheetShadow, paddingBottom: 30 + insets.bottom, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right },
+          { backgroundColor: c.sheet, boxShadow: c.sheetShadow, paddingBottom: bottomPadding + insets.bottom, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right },
         ]}
       >
         <View {...grabMarker} style={styles.grabArea}>

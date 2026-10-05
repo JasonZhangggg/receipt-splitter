@@ -159,8 +159,7 @@ const aboveKeyboard = (field: Locator) =>
 const keyboardUp = (page: Page) => expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(page.viewportSize()!.height - iphoneKeyboard);
 const keyboardDown = (page: Page) => expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(page.viewportSize()!.height);
 
-// Design A (operator, 2026-10-03): iOS pans the page to reveal the focused field, and the app leaves the panel where it lies.
-// Create may sit under the keyboard while someone types.
+// Home (operator, 2026-10-04): only the panel rises above the keyboard; the page and its background never move.
 test.describe("with the iPhone keyboard up", () => {
   test.beforeEach(async ({ page }) => {
     await simulateKeyboard(page, iphoneKeyboard);
@@ -181,25 +180,28 @@ test.describe("with the iPhone keyboard up", () => {
     await expect.poll(() => aboveKeyboard(name)).toBe(true);
   });
 
-  test("the panel stays where it lies in the page, so on screen it moves only with iOS's pan, in one direction", async ({ page }) => {
-    const rest = Math.round(await page.locator("[data-sheet-surface]").evaluate((el) => el.getBoundingClientRect().top));
-    const tops = await sample<{ page: number; screen: number }>(
-      page,
-      `(() => { const top = document.querySelector("[data-sheet-surface]").getBoundingClientRect().top; return { page: Math.round(top), screen: Math.round(top - visualViewport.offsetTop) }; })()`,
-    );
+  test("only the panel moves: it rises above the keyboard in one direction, and the heading never moves on screen", async ({ page }) => {
+    const onScreen = `(selector) => Math.round(document.querySelector(selector).getBoundingClientRect().top - visualViewport.offsetTop)`;
+    const read = `(() => { const at = ${onScreen}; return { heading: at("h1"), panel: at("[data-sheet-surface]") }; })()`;
+    const rest: { heading: number; panel: number } = await page.evaluate(read);
+    const tops = await sample<{ heading: number; panel: number }>(page, read);
     await page.getByRole("textbox", { name: "Venmo handle" }).tap();
     await keyboardUp(page);
     await animationsDone(page);
-    const rising = (await tops()).map((top) => top.screen);
+    const rising = (await tops()).map((top) => top.panel);
+    expect(await action(page).evaluate((el) => el.getBoundingClientRect().bottom <= visualViewport!.height)).toBe(true);
     await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
     await animationsDone(page);
     await page.locator("h1").tap();
     await keyboardDown(page);
     await animationsDone(page);
 
-    expect(runs((await tops()).map((top) => top.page))).toEqual([rest]);
+    const seen = await tops();
+    expect(runs(seen.map((top) => top.heading))).toEqual([rest.heading]);
+    expect(await page.evaluate(() => [window.scrollY, visualViewport!.offsetTop])).toEqual([0, 0]);
     expect(rising.filter((top, i) => i > 0 && top > rising[i - 1])).toEqual([]);
-    expect(rising.at(-1)).toBeLessThan(rest);
+    expect(rising.at(-1)).toBeLessThan(rest.panel);
+    expect(seen.at(-1)!.panel).toBe(rest.panel);
   });
 
   test("the hero keeps its layout while the keyboard is up", async ({ page }) => {

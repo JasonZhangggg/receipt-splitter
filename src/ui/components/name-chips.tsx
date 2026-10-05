@@ -4,6 +4,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { copy } from "../home-copy";
 import { layout, type, useColors } from "../theme";
 import { Button } from "./button";
+import { focusInPlace } from "./keyboard-lift";
 
 type Props = {
   names: readonly string[];
@@ -45,7 +46,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll }: Props) {
       ))}
       {adding ? (
         <TextInput
-          autoFocus
+          ref={focusInPlace}
           aria-label={first ? copy.yourName : copy.newName}
           placeholder={first ? copy.yourName : copy.newName}
           placeholderTextColor={c.muted}

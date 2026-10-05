@@ -368,7 +368,7 @@ export async function still(target: Locator) {
  * iOS 27 Safari's keyboard, as measured in the simulator. Shortly after a text field takes focus the visual viewport shrinks by `px`,
  * and iOS pans it down (`offsetTop`) far enough to reveal the field where it stood when it took focus. `innerHeight` then reads the
  * layout height minus the pan. On blur both go back. The layout viewport (`clientHeight`) keeps its size throughout.
- * Runs in the page, so it closes over nothing.
+ * A field focused with `preventScroll` is not revealed, as on iOS 27. Runs in the page, so it closes over nothing.
  */
 export function iosKeyboard(px: number) {
   const viewport = window.visualViewport!;
@@ -389,9 +389,19 @@ export function iosKeyboard(px: number) {
     viewport.dispatchEvent(new Event("scroll"));
   };
   const typing = (el: EventTarget | null) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+  let quiet = false;
+  const focus = HTMLElement.prototype.focus;
+  HTMLElement.prototype.focus = function (options?: FocusOptions) {
+    quiet = options?.preventScroll === true;
+    try {
+      focus.call(this, options);
+    } finally {
+      quiet = false;
+    }
+  };
   document.addEventListener("focusin", ({ target }) => {
     if (!typing(target)) return;
-    const reveal = Math.min(px, Math.max(pan, Math.ceil((target as Element).getBoundingClientRect().bottom + 8 - (layout() - px))));
+    const reveal = quiet ? pan : Math.min(px, Math.max(pan, Math.ceil((target as Element).getBoundingClientRect().bottom + 8 - (layout() - px))));
     setTimeout(() => set(px, reveal), 60);
   });
   document.addEventListener("focusout", () => setTimeout(() => !typing(document.activeElement) && set(0, 0), 60));

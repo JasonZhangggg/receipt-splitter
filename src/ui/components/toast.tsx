@@ -7,6 +7,8 @@ import { easing, motion, space, type, useColors } from "../theme";
 import { hideAfter } from "./hide-timer";
 
 const visibleFor = 4000;
+// The toast sits above the home panel, so it rides the panel's keyboard lift.
+const followsPanel = { dataSet: { followsPanel: "" } };
 
 type Props = {
   message: string | null;
@@ -44,7 +46,7 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   return (
-    <View role="status" aria-live="polite" pointerEvents="box-none" style={[styles.anchor, { bottom: space.l + (lift || insets.bottom) }]}>
+    <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: space.l + (lift || insets.bottom) }]}>
       {shown ? (
         <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }] }]}>
           <Text style={[type.small, styles.message, { color: c.field }]}>{shown}</Text>
