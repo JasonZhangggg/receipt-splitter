@@ -61,6 +61,7 @@ type Props = {
   /** Sinks out of view, as when another sheet covers it, and rises back when false. */
   lowered?: boolean;
   closing?: boolean;
+  /** The height the page should leave clear under its content. A folding sheet reports its folded height, since open it covers the page, which holds still. */
   onHeight?: (height: number) => void;
   /** Names what the sheet shows. When it changes, the old content fades out, then the new content fades in, so the two never show together. */
   view?: string;
@@ -169,7 +170,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     if (closing) close();
   }, [closing]);
 
-  useEffect(() => onHeight?.(visible), [visible, onHeight]);
+  useEffect(() => onHeight?.(folded), [folded, onHeight]);
   useEffect(() => () => clearTimeout(left.current), []);
 
   const live = () => {

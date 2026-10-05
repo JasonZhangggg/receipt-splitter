@@ -199,23 +199,26 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
       </View>
       <View pointerEvents="box-none" style={[styles.track, { height: travel + foldedRow + ringRoom }]}>
         <View ref={mover} pointerEvents="box-none">
-          <PressTarget name={`${label} ${money(share)}, ${open ? say.hideBreakdown(whose) : say.showBreakdown(whose)}`} expanded={open} outsideScroll onPress={onToggle} style={(pressed) => pressStyle(pressed, reduce)}>
-            {() => (
-              <View style={[styles.shareRow, { backgroundColor: c.sheet }]}>
-                <Swap view={person} style={styles.grow}>
-                  <View style={styles.amounts}>
-                    <Text style={[type.button, { color: c.ink }]}>{label}</Text>
-                    <Text testID={open ? "share" : "owe"} style={[type.total, tabular, { color: c.ink }]}>
-                      {money(share)}
-                    </Text>
+          {/* The row shrinks while pressed, and a drag that opens or closes the sheet starts as a press, so a background that keeps its size hides the list at the row's sides. */}
+          <View style={{ backgroundColor: c.sheet }}>
+            <PressTarget name={`${label} ${money(share)}, ${open ? say.hideBreakdown(whose) : say.showBreakdown(whose)}`} expanded={open} outsideScroll onPress={onToggle} style={(pressed) => pressStyle(pressed, reduce)}>
+              {() => (
+                <View style={[styles.shareRow, { backgroundColor: c.sheet }]}>
+                  <Swap view={person} style={styles.grow}>
+                    <View style={styles.amounts}>
+                      <Text style={[type.button, { color: c.ink }]}>{label}</Text>
+                      <Text testID={open ? "share" : "owe"} style={[type.total, tabular, { color: c.ink }]}>
+                        {money(share)}
+                      </Text>
+                    </View>
+                  </Swap>
+                  <View ref={chevron} testID="share-arrow" style={styles.chevron}>
+                    <Icon name="chevron" size={18} color={c.muted} />
                   </View>
-                </Swap>
-                <View ref={chevron} testID="share-arrow" style={styles.chevron}>
-                  <Icon name="chevron" size={18} color={c.muted} />
                 </View>
-              </View>
-            )}
-          </PressTarget>
+              )}
+            </PressTarget>
+          </View>
           <View pointerEvents="none" style={{ height: travel, backgroundColor: c.sheet }} />
           <View ref={rule} style={[styles.rule, styles.hidden, { backgroundColor: c.hairline }]} />
         </View>
