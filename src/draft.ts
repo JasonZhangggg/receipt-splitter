@@ -1,5 +1,5 @@
 import { cents, MAX_CENTS, price, type Cents } from "./core/money";
-import { canonicalName, isName, MAX_ADJUSTMENTS, MAX_ITEMS, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type NewSplit, type RejectionReason } from "./core/operations";
+import { canonicalName, handleProblem, isName, MAX_ADJUSTMENTS, MAX_ITEMS, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type HandleProblem, type NewSplit, type RejectionReason } from "./core/operations";
 import { adjustmentId, itemId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 
@@ -184,9 +184,13 @@ export function mismatchNote({ scan }: Draft): string | null {
   return check.ok ? null : gapNote(check);
 }
 
-export type Blocker = { readonly kind: "note"; readonly note: string } | { readonly kind: "noHandle" };
+/** A `note` is about the Receipt. `noName` and `badHandle` name the field a tap on Create focuses. */
+export type Blocker =
+  | { readonly kind: "note"; readonly note: string }
+  | { readonly kind: "noName" }
+  | { readonly kind: "badHandle"; readonly index: number; readonly service: PaymentService; readonly problem: HandleProblem };
 
-export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonly paymentHandles: NonEmpty<PaymentHandle>; readonly names: NonEmpty<string> };
+export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonly paymentHandles: readonly PaymentHandle[]; readonly names: NonEmpty<string> };
 
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
@@ -198,11 +202,13 @@ export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
   if (items.length > MAX_ITEMS) return note(`A split holds up to ${MAX_ITEMS} items. This receipt has ${items.length}.`);
   // The Tip is always one of the Adjustments sent, so the receipt's own charges get one fewer.
   if (adjustments.length > MAX_ADJUSTMENTS) return note(`A split holds up to ${MAX_ADJUSTMENTS - 1} taxes, fees and discounts. This receipt has ${adjustments.length - 1}.`);
-  const [first, ...rest] = filledHandles(handles);
-  if (!first) return { kind: "noHandle" };
+  for (const [index, { service, handle }] of handles.entries()) {
+    const problem = handle.trim() === "" ? null : handleProblem({ service, handle: handle.trim() });
+    if (problem) return { kind: "badHandle", index, service, problem };
+  }
   const [host, ...others] = names;
-  if (host === undefined) return note("Add your name.");
-  return { kind: "ready", receipt: scan.receipt, paymentHandles: [first, ...rest], names: [host, ...others] };
+  if (host === undefined) return { kind: "noName" };
+  return { kind: "ready", receipt: scan.receipt, paymentHandles: filledHandles(handles), names: [host, ...others] };
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;

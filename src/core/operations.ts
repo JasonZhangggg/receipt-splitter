@@ -760,31 +760,56 @@ function reject(reason: RejectionReason): Rejected {
   return { ok: false, rejection: { reason } };
 }
 
-const HANDLE_RULES: { readonly [Service in PaymentService]: { readonly sigil: string; readonly pattern: RegExp } } = {
-  venmo: { sigil: "@", pattern: /^[A-Za-z0-9_-]{5,30}$/ },
-  cashApp: { sigil: "$", pattern: /^(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{1,20}$/ },
-  paypal: { sigil: "", pattern: /^[A-Za-z0-9]{1,20}$/ },
-  zelle: { sigil: "", pattern: /^(?:(?=.{3,80}$)[^\s@]+@[^\s@]+\.[^\s@]+|\d{10})$/ },
+type HandleRule = { readonly sigil: string; readonly min: number; readonly max: number; readonly allowed: RegExp | null; readonly needsLetter: boolean };
+
+// Venmo and Cash App's own username rules. PayPal and Zelle take any text the Host types; the pay link encodes it, and Zelle shows it to copy.
+const HANDLE_RULES: { readonly [Service in PaymentService]: HandleRule } = {
+  venmo: { sigil: "@", min: 5, max: 30, allowed: /[A-Za-z0-9_-]/, needsLetter: false },
+  cashApp: { sigil: "$", min: 1, max: 20, allowed: /[A-Za-z0-9]/, needsLetter: true },
+  paypal: { sigil: "", min: 1, max: 80, allowed: null, needsLetter: false },
+  zelle: { sigil: "", min: 1, max: 80, allowed: null, needsLetter: false },
 };
+
+/** Why a Split refuses a handle: the first rule it breaks, counting characters without the sigil. */
+export type HandleProblem =
+  | { readonly kind: "short" | "long"; readonly length: number; readonly limit: number }
+  | { readonly kind: "character"; readonly character: string }
+  | { readonly kind: "noLetter" };
 
 export function handleText({ service, handle }: PaymentHandle): string {
   return `${HANDLE_RULES[service].sigil}${handle}`;
 }
 
-function canonicalHandles(handles: NonEmpty<PaymentHandle>): NonEmpty<PaymentHandle> {
-  const canonical = ({ service, handle }: PaymentHandle): PaymentHandle => {
-    const { sigil } = HANDLE_RULES[service];
-    return { service, handle: sigil !== "" && handle.startsWith(sigil) ? handle.slice(sigil.length) : handle };
-  };
-  const [first, ...rest] = handles;
-  return [canonical(first), ...rest.map(canonical)];
+function canonical({ service, handle }: PaymentHandle): PaymentHandle {
+  const { sigil } = HANDLE_RULES[service];
+  return { service, handle: sigil !== "" && handle.startsWith(sigil) ? handle.slice(sigil.length) : handle };
+}
+
+function brokenRule({ service, handle }: PaymentHandle): HandleProblem | null {
+  const { min, max, allowed, needsLetter } = HANDLE_RULES[service];
+  const characters = [...handle];
+  if (characters.length < min) return { kind: "short", length: characters.length, limit: min };
+  if (characters.length > max) return { kind: "long", length: characters.length, limit: max };
+  const edge = /^\s|\s$/u.exec(handle);
+  if (edge) return { kind: "character", character: edge[0] };
+  const odd = characters.find((character) => HIDDEN_CHARACTERS.test(character) || (allowed !== null && !allowed.test(character)));
+  if (odd !== undefined) return { kind: "character", character: odd };
+  if (needsLetter && !/[A-Za-z]/.test(handle)) return { kind: "noLetter" };
+  return null;
+}
+
+/** Why a Split would refuse this handle as typed, sigil or not, so home can say so before Create sends it. */
+export const handleProblem = (handle: PaymentHandle): HandleProblem | null => brokenRule(canonical(handle));
+
+function canonicalHandles(handles: readonly PaymentHandle[]): readonly PaymentHandle[] {
+  return handles.map(canonical);
 }
 
 export type NewSplit = {
   readonly id: MintedSplitId;
   readonly receipt: Receipt;
   readonly participants: Split["participants"];
-  readonly paymentHandles: NonEmpty<PaymentHandle>;
+  readonly paymentHandles: readonly PaymentHandle[];
 };
 
 export type CreateSplitRequest = { readonly split: Omit<NewSplit, "id"> };
@@ -890,7 +915,7 @@ function checkState(split: Split): Rejection | null {
   if (!claimsValid || !paymentsValid || !picked.every((id) => ids.has(id))) return { reason: "unknownParticipant" };
 
   const services = paymentHandles.map(({ service }) => service);
-  const handlesValid = paymentHandles.every(({ service, handle }) => HANDLE_RULES[service].pattern.test(handle) && !HIDDEN_CHARACTERS.test(handle));
+  const handlesValid = paymentHandles.every((handle) => brokenRule(handle) === null);
   if (!handlesValid || new Set(services).size !== services.length) return { reason: "badHandle" };
 
   return null;

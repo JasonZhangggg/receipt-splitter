@@ -386,7 +386,7 @@ const receiptLevelAdjustment = strict((fields) => ({ id: fields.read("id", adjus
 const anyAdjustment = strict((fields) => ({ id: fields.read("id", adjustmentId), ...anyAdjustmentFields(fields) }));
 const participant = strict((fields) => ({ id: fields.read("id", participantId), ...participantFields(fields) }));
 const paymentHandle = strict(({ read }) => ({ service: read("service", oneOf(PAYMENT_SERVICES)), handle: read("handle", text) }));
-const paymentHandles = nonEmpty(paymentHandle, PAYMENT_SERVICES.length);
+const paymentHandles = array(paymentHandle, PAYMENT_SERVICES.length);
 
 function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>, maxItems = MAX_ITEMS) {
   return strict((fields) => ({
@@ -534,7 +534,7 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
     amount: read("amount", cents),
   })),
   clearPayment: op("clearPayment", ({ read }) => ({ participantId: read("participantId", participantId), device: read("device", deviceId) })),
-  setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", paymentHandles) })),
+  setPaymentHandles: op("setPaymentHandles", ({ read }) => ({ handles: read("handles", nonEmpty(paymentHandle, PAYMENT_SERVICES.length)) })),
   pick: op("pick", ({ read }) => ({ participantId: read("participantId", participantId), device: read("device", deviceId), takeOver: read("takeOver", flag) })),
   undo: op("undo", ({ read }) => ({ revision: read("revision", count) })),
   restoreReceipt: op("restoreReceipt", () => ({})),
