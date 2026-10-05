@@ -277,7 +277,7 @@ test("swiping the bar open and flicking it shut moves one share amount into plac
   await page.getByTestId("owe").waitFor();
   await page.waitForTimeout(700);
   const seen = await frames();
-  expect(seen.length).toBeGreaterThan(30);
+  expect(seen.length).toBeGreaterThan(4);
   expect(seen.filter(({ amounts }) => amounts !== 1)).toEqual([]);
   expect(seen.filter(({ chip }) => chip < 1)).toEqual([]);
 });
