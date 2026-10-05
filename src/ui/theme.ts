@@ -63,6 +63,7 @@ export const motion = {
   readingCycle: 1600,
   readingStagger: 150,
   readingBar: 240,
+  stageIn: 200,
   photoIn: 240,
   photoOut: 180,
   controlIn: 200,
