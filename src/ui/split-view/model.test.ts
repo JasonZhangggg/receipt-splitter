@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { shareBreakdown } from "../../core/shares";
-import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedUnits } from "./model";
+import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedLines, unclaimedUnits } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -210,6 +210,10 @@ describe("receiptRows at Topgolf", () => {
       ["tax", 39],
       ["tip", 252],
     ]);
+  });
+
+  test("counts six lines nobody had, a 3x and two 2x lines as one each, and five once Ann and Bob take the 3x Guinness", () => {
+    expect([unclaimedLines(topgolf()), unclaimedLines(topgolf([ann, bob]))]).toEqual([6, 5]);
   });
 });
 

@@ -16,13 +16,20 @@ const dinner = {
   total: 3550,
 };
 
+const longDinner = {
+  items: Array.from({ length: 20 }, (_, i) => ({ id: `dish${i}`, name: `Dish ${i + 1}`, price: 300 + i * 85 })),
+  adjustments: [],
+  subtotal: 22150,
+  total: 22150,
+};
+
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, browserName: string): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, browserName: string, receipt: object = dinner): Promise<string> {
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.18.${browserName === "webkit" ? 50 + workerIndex : workerIndex}.${creates}` },
-    data: { split: { receipt: dinner, participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }], paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
+    data: { split: { receipt, participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }], paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
@@ -211,4 +218,45 @@ test("a still touch on the Item sheet mid-glide holds it where it is, and lettin
   expect(touch.atTouch - rest).toBeGreaterThan(20);
   expect(Math.max(...touch.held) - Math.min(...touch.held)).toBeLessThanOrEqual(2);
   expect(Math.abs(touch.held[0] - touch.atTouch)).toBeLessThanOrEqual(2);
+});
+
+test("scrolled to the end, the receipt's totals stop just above the folded sheet, after the breakdown opens and closes, another person is shown, and the screen gets shorter", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, longDinner), browserName);
+  await pickJason(page);
+  for (let dish = 1; dish <= 12; dish += 1) await page.getByRole("button", { name: `Dish ${dish}, check for Jason` }).click();
+  await expect(page.getByTestId("owe")).toHaveText("$92.10", live);
+  const sheet = page.getByTestId("split-sheet");
+  await settled(sheet);
+  const gapAtEnd = () =>
+    page.evaluate(() => {
+      const card = document.querySelector<HTMLElement>('[data-testid="receipt"]')!;
+      let scroller = card.parentElement!;
+      while (scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement!;
+      scroller.scrollTop = scroller.scrollHeight;
+      return new Promise<number>((resolve) =>
+        requestAnimationFrame(() => resolve(document.querySelector('[data-testid="split-sheet"]')!.getBoundingClientRect().top - card.getBoundingClientRect().bottom)),
+      );
+    });
+
+  const before = await gapAtEnd();
+  expect(before).toBeCloseTo(16, 0);
+
+  await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
+  await expect(page.getByTestId("breakdown")).toBeVisible(live);
+  await settled(sheet);
+  await page.getByRole("button", { name: /^Your share .*, Hide what you owe$/ }).click();
+  await expect(page.getByTestId("breakdown")).toHaveCount(0, live);
+  await settled(sheet);
+  expect(await gapAtEnd()).toBeCloseTo(16, 0);
+
+  await page.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(page.getByRole("button", { name: /, Hide Sam's breakdown$/ })).toBeVisible(live);
+  await page.getByRole("button", { name: /, Hide Sam's breakdown$/ }).click();
+  await expect(page.getByTestId("breakdown")).toHaveCount(0, live);
+  await settled(sheet);
+  expect(await gapAtEnd()).toBeCloseTo(16, 0);
+
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 640 });
+  await settled(sheet);
+  expect(await gapAtEnd()).toBeCloseTo(16, 0);
 });

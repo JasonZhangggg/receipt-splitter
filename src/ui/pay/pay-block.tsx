@@ -65,7 +65,7 @@ function PayWays({ host, handles, amount }: { host: string; handles: readonly Pa
 }
 
 const styles = StyleSheet.create({
-  box: { marginTop: 14, gap: 4 },
+  box: { gap: 4 },
   ways: { gap: 10 },
   handles: { textAlign: "center", marginHorizontal: 4 },
   center: { alignItems: "center" },
