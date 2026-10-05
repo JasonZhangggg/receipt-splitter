@@ -425,7 +425,6 @@ export function upsideDown(upright, flipped) {
   return flipped.length > 0 && meanConfidence(flipped) > meanConfidence(upright);
 }
 
-/** Whether text is upside down, from a sample of the first look's boxes read upright and flipped in one pass. */
 /**
  * Whether text is upside down, from a sample of the first look's boxes read upright and flipped in one pass, and the pace of that read in ms
  * per column of crop, which prices reading other boxes on this machine.

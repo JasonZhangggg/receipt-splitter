@@ -152,7 +152,7 @@ describe("orientation", () => {
     expect(worker.sideways([{ w: 10, h: 30 }, { w: 20, h: 10 }])).toBe(false);
   });
 
-  test("a photo over twice as tall as wide is never turned, one over twice as wide always is, and the boxes decide between", () => {
+  test("a photo over twice as tall as wide is never turned, one over three times as wide always is, and the boxes decide between", () => {
     const tall = [{ w: 10, h: 40 }];
     const wide = [{ w: 40, h: 10 }];
 
