@@ -15,6 +15,7 @@ import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { Swap } from "../../src/ui/components/swap";
 import { AddAdjustmentSheet, AdjustmentSheet } from "../../src/ui/adjustment-sheet";
+import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
@@ -80,7 +81,7 @@ type Phase = "pick" | "collapsing" | "regular";
 type OverlayKind =
   | { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] }
   | { readonly kind: "add" }
-  | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId; readonly title: string }
+  | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
   | { readonly kind: "addAdjustment" }
   | { readonly kind: "history" };
 /** What is open over the page and the press that opened it: the popover hangs from its trigger, and focus goes back there. */
@@ -89,8 +90,13 @@ type Overlay = OverlayKind & { readonly from: Press };
 type PaneView = "pick" | "share";
 type Send = ReturnType<typeof useLiveSplit>["send"];
 
-const overlayLabel = (overlay: OverlayKind) =>
-  overlay.kind === "adjustment" ? overlay.title : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history }[overlay.kind];
+/** An Adjustment's sheet is named for its saved kind; its heading follows a kind switch at once. */
+const overlayLabel = (overlay: OverlayKind, split: Split) =>
+  overlay.kind === "adjustment"
+    ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
+      ? say.discount
+      : say.charge
+    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
 const crossFadeFor = 200;
@@ -329,7 +335,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       onCircle={(item) => void onCircle(item)}
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
-      onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id, title: row.kind === "discount" || row.kind === "bundleDiscount" ? say.discount : say.charge }, from)}
+      onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
       onAddAdjustment={(from) => open({ kind: "addAdjustment" }, from)}
       showing={
         showingNow?.kind === "item"
@@ -386,11 +392,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         </BottomSheet>
       )}
       {overlay && wide ? (
-        <Popover anchor={overlay.from.trigger} label={overlayLabel(overlay)} instant={overlay.from.keyboard} closing={closing} onClose={closeOverlay} onGone={overlayGone}>
+        <Popover anchor={overlay.from.trigger} label={overlayLabel(overlay, split)} instant={overlay.from.keyboard} closing={closing} onClose={closeOverlay} onGone={overlayGone}>
           {overlayContent}
         </Popover>
       ) : overlay ? (
-        <BottomSheet scrim label={overlayLabel(overlay)} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
+        <BottomSheet scrim label={overlayLabel(overlay, split)} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlayContent}
         </BottomSheet>
       ) : null}

@@ -162,12 +162,16 @@ test("a tax turned into a discount on desktop opens in a popover and flips the l
   await pick(page, "Sam");
 
   await page.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  const popover = dialog(page, "Charge");
-  await popover.getByRole("group", { name: "Kind" }).getByRole("button", { name: "Discount" }).click();
+  await dialog(page, "Charge").getByRole("group", { name: "Kind" }).getByRole("button", { name: "Discount" }).click();
+  // Named for the saved kind, the popover is renamed once the switch saves.
+  const popover = page.getByRole("dialog");
   await expect(popover.getByRole("heading", { name: "Discount" })).toBeVisible();
-  await expect(amountIn(page, "Charge", "Amount off")).toHaveValue("1.00");
-  await page.keyboard.press("Escape");
+  await expect(popover.getByRole("textbox", { name: "Amount off", exact: true })).toHaveValue("1.00");
 
   await expect(page.getByRole("button", { name: "Open Tax, -$1.00" })).toBeVisible(live);
+  await expect(dialog(page, "Discount")).toBeVisible();
   await expect(page.getByTestId("total")).toHaveText("$17.00", live);
+  await page.keyboard.press("Escape");
+  await expect(dialog(page, "Discount")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Open Tax, -$1.00" })).toBeFocused();
 });

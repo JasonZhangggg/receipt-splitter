@@ -11,7 +11,7 @@ export type TypedAdjustment = {
   readonly amount: string;
 };
 
-export type AdjustmentProblem = "amount" | "overLimit" | "tooManyAdjustments" | "negativeTotal" | "tooLarge" | "failed";
+export type AdjustmentProblem = "name" | "amount" | "overLimit" | "tooManyAdjustments" | "negativeTotal" | "tooLarge" | "failed";
 
 export type AdjustmentAnswer = { readonly ok: true; readonly op: Operation } | { readonly ok: false; readonly problem: AdjustmentProblem };
 
@@ -20,31 +20,36 @@ export const takesOff = (kind: AdjustmentKind) => kind === "discount" || kind ==
 
 const signed = (kind: AdjustmentKind, amount: Cents) => cents(takesOff(kind) ? -amount : amount);
 
-/** The amount as the sheet shows it: what the line adds, or for a discount what it takes off. */
-export const shownAmount = ({ kind, amount }: Pick<Adjustment, "kind" | "amount">) => cents(takesOff(kind) ? -amount : amount);
-
 export function typedFrom(row: Adjustment): TypedAdjustment {
-  const amount = shownAmount(row);
+  const amount = signed(row.kind, row.amount);
   return { kind: row.kind, name: row.name, amount: (amount / 100).toFixed(2) };
 }
 
 /** Every edit keeps the Total at the Subtotal plus the Adjustments, so a fixed tax or tip moves it (preferences 70, 75). */
 const editReceipt = (by: ParticipantId | null, patch: AdjustmentPatch): Operation => ({ by, type: "editReceipt", adjustments: [patch], totalFollows: true });
 
-/** The edit to send for what is typed in an Adjustment's sheet, null when nothing it can save differs from the row, or the problem to show. */
-export function adjustmentEdit(split: Split, id: AdjustmentId, typed: TypedAdjustment, by: ParticipantId | null): AdjustmentAnswer | null {
+/**
+ * The edit to send for the fields typed in an Adjustment's sheet, null when none differs from the row, or the problem to show.
+ * Only typed fields go out, so a field another phone fixed while this sheet was open keeps that fix.
+ */
+export function adjustmentEdit(split: Split, id: AdjustmentId, typed: Partial<TypedAdjustment>, by: ParticipantId | null): AdjustmentAnswer | null {
   const row = split.receipt.adjustments.find((adjustment) => adjustment.id === id);
   if (!row) return null;
-  const amount = readAmount(typed.amount);
-  if (typeof amount === "string") return { ok: false, problem: amount === "price" ? "amount" : amount };
-  const name = typed.name.trim();
+  const name = typed.name?.trim();
+  if (name !== undefined && !isName(name, MAX_ROW_NAME_LENGTH)) return { ok: false, problem: "name" };
+  const off = typed.amount === undefined ? signed(row.kind, row.amount) : readAmount(typed.amount);
+  if (typeof off === "string") return { ok: false, problem: off === "price" ? "amount" : off };
+  const kind = row.kind === "bundleDiscount" || typed.kind === undefined || typed.kind === "bundleDiscount" ? row.kind : typed.kind;
+  const amount = signed(kind, off);
   const patch = {
-    ...(row.kind !== "bundleDiscount" && typed.kind !== "bundleDiscount" && typed.kind !== row.kind && { kind: typed.kind }),
-    ...(isName(name, MAX_ROW_NAME_LENGTH) && name !== row.name && { name }),
-    ...(signed(typed.kind, amount) !== row.amount && { amount: signed(typed.kind, amount) }),
+    ...(kind !== row.kind && kind !== "bundleDiscount" && { kind }),
+    ...(name !== undefined && name !== row.name && { name }),
+    ...(amount !== row.amount && { amount }),
   };
   if (Object.keys(patch).length === 0) return null;
-  return checked(split, editReceipt(by, { type: "edit", adjustmentId: id, ...patch }));
+  const edit: AdjustmentPatch = { type: "edit", adjustmentId: id, ...patch };
+  // A rename leaves the Total as it is, even on a receipt that does not add up.
+  return checked(split, patch.amount === undefined ? { by, type: "editReceipt", adjustments: [edit] } : editReceipt(by, edit));
 }
 
 /** The add to send for the add sheet, after the other Adjustments, or the one problem to show. An empty name takes the kind's. */

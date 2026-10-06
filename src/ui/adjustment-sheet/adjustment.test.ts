@@ -3,17 +3,11 @@ import { describe, expect, test } from "vitest";
 import { applyOperation } from "../../core/operations";
 import { adjustmentId, type Split } from "../../core/split";
 import { jason, topgolf } from "../../core/topgolf.fixture";
-import { adjustmentEdit, newAdjustment, typedFrom, type TypedAdjustment } from "./adjustment";
+import { adjustmentEdit, newAdjustment, typedFrom } from "./adjustment";
 
 const tax = adjustmentId("tax");
 const bucket = adjustmentId("bucket1");
 const fresh = adjustmentId("fresh");
-
-const typedOn = (split: Split, id: typeof tax, change: Partial<TypedAdjustment>) => {
-  const row = split.receipt.adjustments.find((adjustment) => adjustment.id === id);
-  if (!row) throw new Error(`no ${id}`);
-  return { ...typedFrom(row), ...change };
-};
 
 const applied = (split: Split, answer: ReturnType<typeof newAdjustment> | null) => {
   if (!answer?.ok) throw new Error(JSON.stringify(answer));
@@ -32,47 +26,57 @@ describe("typedFrom", () => {
 
 describe("adjustmentEdit", () => {
   test("sends the new tax amount with the Total following", () => {
-    const split = topgolf();
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, { amount: "6.00" }), jason)).toEqual({
+    expect(adjustmentEdit(topgolf(), tax, { amount: "6.00" }, jason)).toEqual({
       ok: true,
       op: { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tax, amount: 600 }], totalFollows: true },
     });
   });
 
-  test("sends nothing when the fields still match the row, or the name is cleared", () => {
-    const split = topgolf();
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, {}), jason)).toBeNull();
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, { name: "  " }), jason)).toBeNull();
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, { amount: "$4.94" }), jason)).toBeNull();
+  test("sends a rename alone, with the Total left as it is", () => {
+    expect(adjustmentEdit(topgolf(), tax, { name: " Sales tax " }, jason)).toEqual({
+      ok: true,
+      op: { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tax, name: "Sales tax" }] },
+    });
   });
 
-  test("turns a tax into a discount by flipping the stored sign of the same typed amount", () => {
+  test("sends only the typed field, so another phone's fix to the name stays", () => {
+    const renamed = applied(topgolf(), adjustmentEdit(topgolf(), tax, { name: "Sales tax" }, jason));
+    const answer = adjustmentEdit(renamed, tax, { amount: "6" }, jason);
+    expect(answer?.ok && answer.op.type === "editReceipt" && answer.op.adjustments).toEqual([{ type: "edit", adjustmentId: tax, amount: 600 }]);
+  });
+
+  test("sends nothing when the typed fields still match the row", () => {
+    expect(adjustmentEdit(topgolf(), tax, {}, jason)).toBeNull();
+    expect(adjustmentEdit(topgolf(), tax, { name: "Tax", amount: "$4.94", kind: "tax" }, jason)).toBeNull();
+  });
+
+  test("turns a tax into a discount by flipping the stored sign of the amount", () => {
     const split = topgolf();
-    const answer = adjustmentEdit(split, tax, typedOn(split, tax, { kind: "discount", name: "Coupon" }), jason);
+    const answer = adjustmentEdit(split, tax, { kind: "discount", name: "Coupon" }, jason);
     expect(answer?.ok && answer.op.type === "editReceipt" && answer.op.adjustments).toEqual([{ type: "edit", adjustmentId: tax, kind: "discount", name: "Coupon", amount: -494 }]);
-    expect(applied(split, answer).receipt.total).toBe(20729 - 988);
+    expect(applied(split, answer).receipt.total).toBe(19741);
   });
 
   test("edits a Bundle discount's amount as a positive amount off, and never its kind", () => {
     const split = topgolf();
-    const answer = adjustmentEdit(split, bucket, typedOn(split, bucket, { amount: "5" }), jason);
+    const answer = adjustmentEdit(split, bucket, { kind: "tax", amount: "5" }, jason);
     expect(answer?.ok && answer.op.type === "editReceipt" && answer.op.adjustments).toEqual([{ type: "edit", adjustmentId: bucket, amount: -500 }]);
     expect(applied(split, answer).receipt.total).toBe(20680);
   });
 
-  test("says what is wrong with an amount it cannot save", () => {
+  test("says what is wrong with a name or an amount it cannot save", () => {
     const split = topgolf();
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, { amount: "" }), jason)).toEqual({ ok: false, problem: "amount" });
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, { amount: "4.9.4" }), jason)).toEqual({ ok: false, problem: "amount" });
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, { amount: "100000.01" }), jason)).toEqual({ ok: false, problem: "overLimit" });
-    expect(adjustmentEdit(split, tax, typedOn(split, tax, { kind: "discount", amount: "300" }), jason)).toEqual({ ok: false, problem: "negativeTotal" });
+    expect(adjustmentEdit(split, tax, { name: "  " }, jason)).toEqual({ ok: false, problem: "name" });
+    expect(adjustmentEdit(split, tax, { amount: "" }, jason)).toEqual({ ok: false, problem: "amount" });
+    expect(adjustmentEdit(split, tax, { amount: "4.9.4" }, jason)).toEqual({ ok: false, problem: "amount" });
+    expect(adjustmentEdit(split, tax, { amount: "100000.01" }, jason)).toEqual({ ok: false, problem: "overLimit" });
+    expect(adjustmentEdit(split, tax, { kind: "discount", amount: "300" }, jason)).toEqual({ ok: false, problem: "negativeTotal" });
   });
 });
 
 describe("newAdjustment", () => {
   test("adds a tip after the other Adjustments, named for its kind when the name is empty", () => {
-    const split = topgolf();
-    expect(newAdjustment(split, { kind: "tip", name: " ", amount: "5" }, fresh, jason)).toEqual({
+    expect(newAdjustment(topgolf(), { kind: "tip", name: " ", amount: "5" }, fresh, jason)).toEqual({
       ok: true,
       op: { by: jason, type: "editReceipt", adjustments: [{ type: "add", adjustment: { id: fresh, kind: "tip", name: "Tip", amount: 500 }, index: 4 }], totalFollows: true },
     });

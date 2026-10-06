@@ -2257,6 +2257,7 @@ describe("an Adjustment edit with the Total following", () => {
 
     expect(totals(added)).toEqual([17923, 20739]);
     expect(totals(deleted)).toEqual([17923, 21180]);
+    expect(deleted.receipt.items).toEqual(topgolf().receipt.items);
     expect(totals(edited)).toEqual([17923, 20680]);
     expect(edited.receipt.adjustments[0]).toMatchObject({ id: bucket, kind: "bundleDiscount", name: "Beer Bucket Discount (12%)", amount: -500, bundle: { items: [...bucketOne] } });
   });

@@ -95,6 +95,7 @@ export const splitCopy = {
   openAdjustment: (name: string, amount: string) => `Open ${name}, ${amount}`,
   bundleDiscountNote: (bundle: string, count: number) => `This discount comes off the ${count} ${count === 1 ? "item" : "items"} in ${bundle}.`,
   adjustmentProblem: {
+    name: "Add a name.",
     amount: "Add an amount.",
     overLimit: (max: string) => `That amount is over ${max}.`,
     tooManyAdjustments: "A split holds at most 20 charges and discounts.",

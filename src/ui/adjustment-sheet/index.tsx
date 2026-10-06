@@ -31,19 +31,25 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: 
   // Another phone's delete takes the row away; the sheet closes on the row as it was.
   const [row, setRow] = useState(live);
   if (live && live !== row) setRow(live);
-  const [typed, setTyped] = useState<TypedAdjustment | null>(() => (live ? typedFrom(live) : null));
+  // Only the fields typed here; the rest show the row as it is now, another phone's fixes included.
+  const [typed, setTyped] = useState<Partial<TypedAdjustment>>({});
   const [problem, setProblem] = useState<AdjustmentProblem | null>(null);
   const [leaving, setLeaving] = useState(false);
   const splitRef = useRef(split);
   const flushRef = useRef<() => void>(() => {});
+  const lastSent = useRef("");
   const amountField = useRef<TextInput>(null);
 
   const flush = () => {
-    if (!typed || leaving) return;
+    if (leaving) return;
     const answer = adjustmentEdit(splitRef.current, id, typed, me);
     if (answer === null) return setProblem(null);
     if (!answer.ok) return setProblem(answer.problem === "amount" ? null : answer.problem);
     setProblem(null);
+    // Close and unmount both flush; the second would send the same edit before the first is back.
+    const wire = JSON.stringify(answer.op);
+    if (wire === lastSent.current) return;
+    lastSent.current = wire;
     void send(answer.op).then((sent) => {
       if (!sent.ok) setProblem(adjustmentProblem(sent.rejection.reason));
     });
@@ -53,6 +59,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: 
     flushRef.current = flush;
   });
   useEffect(() => {
+    if (Object.keys(typed).length === 0) return;
     const timer = setTimeout(() => flushRef.current(), saveAfter);
     return () => clearTimeout(timer);
   }, [typed]);
@@ -62,7 +69,8 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: 
     if (!live && !leaving) closeGone();
   }, [live, leaving]);
 
-  if (!row || !typed) return null;
+  if (!row) return null;
+  const shown: TypedAdjustment = { ...typedFrom(row), ...typed };
   const close = () => {
     flush();
     onClose();
@@ -76,14 +84,14 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: 
     setLeaving(false);
     setProblem(adjustmentProblem(sent.rejection.reason));
   };
-  const off = takesOff(typed.kind);
+  const off = takesOff(shown.kind);
   return (
     <View style={styles.sheet} pointerEvents={leaving ? "none" : "auto"}>
       <Topline title={off ? say.discount : say.charge} onClose={close} />
       <AdjustmentFields
         split={split}
         row={row}
-        typed={typed}
+        typed={shown}
         onChange={(next) => setTyped({ ...typed, ...next })}
         amountField={amountField}
         onNameDone={() => amountField.current?.focus()}
