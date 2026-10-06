@@ -379,3 +379,42 @@ test("with two ways to pay on a 667 pt phone, the breakdown's Items, discounts, 
   for (let swipe = 0; swipe < 6 && !(await shown()); swipe += 1) await drag(page, await center(list), -150, 200);
   expect(await shown()).toBe(true);
 });
+
+test("a price typed at the end or in the middle of the Item sheet's price field is what the field and the row show, and text that is not a price holds the sheet open on its problem", async ({ browser, request, browserName }, { workerIndex }) => {
+  const receipt = { items: [{ id: "wings", name: "Wings", price: 1200 }], adjustments: [], subtotal: 1200, total: 1200 };
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
+  await pickJason(page);
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const price = sheet.getByRole("textbox", { name: "Price" });
+  const caretAt = (at: number) => price.evaluate((input: HTMLInputElement, at) => input.setSelectionRange(at, at), at);
+  const selected = () => price.evaluate((input: HTMLInputElement) => input.value.slice(input.selectionStart!, input.selectionEnd!));
+
+  await page.getByRole("button", { name: /^Open Wings, \$12\.00/ }).click();
+  await price.click();
+  await expect.poll(selected).toBe("12.00");
+  await page.keyboard.type("13");
+  await expect(price).toHaveValue("13");
+  await price.fill("12.00");
+  await caretAt(5);
+  await page.keyboard.type("13");
+  await expect(price).toHaveValue("12.0013");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet.getByRole("status")).toHaveText("Add a price.");
+  await expect(price).toHaveValue("12.0013");
+
+  await price.fill("13");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByRole("button", { name: /^Open Wings, \$13\.00/ })).toBeVisible(live);
+
+  await page.getByRole("button", { name: /^Open Wings, \$13\.00/ }).click();
+  await expect(price).toHaveValue("13.00");
+  await price.click();
+  await expect.poll(selected).toBe("13.00");
+  await caretAt(1);
+  await page.keyboard.type("2");
+  await expect(price).toHaveValue("123.00");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByRole("button", { name: /^Open Wings, \$123\.00/ })).toBeVisible(live);
+});
