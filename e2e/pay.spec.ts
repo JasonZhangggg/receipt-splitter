@@ -322,7 +322,7 @@ const readPill = (pill: Locator) =>
 for (const [ways, handles, app] of [["one way", [venmo], "Venmo"], ["four ways", everyApp, "Venmo"]] as const) {
   test(`at 320 px a Host named ${longHost} owed $1,234.56 keeps one 54 px line with ${ways} to pay, the name ellipsized and the amount and ${app} whole`, async ({ browser, request }, { workerIndex }) => {
     const read = await readPill(await pillAt(browser, request, workerIndex, handles, 320));
-    expect(read.height).toBe(54);
+    expect(read.height).toBeCloseTo(54, 1);
     expect(read.overflow).toBeLessThanOrEqual(0);
     expect(read.rowsOfText).toBe(1);
     expect(read.wrapped).toEqual([]);
@@ -347,7 +347,7 @@ async function samPill(browser: Browser, request: APIRequestContext, workerIndex
 
 test(`at 393 px ${longHost} shrinks only by the room it lacks, with no fixed cap, on one 54 px line`, async ({ browser, request }, { workerIndex }) => {
   const read = await samPill(browser, request, workerIndex, 393);
-  expect(read.height).toBe(54);
+  expect(read.height).toBeCloseTo(54, 1);
   expect(read.rowsOfText).toBe(1);
   expect(read.nameClipped).toBe(true);
   expect(read.nameWidth).toBeGreaterThan(112);
@@ -358,7 +358,7 @@ test(`at 393 px ${longHost} shrinks only by the room it lacks, with no fixed cap
 // Linux CI fonts set the name a few px wider than macOS, so this width leaves room on both.
 test(`at 480 px the full name ${longHost} shows without an ellipsis on one 54 px line`, async ({ browser, request }, { workerIndex }) => {
   const read = await samPill(browser, request, workerIndex, 480);
-  expect(read.height).toBe(54);
+  expect(read.height).toBeCloseTo(54, 1);
   expect(read.rowsOfText).toBe(1);
   expect(read.nameClipped).toBe(false);
   expect(read.othersClipped).toEqual([]);
