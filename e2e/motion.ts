@@ -453,17 +453,19 @@ const dinner = {
   total: 3350,
 };
 
+const dinnerWithTax = { ...dinner, adjustments: [...dinner.adjustments, { id: "tax", kind: "tax", name: "Tax", amount: 300 }], total: dinner.total + 300 };
+
 let creates = 0;
 
 type Person = { id: string; name: string };
 const table: Person[] = [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }, { id: "priya", name: "Priya" }];
 export const fitsOneRow = table.slice(0, 2);
 
-async function openSplit(page: Page, people = table) {
+async function openSplit(page: Page, people = table, receipt: object = dinner) {
   creates += 1;
   const response = await page.request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.19.${(Date.now() >> 8) % 250}.${creates % 250}` },
-    data: { split: { receipt: dinner, participants: people, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
+    data: { split: { receipt, participants: people, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
   });
   if (response.status() !== 201) throw new Error(`creating a Split answered ${response.status()}`);
   if (engine(page) === "webkit") await page.addInitScript(() => Object.assign(Element.prototype, { setPointerCapture() {}, releasePointerCapture() {} }));
@@ -476,8 +478,8 @@ const sheet = (page: Page) => page.getByTestId("split-sheet");
 const pickJason = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true });
 const meChip = (page: Page) => page.getByRole("button", { name: "Jason, you", exact: true });
 
-export async function picked(page: Page, people = table) {
-  await openSplit(page, people);
+export async function picked(page: Page, people = table, receipt: object = dinner) {
+  await openSplit(page, people, receipt);
   await tap(pickJason(page));
   await page.getByTestId("owe").waitFor();
   await still(sheet(page));
@@ -791,6 +793,24 @@ const addRowScenario: Scenario = {
   ],
 };
 
+async function taxOpen(page: Page) {
+  await picked(page, table, dinnerWithTax);
+  await tap(page.getByRole("button", { name: "Open Tax, $3.00" }));
+  await still(page.getByTestId("adjustment-sheet"));
+}
+
+const chargeDelete: Scenario = {
+  id: "charge-delete",
+  name: "Delete charge: the row collapses out and the rows under it slide up",
+  setup: taxOpen,
+  act: (page) => tap(page.getByTestId("adjustment-sheet").getByRole("button", { name: "Delete charge" })),
+  quietMs: 800,
+  probes: [
+    { key: "addRow", find: label("Add tax, tip or discount"), kind: "top" },
+    { key: "total", find: testId("total"), kind: "top" },
+  ],
+};
+
 const itemOpenScenario: Scenario = {
   id: "item-open",
   name: "Item sheet opens",
@@ -917,6 +937,7 @@ const sheetAndHome: Scenario[] = [
   splitRows,
   addOpenScenario,
   addRowScenario,
+  chargeDelete,
   photoOpen,
   {
     id: "photo-close",
@@ -933,6 +954,7 @@ const sheetAndHome: Scenario[] = [
   reduced(itemOpenScenario),
   reduced(splitRows),
   reduced(addRowScenario),
+  reduced(chargeDelete),
   reduced(photoOpen),
   {
     id: "reduced-collapse-drag",

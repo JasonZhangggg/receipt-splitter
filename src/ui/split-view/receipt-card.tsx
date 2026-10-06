@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffectEvent, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { Shares } from "../../core/shares";
@@ -48,6 +48,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   const { rows, charges } = receiptRows(split.receipt);
   const [entering, settle] = useEntering(items.map(({ id }) => id));
   const [chargesEntering] = useEntering(charges.map(({ id }) => id));
+  const [chargesShown, forgetCharge] = useKeptInPlace(charges);
   const started = items.some((item) => claimersOfItem(item).length > 0);
   const note = totalNote(split.receipt);
   const order = split.participants.map(({ id }) => id);
@@ -134,19 +135,27 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       ) : null}
       <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
         <Row label={say.subtotal} amount={subtotal} />
-        {charges.map((row) => (
-          <Grow key={row.id} enter={chargesEntering.has(row.id)}>
-            <PressTarget
-              name={say.openAdjustment(row.name, money(row.amount))}
-              popup="dialog"
-              expanded={showing === row.id}
-              onPress={(press) => onOpenAdjustment(row, press)}
-              style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
-            >
-              {() => <RowFace label={row.name} amount={row.amount} />}
-            </PressTarget>
-          </Grow>
-        ))}
+        {chargesShown.map(({ row, gone }) =>
+          gone ? (
+            <Shrink key={row.id} onDone={() => forgetCharge(row.id)}>
+              <View style={[styles.row, styles.tapRow]}>
+                <RowFace label={row.name} amount={row.amount} />
+              </View>
+            </Shrink>
+          ) : (
+            <Grow key={row.id} enter={chargesEntering.has(row.id)}>
+              <PressTarget
+                name={say.openAdjustment(row.name, money(row.amount))}
+                popup="dialog"
+                expanded={showing === row.id}
+                onPress={(press) => onOpenAdjustment(row, press)}
+                style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
+              >
+                {() => <RowFace label={row.name} amount={row.amount} />}
+              </PressTarget>
+            </Grow>
+          ),
+        )}
         <PressTarget
           name={say.addAdjustment}
           popup="dialog"
@@ -338,8 +347,6 @@ function Grow({ enter, children }: { enter: boolean; children: ReactNode }) {
 
 // Children grow in when they mount present with animate set, and collapse out over rowsOut when present turns false with animate set, so the rows under them glide. With animate unset they arrive and leave at once.
 function Presence({ present, animate, children }: { present: boolean; animate: boolean; children: ReactNode }) {
-  const reduce = useReducedMotion();
-  const box = useRef<View>(null);
   const [last, setLast] = useState(children);
   const [seen, setSeen] = useState(present);
   const [leaving, setLeaving] = useState(false);
@@ -348,10 +355,17 @@ function Presence({ present, animate, children }: { present: boolean; animate: b
     setSeen(present);
     setLeaving(!present && animate);
   } else if (leaving && !animate) setLeaving(false);
+  if (present) return <Grow enter={animate}>{children}</Grow>;
+  return leaving ? <Shrink onDone={() => setLeaving(false)}>{last}</Shrink> : null;
+}
+
+/** Collapses its children out over rowsOut, or fades them under reduced motion, so the rows under them glide up; then onDone. */
+function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode }) {
+  const reduce = useReducedMotion();
+  const box = useRef<View>(null);
+  const done = useEffectEvent(onDone);
   useLayoutEffect(() => {
     const el = box.current as unknown as HTMLElement | null;
-    if (!leaving) return;
-    const done = () => setLeaving(false);
     if (typeof el?.animate !== "function") return done();
     const height = `${el.getBoundingClientRect().height}px`;
     const frames = reduce
@@ -361,15 +375,40 @@ function Presence({ present, animate, children }: { present: boolean; animate: b
           { height: "0px", opacity: 0, overflow: "hidden" },
         ];
     const going = el.animate(frames, { duration: reduce ? motion.reducedFade : motion.rowsOut, easing: motion.easeOut, fill: "forwards" });
-    going.onfinish = done;
+    going.onfinish = () => done();
     return () => going.cancel();
-  }, [leaving, reduce]);
-  if (present) return <Grow enter={animate}>{children}</Grow>;
-  return leaving ? (
+  }, [reduce]);
+  return (
     <View ref={box} aria-hidden pointerEvents="none">
-      {last}
+      {children}
     </View>
-  ) : null;
+  );
+}
+
+type Kept<Row> = { readonly row: Row; readonly gone: boolean };
+
+/** The rows, with each one the list dropped kept where it stood, marked gone, until forget says it has left. */
+function useKeptInPlace<Row extends { readonly id: string }>(rows: readonly Row[]): readonly [readonly Kept<Row>[], (id: string) => void] {
+  const [last, setLast] = useState(rows);
+  const [kept, setKept] = useState<readonly Kept<Row>[]>(() => rows.map((row) => ({ row, gone: false })));
+  if (rows.length !== last.length || rows.some((row, at) => row !== last[at])) {
+    setLast(rows);
+    setKept(keepInPlace(kept, rows));
+  }
+  return [kept, (id) => setKept((was) => was.filter(({ row, gone }) => !(gone && row.id === id)))];
+}
+
+function keepInPlace<Row extends { readonly id: string }>(was: readonly Kept<Row>[], rows: readonly Row[]): Kept<Row>[] {
+  const at = new Map(rows.map(({ id }, index) => [id, index]));
+  const next: Kept<Row>[] = [];
+  let taken = 0;
+  for (const { row } of was) {
+    const index = at.get(row.id);
+    if (index === undefined) next.push({ row, gone: true });
+    else for (; taken <= index; taken += 1) next.push({ row: rows[taken], gone: false });
+  }
+  for (; taken < rows.length; taken += 1) next.push({ row: rows[taken], gone: false });
+  return next;
 }
 
 type LineProps = {
