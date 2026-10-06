@@ -23,7 +23,8 @@ const people = [
 ];
 
 const venmo = { service: "venmo", handle: "jason-z" };
-const everyApp = [venmo, { service: "cashApp", handle: "jasonz" }, { service: "paypal", handle: "jasonzhang" }, { service: "zelle", handle: "jason@example.com" }];
+const zelle = { service: "zelle", handle: "jason@example.com" };
+const everyApp = [venmo, { service: "cashApp", handle: "jasonz" }, { service: "paypal", handle: "jasonzhang" }, zelle];
 
 let creates = 0;
 
@@ -84,7 +85,7 @@ test("with no way to pay the Host, Sam's breakdown links no pay app and still le
   await expect(sam).toHaveURL(/\/s\//);
 });
 
-test("amounts of $1,000 and up show grouped by thousands on the receipt, the bar, the breakdown and the Zelle card, while pay links keep the plain amount", async ({ browser, request }, { workerIndex }) => {
+test("amounts of $1,000 and up show grouped by thousands on the receipt, the bar, the breakdown and Zelle's copy button, while pay links keep the plain amount", async ({ browser, request }, { workerIndex }) => {
   const banquet = {
     items: [
       { id: "omakase", name: "Omakase", price: 123_456 },
@@ -94,7 +95,7 @@ test("amounts of $1,000 and up show grouped by thousands on the receipt, the bar
     subtotal: 125_056,
     total: 125_056,
   };
-  const sam = await open(browser, await createSplit(request, workerIndex, [venmo, { service: "zelle", handle: "jason@example.com" }], banquet));
+  const sam = await open(browser, await createSplit(request, workerIndex, [venmo, zelle], banquet));
   await expect(sam.getByTestId("total")).toHaveText("$1,250.56");
   await pick(sam, "Sam");
   await circle(sam, "Omakase", "Sam").click();
@@ -102,13 +103,29 @@ test("amounts of $1,000 and up show grouped by thousands on the receipt, the bar
 
   await owe(sam).click();
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $1,234.56 on Venmo" })).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=1234.56&note=Receipt%20split");
-  await expect(breakdown(sam).getByTestId("zelle").getByText("$1,234.56", { exact: true })).toBeVisible();
+  await expect(breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $1,234.56 on Zelle" })).toBeVisible();
   await expect(breakdown(sam).getByText("$1,234.56", { exact: true })).not.toHaveCount(0);
 });
 
-test("Sam's breakdown links each pay app at his $14.20 Share and shows the Zelle card, and Priya's shows Not paid with no buttons", async ({ browser, request }, { workerIndex }) => {
+test("with Zelle the only way to pay, Sam's breakdown shows the Zelle card with the handle and his $14.20 to copy", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, [zelle]));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await expect(owe(sam)).toHaveText("$14.20", live);
+
+  await owe(sam).click();
+  const card = breakdown(sam).getByTestId("zelle");
+  await expect(card.getByText("Pay Jason on Zelle")).toBeVisible(live);
+  await expect(card.getByText("jason@example.com", { exact: true })).toBeVisible();
+  await expect(card.getByText("$14.20", { exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Copy jason@example.com" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Copy $14.20" })).toBeVisible();
+});
+
+test("Sam's breakdown links each pay app at his $14.20 Share in one row, Zelle's pill copies the handle, and Priya's shows Not paid with no buttons", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, everyApp);
   const sam = await open(browser, link);
+  await sam.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await pick(sam, "Sam");
   await circle(sam, "Pho", "Sam").click();
   await expect(owe(sam)).toHaveText("$14.20", live);
@@ -121,12 +138,15 @@ test("Sam's breakdown links each pay app at his $14.20 Share and shows the Zelle
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on PayPal" })).toHaveAttribute("href", "https://paypal.me/jasonzhang/14.20USD");
   await expect(pills.first()).toHaveAttribute("target", "_blank");
   await expect(pills.first()).toHaveAttribute("rel", "noopener noreferrer");
-  await expect(breakdown(sam).getByText("Venmo @jason-z · Cash App $jasonz · PayPal jasonzhang")).toBeVisible();
-  const zelle = breakdown(sam).getByTestId("zelle");
-  await expect(zelle.getByText("Pay Jason on Zelle")).toBeVisible();
-  await expect(zelle.getByText("jason@example.com", { exact: true })).toBeVisible();
-  await expect(zelle.getByText("$14.20", { exact: true })).toBeVisible();
-  await expect(zelle.getByRole("button", { name: "Copy jason@example.com" })).toBeVisible();
+  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z · Cash App\u00a0$jasonz · PayPal\u00a0jasonzhang · Zelle\u00a0jason@example.com")).toBeVisible();
+  await expect(breakdown(sam).getByTestId("zelle")).toHaveCount(0);
+  const row = await breakdown(sam).getByRole("link").or(breakdown(sam).getByRole("button", { name: /on Zelle$/ })).all();
+  const tops = await Promise.all(row.map(async (pill) => (await pill.boundingBox())!.y));
+  expect(new Set(tops).size).toBe(1);
+  await breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" }).click();
+  await expect(breakdown(sam).getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await sam.evaluate(() => navigator.clipboard.readText())).toBe("jason@example.com");
+  await expect(breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" })).toBeVisible();
 
   await sam.getByRole("button", { name: "Priya", exact: true }).click();
   await expect(breakdown(sam).getByText("Not paid", { exact: true })).toBeVisible(live);

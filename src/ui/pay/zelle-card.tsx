@@ -32,21 +32,41 @@ export function ZelleCard({ host, handle, amount }: { host: string; handle: stri
 
 function CopyRow({ shown, value, onFail }: { shown: string; value: string; onFail: () => void }) {
   const c = useColors();
+  const [copied, copy] = useCopy(value, onFail);
+  return (
+    <View style={[styles.row, { borderTopColor: c.hairline }]}>
+      <Text selectable numberOfLines={1} style={[type.body, styles.value, { color: c.ink }]}>
+        {shown}
+      </Text>
+      <Button kind="link" icon={copied ? "check" : "copy"} label={copied ? say.copied : say.copy} name={copied ? say.copied : say.copyValue(shown)} onPress={copy} outsideScroll />
+    </View>
+  );
+}
+
+/** Zelle beside other ways to pay: a pill that copies the handle, since Zelle has no link and the share row already shows the amount. */
+export function ZellePill({ host, handle, amount, primary, onFail }: { host: string; handle: string; amount: Cents; primary: boolean; onFail: () => void }) {
+  const [copied, copy] = useCopy(handle, onFail);
+  return (
+    <Button
+      kind={primary ? "primary" : "soft"}
+      icon={copied ? "check" : "copy"}
+      label={paymentApps.zelle.name}
+      name={copied ? say.copied : say.copyToPayOnZelle(handle, host, money(amount))}
+      onPress={copy}
+      outsideScroll
+      snug
+    />
+  );
+}
+
+function useCopy(value: string, onFail: () => void): [copied: boolean, copy: () => void] {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
     const timer = setTimeout(() => setCopied(false), copiedFor);
     return () => clearTimeout(timer);
   }, [copied]);
-  const copy = () => navigator.clipboard.writeText(value).then(() => setCopied(true), onFail);
-  return (
-    <View style={[styles.row, { borderTopColor: c.hairline }]}>
-      <Text selectable numberOfLines={1} style={[type.body, styles.value, { color: c.ink }]}>
-        {shown}
-      </Text>
-      <Button kind="link" icon={copied ? "check" : "copy"} label={copied ? say.copied : say.copy} name={copied ? say.copied : say.copyValue(shown)} onPress={() => void copy()} outsideScroll />
-    </View>
-  );
+  return [copied, () => void navigator.clipboard.writeText(value).then(() => setCopied(true), onFail)];
 }
 
 const styles = StyleSheet.create({

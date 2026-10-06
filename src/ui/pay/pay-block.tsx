@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import type { Cents } from "../../core/money";
@@ -10,7 +11,7 @@ import { paymentApps } from "../home-copy";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
 import type { PayState } from "./model";
-import { ZelleCard } from "./zelle-card";
+import { ZelleCard, ZellePill } from "./zelle-card";
 
 type Props = { host: string; handles: readonly PaymentHandle[]; state: PayState; onPaid: (paid: boolean) => void };
 
@@ -38,30 +39,45 @@ export function PayBlock({ host, handles, state, onPaid }: Props) {
 
 function PayWays({ host, handles, amount }: { host: string; handles: readonly PaymentHandle[]; amount: Cents }) {
   const c = useColors();
-  const links = handles.flatMap((handle) => {
-    const href = payLink(handle, amount, note, target);
-    return href === null ? [] : [{ handle, href, fallbackHref: payLink(handle, amount, note, "web") ?? href }];
-  });
-  const zelle = handles.find(({ service }) => service === "zelle");
-  // Two or more pills sit side by side under the share, which already shows the amount, so each names only its app and the breakdown's list keeps its height.
-  const paired = links.length > 1;
+  const [problem, setProblem] = useState(false);
+  const [only] = handles;
+  if (handles.length === 1 && only.service === "zelle") return <ZelleCard host={host} handle={only.handle} amount={amount} />;
+  // Two or more ways share one row under the share, which already shows the amount, so each names only its app and the breakdown's list keeps its height. Three or more drop the app marks so all of them fit one row.
+  const row = handles.length > 1;
+  const marks = handles.length < 3;
   return (
     <View style={styles.ways}>
-      <View style={paired ? styles.pair : styles.ways}>
-        {links.map(({ handle, href, fallbackHref }, index) => {
+      <View style={row ? styles.row : styles.ways}>
+        {handles.map((handle, index) => {
           const app = paymentApps[handle.service];
-          const full = say.payOn(host, money(amount), app.name);
+          const href = payLink(handle, amount, note, target);
+          const pill =
+            href === null ? (
+              <ZellePill host={host} handle={handle.handle} amount={amount} primary={index === 0} onFail={() => setProblem(true)} />
+            ) : (
+              <Button
+                kind={index === 0 ? "primary" : "soft"}
+                glyph={marks ? app.glyph : undefined}
+                label={row ? app.name : say.payOn(host, money(amount), app.name)}
+                name={say.payOn(host, money(amount), app.name)}
+                href={href}
+                fallbackHref={payLink(handle, amount, note, "web") ?? href}
+                outsideScroll
+                snug={row}
+              />
+            );
           return (
-            <View key={handle.service} style={paired && styles.half}>
-              <Button kind={index === 0 ? "primary" : "soft"} glyph={app.glyph} label={paired ? app.name : full} name={full} href={href} fallbackHref={fallbackHref} outsideScroll />
+            <View key={handle.service} style={row && (marks ? styles.half : styles.fit)}>
+              {pill}
             </View>
           );
         })}
       </View>
-      {links.length > 0 ? (
-        <Text style={[type.caption, styles.handles, { color: c.muted }]}>{links.map(({ handle }) => `${paymentApps[handle.service].name} ${handleText(handle)}`).join(" · ")}</Text>
+      {/* A long line breaks between handles, never between an app and its handle. */}
+      {handles.length > 0 ? (
+        <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((handle) => `${paymentApps[handle.service].name}\u00a0${handleText(handle)}`).join(" · ")}</Text>
       ) : null}
-      {zelle ? <ZelleCard host={host} handle={zelle.handle} amount={amount} /> : null}
+      {problem ? <Text style={[type.small, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );
 }
@@ -69,9 +85,10 @@ function PayWays({ host, handles, amount }: { host: string; handles: readonly Pa
 const styles = StyleSheet.create({
   box: { gap: 4 },
   ways: { gap: 10 },
-  // A third pill wraps to its own full-width row.
-  pair: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  // On a phone narrower than the pills they wrap to a second row rather than squeeze their names.
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   half: { flexGrow: 1, flexBasis: "40%" },
+  fit: { flexGrow: 1, flexBasis: "auto" },
   handles: { textAlign: "center", marginHorizontal: 4 },
   center: { alignItems: "center" },
 });
