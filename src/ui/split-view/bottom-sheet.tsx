@@ -273,6 +273,8 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
         onPointerCancel={onPointerCancel}
         style={[styles.sheet, { height: tallest, backgroundColor: c.sheet, boxShadow: c.sheetShadow }, fits, layer]}
       >
+        {/* A drag past the top rest lifts the bottom edge off the screen, so the sheet runs on below it and the page never shows there. */}
+        <View style={[styles.below, { height: tallest, backgroundColor: c.sheet }]} />
         <View style={[styles.column, { paddingLeft: layout.gutter - ringRoom + insets.left, paddingRight: layout.gutter - ringRoom + insets.right }]}>
           <View {...{ dataSet: { sheetGrab: "" } }} style={[styles.grabArea, grip]}>
             <View style={[styles.grab, { backgroundColor: c.hairline }]} />
@@ -302,6 +304,7 @@ const styles = StyleSheet.create({
   scrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   fill: { flex: 1 },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
+  below: { position: "absolute", top: "100%", left: 0, right: 0 },
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   grabArea: { alignSelf: "stretch", height: grabHeight - ringRoom, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },

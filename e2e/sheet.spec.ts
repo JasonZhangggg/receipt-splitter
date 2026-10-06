@@ -260,3 +260,56 @@ test("scrolled to the end, the receipt's totals stop just above the folded sheet
   await settled(sheet);
   expect(await gapAtEnd()).toBeCloseTo(16, 0);
 });
+
+async function openLongBreakdown(page: Page) {
+  await pickJason(page);
+  for (let dish = 1; dish <= 16; dish += 1) await page.getByRole("button", { name: `Dish ${dish}, check for Jason` }).click();
+  await expect(page.getByTestId("owe")).toHaveText("$150.00", live);
+  await settled(page.getByTestId("split-sheet"));
+  await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
+  await expect(page.getByTestId("breakdown")).toBeVisible(live);
+  await settled(page.getByTestId("split-sheet"));
+}
+
+test("a drag that stretches the open breakdown above its rest keeps the sheet under its bottom edge, never the page", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, longDinner), browserName);
+  await openLongBreakdown(page);
+  const sheet = page.getByTestId("split-sheet");
+  const rest = (await sheet.boundingBox())!.y;
+  const stretched = await page.evaluate(async (rest) => {
+    const surface = document.querySelector('[data-testid="split-sheet"]')!;
+    const grab = surface.querySelector("[data-sheet-grab]")!;
+    const x = innerWidth / 2;
+    const fire = (type: string, y: number) =>
+      grab.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: x, clientY: y }));
+    const from = rest + 14;
+    fire("pointerdown", from);
+    for (let dy = 10; dy <= 200; dy += 10) fire("pointermove", from - dy);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const lift = rest - surface.getBoundingClientRect().top;
+    const atBottom = document.elementFromPoint(x, innerHeight - 2);
+    fire("pointerup", from - 200);
+    return { lift, coveredBySheet: surface.contains(atBottom) };
+  }, rest);
+  expect(stretched.lift).toBeGreaterThan(20);
+  expect(stretched.coveredBySheet).toBe(true);
+  await settled(sheet);
+  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
+});
+
+test("the first swipe on the open breakdown's Item list scrolls the list, and the sheet and the page hold still", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName !== "chromium", "only Chromium's CDP touches drive native scrolling");
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, longDinner), browserName);
+  await openLongBreakdown(page);
+  const sheet = page.getByTestId("split-sheet");
+  const rest = (await sheet.boundingBox())!.y;
+  const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
+  await expect(list).toHaveCount(1);
+  const pageTop = () => page.evaluate(() => document.querySelector('[data-testid="receipt"]')!.getBoundingClientRect().top);
+  const before = await pageTop();
+  await drag(page, await center(list), -120, 200);
+  await expect.poll(() => list.evaluate((element) => element.scrollTop), live).toBeGreaterThan(40);
+  await settled(sheet);
+  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
+  expect(await pageTop()).toBe(before);
+});
