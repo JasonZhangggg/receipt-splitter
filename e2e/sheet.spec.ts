@@ -398,12 +398,20 @@ test("a price typed at the end or in the middle of the Item sheet's price field 
   await caretAt(5);
   await page.keyboard.type("13");
   await expect(price).toHaveValue("12.0013");
+  const blurs = await price.evaluateHandle((input) => {
+    const seen: string[] = [];
+    input.addEventListener("blur", () => seen.push("blur"));
+    return seen;
+  });
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet.getByRole("status")).toHaveText("Add a price.");
   await expect(price).toHaveValue("12.0013");
+  await expect(price).toBeFocused();
+  expect(await blurs.jsonValue()).toEqual([]);
 
   await price.fill("13");
   await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(price).not.toBeFocused();
   await expect(sheet).toHaveCount(0, live);
   await expect(page.getByRole("button", { name: /^Open Wings, \$13\.00/ })).toBeVisible(live);
 
@@ -417,4 +425,36 @@ test("a price typed at the end or in the middle of the Item sheet's price field 
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
   await expect(page.getByRole("button", { name: /^Open Wings, \$123\.00/ })).toBeVisible(live);
+});
+
+test("text that is not an amount in a By amount field holds the Item sheet open on its problem, and a fixed amount saves", async ({ browser, request, browserName }, { workerIndex }) => {
+  const receipt = { items: [{ id: "wings", name: "Wings", price: 1200 }], adjustments: [], subtotal: 1200, total: 1200 };
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
+  await pickJason(page);
+  const sheet = page.getByRole("dialog", { name: "Item" });
+  const who = sheet.getByRole("group", { name: "Who had it" });
+
+  await page.getByRole("button", { name: /^Open Wings, / }).click();
+  for (const name of ["Jason", "Sam"]) {
+    await who.getByRole("button", { name, exact: true }).click();
+    await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
+  }
+  await sheet.getByRole("group", { name: "Split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
+  await expect(sams).toHaveValue("0.00", live);
+  await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("8");
+
+  await sams.fill("4.005");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet.getByRole("status")).toHaveText("Add an amount.");
+  await expect(sams).toHaveValue("4.005");
+  await expect(sams).toBeFocused();
+
+  await sams.fill("4");
+  await expect(sheet.getByRole("status")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await page.getByRole("button", { name: /^Open Wings, / }).click();
+  await expect(sheet.getByRole("textbox", { name: "Sam's amount" })).toHaveValue("4.00", live);
+  await expect(sheet.getByRole("textbox", { name: "Jason's amount" })).toHaveValue("8.00");
 });
