@@ -1,6 +1,7 @@
 import { cents, type Cents } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type AdjustmentPatch, type Operation, type WireRejection } from "../../core/operations";
 import type { Adjustment, AdjustmentId, AdjustmentKind, ParticipantId, ReceiptLevelKind, Split } from "../../core/split";
+import { plainAmount } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 import { readAmount } from "../item-sheet/new-item";
 
@@ -22,7 +23,19 @@ const signed = (kind: AdjustmentKind, amount: Cents) => cents(takesOff(kind) ? -
 
 export function typedFrom(row: Adjustment): TypedAdjustment {
   const amount = signed(row.kind, row.amount);
-  return { kind: row.kind, name: row.name, amount: (amount / 100).toFixed(2) };
+  return { kind: row.kind, name: row.name, amount: plainAmount(amount) };
+}
+
+/** A typed amount written the way the sheet shows a saved one, "4" as "4.00"; text that does not read as an amount stays as typed. */
+export function tidyAmount(typed: string): string {
+  const amount = readAmount(typed);
+  return typeof amount === "number" ? plainAmount(amount) : typed;
+}
+
+/** A kind switch renames a line still called by its old kind's word, so a Tax made a discount reads Discount; a name someone gave it stays. */
+export function switchKind(typed: TypedAdjustment, kind: ReceiptLevelKind): { kind: ReceiptLevelKind; name?: string } {
+  const word = typed.kind === "bundleDiscount" ? null : say.kinds[typed.kind];
+  return typed.name.trim() === word ? { kind, name: say.kinds[kind] } : { kind };
 }
 
 /** Every edit keeps the Total at the Subtotal plus the Adjustments, so a fixed tax or tip moves it (preferences 70, 75). */

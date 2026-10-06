@@ -14,7 +14,7 @@ import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../..
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { Swap } from "../../src/ui/components/swap";
-import { AddAdjustmentSheet, AdjustmentSheet } from "../../src/ui/adjustment-sheet";
+import { AddAdjustmentSheet, AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
 import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
 import { joinCopy } from "../../src/ui/home-copy";
@@ -203,7 +203,10 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
 
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
-  const closeOverlay = () => setClosing(true);
+  const closeGuard = useRef<CloseGuard | null>(null);
+  const closeOverlay = () => {
+    if (!closeGuard.current?.()) setClosing(true);
+  };
   const overlayGone = () => {
     setOverlay(null);
     setClosing(false);
@@ -289,7 +292,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     ) : overlay.kind === "add" ? (
       <AddItemSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : overlay.kind === "adjustment" ? (
-      <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} />
+      <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
     ) : overlay.kind === "addAdjustment" ? (
       <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : (
@@ -396,7 +399,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           {overlayContent}
         </Popover>
       ) : overlay ? (
-        <BottomSheet scrim label={overlayLabel(overlay, split)} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
+        <BottomSheet scrim label={overlayLabel(overlay, split)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlayContent}
         </BottomSheet>
       ) : null}

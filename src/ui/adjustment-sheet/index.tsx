@@ -12,9 +12,11 @@ import { Segments } from "../item-sheet";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
-import { adjustmentEdit, adjustmentProblem, deleteAdjustment, newAdjustment, takesOff, typedFrom, type AdjustmentProblem, type TypedAdjustment } from "./adjustment";
+import { adjustmentEdit, adjustmentProblem, deleteAdjustment, newAdjustment, switchKind, takesOff, tidyAmount, typedFrom, type AdjustmentProblem, type TypedAdjustment } from "./adjustment";
 
 type Send = (op: Operation) => Promise<Answer>;
+/** Asked before the sheet closes; true keeps it open. */
+export type CloseGuard = () => boolean;
 
 const saveAfter = 600;
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -22,10 +24,10 @@ const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
 const problemText = (problem: AdjustmentProblem) => (problem === "overLimit" ? say.adjustmentProblem.overLimit(maxAmount) : say.adjustmentProblem[problem]);
 
-type EditProps = { split: Split; adjustmentId: AdjustmentId; me: ParticipantId | null; send: Send; onClose: () => void };
+type EditProps = { split: Split; adjustmentId: AdjustmentId; me: ParticipantId | null; send: Send; onClose: () => void; guardRef: RefObject<CloseGuard | null> };
 
 /** A tax, tip, fee or discount, saved as it is typed like an Item's sheet. A Bundle discount keeps its kind and its Items. */
-export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: EditProps) {
+export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, guardRef }: EditProps) {
   const reduce = useReducedMotion();
   const live = split.receipt.adjustments.find((row) => row.id === id);
   // Another phone's delete takes the row away; the sheet closes on the row as it was.
@@ -38,6 +40,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: 
   const splitRef = useRef(split);
   const flushRef = useRef<() => void>(() => {});
   const lastSent = useRef("");
+  const nameField = useRef<TextInput>(null);
   const amountField = useRef<TextInput>(null);
 
   const flush = () => {
@@ -54,10 +57,26 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: 
       if (!sent.ok) setProblem(adjustmentProblem(sent.rejection.reason));
     });
   };
+  // An edit the Split refuses, such as a discount that takes the Total under $0.00, keeps the sheet open on its problem instead of being dropped.
+  const holds = () => {
+    if (leaving) return false;
+    const answer = adjustmentEdit(splitRef.current, id, typed, me);
+    if (answer === null || answer.ok) return false;
+    setProblem(answer.problem);
+    (answer.problem === "name" ? nameField : amountField).current?.focus();
+    return true;
+  };
   useLayoutEffect(() => {
     splitRef.current = split;
     flushRef.current = flush;
+    guardRef.current = holds;
   });
+  useEffect(
+    () => () => {
+      guardRef.current = null;
+    },
+    [guardRef],
+  );
   useEffect(() => {
     if (Object.keys(typed).length === 0) return;
     const timer = setTimeout(() => flushRef.current(), saveAfter);
@@ -93,6 +112,8 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose }: 
         row={row}
         typed={shown}
         onChange={(next) => setTyped({ ...typed, ...next })}
+        onTidy={() => setTyped((was) => (was.amount === undefined || tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }))}
+        nameField={nameField}
         amountField={amountField}
         onNameDone={() => amountField.current?.focus()}
         onAmountDone={flush}
@@ -148,6 +169,7 @@ export function AddAdjustmentSheet({ split, me, send, onClose }: AddProps) {
           setTyped({ ...typed, ...next, kind: next.kind ?? typed.kind });
           setProblem(null);
         }}
+        onTidy={() => setTyped((was) => (tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }))}
         amountField={amountField}
         onNameDone={() => amountField.current?.focus()}
         onAmountDone={() => void add()}
@@ -171,21 +193,25 @@ type FieldsProps = {
   row?: Adjustment;
   typed: TypedAdjustment;
   onChange: (next: Partial<TypedAdjustment> & { kind?: ReceiptLevelKind }) => void;
+  /** Writes a readable amount the way a saved one shows, "4" as "4.00", once the field is left. */
+  onTidy: () => void;
+  nameField?: RefObject<TextInput | null>;
   amountField: RefObject<TextInput | null>;
   onNameDone: () => void;
   onAmountDone: () => void;
 };
 
-function AdjustmentFields({ split, row, typed, onChange, amountField, onNameDone, onAmountDone }: FieldsProps) {
+function AdjustmentFields({ split, row, typed, onChange, onTidy, nameField, amountField, onNameDone, onAmountDone }: FieldsProps) {
   const c = useColors();
   const bundle = row?.kind === "bundleDiscount" ? row.bundle : null;
   const kind = typed.kind;
   const adding = row === undefined;
   return (
     <>
-      {kind === "bundleDiscount" ? null : <Segments options={RECEIPT_LEVEL_KINDS} labels={say.kinds} name={say.kind} value={kind} onChange={(next) => onChange({ kind: next })} />}
+      {kind === "bundleDiscount" ? null : <Segments options={RECEIPT_LEVEL_KINDS} labels={say.kinds} name={say.kind} value={kind} onChange={(next) => onChange(switchKind(typed, next))} />}
       <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <TextInput
+          ref={nameField}
           aria-label={say.adjustmentName}
           placeholder={kind === "bundleDiscount" ? say.adjustmentName : say.kinds[kind]}
           placeholderTextColor={c.muted}
@@ -201,7 +227,7 @@ function AdjustmentFields({ split, row, typed, onChange, amountField, onNameDone
         <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
         <View style={styles.row}>
           <Text style={[type.caption, styles.rowLabel, { color: c.muted }]}>{takesOff(kind) ? say.amountOff : say.amount}</Text>
-          <Text style={[type.input, { color: c.ink }]}>{takesOff(kind) ? "−$" : "$"}</Text>
+          <Text style={[type.input, { color: c.ink }]}>{takesOff(kind) ? "-$" : "$"}</Text>
           <TextInput
             ref={amountField}
             aria-label={takesOff(kind) ? say.amountOff : say.amount}
@@ -212,7 +238,11 @@ function AdjustmentFields({ split, row, typed, onChange, amountField, onNameDone
             onChangeText={(amount) => onChange({ amount })}
             enterKeyHint="done"
             submitBehavior="blurAndSubmit"
-            onSubmitEditing={onAmountDone}
+            onSubmitEditing={() => {
+              onTidy();
+              onAmountDone();
+            }}
+            onBlur={onTidy}
             selectTextOnFocus={!adding}
             style={[type.input, tabular, styles.amountInput, styles.strong, { color: c.ink }]}
           />

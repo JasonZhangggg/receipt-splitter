@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { applyOperation } from "../../core/operations";
 import { adjustmentId, type Split } from "../../core/split";
 import { jason, topgolf } from "../../core/topgolf.fixture";
-import { adjustmentEdit, newAdjustment, typedFrom } from "./adjustment";
+import { adjustmentEdit, newAdjustment, switchKind, tidyAmount, typedFrom } from "./adjustment";
 
 const tax = adjustmentId("tax");
 const bucket = adjustmentId("bucket1");
@@ -21,6 +21,29 @@ describe("typedFrom", () => {
     const [bucketRow, , taxRow] = topgolf().receipt.adjustments;
     expect(typedFrom(taxRow)).toEqual({ kind: "tax", name: "Tax", amount: "4.94" });
     expect(typedFrom(bucketRow)).toMatchObject({ kind: "bundleDiscount", amount: "4.51" });
+  });
+});
+
+describe("tidyAmount", () => {
+  test("writes a readable amount with two decimals and leaves anything else as typed", () => {
+    expect(["4", "4.5", ".5", "$12", "4.00", "", "4.", "abc"].map(tidyAmount)).toEqual(["4.00", "4.50", "0.50", "12.00", "4.00", "", "4.00", "abc"]);
+  });
+});
+
+describe("switchKind", () => {
+  test("renames a line still called by its old kind's word and keeps a name someone gave it", () => {
+    expect(switchKind({ kind: "tax", name: "Tax", amount: "1.00" }, "discount")).toEqual({ kind: "discount", name: "Discount" });
+    expect(switchKind({ kind: "serviceCharge", name: "Fee ", amount: "1.00" }, "tip")).toEqual({ kind: "tip", name: "Tip" });
+    expect(switchKind({ kind: "tax", name: "Sales tax", amount: "1.00" }, "discount")).toEqual({ kind: "discount" });
+    expect(switchKind({ kind: "tip", name: "", amount: "" }, "tax")).toEqual({ kind: "tax" });
+  });
+
+  test("sends the new kind and its word together from the edit sheet", () => {
+    const switched = switchKind(typedFrom(topgolf().receipt.adjustments[2]), "discount");
+    expect(adjustmentEdit(topgolf(), tax, switched, jason)).toEqual({
+      ok: true,
+      op: { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tax, kind: "discount", name: "Discount", amount: -494 }], totalFollows: true },
+    });
   });
 });
 

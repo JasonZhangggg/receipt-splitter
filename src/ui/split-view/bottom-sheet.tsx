@@ -51,6 +51,8 @@ type Props = {
   scrim?: boolean;
   /** A swipe down, or a tap on the scrim. */
   onDown?: () => void;
+  /** Asked before a swipe down or a scrim tap takes the sheet away; true settles it back, as for content holding an edit that cannot save. */
+  holds?: () => boolean;
   /** A swipe up. */
   onUp?: () => void;
   /** The owner swaps the content on onDown, so the sheet glides to the new height instead of out of view. */
@@ -76,7 +78,7 @@ type Props = {
 /** `resume` is where a sheet caught mid-glide was headed, so a touch that never drags lets it finish. */
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
-export function BottomSheet({ children, scrim = false, onDown, onUp, stays = false, closing = false, onHeight, view, header, fold, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
+export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stays = false, closing = false, onHeight, view, header, fold, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
@@ -148,6 +150,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
       return onDown?.();
     }
     if (leaving.current) return;
+    if (holds?.()) return settle(home, velocity);
     leaving.current = true;
     settle(tallest, velocity, onDown);
   };
