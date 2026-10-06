@@ -127,3 +127,13 @@ test("a swipe down closes the Item sheet without moving focus or scrolling the p
   expect(await focused(sam)).toBe(focusBefore);
   expect(await sam.evaluate(() => [scrollY, ...[...document.querySelectorAll("*")].filter((el) => el.scrollTop > 0).map((el) => el.scrollTop)])).toEqual(before);
 });
+
+test("Your share opened and folded from the keyboard keeps focus on its toggle", async ({ browser, request }, { workerIndex }) => {
+  const sam = await samsPhone(browser, await createSplit(request, workerIndex));
+  const toggle = sam.getByTestId("split-sheet").getByRole("button", { expanded: false });
+  await toggle.focus();
+  await sam.keyboard.press("Enter");
+  await expect(sam.getByTestId("split-sheet").getByRole("button", { expanded: true })).toBeFocused();
+  await sam.keyboard.press("Enter");
+  await expect(toggle).toBeFocused();
+});

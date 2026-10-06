@@ -11,6 +11,7 @@ import { isRoutableSplitId, type AdjustmentId, type DeviceId, type ItemId, type 
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
+import { actedByKey } from "../../src/ui/components/acted-by-key";
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { Swap } from "../../src/ui/components/swap";
@@ -210,7 +211,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const overlayGone = () => {
     setOverlay(null);
     setClosing(false);
-    if (!overlay || !(wide || overlay.from.keyboard)) return;
+    if (!overlay || !(wide || overlay.from.keyboard || actedByKey())) return;
     const trigger = overlay.from.trigger.isConnected
       ? overlay.from.trigger
       : overlay.kind === "item"
@@ -221,6 +222,18 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     trigger?.focus({ preventScroll: true });
   };
   useEscape(overlay !== null && !closing && !wide, closeOverlay);
+
+  // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
+  const asking = useRef(false);
+  const lookOnly = () => {
+    asking.current = actedByKey();
+    setPhase("regular");
+  };
+  useEffect(() => {
+    if (phase !== "regular" || !asking.current) return;
+    asking.current = false;
+    document.querySelector<HTMLElement>(`[data-pressable][aria-label="${say.question}"]`)?.focus({ preventScroll: true });
+  }, [phase]);
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
   const chips = (
@@ -244,7 +257,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         chosen={chosen}
         onPick={(pid, takeOver) => void choose(pid, takeOver)}
         onAdd={addYourself}
-        onClose={wide ? undefined : () => setPhase("regular")}
+        onClose={wide ? undefined : lookOnly}
         url={splitUrl(splitId)}
       />
       {pickProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
@@ -310,7 +323,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       {bar.kind === "ask" ? (
         <>
           <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
-          <Button label={say.question} onPress={() => setPhase("pick")} outsideScroll />
+          <Button label={say.question} name={say.question} onPress={() => setPhase("pick")} outsideScroll />
         </>
       ) : shown ? (
         <>
