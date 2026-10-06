@@ -288,6 +288,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         send={act}
         onAddPerson={(typed) => void addPerson(typed).then((added) => "id" in added && act({ by: me, type: "claim", itemId: overlay.itemId, participantId: added.id }))}
         onClose={closeOverlay}
+        guardRef={closeGuard}
       />
     ) : overlay.kind === "add" ? (
       <AddItemSheet split={split} me={me} send={send} onClose={closeOverlay} />
