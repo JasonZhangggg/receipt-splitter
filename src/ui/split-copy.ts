@@ -93,7 +93,7 @@ export const splitCopy = {
   deleteCharge: "Delete charge",
   deleteDiscount: "Delete discount",
   openAdjustment: (name: string, amount: string) => `Open ${name}, ${amount}`,
-  bundleDiscountNote: (bundle: string, count: number) => `Comes off the ${count} ${count === 1 ? "item" : "items"} in ${bundle}.`,
+  bundleDiscountNote: (bundle: string, count: number) => `This discount comes off the ${count} ${count === 1 ? "item" : "items"} in ${bundle}.`,
   adjustmentProblem: {
     amount: "Add an amount.",
     overLimit: (max: string) => `That amount is over ${max}.`,
