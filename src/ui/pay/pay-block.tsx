@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   box: { gap: 4 },
   ways: { gap: 10 },
   pill: { flexDirection: "row", alignItems: "center", height: 54, borderRadius: 27, paddingHorizontal: 24 },
-  picking: { paddingLeft: 20, paddingRight: capsuleInset },
+  picking: { paddingLeft: 20, paddingRight: capsuleInset, columnGap: wordSpace },
   say: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", columnGap: wordSpace },
   icon: { marginRight: 4 },
   whole: { flexShrink: 0 },
