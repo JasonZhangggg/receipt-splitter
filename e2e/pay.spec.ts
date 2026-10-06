@@ -138,7 +138,7 @@ test("Sam's breakdown links each pay app at his $14.20 Share in one row, Zelle's
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on PayPal" })).toHaveAttribute("href", "https://paypal.me/jasonzhang/14.20USD");
   await expect(pills.first()).toHaveAttribute("target", "_blank");
   await expect(pills.first()).toHaveAttribute("rel", "noopener noreferrer");
-  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z · Cash App\u00a0$jasonz · PayPal\u00a0jasonzhang · Zelle\u00a0jason@example.com")).toBeVisible();
+  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z\u00a0· Cash App\u00a0$jasonz\u00a0· PayPal\u00a0jasonzhang\u00a0· Zelle\u00a0jason@example.com")).toBeVisible();
   await expect(breakdown(sam).getByTestId("zelle")).toHaveCount(0);
   const row = await breakdown(sam).getByRole("link").or(breakdown(sam).getByRole("button", { name: /on Zelle$/ })).all();
   const tops = await Promise.all(row.map(async (pill) => (await pill.boundingBox())!.y));

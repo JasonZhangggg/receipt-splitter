@@ -73,9 +73,9 @@ function PayWays({ host, handles, amount }: { host: string; handles: readonly Pa
           );
         })}
       </View>
-      {/* A long line breaks between handles, never between an app and its handle. */}
+      {/* A long line breaks after a dot, never before one or between an app and its handle. */}
       {handles.length > 0 ? (
-        <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((handle) => `${paymentApps[handle.service].name}\u00a0${handleText(handle)}`).join(" · ")}</Text>
+        <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((handle) => `${paymentApps[handle.service].name}\u00a0${handleText(handle)}`).join("\u00a0· ")}</Text>
       ) : null}
       {problem ? <Text style={[type.small, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
