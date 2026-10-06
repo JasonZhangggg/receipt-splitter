@@ -77,24 +77,29 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
           </View>
         )}
       </View>
-      <ItemList lines={breakdownLines(breakdown)} edge={edge} holdsDrag={fold !== undefined} />
-      {charges.length > 0 ? (
-        <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
-          {charges.map((row) => (
-            <View key={row.id} style={styles.row}>
-              <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
-                {row.name}
+      <ItemList lines={breakdownLines(breakdown)} edge={edge} holdsDrag={fold !== undefined}>
+        {charges.length > 0 || unclaimed > 0 ? (
+          <View style={styles.tail}>
+            {charges.length > 0 ? (
+              <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
+                {charges.map((row) => (
+                  <View key={row.id} style={styles.row}>
+                    <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
+                      {row.name}
+                    </Text>
+                    <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {unclaimed > 0 ? (
+              <Text testID="unclaimed-items" style={[type.caption, styles.unclaimed, { color: c.muted }]}>
+                {say.unclaimedItems(unclaimed)}
               </Text>
-              <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-      {unclaimed > 0 ? (
-        <Text testID="unclaimed-items" style={[type.caption, styles.unclaimed, { color: c.muted }]}>
-          {say.unclaimedItems(unclaimed)}
-        </Text>
-      ) : null}
+            ) : null}
+          </View>
+        ) : null}
+      </ItemList>
     </>
   );
   const below = (
@@ -227,7 +232,8 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
   );
 }
 
-function ItemList({ lines, edge, holdsDrag }: { lines: ReturnType<typeof breakdownLines>; edge: number; holdsDrag: boolean }) {
+/** The Items, then `children` (the share's tax, tip, fees and discounts), scroll as one list. */
+function ItemList({ lines, edge, holdsDrag, children }: { lines: ReturnType<typeof breakdownLines>; edge: number; holdsDrag: boolean; children: ReactNode }) {
   const c = useColors();
   const box = useRef(0);
   const content = useRef(0);
@@ -257,6 +263,7 @@ function ItemList({ lines, edge, holdsDrag }: { lines: ReturnType<typeof breakdo
           <Text style={[type.item, tabular, { color: c.ink }]}>{groupedAmount(line.portion)}</Text>
         </View>
       ))}
+      {children}
     </ScrollView>
   );
 }
@@ -285,6 +292,8 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 46 },
   divided: { borderTopWidth: 1 },
   name: { flex: 1, minWidth: 0 },
+  // The list ends on a short row or the note, so this keeps their text clear of its edge fade once scrolled to the end.
+  tail: { paddingBottom: 8 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   rowLabel: { flexShrink: 1 },
