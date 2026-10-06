@@ -142,11 +142,6 @@ export function unclaimedUnits(bundle: BundleRow): number {
   return bundle.items.reduce((total, { split, quantity = 1 }) => total + (claimersOf(split).length === 0 ? quantity : 0), 0);
 }
 
-/** Lines on the receipt nobody had, counted as the Split page shows them: a quantity line is one line. */
-export function unclaimedLines(receipt: Receipt<SplitItem>): number {
-  return receipt.items.filter(({ split }) => claimersOf(split).length === 0).length;
-}
-
 export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId, price: number): string | null {
   const row = receipt.adjustments.filter(isBundle).find(({ bundle }) => bundle.items.includes(itemId));
   if (!row) return null;

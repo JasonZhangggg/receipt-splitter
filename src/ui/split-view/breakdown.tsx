@@ -14,7 +14,7 @@ import { PayBlock } from "../pay/pay-block";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import type { FoldTrack } from "./bottom-sheet";
-import { breakdownCharges, breakdownLines, unclaimedLines } from "./model";
+import { breakdownCharges, breakdownLines } from "./model";
 
 /** Folded, the phone's sheet shows only the share row under the chips. */
 export const foldedRow = layout.row;
@@ -44,7 +44,6 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   const breakdown = shareBreakdown(split, person.id);
   const { items, difference, share } = breakdown;
   const adjustments = breakdownCharges(split.receipt, breakdown);
-  const unclaimed = unclaimedLines(split.receipt);
   const [host] = split.participants;
   const isHost = person.id === host.id;
   const mine = person.id === viewer;
@@ -78,25 +77,18 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
         )}
       </View>
       <ItemList lines={breakdownLines(breakdown)} edge={edge} holdsDrag={fold !== undefined}>
-        {charges.length > 0 || unclaimed > 0 ? (
+        {charges.length > 0 ? (
           <View style={styles.tail}>
-            {charges.length > 0 ? (
-              <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
-                {charges.map((row) => (
-                  <View key={row.id} style={styles.row}>
-                    <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
-                      {row.name}
-                    </Text>
-                    <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {unclaimed > 0 ? (
-              <Text testID="unclaimed-items" style={[type.caption, styles.unclaimed, { color: c.muted }]}>
-                {say.unclaimedItems(unclaimed)}
-              </Text>
-            ) : null}
+            <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
+              {charges.map((row) => (
+                <View key={row.id} style={styles.row}>
+                  <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
+                    {row.name}
+                  </Text>
+                  <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
       </ItemList>
@@ -292,12 +284,11 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 46 },
   divided: { borderTopWidth: 1 },
   name: { flex: 1, minWidth: 0 },
-  // The list ends on a short row or the note, so this keeps their text clear of its edge fade once scrolled to the end.
+  // The list ends on a short row, so this keeps its text clear of the edge fade once scrolled to the end.
   tail: { paddingBottom: 8 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   rowLabel: { flexShrink: 1 },
-  unclaimed: { marginTop: 8, marginHorizontal: 2 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: rowGap, paddingTop: 14, borderTopWidth: 1 },
   note: { marginTop: 6, marginHorizontal: 2 },
   foldedNote: { marginHorizontal: 2 },

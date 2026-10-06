@@ -488,6 +488,8 @@ export async function picked(page: Page, people = table, receipt: object = dinne
 
 async function expanded(page: Page) {
   await picked(page);
+  await tap(page.getByRole("button", { name: "Rice, check for Jason" }));
+  await page.locator('[aria-label="Rice, check for Jason"][aria-pressed="true"]').waitFor();
   await tap(page.getByTestId("owe"));
   await page.getByTestId("breakdown").waitFor();
   await still(sheet(page));
