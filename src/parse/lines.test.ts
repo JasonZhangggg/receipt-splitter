@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { TextBox } from "../ocr/types";
+import type { Point, TextBox } from "../ocr/types";
 import { box, receiptRows } from "./fixtures/boxes";
 import { classifyLines } from "./lines";
 import { groupRows } from "./rows";
@@ -264,5 +264,14 @@ describe("groupRows", () => {
     const rows = groupRows([at("Chicken", 20, 0), at("Seasoned French Fries", 20, 7), at("Sandwich", 120, 9)]);
 
     expect(rows.map(({ text }) => text)).toEqual(["Chicken Sandwich", "Seasoned French Fries"]);
+  });
+
+  test("reads a photo taken sideways or upside down in the order of its text", () => {
+    const lines = [box("Burger", 20, 0), box("12.00", 400, 0), box("Fries", 20, 1), box("4.00", 400, 1)];
+    const turned = (turn: (point: Point) => Point) => lines.map(({ text, corners }) => ({ text, corners: corners.map(turn) as unknown as TextBox["corners"] }));
+
+    expect(groupRows(turned(({ x, y }) => ({ x: 1000 - y, y: x }))).map(({ text }) => text)).toEqual(["Burger 12.00", "Fries 4.00"]);
+    expect(groupRows(turned(({ x, y }) => ({ x: 1000 - x, y: 1000 - y }))).map(({ text }) => text)).toEqual(["Burger 12.00", "Fries 4.00"]);
+    expect(groupRows(turned(({ x, y }) => ({ x: y, y: 1000 - x }))).map(({ text }) => text)).toEqual(["Burger 12.00", "Fries 4.00"]);
   });
 });
