@@ -50,7 +50,8 @@ for (const width of [390, 1440]) {
     await context.route("**/ort/**", (route) => route.abort());
     const page = await context.newPage();
     await page.goto(await createSplit(context));
-    await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+    const picker = width === 390 ? page.getByRole("dialog", { name: "Which one are you?" }) : page.getByRole("complementary");
+    await picker.getByRole("button", { name: "Sam", exact: true }).click();
     await page.getByRole("button", { name: "Sam, you", exact: true }).waitFor();
     await page.getByRole("button", { name: "Gameplay, check for Sam" }).click();
     await page.evaluate(() => document.fonts.ready);
