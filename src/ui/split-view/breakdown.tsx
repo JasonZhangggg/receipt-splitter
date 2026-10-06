@@ -64,7 +64,14 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   const above = (
     <>
       <View style={styles.head}>
-        <Text style={[type.caption, { color: c.muted }]}>{say.items(items.reduce((units, { quantity = 1 }) => units + quantity, 0))}</Text>
+        <View style={styles.counts}>
+          <Text style={[type.caption, { color: c.muted }]}>{say.items(items.reduce((units, { quantity = 1 }) => units + quantity, 0))}</Text>
+          {unclaimed > 0 ? (
+            <Text testID="unclaimed-items" numberOfLines={1} style={[type.caption, styles.rowLabel, { color: c.muted }]}>
+              {`· ${say.unclaimedItems(unclaimed)}`}
+            </Text>
+          ) : null}
+        </View>
         {isHost ? null : paid ? (
           <View style={[styles.status, { backgroundColor: c.action }]}>
             <Icon name="check" size={15} color={c.onAction} />
@@ -77,24 +84,20 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
           </View>
         )}
       </View>
-      <ItemList lines={breakdownLines(breakdown)} edge={edge} holdsDrag={fold !== undefined} />
-      {charges.length > 0 ? (
-        <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
-          {charges.map((row) => (
-            <View key={row.id} style={styles.row}>
-              <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
-                {row.name}
-              </Text>
-              <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-      {unclaimed > 0 ? (
-        <Text testID="unclaimed-items" style={[type.caption, styles.unclaimed, { color: c.muted }]}>
-          {say.unclaimedItems(unclaimed)}
-        </Text>
-      ) : null}
+      <ItemList lines={breakdownLines(breakdown)} edge={edge} holdsDrag={fold !== undefined}>
+        {charges.length > 0 ? (
+          <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
+            {charges.map((row) => (
+              <View key={row.id} style={styles.row}>
+                <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
+                  {row.name}
+                </Text>
+                <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </ItemList>
     </>
   );
   const below = (
@@ -227,7 +230,8 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
   );
 }
 
-function ItemList({ lines, edge, holdsDrag }: { lines: ReturnType<typeof breakdownLines>; edge: number; holdsDrag: boolean }) {
+/** The Items, then `children` (the share's tax, tip, fees and discounts), scroll as one list. */
+function ItemList({ lines, edge, holdsDrag, children }: { lines: ReturnType<typeof breakdownLines>; edge: number; holdsDrag: boolean; children: ReactNode }) {
   const c = useColors();
   const box = useRef(0);
   const content = useRef(0);
@@ -257,6 +261,7 @@ function ItemList({ lines, edge, holdsDrag }: { lines: ReturnType<typeof breakdo
           <Text style={[type.item, tabular, { color: c.ink }]}>{groupedAmount(line.portion)}</Text>
         </View>
       ))}
+      {children}
     </ScrollView>
   );
 }
@@ -279,16 +284,17 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   grow: { flex: 1 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26, marginHorizontal: 2, marginBottom: 4 },
+  counts: { flexDirection: "row", gap: 4, flexShrink: 1, minWidth: 0 },
   status: { flexDirection: "row", alignItems: "center", gap: 4, height: 26, paddingLeft: 7, paddingRight: 10, borderRadius: 13 },
   strong: { fontWeight: "500" },
   list: { flexGrow: 0, flexShrink: 1 },
   line: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 46 },
   divided: { borderTopWidth: 1 },
   name: { flex: 1, minWidth: 0 },
-  adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
+  // The bottom padding keeps the last row clear of the list's edge fade once scrolled to the end.
+  adjustments: { marginTop: 8, paddingTop: 8, paddingBottom: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   rowLabel: { flexShrink: 1 },
-  unclaimed: { marginTop: 8, marginHorizontal: 2 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: rowGap, paddingTop: 14, borderTopWidth: 1 },
   note: { marginTop: 6, marginHorizontal: 2 },
   foldedNote: { marginHorizontal: 2 },
