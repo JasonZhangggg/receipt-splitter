@@ -104,7 +104,7 @@ export type BundleRow = {
   readonly net: number;
 };
 
-export type ReceiptRow = { readonly kind: "item"; readonly item: SplitItem } | { readonly kind: "bundle"; readonly bundle: BundleRow };
+export type ReceiptRow = { readonly kind: "item"; readonly id: ItemId; readonly item: SplitItem } | { readonly kind: "bundle"; readonly id: AdjustmentId; readonly bundle: BundleRow };
 
 type BundleDiscount = Extract<Adjustment, { readonly kind: "bundleDiscount" }>;
 
@@ -118,8 +118,8 @@ export function receiptRows(receipt: Receipt<SplitItem>): { readonly rows: reado
   });
   const rows = receipt.items.flatMap((item): ReceiptRow[] => {
     const bundle = bundles.find(({ items }) => items.some(({ id }) => id === item.id));
-    if (!bundle) return [{ kind: "item", item }];
-    return bundle.items[0].id === item.id ? [{ kind: "bundle", bundle }] : [];
+    if (!bundle) return [{ kind: "item", id: item.id, item }];
+    return bundle.items[0].id === item.id ? [{ kind: "bundle", id: bundle.id, bundle }] : [];
   });
   return { rows, charges: receipt.adjustments.filter((row) => !isBundle(row)) };
 }
@@ -181,4 +181,20 @@ export function lineAmounts({ price, split }: SplitItem): { readonly participant
     left -= 1;
   }
   return floors.map(({ participantId, cents }) => ({ participantId, cents }));
+}
+
+export type Kept<Row> = { readonly row: Row; readonly gone: boolean };
+
+/** The rows, with each one the list dropped kept where it stood, marked gone, so it can leave in place. */
+export function keepInPlace<Row extends { readonly id: string }>(was: readonly Kept<Row>[], rows: readonly Row[]): Kept<Row>[] {
+  const at = new Map(rows.map(({ id }, index) => [id, index]));
+  const next: Kept<Row>[] = [];
+  let taken = 0;
+  for (const { row } of was) {
+    const index = at.get(row.id);
+    if (index === undefined) next.push({ row, gone: true });
+    else for (; taken <= index; taken += 1) next.push({ row: rows[taken], gone: false });
+  }
+  for (; taken < rows.length; taken += 1) next.push({ row: rows[taken], gone: false });
+  return next;
 }

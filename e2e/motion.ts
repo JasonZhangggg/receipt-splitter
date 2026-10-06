@@ -811,6 +811,42 @@ const chargeDelete: Scenario = {
   ],
 };
 
+const deleteItem = (page: Page) => tap(page.getByTestId("item-sheet").getByRole("button", { name: "Delete item" }));
+const leaving = (id: string) => `document.querySelector('[data-testid="line-${id}"]')?.parentElement ?? null`;
+
+const itemDelete: Scenario = {
+  id: "item-delete",
+  name: "Delete item: the row collapses out and the rows under it slide up",
+  setup: async (page) => {
+    await picked(page);
+    await tap(page.getByRole("button", { name: /^Open Tostones/ }));
+    await still(page.getByTestId("item-sheet"));
+  },
+  act: deleteItem,
+  quietMs: 800,
+  probes: [
+    { key: "rowFade", find: leaving("tostones"), kind: "opacity" },
+    { key: "bundle", find: testId("bundle-bucket"), kind: "top" },
+    { key: "addRow", find: label("Add item"), kind: "top" },
+  ],
+};
+
+const bundleItemDelete: Scenario = {
+  id: "bundle-item-delete",
+  name: "Delete a Bundle's line: the row collapses out of the open Bundle and the rows under it slide up",
+  setup: async (page) => {
+    await bundleOpen(page);
+    await tap(page.getByRole("button", { name: /^Open Sprite/ }));
+    await still(page.getByTestId("item-sheet"));
+  },
+  act: deleteItem,
+  quietMs: 800,
+  probes: [
+    { key: "rowFade", find: leaving("sprite"), kind: "opacity" },
+    { key: "addRow", find: label("Add item"), kind: "top" },
+  ],
+};
+
 const itemOpenScenario: Scenario = {
   id: "item-open",
   name: "Item sheet opens",
@@ -938,6 +974,8 @@ const sheetAndHome: Scenario[] = [
   addOpenScenario,
   addRowScenario,
   chargeDelete,
+  itemDelete,
+  bundleItemDelete,
   photoOpen,
   {
     id: "photo-close",
@@ -955,6 +993,7 @@ const sheetAndHome: Scenario[] = [
   reduced(splitRows),
   reduced(addRowScenario),
   reduced(chargeDelete),
+  reduced(itemDelete),
   reduced(photoOpen),
   {
     id: "reduced-collapse-drag",

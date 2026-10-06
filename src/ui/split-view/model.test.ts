@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { shareBreakdown } from "../../core/shares";
-import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedLines, unclaimedUnits } from "./model";
+import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedLines, unclaimedUnits } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -55,6 +55,29 @@ describe("linesNear", () => {
   test("lists the lines after the gone one, then the ones before it from nearest, and nothing for a line it never had", () => {
     const order = ["a", "b", "c", "d"].map(itemId);
     expect([linesNear(order, itemId("b")), linesNear(order, itemId("d")), linesNear(order, itemId("z"))]).toEqual([["c", "d", "a"], ["c", "b", "a"], []]);
+  });
+});
+
+describe("keepInPlace", () => {
+  const rows = (...ids: string[]) => ids.map((id) => ({ id }));
+  const shown = (...ids: string[]) => ids.map((id) => ({ row: { id: id.replace("-", "") }, gone: id.startsWith("-") }));
+  const read = (kept: readonly { row: { id: string }; gone: boolean }[]) => kept.map(({ row, gone }) => (gone ? `-${row.id}` : row.id));
+
+  test("keeps a dropped row where it stood, marked gone, between the rows that were around it", () => {
+    expect(read(keepInPlace(shown("a", "b", "c"), rows("a", "c")))).toEqual(["a", "-b", "c"]);
+  });
+
+  test("keeps both rows of a fast double delete in place, the first still leaving when the second goes", () => {
+    expect(read(keepInPlace(shown("a", "-b", "c", "d"), rows("a", "d")))).toEqual(["a", "-b", "-c", "d"]);
+  });
+
+  test("brings a leaving row back in place when an undo restores it", () => {
+    expect(read(keepInPlace(shown("a", "-b", "c"), rows("a", "b", "c")))).toEqual(["a", "b", "c"]);
+  });
+
+  test("shows the rows the list now has with their new values, and the gone row with the values it last had", () => {
+    const kept = keepInPlace([{ row: { id: "a", price: 1 }, gone: false }, { row: { id: "b", price: 2 }, gone: false }], [{ id: "b", price: 5 }, { id: "c", price: 7 }]);
+    expect(kept).toEqual([{ row: { id: "a", price: 1 }, gone: true }, { row: { id: "b", price: 5 }, gone: false }, { row: { id: "c", price: 7 }, gone: false }]);
   });
 });
 
@@ -140,6 +163,19 @@ describe("receiptRows at Topgolf", () => {
       ["Beer Bucket", "6 items · 10% off", 4171, ["1x ultra2 629", "2x guinness2 1458", "1x pineapple2 849", "2x watermelon2 1698"], { label: "Discount (10%)", amount: -463 }, 6],
     ]);
     expect(receiptRows(topgolf()).charges.map(({ name }) => name)).toEqual(["Tax", "Tip"]);
+  });
+
+  test("keeps a deleted Gameplay row in place above both Beer Buckets, and a Bucket whose last line goes leaves as one row", () => {
+    const shownRows = (receipt: Receipt<SplitItem>) => receiptRows(receipt).rows.map((row) => ({ row, gone: false }));
+    const without = (receipt: Receipt<SplitItem>, ...gone: string[]): Receipt<SplitItem> => {
+      const [first, ...rest] = receipt.items.filter(({ id }) => !gone.includes(id));
+      if (!first) throw new Error("the test deleted every line");
+      const adjustments = receipt.adjustments.filter((row) => row.kind !== "bundleDiscount" || row.bundle.items.some((id) => !gone.includes(id)));
+      return { ...receipt, items: [first, ...rest], adjustments };
+    };
+    const ids = (receipt: Receipt<SplitItem>, ...gone: string[]) => keepInPlace(shownRows(receipt), receiptRows(without(receipt, ...gone)).rows).map(({ row, gone }) => `${gone ? "-" : ""}${row.kind} ${row.id}`);
+    expect(ids(topgolf(), "gameplay")).toEqual(["-item gameplay", "bundle bucket1", "bundle bucket2"]);
+    expect(ids(topgolf(), "ultra1", "guinness1", "pineapple1", "watermelon1")).toEqual(["item gameplay", "-bundle bucket1", "bundle bucket2"]);
   });
 
   test("gives a line of three at $10.00 one row at its full price", () => {
