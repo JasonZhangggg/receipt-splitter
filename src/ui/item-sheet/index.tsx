@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
@@ -185,7 +185,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     flush();
     void send({ by: me, type: on ? "unclaim" : "claim", itemId, participantId });
   };
+  // Close never takes focus, so a held sheet keeps its field and the keyboard. A closing sheet drops the keyboard as it leaves.
   const close = () => {
+    if (!holds()) Keyboard.dismiss();
     flush();
     onClose();
   };
@@ -222,7 +224,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
         <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
           {say.item}
         </Text>
-        <PressTarget name={say.close} outsideScroll onPress={close} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
+        <PressTarget name={say.close} outsideScroll keepsFocus onPress={close} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
           {() => (
             <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
               <Icon name="x" size={16} color={c.ink} />
