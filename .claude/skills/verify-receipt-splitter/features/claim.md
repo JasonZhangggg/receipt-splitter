@@ -9,7 +9,7 @@ The Split page `/s/<id>` shows the Receipt as a card and a bottom sheet. A devic
 - `claim-browse` closes the tall sheet without a pick, and a tap on a circle asks again.
 - `claim-check` checks a line for the selected chip, and every browser shows the claimers and Shares.
 - `claim-item` edits the name, price, who had the line, and the split mode in the Item sheet, and **Delete item** removes the line.
-- `claim-breakdown` shows a person's Items, their parts of each Adjustment, the count of unclaimed lines, their total, and Paid or Not paid. On the phone it folds into the share bar, and on desktop it fills the right pane; in both only the Item list scrolls.
+- `claim-breakdown` shows a person's Items, their parts of each Adjustment, the count of unclaimed lines, their total, and Paid or Not paid. On the phone it folds into the share bar, and on desktop it fills the right pane. In both, the Items and the Adjustment rows under them scroll as one list, and the unclaimed count sits beside the Item count above it. Only the people, the share row and the pay pills stay still. `e2e/sheet.spec.ts` checks that with two ways to pay on a 375 by 667 phone the list is at least three rows (138 px) tall and reaches Tip by scrolling.
 - `claim-paid` marks the payer paid with **I already paid**.
 - `claim-history` lists Payments and Receipt changes, reverts one with a confirmation for another device's change, and restores the Receipt.
 - `claim-mismatch` shows a muted note above the Subtotal while the Total check fails, such as "Items are $0.25 over the subtotal." It blocks nothing.
