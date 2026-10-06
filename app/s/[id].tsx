@@ -7,13 +7,15 @@ import { cents } from "../../src/core/money";
 import type { Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
-import { isRoutableSplitId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
+import { isRoutableSplitId, type AdjustmentId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { Swap } from "../../src/ui/components/swap";
+import { AddAdjustmentSheet, AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
+import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
@@ -76,14 +78,25 @@ function Gone({ reason }: { reason: GoneReason }) {
 }
 
 type Phase = "pick" | "collapsing" | "regular";
-type OverlayKind = { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] } | { readonly kind: "add" } | { readonly kind: "history" };
+type OverlayKind =
+  | { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] }
+  | { readonly kind: "add" }
+  | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
+  | { readonly kind: "addAdjustment" }
+  | { readonly kind: "history" };
 /** What is open over the page and the press that opened it: the popover hangs from its trigger, and focus goes back there. */
 type Overlay = OverlayKind & { readonly from: Press };
 /** The right pane shows the pick content until this device has picked, then that person's share. */
 type PaneView = "pick" | "share";
 type Send = ReturnType<typeof useLiveSplit>["send"];
 
-const overlayLabel = { item: say.item, add: say.newItem, history: say.history } as const;
+/** An Adjustment's sheet is named for its saved kind; its heading follows a kind switch at once. */
+const overlayLabel = (overlay: OverlayKind, split: Split) =>
+  overlay.kind === "adjustment"
+    ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
+      ? say.discount
+      : say.charge
+    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
 const crossFadeFor = 200;
@@ -190,12 +203,21 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
 
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
-  const closeOverlay = () => setClosing(true);
+  const closeGuard = useRef<CloseGuard | null>(null);
+  const closeOverlay = () => {
+    if (!closeGuard.current?.()) setClosing(true);
+  };
   const overlayGone = () => {
     setOverlay(null);
     setClosing(false);
     if (!overlay || !(wide || overlay.from.keyboard)) return;
-    const trigger = overlay.from.trigger.isConnected ? overlay.from.trigger : overlay.kind === "item" ? nearestLine(split, overlay.lines, overlay.itemId) : null;
+    const trigger = overlay.from.trigger.isConnected
+      ? overlay.from.trigger
+      : overlay.kind === "item"
+        ? nearestLine(split, overlay.lines, overlay.itemId)
+        : overlay.kind === "adjustment"
+          ? document.querySelector<HTMLElement>(`[aria-label="${say.addAdjustment}"]`)
+          : null;
     trigger?.focus({ preventScroll: true });
   };
   useEscape(overlay !== null && !closing && !wide, closeOverlay);
@@ -269,6 +291,10 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       />
     ) : overlay.kind === "add" ? (
       <AddItemSheet split={split} me={me} send={send} onClose={closeOverlay} />
+    ) : overlay.kind === "adjustment" ? (
+      <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
+    ) : overlay.kind === "addAdjustment" ? (
+      <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : (
       <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
@@ -312,7 +338,17 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       onCircle={(item) => void onCircle(item)}
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
-      showing={showingNow?.kind === "item" ? showingNow.itemId : showingNow?.kind === "add" ? "add" : null}
+      onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
+      onAddAdjustment={(from) => open({ kind: "addAdjustment" }, from)}
+      showing={
+        showingNow?.kind === "item"
+          ? showingNow.itemId
+          : showingNow?.kind === "adjustment"
+            ? showingNow.adjustmentId
+            : showingNow?.kind === "add" || showingNow?.kind === "addAdjustment"
+              ? showingNow.kind
+              : null
+      }
     />
   );
   const header = <SplitHeader onReceipt={photo ? () => setViewing(true) : undefined} onHistory={(from) => open({ kind: "history" }, from)} historyOpen={showingNow?.kind === "history"} onShare={() => void share()} />;
@@ -359,11 +395,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         </BottomSheet>
       )}
       {overlay && wide ? (
-        <Popover anchor={overlay.from.trigger} label={overlayLabel[overlay.kind]} instant={overlay.from.keyboard} closing={closing} onClose={closeOverlay} onGone={overlayGone}>
+        <Popover anchor={overlay.from.trigger} label={overlayLabel(overlay, split)} instant={overlay.from.keyboard} closing={closing} onClose={closeOverlay} onGone={overlayGone}>
           {overlayContent}
         </Popover>
       ) : overlay ? (
-        <BottomSheet scrim label={overlayLabel[overlay.kind]} onDown={overlayGone} closing={closing} testID={`${overlay.kind}-sheet`}>
+        <BottomSheet scrim label={overlayLabel(overlay, split)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlayContent}
         </BottomSheet>
       ) : null}

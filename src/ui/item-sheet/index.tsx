@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { price as toPrice } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
-import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem, type SplitMode } from "../../core/split";
+import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem } from "../../core/split";
 import { money, parseAmount, plainAmount } from "../../draft";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
@@ -301,6 +301,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       </View>
       <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.split}</Text>
       <Segments
+        options={SPLIT_MODES}
+        labels={say.modes}
+        name={say.split}
         value={item.split.by}
         onChange={(by) => {
           if (by !== item.split.by) setFade({ from: opacityOf(incomingRef.current), left: msLeft(leavingRef.current) });
@@ -397,27 +400,35 @@ function SumLine({ item: { split, price } }: { item: SplitItem }) {
   );
 }
 
-function Segments({ value, onChange }: { value: SplitMode; onChange: (mode: SplitMode) => void }) {
+type SegmentsProps<Option extends string> = {
+  options: readonly Option[];
+  labels: { readonly [Key in Option]: string };
+  name: string;
+  value: Option;
+  onChange: (option: Option) => void;
+};
+
+export function Segments<Option extends string>({ options, labels, name, value, onChange }: SegmentsProps<Option>) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const index = SPLIT_MODES.indexOf(value);
+  const index = options.indexOf(value);
   return (
     <View style={[styles.segments, { backgroundColor: c.sheetIn }]}>
-      <View role="group" aria-label={say.split} style={styles.segmentTrack}>
+      <View role="group" aria-label={name} style={styles.segmentTrack}>
       <View
         pointerEvents="none"
         style={[
           styles.thumb,
-          { backgroundColor: c.segment, transform: [{ translateX: `${index * 100}%` }] },
+          { width: `${100 / options.length}%`, backgroundColor: c.segment, transform: [{ translateX: `${index * 100}%` }] },
           Platform.OS === "web" && !reduce && slide,
           { boxShadow: c.segmentShadow },
         ]}
       />
-      {SPLIT_MODES.map((mode) => (
-        <PressTarget key={mode} name={say.modes[mode]} toggled={mode === value} outsideScroll onPress={() => onChange(mode)} style={() => styles.segment}>
+      {options.map((option) => (
+        <PressTarget key={option} name={labels[option]} toggled={option === value} outsideScroll onPress={() => onChange(option)} style={() => styles.segment}>
           {() => (
             <View style={styles.segmentFace}>
-              <Text style={[type.label, { color: mode === value ? c.ink : c.muted }]}>{say.modes[mode]}</Text>
+              <Text style={[type.label, { color: option === value ? c.ink : c.muted }]}>{labels[option]}</Text>
             </View>
           )}
         </PressTarget>
@@ -498,7 +509,7 @@ const styles = StyleSheet.create({
   chipInput: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
   segments: { padding: 3, borderRadius: 14 },
   segmentTrack: { flexDirection: "row" },
-  thumb: { position: "absolute", top: 0, bottom: 0, left: 0, width: "33.333%", borderRadius: 11 },
+  thumb: { position: "absolute", top: 0, bottom: 0, left: 0, borderRadius: 11 },
   segment: { flex: 1 },
   segmentFace: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },

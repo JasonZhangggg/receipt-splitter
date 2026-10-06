@@ -51,6 +51,8 @@ type Props = {
   scrim?: boolean;
   /** A swipe down, or a tap on the scrim. */
   onDown?: () => void;
+  /** Asked before a swipe down or a scrim tap takes the sheet away; true settles it back, as for content holding an edit that cannot save. */
+  holds?: () => boolean;
   /** A swipe up. */
   onUp?: () => void;
   /** The owner swaps the content on onDown, so the sheet glides to the new height instead of out of view. */
@@ -76,7 +78,7 @@ type Props = {
 /** `resume` is where a sheet caught mid-glide was headed, so a touch that never drags lets it finish. */
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
-export function BottomSheet({ children, scrim = false, onDown, onUp, stays = false, closing = false, onHeight, view, header, fold, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
+export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stays = false, closing = false, onHeight, view, header, fold, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
@@ -148,6 +150,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
       return onDown?.();
     }
     if (leaving.current) return;
+    if (holds?.()) return settle(home, velocity);
     leaving.current = true;
     settle(tallest, velocity, onDown);
   };
@@ -180,8 +183,9 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
   };
 
   const onPointerDown = (event: PointerEvent) => {
-    const { pointerId, clientY, clientX, isPrimary } = event.nativeEvent;
-    if (drag.current || !gestures || !isPrimary || leaving.current) return;
+    const { pointerId, clientY, clientX } = event.nativeEvent;
+    // iOS never ends the touch that opens a field's edit menu. It sends no pointerup or pointercancel, and every later touch reports isPrimary false. So a new touch replaces the current drag unless that drag has already moved.
+    if (drag.current?.moved || !gestures || leaving.current) return;
     const onGrab = (event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]") != null;
     const onList = (event.target as unknown as HTMLElement).closest?.("[data-sheet-scroll]") != null;
     if ((scrolls && !onGrab) || onList) return;
@@ -189,7 +193,7 @@ export function BottomSheet({ children, scrim = false, onDown, onUp, stays = fal
     const at = live();
     const gliding = Math.abs(at - target) > 1;
     if (gliding) place(at, 0);
-    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: at, moved: false, resume: gliding ? target : null, samples: [{ y: clientY, t: event.timeStamp }] };
+    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: at, moved: false, resume: gliding ? target : (drag.current?.resume ?? null), samples: [{ y: clientY, t: event.timeStamp }] };
     // The grab bar holds no buttons, so it can take the pointer at once. A mouse, which has no implicit capture, would otherwise leave the sheet on the first move up.
     if (onGrab) (event.currentTarget as unknown as HTMLElement).setPointerCapture?.(pointerId);
   };

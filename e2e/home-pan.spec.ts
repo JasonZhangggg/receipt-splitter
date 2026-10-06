@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 import { blur, simulateKeyboard } from "./motion";
 
 test.use({ viewport: { width: 402, height: 714 }, serviceWorkers: "block" });
+// The real on-device read takes about 30 s on the Linux CI runner, so the 60 s wait below needs a test budget above it, as photo.spec.ts gives the same read.
+test.setTimeout(90_000);
 
 const keyboard = 336;
 // iOS 27 scrolled the window 166 px for the Venmo handle into the room the panel's fill left below the page, and left it there.

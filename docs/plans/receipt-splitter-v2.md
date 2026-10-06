@@ -1191,6 +1191,23 @@ Decisions.
 
 - [ ] Metric. Brotli bytes of every script `dist/index.html` loads. Probe `npm run size` at trunk and head. Rule. Fail on any growth over 2 KB.
 
+## Edit Adjustments on the Split page
+
+Anyone in the Split can fix a tax, tip, fee or discount the reading got wrong, delete one, or add a missing one, Bundle discounts included (preferences 75, 3). The core already takes `add`, `edit` and `delete` Adjustment patches with Undo; no page sent them.
+
+**Decisions.**
+
+- Every row under **Subtotal** opens its sheet on a phone and its popover on desktop, as an Item does (preferences 21). The row keeps its 34 px pitch with a 44 px tap target (preferences 20).
+- The sheet holds **Kind** (Tax, Tip, Fee, Discount), **Name**, **Amount**, and **Delete**. The amount is always typed as a positive number. A discount shows "Amount off" after "−$" and stores the amount below zero, so a sign is never typed and never lost. Switching the kind flips the sign. A Bundle discount has no Kind; its sheet names the Bundle its amount comes off, and its Items stay.
+- It saves as typed, 600 ms after the last change and on close, like the Item sheet. It sends only the fields typed in it, and the others show the row as it is now, so a fix from another phone to a field this sheet did not touch stays. An empty name says "Add a name." and saves nothing. History lists each save, and Revert asks first for someone else's (preferences 3).
+- **Add tax, tip or discount** is the block's last row. Its sheet is a form like **Add item**: nothing is sent until **Add tip** (the button names the kind). The kind starts at the first of Tax and Tip the receipt lacks. An empty name takes the kind's. It asks nothing else (preferences 70).
+- The Total. Every Adjustment change that moves an amount (an add, a delete, a new amount, or a switch between a charge and a discount) sends `totalFollows`; a rename leaves the Total alone. With it, the server sets the Total to the Subtotal plus the Adjustments on the Split it holds. When the receipt added up, the Total moves by the change (preferences 70). When the reading misread a tax, fixing it keeps the printed Total and clears the gray note (preferences 6). Because the server resolves it, two phones fixing different rows at once still leave a Total that adds up, which a delta sent from each phone would not. A change that takes the Total under $0.00 is refused with "That takes the total under $0.00."
+- Motion. An added row grows in with the receipt's `Grow` entrance. The sheets reuse the Item sheet's open and close. Nothing new animates.
+
+**Files.** `src/core/operations.ts`, `src/core/parse.ts`, `src/ui/adjustment-sheet/`, `src/ui/split-view/receipt-card.tsx`, `src/ui/item-sheet/index.tsx` (shared `Segments`), `src/ui/item-sheet/new-item.ts` (shared `readAmount`), `src/ui/split-copy.ts`, `app/s/[id].tsx`, `e2e/adjustments.spec.ts`, and `features/receipt.md` with `adjustment-shots.mjs` in `verify-receipt-splitter`.
+
+**Verify.** `src/core/operations.test.ts` covers `totalFollows` (moves with the change, keeps a printed Total a fix agrees with, two phones, Bundle discount, Revert, conflict with `totalDelta`, the wire). `src/ui/adjustment-sheet/adjustment.test.ts` covers the edit and add building with literal operations. `e2e/adjustments.spec.ts` covers a tax edit with every Share and the Total on two phones, an added tip, a deleted discount, a Bundle discount, Revert from the other phone, and the desktop popover. Screenshots at 390 and 1440 px, light and dark.
+
 ## Close the program
 
 - [ ] Every box above is checked with its evidence.
