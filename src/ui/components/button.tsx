@@ -24,19 +24,28 @@ type TargetProps = Action & {
   expanded?: boolean;
   popup?: "dialog";
   controls?: string;
-  /** The finger or button landing, before the press moves focus. */
-  onPressIn?: () => void;
+  /** A press leaves focus where it is, so a focused field keeps the keyboard up. Keys and screen readers still press it. */
+  keepsFocus?: boolean;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;
 };
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, onPressIn, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
+export function PressTarget({ onPress, keepsFocus = false, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   const self = useRef<View>(null);
   if (disabled && held) setHeld(false);
-  const web = Platform.OS === "web" ? { dataSet: { pressable: "" }, delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay, ...(href === undefined ? {} : { href, hrefAttrs: newTab }) } : {};
+  const web =
+    Platform.OS === "web"
+      ? {
+          dataSet: { pressable: "" },
+          delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay,
+          ...(href === undefined ? {} : { href, hrefAttrs: newTab }),
+          // Focus moves in mousedown's default action, which iOS fires after the finger lifts. Preventing it keeps focus and still fires click.
+          ...(keepsFocus ? { onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() } : {}),
+        }
+      : {};
   return (
     <Pressable
       ref={self}
@@ -49,10 +58,7 @@ export function PressTarget({ onPress, onPressIn, href, fallbackHref, name, outs
       aria-haspopup={popup}
       aria-controls={controls}
       disabled={disabled}
-      onPressIn={() => {
-        setHeld(!disabled);
-        if (!disabled) onPressIn?.();
-      }}
+      onPressIn={() => setHeld(!disabled)}
       onPressOut={() => setHeld(false)}
       onPress={(event) => {
         if (disabled) return;

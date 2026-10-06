@@ -129,20 +129,32 @@ test("an amount typed as 4 reads 4.00 after Done, and the Total follows it", asy
   await expect(priya.getByTestId("total")).toHaveText("$22.00", live);
 });
 
-test("a discount that would take the Total under $0.00 keeps its sheet open on the problem through Close, the scrim, Escape and a swipe, and only Close hands focus back", async ({ browser, request }, { workerIndex }) => {
+test("a discount that would take the Total under $0.00 keeps its sheet open on the problem through Close, the scrim, Escape and a swipe, and Close never takes focus from the field", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Coupon, -$2.00" }).click();
   const sheet = dialog(sam, "Discount");
   const amount = amountIn(sam, "Discount", "Amount off");
   await expect(sheet.getByText("-$", { exact: true })).toBeVisible();
   await amount.fill("50");
+  const blurs = await amount.evaluateHandle((input) => {
+    const seen: string[] = [];
+    input.addEventListener("blur", () => seen.push("blur"));
+    return seen;
+  });
 
-  await closeSheet(sam, "Discount");
-  await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
-  await expect(amount).toBeFocused();
-  await expect(amount).toHaveValue("50.00");
+  for (let press = 0; press < 2; press += 1) {
+    await closeSheet(sam, "Discount");
+    await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
+    await expect(amount).toBeFocused();
+  }
+  expect(await blurs.jsonValue()).toEqual([]);
+  await expect(amount).toHaveValue("50");
   await sam.mouse.click(phone.width / 2, 40);
   await expect(amount).not.toBeFocused();
+  await expect(amount).toHaveValue("50.00");
+  await sheet.getByRole("button", { name: "Close", exact: true }).press("Enter");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
   await sam.keyboard.press("Escape");
   await expect(sheet).toBeVisible();
   await expect(amount).not.toBeFocused();

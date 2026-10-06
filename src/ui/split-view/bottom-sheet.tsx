@@ -184,7 +184,7 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
 
   const onPointerDown = (event: PointerEvent) => {
     const { pointerId, clientY, clientX } = event.nativeEvent;
-    // iOS never ends the touch that opens a field's edit menu: no pointerup or pointercancel comes, and every later touch reports isPrimary false. So only a finger already dragging the sheet keeps it, and any other touch starts a new drag.
+    // iOS never ends the touch that opens a field's edit menu. It sends no pointerup or pointercancel, and every later touch reports isPrimary false. So a new touch replaces the current drag unless that drag has already moved.
     if (drag.current?.moved || !gestures || leaving.current) return;
     const onGrab = (event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]") != null;
     const onList = (event.target as unknown as HTMLElement).closest?.("[data-sheet-scroll]") != null;
