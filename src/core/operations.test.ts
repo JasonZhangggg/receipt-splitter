@@ -10,6 +10,7 @@ import {
   checkSplit,
   claimersOf,
   createSplit,
+  type AdjustmentPatch,
   type Auth,
   type ItemPatch,
   type NewSplit,
@@ -2213,5 +2214,76 @@ describe("adding an Item with who had it", () => {
 
     expect(added.receipt.items.at(-1)).toMatchObject({ id: tea, name: "Fries", split: { by: "even", units: [[priya]] } });
     expect(added.receipt.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? row.bundle.items : []))).toEqual([...bucketOne, ...bucketTwo]);
+  });
+});
+
+describe("an Adjustment edit with the Total following", () => {
+  const tax = adjustmentId("tax");
+  const tip = adjustmentId("tip");
+  const bucket = adjustmentId("bucket1");
+  const fix = (by: ParticipantId, ...adjustments: AdjustmentPatch[]): Operation => ({ by, type: "editReceipt", adjustments, totalFollows: true });
+  const totals = ({ receipt }: Split) => [receipt.subtotal, receipt.total];
+  const misread = () => created({ ...dinner, adjustments: [{ id: tax, kind: "tax", name: "Tax", amount: cents(300) }], total: cents(6000) });
+
+  test("moves the Total by the change when the receipt added up, and the Shares add up to it", () => {
+    const split = apply(topgolf({ ...eachOf(bucketOne, jason), ...eachOf(bucketTwo, priya) }), fix(jason, { type: "edit", adjustmentId: tax, amount: cents(600) }));
+    const { shares, unclaimed } = computeShares(split);
+
+    expect(totals(split)).toEqual([17923, 20835]);
+    expect(shares.reduce((sum: number, { share }) => sum + share, unclaimed.total)).toBe(20835);
+  });
+
+  test("keeps the printed Total when the edit fixes a misread tax, so the Total check passes", () => {
+    expect(runTotalCheck(misread().receipt).ok).toBe(false);
+
+    const split = apply(misread(), fix(ann, { type: "edit", adjustmentId: tax, amount: cents(800) }));
+
+    expect(totals(split)).toEqual([5200, 6000]);
+    expect(runTotalCheck(split.receipt)).toEqual({ ok: true });
+  });
+
+  test("adds up after two phones fix different Adjustments from the same Split", () => {
+    const fromJason = fix(jason, { type: "edit", adjustmentId: tax, amount: cents(600) });
+    const fromPriya = fix(priya, { type: "edit", adjustmentId: tip, amount: cents(3000) });
+
+    expect(totals(apply(topgolf(), fromJason, fromPriya))).toEqual([17923, 20609]);
+  });
+
+  test("adds a fee, deletes a Bundle discount and edits one, each moving the Total by its amount", () => {
+    const fee = { id: adjustmentId("fee"), kind: "serviceCharge" as const, name: "Bag fee", amount: cents(10) };
+    const added = apply(topgolf(), fix(jason, { type: "add", adjustment: fee, index: 4 }));
+    const deleted = apply(topgolf(), fix(jason, { type: "delete", adjustmentId: bucket }));
+    const edited = apply(topgolf(), fix(jason, { type: "edit", adjustmentId: bucket, name: "Beer Bucket Discount (12%)", amount: cents(-500) }));
+
+    expect(totals(added)).toEqual([17923, 20739]);
+    expect(totals(deleted)).toEqual([17923, 21180]);
+    expect(totals(edited)).toEqual([17923, 20680]);
+    expect(edited.receipt.adjustments[0]).toMatchObject({ id: bucket, kind: "bundleDiscount", name: "Beer Bucket Discount (12%)", amount: -500, bundle: { items: [...bucketOne] } });
+  });
+
+  test("is one History change whose Revert puts back the amount and the Total", () => {
+    const before = apply(misread(), { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } });
+    const split = apply(before, fix(bob, { type: "edit", adjustmentId: tax, amount: cents(900) }));
+    const reverted = apply(split, { by: ann, type: "undo", revision: split.revision });
+
+    expect(split.recentChanges.at(-1)?.writes).toEqual([
+      { kind: "adjustment", id: tax, edit: { amount: [300, 900] } },
+      { kind: "totals", subtotalDelta: 0, totalDelta: 100 },
+    ]);
+    expect(reverted.receipt).toEqual(before.receipt);
+  });
+
+  test("refuses a Total delta sent with it as a conflict, and a discount that takes the Total under zero", () => {
+    const promo = (amount: number) => ({ type: "add" as const, adjustment: { id: adjustmentId("promo"), kind: "discount" as const, name: "Promo", amount: cents(amount) }, index: 0 });
+
+    expect(reasonFor(created(), { by: ann, type: "editReceipt", adjustments: [promo(-100)], totalFollows: true, totalDelta: cents(-100) })).toBe("conflict");
+    expect(reasonFor(created(), fix(ann, promo(-5300)))).toBe("negativeTotal");
+  });
+
+  test("reads totalFollows from the wire only as true", () => {
+    const wire = { by: "ann", type: "editReceipt", adjustments: [{ type: "delete", adjustmentId: "tax" }] };
+
+    expect(parseOperation({ ...wire, totalFollows: true })).toEqual({ ok: true, op: { ...wire, totalFollows: true } });
+    expect(parseOperation({ ...wire, totalFollows: false })).toEqual({ ok: false, rejection: { reason: "malformed", path: "totalFollows" } });
   });
 });

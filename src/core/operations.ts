@@ -97,6 +97,11 @@ export type Operation = (
       readonly adjustments?: readonly AdjustmentPatch[];
       readonly subtotalDelta?: Cents;
       readonly totalDelta?: Cents;
+      /**
+       * Sets the Total to the Subtotal plus the Adjustments once the patches apply, on the Split as the server holds it.
+       * Two phones fixing different Adjustments at once still leave a Total that adds up, which a delta sent from each could not.
+       */
+      readonly totalFollows?: true;
     }
   | { readonly type: "addParticipant"; readonly participant: Participant }
   | { readonly type: "removeParticipant"; readonly participantId: ParticipantId }
@@ -181,14 +186,15 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
 function run(split: Split, op: Operation, auth: Auth): Step {
   switch (op.type) {
     case "editReceipt": {
-      const { items, adjustments, subtotalDelta, totalDelta } = op;
-      if (!items && !adjustments && subtotalDelta === undefined && totalDelta === undefined) return reject("emptyEdit");
+      const { items, adjustments, subtotalDelta, totalDelta, totalFollows } = op;
+      if (!items && !adjustments && subtotalDelta === undefined && totalDelta === undefined && !totalFollows) return reject("emptyEdit");
+      if (totalFollows && totalDelta !== undefined) return reject("conflict");
       return commit(split, [
         ...(items ?? []).map((patch): MakeWrites => (current) => itemWrites(current, patch)),
         ...(adjustments ?? []).map((patch): MakeWrites => (current) => adjustmentWrites(current, patch)),
-        () => {
+        ({ receipt }) => {
           const subtotal = subtotalDelta ?? cents(0);
-          const total = totalDelta ?? cents(0);
+          const total = totalFollows ? cents(receipt.subtotal + subtotal + adjustmentsSum(receipt) - receipt.total) : (totalDelta ?? cents(0));
           return subtotal === 0 && total === 0 ? [] : [{ kind: "totals", subtotalDelta: subtotal, totalDelta: total }];
         },
       ]);
@@ -573,6 +579,10 @@ function leaveBundle(split: Split, itemId: ItemId): readonly Write[] {
     if (first === undefined) return [ADJUSTMENT_ROWS.remove(row, index)];
     return [{ kind: "adjustment", id: row.id, edit: { bundle: [row.bundle, { ...row.bundle, items: [first, ...rest] }] } }];
   });
+}
+
+function adjustmentsSum({ adjustments }: Receipt): number {
+  return adjustments.reduce((sum, { amount }) => sum + amount, 0);
 }
 
 function adjustmentWrites(split: Split, patch: AdjustmentPatch): readonly Write[] | RejectionReason {

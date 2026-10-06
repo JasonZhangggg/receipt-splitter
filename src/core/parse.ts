@@ -523,6 +523,7 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
     ...maybe("adjustments", array(adjustmentPatch, MAX_ADJUSTMENTS)),
     ...maybe("subtotalDelta", cents),
     ...maybe("totalDelta", cents),
+    ...maybe("totalFollows", check((input): input is true => input === true)),
   })),
   addParticipant: op("addParticipant", ({ read }) => ({ participant: read("participant", participant) })),
   removeParticipant: op("removeParticipant", ({ read }) => ({ participantId: read("participantId", participantId) })),
