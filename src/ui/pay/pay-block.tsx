@@ -1,30 +1,34 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import type { Cents } from "../../core/money";
 import { handleText } from "../../core/operations";
 import { payLink } from "../../core/pay-links";
-import type { PaymentHandle } from "../../core/split";
+import type { PaymentHandle, PaymentService, SplitId } from "../../core/split";
+import { rememberSplit, splitOnDevice } from "../../device";
 import { money } from "../../draft";
-import { Button } from "../components/button";
+import { Button, PressTarget } from "../components/button";
+import { Icon } from "../components/icon";
 import { paymentApps } from "../home-copy";
+import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
+import { capsuleInset } from "./capsule";
+import { MethodPicker } from "./method-picker";
 import type { PayState } from "./model";
-import { ZelleCard, ZellePill } from "./zelle-card";
 
-type Props = { host: string; handles: readonly PaymentHandle[]; state: PayState; onPaid: (paid: boolean) => void };
+type Props = { split: SplitId; host: string; handles: readonly PaymentHandle[]; state: PayState; onPaid: (paid: boolean) => void };
 
 /** Venmo notes can be public, so the note stays generic. */
 const note = "Receipt split";
 const target = Platform.OS === "web" ? "web" : "app";
 
-export function PayBlock({ host, handles, state, onPaid }: Props) {
+export function PayBlock({ split, host, handles, state, onPaid }: Props) {
   if (state.kind === "nothing") return null;
   const due = state.kind === "unpaid" ? state.owe : state.kind === "short" ? state.rest : null;
   return (
     <View style={styles.box}>
-      {due === null ? null : <PayWays host={host} handles={handles} amount={due} />}
+      {due === null || handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={due} />}
       <View style={styles.center}>
         <Button
           kind="link"
@@ -37,58 +41,89 @@ export function PayBlock({ host, handles, state, onPaid }: Props) {
   );
 }
 
-function PayWays({ host, handles, amount }: { host: string; handles: readonly PaymentHandle[]; amount: Cents }) {
+function PayWays({ split, host, handles, amount }: { split: SplitId; host: string; handles: readonly PaymentHandle[]; amount: Cents }) {
   const c = useColors();
+  const reduce = useReducedMotion();
   const [problem, setProblem] = useState(false);
-  const [only] = handles;
-  if (handles.length === 1 && only.service === "zelle") return <ZelleCard host={host} handle={only.handle} amount={amount} />;
-  // Two or more ways share one row under the share, which already shows the amount, so each names only its app and the breakdown's list keeps its height. Three or more drop the app marks so all of them fit one row.
-  const row = handles.length > 1;
-  const marks = handles.length < 3;
+  const [picked, setPicked] = useState(() => splitOnDevice(split).payWith);
+  const handle = handles.find(({ service }) => service === picked) ?? handles[0];
+  const [copied, copy] = useCopy(handle.handle, () => setProblem(true));
+  const app = paymentApps[handle.service];
+  const due = money(amount);
+  const href = payLink(handle, amount, note, target);
+  const action = href === null ? { onPress: copy } : { href, fallbackHref: payLink(handle, amount, note, "web") ?? href };
+  const done = href === null && copied;
+  const choices = handles.map(({ service }) => service);
+  const pick = (service: PaymentService) => {
+    setPicked(service);
+    setProblem(false);
+    rememberSplit(split, { payWith: service });
+  };
   return (
     <View style={styles.ways}>
-      <View style={row ? styles.row : styles.ways}>
-        {handles.map((handle, index) => {
-          const app = paymentApps[handle.service];
-          const href = payLink(handle, amount, note, target);
-          const pill =
-            href === null ? (
-              <ZellePill host={host} handle={handle.handle} amount={amount} primary={index === 0} onFail={() => setProblem(true)} />
-            ) : (
-              <Button
-                kind={index === 0 ? "primary" : "soft"}
-                glyph={marks ? app.glyph : undefined}
-                label={row ? app.name : say.payOn(host, money(amount), app.name)}
-                name={say.payOn(host, money(amount), app.name)}
-                href={href}
-                fallbackHref={payLink(handle, amount, note, "web") ?? href}
-                outsideScroll
-                snug={row}
-              />
-            );
-          return (
-            <View key={handle.service} style={row && (marks ? styles.half : styles.fit)}>
-              {pill}
+      <View>
+        <PressTarget
+          {...action}
+          name={href !== null ? say.payOn(host, due, app.name) : done ? say.copied : say.copyToPayOnZelle(handle.handle, host, due)}
+          outsideScroll
+          style={(pressed) => pressStyle(pressed, reduce)}
+        >
+          {() => (
+            <View style={[styles.pill, choices.length > 1 && styles.picking, { backgroundColor: c.action }]}>
+              <View style={styles.say}>
+                {href === null ? <Icon name={done ? "check" : "copy"} size={18} color={c.onAction} /> : null}
+                <Text style={[type.button, styles.words, { color: c.onAction }]}>{done ? say.copied : choices.length > 1 ? say.payOnStart(host, due) : say.payOn(host, due, app.name)}</Text>
+              </View>
+              {choices.length > 1 ? <AppName service={handle.service} tint={c.onAction} /> : null}
             </View>
-          );
-        })}
+          )}
+        </PressTarget>
+        {choices.length > 1 ? (
+          <MethodPicker service={handle.service} choices={choices} onPick={pick} name={say.payWith}>
+            <AppName service={handle.service} tint={c.onAction} />
+          </MethodPicker>
+        ) : null}
       </View>
       {/* A long line breaks after a dot, never before one or between an app and its handle. */}
-      {handles.length > 0 ? (
-        <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((handle) => `${paymentApps[handle.service].name}\u00a0${handleText(handle)}`).join("\u00a0· ")}</Text>
-      ) : null}
+      <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((each) => `${paymentApps[each.service].name}\u00a0${handleText(each)}`).join("\u00a0· ")}</Text>
       {problem ? <Text style={[type.small, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );
 }
 
+/** The app's name on the pill, on a lighter capsule with a chevron, so it reads as the part that switches the app. */
+function AppName({ service, tint }: { service: PaymentService; tint: string }) {
+  return (
+    <View style={styles.app}>
+      <View style={[StyleSheet.absoluteFill, styles.capsule, { backgroundColor: tint }]} />
+      <Text style={[type.button, { color: tint }]}>{paymentApps[service].name}</Text>
+      <Icon name="chevron" size={16} color={tint} />
+    </View>
+  );
+}
+
+/** Copies `value` and reports true until the check has shown long enough. A new value starts uncopied. */
+function useCopy(value: string, onFail: () => void): [copied: boolean, copy: () => void] {
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    if (copied === null) return;
+    const timer = setTimeout(() => setCopied(null), copiedFor);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  return [copied === value, () => void navigator.clipboard.writeText(value).then(() => setCopied(value), onFail)];
+}
+
+const copiedFor = 1600;
+
 const styles = StyleSheet.create({
   box: { gap: 4 },
   ways: { gap: 10 },
-  // On a phone narrower than the pills they wrap to a second row rather than squeeze their names.
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  half: { flexGrow: 1, flexBasis: "40%" },
-  fit: { flexGrow: 1, flexBasis: "auto" },
+  pill: { flexDirection: "row", alignItems: "center", height: 54, borderRadius: 27, paddingHorizontal: 24 },
+  picking: { paddingLeft: 20, paddingRight: capsuleInset },
+  say: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  words: { flexShrink: 1, textAlign: "center" },
+  app: { flexDirection: "row", alignItems: "center", gap: 4, height: 40, paddingLeft: 14, paddingRight: 10, borderRadius: 20 },
+  capsule: { borderRadius: 20, opacity: 0.16 },
   handles: { textAlign: "center", marginHorizontal: 4 },
   center: { alignItems: "center" },
 });

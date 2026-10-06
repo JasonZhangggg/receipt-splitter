@@ -103,26 +103,31 @@ test("amounts of $1,000 and up show grouped by thousands on the receipt, the bar
 
   await owe(sam).click();
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $1,234.56 on Venmo" })).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=1234.56&note=Receipt%20split");
+  await breakdown(sam).getByRole("combobox", { name: "Pay with" }).selectOption("zelle");
   await expect(breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $1,234.56 on Zelle" })).toBeVisible();
   await expect(breakdown(sam).getByText("$1,234.56", { exact: true })).not.toHaveCount(0);
 });
 
-test("with Zelle the only way to pay, Sam's breakdown shows the Zelle card with the handle and his $14.20 to copy", async ({ browser, request }, { workerIndex }) => {
+test("with Zelle the only way to pay, Sam's one pill copies the Zelle handle, shows Copied, and offers no app to switch to", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, [zelle]));
+  await sam.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await pick(sam, "Sam");
   await circle(sam, "Pho", "Sam").click();
   await expect(owe(sam)).toHaveText("$14.20", live);
 
   await owe(sam).click();
-  const card = breakdown(sam).getByTestId("zelle");
-  await expect(card.getByText("Pay Jason on Zelle")).toBeVisible(live);
-  await expect(card.getByText("jason@example.com", { exact: true })).toBeVisible();
-  await expect(card.getByText("$14.20", { exact: true })).toBeVisible();
-  await expect(card.getByRole("button", { name: "Copy jason@example.com" })).toBeVisible();
-  await expect(card.getByRole("button", { name: "Copy $14.20" })).toBeVisible();
+  const pill = breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" });
+  await expect(pill).toHaveText("Pay Jason $14.20 on Zelle", live);
+  await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
+  await expect(breakdown(sam).getByText("Zelle\u00a0jason@example.com", { exact: true })).toBeVisible();
+  await expect(breakdown(sam).getByRole("button", { name: /^Copy \$/ })).toHaveCount(0);
+  await pill.click();
+  await expect(breakdown(sam).getByRole("button", { name: "Copied" })).toHaveText("Copied");
+  expect(await sam.evaluate(() => navigator.clipboard.readText())).toBe("jason@example.com");
+  await expect(pill).toHaveText("Pay Jason $14.20 on Zelle");
 });
 
-test("Sam's breakdown links each pay app at his $14.20 Share in one row, Zelle's pill copies the handle, and Priya's shows Not paid with no buttons", async ({ browser, request }, { workerIndex }) => {
+test("Sam's one pay pill switches among Jason's four apps, links each at his $14.20 Share, copies the Zelle handle, and keeps his pick after a reload", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, everyApp);
   const sam = await open(browser, link);
   await sam.context().grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -131,27 +136,51 @@ test("Sam's breakdown links each pay app at his $14.20 Share in one row, Zelle's
   await expect(owe(sam)).toHaveText("$14.20", live);
 
   await owe(sam).click();
+  const app = breakdown(sam).getByRole("combobox", { name: "Pay with" });
+  await expect(app).toHaveValue("venmo", live);
+  expect(await app.locator("option").allTextContents()).toEqual(["Venmo", "Cash App", "PayPal", "Zelle"]);
   const pills = breakdown(sam).getByRole("link");
-  await expect(pills).toHaveCount(3, live);
-  await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Venmo" })).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=14.20&note=Receipt%20split");
-  await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Cash App" })).toHaveAttribute("href", "https://cash.app/$jasonz/14.20");
-  await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on PayPal" })).toHaveAttribute("href", "https://paypal.me/jasonzhang/14.20USD");
-  await expect(pills.first()).toHaveAttribute("target", "_blank");
-  await expect(pills.first()).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(pills).toHaveCount(1);
+  await expect(pills).toHaveAccessibleName("Pay Jason $14.20 on Venmo");
+  await expect(pills).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=14.20&note=Receipt%20split");
+  await expect(pills).toHaveAttribute("target", "_blank");
+  await expect(pills).toHaveAttribute("rel", "noopener noreferrer");
   await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z\u00a0· Cash App\u00a0$jasonz\u00a0· PayPal\u00a0jasonzhang\u00a0· Zelle\u00a0jason@example.com")).toBeVisible();
-  await expect(breakdown(sam).getByTestId("zelle")).toHaveCount(0);
-  const row = await breakdown(sam).getByRole("link").or(breakdown(sam).getByRole("button", { name: /on Zelle$/ })).all();
-  const tops = await Promise.all(row.map(async (pill) => (await pill.boundingBox())!.y));
-  expect(new Set(tops).size).toBe(1);
-  await breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" }).click();
+
+  await app.selectOption("cashApp");
+  await expect(pills).toHaveAccessibleName("Pay Jason $14.20 on Cash App");
+  await expect(pills).toHaveAttribute("href", "https://cash.app/$jasonz/14.20");
+  await app.selectOption("paypal");
+  await expect(pills).toHaveAccessibleName("Pay Jason $14.20 on PayPal");
+  await expect(pills).toHaveAttribute("href", "https://paypal.me/jasonzhang/14.20USD");
+
+  await app.selectOption("zelle");
+  await expect(pills).toHaveCount(0);
+  const copy = breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" });
+  await copy.click();
   await expect(breakdown(sam).getByRole("button", { name: "Copied" })).toBeVisible();
   expect(await sam.evaluate(() => navigator.clipboard.readText())).toBe("jason@example.com");
-  await expect(breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" })).toBeVisible();
+  await app.selectOption("venmo");
+  await expect(pills).toHaveAccessibleName("Pay Jason $14.20 on Venmo");
+  await expect(breakdown(sam).getByRole("button", { name: "Copied" })).toHaveCount(0);
+  await app.selectOption("zelle");
+  await expect(copy).toBeVisible();
 
+  await sam.reload();
+  await expect(owe(sam)).toHaveText("$14.20", live);
+  await owe(sam).click();
+  await expect(app).toHaveValue("zelle", live);
+  await expect(copy).toBeVisible();
+});
+
+test("Priya's breakdown shows Not paid with no buttons", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, everyApp));
+  await pick(sam, "Sam");
   await sam.getByRole("button", { name: "Priya", exact: true }).click();
   await expect(breakdown(sam).getByText("Not paid", { exact: true })).toBeVisible(live);
   await expect(breakdown(sam).getByText("Priya owes")).toBeVisible();
   await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
+  await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
   await expect(breakdown(sam).getByRole("button")).toHaveAccessibleName("Priya owes $0.00, Hide Priya's breakdown");
 });
 

@@ -347,6 +347,7 @@ const zelle = { service: "zelle", handle: "jason@example.com" };
 const paypal = { service: "paypal", handle: "jasonzhang" };
 
 for (const { count, handles } of [
+  { count: "one", handles: [venmo] },
   { count: "two", handles: [venmo, cashApp] },
   { count: "three", handles: [venmo, cashApp, zelle] },
   { count: "four", handles: [venmo, cashApp, paypal, zelle] },
@@ -371,7 +372,7 @@ for (const { count, handles } of [
 
     const breakdown = page.getByTestId("breakdown");
     await expect(breakdown.getByRole("link", { name: /^Pay Jason \$[\d.]+ on Venmo$/ })).toBeVisible();
-    await expect(breakdown.getByRole("link", { name: /^Pay Jason \$[\d.]+ on Cash App$/ })).toBeVisible();
+    await expect(breakdown.getByRole("combobox", { name: "Pay with" }).locator("option")).toHaveCount(handles.length > 1 ? handles.length : 0);
     const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
     await expect(list).toHaveCount(1);
     expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(roomyList);

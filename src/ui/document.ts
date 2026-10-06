@@ -19,8 +19,8 @@ function css({ light, dark }: typeof colors) {
     (weight) => `@font-face { font-family: "Plus Jakarta Sans Fallback"; font-weight: ${weight}; src: ${local}; ${fallbackMetrics[weight]} }`,
   );
   return `${[...webFaces, ...fallbackFaces].join("\n")}
-:root { color-scheme: light dark; --focus: ${light.focus}; }
-@media (prefers-color-scheme: dark) { :root { --focus: ${dark.focus}; } }
+:root { color-scheme: light dark; --focus: ${light.focus}; --on-action: ${light.onAction}; }
+@media (prefers-color-scheme: dark) { :root { --focus: ${dark.focus}; --on-action: ${dark.onAction}; } }
 html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
 html, body { overscroll-behavior: none; }
 body { background-color: ${light.field}; text-wrap: pretty; }
@@ -36,6 +36,7 @@ a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
   :is(input, textarea):focus-visible:not([data-field] *), [data-field]:has(:is(input, textarea):focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
 }
 [data-app-picker]:has(select:focus-visible) [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+[data-app-picker]:has(select:focus-visible) [data-press-face][data-round] { border-radius: 20px; outline-color: var(--on-action); outline-offset: -2px; }
 `;
 }
 

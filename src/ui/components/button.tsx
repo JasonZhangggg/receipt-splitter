@@ -118,13 +118,11 @@ type Props = ({ label: string; name?: string } | { label?: undefined; name: stri
   note?: string;
   /** Looks off but still takes a press, so a tap can show what is missing. */
   blocked?: boolean;
-  /** Pads the label less, so several pills fit one row. */
-  snug?: boolean;
 };
 
 const colorChange = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
-export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, expanded, popup, reason, note, blocked = false, snug = false, ...action }: Props) {
+export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, expanded, popup, reason, note, blocked = false, ...action }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const reasonId = useId();
@@ -147,7 +145,6 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
           style={[
             styles.face,
             variant.face,
-            snug && styles.snug,
             Platform.OS === "web" && !reduce && colorChange,
             { backgroundColor: tone.fill, boxShadow: tone.ring && `inset 0 0 0 1px ${tone.ring}` },
           ]}
@@ -185,7 +182,6 @@ const spin = webAnimation({
 const styles = StyleSheet.create({
   spinner: { width: 16, height: 16, borderRadius: 8, borderWidth: 2 },
   face: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  snug: { paddingHorizontal: 8 },
   glyph: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 4 },
   withReason: { gap: 10 },
   reason: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },

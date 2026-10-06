@@ -1,8 +1,9 @@
 import { isCents, type Cents } from "./core/money";
 import { BROWSER_DEVICE_LENGTH } from "./core/pick-device";
-import { deviceId, isId, randomId, type DeviceId, type ParticipantId, type Split, type SplitId } from "./core/split";
+import { deviceId, isId, PAYMENT_SERVICES, randomId, type DeviceId, type ParticipantId, type PaymentService, type Split, type SplitId } from "./core/split";
 
-export type SplitOnDevice = { readonly creatorSecret?: string; readonly me?: ParticipantId };
+/** `payWith` is the way to pay this device last picked in its breakdown. */
+export type SplitOnDevice = { readonly creatorSecret?: string; readonly me?: ParticipantId; readonly payWith?: PaymentService };
 
 /** What home lists for a Split this device opened, read from the Split the page already holds. */
 type Recent = { readonly names: readonly string[]; readonly total: Cents; readonly added: number; readonly seen: number };
@@ -34,11 +35,12 @@ function readRecord(key: string): SplitRecord {
   try {
     const saved: unknown = JSON.parse(storage()?.getItem(key) ?? "null");
     if (typeof saved !== "object" || saved === null) return {};
-    const { creatorSecret, me, recent } = saved as Record<string, unknown>;
+    const { creatorSecret, me, payWith, recent } = saved as Record<string, unknown>;
     const listed = parseRecent(recent);
     return {
       ...(typeof creatorSecret === "string" ? { creatorSecret } : {}),
       ...(isId<"ParticipantId">(me) ? { me } : {}),
+      ...(PAYMENT_SERVICES.some((service) => service === payWith) ? { payWith: payWith as PaymentService } : {}),
       ...(listed ? { recent: listed } : {}),
     };
   } catch {
@@ -78,7 +80,7 @@ export function splitOnDevice(id: SplitId): SplitOnDevice {
   return memory;
 }
 
-export function rememberSplit(id: SplitId, change: { creatorSecret?: string; me?: ParticipantId | null }) {
+export function rememberSplit(id: SplitId, change: { creatorSecret?: string; me?: ParticipantId | null; payWith?: PaymentService }) {
   const { me, ...rest } = { ...readRecord(keyOf(id)), ...change };
   writeRecord(id, me === null ? rest : { ...rest, me });
 }
