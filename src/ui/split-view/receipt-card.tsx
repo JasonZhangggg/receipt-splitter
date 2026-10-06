@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import type { Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
-import type { AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
+import type { Adjustment, AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
@@ -21,8 +21,10 @@ type Props = {
   onCircle: (item: SplitItem) => void;
   onOpen: (item: SplitItem, press: Press) => void;
   onAdd: (press: Press) => void;
-  /** The line whose Item detail is open, or the Add item form, so its trigger reads as expanded. */
-  showing: ItemId | "add" | null;
+  onOpenAdjustment: (row: Adjustment, press: Press) => void;
+  onAddAdjustment: (press: Press) => void;
+  /** The line whose detail is open, or an add form, so its trigger reads as expanded. */
+  showing: ItemId | AdjustmentId | "add" | "addAdjustment" | null;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -38,17 +40,23 @@ const bleed = 12;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, showing }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, onAddAdjustment, showing }: Props) {
   const c = useColors();
+  const reduce = useReducedMotion();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
   const { items, subtotal, total } = split.receipt;
   const { rows, charges } = receiptRows(split.receipt);
   const [entering, settle] = useEntering(items.map(({ id }) => id));
+  const [chargesEntering] = useEntering(charges.map(({ id }) => id));
   const started = items.some((item) => claimersOfItem(item).length > 0);
   const note = totalNote(split.receipt);
   const order = split.participants.map(({ id }) => id);
   const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
   const people = (item: SplitItem) => claimersOfItem(item).map(person);
+  const openAdjustment = (id: AdjustmentId, press: Press) => {
+    const row = split.receipt.adjustments.find((adjustment) => adjustment.id === id);
+    if (row) onOpenAdjustment(row, press);
+  };
   const toggle = (id: AdjustmentId) => {
     settle();
     setOpened((was) => {
@@ -98,12 +106,22 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
               onToggle={() => toggle(bundle.id)}
             >
               {bundle.items.map((item, at) => line(item, at > 0, true))}
-              <View style={[styles.discount, { borderTopColor: c.hairline }]}>
-                <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
-                  {bundle.discount.label}
-                </Text>
-                <Text style={[type.secondary, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
-              </View>
+              <PressTarget
+                name={say.openAdjustment(bundle.discount.label, money(bundle.discount.amount))}
+                popup="dialog"
+                expanded={showing === bundle.id}
+                onPress={(press) => openAdjustment(bundle.id, press)}
+                style={(pressed) => [styles.discount, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
+              >
+                {() => (
+                  <>
+                    <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
+                      {bundle.discount.label}
+                    </Text>
+                    <Text style={[type.secondary, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
+                  </>
+                )}
+              </PressTarget>
             </BundleGroup>
           );
         })}
@@ -117,8 +135,32 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
         <Row label={say.subtotal} amount={subtotal} />
         {charges.map((row) => (
-          <Row key={row.id} label={row.name} amount={row.amount} />
+          <Grow key={row.id} enter={chargesEntering.has(row.id)}>
+            <PressTarget
+              name={say.openAdjustment(row.name, money(row.amount))}
+              popup="dialog"
+              expanded={showing === row.id}
+              onPress={(press) => onOpenAdjustment(row, press)}
+              style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
+            >
+              {() => <RowFace label={row.name} amount={row.amount} />}
+            </PressTarget>
+          </Grow>
         ))}
+        <PressTarget
+          name={say.addAdjustment}
+          popup="dialog"
+          expanded={showing === "addAdjustment"}
+          onPress={onAddAdjustment}
+          style={(pressed) => [styles.row, styles.tapRow, styles.addCharge, pressStyle(pressed, reduce)]}
+        >
+          {() => (
+            <>
+              <Icon name="plus" size={14} color={c.muted} />
+              <Text style={[type.secondary, { color: c.muted }]}>{say.addAdjustment}</Text>
+            </>
+          )}
+        </PressTarget>
       </View>
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
         <Text style={[type.button, { color: c.ink }]}>{say.total}</Text>
@@ -256,10 +298,10 @@ function Collapse({ open, id, label, children }: { open: boolean; id: string; la
 }
 
 /** Item ids the last receipt change added, such as the rows of a Split. A row reads it only when it mounts, and a Bundle that opens later mounts its rows as they are. */
-function useEntering(ids: readonly ItemId[]): readonly [ReadonlySet<ItemId>, () => void] {
+function useEntering<Id extends string>(ids: readonly Id[]): readonly [ReadonlySet<Id>, () => void] {
   const key = ids.join(" ");
   const [seen, setSeen] = useState(() => ({ key, ids: new Set(ids) }));
-  const [entering, setEntering] = useState<ReadonlySet<ItemId>>(() => new Set());
+  const [entering, setEntering] = useState<ReadonlySet<Id>>(() => new Set());
   if (seen.key !== key) {
     setSeen({ key, ids: new Set(ids) });
     setEntering(new Set(ids.filter((id) => !seen.ids.has(id))));
@@ -425,14 +467,22 @@ function AddRow({ divided, expanded, onPress }: { divided: boolean; expanded: bo
 }
 
 function Row({ label, amount }: { label: string; amount: number }) {
-  const c = useColors();
   return (
     <View style={styles.row}>
+      <RowFace label={label} amount={amount} />
+    </View>
+  );
+}
+
+function RowFace({ label, amount }: { label: string; amount: number }) {
+  const c = useColors();
+  return (
+    <>
       <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
         {label}
       </Text>
       <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(amount)}</Text>
-    </View>
+    </>
   );
 }
 
@@ -464,6 +514,9 @@ const styles = StyleSheet.create({
   why: { marginTop: 8, marginBottom: 2 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.adjustmentRow, gap: 12 },
+  // A 44 px tap target that still sits on the 34 px row pitch; the overlap goes to the later row.
+  tapRow: { minHeight: tapSize, marginVertical: (layout.adjustmentRow - tapSize) / 2 },
+  addCharge: { justifyContent: "flex-start", gap: 6 },
   rowLabel: { flexShrink: 1 },
   strong: { fontWeight: "500" },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },

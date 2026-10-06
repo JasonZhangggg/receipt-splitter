@@ -1,4 +1,4 @@
-import { MAX_CENTS, price as toPrice } from "../../core/money";
+import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type Operation, type WireRejection } from "../../core/operations";
 import type { ItemId, ParticipantId, Split } from "../../core/split";
 import { parseAmount } from "../../draft";
@@ -18,14 +18,20 @@ export type NewItemAnswer = { readonly ok: true; readonly op: Operation } | { re
 
 const amountShape = /^\d+(\.\d{0,2})?$|^\.\d{1,2}$/;
 
+/** Dollars and cents as typed in a sheet, a leading $ allowed, or why they do not read as an amount. */
+export function readAmount(typed: string): Cents | "price" | "overLimit" {
+  const text = typed.trim().replace(/^\$/, "");
+  if (!amountShape.test(text)) return "price";
+  const cents = parseAmount(text);
+  return cents === null || cents > MAX_CENTS ? "overLimit" : cents;
+}
+
 /** The add to send for what was typed, at the end of the receipt and outside every Bundle, or the one problem to show. */
 export function newItem(split: Split, typed: NewItem, id: ItemId, by: ParticipantId | null): NewItemAnswer {
   const name = typed.name.trim();
   if (!isName(name, MAX_ROW_NAME_LENGTH)) return { ok: false, problem: "name" };
-  const text = typed.price.trim().replace(/^\$/, "");
-  if (!amountShape.test(text)) return { ok: false, problem: "price" };
-  const cents = parseAmount(text);
-  if (cents === null || cents > MAX_CENTS) return { ok: false, problem: "overLimit" };
+  const cents = readAmount(typed.price);
+  if (typeof cents === "string") return { ok: false, problem: cents };
   const detail = typed.detail.trim();
   const item = { id, name, price: toPrice(cents), ...(typed.quantity > 1 && { quantity: typed.quantity }), ...(detail && { detail }) };
   // Someone may leave the Split while the sheet is open; their chip goes, so their claim goes too.
