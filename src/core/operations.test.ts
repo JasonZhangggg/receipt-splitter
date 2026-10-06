@@ -2281,6 +2281,11 @@ describe("an Adjustment edit with the Total following", () => {
     expect(reasonFor(created(), fix(ann, promo(-5300)))).toBe("negativeTotal");
   });
 
+  test("refuses totalFollows with no patch as an empty edit, so it cannot move a Total that does not add up", () => {
+    expect(reasonFor(misread(), { by: ann, type: "editReceipt", totalFollows: true })).toBe("emptyEdit");
+    expect(reasonFor(misread(), { by: ann, type: "editReceipt", adjustments: [], totalFollows: true })).toBe("emptyEdit");
+  });
+
   test("reads totalFollows from the wire only as true", () => {
     const wire = { by: "ann", type: "editReceipt", adjustments: [{ type: "delete", adjustmentId: "tax" }] };
 

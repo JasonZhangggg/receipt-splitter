@@ -187,7 +187,7 @@ function run(split: Split, op: Operation, auth: Auth): Step {
   switch (op.type) {
     case "editReceipt": {
       const { items, adjustments, subtotalDelta, totalDelta, totalFollows } = op;
-      if (!items && !adjustments && subtotalDelta === undefined && totalDelta === undefined && !totalFollows) return reject("emptyEdit");
+      if (!items?.length && !adjustments?.length && subtotalDelta === undefined && totalDelta === undefined) return reject("emptyEdit");
       if (totalFollows && totalDelta !== undefined) return reject("conflict");
       return commit(split, [
         ...(items ?? []).map((patch): MakeWrites => (current) => itemWrites(current, patch)),
