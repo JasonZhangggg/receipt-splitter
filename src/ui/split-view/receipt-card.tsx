@@ -1,4 +1,4 @@
-import { useEffectEvent, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { Shares } from "../../core/shares";
@@ -11,7 +11,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, lineTag, nameParts, quantityText, receiptRows, totalNote, unclaimedUnits, type BundleRow } from "./model";
+import { claimersOfItem, keepInPlace, lineTag, nameParts, quantityText, receiptRows, totalNote, unclaimedUnits, type BundleRow, type Kept } from "./model";
 
 type Props = {
   split: Split;
@@ -44,11 +44,9 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   const c = useColors();
   const reduce = useReducedMotion();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
-  const { items, subtotal, total } = split.receipt;
-  const { rows, charges } = receiptRows(split.receipt);
-  const [entering, settle] = useEntering(items.map(({ id }) => id));
-  const [chargesEntering] = useEntering(charges.map(({ id }) => id));
-  const [chargesShown, forgetCharge] = useKeptInPlace(charges);
+  const { items, adjustments, subtotal, total } = split.receipt;
+  const { rows, charges } = useMemo(() => receiptRows(split.receipt), [split.receipt]);
+  const [entering, settle] = useEntering([...items, ...adjustments].map(({ id }) => id));
   const started = items.some((item) => claimersOfItem(item).length > 0);
   const note = totalNote(split.receipt);
   const order = split.participants.map(({ id }) => id);
@@ -67,19 +65,17 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
     });
   };
   const line = (item: SplitItem, divided: boolean, inBundle: boolean) => (
-    <Grow key={item.id} enter={entering.has(item.id)}>
-      <Line
-        item={item}
-        order={order}
-        claimers={claimersOf(item.split).map(person)}
-        selected={selected}
-        divided={divided}
-        inBundle={inBundle}
-        onCircle={() => onCircle(item)}
-        onOpen={(press) => onOpen(item, press)}
-        expanded={showing === item.id}
-      />
-    </Grow>
+    <Line
+      item={item}
+      order={order}
+      claimers={claimersOf(item.split).map(person)}
+      selected={selected}
+      divided={divided}
+      inBundle={inBundle}
+      onCircle={() => onCircle(item)}
+      onOpen={(press) => onOpen(item, press)}
+      expanded={showing === item.id}
+    />
   );
 
   return (
@@ -92,40 +88,43 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         <Text style={[type.caption, { color: c.muted }]}>{say.priceColumn}</Text>
       </View>
       <View role="list" aria-label={say.item}>
-        {rows.map((row, index) => {
-          if (row.kind === "item") return line(row.item, index > 0, false);
-          const { bundle } = row;
-          return (
-            <BundleGroup
-              key={bundle.id}
-              bundle={bundle}
-              open={opened.has(bundle.id)}
-              unclaimed={started ? unclaimedUnits(bundle) : 0}
-              claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
-              selected={selected}
-              divided={index > 0}
-              onToggle={() => toggle(bundle.id)}
-            >
-              {bundle.items.map((item, at) => line(item, at > 0, true))}
-              <PressTarget
-                name={say.openAdjustment(bundle.discount.label, money(bundle.discount.amount))}
-                popup="dialog"
-                expanded={showing === bundle.id}
-                onPress={(press) => openAdjustment(bundle.id, press)}
-                style={(pressed) => [styles.discount, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
+        <KeptRows rows={rows} entering={entering}>
+          {(row, divided) => {
+            if (row.kind === "item") return line(row.item, divided, false);
+            const { bundle } = row;
+            return (
+              <BundleGroup
+                bundle={bundle}
+                open={opened.has(bundle.id)}
+                unclaimed={started ? unclaimedUnits(bundle) : 0}
+                claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
+                selected={selected}
+                divided={divided}
+                onToggle={() => toggle(bundle.id)}
               >
-                {() => (
-                  <>
-                    <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
-                      {bundle.discount.label}
-                    </Text>
-                    <Text style={[type.secondary, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
-                  </>
-                )}
-              </PressTarget>
-            </BundleGroup>
-          );
-        })}
+                <KeptRows rows={bundle.items} entering={entering}>
+                  {(item, divided) => line(item, divided, true)}
+                </KeptRows>
+                <PressTarget
+                  name={say.openAdjustment(bundle.discount.label, money(bundle.discount.amount))}
+                  popup="dialog"
+                  expanded={showing === bundle.id}
+                  onPress={(press) => openAdjustment(bundle.id, press)}
+                  style={(pressed) => [styles.discount, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
+                >
+                  {() => (
+                    <>
+                      <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
+                        {bundle.discount.label}
+                      </Text>
+                      <Text style={[type.secondary, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
+                    </>
+                  )}
+                </PressTarget>
+              </BundleGroup>
+            );
+          }}
+        </KeptRows>
       </View>
       <AddRow divided={rows.length > 0} expanded={showing === "add"} onPress={onAdd} />
       {note ? (
@@ -135,27 +134,19 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       ) : null}
       <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
         <Row label={say.subtotal} amount={subtotal} />
-        {chargesShown.map(({ row, gone }) =>
-          gone ? (
-            <Shrink key={row.id} onDone={() => forgetCharge(row.id)}>
-              <View style={[styles.row, styles.tapRow]}>
-                <RowFace label={row.name} amount={row.amount} />
-              </View>
-            </Shrink>
-          ) : (
-            <Grow key={row.id} enter={chargesEntering.has(row.id)}>
-              <PressTarget
-                name={say.openAdjustment(row.name, money(row.amount))}
-                popup="dialog"
-                expanded={showing === row.id}
-                onPress={(press) => onOpenAdjustment(row, press)}
-                style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
-              >
-                {() => <RowFace label={row.name} amount={row.amount} />}
-              </PressTarget>
-            </Grow>
-          ),
-        )}
+        <KeptRows rows={charges} entering={entering}>
+          {(row) => (
+            <PressTarget
+              name={say.openAdjustment(row.name, money(row.amount))}
+              popup="dialog"
+              expanded={showing === row.id}
+              onPress={(press) => onOpenAdjustment(row, press)}
+              style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
+            >
+              {() => <RowFace label={row.name} amount={row.amount} />}
+            </PressTarget>
+          )}
+        </KeptRows>
         <PressTarget
           name={say.addAdjustment}
           popup="dialog"
@@ -359,7 +350,30 @@ function Presence({ present, animate, children }: { present: boolean; animate: b
   return leaving ? <Shrink onDone={() => setLeaving(false)}>{last}</Shrink> : null;
 }
 
-/** Collapses its children out over rowsOut, or fades them under reduced motion, so the rows under them glide up; then onDone. */
+/** Each row in place. A row the list drops keeps showing what it last showed and collapses out where it stood, and a row the list adds grows in. A row is divided from the one above when a row still on the receipt sits above it. */
+function KeptRows<Row extends { readonly id: string }>({ rows, entering, children }: { rows: readonly Row[]; entering: ReadonlySet<string>; children: (row: Row, divided: boolean) => ReactNode }) {
+  const [last, setLast] = useState(rows);
+  const [kept, setKept] = useState<readonly Kept<Row>[]>(() => rows.map((row) => ({ row, gone: false })));
+  if (rows.length !== last.length || rows.some((row, at) => row !== last[at])) {
+    setLast(rows);
+    setKept(keepInPlace(kept, rows));
+  }
+  const forget = (id: string) => setKept((was) => was.filter(({ row, gone }) => !(gone && row.id === id)));
+  return kept.map(({ row, gone }, at) => {
+    const divided = kept.slice(0, at).some((above) => !above.gone);
+    return gone ? (
+      <Shrink key={row.id} onDone={() => forget(row.id)}>
+        {children(row, divided)}
+      </Shrink>
+    ) : (
+      <Grow key={row.id} enter={entering.has(row.id)}>
+        {children(row, divided)}
+      </Grow>
+    );
+  });
+}
+
+/** Collapses its children out over rowsOut, or fades them under reduced motion, so the rows under them glide up; then onDone. They are out of reach of taps, Tab and screen readers from the first frame. */
 function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode }) {
   const reduce = useReducedMotion();
   const box = useRef<View>(null);
@@ -367,6 +381,7 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
   useLayoutEffect(() => {
     const el = box.current as unknown as HTMLElement | null;
     if (typeof el?.animate !== "function") return done();
+    el.inert = true;
     const height = `${el.getBoundingClientRect().height}px`;
     const frames = reduce
       ? [{ opacity: 1 }, { opacity: 0 }]
@@ -383,32 +398,6 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
       {children}
     </View>
   );
-}
-
-type Kept<Row> = { readonly row: Row; readonly gone: boolean };
-
-/** The rows, with each one the list dropped kept where it stood, marked gone, until forget says it has left. */
-function useKeptInPlace<Row extends { readonly id: string }>(rows: readonly Row[]): readonly [readonly Kept<Row>[], (id: string) => void] {
-  const [last, setLast] = useState(rows);
-  const [kept, setKept] = useState<readonly Kept<Row>[]>(() => rows.map((row) => ({ row, gone: false })));
-  if (rows.length !== last.length || rows.some((row, at) => row !== last[at])) {
-    setLast(rows);
-    setKept(keepInPlace(kept, rows));
-  }
-  return [kept, (id) => setKept((was) => was.filter(({ row, gone }) => !(gone && row.id === id)))];
-}
-
-function keepInPlace<Row extends { readonly id: string }>(was: readonly Kept<Row>[], rows: readonly Row[]): Kept<Row>[] {
-  const at = new Map(rows.map(({ id }, index) => [id, index]));
-  const next: Kept<Row>[] = [];
-  let taken = 0;
-  for (const { row } of was) {
-    const index = at.get(row.id);
-    if (index === undefined) next.push({ row, gone: true });
-    else for (; taken <= index; taken += 1) next.push({ row: rows[taken], gone: false });
-  }
-  for (; taken < rows.length; taken += 1) next.push({ row: rows[taken], gone: false });
-  return next;
 }
 
 type LineProps = {
