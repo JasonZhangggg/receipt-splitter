@@ -43,6 +43,7 @@ export const splitCopy = {
   paidBy: (name: string) => `${name} paid`,
   paid: "Paid",
   notPaid: "Not paid",
+  nothingChecked: (whose: string | null) => (whose ? `Nothing checked for ${whose}.` : "Check off what you had."),
   items: (count: number) => `${count} ${count === 1 ? "item" : "items"}`,
   payOn: (host: string, amount: string, app: string) => `Pay ${host} ${amount} on ${app}`,
   alreadyPaid: "I already paid",

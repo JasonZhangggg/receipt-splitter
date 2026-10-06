@@ -76,7 +76,7 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
           </View>
         )}
       </View>
-      <ItemList lines={breakdownLines(breakdown)} edge={edge} holdsDrag={fold !== undefined}>
+      <ItemList lines={breakdownLines(breakdown)} empty={say.nothingChecked(mine ? null : person.name)} edge={edge} holdsDrag={fold !== undefined}>
         {charges.length > 0 ? (
           <View style={styles.tail}>
             <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
@@ -158,10 +158,7 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
     set(row, move, "transform", `translateY(${progress * travel}px)`);
     // The arrow points where a release would take the sheet. It turns on the sheet's own glide rather than with the finger, since a short sheet would spin it half a turn in two frames.
     set(el(chevron), reduce ? "none" : `transform ${glide.ms}ms ${glide.easing}`, "transform", `rotate(${progress > 0.5 ? 0 : 180}deg)`);
-    // A fade already headed to this value runs on: WebKit ends a running transition at once when its timing is set again.
-    for (const node of [el(top), el(rule)]) {
-      if (node && node.style.opacity !== String(progress)) set(node, ms > 0 || reduce ? fade : follow(Number(getComputedStyle(node).opacity), progress), "opacity", String(progress));
-    }
+    for (const ref of [top, rule]) set(el(ref), fade, "opacity", String(progress));
     // The pay block shows only over the last part of the way open, and while it shows it holds still on screen: the sheet's rise is undone by a lift, so the black button never sweeps through the sheet.
     const pay = el(rest);
     if (!pay) return;
@@ -227,8 +224,11 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
   );
 }
 
-/** The Items, then `children` (the share's tax, tip, fees and discounts), scroll as one list. */
-function ItemList({ lines, edge, holdsDrag, children }: { lines: ReturnType<typeof breakdownLines>; edge: number; holdsDrag: boolean; children: ReactNode }) {
+/**
+ * The Items, then `children` (the share's tax, tip, fees and discounts), scroll as one list. With no Items it holds `empty` in a row's height, so the folding sheet
+ * travels as far as with one Item and a flick fades the list no faster than a one-Item list.
+ */
+function ItemList({ lines, empty, edge, holdsDrag, children }: { lines: ReturnType<typeof breakdownLines>; empty: string; edge: number; holdsDrag: boolean; children: ReactNode }) {
   const c = useColors();
   const box = useRef(0);
   const content = useRef(0);
@@ -248,6 +248,11 @@ function ItemList({ lines, edge, holdsDrag, children }: { lines: ReturnType<type
       style={[styles.list, { marginRight: -edge }, contain, scrolls && edgeFade, holdsDrag && !scrolls && holdsGesture]}
       contentContainerStyle={{ paddingRight: edge }}
     >
+      {lines.length === 0 ? (
+        <View style={styles.line}>
+          <Text style={[type.secondary, { color: c.muted }]}>{empty}</Text>
+        </View>
+      ) : null}
       {lines.map((line, index) => (
         <View key={line.id} style={[styles.line, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
           <Text numberOfLines={1} style={[type.item, styles.name, { color: c.ink }]}>
@@ -262,15 +267,6 @@ function ItemList({ lines, edge, holdsDrag, children }: { lines: ReturnType<type
     </ScrollView>
   );
 }
-
-// A short sheet crosses its whole travel in a frame or two of a flick, so a list that faded in step with it would blink. Under a finger, a fade step larger than
-// followStep eases instead, at one full fade per quickestFadeMs. A taller sheet's list steps less than that in a usual flick, so it keeps tracking the finger exactly.
-const followStep = 0.45;
-const quickestFadeMs = 80;
-const follow = (shown: number, progress: number) => {
-  const step = Math.abs(progress - shown);
-  return step > followStep ? `opacity ${Math.round(step * quickestFadeMs)}ms linear` : "none";
-};
 
 // The pay block shows over the last tenth of the way open.
 const payFrom = 0.9;
