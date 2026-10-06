@@ -1,4 +1,4 @@
-import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
+import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -71,6 +71,37 @@ const dialog = (page: Page, name: string) => page.getByRole("dialog", { name });
 const amountIn = (page: Page, sheet: string, name = "Amount") => dialog(page, sheet).getByRole("textbox", { name, exact: true });
 const closeSheet = (page: Page, sheet: string) => dialog(page, sheet).getByRole("button", { name: "Close", exact: true }).click();
 
+async function settled(page: Page, testId: string) {
+  const top = () => page.getByTestId(testId).evaluate((element) => element.getBoundingClientRect().top);
+  await expect.poll(async () => (await top()) - (await new Promise<number>((resolve) => setTimeout(() => void top().then(resolve), 120))), live).toBe(0);
+}
+
+/** A finger swiping the grab bar down, as iOS reports it: after a touch iOS never ended, the next touch comes with isPrimary false. */
+async function swipeDown(page: Page, testId: string, { isPrimary = true } = {}) {
+  await settled(page, testId);
+  await page.getByTestId(testId).evaluate(async (surface, isPrimary) => {
+    Element.prototype.setPointerCapture = () => {};
+    const grab = surface.querySelector("[data-sheet-grab]")!;
+    const x = innerWidth / 2;
+    const from = grab.getBoundingClientRect().top + 8;
+    const fire = (type: string, y: number) =>
+      grab.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 42, pointerType: "touch", isPrimary, clientX: x, clientY: y }));
+    fire("pointerdown", from);
+    for (let dy = 30; dy <= 300; dy += 30) {
+      await new Promise((resolve) => setTimeout(resolve, 16));
+      fire("pointermove", from + dy);
+    }
+    fire("pointerup", from + 300);
+  }, isPrimary);
+}
+
+/** The touch that opens iOS's Cut/Copy/Paste menu on a field: a pointerdown that never gets a pointerup or pointercancel. */
+const editMenuTouch = (field: Locator) =>
+  field.evaluate((input) => {
+    const box = input.getBoundingClientRect();
+    input.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, composed: true, pointerId: 41, pointerType: "touch", isPrimary: true, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 }));
+  });
+
 test("a tax fixed on one phone moves the Total and every Share on both", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await expect(sam.getByTestId("total")).toHaveText("$19.00");
@@ -98,21 +129,29 @@ test("an amount typed as 4 reads 4.00 after Done, and the Total follows it", asy
   await expect(priya.getByTestId("total")).toHaveText("$22.00", live);
 });
 
-test("a discount that would take the Total under $0.00 keeps its sheet open on the problem through Close, the scrim and Escape", async ({ browser, request }, { workerIndex }) => {
+test("a discount that would take the Total under $0.00 keeps its sheet open on the problem through Close, the scrim, Escape and a swipe, and only Close hands focus back", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Coupon, -$2.00" }).click();
   const sheet = dialog(sam, "Discount");
+  const amount = amountIn(sam, "Discount", "Amount off");
   await expect(sheet.getByText("-$", { exact: true })).toBeVisible();
-  await amountIn(sam, "Discount", "Amount off").fill("50");
+  await amount.fill("50");
 
   await closeSheet(sam, "Discount");
   await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
-  await expect(amountIn(sam, "Discount", "Amount off")).toBeFocused();
-  await expect(amountIn(sam, "Discount", "Amount off")).toHaveValue("50.00");
+  await expect(amount).toBeFocused();
+  await expect(amount).toHaveValue("50.00");
   await sam.mouse.click(phone.width / 2, 40);
+  await expect(amount).not.toBeFocused();
   await sam.keyboard.press("Escape");
   await expect(sheet).toBeVisible();
-  await expect(amountIn(sam, "Discount", "Amount off")).toHaveValue("50.00");
+  await expect(amount).not.toBeFocused();
+  await swipeDown(sam, "adjustment-sheet");
+  await settled(sam, "adjustment-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
+  await expect(amount).not.toBeFocused();
+  await expect(amount).toHaveValue("50.00");
   for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$19.00");
 
   await amountIn(sam, "Discount", "Amount off").fill("3");
@@ -122,6 +161,14 @@ test("a discount that would take the Total under $0.00 keeps its sheet open on t
     await expect(page.getByRole("button", { name: "Open Coupon, -$3.00" })).toBeVisible(live);
     await expect(page.getByTestId("total")).toHaveText("$18.00", live);
   }
+});
+
+test("a swipe down still closes the sheet after a touch on a field that iOS never ended", async ({ browser, request }, { workerIndex }) => {
+  const [sam] = await samAndPriya(browser, await createSplit(request, workerIndex));
+  await sam.getByRole("button", { name: "Open Coupon, -$2.00" }).click();
+  await editMenuTouch(amountIn(sam, "Discount", "Amount off"));
+  await swipeDown(sam, "adjustment-sheet", { isPrimary: false });
+  await expect(dialog(sam, "Discount")).toHaveCount(0, live);
 });
 
 test("a sheet left open with a typed name keeps the amount another phone fixed, and both edits stay", async ({ browser, request }, { workerIndex }) => {

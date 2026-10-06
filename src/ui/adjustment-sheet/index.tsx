@@ -42,6 +42,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, gu
   const lastSent = useRef("");
   const nameField = useRef<TextInput>(null);
   const amountField = useRef<TextInput>(null);
+  const typingIn = useRef<TextInput | null>(null);
 
   const flush = () => {
     if (leaving) return;
@@ -58,12 +59,13 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, gu
     });
   };
   // An edit the Split refuses, such as a discount that takes the Total under $0.00, keeps the sheet open on its problem instead of being dropped.
+  // Focus stays where the person left it, so only Close, which takes it, hands it back. On iOS a focus from a swipe or a scrim tap, with the sheet still settling, raises the keyboard over the field or half-focuses it.
   const holds = () => {
     if (leaving) return false;
     const answer = adjustmentEdit(splitRef.current, id, typed, me);
     if (answer === null || answer.ok) return false;
     setProblem(answer.problem);
-    (answer.problem === "name" ? nameField : amountField).current?.focus();
+    typingIn.current?.focus();
     return true;
   };
   useLayoutEffect(() => {
@@ -93,6 +95,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, gu
   const close = () => {
     flush();
     onClose();
+    typingIn.current = null;
   };
   const remove = async () => {
     if (leaving) return;
@@ -106,7 +109,13 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, gu
   const off = takesOff(shown.kind);
   return (
     <View style={styles.sheet} pointerEvents={leaving ? "none" : "auto"}>
-      <Topline title={off ? say.discount : say.charge} onClose={close} />
+      <Topline
+        title={off ? say.discount : say.charge}
+        onCloseIn={() => {
+          typingIn.current = [nameField, amountField].find((field) => field.current?.isFocused())?.current ?? null;
+        }}
+        onClose={close}
+      />
       <AdjustmentFields
         split={split}
         row={row}
@@ -263,7 +272,7 @@ function Note({ children }: { children: ReactNode }) {
   );
 }
 
-function Topline({ title, onClose }: { title: string; onClose: () => void }) {
+function Topline({ title, onCloseIn, onClose }: { title: string; onCloseIn?: () => void; onClose: () => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
@@ -271,7 +280,7 @@ function Topline({ title, onClose }: { title: string; onClose: () => void }) {
       <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
         {title}
       </Text>
-      <PressTarget name={say.close} outsideScroll onPress={onClose} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
+      <PressTarget name={say.close} outsideScroll onPressIn={onCloseIn} onPress={onClose} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
         {() => (
           <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
             <Icon name="x" size={16} color={c.ink} />

@@ -183,8 +183,9 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
   };
 
   const onPointerDown = (event: PointerEvent) => {
-    const { pointerId, clientY, clientX, isPrimary } = event.nativeEvent;
-    if (drag.current || !gestures || !isPrimary || leaving.current) return;
+    const { pointerId, clientY, clientX } = event.nativeEvent;
+    // iOS never ends the touch that opens a field's edit menu: no pointerup or pointercancel comes, and every later touch reports isPrimary false. So only a finger already dragging the sheet keeps it, and any other touch starts a new drag.
+    if (drag.current?.moved || !gestures || leaving.current) return;
     const onGrab = (event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]") != null;
     const onList = (event.target as unknown as HTMLElement).closest?.("[data-sheet-scroll]") != null;
     if ((scrolls && !onGrab) || onList) return;
@@ -192,7 +193,7 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
     const at = live();
     const gliding = Math.abs(at - target) > 1;
     if (gliding) place(at, 0);
-    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: at, moved: false, resume: gliding ? target : null, samples: [{ y: clientY, t: event.timeStamp }] };
+    drag.current = { pointer: pointerId, startY: clientY, startX: clientX, from: at, moved: false, resume: gliding ? target : (drag.current?.resume ?? null), samples: [{ y: clientY, t: event.timeStamp }] };
     // The grab bar holds no buttons, so it can take the pointer at once. A mouse, which has no implicit capture, would otherwise leave the sheet on the first move up.
     if (onGrab) (event.currentTarget as unknown as HTMLElement).setPointerCapture?.(pointerId);
   };

@@ -24,13 +24,15 @@ type TargetProps = Action & {
   expanded?: boolean;
   popup?: "dialog";
   controls?: string;
+  /** The finger or button landing, before the press moves focus. */
+  onPressIn?: () => void;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;
 };
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
+export function PressTarget({ onPress, onPressIn, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   const self = useRef<View>(null);
   if (disabled && held) setHeld(false);
@@ -47,7 +49,10 @@ export function PressTarget({ onPress, href, fallbackHref, name, outsideScroll =
       aria-haspopup={popup}
       aria-controls={controls}
       disabled={disabled}
-      onPressIn={() => setHeld(!disabled)}
+      onPressIn={() => {
+        setHeld(!disabled);
+        if (!disabled) onPressIn?.();
+      }}
       onPressOut={() => setHeld(false)}
       onPress={(event) => {
         if (disabled) return;
