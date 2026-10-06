@@ -159,7 +159,9 @@ test("Revert from the other phone asks first and puts the tax and the Total back
 
 test("a tax turned into a discount on desktop opens in a popover and flips the line's sign", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex), { width: 1440, height: 900 });
-  await pick(page, "Sam");
+  const pane = page.getByRole("complementary");
+  await pane.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(pane.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
 
   await page.getByRole("button", { name: "Open Tax, $1.00" }).click();
   await dialog(page, "Charge").getByRole("group", { name: "Kind" }).getByRole("button", { name: "Discount" }).click();
