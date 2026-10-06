@@ -138,8 +138,9 @@ function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>): BundleRow {
   };
 }
 
-export function unclaimedUnits(bundle: BundleRow): number {
-  return bundle.items.reduce((total, { split, quantity = 1 }) => total + (claimersOf(split).length === 0 ? quantity : 0), 0);
+/** The Bundle's units on lines the Unclaimed line counts (`unclaimed`), so a By amount line with money left over counts as well as a line nobody had. */
+export function unclaimedUnits(bundle: BundleRow, unclaimed: readonly ItemId[]): number {
+  return bundle.items.reduce((total, { id, quantity = 1 }) => total + (unclaimed.includes(id) ? quantity : 0), 0);
 }
 
 export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId, price: number): string | null {

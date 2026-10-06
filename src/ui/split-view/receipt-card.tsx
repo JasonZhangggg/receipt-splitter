@@ -97,7 +97,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
               <BundleGroup
                 bundle={bundle}
                 open={opened.has(bundle.id)}
-                unclaimed={started ? unclaimedUnits(bundle) : 0}
+                unclaimed={started ? unclaimedUnits(bundle, shares.unclaimed.itemIds) : 0}
                 claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
                 selected={selected}
                 divided={divided}
