@@ -28,11 +28,11 @@ const everyApp = [venmo, { service: "cashApp", handle: "jasonz" }, { service: "p
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, paymentHandles: readonly object[], receipt: object = menu): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, paymentHandles: readonly object[], receipt: object = menu, participants: readonly object[] = people): Promise<string> {
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.51.${110 + workerIndex}.${creates}` },
-    data: { split: { receipt, participants: people, paymentHandles } },
+    data: { split: { receipt, participants, paymentHandles } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
@@ -117,14 +117,14 @@ test("with Zelle the only way to pay, Sam's one pill copies the Zelle handle, sh
 
   await owe(sam).click();
   const pill = breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" });
-  await expect(pill).toHaveText("Pay Jason $14.20 on Zelle", live);
+  await expect(pill).toHaveText(/^Pay\s*Jason\s*\$14\.20 on\sZelle$/, live);
   await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
   await expect(breakdown(sam).getByText("Zelle\u00a0jason@example.com", { exact: true })).toBeVisible();
   await expect(breakdown(sam).getByRole("button", { name: /^Copy \$/ })).toHaveCount(0);
   await pill.click();
   await expect(breakdown(sam).getByRole("button", { name: "Copied" })).toHaveText("Copied");
   expect(await sam.evaluate(() => navigator.clipboard.readText())).toBe("jason@example.com");
-  await expect(pill).toHaveText("Pay Jason $14.20 on Zelle");
+  await expect(pill).toHaveText(/^Pay\s*Jason\s*\$14\.20 on\sZelle$/);
 });
 
 test("Sam's one pay pill switches among Jason's four apps, links each at his $14.20 Share, copies the Zelle handle, and keeps his pick after a reload", async ({ browser, request }, { workerIndex }) => {
@@ -281,4 +281,48 @@ test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays 
   await expect(owe(sam)).toHaveText("$14.20", live);
   await owe(sam).click();
   await expect(breakdown(sam).getByRole("button", { name: "I already paid" })).toBeVisible(live);
+});
+
+const longHost = "Alexandra Papadopoulos";
+const bigReceipt = { items: [{ id: "grill", name: "Grill", price: 123456 }], adjustments: [], subtotal: 123456, total: 123456 };
+
+for (const [ways, handles] of [["one way", [venmo]], ["four ways", everyApp]] as const) {
+  test(`at 320 px a Host named ${longHost} owed $1,234.56 keeps the pill's amount and app in view with ${ways} to pay`, async ({ browser, request }, { workerIndex }) => {
+    const link = await createSplit(request, workerIndex, handles, bigReceipt, [{ id: "jason", name: longHost }, ...people.slice(1)]);
+    const sam = await open(browser, link);
+    await sam.setViewportSize({ width: 320, height: 640 });
+    await pick(sam, "Sam");
+    await sam.getByRole("button", { name: "Grill, check for Sam" }).click();
+    await expect(owe(sam)).toHaveText("$1,234.56", live);
+    await owe(sam).click();
+    const pill = breakdown(sam).getByRole("link", { name: `Pay ${longHost} $1,234.56 on Venmo` });
+    await expect(pill).toBeVisible(live);
+    const clipped = await pill.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const texts = [...el.querySelectorAll("div, span")].filter((each) => each.children.length === 0 && each.textContent);
+      return {
+        overflow: el.scrollHeight - el.clientHeight,
+        outside: texts.filter((each) => { const r = each.getBoundingClientRect(); return r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5 || r.left < box.left - 0.5 || r.right > box.right + 0.5; }).map((each) => each.textContent),
+        wrapped: texts.filter((each) => each.getBoundingClientRect().height > 1.5 * parseFloat(getComputedStyle(each).lineHeight)).map((each) => each.textContent),
+        text: texts.map((each) => each.textContent),
+      };
+    });
+    expect(clipped.overflow).toBeLessThanOrEqual(0);
+    expect(clipped.outside).toEqual([]);
+    expect(clipped.wrapped).toEqual([]);
+    expect(clipped.text.join(" ")).toContain("$1,234.56");
+  });
+}
+
+test("the picker overlay leaves no stray app name in the accessibility tree ahead of the Pay with combobox", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, everyApp));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await owe(sam).click();
+  await expect(breakdown(sam).getByRole("combobox", { name: "Pay with" })).toBeVisible(live);
+  const tree = await breakdown(sam).ariaSnapshot();
+  const before = tree.slice(0, tree.indexOf('combobox "Pay with"'));
+  expect(before).toContain("Pay Jason $14.20 on Venmo");
+  expect(before.split("\n").filter((line) => /^\s*- text: Venmo$/.test(line))).toEqual([]);
+  expect(before.replace(/- link "Pay Jason \$14\.20 on Venmo"[^\n]*/, "")).not.toMatch(/Venmo/);
 });

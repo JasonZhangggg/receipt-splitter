@@ -13,7 +13,7 @@ export function MethodPicker({ service, choices, onPick, name, children }: Metho
   return (
     <View {...pickerParts} style={styles.over}>
       <View {...pressFace} style={styles.face}>
-        <View style={styles.unseen}>{children}</View>
+        <View aria-hidden style={styles.unseen}>{children}</View>
       </View>
       <select aria-label={name} value={service} onChange={(event) => onPick(event.target.value as typeof service)} style={select}>
         {choices.map((choice) => (
