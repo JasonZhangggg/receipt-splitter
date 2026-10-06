@@ -1,4 +1,4 @@
-import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
+import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -286,33 +286,83 @@ test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays 
 const longHost = "Alexandra Papadopoulos";
 const bigReceipt = { items: [{ id: "grill", name: "Grill", price: 123456 }], adjustments: [], subtotal: 123456, total: 123456 };
 
-for (const [ways, handles] of [["one way", [venmo]], ["four ways", everyApp]] as const) {
-  test(`at 320 px a Host named ${longHost} owed $1,234.56 keeps the pill's amount and app in view with ${ways} to pay`, async ({ browser, request }, { workerIndex }) => {
-    const link = await createSplit(request, workerIndex, handles, bigReceipt, [{ id: "jason", name: longHost }, ...people.slice(1)]);
-    const sam = await open(browser, link);
-    await sam.setViewportSize({ width: 320, height: 640 });
-    await pick(sam, "Sam");
-    await sam.getByRole("button", { name: "Grill, check for Sam" }).click();
-    await expect(owe(sam)).toHaveText("$1,234.56", live);
-    await owe(sam).click();
-    const pill = breakdown(sam).getByRole("link", { name: `Pay ${longHost} $1,234.56 on Venmo` });
-    await expect(pill).toBeVisible(live);
-    const clipped = await pill.evaluate((el) => {
-      const box = el.getBoundingClientRect();
-      const texts = [...el.querySelectorAll("div, span")].filter((each) => each.children.length === 0 && each.textContent);
-      return {
-        overflow: el.scrollHeight - el.clientHeight,
-        outside: texts.filter((each) => { const r = each.getBoundingClientRect(); return r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5 || r.left < box.left - 0.5 || r.right > box.right + 0.5; }).map((each) => each.textContent),
-        wrapped: texts.filter((each) => each.getBoundingClientRect().height > 1.5 * parseFloat(getComputedStyle(each).lineHeight)).map((each) => each.textContent),
-        text: texts.map((each) => each.textContent),
-      };
-    });
-    expect(clipped.overflow).toBeLessThanOrEqual(0);
-    expect(clipped.outside).toEqual([]);
-    expect(clipped.wrapped).toEqual([]);
-    expect(clipped.text.join(" ")).toContain("$1,234.56");
+async function pillAt(browser: Browser, request: APIRequestContext, workerIndex: number, handles: readonly { service: string; handle: string }[], width: number) {
+  const link = await createSplit(request, workerIndex, handles, bigReceipt, [{ id: "jason", name: longHost }, ...people.slice(1)]);
+  const sam = await open(browser, link);
+  await sam.setViewportSize({ width, height: 640 });
+  await pick(sam, "Sam");
+  await sam.getByRole("button", { name: "Grill, check for Sam" }).click();
+  await expect(owe(sam)).toHaveText("$1,234.56", live);
+  await owe(sam).click();
+  const pill = breakdown(sam).getByRole("link", { name: `Pay ${longHost} $1,234.56 on Venmo` });
+  await expect(pill).toBeVisible(live);
+  return pill;
+}
+
+const readPill = (pill: Locator) =>
+  pill.evaluate((el, host) => {
+    const box = el.getBoundingClientRect();
+    const texts = [...el.querySelectorAll("div, span")].filter((each) => each.children.length === 0 && each.textContent);
+    const name = texts.find((each) => (each.textContent ?? "").startsWith(host));
+    const clipped = (each: Element) => each.scrollWidth > each.clientWidth;
+    const outside = (each: Element) => { const r = each.getBoundingClientRect(); return r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5 || r.left < box.left - 0.5 || r.right > box.right + 0.5; };
+    return {
+      height: box.height,
+      rowsOfText: new Set(texts.map((each) => Math.round(each.getBoundingClientRect().top + each.getBoundingClientRect().height / 2))).size,
+      wrapped: texts.filter((each) => each.getBoundingClientRect().height > 1.5 * parseFloat(getComputedStyle(each).lineHeight)).map((each) => each.textContent),
+      nameClipped: name === undefined ? null : clipped(name),
+      slack: box.width - 48 - (Math.max(...texts.map((each) => each.getBoundingClientRect().right)) - Math.min(...texts.map((each) => each.getBoundingClientRect().left))),
+      nameWidth: name?.getBoundingClientRect().width ?? 0,
+      othersClipped: texts.filter((each) => each !== name && (clipped(each) || outside(each))).map((each) => each.textContent),
+      text: texts.map((each) => each.textContent ?? "").join(""),
+      overflow: el.scrollHeight - el.clientHeight,
+    };
+  }, longHost);
+
+for (const [ways, handles, app] of [["one way", [venmo], "Venmo"], ["four ways", everyApp, "Venmo"]] as const) {
+  test(`at 320 px a Host named ${longHost} owed $1,234.56 keeps one 54 px line with ${ways} to pay, the name ellipsized and the amount and ${app} whole`, async ({ browser, request }, { workerIndex }) => {
+    const read = await readPill(await pillAt(browser, request, workerIndex, handles, 320));
+    expect(read.height).toBe(54);
+    expect(read.overflow).toBeLessThanOrEqual(0);
+    expect(read.rowsOfText).toBe(1);
+    expect(read.wrapped).toEqual([]);
+    expect(read.nameClipped).toBe(true);
+    expect(read.othersClipped).toEqual([]);
+    expect(read.text).toContain("Pay ");
+    expect(read.text).toContain(" $1,234.56 on");
+    expect(read.text).toContain(app);
   });
 }
+
+async function samPill(browser: Browser, request: APIRequestContext, workerIndex: number, width: number) {
+  const sam = await open(browser, await createSplit(request, workerIndex, [venmo], menu, [{ id: "jason", name: longHost }, ...people.slice(1)]));
+  await sam.setViewportSize({ width, height: 640 });
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await owe(sam).click();
+  const pill = breakdown(sam).getByRole("link", { name: `Pay ${longHost} $14.20 on Venmo` });
+  await expect(pill).toBeVisible(live);
+  return readPill(pill);
+}
+
+test(`at 393 px ${longHost} shrinks only by the room it lacks, with no fixed cap, on one 54 px line`, async ({ browser, request }, { workerIndex }) => {
+  const read = await samPill(browser, request, workerIndex, 393);
+  expect(read.height).toBe(54);
+  expect(read.rowsOfText).toBe(1);
+  expect(read.nameClipped).toBe(true);
+  expect(read.nameWidth).toBeGreaterThan(112);
+  expect(Math.abs(read.slack)).toBeLessThan(1);
+  expect(read.othersClipped).toEqual([]);
+});
+
+test(`at 430 px the full name ${longHost} shows without an ellipsis on one 54 px line`, async ({ browser, request }, { workerIndex }) => {
+  const read = await samPill(browser, request, workerIndex, 430);
+  expect(read.height).toBe(54);
+  expect(read.rowsOfText).toBe(1);
+  expect(read.nameClipped).toBe(false);
+  expect(read.othersClipped).toEqual([]);
+  expect(read.text).toBe(`Pay ${longHost} $14.20 on\u00a0Venmo`);
+});
 
 test("the picker overlay leaves no stray app name in the accessibility tree ahead of the Pay with combobox", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, everyApp));

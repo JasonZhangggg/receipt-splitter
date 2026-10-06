@@ -71,14 +71,14 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
           {() => (
             <View style={[styles.pill, choices.length > 1 && styles.picking, { backgroundColor: c.action }]}>
               <View style={styles.say}>
-                {href === null ? <Icon name={done ? "check" : "copy"} size={18} color={c.onAction} /> : null}
+                {href === null ? <View style={styles.icon}><Icon name={done ? "check" : "copy"} size={18} color={c.onAction} /></View> : null}
                 {done ? (
                   <Text style={[type.button, { color: c.onAction }]}>{say.copied}</Text>
                 ) : (
                   <>
-                    <Text style={[type.button, styles.head, { color: c.onAction }]}>{say.payHead}</Text>
+                    <Text numberOfLines={1} style={[type.button, styles.whole, { color: c.onAction }]}>{say.payHead}</Text>
                     <Text numberOfLines={1} style={[type.button, styles.name, { color: c.onAction }]}>{host}</Text>
-                    <Text style={[type.button, styles.head, { color: c.onAction }]}>{say.payTail(due, choices.length > 1 ? null : app.name)}</Text>
+                    <Text numberOfLines={1} style={[type.button, styles.whole, { color: c.onAction }]}>{say.payTail(due, choices.length > 1 ? null : app.name)}</Text>
                   </>
                 )}
               </View>
@@ -123,17 +123,18 @@ function useCopy(value: string, onFail: () => void): [copied: boolean, copy: () 
 
 const copiedFor = 1600;
 
-/** A name past about 13 characters ends in an ellipsis, so "Pay name" stays on one line and the amount and app wrap together onto the next. */
-const nameMax = 112;
+/** Flex items drop the spaces at their edges, so this stands in for the space between words at 15 px. The spaces stay in the text for copy and selection. */
+const wordSpace = 4;
 
 const styles = StyleSheet.create({
   box: { gap: 4 },
   ways: { gap: 10 },
-  pill: { flexDirection: "row", alignItems: "center", minHeight: 54, borderRadius: 27, paddingVertical: 7, paddingHorizontal: 24 },
+  pill: { flexDirection: "row", alignItems: "center", height: 54, borderRadius: 27, paddingHorizontal: 24 },
   picking: { paddingLeft: 20, paddingRight: capsuleInset },
-  say: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 8 },
-  head: { flexShrink: 0 },
-  name: { flexShrink: 1, maxWidth: nameMax },
+  say: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", columnGap: wordSpace },
+  icon: { marginRight: 4 },
+  whole: { flexShrink: 0 },
+  name: { flexShrink: 1, minWidth: 0 },
   app: { flexDirection: "row", alignItems: "center", gap: 4, height: 40, paddingLeft: 14, paddingRight: 10, borderRadius: 20 },
   capsule: { borderRadius: 20, opacity: 0.16 },
   handles: { textAlign: "center", marginHorizontal: 4 },
