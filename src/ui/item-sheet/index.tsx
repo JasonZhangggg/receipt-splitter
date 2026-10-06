@@ -1,10 +1,10 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { Keyboard, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { price as toPrice } from "../../core/money";
+import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
 import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem } from "../../core/split";
-import { money, parseAmount, plainAmount } from "../../draft";
+import { money, plainAmount } from "../../draft";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
@@ -13,6 +13,8 @@ import { fieldGroup } from "../document";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
 import { bundleNote, lineAmounts, nameParts, splitIds } from "../split-view/model";
+import type { CloseGuard } from "../adjustment-sheet";
+import { readAmount } from "./new-item";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
 
@@ -23,10 +25,15 @@ type Props = {
   send: (op: Operation) => Promise<boolean>;
   onAddPerson: (name: string) => void;
   onClose: () => void;
+  guardRef: RefObject<CloseGuard | null>;
 };
+
+/** The price field, or a person's field when the Item is split by amount. */
+type AmountField = "price" | ParticipantId;
 
 const saveAfter = 600;
 const tabular = { fontVariant: ["tabular-nums" as const] };
+const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
 function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   const values = [...(pending.values ?? []), ...(next.values ?? [])].filter(
@@ -44,7 +51,7 @@ function showsAsBefore(item: SplitItem, edit: ItemEdit): boolean {
   return nextTitle === title && (nextLine || null) === (line || null);
 }
 
-export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClose }: Props) {
+export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClose, guardRef }: Props) {
   const c = useColors();
   // Split and Delete item change the Item at once; the sheet keeps showing the Split as it looked at the tap, unsaved edits included, until it has left.
   const [leavingFrom, setLeavingFrom] = useState<Split | null>(null);
@@ -60,6 +67,9 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   const [sent, setSent] = useState<readonly ItemEdit[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
+  // Text in an amount field that does not read as an amount saves nothing, so closing holds the sheet open on its problem instead of dropping it.
+  const [unread, setUnread] = useState<ReadonlyMap<AmountField, "price" | "overLimit">>(new Map());
+  const [held, setHeld] = useState(false);
   const flushRef = useRef<() => void>(() => {});
   const [shown, setShown] = useState<SplitItem | undefined>(() => split.receipt.items.find(({ id }) => id === itemId));
   const [leaving, setLeaving] = useState<Leaving | null>(null);
@@ -110,10 +120,22 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       setProblem(ok ? null : say.saveFailed);
     });
   };
+  const holds = () => {
+    if (leavingFrom || unread.size === 0) return false;
+    setHeld(true);
+    return true;
+  };
   useLayoutEffect(() => {
     flushRef.current = flush;
     currentRef.current = current;
+    guardRef.current = holds;
   });
+  useEffect(
+    () => () => {
+      guardRef.current = null;
+    },
+    [guardRef],
+  );
 
   useEffect(() => {
     if (Object.keys(pending).length === 0) return;
@@ -126,6 +148,11 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     if (taken) closeTaken();
   }, [taken]);
 
+  const forget = (gone: (field: AmountField) => boolean) => {
+    const next = new Map([...unread].filter(([field]) => !gone(field)));
+    setUnread(next);
+    if (next.size === 0) setHeld(false);
+  };
   if (item && shown && item.split.by !== shown.split.by) {
     const { from, left } = fade ?? settled;
     if (from > unseen) {
@@ -137,16 +164,30 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
     }
     setFade(null);
     setShown(item);
+    forget((field) => field !== "price");
   }
   if (!item) return null;
   const edit = (next: ItemEdit) => setPending((was) => merge(was, next));
+  const typedAmount = (field: AmountField, text: string): Cents | null => {
+    const amount = readAmount(text);
+    if (typeof amount === "number") {
+      if (unread.has(field)) forget((other) => other === field);
+      return amount;
+    }
+    if (unread.get(field) !== amount) setUnread(new Map([...unread, [field, amount]]));
+    return null;
+  };
+  const unreadProblem = held ? [...unread][0] : undefined;
+  const shownProblem = unreadProblem ? amountProblem(...unreadProblem) : problem;
   const had = claimersOf(item.split);
   const nameOf = (id: ParticipantId) => split.participants.find((person) => person.id === id)?.name ?? "";
   const toggle = (participantId: ParticipantId, on: boolean) => {
     flush();
     void send({ by: me, type: on ? "unclaim" : "claim", itemId, participantId });
   };
+  // Close never takes focus, so a held sheet keeps its field and the keyboard. A closing sheet drops the keyboard as it leaves.
   const close = () => {
+    if (!holds()) Keyboard.dismiss();
     flush();
     onClose();
   };
@@ -156,6 +197,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       if (ok || !currentRef.current.receipt.items.some(({ id }) => id === itemId)) return onClose();
       setLeavingFrom(null);
       setFields((was) => was + 1);
+      forget(() => true);
       setProblem(say.saveFailed);
     });
   };
@@ -182,7 +224,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
         <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
           {say.item}
         </Text>
-        <PressTarget name={say.close} outsideScroll onPress={close} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
+        <PressTarget name={say.close} outsideScroll keepsFocus onPress={close} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
           {() => (
             <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
               <Icon name="x" size={16} color={c.ink} />
@@ -222,10 +264,11 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
             key={fields}
             defaultValue={plainAmount(item.price)}
             onChangeText={(text) => {
-              const amount = parseAmount(text);
-              if (amount !== null && amount >= 0) edit({ price: toPrice(amount) });
+              const amount = typedAmount("price", text);
+              if (amount !== null) edit({ price: toPrice(amount) });
             }}
             enterKeyHint="done"
+            selectTextOnFocus
             style={[type.input, tabular, styles.priceInput, styles.strong, { color: c.ink }]}
           />
         </View>
@@ -312,17 +355,21 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       />
       <View>
         <View ref={incomingRef} key={item.split.by} style={reduce ? null : enterAfter === null ? rowsEnter : [rowsEnterAfter, webStyle({ animationDelay: `${enterAfter}ms` })]}>
-          <SplitRows key={fields} item={item} me={me} nameOf={nameOf} edit={edit} />
+          <SplitRows key={fields} item={item} me={me} nameOf={nameOf} edit={edit} typedAmount={typedAmount} />
         </View>
         {leaving && !reduce ? (
           <View ref={leavingRef} key={`${leaving.item.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, { opacity: leaving.from }]}>
-            <SplitRows item={leaving.item} me={me} nameOf={nameOf} edit={() => {}} />
+            <SplitRows item={leaving.item} me={me} nameOf={nameOf} edit={() => {}} typedAmount={() => null} />
           </View>
         ) : null}
       </View>
       <SumLine item={item} />
       {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{say.overPrice}</Text> : null}
-      {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
+      {shownProblem ? (
+        <Text role="status" style={[type.small, styles.problem, { color: c.muted }]}>
+          {shownProblem}
+        </Text>
+      ) : null}
       <PressTarget name={say.deleteItem} outsideScroll onPress={remove} style={(pressed) => pressStyle(pressed, reduce)}>
         {() => (
           <View style={[styles.wide, styles.delete, { backgroundColor: c.sheetIn }]}>
@@ -335,9 +382,15 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   );
 }
 
-type SplitRowsProps = { item: SplitItem; me: ParticipantId | null; nameOf: (id: ParticipantId) => string; edit: (next: ItemEdit) => void };
+type SplitRowsProps = {
+  item: SplitItem;
+  me: ParticipantId | null;
+  nameOf: (id: ParticipantId) => string;
+  edit: (next: ItemEdit) => void;
+  typedAmount: (field: ParticipantId, text: string) => Cents | null;
+};
 
-function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
+function SplitRows({ item, me, nameOf, edit, typedAmount }: SplitRowsProps) {
   const c = useColors();
   const amounts = lineAmounts(item);
   return (
@@ -364,9 +417,10 @@ function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
                   inputMode="decimal"
                   defaultValue={plainAmount(amount)}
                   onChangeText={(text) => {
-                    const typed = parseAmount(text);
-                    if (typed !== null && typed >= 0) edit({ values: [value(typed)] });
+                    const typed = typedAmount(participantId, text);
+                    if (typed !== null) edit({ values: [value(typed)] });
                   }}
+                  selectTextOnFocus
                   style={[type.input, tabular, styles.amountInput, styles.strong, { color: c.ink }]}
                 />
               </View>
@@ -378,6 +432,11 @@ function SplitRows({ item, me, nameOf, edit }: SplitRowsProps) {
       })}
     </>
   );
+}
+
+function amountProblem(field: AmountField, problem: "price" | "overLimit"): string {
+  if (field === "price") return problem === "price" ? say.addProblem.price : say.addProblem.overLimit(maxAmount);
+  return problem === "price" ? say.adjustmentProblem.amount : say.adjustmentProblem.overLimit(maxAmount);
 }
 
 function SumLine({ item: { split, price } }: { item: SplitItem }) {

@@ -4,7 +4,7 @@ import { applyOperation, createSplit } from "../../core/operations";
 import { cents, price } from "../../core/money";
 import { itemId, participantId, type Split } from "../../core/split";
 import { mintedId } from "../../core/test-ids";
-import { newItem, type NewItem } from "./new-item";
+import { newItem, readAmount, type NewItem } from "./new-item";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -83,5 +83,32 @@ describe("newItem", () => {
       split = applied.split;
     }
     throw new Error("never refused");
+  });
+});
+
+describe("readAmount", () => {
+  test("reads a price with a digit typed into the middle of a shown 12.00", () => {
+    expect(readAmount("123.00")).toBe(12300);
+    expect(readAmount("12.300")).toBe("price");
+  });
+
+  test("calls a shown 12.00 with 13 typed after it a price problem, not 12.00", () => {
+    expect(readAmount("12.0013")).toBe("price");
+  });
+
+  test("calls an emptied field a price problem, not $0.00", () => {
+    expect(readAmount("")).toBe("price");
+    expect(readAmount(".")).toBe("price");
+  });
+
+  test("reads what a person types over the field", () => {
+    expect(readAmount("13")).toBe(1300);
+    expect(readAmount("$13.5")).toBe(1350);
+    expect(readAmount("0")).toBe(0);
+  });
+
+  test("calls a price over $100,000 over the limit", () => {
+    expect(readAmount("100000.01")).toBe("overLimit");
+    expect(readAmount("100000")).toBe(10_000_000);
   });
 });
