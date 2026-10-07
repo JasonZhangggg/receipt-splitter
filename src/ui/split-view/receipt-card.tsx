@@ -18,7 +18,7 @@ type Props = {
   shares: Shares;
   selected: Participant | null;
   me: ParticipantId | null;
-  onCircle: (item: SplitItem) => void;
+  onCircle: (item: SplitItem, press: Press) => void;
   onOpen: (item: SplitItem, press: Press) => void;
   onAdd: (press: Press) => void;
   onOpenAdjustment: (row: Adjustment, press: Press) => void;
@@ -73,7 +73,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       selected={selected}
       divided={divided}
       inBundle={inBundle}
-      onCircle={() => onCircle(item)}
+      onCircle={(press) => onCircle(item, press)}
       onOpen={(press) => onOpen(item, press)}
       expanded={showing === item.id}
     />
@@ -421,7 +421,7 @@ type LineProps = {
   selected: Participant | null;
   divided: boolean;
   inBundle: boolean;
-  onCircle: () => void;
+  onCircle: (press: Press) => void;
   onOpen: (press: Press) => void;
   expanded: boolean;
 };

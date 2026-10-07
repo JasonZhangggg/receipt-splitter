@@ -165,7 +165,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
               style={enter(index)}
             >
               <PressTarget
-                name={mark ? `${named}, ${mark === "paid" ? say.chipPaid : say.chipPaidPart}` : named}
+                name={mark ? `${named}, ${{ paid: say.chipPaid, short: say.chipPaidShort, over: say.chipPaidOver }[mark]}` : named}
                 onPress={() => onSelect(person.id)}
                 onLongPress={index === 0 || !onHold ? undefined : (press) => onHold(person.id, press)}
                 style={(pressed) => pressStyle(pressed, reduce)}

@@ -4,7 +4,7 @@ import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents } from "../../src/core/money";
-import type { Operation } from "../../src/core/operations";
+import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
 import { paidMarks } from "../../src/ui/pay/model";
@@ -29,6 +29,7 @@ import { SplitHeader } from "../../src/ui/split-view/header";
 import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
+import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
@@ -178,10 +179,36 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     return null;
   };
 
-  const onCircle = async (item: SplitItem) => {
+  // A circle tap for someone else asks once; a yes holds until the selection changes, even back to the same person.
+  const [trusted, setTrusted] = useState<ParticipantId | null>(null);
+  const [trustedOn, setTrustedOn] = useState(selected);
+  if (trustedOn !== selected) {
+    setTrustedOn(selected);
+    setTrusted(null);
+  }
+  const [confirming, setConfirming] = useState<{ readonly itemId: ItemId; readonly name: string; readonly person: Participant; readonly had: boolean; readonly from: Press; readonly closing: boolean } | null>(null);
+  const claim = async (itemId: ItemId, person: ParticipantId) => {
+    const item = split.receipt.items.find(({ id }) => id === itemId);
+    if (item && me) for (const op of circleTap(item, person)) await act({ ...op, by: me });
+  };
+  const onCircle = async (item: SplitItem, from: Press) => {
     if (wide && !me) return (paneRef.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>("[role='list'] [data-pressable]")?.focus();
     if (!me || !selectedPerson) return setPhase("pick");
-    for (const op of circleTap(item, selectedPerson.id)) await act({ ...op, by: me });
+    if (selectedPerson.id !== me && trusted !== selectedPerson.id) {
+      return setConfirming({ itemId: item.id, name: item.name, person: selectedPerson, had: claimersOf(item.split).includes(selectedPerson.id), from, closing: false });
+    }
+    await claim(item.id, selectedPerson.id);
+  };
+  const closeConfirming = () => setConfirming((open) => open && { ...open, closing: true });
+  const confirmClaim = () => {
+    if (!confirming || confirming.closing) return;
+    setTrusted(confirming.person.id);
+    closeConfirming();
+    void claim(confirming.itemId, confirming.person.id);
+  };
+  const confirmingGone = () => {
+    if (confirming && (wide || confirming.from.keyboard || actedByKey()) && confirming.from.trigger.isConnected) confirming.from.trigger.focus({ preventScroll: true });
+    setConfirming(null);
   };
 
   const collapse = () => {
@@ -213,6 +240,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   // Someone removed elsewhere: their menu leaves, and a selection of them goes back to this device's name, so a Revert does not bring it back.
   if (menu && !menu.closing && !present(menu.person.id)) setMenu({ ...menu, closing: true });
   if (selected !== null && selected !== me && !present(selected)) setSelected(me);
+  // A confirm whose person or Item is gone, or whose answer would now do the opposite, leaves as a Cancel would.
+  if (confirming && !confirming.closing) {
+    const item = split.receipt.items.find(({ id }) => id === confirming.itemId);
+    if (!item || !present(confirming.person.id) || claimersOf(item.split).includes(confirming.person.id) !== confirming.had) setConfirming({ ...confirming, closing: true });
+  }
   const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
   const menuGone = () => {
     if (menu && (wide || menu.from.keyboard || actedByKey())) {
@@ -390,7 +422,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       shares={shares}
       selected={me ? selectedPerson : null}
       me={me}
-      onCircle={(item) => void onCircle(item)}
+      onCircle={(item, from) => void onCircle(item, from)}
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
       onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
@@ -461,6 +493,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth}>
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
+        </Popover>
+      ) : null}
+      {confirming ? (
+        <Popover anchor={confirming.from.trigger} label={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} instant={confirming.from.keyboard} closing={confirming.closing} onClose={closeConfirming} onGone={confirmingGone} width={claimConfirmWidth} align="start">
+          <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(confirming.person.name, confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
         </Popover>
       ) : null}
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
