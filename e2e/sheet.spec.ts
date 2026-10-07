@@ -415,13 +415,19 @@ test("a long Host name on a 548 pt phone ellipsizes inside its chip instead of w
   await page.setViewportSize({ width: 375, height: 548 });
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
   await settled(page.getByTestId("split-sheet"));
-  await page.getByRole("button", { name: "Gameplay, check for Sam" }).first().click();
+  // Enough Items that the breakdown's list scrolls, so its height is the room the sheet leaves it.
+  const shut = page.getByRole("button", { name: /^Beer Bucket, .*collapsed$/ });
+  while (await shut.count()) await shut.first().click();
+  for (const name of ["Gameplay", "Guinness Draught 14.9oz Can", "Michelob Ultra 16oz Aluminum Bottle"]) {
+    for (const line of await page.getByRole("button", { name: `${name}, check for Sam` }).all()) await line.click();
+  }
   await expect(page.getByTestId("owe")).not.toHaveText("$0.00", live);
   await settled(page.getByTestId("split-sheet"));
   await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
   await expect(page.getByTestId("breakdown")).toBeVisible(live);
   await settled(page.getByTestId("split-sheet"));
   const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
+  await expect(list).toHaveCount(1);
   expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(138);
 });
 

@@ -4,7 +4,7 @@ import { StyleSheet, View } from "react-native";
 import type { PaymentService } from "../../core/split";
 import { PressTarget } from "../components/button";
 import { paymentApps } from "../home-copy";
-import { capsuleInset } from "./capsule";
+import { switcherWidth } from "./switcher";
 
 export type MethodPickerProps = { service: PaymentService; choices: readonly PaymentService[]; onPick: (service: PaymentService) => void; name: string; children: ReactNode };
 
@@ -20,7 +20,7 @@ export function MethodPicker({ service, choices, onPick, name, children }: Metho
 }
 
 const styles = StyleSheet.create({
-  over: { position: "absolute", top: 0, right: 0, bottom: 0, justifyContent: "center", paddingRight: capsuleInset },
-  face: { borderRadius: 20 },
+  over: { position: "absolute", top: 0, right: 0, bottom: 0, width: switcherWidth },
+  face: { width: switcherWidth, flex: 1 },
   unseen: { opacity: 0 },
 });

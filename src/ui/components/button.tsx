@@ -151,11 +151,7 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
         >
           {busy && !reduce ? <View style={[styles.spinner, spin, { borderColor: tone.ink, borderRightColor: "transparent" }]} /> : null}
           {icon && !busy ? <Icon name={icon} size={variant.icon} color={tone.ink} /> : null}
-          {glyph ? (
-            <View style={[styles.glyph, { backgroundColor: tone.ink }]}>
-              <Text style={[type.glyph, { color: tone.fill }]}>{glyph}</Text>
-            </View>
-          ) : null}
+          {glyph ? <Mark glyph={glyph} ink={tone.ink} fill={tone.fill} /> : null}
           {label ? <Text style={[variant.label, { color: tone.ink }]}>{label}</Text> : null}
         </View>
       )}
@@ -178,6 +174,15 @@ const spin = webAnimation({
   animationTimingFunction: "linear",
   animationIterationCount: "infinite",
 });
+
+/** An app's letter in a circle, drawn in the control's ink with the letter cut out in its fill. */
+export function Mark({ glyph, ink, fill }: { glyph: string; ink: string; fill?: string }) {
+  return (
+    <View style={[styles.glyph, { backgroundColor: ink }]}>
+      <Text style={[type.glyph, { color: fill }]}>{glyph}</Text>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   spinner: { width: 16, height: 16, borderRadius: 8, borderWidth: 2 },

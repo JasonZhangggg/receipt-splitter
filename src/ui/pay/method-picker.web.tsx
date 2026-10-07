@@ -1,14 +1,14 @@
 import { StyleSheet, View } from "react-native";
 
 import { paymentApps } from "../home-copy";
-import { capsuleInset } from "./capsule";
+import { switcherWidth } from "./switcher";
 import type { MethodPickerProps } from "./method-picker";
 
 const pickerParts = { dataSet: { appPicker: "" } };
-// The capsule sits on the dark pill, so its focus ring is drawn inside it in the pill's text color and follows its round ends.
+// The switcher sits on the dark pill, so its focus ring is drawn inside it in the pill's text color and follows its round ends.
 const pressFace = { dataSet: { pressFace: "", round: "" } };
 
-/** A native select laid over the pill's app name, so the phone shows its own picker and a desktop its own menu. The children size it to the name they cover. */
+/** A native select laid over the pill's chevron end, so the phone shows its own picker and a desktop its own menu. */
 export function MethodPicker({ service, choices, onPick, name, children }: MethodPickerProps) {
   return (
     <View {...pickerParts} style={styles.over}>
@@ -38,7 +38,7 @@ const select = {
 } as const;
 
 const styles = StyleSheet.create({
-  over: { position: "absolute", top: 0, right: 0, bottom: 0, justifyContent: "center", paddingRight: capsuleInset },
-  face: { borderRadius: 20 },
+  over: { position: "absolute", top: 0, right: 0, bottom: 0, width: switcherWidth },
+  face: { flex: 1, borderTopRightRadius: 27, borderBottomRightRadius: 27 },
   unseen: { opacity: 0 },
 });
