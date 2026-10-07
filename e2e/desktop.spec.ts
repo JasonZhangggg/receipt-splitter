@@ -360,3 +360,20 @@ test("under 1024 px the Split page keeps the phone layout with its bottom sheet"
   await expect(page.getByRole("complementary")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 });
+
+test("the confirm for checking Gameplay for Sam hangs just below its circle, and its yes checks it", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Priya");
+  await pane(page).getByRole("button", { name: "Sam", exact: true }).click();
+
+  const gameplayCircle = page.getByRole("button", { name: "Gameplay, check for Sam" });
+  await gameplayCircle.click();
+  const dialog = page.getByRole("dialog", { name: "Check Gameplay for Sam?" });
+  await expect(dialog).toBeVisible(live);
+  const row = (await gameplayCircle.boundingBox())!;
+  const box = (await dialog.boundingBox())!;
+  expect(Math.round(box.y - (row.y + row.height))).toBe(6);
+  await dialog.getByRole("button", { name: "Check for Sam" }).click();
+  await expect(gameplayCircle).toHaveAttribute("aria-pressed", "true", live);
+  await expect(dialog).toHaveCount(0, live);
+});

@@ -512,6 +512,8 @@ async function othersHadAll(page: Page) {
   await tap(page.getByRole("button", { name: "Sam", exact: true }));
   for (const item of ["Rice", "Tostones"]) {
     await tap(page.getByRole("button", { name: `${item}, check for Sam` }));
+    // Only the first check for someone else asks.
+    if (item === "Rice") await tap(page.getByRole("dialog", { name: "Check Rice for Sam?" }).getByRole("button", { name: "Check for Sam" }));
     await page.locator(`[aria-label="${item}, check for Sam"][aria-pressed="true"]`).waitFor();
   }
   await page.getByTestId("unclaimed").filter({ hasText: "$0.00" }).waitFor();

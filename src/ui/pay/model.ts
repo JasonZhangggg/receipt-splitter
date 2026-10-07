@@ -25,7 +25,8 @@ export function differenceNote(state: PayState, viewer: Viewer, payer: string, h
   return null;
 }
 
-export type PaidMark = "paid" | "short";
+/** "short" and "over" both draw "!" on the chip: they paid, and their share has moved since. */
+export type PaidMark = "paid" | "short" | "over";
 
 /** Who shows a mark on their chip. The Host is owed, so never marked; someone who hasn't paid has none. */
 export function paidMarks(shares: Shares, payments: Split["payments"]): ReadonlyMap<ParticipantId, PaidMark> {
@@ -34,8 +35,8 @@ export function paidMarks(shares: Shares, payments: Split["payments"]): Readonly
   for (const { participantId, share } of others) {
     const amount = payments.find((payment) => payment.participantId === participantId)?.amount ?? null;
     const state = payState(share, amount);
-    if (state.kind === "short") marks.set(participantId, "short");
-    else if (state.kind === "settled" || state.kind === "over") marks.set(participantId, "paid");
+    if (state.kind === "short" || state.kind === "over") marks.set(participantId, state.kind);
+    else if (state.kind === "settled") marks.set(participantId, "paid");
   }
   return marks;
 }

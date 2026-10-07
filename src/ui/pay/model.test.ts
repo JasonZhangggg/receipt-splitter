@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 
-import { cents } from "../../core/money";
-import type { Shares } from "../../core/shares";
-import type { Split } from "../../core/split";
+import { cents, price } from "../../core/money";
+import { computeShares, type Shares } from "../../core/shares";
+import { itemId, participantId, type ItemSplit, type Split } from "../../core/split";
 import { differenceNote, paidMarks, payState } from "./model";
 
 describe("payState", () => {
@@ -74,11 +74,26 @@ describe("paidMarks", () => {
     { participantId: "jason", amount: cents(1000) },
   ] as unknown as Split["payments"];
 
-  test("marks short and settled or over payers, and leaves the Host and anyone unpaid bare", () => {
+  test("marks short, settled and over payers, and leaves the Host and anyone unpaid bare", () => {
     expect([...paidMarks(shares, payments)]).toEqual([
       ["sam", "short"],
       ["priya", "paid"],
-      ["lee", "paid"],
+      ["lee", "over"],
     ]);
+  });
+
+  test("marks over once a payer who paid exactly gets a co-claimer on their Item, so their share shrinks", () => {
+    const [jason, sam, priya] = ["jason", "sam", "priya"].map(participantId);
+    const people = [{ id: jason, name: "Jason" }, { id: sam, name: "Sam" }, { id: priya, name: "Priya" }] as const;
+    const receipt = (rice: ItemSplit) => ({
+      items: [{ id: itemId("rice"), name: "Rice", price: price(1200), split: rice }] as const,
+      adjustments: [],
+      subtotal: cents(1200),
+      total: cents(1200),
+    });
+    const payments = [{ participantId: sam, amount: cents(1200) }] as unknown as Split["payments"];
+    const before = computeShares({ receipt: receipt({ by: "even", units: [[sam]] }), participants: people, payments });
+    const after = computeShares({ receipt: receipt({ by: "even", units: [[sam, priya]] }), participants: people, payments });
+    expect([[...paidMarks(before, payments)], [...paidMarks(after, payments)]]).toEqual([[["sam", "paid"]], [["sam", "over"]]]);
   });
 });
