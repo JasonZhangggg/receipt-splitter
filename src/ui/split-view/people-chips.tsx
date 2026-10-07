@@ -70,7 +70,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
                   </Text>
                   {person.id === me ? <Text style={[type.caption, styles.you, { color: isSelected ? c.onAction : c.ink }]}>{say.you}</Text> : null}
                   {mark ? (
-                    <View style={styles.mark}>
+                    <View style={[styles.mark, mark !== "paid" && styles.narrow]}>
                       <Icon name={mark === "paid" ? "check" : "exclaim"} size={markSize} color={isSelected ? c.onAction : away ? c.muted : c.ink} />
                     </View>
                   ) : null}
@@ -128,6 +128,8 @@ const styles = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, maxWidth: 160, paddingHorizontal: 14, borderRadius: 22 },
   name: { flexShrink: 1 },
   mark: { flexShrink: 0 },
+  // The "!" is a thin stroke in a square glyph box, so it would sit farther from the name than the check does.
+  narrow: { marginHorizontal: -3 },
   you: { opacity: 0.7 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
