@@ -31,10 +31,11 @@ type Ghost = { readonly person: Participant; readonly mark: PaidMark | undefined
 
 export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, bleed, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
+  // Wrapped chips reflow across lines and the pane changes height, so on desktop a removal closes up in one frame, with no slide or fade.
   const reduce = useReducedMotion();
   const scroller = useRef<ScrollView>(null);
   const chips = useRef(new Map<ParticipantId, HTMLElement>());
-  const offsets = useRef(new Map<ParticipantId, { x: number; y: number }>());
+  const offsets = useRef(new Map<ParticipantId, number>());
   const follow = useRef(false);
   const [typing, setTyping] = useState<string | null>(null);
   const commit = () => {
@@ -65,7 +66,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
   if (marks !== shownMarks) setShownMarks(marks);
   if (people !== shownPeople) {
     setShownPeople(people);
-    const gone = reduce ? [] : shownPeople.filter((person) => !people.some(({ id }) => id === person.id));
+    const gone = reduce || wrap ? [] : shownPeople.filter((person) => !people.some(({ id }) => id === person.id));
     const kept = ghosts.filter(({ person }) => !people.some(({ id }) => id === person.id));
     if (gone.length > 0 || kept.length !== ghosts.length) setGhosts([...kept, ...gone.map((person) => ({ person, mark: shownMarks.get(person.id) }))]);
   }
@@ -76,24 +77,18 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     for (const [id, node] of ghostNodes.current) {
       if (node.dataset.placed) continue;
       node.dataset.placed = "1";
-      node.style.left = `${before.get(id)?.x ?? 0}px`;
-      if (wrap) node.style.top = `${before.get(id)?.y ?? 0}px`;
+      node.style.left = `${before.get(id) ?? 0}px`;
       node.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }], { duration: chipLeaveMs, easing: motion.easeOut, fill: "forwards" }).onfinish = () =>
         setGhosts((all) => all.filter(({ person }) => person.id !== id));
     }
     const leaving = ghosts.length > 0;
-    const after = new Map<ParticipantId, { x: number; y: number }>();
+    const after = new Map<ParticipantId, number>();
     for (const [id, node] of chips.current) {
-      after.set(id, { x: node.offsetLeft, y: node.offsetTop });
+      after.set(id, node.offsetLeft);
       const from = before.get(id);
-      if (!leaving || reduce || from === undefined || (from.x === node.offsetLeft && from.y === node.offsetTop)) continue;
-      // A chip that wrapped onto another line fades in at its new place: sliding it across lines would cut through its neighbours.
-      if (from.y !== node.offsetTop) {
-        node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: chipLeaveMs, easing: motion.easeOut });
-        continue;
-      }
+      if (!leaving || reduce || from === undefined || from === node.offsetLeft) continue;
       // Additive, so a second removal mid-slide adds its own move to the one still running instead of jumping.
-      node.animate([{ transform: `translateX(${from.x - node.offsetLeft}px)` }, { transform: "none" }], { duration: chipLeaveMs, easing: motion.easeOut, composite: "add" });
+      node.animate([{ transform: `translateX(${from - node.offsetLeft}px)` }, { transform: "none" }], { duration: chipLeaveMs, easing: motion.easeOut, composite: "add" });
     }
     offsets.current = after;
   });
@@ -212,7 +207,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
             aria-hidden
             pointerEvents="none"
             ref={track(ghostNodes, person.id)}
-            style={[styles.ghost, { top: wrap ? 0 : ringRoom }]}
+            style={[styles.ghost, { top: ringRoom }]}
           >
             {face(person, mark)}
           </View>
