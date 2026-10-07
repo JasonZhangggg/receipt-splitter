@@ -58,11 +58,14 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
   // A person who leaves fades where their chip stood while the chips after it slide over, so the row closes the gap without a jump.
   const [ghosts, setGhosts] = useState<readonly Ghost[]>([]);
   const [shownPeople, setShownPeople] = useState(people);
+  // The marks as last drawn: the new Split no longer knows a removed person paid, and their chip must not lose its check as it fades.
+  const [shownMarks, setShownMarks] = useState(marks);
+  if (marks !== shownMarks) setShownMarks(marks);
   if (people !== shownPeople) {
     setShownPeople(people);
     const gone = reduce ? [] : shownPeople.filter((person) => !people.some(({ id }) => id === person.id));
     const kept = ghosts.filter(({ person }) => !people.some(({ id }) => id === person.id));
-    if (gone.length > 0 || kept.length !== ghosts.length) setGhosts([...kept, ...gone.map((person) => ({ person, mark: marks.get(person.id) }))]);
+    if (gone.length > 0 || kept.length !== ghosts.length) setGhosts([...kept, ...gone.map((person) => ({ person, mark: shownMarks.get(person.id) }))]);
   }
   const ghostNodes = useRef(new Map<ParticipantId, HTMLElement>());
   useLayoutEffect(() => {

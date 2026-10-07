@@ -50,6 +50,7 @@ const owe = (page: Page) => page.getByTestId("owe");
 /** Drives a real touch through Chromium's input pipeline, so a hold reaches the press responder's timer and a drag scrolls natively. */
 async function touch(target: Locator, { holdMs = 0, dx = 0 }: { holdMs?: number; dx?: number }) {
   const page = target.page();
+  test.skip(page.context().browser()?.browserType().name() !== "chromium", "a real touch goes through Chromium's CDP; the iOS Simulator check covers WebKit");
   const box = await target.boundingBox();
   if (!box) throw new Error("no box to touch");
   const cdp = await page.context().newCDPSession(page);
@@ -130,4 +131,76 @@ test("twelve names stay on one row that a sideways drag scrolls without selectin
   await sam.waitForTimeout(300);
   await expect(sam.getByText("Your share")).toBeVisible();
   await expect(sam.getByRole("dialog", { name: /^Options for / })).toHaveCount(0);
+});
+
+test("a menu open for someone another phone removes closes, and the next long-press still opens a menu", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, ["Jason", "Sam", "Priya", "Lee"]);
+  const sam = await open(browser, link, "Sam");
+  const jason = await open(browser, link, "Jason");
+
+  await chip(sam, "Priya").click({ button: "right" });
+  await expect(menu(sam, "Priya")).toBeVisible(live);
+  await chip(jason, "Priya").click({ button: "right" });
+  await menu(jason, "Priya").getByRole("button", { name: "Remove Priya" }).click();
+
+  await expect(menu(sam, "Priya")).toHaveCount(0, live);
+  await chip(sam, "Lee").click({ button: "right" });
+  await expect(menu(sam, "Lee").getByRole("button", { name: "Remove Lee" })).toBeVisible(live);
+});
+
+test("a removal the server refuses says so under the chips, and the person stays", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const context = await newContext(browser);
+  const sam = await context.newPage();
+  await sam.routeWebSocket(/\/parties\//, (client) => {
+    const server = client.connectToServer();
+    client.onMessage((message) => {
+      const frame = JSON.parse(String(message));
+      if (frame.op?.type === "removeParticipant") client.send(JSON.stringify({ type: "rejected", ref: frame.ref, rejection: { reason: "tooLarge" } }));
+      else server.send(message);
+    });
+    server.onMessage((message) => client.send(message));
+  });
+  await sam.goto(link);
+  await sam.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(chip(sam, "Sam, you")).toBeVisible(live);
+
+  await chip(sam, "Priya").click({ button: "right" });
+  await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
+
+  await expect(sam.getByText("Couldn't remove Priya. Try again.")).toBeVisible(live);
+  await expect(chip(sam, "Priya")).toBeVisible();
+});
+
+test("the chip of a paid person who is removed keeps its check while it fades, and a Revert does not bring back a selection of them", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const priya = await open(browser, link, "Priya");
+  const sam = await open(browser, link, "Sam");
+  await priya.getByRole("button", { name: "Sprite, check for Priya" }).click();
+  await expect(owe(priya)).toHaveText("$2.50", live);
+  await owe(priya).click();
+  await priya.getByRole("button", { name: "I already paid" }).click();
+  await chip(sam, "Priya, paid").click();
+  await expect(sam.getByText("Priya's share")).toBeVisible(live);
+
+  await sam.evaluate(() => {
+    const seen: boolean[] = [];
+    (window as unknown as { ghostMarks: boolean[] }).ghostMarks = seen;
+    new MutationObserver((records) => {
+      for (const record of records)
+        for (const node of record.addedNodes)
+          if (node instanceof HTMLElement && node.getAttribute("aria-hidden") === "true" && node.textContent === "Priya") seen.push(node.querySelector("svg") !== null);
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  await chip(sam, "Priya, paid").click({ button: "right" });
+  await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
+  await expect(chip(sam, "Priya, paid")).toHaveCount(0, live);
+  expect(await sam.evaluate(() => (window as unknown as { ghostMarks: boolean[] }).ghostMarks)).toEqual([true]);
+  await expect(sam.getByText("Your share")).toBeVisible(live);
+
+  await sam.getByRole("button", { name: "History" }).click();
+  await sam.getByRole("button", { name: /^Revert Removed Priya/ }).click();
+  await expect(chip(sam, "Priya, paid")).toBeVisible(live);
+  await sam.waitForTimeout(300);
+  await expect(sam.getByText("Your share")).toBeVisible();
 });

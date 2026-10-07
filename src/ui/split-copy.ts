@@ -27,6 +27,7 @@ export const splitCopy = {
   removedPerson: (name: string) => `Removed ${name} from the split`,
   personMenu: (name: string) => `Options for ${name}`,
   removePerson: (name: string) => `Remove ${name}`,
+  removeFailed: (name: string) => `Couldn't remove ${name}. Try again.`,
   removeNote: (name: string, items: number, paid: string | null) => {
     const off = items > 0 ? `unchecks ${items} ${items === 1 ? "item" : "items"}` : null;
     const cleared = paid === null ? null : `clears their ${paid} payment`;

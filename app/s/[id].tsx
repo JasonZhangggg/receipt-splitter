@@ -8,7 +8,7 @@ import type { Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
 import { paidMarks } from "../../src/ui/pay/model";
-import { isRoutableSplitId, type AdjustmentId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
+import { isRoutableSplitId, type AdjustmentId, type Participant, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
@@ -206,18 +206,36 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : say.saveFailed);
   };
 
-  const [menu, setMenu] = useState<{ readonly id: ParticipantId; readonly from: Press; readonly closing: boolean } | null>(null);
-  const menuPerson = menu && people.slice(1).find(({ id }) => id === menu.id);
-  const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
+  // The menu keeps the person it opened for, so it can finish leaving after they are gone.
+  // A leaving menu holds the Split it was showing, so its line does not change while it fades.
+  const [menu, setMenu] = useState<{ readonly person: Participant; readonly from: Press; readonly shown: Split | null } | null>(null);
+  const [peopleProblem, setPeopleProblem] = useState<string | null>(null);
+  const [lastSplit, setLastSplit] = useState(split);
+  if (split !== lastSplit) setLastSplit(split);
+  const present = (id: ParticipantId) => people.some((person) => person.id === id);
+  // Someone removed elsewhere: their menu leaves, and a selection of them goes back to this device's name, so a Revert does not bring it back.
+  if (menu && !menu.shown && !present(menu.person.id)) setMenu({ ...menu, shown: lastSplit });
+  if (selected !== null && selected !== me && !present(selected)) setSelected(me);
+  const closeMenu = () => setMenu((open) => open && { ...open, shown: open.shown ?? split });
   const menuGone = () => {
-    if (menu && (menu.from.keyboard || actedByKey()) && menu.from.trigger.isConnected) menu.from.trigger.focus({ preventScroll: true });
+    if (menu && (wide || menu.from.keyboard || actedByKey())) {
+      // The chip it hung from may be the one removed; the selected chip is the nearest sensible place.
+      const chip = menu.from.trigger.isConnected ? menu.from.trigger : document.querySelector<HTMLElement>('[data-pressable]:has([aria-selected="true"])');
+      chip?.focus({ preventScroll: true });
+    }
     setMenu(null);
   };
-  const remove = (participantId: ParticipantId) => {
+  const remove = async (person: Participant) => {
     closeMenu();
-    void act({ by: me, type: "removeParticipant", participantId });
+    if (!(await act({ by: me, type: "removeParticipant", participantId: person.id }))) setPeopleProblem(say.removeFailed(person.name));
   };
-  const hold = (participantId: ParticipantId, from: Press) => setMenu((open) => (open && !open.closing ? open : { id: participantId, from, closing: false }));
+  const hold = (participantId: ParticipantId, from: Press) => {
+    const person = people.find(({ id }) => id === participantId);
+    if (!person) return;
+    setPeopleProblem(null);
+    setMenu((open) => (open && !open.shown ? open : { person, from, shown: null }));
+  };
+  const peopleNote = peopleProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
   const closeGuard = useRef<CloseGuard | null>(null);
@@ -266,6 +284,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         onHold={hold}
         bleed={layout.gutter + insets.left}
       />
+      {peopleNote}
     </View>
   );
   const pickContent = (
@@ -300,6 +319,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
                 onHold={hold}
                 bleed={paneEdge}
               />
+              {peopleNote}
             </View>
             <Swap view={selectedPerson.id} style={styles.shrink}>
               <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} edge={paneEdge} />
@@ -439,9 +459,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           {overlayContent}
         </BottomSheet>
       ) : null}
-      {menu && menuPerson ? (
-        <Popover anchor={menu.from.trigger} label={say.personMenu(menuPerson.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth}>
-          <PersonMenu split={split} person={menuPerson} onRemove={() => remove(menuPerson.id)} />
+      {menu ? (
+        <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.shown !== null} onClose={closeMenu} onGone={menuGone} width={personMenuWidth}>
+          <PersonMenu split={menu.shown ?? split} person={menu.person} onRemove={() => void remove(menu.person)} />
         </Popover>
       ) : null}
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
