@@ -1,4 +1,4 @@
-import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -117,14 +117,14 @@ test("with Zelle the only way to pay, Sam's one pill copies the Zelle handle, sh
 
   await owe(sam).click();
   const pill = breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" });
-  await expect(pill).toHaveText(/^Pay\s*Jason\s*\$14\.20 on\sZelle$/, live);
+  await expect(pill).toHaveText("ZZelle", live);
   await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
   await expect(breakdown(sam).getByText("Zelle\u00a0jason@example.com", { exact: true })).toBeVisible();
   await expect(breakdown(sam).getByRole("button", { name: /^Copy \$/ })).toHaveCount(0);
   await pill.click();
   await expect(breakdown(sam).getByRole("button", { name: "Copied" })).toHaveText("Copied");
   expect(await sam.evaluate(() => navigator.clipboard.readText())).toBe("jason@example.com");
-  await expect(pill).toHaveText(/^Pay\s*Jason\s*\$14\.20 on\sZelle$/);
+  await expect(pill).toHaveText("ZZelle");
 });
 
 test("Sam's one pay pill switches among Jason's four apps, links each at his $14.20 Share, copies the Zelle handle, and keeps his pick after a reload", async ({ browser, request }, { workerIndex }) => {
@@ -283,88 +283,6 @@ test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays 
   await expect(breakdown(sam).getByRole("button", { name: "I already paid" })).toBeVisible(live);
 });
 
-const longHost = "Alexandra Papadopoulos";
-const bigReceipt = { items: [{ id: "grill", name: "Grill", price: 123456 }], adjustments: [], subtotal: 123456, total: 123456 };
-
-async function pillAt(browser: Browser, request: APIRequestContext, workerIndex: number, handles: readonly { service: string; handle: string }[], width: number) {
-  const link = await createSplit(request, workerIndex, handles, bigReceipt, [{ id: "jason", name: longHost }, ...people.slice(1)]);
-  const sam = await open(browser, link);
-  await sam.setViewportSize({ width, height: 640 });
-  await pick(sam, "Sam");
-  await sam.getByRole("button", { name: "Grill, check for Sam" }).click();
-  await expect(owe(sam)).toHaveText("$1,234.56", live);
-  await owe(sam).click();
-  const pill = breakdown(sam).getByRole("link", { name: `Pay ${longHost} $1,234.56 on Venmo` });
-  await expect(pill).toBeVisible(live);
-  return pill;
-}
-
-const readPill = (pill: Locator) =>
-  pill.evaluate((el, host) => {
-    const box = el.getBoundingClientRect();
-    const texts = [...el.querySelectorAll("div, span")].filter((each) => each.children.length === 0 && each.textContent);
-    const name = texts.find((each) => (each.textContent ?? "").startsWith(host));
-    const clipped = (each: Element) => each.scrollWidth > each.clientWidth;
-    const outside = (each: Element) => { const r = each.getBoundingClientRect(); return r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5 || r.left < box.left - 0.5 || r.right > box.right + 0.5; };
-    return {
-      height: box.height,
-      rowsOfText: new Set(texts.map((each) => Math.round(each.getBoundingClientRect().top + each.getBoundingClientRect().height / 2))).size,
-      wrapped: texts.filter((each) => each.getBoundingClientRect().height > 1.5 * parseFloat(getComputedStyle(each).lineHeight)).map((each) => each.textContent),
-      nameClipped: name === undefined ? null : clipped(name),
-      slack: box.width - 48 - (Math.max(...texts.map((each) => each.getBoundingClientRect().right)) - Math.min(...texts.map((each) => each.getBoundingClientRect().left))),
-      nameWidth: name?.getBoundingClientRect().width ?? 0,
-      othersClipped: texts.filter((each) => each !== name && (clipped(each) || outside(each))).map((each) => each.textContent),
-      text: texts.map((each) => each.textContent ?? "").join(""),
-      overflow: el.scrollHeight - el.clientHeight,
-    };
-  }, longHost);
-
-for (const [ways, handles, app] of [["one way", [venmo], "Venmo"], ["four ways", everyApp, "Venmo"]] as const) {
-  test(`at 320 px a Host named ${longHost} owed $1,234.56 keeps one 54 px line with ${ways} to pay, the name ellipsized and the amount and ${app} whole`, async ({ browser, request }, { workerIndex }) => {
-    const read = await readPill(await pillAt(browser, request, workerIndex, handles, 320));
-    expect(read.height).toBeCloseTo(54, 1);
-    expect(read.overflow).toBeLessThanOrEqual(0);
-    expect(read.rowsOfText).toBe(1);
-    expect(read.wrapped).toEqual([]);
-    expect(read.nameClipped).toBe(true);
-    expect(read.othersClipped).toEqual([]);
-    expect(read.text).toContain("Pay ");
-    expect(read.text).toContain(" $1,234.56 on");
-    expect(read.text).toContain(app);
-  });
-}
-
-async function samPill(browser: Browser, request: APIRequestContext, workerIndex: number, width: number) {
-  const sam = await open(browser, await createSplit(request, workerIndex, [venmo], menu, [{ id: "jason", name: longHost }, ...people.slice(1)]));
-  await sam.setViewportSize({ width, height: 640 });
-  await pick(sam, "Sam");
-  await circle(sam, "Pho", "Sam").click();
-  await owe(sam).click();
-  const pill = breakdown(sam).getByRole("link", { name: `Pay ${longHost} $14.20 on Venmo` });
-  await expect(pill).toBeVisible(live);
-  return readPill(pill);
-}
-
-test(`at 393 px ${longHost} shrinks only by the room it lacks, with no fixed cap, on one 54 px line`, async ({ browser, request }, { workerIndex }) => {
-  const read = await samPill(browser, request, workerIndex, 393);
-  expect(read.height).toBeCloseTo(54, 1);
-  expect(read.rowsOfText).toBe(1);
-  expect(read.nameClipped).toBe(true);
-  expect(read.nameWidth).toBeGreaterThan(112);
-  expect(Math.abs(read.slack)).toBeLessThan(1);
-  expect(read.othersClipped).toEqual([]);
-});
-
-// Linux CI fonts set the name a few px wider than macOS, so this width leaves room on both.
-test(`at 480 px the full name ${longHost} shows without an ellipsis on one 54 px line`, async ({ browser, request }, { workerIndex }) => {
-  const read = await samPill(browser, request, workerIndex, 480);
-  expect(read.height).toBeCloseTo(54, 1);
-  expect(read.rowsOfText).toBe(1);
-  expect(read.nameClipped).toBe(false);
-  expect(read.othersClipped).toEqual([]);
-  expect(read.text).toBe(`Pay ${longHost} $14.20 on\u00a0Venmo`);
-});
-
 test("the picker overlay leaves no stray app name in the accessibility tree ahead of the Pay with combobox", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, everyApp));
   await pick(sam, "Sam");
@@ -374,6 +292,19 @@ test("the picker overlay leaves no stray app name in the accessibility tree ahea
   const tree = await breakdown(sam).ariaSnapshot();
   const before = tree.slice(0, tree.indexOf('combobox "Pay with"'));
   expect(before).toContain("Pay Jason $14.20 on Venmo");
-  expect(before.split("\n").filter((line) => /^\s*- text: Venmo$/.test(line))).toEqual([]);
-  expect(before.replace(/- link "Pay Jason \$14\.20 on Venmo"[^\n]*/, "")).not.toMatch(/Venmo/);
+  expect(before.replace(/- link "Pay Jason \$14\.20 on Venmo"[^\n]*/, "").replace("- text: V Venmo", "")).not.toMatch(/Venmo/);
+});
+
+test("the pill's visible label is only the app mark and the method, with the full sentence kept as its accessible name", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, everyApp, menu, [{ id: "jason", name: "Alexandra Papadopoulos" }, ...people.slice(1)]));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await owe(sam).click();
+  const pill = breakdown(sam).getByRole("link", { name: "Pay Alexandra Papadopoulos $14.20 on Venmo" });
+  await expect(pill).toHaveText("VVenmo", live);
+  expect(await pill.evaluate((el) => el.getBoundingClientRect().height)).toBeCloseTo(54, 1);
+  const picker = breakdown(sam).getByRole("combobox", { name: "Pay with" });
+  const box = await picker.boundingBox();
+  expect(box?.width).toBeGreaterThanOrEqual(44);
+  expect(box?.height).toBeGreaterThanOrEqual(44);
 });
