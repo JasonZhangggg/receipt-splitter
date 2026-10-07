@@ -21,18 +21,20 @@ type Props = {
   onHold?: (id: ParticipantId, press: Press) => void;
   /** How far the row may scroll past its column on each side: to the sheet's or pane's edge. At rest the first chip still sits on the column. */
   bleed: number;
+  /** The side-by-side layout: the chips wrap onto several lines instead of scrolling on one. */
+  wrap?: boolean;
   entering?: boolean;
   label?: string;
 };
 
 type Ghost = { readonly person: Participant; readonly mark: PaidMark | undefined };
 
-export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, bleed, entering = false, label = say.people }: Props) {
+export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, bleed, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const scroller = useRef<ScrollView>(null);
   const chips = useRef(new Map<ParticipantId, HTMLElement>());
-  const offsets = useRef(new Map<ParticipantId, number>());
+  const offsets = useRef(new Map<ParticipantId, { x: number; y: number }>());
   const follow = useRef(false);
   const [typing, setTyping] = useState<string | null>(null);
   const commit = () => {
@@ -74,18 +76,24 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     for (const [id, node] of ghostNodes.current) {
       if (node.dataset.placed) continue;
       node.dataset.placed = "1";
-      node.style.left = `${before.get(id) ?? 0}px`;
+      node.style.left = `${before.get(id)?.x ?? 0}px`;
+      if (wrap) node.style.top = `${before.get(id)?.y ?? 0}px`;
       node.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }], { duration: chipLeaveMs, easing: motion.easeOut, fill: "forwards" }).onfinish = () =>
         setGhosts((all) => all.filter(({ person }) => person.id !== id));
     }
     const leaving = ghosts.length > 0;
-    const after = new Map<ParticipantId, number>();
+    const after = new Map<ParticipantId, { x: number; y: number }>();
     for (const [id, node] of chips.current) {
-      after.set(id, node.offsetLeft);
+      after.set(id, { x: node.offsetLeft, y: node.offsetTop });
       const from = before.get(id);
-      if (!leaving || reduce || from === undefined || from === node.offsetLeft) continue;
+      if (!leaving || reduce || from === undefined || (from.x === node.offsetLeft && from.y === node.offsetTop)) continue;
+      // A chip that wrapped onto another line fades in at its new place: sliding it across lines would cut through its neighbours.
+      if (from.y !== node.offsetTop) {
+        node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: chipLeaveMs, easing: motion.easeOut });
+        continue;
+      }
       // Additive, so a second removal mid-slide adds its own move to the one still running instead of jumping.
-      node.animate([{ transform: `translateX(${from - node.offsetLeft}px)` }, { transform: "none" }], { duration: chipLeaveMs, easing: motion.easeOut, composite: "add" });
+      node.animate([{ transform: `translateX(${from.x - node.offsetLeft}px)` }, { transform: "none" }], { duration: chipLeaveMs, easing: motion.easeOut, composite: "add" });
     }
     offsets.current = after;
   });
@@ -105,8 +113,24 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
   useLayoutEffect(() => {
     if (selected === seenSelected.current) return;
     seenSelected.current = selected;
+    if (wrap) return;
     (selected === null ? undefined : chips.current.get(selected))?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: reduce ? "instant" : "smooth" });
   });
+
+  // A mouse wheel only scrolls down, so over the row it scrolls the row sideways, as long as the row has somewhere to go.
+  useEffect(() => {
+    const box = wrap || Platform.OS !== "web" ? undefined : (scroller.current?.getScrollableNode() as HTMLElement | undefined);
+    if (!box) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaX !== 0 || event.deltaY === 0 || event.ctrlKey) return;
+      const next = Math.max(0, Math.min(box.scrollWidth - box.clientWidth, box.scrollLeft + event.deltaY));
+      if (next === box.scrollLeft) return;
+      event.preventDefault();
+      box.scrollLeft = next;
+    };
+    box.addEventListener("wheel", onWheel, { passive: false });
+    return () => box.removeEventListener("wheel", onWheel);
+  }, [wrap]);
 
   const face = (person: Participant, mark: PaidMark | undefined) => {
     const isSelected = person.id === selected;
@@ -135,14 +159,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
 
   return (
     <View role="group" aria-label={label}>
-      <ScrollView
-        ref={scroller}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${bleed}px` })]}
-        contentContainerStyle={[styles.row, { paddingHorizontal: bleed, paddingVertical: ringRoom }]}
-      >
+      <Row wrap={wrap} bleed={bleed} scroller={scroller}>
         {people.map((person, index) => {
           const mark = marks.get(person.id);
           const named = person.id === me ? `${person.name}, ${say.you}` : person.name;
@@ -195,13 +212,30 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
             aria-hidden
             pointerEvents="none"
             ref={track(ghostNodes, person.id)}
-            style={[styles.ghost, { top: ringRoom }]}
+            style={[styles.ghost, { top: wrap ? 0 : ringRoom }]}
           >
             {face(person, mark)}
           </View>
         ))}
-      </ScrollView>
+      </Row>
     </View>
+  );
+}
+
+/** The phone's one-row scroller, or on desktop a plain row that wraps. */
+function Row({ wrap, bleed, scroller, children }: { wrap: boolean; bleed: number; scroller: React.RefObject<ScrollView | null>; children: React.ReactNode }) {
+  if (wrap) return <View style={styles.wrapRow}>{children}</View>;
+  return (
+    <ScrollView
+      ref={scroller}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${bleed}px` })]}
+      contentContainerStyle={[styles.row, { paddingHorizontal: bleed, paddingVertical: ringRoom }]}
+    >
+      {children}
+    </ScrollView>
   );
 }
 
@@ -231,6 +265,7 @@ const chipEnter = webAnimation({
 const rowScroll = webStyle({ touchAction: "pan-x", overscrollBehaviorX: "contain" });
 
 const styles = StyleSheet.create({
+  wrapRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "center", columnGap: layout.chipRowGap },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, maxWidth: 160, paddingHorizontal: 14, borderRadius: 22 },
   name: { flexShrink: 1 },

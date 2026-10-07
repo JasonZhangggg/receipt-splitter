@@ -280,6 +280,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         onAdd={(typed) => void addPerson(typed)}
         onHold={hold}
         bleed={layout.gutter + insets.left}
+        wrap={wide}
       />
       {peopleNote}
     </View>
@@ -315,6 +316,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
                 onAdd={(typed) => void addPerson(typed)}
                 onHold={hold}
                 bleed={paneEdge}
+                wrap={wide}
               />
               {peopleNote}
             </View>

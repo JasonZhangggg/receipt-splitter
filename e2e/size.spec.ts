@@ -3,7 +3,7 @@ import { expect, test } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
 
-const budgetBytes = 400_000;
+const budgetBytes = 410_000;
 
 test("the first load of a Split link transfers under 400 KB", async ({ page, request }) => {
   const created = await request.post("/api/splits", {

@@ -15,6 +15,44 @@ const dinner = {
   total: 1050,
 };
 
+test("on a desktop window twelve names wrap onto more lines and none is clipped", async ({ browser, request }, { workerIndex }) => {
+  const page = await (await newContext(browser)).newPage();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(await createSplit(request, workerIndex, dozen));
+  await page.getByRole("complementary", { name: "People" }).getByRole("button", { name: "Sam", exact: true }).click();
+  const sam = page;
+  await expect(chip(sam, "Sam, you")).toBeVisible(live);
+  await sam.waitForTimeout(600);
+  const lines = () =>
+    people(sam)
+      .getByRole("button")
+      .evaluateAll((chips) => new Set(chips.map((element) => Math.round(element.getBoundingClientRect().top))).size);
+  await expect.poll(lines, live).toBeGreaterThan(1);
+
+  const group = await people(sam).boundingBox();
+  for (const name of dozen) {
+    const box = await chip(sam, name === "Sam" ? "Sam, you" : name).boundingBox();
+    expect(box?.x).toBeGreaterThanOrEqual(group?.x ?? 0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual((group?.x ?? 0) + (group?.width ?? 0) + 1);
+  }
+});
+
+test("on a narrow window a mouse wheel over the row scrolls it sideways", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName === "webkit", "Playwright cannot send a mouse wheel to mobile WebKit");
+  const page = await (await newContext(browser)).newPage();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
+  const left = () =>
+    people(sam).evaluate((group) => [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible")?.scrollLeft ?? -1);
+  expect(await left()).toBe(0);
+
+  const box = await chip(sam, "Priya").boundingBox();
+  await sam.mouse.move((box?.x ?? 0) + 20, (box?.y ?? 0) + 20);
+  await sam.mouse.wheel(0, 150);
+  // The Pixel profile's 2.625 pixel ratio turns a 150 wheel into about 57 CSS pixels.
+  await expect.poll(left, live).toBeGreaterThan(40);
+});
+
 const dozen = ["Jason", "Sam", "Priya", "Alexandra", "Bartholomew", "Chen", "Dmitri", "Esperanza", "Fatima", "Giovanni", "Hiroshi", "Ingrid"];
 
 let creates = 0;
