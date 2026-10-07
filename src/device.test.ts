@@ -91,6 +91,15 @@ describe("recent splits on this device", () => {
     expect([kept.length, kept.includes(`receipt-splitter:split:${idOf(1)}`), kept.includes(`receipt-splitter:split:${idOf(2)}`)]).toEqual([50, false, true]);
   });
 
+  test("keep the way to pay this device picked beside its name, and drop a stored way that is not a payment app", () => {
+    const split = splitOf(1);
+    rememberSplit(split.id, { me: participantId("p1") });
+    rememberSplit(split.id, { payWith: "zelle" });
+    expect(splitOnDevice(split.id)).toEqual({ me: "p1", payWith: "zelle" });
+    storage.setItem(`receipt-splitter:split:${split.id}`, JSON.stringify({ me: "p1", payWith: "bitcoin" }));
+    expect(splitOnDevice(split.id)).toEqual({ me: "p1" });
+  });
+
   test("keep the pick and the Creator secret through a note, and the entry through a pick", () => {
     const split = splitOf(1);
     rememberSplit(split.id, { creatorSecret: "secret" });

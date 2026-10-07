@@ -111,7 +111,7 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
       ) : null}
       {mine && !isHost ? (
         <View style={{ marginTop: fold && !note ? payGap - amountSlack : payGap }}>
-          <PayBlock host={host.name} handles={split.paymentHandles} state={state} onPaid={onPaid} />
+          <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={state} onPaid={onPaid} />
         </View>
       ) : null}
     </>

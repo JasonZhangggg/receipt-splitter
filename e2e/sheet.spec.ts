@@ -343,42 +343,52 @@ test("the first swipe on the open breakdown's Item list scrolls the list, and th
 // Three Item rows (46 px each) is the least that still reads as a list rather than a peephole.
 const roomyList = 3 * 46;
 
-test("with two ways to pay on a 667 pt phone, the breakdown's Items, discounts, tax and tip scroll in one region at least three rows tall", async ({ browser, request, browserName }, { workerIndex }) => {
-  test.skip(browserName !== "chromium", "only Chromium's CDP touches drive native scrolling");
-  const page = await open(browser, await createSplit(request, workerIndex, browserName, topgolf, [venmo, cashApp]), browserName);
-  await page.setViewportSize({ width: 375, height: 667 });
-  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
-  await settled(page.getByTestId("split-sheet"));
-  const shut = page.getByRole("button", { name: /^Beer Bucket, .*collapsed$/ });
-  while (await shut.count()) await shut.first().click();
-  for (const name of ["Gameplay", "Guinness Draught 14.9oz Can", "Michelob Ultra 16oz Aluminum Bottle"]) {
-    for (const line of await page.getByRole("button", { name: `${name}, check for Sam` }).all()) await line.click();
-  }
-  for (const name of ["High Noon Pineapple 12oz Can", "High Noon Watermelon 12oz Can"]) await page.getByRole("button", { name: `${name}, check for Sam` }).first().click();
-  await expect(page.getByTestId("owe")).not.toHaveText("$0.00", live);
-  await settled(page.getByTestId("split-sheet"));
-  await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
-  await expect(page.getByTestId("breakdown")).toBeVisible(live);
-  await settled(page.getByTestId("split-sheet"));
+const zelle = { service: "zelle", handle: "jason@example.com" };
+const paypal = { service: "paypal", handle: "jasonzhang" };
 
-  const breakdown = page.getByTestId("breakdown");
-  await expect(breakdown.getByRole("link", { name: /on Venmo$/ })).toBeVisible();
-  await expect(breakdown.getByRole("link", { name: /on Cash App$/ })).toBeVisible();
-  const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
-  await expect(list).toHaveCount(1);
-  expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(roomyList);
-  for (const row of ["Beer Bucket Discount (10%)", "Tax", "Tip"]) await expect(list.getByText(row, { exact: true }).first()).toBeAttached();
+for (const { count, handles } of [
+  { count: "one", handles: [venmo] },
+  { count: "two", handles: [venmo, cashApp] },
+  { count: "three", handles: [venmo, cashApp, zelle] },
+  { count: "four", handles: [venmo, cashApp, paypal, zelle] },
+]) {
+  test(`with ${count} ways to pay on a 667 pt phone, the breakdown's Items, discounts, tax and tip scroll in one region at least three rows tall`, async ({ browser, request, browserName }, { workerIndex }) => {
+    test.skip(browserName !== "chromium", "only Chromium's CDP touches drive native scrolling");
+    const page = await open(browser, await createSplit(request, workerIndex, browserName, topgolf, handles), browserName);
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+    await settled(page.getByTestId("split-sheet"));
+    const shut = page.getByRole("button", { name: /^Beer Bucket, .*collapsed$/ });
+    while (await shut.count()) await shut.first().click();
+    for (const name of ["Gameplay", "Guinness Draught 14.9oz Can", "Michelob Ultra 16oz Aluminum Bottle"]) {
+      for (const line of await page.getByRole("button", { name: `${name}, check for Sam` }).all()) await line.click();
+    }
+    for (const name of ["High Noon Pineapple 12oz Can", "High Noon Watermelon 12oz Can"]) await page.getByRole("button", { name: `${name}, check for Sam` }).first().click();
+    await expect(page.getByTestId("owe")).not.toHaveText("$0.00", live);
+    await settled(page.getByTestId("split-sheet"));
+    await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
+    await expect(page.getByTestId("breakdown")).toBeVisible(live);
+    await settled(page.getByTestId("split-sheet"));
 
-  const shown = () =>
-    list.getByText("Tip", { exact: true }).evaluate((label) => {
-      const scroller = label.closest("[data-sheet-scroll]")!.getBoundingClientRect();
-      const row = label.getBoundingClientRect();
-      return row.top >= scroller.top && row.bottom <= scroller.bottom;
-    });
-  expect(await shown()).toBe(false);
-  for (let swipe = 0; swipe < 6 && !(await shown()); swipe += 1) await drag(page, await center(list), -150, 200);
-  expect(await shown()).toBe(true);
-});
+    const breakdown = page.getByTestId("breakdown");
+    await expect(breakdown.getByRole("link", { name: /^Pay Jason \$[\d.]+ on Venmo$/ })).toBeVisible();
+    await expect(breakdown.getByRole("combobox", { name: "Pay with" }).locator("option")).toHaveCount(handles.length > 1 ? handles.length : 0);
+    const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
+    await expect(list).toHaveCount(1);
+    expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(roomyList);
+    for (const row of ["Beer Bucket Discount (10%)", "Tax", "Tip"]) await expect(list.getByText(row, { exact: true }).first()).toBeAttached();
+
+    const shown = () =>
+      list.getByText("Tip", { exact: true }).evaluate((label) => {
+        const scroller = label.closest("[data-sheet-scroll]")!.getBoundingClientRect();
+        const row = label.getBoundingClientRect();
+        return row.top >= scroller.top && row.bottom <= scroller.bottom;
+      });
+    expect(await shown()).toBe(false);
+    for (let swipe = 0; swipe < 6 && !(await shown()); swipe += 1) await drag(page, await center(list), -150, 200);
+    expect(await shown()).toBe(true);
+  });
+}
 
 test("a price typed at the end or in the middle of the Item sheet's price field is what the field and the row show, and text that is not a price holds the sheet open on its problem", async ({ browser, request, browserName }, { workerIndex }) => {
   const receipt = { items: [{ id: "wings", name: "Wings", price: 1200 }], adjustments: [], subtotal: 1200, total: 1200 };
