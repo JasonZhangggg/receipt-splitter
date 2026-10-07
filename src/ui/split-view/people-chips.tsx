@@ -61,7 +61,7 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
                     { backgroundColor: isSelected ? c.action : away ? "transparent" : c.sheetIn, boxShadow: away ? `inset 0 0 0 1px ${c.hairline}` : undefined },
                   ]}
                 >
-                  <Text numberOfLines={1} style={[type.label, { color: isSelected ? c.onAction : away ? c.muted : c.ink }]}>
+                  <Text numberOfLines={1} style={[type.label, styles.name, { color: isSelected ? c.onAction : away ? c.muted : c.ink }]}>
                     {person.name}
                   </Text>
                   {person.id === me ? <Text style={[type.caption, styles.you, { color: isSelected ? c.onAction : c.ink }]}>{say.you}</Text> : null}
@@ -115,7 +115,8 @@ const chipEnter = webAnimation({
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, paddingHorizontal: 14, borderRadius: 22 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, maxWidth: 160, paddingHorizontal: 14, borderRadius: 22 },
+  name: { flexShrink: 1 },
   you: { opacity: 0.7 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
