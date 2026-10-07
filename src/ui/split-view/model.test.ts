@@ -2,8 +2,9 @@ import { describe, expect, test } from "vitest";
 
 import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
-import { shareBreakdown } from "../../core/shares";
-import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedLines, unclaimedUnits } from "./model";
+import { computeShares, shareBreakdown } from "../../core/shares";
+import { splitCopy } from "../split-copy";
+import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, unclaimedUnits } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -153,7 +154,7 @@ describe("receiptRows at Topgolf", () => {
     receiptRows(receipt).rows.map((row) =>
       row.kind === "item"
         ? [row.item.id, row.item.price]
-        : [row.bundle.name, row.bundle.summary, row.bundle.net, row.bundle.items.map(({ id, price: cost, quantity = 1 }) => `${quantity}x ${id} ${cost}`), row.bundle.discount, unclaimedUnits(row.bundle)],
+        : [row.bundle.name, row.bundle.summary, row.bundle.net, row.bundle.items.map(({ id, price: cost, quantity = 1 }) => `${quantity}x ${id} ${cost}`), row.bundle.discount, unclaimedUnits(row.bundle, computeShares({ receipt, participants: [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }], payments: [] }).unclaimed.itemIds)],
     );
 
   test("reads Gameplay, then each Beer Bucket with one row per line, its unit count, percent, net price, discount, and units nobody had, and leaves only Tax and Tip as charges", () => {
@@ -248,8 +249,21 @@ describe("receiptRows at Topgolf", () => {
     ]);
   });
 
-  test("counts six lines nobody had, a 3x and two 2x lines as one each, and five once Ann and Bob take the 3x Guinness", () => {
-    expect([unclaimedLines(topgolf()), unclaimedLines(topgolf([ann, bob]))]).toEqual([6, 5]);
+  test("the Unclaimed line counts six lines nobody had, a 3x and two 2x lines as one each, and five once Ann and Bob take the 3x Guinness", () => {
+    const participants = [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }] as const;
+    const line = (receipt: Receipt<SplitItem>) => splitCopy.unclaimedTotal(computeShares({ receipt, participants, payments: [] }).unclaimed.itemIds.length);
+    expect([line(topgolf()), line(topgolf([ann, bob]))]).toEqual(["Unclaimed · 6 items", "Unclaimed · 5 items"]);
+  });
+
+  test("a collapsed Beer Bucket counts a By amount line with money left over as unclaimed, as the Unclaimed line does", () => {
+    const participants = [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }] as const;
+    const shared = topgolf([ann, bob]);
+    const partly = (row: SplitItem): SplitItem => (row.id === "pineapple1" ? { ...row, split: { by: "amount", units: [[[ann, cents(500)]]] } } : row);
+    const [first, ...rest] = shared.items;
+    const receipt = { ...shared, items: [partly(first), ...rest.map(partly)] as const };
+    const { itemIds } = computeShares({ receipt, participants, payments: [] }).unclaimed;
+    const buckets = receiptRows(receipt).rows.flatMap((row) => (row.kind === "bundle" ? [unclaimedUnits(row.bundle, itemIds)] : []));
+    expect([buckets, splitCopy.unclaimedTotal(itemIds.length)]).toEqual([[1, 6], "Unclaimed · 6 items"]);
   });
 });
 

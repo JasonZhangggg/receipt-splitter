@@ -37,6 +37,7 @@ const nameStart = circleColumn + columnGap;
 const priceGap = 10;
 const dotCenter = dotSize / 2;
 const bleed = 12;
+const adjustmentsGap = 8;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
 
@@ -96,7 +97,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
               <BundleGroup
                 bundle={bundle}
                 open={opened.has(bundle.id)}
-                unclaimed={started ? unclaimedUnits(bundle) : 0}
+                unclaimed={started ? unclaimedUnits(bundle, shares.unclaimed.itemIds) : 0}
                 claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
                 selected={selected}
                 divided={divided}
@@ -170,7 +171,9 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       </View>
       {started ? (
         <View style={styles.unclaimed}>
-          <Text style={[type.secondary, { color: c.muted }]}>{say.unclaimed}</Text>
+          <Text testID="unclaimed-count" numberOfLines={1} style={[type.secondary, tabular, styles.rowLabel, { color: c.muted }]}>
+            {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
+          </Text>
           <Text testID="unclaimed" style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>
             {money(shares.unclaimed.total)}
           </Text>
@@ -537,10 +540,11 @@ const styles = StyleSheet.create({
   collapsed: { minHeight: 0 },
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
-  add: { minHeight: tapSize },
+  // A full row that overlaps the gap above the Subtotal hairline, so "Add item" sits halfway between the two hairlines, as each Item does.
+  add: { marginBottom: -adjustmentsGap },
   addIcon: { width: circleColumn, alignItems: "flex-start" },
   why: { marginTop: 8, marginBottom: 2 },
-  adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
+  adjustments: { marginTop: adjustmentsGap, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.adjustmentRow, gap: 12 },
   // A 44 px tap target that still sits on the 34 px row pitch; the overlap goes to the later row.
   tapRow: { minHeight: tapSize, marginVertical: (layout.adjustmentRow - tapSize) / 2 },
