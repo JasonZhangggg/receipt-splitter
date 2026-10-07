@@ -15,7 +15,7 @@ The token the creating device keeps and sends to change the Payment handles. It 
 _Avoid_: Host secret, host key
 
 **Participant**:
-A person who shared the bill, including the Host. Every Participant but the Host owes the Host their Share.
+A person who shared the bill, including the Host. Every Participant but the Host owes the Host their Share. Anyone in the Split can add a Participant or remove anyone but the Host. A removal unclaims their Items, clears their Payment and frees their Pick, and History can revert it; the revert brings back the Claims and the Payment but not the Pick.
 _Avoid_: Member, friend, guest, user
 
 **Payment handle**:
@@ -85,5 +85,5 @@ A Split this device created or opened, listed behind the Recent splits icon on h
 _Avoid_: History, which is the Split page's list of payments and receipt changes
 
 **Payment**:
-A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer. Only the device that picked the name records or clears its Payment. That rule stops honest mistakes and is not a security check, because **That's me** lets any device take a name. History shows a Payment but cannot revert it.
+A Participant's own report that they paid the Host, with the amount they paid. The app never sees the actual transfer. Only the device that picked the name records or clears its Payment. That rule stops honest mistakes and is not a security check, because **That's me** lets any device take a name. History shows a Payment but cannot revert it, except as part of reverting a removal.
 _Avoid_: Settlement, transaction

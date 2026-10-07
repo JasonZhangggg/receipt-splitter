@@ -8,6 +8,7 @@ import {
   type AdjustmentId,
   type Change,
   type Claim,
+  type ClaimPart,
   type Edit,
   type DeviceId,
   type Item,
@@ -143,7 +144,6 @@ export type RejectionReason =
   | "conflict"
   | "nameTaken"
   | "namePicked"
-  | "removalNotAllowed"
   | "noOriginal"
   | "amountOverPrice"
   | "tooLarge";
@@ -204,8 +204,27 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const { id, name } = op.participant;
       return commit(split, [() => [{ kind: "participant", id, added: { index: split.participants.length, name } }]]);
     }
-    case "removeParticipant":
-      return reject("removalNotAllowed");
+    case "removeParticipant": {
+      const { participantId } = op;
+      const index = indexOf(split.participants, participantId);
+      if (index === -1) return reject("unknownParticipant");
+      if (index === 0) return reject("host");
+      // Picks are device state and never recorded, so a Revert brings the name back unpicked; its device picks it again with "That's me".
+      const unpicked = { ...split, picks: split.picks.filter((pick) => pick.participantId !== participantId) };
+      return commit(unpicked, [
+        ({ receipt }) => {
+          const [first, ...rest] = receipt.items.flatMap((item): ClaimPart[] =>
+            claimersOf(item.split).includes(participantId) ? [[item.id, item.split.by, valueIn(item.split, participantId) ?? 0]] : [],
+          );
+          return first === undefined ? [] : [{ kind: "claimParts", participantId, parts: [first, ...rest], claimed: false }];
+        },
+        (current) => {
+          const before = paymentOf(current, participantId);
+          return before === null ? [] : [{ kind: "payment", participantId, before, after: null }];
+        },
+        () => [{ kind: "participant", id: participantId, removed: { index, name: split.participants[index].name } }],
+      ]);
+    }
     case "claim":
     case "unclaim": {
       const index = indexOf(split.receipt.items, op.itemId);
@@ -319,6 +338,16 @@ function toggleClaimer(split: ItemSplit, id: ParticipantId, claimed: boolean): I
   return withClaimers(split.by, claimed ? sortByCodeUnit([...claimers, id]) : claimers.filter((claimer) => claimer !== id), (claimer) => valueIn(split, claimer));
 }
 
+/**
+ * Puts a person back on an Item as the Item is now. In the mode they left, they get their own part back, cents only up to what the others leave of the price.
+ * In a mode someone switched to since, they start as anyone added to it does, at 1 share or $0.00, so a Revert never fails on that and never moves the others.
+ */
+function withClaimer({ price, split }: SplitItem, id: ParticipantId, part: { readonly by: SplitMode; readonly value: number }): ItemSplit {
+  const others = split.by === "amount" ? split.units[0].reduce((sum, [, amount]) => sum + amount, 0) : 0;
+  const own = part.by !== split.by ? undefined : split.by === "amount" ? Math.min(part.value, Math.max(0, price - others)) : part.value;
+  return withClaimers(split.by, sortByCodeUnit([...claimersOf(split), id]), (claimer) => (claimer === id ? own : valueIn(split, claimer)));
+}
+
 function evenIfOverPrice(split: ItemSplit, price: number): ItemSplit {
   return overPrice(split, price) ? withClaimers("even", claimersOf(split), () => undefined) : split;
 }
@@ -400,7 +429,9 @@ function undo(split: Split, revision: number): Step {
   const target = split.recentChanges.find((change) => change.revision === revision);
   if (!target) return reject("changeNotFound");
   if (target.undoneBy !== null) return reject("alreadyUndone");
-  if (target.writes.some((write) => write.kind === "payment")) return reject("paymentNotRevertible");
+  // A Payment reverts only as part of a removal, which cleared it, or of that removal's Revert.
+  const removal = target.writes.some((write) => write.kind === "participant");
+  if (!removal && target.writes.some((write) => write.kind === "payment")) return reject("paymentNotRevertible");
   const step = commit(
     split,
     [...target.writes].reverse().map((write): MakeWrites => (current) => inverse(current, write)),
@@ -450,6 +481,11 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
       return [{ kind: "totals", subtotalDelta: cents(0 - write.subtotalDelta), totalDelta: cents(0 - write.totalDelta) }];
     case "payment":
       return [{ kind: "payment", participantId: write.participantId, before: write.after, after: write.before }];
+    case "claimParts": {
+      // An Item deleted since has no claim to give back or take.
+      const [first, ...rest] = write.parts.filter(([itemId]) => indexOf(split.receipt.items, itemId) !== -1);
+      return first === undefined ? [] : [{ ...write, parts: [first, ...rest], claimed: !write.claimed }];
+    }
     case "perUnit":
       return "conflict";
     case "claims":
@@ -663,6 +699,17 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       const total = receipt.total + write.totalDelta;
       if (!isCents(subtotal) || !isCents(total)) return "amountOutOfRange";
       return { ...split, receipt: { ...receipt, subtotal, total } };
+    }
+    case "claimParts": {
+      if (write.claimed && !findParticipant(split, write.participantId)) return "conflict";
+      const parts = new Map(write.parts.map(([itemId, by, value]) => [itemId, { by, value }]));
+      if (parts.size !== write.parts.length || [...parts.keys()].some((itemId) => indexOf(receipt.items, itemId) === -1)) return "conflict";
+      const [first, ...rest] = receipt.items.map((item) => {
+        const part = parts.get(item.id);
+        if (!part || claimersOf(item.split).includes(write.participantId) === write.claimed) return item;
+        return { ...item, split: write.claimed ? withClaimer(item, write.participantId, part) : toggleClaimer(item.split, write.participantId, false) };
+      });
+      return { ...split, receipt: { ...receipt, items: [first, ...rest] } };
     }
     case "payment": {
       if (!findParticipant(split, write.participantId) || paymentOf(split, write.participantId) !== write.before) {

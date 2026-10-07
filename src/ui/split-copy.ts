@@ -24,6 +24,11 @@ export const splitCopy = {
   people: "People",
   you: "you",
   addPerson: "Add a person",
+  removedPerson: (name: string) => `Removed ${name} from the split`,
+  personMenu: (name: string) => `Options for ${name}`,
+  removePerson: (name: string) => `Remove ${name}`,
+  removeNote: (name: string, items: number, paid: string | null) =>
+    items || paid ? `Removing ${name} ${[items && `unchecks ${items} ${items === 1 ? "item" : "items"}`, paid && `clears their ${paid} payment`].filter(Boolean).join(" and ")}.` : null,
   newPerson: "Name",
   browse: "Pick your name to check off what you had.",
   checkYours: "Check what you had",

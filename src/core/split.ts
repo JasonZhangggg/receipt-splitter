@@ -154,8 +154,16 @@ export type RowWrite<RowId, Fields> = Presence<RowId, Fields> | { readonly id: R
 /** What Split changes on a quantity line, and what Revert gives it back. */
 export type QuantityLine = { readonly quantity: number; readonly price: Price; readonly split: ItemSplit };
 
+/** A person's own part of one Item: their share count, their cents, or 0 for an even claim, with the mode it was in. */
+export type ClaimPart = readonly [itemId: ItemId, by: SplitMode, value: number];
+
 export type Write =
   | ({ readonly kind: "item" } & RowWrite<ItemId, ItemFields>)
+  /**
+   * Takes one person off each listed Item (`claimed` false), or puts them back (`claimed` true). It names only their own part, so a removal stays small
+   * at any group size, and putting them back leaves every other claimer's values as they are now.
+   */
+  | { readonly kind: "claimParts"; readonly participantId: ParticipantId; readonly parts: NonEmpty<ClaimPart>; readonly claimed: boolean }
   /** The line `id`, holding `line`, becomes one-unit rows: itself, then `ids`. The rows follow from `line`, so the write stays small at any quantity. */
   | { readonly kind: "split"; readonly id: ItemId; readonly ids: NonEmpty<ItemId>; readonly line: QuantityLine }
   /** The rows `ids` fold back into the row `id`, which takes `line`. */

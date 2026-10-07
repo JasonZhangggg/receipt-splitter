@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { Participant, ParticipantId } from "../../core/split";
 import type { PaidMark } from "../pay/model";
-import { PressTarget } from "../components/button";
+import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
@@ -17,16 +17,32 @@ type Props = {
   selected: ParticipantId | null;
   onSelect: (id: ParticipantId) => void;
   onAdd: (name: string) => void;
+  /** A long-press or right-click on anyone but the Host. */
+  onHold?: (id: ParticipantId, press: Press) => void;
+  /** How far the row may scroll past its column on each side: to the sheet's or pane's edge. At rest the first chip still sits on the column. */
+  bleed: number;
+  /** The side-by-side layout: the chips wrap onto several lines instead of scrolling on one. */
+  wrap?: boolean;
   entering?: boolean;
   label?: string;
 };
 
-export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, entering = false, label = say.people }: Props) {
+type Ghost = { readonly person: Participant; readonly mark: PaidMark | undefined };
+
+export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, bleed, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
+  // Wrapped chips reflow across lines and the pane changes height, so on desktop a removal closes up in one frame, with no slide or fade.
   const reduce = useReducedMotion();
+  const scroller = useRef<ScrollView>(null);
+  const chips = useRef(new Map<ParticipantId, HTMLElement>());
+  const offsets = useRef(new Map<ParticipantId, number>());
+  const follow = useRef(false);
   const [typing, setTyping] = useState<string | null>(null);
   const commit = () => {
-    if (typing?.trim()) onAdd(typing);
+    if (typing?.trim()) {
+      follow.current = true;
+      onAdd(typing);
+    }
     setTyping(null);
   };
   const [entrance, setEntrance] = useState(entering);
@@ -42,79 +58,196 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
   }, [entrance]);
   const enter = (index: number) => (entrance && !reduce ? [chipEnter, webStyle({ animationDelay: `${Math.min(index, staggered) * stagger}ms` })] : null);
 
+  // A person who leaves fades where their chip stood while the chips after it slide over, so the row closes the gap without a jump.
+  const [ghosts, setGhosts] = useState<readonly Ghost[]>([]);
+  const [shownPeople, setShownPeople] = useState(people);
+  // The marks as last drawn: the new Split no longer knows a removed person paid, and their chip must not lose its check as it fades.
+  const [shownMarks, setShownMarks] = useState(marks);
+  if (marks !== shownMarks) setShownMarks(marks);
+  if (people !== shownPeople) {
+    setShownPeople(people);
+    const gone = reduce || wrap ? [] : shownPeople.filter((person) => !people.some(({ id }) => id === person.id));
+    const kept = ghosts.filter(({ person }) => !people.some(({ id }) => id === person.id));
+    if (gone.length > 0 || kept.length !== ghosts.length) setGhosts([...kept, ...gone.map((person) => ({ person, mark: shownMarks.get(person.id) }))]);
+  }
+  const ghostNodes = useRef(new Map<ParticipantId, HTMLElement>());
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web") return;
+    const before = offsets.current;
+    for (const [id, node] of ghostNodes.current) {
+      if (node.dataset.placed) continue;
+      node.dataset.placed = "1";
+      node.style.left = `${before.get(id) ?? 0}px`;
+      node.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }], { duration: chipLeaveMs, easing: motion.easeOut, fill: "forwards" }).onfinish = () =>
+        setGhosts((all) => all.filter(({ person }) => person.id !== id));
+    }
+    const leaving = ghosts.length > 0;
+    const after = new Map<ParticipantId, number>();
+    for (const [id, node] of chips.current) {
+      after.set(id, node.offsetLeft);
+      const from = before.get(id);
+      if (!leaving || reduce || from === undefined || from === node.offsetLeft) continue;
+      // Additive, so a second removal mid-slide adds its own move to the one still running instead of jumping.
+      node.animate([{ transform: `translateX(${from - node.offsetLeft}px)` }, { transform: "none" }], { duration: chipLeaveMs, easing: motion.easeOut, composite: "add" });
+    }
+    offsets.current = after;
+  });
+
+
+  // The field as it opens, and a chip this row just added, scroll into view at the row's end.
+  const opened = typing !== null;
+  const count = people.length;
+  useLayoutEffect(() => {
+    if (!opened && !follow.current) return;
+    follow.current = false;
+    scroller.current?.scrollToEnd({ animated: !reduce });
+  }, [opened, count, reduce]);
+
+  // The row's scroll padding keeps a chip scrolled into view clear of the edge, on the gutter.
+  const seenSelected = useRef(selected);
+  useLayoutEffect(() => {
+    if (selected === seenSelected.current) return;
+    seenSelected.current = selected;
+    if (wrap) return;
+    (selected === null ? undefined : chips.current.get(selected))?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: reduce ? "instant" : "smooth" });
+  });
+
+  // A mouse wheel only scrolls down, so over the row it scrolls the row sideways, as long as the row has somewhere to go.
+  useEffect(() => {
+    const box = wrap || Platform.OS !== "web" ? undefined : (scroller.current?.getScrollableNode() as HTMLElement | undefined);
+    if (!box) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaX !== 0 || event.deltaY === 0 || event.ctrlKey) return;
+      const next = Math.max(0, Math.min(box.scrollWidth - box.clientWidth, box.scrollLeft + event.deltaY));
+      if (next === box.scrollLeft) return;
+      event.preventDefault();
+      box.scrollLeft = next;
+    };
+    box.addEventListener("wheel", onWheel, { passive: false });
+    return () => box.removeEventListener("wheel", onWheel);
+  }, [wrap]);
+
+  const face = (person: Participant, mark: PaidMark | undefined) => {
+    const isSelected = person.id === selected;
+    const away = !picked.has(person.id) && !isSelected;
+    return (
+      <View
+        aria-selected={isSelected}
+        style={[styles.chip, { backgroundColor: isSelected ? c.action : away ? "transparent" : c.sheetIn, boxShadow: away ? `inset 0 0 0 1px ${c.hairline}` : undefined }]}
+      >
+        <Text numberOfLines={1} selectable={false} style={[type.label, styles.name, { color: isSelected ? c.onAction : away ? c.muted : c.ink }]}>
+          {person.name}
+        </Text>
+        {person.id === me ? (
+          <Text selectable={false} style={[type.caption, styles.you, { color: isSelected ? c.onAction : c.ink }]}>
+            {say.you}
+          </Text>
+        ) : null}
+        {mark ? (
+          <View style={[styles.mark, mark !== "paid" && styles.narrow]}>
+            <Icon name={mark === "paid" ? "check" : "exclaim"} size={markSize} color={isSelected ? c.onAction : away ? c.muted : c.ink} />
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
   return (
-    <View style={styles.row} role="group" aria-label={label}>
-      {people.map((person, index) => {
-        const isSelected = person.id === selected;
-        const away = !picked.has(person.id) && !isSelected;
-        const mark = marks.get(person.id);
-        const named = person.id === me ? `${person.name}, ${say.you}` : person.name;
-        return (
-          <View key={person.id} style={enter(index)}>
-            <PressTarget
-              name={mark ? `${named}, ${mark === "paid" ? say.chipPaid : say.chipPaidPart}` : named}
-              outsideScroll
-              onPress={() => onSelect(person.id)}
-              style={(pressed) => pressStyle(pressed, reduce)}
+    <View role="group" aria-label={label}>
+      <Row wrap={wrap} bleed={bleed} scroller={scroller}>
+        {people.map((person, index) => {
+          const mark = marks.get(person.id);
+          const named = person.id === me ? `${person.name}, ${say.you}` : person.name;
+          return (
+            <View
+              key={person.id}
+              ref={track(chips, person.id)}
+              style={enter(index)}
             >
+              <PressTarget
+                name={mark ? `${named}, ${mark === "paid" ? say.chipPaid : say.chipPaidPart}` : named}
+                onPress={() => onSelect(person.id)}
+                onLongPress={index === 0 || !onHold ? undefined : (press) => onHold(person.id, press)}
+                style={(pressed) => pressStyle(pressed, reduce)}
+              >
+                {() => face(person, mark)}
+              </PressTarget>
+            </View>
+          );
+        })}
+        {typing === null ? (
+          <View style={enter(people.length)}>
+            <PressTarget name={say.addPerson} onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
               {() => (
-                <View
-                  aria-selected={isSelected}
-                  style={[
-                    styles.chip,
-                    { backgroundColor: isSelected ? c.action : away ? "transparent" : c.sheetIn, boxShadow: away ? `inset 0 0 0 1px ${c.hairline}` : undefined },
-                  ]}
-                >
-                  <Text numberOfLines={1} style={[type.label, styles.name, { color: isSelected ? c.onAction : away ? c.muted : c.ink }]}>
-                    {person.name}
-                  </Text>
-                  {person.id === me ? <Text style={[type.caption, styles.you, { color: isSelected ? c.onAction : c.ink }]}>{say.you}</Text> : null}
-                  {mark ? (
-                    <View style={[styles.mark, mark !== "paid" && styles.narrow]}>
-                      <Icon name={mark === "paid" ? "check" : "exclaim"} size={markSize} color={isSelected ? c.onAction : away ? c.muted : c.ink} />
-                    </View>
-                  ) : null}
+                <View style={[styles.chip, styles.add, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
+                  <Icon name="plus" size={18} color={c.muted} />
                 </View>
               )}
             </PressTarget>
           </View>
-        );
-      })}
-      {typing === null ? (
-        <View style={enter(people.length)}>
-          <PressTarget name={say.addPerson} outsideScroll onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
-            {() => (
-              <View style={[styles.chip, styles.add, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
-                <Icon name="plus" size={18} color={c.muted} />
-              </View>
-            )}
-          </PressTarget>
-        </View>
-      ) : (
-        <TextInput
-          autoFocus
-          aria-label={say.newPerson}
-          placeholder={say.newPerson}
-          placeholderTextColor={c.muted}
-          value={typing}
-          autoCapitalize="words"
-          enterKeyHint="done"
-          onChangeText={setTyping}
-          onSubmitEditing={commit}
-          submitBehavior="submit"
-          onBlur={commit}
-          style={[type.input, styles.input, { color: c.ink, backgroundColor: c.sheetIn }]}
-        />
-      )}
+        ) : (
+          <TextInput
+            autoFocus
+            aria-label={say.newPerson}
+            placeholder={say.newPerson}
+            placeholderTextColor={c.muted}
+            value={typing}
+            autoCapitalize="words"
+            enterKeyHint="done"
+            onChangeText={setTyping}
+            onSubmitEditing={commit}
+            submitBehavior="submit"
+            onBlur={commit}
+            style={[type.input, styles.input, { color: c.ink, backgroundColor: c.sheetIn }]}
+          />
+        )}
+        {ghosts.map(({ person, mark }) => (
+          <View
+            key={`gone-${person.id}`}
+            aria-hidden
+            pointerEvents="none"
+            ref={track(ghostNodes, person.id)}
+            style={[styles.ghost, { top: ringRoom }]}
+          >
+            {face(person, mark)}
+          </View>
+        ))}
+      </Row>
     </View>
   );
 }
 
+/** The phone's one-row scroller, or on desktop a plain row that wraps. */
+function Row({ wrap, bleed, scroller, children }: { wrap: boolean; bleed: number; scroller: React.RefObject<ScrollView | null>; children: React.ReactNode }) {
+  if (wrap) return <View style={styles.wrapRow}>{children}</View>;
+  return (
+    <ScrollView
+      ref={scroller}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${bleed}px` })]}
+      contentContainerStyle={[styles.row, { paddingHorizontal: bleed, paddingVertical: ringRoom }]}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+/** A ref that keeps `nodes` in step with what is mounted, by person. */
+const track = (nodes: { readonly current: Map<ParticipantId, HTMLElement> }, id: ParticipantId) => (view: View | null) => {
+  if (view) nodes.current.set(id, view as unknown as HTMLElement);
+  else nodes.current.delete(id);
+};
+
 const markSize = 15;
 const chipEnterMs = 180;
+const chipLeaveMs = 200;
 const stagger = 30;
 const staggered = 3;
 const chipsEnterFor = chipEnterMs + staggered * stagger;
+// Room inside the scroller for a focus ring, which a horizontal scroller would otherwise clip.
+const ringRoom = 4;
 
 const chipEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.96)" }, to: { opacity: 1, transform: "none" } }],
@@ -123,8 +256,12 @@ const chipEnter = webAnimation({
   animationFillMode: "both",
 });
 
+// The row owns sideways drags; a vertical one still reaches the sheet's drag. A swipe at the row's end does not go back a page.
+const rowScroll = webStyle({ touchAction: "pan-x", overscrollBehaviorX: "contain" });
+
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", flexWrap: "wrap", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
+  wrapRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
+  row: { flexDirection: "row", alignItems: "center", columnGap: layout.chipRowGap },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, maxWidth: 160, paddingHorizontal: 14, borderRadius: 22 },
   name: { flexShrink: 1 },
   mark: { flexShrink: 0 },
@@ -133,4 +270,5 @@ const styles = StyleSheet.create({
   you: { opacity: 0.7 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
+  ghost: { position: "absolute" },
 });

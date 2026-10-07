@@ -1298,17 +1298,163 @@ describe("restoring the original Receipt", () => {
 });
 
 describe("Participants", () => {
-  test("a direct removal is refused for anyone, the creator included, and Undo of an add takes the Participant out and a redo puts them back at their row", () => {
+  test("Undo of an add takes the Participant out and a redo puts them back at their row", () => {
     const split = withBobAndCat();
     const removed = apply(split, { by: cat, type: "undo", revision: 1 });
 
-    expect(reasonFor(split, { by: ann, type: "removeParticipant", participantId: bob }, { creator: true })).toBe("removalNotAllowed");
     expect(removed.participants.map(({ id }) => id)).toEqual(["ann", "cat"]);
     expect(apply(removed, { by: cat, type: "undo", revision: removed.revision }).participants).toEqual([
       { id: "ann", name: "Ann" },
       { id: "bob", name: "Bob" },
       { id: "cat", name: "Cat" },
     ]);
+  });
+
+  const remove = (participantId: ParticipantId, by: ParticipantId = cat): Operation => ({ by, type: "removeParticipant", participantId });
+  const claim = (itemId: typeof fries, participantId: ParticipantId): Operation => ({ by: participantId, type: "claim", itemId, participantId });
+  const bobsPhone = deviceId("phone-bob");
+  const shareOf = (split: Split, id: ParticipantId) => computeShares(split).shares.find(({ participantId }) => participantId === id)?.share ?? null;
+  const reshape = (itemId: typeof fries, patch: Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">): Operation => ({
+    by: ann,
+    type: "editReceipt",
+    items: [{ type: "edit", itemId, ...patch }],
+  });
+
+  test("anyone removes a person who claimed nothing, as one recorded change", () => {
+    const removed = apply(withBobAndCat(), remove(bob));
+
+    expect(removed.participants).toEqual([
+      { id: "ann", name: "Ann" },
+      { id: "cat", name: "Cat" },
+    ]);
+    expect(removed.recentChanges.at(-1)?.writes).toEqual([{ kind: "participant", id: "bob", removed: { index: 1, name: "Bob" } }]);
+  });
+
+  test("the Host and an unknown id cannot be removed", () => {
+    expect(reasonFor(withBobAndCat(), remove(ann, bob), { creator: true })).toBe("host");
+    expect(reasonFor(withBobAndCat(), remove(dan))).toBe("unknownParticipant");
+  });
+
+  test("a co-claimer absorbs the removed person's half of an even Item", () => {
+    const split = apply(withBobAndCat(), claim(pitcher, bob), claim(pitcher, cat));
+
+    const removed = apply(split, remove(bob));
+
+    expect(claimersOf(removed.receipt.items[2].split)).toEqual(["cat"]);
+    expect([shareOf(split, cat), shareOf(removed, cat)]).toEqual([1500, 3000]);
+  });
+
+  test("an Item only the removed person claimed goes unclaimed", () => {
+    const removed = apply(withBobAndCat(), claim(fries, bob), remove(bob));
+
+    expect(removed.receipt.items[1].split).toEqual({ by: "even", units: [[]] });
+    expect(computeShares(removed).unclaimed.total).toBe(5200);
+  });
+
+  test("By shares, the other claimers keep their shares and take the whole Item", () => {
+    const split = apply(withBobAndCat(), claim(pitcher, bob), claim(pitcher, cat), reshape(pitcher, { by: "shares", values: [{ participantId: bob, value: 2 }] }));
+
+    const removed = apply(split, remove(bob));
+
+    expect(removed.receipt.items[2].split).toEqual({ by: "shares", units: [[["cat", 1]]] });
+    expect(shareOf(removed, cat)).toBe(3000);
+  });
+
+  test("By amount, the removed person's amount becomes unclaimed remainder", () => {
+    const split = apply(
+      withBobAndCat(),
+      claim(pitcher, bob),
+      claim(pitcher, cat),
+      reshape(pitcher, { by: "amount", values: [{ participantId: bob, value: 1000 }, { participantId: cat, value: 1200 }] }),
+    );
+
+    const removed = apply(split, remove(bob));
+
+    expect(removed.receipt.items[2].split).toEqual({ by: "amount", units: [[["cat", 1200]]] });
+    expect([shareOf(removed, cat), computeShares(removed).unclaimed.total]).toEqual([1200, 5200 - 1200]);
+  });
+
+  test("removing a person who paid clears their Payment, and removing a picked person frees their device", () => {
+    const paid = apply(
+      withBobAndCat(),
+      claim(fries, bob),
+      { by: bob, type: "pick", participantId: bob, device: bobsPhone, takeOver: false },
+      { by: bob, type: "recordPayment", participantId: bob, device: bobsPhone, amount: cents(800) },
+    );
+
+    const removed = apply(paid, remove(bob));
+
+    expect([removed.payments, removed.picks]).toEqual([[], []]);
+    expect(removed.recentChanges.at(-1)?.writes).toEqual([
+      { kind: "claimParts", participantId: "bob", parts: [["fries", "even", 0]], claimed: false },
+      { kind: "payment", participantId: "bob", before: 800, after: null },
+      { kind: "participant", id: "bob", removed: { index: 1, name: "Bob" } },
+    ]);
+  });
+
+  test("Undo of a removal brings back the person, every Claim with its value, and their Payment, but not their pick", () => {
+    const split = apply(
+      withBobAndCat(),
+      claim(fries, bob),
+      claim(pitcher, bob),
+      claim(pitcher, cat),
+      reshape(pitcher, { by: "amount", values: [{ participantId: bob, value: 1000 }, { participantId: cat, value: 1200 }] }),
+      { by: bob, type: "pick", participantId: bob, device: bobsPhone, takeOver: false },
+      { by: bob, type: "recordPayment", participantId: bob, device: bobsPhone, amount: cents(1800) },
+    );
+    const removed = apply(split, remove(bob));
+
+    const restored = apply(removed, { by: ann, type: "undo", revision: removed.revision });
+
+    expect([restored.participants, restored.receipt, restored.payments]).toEqual([split.participants, split.receipt, split.payments]);
+    expect(restored.picks).toEqual([]);
+  });
+
+  test("Undo of a removal keeps a Claim made since on the same Item", () => {
+    const removed = apply(withBobAndCat(), claim(fries, bob), remove(bob), claim(fries, cat));
+
+    const restored = apply(removed, { by: ann, type: "undo", revision: removed.recentChanges.at(-1)?.revision ?? 0 });
+
+    expect(claimersOf(restored.receipt.items[1].split)).toEqual(["bob", "cat"]);
+  });
+
+  test("removing one of 8 people who all had all 40 dishes, with 12-character ids, fits in one change, and its Revert puts every claim back", () => {
+    const ids = Array.from({ length: 8 }, (_, at) => participantId(`person${String(at).padStart(6, "0")}`));
+    const dishes = Array.from({ length: 40 }, (_, at): Item => ({ id: itemId(`dish${String(at).padStart(8, "0")}`), name: `Dish ${at}`, price: price(1000) }));
+    const start = createSplit({
+      id: minted,
+      receipt: { items: [dishes[0], ...dishes.slice(1)], adjustments: [], subtotal: cents(40_000), total: cents(40_000) },
+      participants: ids.map((id, at) => ({ id, name: `Person ${at}` })) as [{ id: ParticipantId; name: string }, ...{ id: ParticipantId; name: string }[]],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+    });
+    if (!start.ok) throw new Error("createSplit rejected");
+    const everyone = apply(start.split, ...dishes.flatMap(({ id }) => ids.map((who): Operation => ({ by: who, type: "claim", itemId: id, participantId: who }))));
+
+    const removed = apply(everyone, { by: ids[0], type: "removeParticipant", participantId: ids[3] });
+    const restored = apply(removed, { by: ids[0], type: "undo", revision: removed.revision });
+
+    expect(claimersOf(removed.receipt.items[39].split)).toHaveLength(7);
+    expect([restored.receipt, restored.participants]).toEqual([everyone.receipt, everyone.participants]);
+  });
+
+  test("Revert of a removal puts the person back into an Item someone switched to By amount since, at $0.00, and keeps the other amounts", () => {
+    const split = apply(withBobAndCat(), claim(pitcher, ann), claim(pitcher, bob), claim(pitcher, cat), remove(bob));
+    const reshaped = apply(split, reshape(pitcher, { by: "amount", values: [{ participantId: ann, value: 300 }, { participantId: cat, value: 200 }] }));
+
+    const restored = apply(reshaped, { by: ann, type: "undo", revision: split.revision });
+
+    expect(restored.receipt.items[2].split).toEqual({ by: "amount", units: [[["ann", 300], ["bob", 0], ["cat", 200]]] });
+    expect(computeShares(restored).unclaimed.total).toBe(5200 - 500);
+  });
+
+  test("Revert of a removal keeps a share count someone changed since, and gives the person back their own shares", () => {
+    const shaped = apply(withBobAndCat(), claim(pitcher, ann), claim(pitcher, bob), claim(pitcher, cat), reshape(pitcher, { by: "shares", values: [{ participantId: bob, value: 2 }] }));
+    const removed = apply(shaped, remove(bob));
+    const changed = apply(removed, reshape(pitcher, { values: [{ participantId: cat, value: 5 }] }));
+
+    const restored = apply(changed, { by: ann, type: "undo", revision: removed.revision });
+
+    expect(restored.receipt.items[2].split).toEqual({ by: "shares", units: [[["ann", 1], ["bob", 2], ["cat", 5]]] });
   });
 
   test("Undo of an add is refused once the Participant has a Claim or a Payment", () => {
@@ -1897,19 +2043,19 @@ describe("random operations", () => {
     if (roll < 0.78) {
       return next() < 0.5
         ? { by, type: "addParticipant", participant: { id: participantId(fresh()), name: "Joiner" } }
-        : { by, type: "removeParticipant", participantId: pick(people) };
+        : { by, type: "removeParticipant", participantId: pick(people.length > 1 && next() < 0.9 ? people.slice(1) : people) };
     }
     if (roll < 0.8) return { by, type: "restoreReceipt" };
     const target = split.recentChanges.length > 0 ? pick(split.recentChanges).revision : 0;
     return { by, type: "undo", revision: target };
   }
 
-  test.each([1, 2, 3, 4, 5, 6, 7, 8])("seed %i keeps Shares, parsing, undo, and Claim bounds across 300 random operations; the caps tests prove the byte budget", (seed) => {
+  test.each([1, 2, 3, 4, 5, 6, 7, 8])("seed %i keeps Shares, parsing, undo (removals included), and Claim bounds across 300 random operations; the caps tests prove the byte budget", (seed) => {
     const next = random(seed);
     let counter = 0;
     const fresh = () => `n${seed}x${counter++}`;
     let split = startingSplit(next);
-    const tally = { accepted: 0, rejected: 0, undone: 0 };
+    const tally = { accepted: 0, rejected: 0, undone: 0, removed: 0 };
     const worstDrift = { claimer: 0, nonClaimer: 0 };
 
     for (let step = 0; step < 300; step++) {
@@ -1959,12 +2105,14 @@ describe("random operations", () => {
         const redone = accepted(applyOperation(reverted, { by: null, type: "undo", revision: reverted.revision }, anyone));
         expect(content(redone)).toEqual(content(split));
         if (op.type === "undo") tally.undone += 1;
+        if (op.type === "removeParticipant") tally.removed += 1;
       }
     }
 
     expect(tally.accepted).toBeGreaterThan(150);
     expect(tally.rejected).toBeGreaterThan(10);
     expect(tally.undone).toBeGreaterThan(3);
+    expect(tally.removed).toBeGreaterThan(0);
     expect(worstDrift.nonClaimer).toBeLessThanOrEqual(1);
     expect(worstDrift.claimer).toBeLessThan(2);
   });

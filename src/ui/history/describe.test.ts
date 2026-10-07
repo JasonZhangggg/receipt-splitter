@@ -53,6 +53,19 @@ describe("historyOf", () => {
     ]);
   });
 
+  test("a removal is one revertible line naming the person, even when it unclaimed their Item and cleared their Payment", () => {
+    const history = historyOf(
+      split(
+        { by: sam, type: "pick", participantId: sam, device: deviceId("phone"), takeOver: false },
+        { by: sam, type: "claim", itemId: sprite, participantId: sam },
+        { by: sam, type: "recordPayment", participantId: sam, device: deviceId("phone"), amount: cents(300) },
+        { by: ann, type: "removeParticipant", participantId: sam },
+      ),
+    );
+
+    expect(history[0]).toEqual({ revision: 4, lead: "Removed Sam from the split", more: 0, sentAs: "ann", name: "Ann", at: 4_000, reverted: false, revertible: true });
+  });
+
   test("groups a price change and a Payment of $1,000 and up by thousands", () => {
     const history = historyOf(
       split(
