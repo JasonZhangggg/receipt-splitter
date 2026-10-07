@@ -235,9 +235,7 @@ function BundleGroup({ bundle, open, claimed, claimers, selected, divided, onTog
                 </Text>
                 <Presence present={showInside} animate={byClaim}>
                   <View style={styles.inside}>
-                    {claimers.map((person) => (
-                      <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
-                    ))}
+                    <DotStack people={claimers} selected={selected} />
                     {claimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.claimedItems(claimed)}</Text> : null}
                   </View>
                 </Presence>
@@ -403,6 +401,19 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
   );
 }
 
+function DotStack({ people, selected }: { people: readonly Participant[]; selected: Participant | null }) {
+  const c = useColors();
+  return (
+    <View style={styles.dots}>
+      {people.map((person, index) => (
+        <View key={person.id} style={index > 0 && styles.overlap}>
+          <Dot name={person.name} size={dotSize} tone={person.id === selected?.id ? "me" : "dot"} ring={`0 0 0 2px ${c.paper}`} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 type LineProps = {
   item: SplitItem;
   order: readonly ParticipantId[];
@@ -444,17 +455,11 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
         style={(pressed) => [styles.circle, pressStyle(pressed, reduce)]}
       >
         {() => (
-          <View style={styles.dots}>
-            {ordered.length === 0 ? (
-              <View style={[styles.empty, { boxShadow: `inset 0 0 0 1.5px ${c.muted}`, opacity: 0.6 }]} />
-            ) : (
-              ordered.map((person, index) => (
-                <View key={person.id} style={index > 0 && styles.overlap}>
-                  <Dot name={person.name} size={dotSize} tone={person.id === selected?.id ? "me" : "dot"} ring={`0 0 0 2px ${c.paper}`} />
-                </View>
-              ))
-            )}
-          </View>
+          ordered.length === 0 ? (
+            <View style={[styles.empty, { boxShadow: `inset 0 0 0 1.5px ${c.muted}`, opacity: 0.6 }]} />
+          ) : (
+            <DotStack people={ordered} selected={selected} />
+          )
         )}
       </PressTarget>
       <PressTarget name={`${say.open(label)}, $${price}, ${who}`} popup="dialog" expanded={expanded} onPress={onOpen} style={() => styles.body}>

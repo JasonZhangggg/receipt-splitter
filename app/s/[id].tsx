@@ -190,9 +190,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
 
   const onChip = (participantId: ParticipantId) => {
-    if (participantId === selected && expanded) return collapse();
+    if (participantId === selected && (expanded || participantId !== me)) return collapse();
     setSelected(participantId);
-    setExpanded(true);
   };
 
   const share = async () => {
@@ -338,7 +337,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   ) : null;
 
   const bar = barFor(me, expanded, selectedPerson?.id ?? null);
-  const shown = bar.kind === "ask" ? undefined : people.find(({ id }) => id === (bar.kind === "breakdown" ? bar.person : bar.me));
+  const shown = bar.kind === "ask" ? undefined : people.find(({ id }) => id === bar.person);
   const folds = bar.kind !== "ask" && phase !== "pick";
   // Open, Your share covers the receipt and only its Item list scrolls. A swipe that lands while the sheet still glides, or a fling still coasting, would otherwise move the receipt behind it.
   const pageHolds = folds && expanded;

@@ -174,7 +174,7 @@ test("a drag that stops and holds before letting go reads as still, so a sheet h
   expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
 });
 
-test("a swipe up on the share bar opens your breakdown, a swipe down closes it, and a tap on a chip still works", async ({ browser, request, browserName }, { workerIndex }) => {
+test("a swipe up on the share bar opens your breakdown, a swipe down closes it, and a tap on the share row opens it", async ({ browser, request, browserName }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
   await pickJason(page);
   const sheet = page.getByTestId("split-sheet");
@@ -189,8 +189,29 @@ test("a swipe up on the share bar opens your breakdown, a swipe down closes it, 
   await expect(page.getByTestId("owe")).toBeVisible();
   await settled(sheet);
 
-  await page.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await page.getByTestId("owe").click();
   await expect(page.getByTestId("breakdown")).toBeVisible(live);
+});
+
+test("a tap on another person's chip swaps whose share the folded bar shows and leaves the sheet folded", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  await pickJason(page);
+  const sheet = page.getByTestId("split-sheet");
+  await expect(page.getByRole("button", { name: /^Your share \$0\.00, Show what you owe$/ })).toBeVisible(live);
+
+  await page.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sam's share $0.00, Show Sam's breakdown" })).toBeVisible(live);
+  await expect(sheet.getByText("Sam's share", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("owe")).toHaveText("$0.00");
+  await expect(page.getByTestId("breakdown")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Your share \$0\.00, Show what you owe$/ })).toBeVisible(live);
+  await expect(page.getByTestId("breakdown")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Sam", exact: true }).click();
+  await page.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
+  await expect(page.getByRole("button", { name: /, Hide Sam's breakdown$/ })).toBeVisible(live);
 });
 
 test("a breakdown with no Items says so and is as tall as one with an Item, so it folds as far", async ({ browser, request, browserName }, { workerIndex }) => {
@@ -217,7 +238,7 @@ test("a finger that catches the sheet mid-glide moves it from where it is, with 
   await pickJason(page);
   const sheet = page.getByTestId("split-sheet");
   const rest = (await sheet.boundingBox())!.y;
-  await page.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await page.getByTestId("owe").click();
   await page.waitForTimeout(90);
   const caught = await page.evaluate(() => {
     const element = document.querySelector('[data-testid="split-sheet"]')!;
@@ -295,6 +316,7 @@ test("scrolled to the end, the receipt's totals stop just above the folded sheet
   expect(await gapAtEnd()).toBeCloseTo(16, 0);
 
   await page.getByRole("button", { name: "Sam", exact: true }).click();
+  await page.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
   await expect(page.getByRole("button", { name: /, Hide Sam's breakdown$/ })).toBeVisible(live);
   await page.getByRole("button", { name: /, Hide Sam's breakdown$/ }).click();
   await expect(page.getByTestId("breakdown")).toHaveCount(0, live);

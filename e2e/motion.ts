@@ -515,8 +515,8 @@ async function othersHadAll(page: Page) {
     await page.locator(`[aria-label="${item}, check for Sam"][aria-pressed="true"]`).waitFor();
   }
   await page.getByTestId("unclaimed").filter({ hasText: "$0.00" }).waitFor();
-  // Choosing a person opens their breakdown, so going back to Jason leaves his open.
   await tap(meChip(page));
+  await tap(page.getByRole("button", { name: "Your share $0.00, Show what you owe" }));
   await page.getByRole("button", { name: "Your share $0.00, Hide what you owe" }).waitFor();
   await still(sheet(page));
 }
