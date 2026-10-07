@@ -402,7 +402,7 @@ test("Sam's chip on Priya's phone gets a check once he marks paid, and a partial
   await circle(priya, "Tea", "Priya").click();
   const partial = priya.getByRole("button", { name: "Sam, paid part", exact: true });
   await expect(partial).toBeVisible(live);
-  await expect(partial.locator('[data-icon="half"]')).toHaveCount(1);
+  await expect(partial.locator('[data-icon="checkStruck"]')).toHaveCount(1);
   await expect(partial.locator('[data-icon="check"]')).toHaveCount(0);
   await expect(sam.getByRole("button", { name: "Sam, you, paid part", exact: true })).toBeVisible(live);
 });

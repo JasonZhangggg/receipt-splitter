@@ -71,7 +71,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
                   {person.id === me ? <Text style={[type.caption, styles.you, { color: isSelected ? c.onAction : c.ink }]}>{say.you}</Text> : null}
                   {mark ? (
                     <View style={styles.mark}>
-                      <Icon name={mark === "paid" ? "check" : "half"} size={markSize} color={isSelected ? c.onAction : away ? c.muted : c.ink} />
+                      <Icon name={mark === "paid" ? "check" : "checkStruck"} size={markSize} color={isSelected ? c.onAction : away ? c.muted : c.ink} />
                     </View>
                   ) : null}
                 </View>
