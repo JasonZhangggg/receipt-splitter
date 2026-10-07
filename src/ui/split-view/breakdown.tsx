@@ -109,7 +109,8 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
     </>
   );
 
-  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={label} share={share} above={above} below={below} />;
+  const folded = mine ? say.yourShare : say.shareOf(person.name);
+  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={fold.open ? label : folded} share={share} above={above} below={below} />;
   return (
     <View testID="breakdown" style={styles.shrink}>
       {above}

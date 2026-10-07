@@ -69,7 +69,7 @@ async function addFries(page: Page, who: string[]) {
 
 async function shareOf(page: Page, name: string): Promise<string> {
   await page.getByRole("button", { name: new RegExp(`^${name}(, you)?$`) }).click();
-  const share = (await page.getByTestId("share").textContent({ timeout: live.timeout })) ?? "";
+  const share = (await page.getByTestId("owe").textContent({ timeout: live.timeout })) ?? "";
   await page.getByRole("button", { name: new RegExp(`^${name}(, you)?$`) }).click();
   return share;
 }
