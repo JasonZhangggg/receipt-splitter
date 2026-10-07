@@ -51,11 +51,11 @@ const cashApp = { service: "cashApp", handle: "jasonz" };
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, browserName: string, receipt: object = dinner, paymentHandles: object[] = [venmo]): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, browserName: string, receipt: object = dinner, paymentHandles: object[] = [venmo], host = "Jason"): Promise<string> {
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.18.${browserName === "webkit" ? 50 + workerIndex : workerIndex}.${creates}` },
-    data: { split: { receipt, participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }], paymentHandles } },
+    data: { split: { receipt, participants: [{ id: "jason", name: host }, { id: "sam", name: "Sam" }], paymentHandles } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
@@ -408,6 +408,28 @@ for (const { count, handles } of [
     expect(await shown()).toBe(true);
   });
 }
+
+test("a long Host name on a 548 pt phone ellipsizes inside its chip instead of wrapping the people row, so the breakdown's list keeps its height", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName !== "chromium", "only Chromium's CDP touches drive native scrolling");
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, topgolf, [venmo, cashApp, paypal, zelle], "Alexandra Papadopoulos"), browserName);
+  await page.setViewportSize({ width: 375, height: 548 });
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await settled(page.getByTestId("split-sheet"));
+  // Enough Items that the breakdown's list scrolls, so its height is the room the sheet leaves it.
+  const shut = page.getByRole("button", { name: /^Beer Bucket, .*collapsed$/ });
+  while (await shut.count()) await shut.first().click();
+  for (const name of ["Gameplay", "Guinness Draught 14.9oz Can", "Michelob Ultra 16oz Aluminum Bottle"]) {
+    for (const line of await page.getByRole("button", { name: `${name}, check for Sam` }).all()) await line.click();
+  }
+  await expect(page.getByTestId("owe")).not.toHaveText("$0.00", live);
+  await settled(page.getByTestId("split-sheet"));
+  await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
+  await expect(page.getByTestId("breakdown")).toBeVisible(live);
+  await settled(page.getByTestId("split-sheet"));
+  const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
+  await expect(list).toHaveCount(1);
+  expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(138);
+});
 
 test("a price typed at the end or in the middle of the Item sheet's price field is what the field and the row show, and text that is not a price holds the sheet open on its problem", async ({ browser, request, browserName }, { workerIndex }) => {
   const receipt = { items: [{ id: "wings", name: "Wings", price: 1200 }], adjustments: [], subtotal: 1200, total: 1200 };
