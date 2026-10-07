@@ -84,58 +84,29 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
       after.set(id, node.offsetLeft);
       const from = before.get(id);
       if (!leaving || reduce || from === undefined || from === node.offsetLeft) continue;
-      // A second removal mid-slide starts from where the chip is drawn now, not from its old slot.
-      const drawn = new DOMMatrix(getComputedStyle(node).transform === "none" ? undefined : getComputedStyle(node).transform).m41;
-      node.getAnimations().forEach((running) => running.cancel());
-      node.animate([{ transform: `translateX(${from + drawn - node.offsetLeft}px)` }, { transform: "none" }], { duration: chipLeaveMs, easing: motion.easeOut });
+      // Additive, so a second removal mid-slide adds its own move to the one still running instead of jumping.
+      node.animate([{ transform: `translateX(${from - node.offsetLeft}px)` }, { transform: "none" }], { duration: chipLeaveMs, easing: motion.easeOut, composite: "add" });
     }
     offsets.current = after;
   });
 
-  const scrollTo = (x: number) => scroller.current?.scrollTo({ x: Math.max(0, x), animated: !reduce });
-  const node = () => (Platform.OS === "web" ? (scroller.current?.getScrollableNode() as HTMLElement | undefined) : undefined);
 
-  useLayoutEffect(() => {
-    if (typing === null) return;
-    scroller.current?.scrollToEnd({ animated: !reduce });
-    // Only on open: typing changes on every key.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typing === null]);
-
+  // The field as it opens, and a chip this row just added, scroll into view at the row's end.
+  const opened = typing !== null;
   const count = people.length;
   useLayoutEffect(() => {
-    if (!follow.current) return;
+    if (!opened && !follow.current) return;
     follow.current = false;
     scroller.current?.scrollToEnd({ animated: !reduce });
-  }, [count, reduce]);
+  }, [opened, count, reduce]);
 
+  // The row's scroll padding keeps a chip scrolled into view clear of the edge, on the gutter.
   const seenSelected = useRef(selected);
   useLayoutEffect(() => {
-    const box = node();
-    const chip = selected === null ? undefined : chips.current.get(selected);
-    if (selected === seenSelected.current || !box || !chip) return;
+    if (selected === seenSelected.current) return;
     seenSelected.current = selected;
-    const left = chip.offsetLeft - bleed;
-    const right = chip.offsetLeft + chip.offsetWidth + bleed - box.clientWidth;
-    if (left < box.scrollLeft) scrollTo(left);
-    else if (right > box.scrollLeft) scrollTo(right);
+    (selected === null ? undefined : chips.current.get(selected))?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: reduce ? "instant" : "smooth" });
   });
-
-  // A mouse wheel only scrolls down, so over the row it scrolls the row sideways, as long as the row has somewhere to go.
-  useEffect(() => {
-    const box = node();
-    if (!box) return;
-    const onWheel = (event: WheelEvent) => {
-      if (event.deltaX !== 0 || event.deltaY === 0 || event.ctrlKey) return;
-      const room = box.scrollWidth - box.clientWidth;
-      const next = Math.max(0, Math.min(room, box.scrollLeft + event.deltaY));
-      if (next === box.scrollLeft) return;
-      event.preventDefault();
-      box.scrollLeft = next;
-    };
-    box.addEventListener("wheel", onWheel, { passive: false });
-    return () => box.removeEventListener("wheel", onWheel);
-  }, []);
 
   const face = (person: Participant, mark: PaidMark | undefined) => {
     const isSelected = person.id === selected;
@@ -169,7 +140,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
         horizontal
         showsHorizontalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll]}
+        style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${bleed}px` })]}
         contentContainerStyle={[styles.row, { paddingHorizontal: bleed, paddingVertical: ringRoom }]}
       >
         {people.map((person, index) => {
@@ -178,11 +149,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
           return (
             <View
               key={person.id}
-              ref={(view) => {
-                const element = view as unknown as HTMLElement | null;
-                if (element) chips.current.set(person.id, element);
-                else chips.current.delete(person.id);
-              }}
+              ref={track(chips, person.id)}
               style={enter(index)}
             >
               <PressTarget
@@ -227,11 +194,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
             key={`gone-${person.id}`}
             aria-hidden
             pointerEvents="none"
-            ref={(view) => {
-              const element = view as unknown as HTMLElement | null;
-              if (element) ghostNodes.current.set(person.id, element);
-              else ghostNodes.current.delete(person.id);
-            }}
+            ref={track(ghostNodes, person.id)}
             style={[styles.ghost, { top: ringRoom }]}
           >
             {face(person, mark)}
@@ -241,6 +204,12 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     </View>
   );
 }
+
+/** A ref that keeps `nodes` in step with what is mounted, by person. */
+const track = (nodes: { readonly current: Map<ParticipantId, HTMLElement> }, id: ParticipantId) => (view: View | null) => {
+  if (view) nodes.current.set(id, view as unknown as HTMLElement);
+  else nodes.current.delete(id);
+};
 
 const markSize = 15;
 const chipEnterMs = 180;

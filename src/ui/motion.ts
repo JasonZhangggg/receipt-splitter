@@ -32,6 +32,7 @@ type WebOnly = Partial<
     | "overflowY"
     | "overscrollBehavior"
     | "overscrollBehaviorX"
+    | "scrollPaddingInline"
     | "touchAction"
     | "willChange"
     | "position"

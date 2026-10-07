@@ -168,7 +168,7 @@ test("a removal the server refuses says so under the chips, and the person stays
   await chip(sam, "Priya").click({ button: "right" });
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
-  await expect(sam.getByText("Couldn't remove Priya. Try again.")).toBeVisible(live);
+  await expect(sam.getByText("Couldn't save that. Check it and try again.")).toBeVisible(live);
   await expect(chip(sam, "Priya")).toBeVisible();
 });
 

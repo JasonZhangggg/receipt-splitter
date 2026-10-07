@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { claimersOf } from "../../core/operations";
@@ -15,9 +16,12 @@ export const personMenuWidth = 248;
 export function PersonMenu({ split, person, onRemove }: { split: Split; person: Participant; onRemove: () => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const items = split.receipt.items.filter((item) => claimersOf(item.split).includes(person.id)).length;
-  const paid = split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null;
-  const note = say.removeNote(person.name, items, paid === null ? null : money(paid));
+  // Read once as it opens: the line stays as it was while the menu leaves, even after the person is gone.
+  const [note] = useState(() => {
+    const items = split.receipt.items.filter((item) => claimersOf(item.split).includes(person.id)).length;
+    const paid = split.payments.find(({ participantId }) => participantId === person.id)?.amount;
+    return say.removeNote(person.name, items, paid === undefined ? null : money(paid));
+  });
   return (
     <View>
       {note ? <Text style={[type.small, styles.note, { color: c.muted }]}>{note}</Text> : null}

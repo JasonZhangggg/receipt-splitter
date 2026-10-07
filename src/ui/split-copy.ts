@@ -27,13 +27,8 @@ export const splitCopy = {
   removedPerson: (name: string) => `Removed ${name} from the split`,
   personMenu: (name: string) => `Options for ${name}`,
   removePerson: (name: string) => `Remove ${name}`,
-  removeFailed: (name: string) => `Couldn't remove ${name}. Try again.`,
-  removeNote: (name: string, items: number, paid: string | null) => {
-    const off = items > 0 ? `unchecks ${items} ${items === 1 ? "item" : "items"}` : null;
-    const cleared = paid === null ? null : `clears their ${paid} payment`;
-    const effects = [off, cleared].filter((effect) => effect !== null);
-    return effects.length === 0 ? null : `Removing ${name} ${effects.join(" and ")}.`;
-  },
+  removeNote: (name: string, items: number, paid: string | null) =>
+    items || paid ? `Removing ${name} ${[items && `unchecks ${items} ${items === 1 ? "item" : "items"}`, paid && `clears their ${paid} payment`].filter(Boolean).join(" and ")}.` : null,
   newPerson: "Name",
   browse: "Pick your name to check off what you had.",
   checkYours: "Check what you had",

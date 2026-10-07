@@ -91,18 +91,14 @@ function useContextMenu(target: { current: View | null }, onMenu: ((press: Press
   useEffect(() => {
     const element = target.current as unknown as HTMLElement | null;
     if (Platform.OS !== "web" || !active || !element) return;
-    let touched = false;
-    const onDown = (event: PointerEvent) => (touched = event.pointerType !== "mouse");
+    // Chrome and Android send a PointerEvent; Safari's MouseEvent has no pointerType and comes only from a mouse or a key.
     const onMenuEvent = (event: MouseEvent) => {
       event.preventDefault();
-      if (!touched) open({ trigger: element, keyboard: event.button !== 2 });
+      const kind = (event as PointerEvent).pointerType;
+      if (kind !== "touch" && kind !== "pen") open({ trigger: element, keyboard: event.button !== 2 });
     };
-    element.addEventListener("pointerdown", onDown);
     element.addEventListener("contextmenu", onMenuEvent);
-    return () => {
-      element.removeEventListener("pointerdown", onDown);
-      element.removeEventListener("contextmenu", onMenuEvent);
-    };
+    return () => element.removeEventListener("contextmenu", onMenuEvent);
   }, [target, active]);
 }
 
