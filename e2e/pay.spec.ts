@@ -177,6 +177,7 @@ test("Priya's breakdown shows Not paid with no buttons", async ({ browser, reque
   const sam = await open(browser, await createSplit(request, workerIndex, everyApp));
   await pick(sam, "Sam");
   await sam.getByRole("button", { name: "Priya", exact: true }).click();
+  await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
   await expect(breakdown(sam).getByText("Not paid", { exact: true })).toBeVisible(live);
   await expect(breakdown(sam).getByText("Priya owes")).toBeVisible();
   await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
@@ -210,6 +211,7 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
 
   await expect(priya.getByTestId("item-sheet")).toHaveCount(0, live);
   await priya.getByRole("button", { name: "Sam, paid", exact: true }).click();
+  await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
   await expect(breakdown(priya).getByTestId("difference")).toHaveText("Sam paid $22.00. Jason owes Sam $8.00.", live);
   await expect(breakdown(priya).getByText("Paid", { exact: true })).toBeVisible();
 });
@@ -275,6 +277,7 @@ test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays 
   expect(answer).toEqual({ type: "rejected", ref: "forged", rejection: { reason: "payerOnly" } });
 
   await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
   await expect(breakdown(priya).getByText("Not paid", { exact: true })).toBeVisible(live);
   await expect(breakdown(priya).getByText("Sam owes")).toBeVisible();
   await sam.reload();

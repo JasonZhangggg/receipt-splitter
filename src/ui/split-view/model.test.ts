@@ -267,10 +267,11 @@ describe("receiptRows at Topgolf", () => {
   });
 });
 
-test("barFor asks for a name until someone picks, then shows the picker's share collapsed and the selected person's breakdown expanded", () => {
+test("barFor asks for a name until someone picks, then shows the selected person's share collapsed and their breakdown expanded", () => {
   expect(barFor(null, false, null)).toEqual({ kind: "ask" });
   expect(barFor(null, true, bob)).toEqual({ kind: "ask" });
-  expect(barFor(ann, false, bob)).toEqual({ kind: "share", me: ann });
+  expect(barFor(ann, false, bob)).toEqual({ kind: "share", me: ann, person: bob });
+  expect(barFor(ann, false, null)).toEqual({ kind: "share", me: ann, person: ann });
   expect(barFor(ann, true, bob)).toEqual({ kind: "breakdown", me: ann, person: bob });
   expect(barFor(ann, true, null)).toEqual({ kind: "breakdown", me: ann, person: ann });
 });

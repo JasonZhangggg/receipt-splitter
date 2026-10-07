@@ -11,12 +11,13 @@ const UNICODE_FRACTIONS: Record<string, string> = { "1/2": "½", "1/3": "⅓", "
 /** What the Split page's bar shows outside the pick sheet. Only someone who picked a name has a share or a breakdown. */
 export type Bar =
   | { readonly kind: "ask" }
-  | { readonly kind: "share"; readonly me: ParticipantId }
+  | { readonly kind: "share"; readonly me: ParticipantId; readonly person: ParticipantId }
   | { readonly kind: "breakdown"; readonly me: ParticipantId; readonly person: ParticipantId };
 
 export function barFor(me: ParticipantId | null, expanded: boolean, selected: ParticipantId | null): Bar {
   if (me === null) return { kind: "ask" };
-  return expanded ? { kind: "breakdown", me, person: selected ?? me } : { kind: "share", me };
+  const person = selected ?? me;
+  return expanded ? { kind: "breakdown", me, person } : { kind: "share", me, person };
 }
 
 export function claimersOfItem(item: SplitItem): ParticipantId[] {
