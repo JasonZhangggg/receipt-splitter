@@ -63,7 +63,7 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   const above = (
     <>
       <View style={styles.head}>
-        <Text style={[type.caption, { color: c.muted }]}>{say.items(items.reduce((units, { quantity = 1 }) => units + quantity, 0))}</Text>
+        <Text style={[type.caption, { color: c.muted }]}>{say.items(items.length)}</Text>
         {isHost ? null : paid ? (
           <View style={[styles.status, { backgroundColor: c.action }]}>
             <Icon name="check" size={15} color={c.onAction} />
