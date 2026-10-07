@@ -14,6 +14,8 @@ type Props = {
   onGone: () => void;
   /** The surface's width; a small menu is narrower than a sheet's content. */
   width?: number;
+  /** Which edge of the anchor the surface lines up with: a line's trailing edge, or the leading edge of a control at a row's start. */
+  align?: "start" | "end";
   children: ReactNode;
 };
 
@@ -61,7 +63,7 @@ function useTabTrap(surface: { current: View | null }) {
   }, [surface]);
 }
 
-export function Popover({ anchor, label, closing, instant, onClose, onGone, width = sheetWidth, children }: Props) {
+export function Popover({ anchor, label, closing, instant, onClose, onGone, width = sheetWidth, align = "end", children }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const layer = useRef<View>(null);
@@ -83,9 +85,12 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, widt
     const below = frame.height - top - margin;
     const above = frame.height - bottom - margin;
     const across = Math.min(width, frame.width - 2 * margin);
-    const left = Math.max(margin, Math.min(line.right - frame.left + overhang, frame.width - margin) - across);
+    const left =
+      align === "start"
+        ? Math.max(margin, Math.min(line.left - frame.left - overhang, frame.width - margin - across))
+        : Math.max(margin, Math.min(line.right - frame.left + overhang, frame.width - margin) - across);
     setPlacement(natural <= below || below >= above ? { side: "below", top, left, width: across, maxHeight: below } : { side: "above", bottom, left, width: across, maxHeight: above });
-  }, [anchor, width]);
+  }, [anchor, width, align]);
 
   const enter = useEffectEvent(() => {
     const element = surface.current as unknown as HTMLElement;
@@ -133,7 +138,7 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, widt
         ref={surface}
         role="dialog"
         aria-label={label}
-        style={[styles.surface, where, { transformOrigin: placement?.side === "above" ? "bottom right" : "top right", backgroundColor: c.sheet, boxShadow: c.popShadow }]}
+        style={[styles.surface, where, { transformOrigin: `${placement?.side === "above" ? "bottom" : "top"} ${align === "start" ? "left" : "right"}`, backgroundColor: c.sheet, boxShadow: c.popShadow }]}
       >
         <ScrollView style={contain} contentContainerStyle={width < sheetWidth ? styles.menu : styles.content}>
           {children}
