@@ -27,6 +27,7 @@ import {
   SPLIT_MODES,
   isId,
   type Change,
+  type ClaimPart,
   type ItemSplit,
   type LegacyWrite,
   type MintedSplitId,
@@ -315,12 +316,24 @@ function rowWrite<const Kind extends string, RowId, Full, Edit>(
   });
 }
 
-type RowsWrite = Extract<Write | LegacyWrite, { readonly kind: "split" | "unsplit" | "perUnit" }>;
+type RowsWrite = Extract<Write | LegacyWrite, { readonly kind: "split" | "unsplit" | "perUnit" | "claimParts" }>;
 type OtherWrite = Exclude<Write | LegacyWrite, { readonly kind: "item" } | RowsWrite>;
 
 const quantityLine = strict(({ read }) => ({ quantity: read("quantity", storedQuantity), price: read("price", price), split: read("split", itemSplit) }));
 
 const perUnit = strict(({ read }) => ({ kind: read("kind", literal("perUnit")), id: read("id", itemId) }));
+
+const claimPart: Parser<ClaimPart> = (input, path) => {
+  if (!Array.isArray(input) || input.length !== 3) throw new Malformed(path);
+  return [itemId(input[0], at(path, 0)), oneOf(SPLIT_MODES)(input[1], at(path, 1)), count(input[2], at(path, 2))];
+};
+
+const claimParts = strict(({ read }) => ({
+  kind: read("kind", literal("claimParts")),
+  participantId: read("participantId", participantId),
+  parts: read("parts", nonEmpty(claimPart, MAX_STORED_ITEMS)),
+  claimed: read("claimed", flag),
+}));
 
 function rowsWrite<const Kind extends "split" | "unsplit">(kind: Kind) {
   return strict(({ read }) => ({ kind: read("kind", literal(kind)), id: read("id", itemId), ids: read("ids", nonEmpty(itemId, MAX_QUANTITY - 1)), line: read("line", quantityLine) }));
@@ -422,7 +435,7 @@ function legacyRows(version: LegacySplit["schemaVersion"]) {
 const LEGACY_ROWS = { 1: legacyRows(1), 2: legacyRows(2), 3: legacyRows(3) } as const;
 
 const itemWrite: Parser<Extract<Write, { kind: "item" }>> = rowWrite("item", itemId, itemFields, itemEdit);
-const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit"), perUnit }, MAX_STORED_WRITES_PER_CHANGE);
+const currentChange: Parser<Change> = change(true, itemWrite, { split: rowsWrite("split"), unsplit: rowsWrite("unsplit"), perUnit, claimParts }, MAX_STORED_WRITES_PER_CHANGE);
 const CURRENT_ROWS = { receipt: receipt(item, anyAdjustment, MAX_STORED_ITEMS), original: receipt(receiptItem, anyAdjustment), change: currentChange };
 
 /** Versions 1 to 3 stored one claim set per unit; they read with their own parsers and map to the current model. */
