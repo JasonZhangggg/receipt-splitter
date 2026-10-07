@@ -13,7 +13,7 @@ import { paymentApps } from "../home-copy";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
-import { capsuleInset } from "./capsule";
+import { switcherWidth } from "./switcher";
 import { MethodPicker } from "./method-picker";
 import type { PayState } from "./model";
 
@@ -72,23 +72,15 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
             <View style={[styles.pill, choices.length > 1 && styles.picking, { backgroundColor: c.action }]}>
               <View style={styles.say}>
                 {href === null ? <View style={styles.icon}><Icon name={done ? "check" : "copy"} size={18} color={c.onAction} /></View> : null}
-                {done ? (
-                  <Text style={[type.button, { color: c.onAction }]}>{say.copied}</Text>
-                ) : (
-                  <>
-                    <Text numberOfLines={1} style={[type.button, styles.whole, { color: c.onAction }]}>{say.payHead}</Text>
-                    <Text numberOfLines={1} style={[type.button, styles.name, { color: c.onAction }]}>{host}</Text>
-                    <Text numberOfLines={1} style={[type.button, styles.whole, { color: c.onAction }]}>{say.payTail(due, choices.length > 1 ? null : app.name)}</Text>
-                  </>
-                )}
+                <Text numberOfLines={1} style={[type.button, { color: c.onAction }]}>{done ? say.copied : app.name}</Text>
               </View>
-              {choices.length > 1 ? <AppName service={handle.service} tint={c.onAction} /> : null}
+              {choices.length > 1 ? <Switcher tint={c.onAction} /> : null}
             </View>
           )}
         </PressTarget>
         {choices.length > 1 ? (
           <MethodPicker service={handle.service} choices={choices} onPick={pick} name={say.payWith}>
-            <AppName service={handle.service} tint={c.onAction} />
+            <Switcher tint={c.onAction} />
           </MethodPicker>
         ) : null}
       </View>
@@ -99,13 +91,12 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
   );
 }
 
-/** The app's name on the pill, on a lighter capsule with a chevron, so it reads as the part that switches the app. */
-function AppName({ service, tint }: { service: PaymentService; tint: string }) {
+/** The chevron end of the pill, set off by a hairline so it reads as the part that switches the app. */
+function Switcher({ tint }: { tint: string }) {
   return (
-    <View style={styles.app}>
-      <View style={[StyleSheet.absoluteFill, styles.capsule, { backgroundColor: tint }]} />
-      <Text style={[type.button, { color: tint }]}>{paymentApps[service].name}</Text>
-      <Icon name="chevron" size={16} color={tint} />
+    <View style={styles.switcher}>
+      <View style={[styles.hairline, { backgroundColor: tint }]} />
+      <Icon name="chevron" size={18} color={tint} />
     </View>
   );
 }
@@ -123,20 +114,15 @@ function useCopy(value: string, onFail: () => void): [copied: boolean, copy: () 
 
 const copiedFor = 1600;
 
-/** Flex items drop the spaces at their edges, so this stands in for the space between words at 15 px. The spaces stay in the text for copy and selection. */
-const wordSpace = 4;
-
 const styles = StyleSheet.create({
   box: { gap: 4 },
   ways: { gap: 10 },
   pill: { flexDirection: "row", alignItems: "center", height: 54, borderRadius: 27, paddingHorizontal: 24 },
-  picking: { paddingLeft: 20, paddingRight: capsuleInset, columnGap: wordSpace },
-  say: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", columnGap: wordSpace },
-  icon: { marginRight: 4 },
-  whole: { flexShrink: 0 },
-  name: { flexShrink: 1, minWidth: 0 },
-  app: { flexDirection: "row", alignItems: "center", gap: 4, height: 40, paddingLeft: 14, paddingRight: 10, borderRadius: 20 },
-  capsule: { borderRadius: 20, opacity: 0.16 },
+  picking: { paddingRight: 0 },
+  say: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  icon: { marginRight: 8 },
+  switcher: { width: switcherWidth, height: 54, alignItems: "center", justifyContent: "center" },
+  hairline: { position: "absolute", left: 0, width: 1, height: 24, opacity: 0.3 },
   handles: { textAlign: "center", marginHorizontal: 4 },
   center: { alignItems: "center" },
 });
