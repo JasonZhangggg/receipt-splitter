@@ -25,6 +25,14 @@ export const splitCopy = {
   you: "you",
   addPerson: "Add a person",
   removedPerson: (name: string) => `Removed ${name} from the split`,
+  personMenu: (name: string) => `Options for ${name}`,
+  removePerson: (name: string) => `Remove ${name}`,
+  removeNote: (name: string, items: number, paid: string | null) => {
+    const off = items > 0 ? `unchecks ${items} ${items === 1 ? "item" : "items"}` : null;
+    const cleared = paid === null ? null : `clears their ${paid} payment`;
+    const effects = [off, cleared].filter((effect) => effect !== null);
+    return effects.length === 0 ? null : `Removing ${name} ${effects.join(" and ")}.`;
+  },
   newPerson: "Name",
   browse: "Pick your name to check off what you had.",
   checkYours: "Check what you had",

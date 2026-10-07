@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 
 import type { Colors } from "../colors";
@@ -26,16 +26,19 @@ type TargetProps = Action & {
   controls?: string;
   /** A press leaves focus where it is, so a focused field keeps the keyboard up. Keys and screen readers still press it. */
   keepsFocus?: boolean;
+  /** A touch held still, or a right-click. The press that follows a hold does not also fire `onPress`. */
+  onLongPress?: (press: Press) => void;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
   children: (pressed: boolean) => ReactNode;
 };
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, keepsFocus = false, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
+export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   const self = useRef<View>(null);
   if (disabled && held) setHeld(false);
+  useContextMenu(self, onLongPress && !disabled ? onLongPress : null);
   const web =
     Platform.OS === "web"
       ? {
@@ -58,6 +61,8 @@ export function PressTarget({ onPress, keepsFocus = false, href, fallbackHref, n
       aria-haspopup={popup}
       aria-controls={controls}
       disabled={disabled}
+      onLongPress={onLongPress && (() => onLongPress({ trigger: self.current as unknown as HTMLElement, keyboard: false }))}
+      delayLongPress={holdFor}
       onPressIn={() => setHeld(!disabled)}
       onPressOut={() => setHeld(false)}
       onPress={(event) => {
@@ -71,6 +76,34 @@ export function PressTarget({ onPress, keepsFocus = false, href, fallbackHref, n
       {() => children(held)}
     </Pressable>
   );
+}
+
+// With the 150 ms press-in delay a hold opens at 500 ms, as an iOS context menu does.
+const holdFor = 350;
+
+/**
+ * A right-click opens the same thing a held touch does. A touch's own contextmenu (Android fires one on a hold) only loses the browser menu,
+ * since the press responder's hold timer already opened it.
+ */
+function useContextMenu(target: { current: View | null }, onMenu: ((press: Press) => void) | null) {
+  const open = useEffectEvent((press: Press) => onMenu?.(press));
+  const active = onMenu !== null;
+  useEffect(() => {
+    const element = target.current as unknown as HTMLElement | null;
+    if (Platform.OS !== "web" || !active || !element) return;
+    let touched = false;
+    const onDown = (event: PointerEvent) => (touched = event.pointerType !== "mouse");
+    const onMenuEvent = (event: MouseEvent) => {
+      event.preventDefault();
+      if (!touched) open({ trigger: element, keyboard: event.button !== 2 });
+    };
+    element.addEventListener("pointerdown", onDown);
+    element.addEventListener("contextmenu", onMenuEvent);
+    return () => {
+      element.removeEventListener("pointerdown", onDown);
+      element.removeEventListener("contextmenu", onMenuEvent);
+    };
+  }, [target, active]);
 }
 
 // A role="button" target renders as a native <button>, so Enter and Space reach onPress as a click with detail 0, since no pointer clicked.

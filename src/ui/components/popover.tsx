@@ -12,6 +12,8 @@ type Props = {
   instant: boolean;
   onClose: () => void;
   onGone: () => void;
+  /** The surface's width; a small menu is narrower than a sheet's content. */
+  width?: number;
   children: ReactNode;
 };
 
@@ -21,7 +23,7 @@ type Placement = { readonly left: number; readonly width: number; readonly maxHe
   | { readonly side: "above"; readonly bottom: number }
 );
 
-const width = 380;
+const sheetWidth = 380;
 const gap = 6;
 // The surface's right edge overhangs the anchor's, as in round 3's desktop frames.
 const overhang = 14;
@@ -59,7 +61,7 @@ function useTabTrap(surface: { current: View | null }) {
   }, [surface]);
 }
 
-export function Popover({ anchor, label, closing, instant, onClose, onGone, children }: Props) {
+export function Popover({ anchor, label, closing, instant, onClose, onGone, width = sheetWidth, children }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const layer = useRef<View>(null);
@@ -83,7 +85,7 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, chil
     const across = Math.min(width, frame.width - 2 * margin);
     const left = Math.max(margin, Math.min(line.right - frame.left + overhang, frame.width - margin) - across);
     setPlacement(natural <= below || below >= above ? { side: "below", top, left, width: across, maxHeight: below } : { side: "above", bottom, left, width: across, maxHeight: above });
-  }, [anchor]);
+  }, [anchor, width]);
 
   const enter = useEffectEvent(() => {
     const element = surface.current as unknown as HTMLElement;
@@ -133,7 +135,7 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, chil
         aria-label={label}
         style={[styles.surface, where, { transformOrigin: placement?.side === "above" ? "bottom right" : "top right", backgroundColor: c.sheet, boxShadow: c.popShadow }]}
       >
-        <ScrollView style={contain} contentContainerStyle={styles.content}>
+        <ScrollView style={contain} contentContainerStyle={width < sheetWidth ? styles.menu : styles.content}>
           {children}
         </ScrollView>
       </View>
@@ -147,4 +149,5 @@ const styles = StyleSheet.create({
   fill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
   surface: { position: "absolute", borderRadius: 20, overflow: "hidden" },
   content: { paddingTop: 18, paddingHorizontal: 20, paddingBottom: 20 },
+  menu: { padding: 6 },
 });

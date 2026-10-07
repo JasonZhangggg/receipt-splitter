@@ -28,6 +28,7 @@ import { Breakdown, foldedRow } from "../../src/ui/split-view/breakdown";
 import { SplitHeader } from "../../src/ui/split-view/header";
 import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
+import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
@@ -140,7 +141,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const marks = useMemo(() => paidMarks(shares, split.payments), [shares, split.payments]);
   const people = split.participants;
   const picked = new Set(split.picks.map(({ participantId }) => participantId));
-  const selectedPerson = people.find((person) => person.id === (selected ?? me)) ?? null;
+  // A selected person someone removed falls back to this device's own name.
+  const selectedPerson = people.find((person) => person.id === selected) ?? people.find((person) => person.id === me) ?? null;
   const creating = memory.creatorSecret !== undefined;
   const act = (op: Operation) => send(op).then((answer) => answer.ok);
 
@@ -205,6 +207,19 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : say.saveFailed);
   };
 
+  const [menu, setMenu] = useState<{ readonly id: ParticipantId; readonly from: Press; readonly closing: boolean } | null>(null);
+  const menuPerson = menu && people.slice(1).find(({ id }) => id === menu.id);
+  const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
+  const menuGone = () => {
+    if (menu && (menu.from.keyboard || actedByKey()) && menu.from.trigger.isConnected) menu.from.trigger.focus({ preventScroll: true });
+    setMenu(null);
+  };
+  const remove = (participantId: ParticipantId) => {
+    closeMenu();
+    void act({ by: me, type: "removeParticipant", participantId });
+  };
+  const hold = (participantId: ParticipantId, from: Press) => setMenu((open) => (open && !open.closing ? open : { id: participantId, from, closing: false }));
+
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
   const closeGuard = useRef<CloseGuard | null>(null);
   const closeOverlay = () => {
@@ -249,6 +264,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         entering={phase === "collapsing"}
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
         onAdd={(typed) => void addPerson(typed)}
+        onHold={hold}
+        bleed={layout.gutter + insets.left}
       />
     </View>
   );
@@ -281,6 +298,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
                 selected={selectedPerson.id}
                 onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
                 onAdd={(typed) => void addPerson(typed)}
+                onHold={hold}
+                bleed={paneEdge}
               />
             </View>
             <Swap view={selectedPerson.id} style={styles.shrink}>
@@ -420,6 +439,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         <BottomSheet scrim label={overlayLabel(overlay, split)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlayContent}
         </BottomSheet>
+      ) : null}
+      {menu && menuPerson ? (
+        <Popover anchor={menu.from.trigger} label={say.personMenu(menuPerson.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth}>
+          <PersonMenu split={split} person={menuPerson} onRemove={() => remove(menuPerson.id)} />
+        </Popover>
       ) : null}
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
     </View>
