@@ -117,14 +117,14 @@ test("with Zelle the only way to pay, Sam's one pill copies the Zelle handle, sh
 
   await owe(sam).click();
   const pill = breakdown(sam).getByRole("button", { name: "Copy jason@example.com to pay Jason $14.20 on Zelle" });
-  await expect(pill).toHaveText("Zelle", live);
+  await expect(pill).toHaveText("ZZelle", live);
   await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
   await expect(breakdown(sam).getByText("Zelle\u00a0jason@example.com", { exact: true })).toBeVisible();
   await expect(breakdown(sam).getByRole("button", { name: /^Copy \$/ })).toHaveCount(0);
   await pill.click();
   await expect(breakdown(sam).getByRole("button", { name: "Copied" })).toHaveText("Copied");
   expect(await sam.evaluate(() => navigator.clipboard.readText())).toBe("jason@example.com");
-  await expect(pill).toHaveText("Zelle");
+  await expect(pill).toHaveText("ZZelle");
 });
 
 test("Sam's one pay pill switches among Jason's four apps, links each at his $14.20 Share, copies the Zelle handle, and keeps his pick after a reload", async ({ browser, request }, { workerIndex }) => {
@@ -292,17 +292,16 @@ test("the picker overlay leaves no stray app name in the accessibility tree ahea
   const tree = await breakdown(sam).ariaSnapshot();
   const before = tree.slice(0, tree.indexOf('combobox "Pay with"'));
   expect(before).toContain("Pay Jason $14.20 on Venmo");
-  expect(before.split("\n").filter((line) => /^\s*- text: Venmo$/.test(line))).toEqual(["  - text: Venmo"]);
-  expect(before.replace(/- link "Pay Jason \$14\.20 on Venmo"[^\n]*/, "").replace("- text: Venmo", "")).not.toMatch(/Venmo/);
+  expect(before.replace(/- link "Pay Jason \$14\.20 on Venmo"[^\n]*/, "").replace("- text: V Venmo", "")).not.toMatch(/Venmo/);
 });
 
-test("the pill's visible label is only the method, with the full sentence kept as its accessible name", async ({ browser, request }, { workerIndex }) => {
+test("the pill's visible label is only the app mark and the method, with the full sentence kept as its accessible name", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, everyApp, menu, [{ id: "jason", name: "Alexandra Papadopoulos" }, ...people.slice(1)]));
   await pick(sam, "Sam");
   await circle(sam, "Pho", "Sam").click();
   await owe(sam).click();
   const pill = breakdown(sam).getByRole("link", { name: "Pay Alexandra Papadopoulos $14.20 on Venmo" });
-  await expect(pill).toHaveText("Venmo", live);
+  await expect(pill).toHaveText("VVenmo", live);
   expect(await pill.evaluate((el) => el.getBoundingClientRect().height)).toBeCloseTo(54, 1);
   const picker = breakdown(sam).getByRole("combobox", { name: "Pay with" });
   const box = await picker.boundingBox();

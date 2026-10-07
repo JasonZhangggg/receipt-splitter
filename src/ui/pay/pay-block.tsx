@@ -7,7 +7,7 @@ import { payLink } from "../../core/pay-links";
 import type { PaymentHandle, PaymentService, SplitId } from "../../core/split";
 import { rememberSplit, splitOnDevice } from "../../device";
 import { money } from "../../draft";
-import { Button, PressTarget } from "../components/button";
+import { Button, Mark, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { paymentApps } from "../home-copy";
 import { pressStyle, useReducedMotion } from "../motion";
@@ -72,6 +72,7 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
             <View style={[styles.pill, choices.length > 1 && styles.picking, { backgroundColor: c.action }]}>
               <View style={styles.say}>
                 {href === null ? <View style={styles.icon}><Icon name={done ? "check" : "copy"} size={18} color={c.onAction} /></View> : null}
+                {done ? null : <Mark glyph={app.glyph} ink={c.onAction} fill={c.action} />}
                 <Text numberOfLines={1} style={[type.button, { color: c.onAction }]}>{done ? say.copied : app.name}</Text>
               </View>
               {choices.length > 1 ? <Switcher tint={c.onAction} /> : null}
@@ -119,7 +120,7 @@ const styles = StyleSheet.create({
   ways: { gap: 10 },
   pill: { flexDirection: "row", alignItems: "center", height: 54, borderRadius: 27, paddingHorizontal: 24 },
   picking: { paddingRight: 0 },
-  say: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  say: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", columnGap: 4 },
   icon: { marginRight: 8 },
   switcher: { width: switcherWidth, height: 54, alignItems: "center", justifyContent: "center" },
   hairline: { position: "absolute", left: 0, width: 1, height: 24, opacity: 0.3 },
