@@ -240,6 +240,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   // Someone removed elsewhere: their menu leaves, and a selection of them goes back to this device's name, so a Revert does not bring it back.
   if (menu && !menu.closing && !present(menu.person.id)) setMenu({ ...menu, closing: true });
   if (selected !== null && selected !== me && !present(selected)) setSelected(me);
+  // A confirm whose person or Item is gone, or whose answer would now do the opposite, leaves as a Cancel would.
+  if (confirming && !confirming.closing) {
+    const item = split.receipt.items.find(({ id }) => id === confirming.itemId);
+    if (!item || !present(confirming.person.id) || claimersOf(item.split).includes(confirming.person.id) !== confirming.had) setConfirming({ ...confirming, closing: true });
+  }
   const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
   const menuGone = () => {
     if (menu && (wide || menu.from.keyboard || actedByKey())) {

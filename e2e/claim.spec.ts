@@ -300,3 +300,54 @@ test("with Sam's chip selected, Priya's first circle tap asks before checking Ri
   await expect(circle(priya, "Rice", "Sam")).toHaveAttribute("aria-pressed", "false", live);
   await expect(owe(priya)).toHaveText("$1.00", live);
 });
+
+test("Priya's open confirm to check Rice for Sam closes when Jason removes Sam, and Sam's chip is gone", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const jason = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(jason, "Jason");
+  await pick(priya, "Priya");
+  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await circle(priya, "Rice", "Sam").click();
+  await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
+
+  await jason.getByRole("button", { name: "Sam", exact: true }).click({ button: "right" });
+  await jason.getByRole("dialog", { name: "Options for Sam" }).getByRole("button", { name: "Remove Sam" }).click();
+
+  await expect(asks(priya, "Check Rice for Sam?")).toHaveCount(0, live);
+  await expect(priya.getByRole("button", { name: "Sam", exact: true })).toHaveCount(0);
+  await expect(circle(priya, "Rice", "Priya")).toHaveAttribute("aria-pressed", "false");
+});
+
+test("Priya's open confirm to check Rice for Sam closes when Jason deletes Rice", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const jason = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(jason, "Jason");
+  await pick(priya, "Priya");
+  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await circle(priya, "Rice", "Sam").click();
+  await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
+
+  await jason.getByRole("button", { name: /^Open Rice, / }).click();
+  await jason.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Delete item" }).click();
+
+  await expect(asks(priya, "Check Rice for Sam?")).toHaveCount(0, live);
+  await expect(circle(priya, "Rice", "Sam")).toHaveCount(0);
+});
+
+test("Priya's open confirm to check Rice for Sam closes when Sam checks Rice himself, so her yes cannot uncheck it", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await circle(priya, "Rice", "Sam").click();
+  await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
+
+  await circle(sam, "Rice", "Sam").click();
+
+  await expect(asks(priya, "Check Rice for Sam?")).toHaveCount(0, live);
+  await expect(circle(priya, "Rice", "Sam")).toHaveAttribute("aria-pressed", "true", live);
+});
