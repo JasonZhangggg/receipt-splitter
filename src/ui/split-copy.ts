@@ -24,6 +24,7 @@ export const splitCopy = {
   people: "People",
   you: "you",
   addPerson: "Add a person",
+  removedPerson: (name: string) => `Removed ${name} from the split`,
   newPerson: "Name",
   browse: "Pick your name to check off what you had.",
   checkYours: "Check what you had",

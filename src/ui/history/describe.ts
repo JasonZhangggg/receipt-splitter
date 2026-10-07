@@ -16,26 +16,31 @@ export type Entry = {
   readonly revertible: boolean;
 };
 
-type Shown = Extract<Write, { kind: "item" | "split" | "adjustment" | "totals" | "payment" }>;
+type Removal = Extract<Write, { kind: "participant"; removed: unknown }>;
+type Shown = Extract<Write, { kind: "item" | "split" | "adjustment" | "totals" | "payment" }> | Removal;
+
+const isRemoval = (write: Change["writes"][number]): write is Removal => write.kind === "participant" && "removed" in write;
 
 const shown = (write: Change["writes"][number]): write is Shown =>
-  write.kind === "item" || write.kind === "split" || write.kind === "adjustment" || write.kind === "totals" || write.kind === "payment";
+  write.kind === "item" || write.kind === "split" || write.kind === "adjustment" || write.kind === "totals" || write.kind === "payment" || isRemoval(write);
 
 export function historyOf(split: Split): Entry[] {
   return split.recentChanges
     .filter((change) => change.undoes === null && change.writes.some(shown))
     .map((change) => {
       const writes = change.writes.filter(shown);
-      const lead = writes.find((write) => write.kind !== "totals") ?? writes[0];
+      // A removal's own claim and payment writes are part of it, not more changes.
+      const removal = writes.find(isRemoval);
+      const lead = removal ?? writes.find((write) => write.kind !== "totals") ?? writes[0];
       return {
         revision: change.revision,
         ...describe(lead, split),
-        more: writes.filter((write) => write.kind !== "totals" && write !== lead).length,
+        more: removal ? 0 : writes.filter((write) => write.kind !== "totals" && write !== lead).length,
         sentAs: change.by,
         name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
         at: change.at,
         reverted: change.undoneBy !== null,
-        revertible: !change.writes.some((write) => write.kind === "payment" || write.kind === "perUnit"),
+        revertible: !change.writes.some((write) => (write.kind === "payment" && !removal) || write.kind === "perUnit"),
       };
     })
     .reverse();
@@ -75,6 +80,8 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       return { lead: `Split ${split.receipt.items.find(({ id }) => id === write.id)?.name ?? "An item"} into ${write.line.quantity}` };
     case "totals":
       return { lead: write.totalDelta < 0 ? `Total down ${money(-write.totalDelta)}` : `Total up ${money(write.totalDelta)}` };
+    case "participant":
+      return { lead: say.removedPerson(write.removed.name) };
     case "payment": {
       const payer = split.participants.find(({ id }) => id === write.participantId)?.name ?? "Someone";
       return write.after === null ? { lead: `${payer} marked unpaid` } : { lead: `${payer} paid ${money(write.after)}` };

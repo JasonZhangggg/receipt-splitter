@@ -143,7 +143,6 @@ export type RejectionReason =
   | "conflict"
   | "nameTaken"
   | "namePicked"
-  | "removalNotAllowed"
   | "noOriginal"
   | "amountOverPrice"
   | "tooLarge";
@@ -204,8 +203,25 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const { id, name } = op.participant;
       return commit(split, [() => [{ kind: "participant", id, added: { index: split.participants.length, name } }]]);
     }
-    case "removeParticipant":
-      return reject("removalNotAllowed");
+    case "removeParticipant": {
+      const { participantId } = op;
+      const index = indexOf(split.participants, participantId);
+      if (index === -1) return reject("unknownParticipant");
+      if (index === 0) return reject("host");
+      // Picks are device state and never recorded, so a Revert brings the name back unpicked; its device picks it again with "That's me".
+      const unpicked = { ...split, picks: split.picks.filter((pick) => pick.participantId !== participantId) };
+      return commit(unpicked, [
+        ({ receipt }) =>
+          receipt.items.flatMap((item): Write[] =>
+            claimersOf(item.split).includes(participantId) ? [{ kind: "item", id: item.id, edit: { split: [item.split, toggleClaimer(item.split, participantId, false)] } }] : [],
+          ),
+        (current) => {
+          const before = paymentOf(current, participantId);
+          return before === null ? [] : [{ kind: "payment", participantId, before, after: null }];
+        },
+        () => [{ kind: "participant", id: participantId, removed: { index, name: split.participants[index].name } }],
+      ]);
+    }
     case "claim":
     case "unclaim": {
       const index = indexOf(split.receipt.items, op.itemId);
@@ -400,10 +416,12 @@ function undo(split: Split, revision: number): Step {
   const target = split.recentChanges.find((change) => change.revision === revision);
   if (!target) return reject("changeNotFound");
   if (target.undoneBy !== null) return reject("alreadyUndone");
-  if (target.writes.some((write) => write.kind === "payment")) return reject("paymentNotRevertible");
+  // A Payment reverts only as part of a removal, which cleared it, or of that removal's Revert.
+  const removal = target.writes.some((write) => write.kind === "participant");
+  if (!removal && target.writes.some((write) => write.kind === "payment")) return reject("paymentNotRevertible");
   const step = commit(
     split,
-    [...target.writes].reverse().map((write): MakeWrites => (current) => inverse(current, write)),
+    [...target.writes].reverse().map((write): MakeWrites => (current) => inverse(current, write, removal)),
   );
   if (!step.ok) return step;
   if (!step.record) return reject("conflict");
@@ -413,7 +431,8 @@ function undo(split: Split, revision: number): Step {
   return { ok: true, split: { ...step.split, recentChanges }, record: { writes: step.record.writes, undoes: revision } };
 }
 
-function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | RejectionReason {
+/** `restoresClaimers`: the write's own change of claimers is reverted too, as for a removed Participant's Claims; otherwise Claims are not recorded and the current claimers stay. */
+function inverse(split: Split, write: Write | LegacyWrite, restoresClaimers: boolean): readonly Write[] | RejectionReason {
   switch (write.kind) {
     case "item": {
       const at = indexOf(split.receipt.items, write.id);
@@ -422,8 +441,9 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
       if ("added" in write && current) return (current.quantity ?? 1) === (write.added.quantity ?? 1) ? [ITEM_ROWS.remove(current, at)] : "conflict";
       const inverted = invertRow(write, at);
       if (!("edit" in inverted) || !("edit" in write) || !write.edit.split || !current) return [{ kind: "item", ...inverted }];
-      const [before] = write.edit.split;
-      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, withClaimers(before.by, claimersOf(current.split), (id) => valueIn(before, id))] } }];
+      const [before, after] = write.edit.split;
+      const claimers = restoresClaimers ? revertedClaimers(claimersOf(current.split), claimersOf(before), claimersOf(after)) : claimersOf(current.split);
+      return [{ kind: "item", id: write.id, edit: { ...inverted.edit, split: [current.split, withClaimers(before.by, claimers, (id) => valueIn(before, id))] } }];
     }
     case "split": {
       // Only rows exactly as the Split made them fold back, so a Revert never drops a later edit, even one that moves no money.
@@ -456,6 +476,11 @@ function inverse(split: Split, write: Write | LegacyWrite): readonly Write[] | R
     case "joined":
       return [];
   }
+}
+
+function revertedClaimers(current: readonly ParticipantId[], before: readonly ParticipantId[], after: readonly ParticipantId[]): ParticipantId[] {
+  const kept = current.filter((id) => before.includes(id) || !after.includes(id));
+  return sortByCodeUnit([...kept, ...before.filter((id) => !after.includes(id) && !kept.includes(id))]);
 }
 
 function sameMoney(a: Split, b: Split): boolean {
