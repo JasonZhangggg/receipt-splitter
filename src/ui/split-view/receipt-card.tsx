@@ -11,7 +11,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "./dot";
-import { claimersOfItem, keepInPlace, lineTag, nameParts, quantityText, receiptRows, totalNote, unclaimedUnits, type BundleRow, type Kept } from "./model";
+import { claimersOfItem, keepInPlace, lineTag, nameParts, quantityText, receiptRows, totalNote, claimedItems, type BundleRow, type Kept } from "./model";
 
 type Props = {
   split: Split;
@@ -97,7 +97,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
               <BundleGroup
                 bundle={bundle}
                 open={opened.has(bundle.id)}
-                unclaimed={started ? unclaimedUnits(bundle, shares.unclaimed.itemIds) : 0}
+                claimed={claimedItems(bundle, shares.unclaimed.itemIds)}
                 claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
                 selected={selected}
                 divided={divided}
@@ -186,7 +186,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
 type BundleProps = {
   bundle: BundleRow;
   open: boolean;
-  unclaimed: number;
+  claimed: number;
   claimers: readonly Participant[];
   selected: Participant | null;
   divided: boolean;
@@ -194,16 +194,16 @@ type BundleProps = {
   children: ReactNode;
 };
 
-function inside(claimers: readonly Participant[], unclaimed: number): string {
+function inside(claimers: readonly Participant[], claimed: number): string {
   const had = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : "";
-  return [had, unclaimed > 0 ? say.unclaimedUnits(unclaimed) : ""].filter(Boolean).join(", ");
+  return [had, claimed > 0 ? say.claimedItems(claimed) : ""].filter(Boolean).join(", ");
 }
 
-function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onToggle, children }: BundleProps) {
+function BundleGroup({ bundle, open, claimed, claimers, selected, divided, onToggle, children }: BundleProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const region = useId();
-  const showInside = !open && (claimers.length > 0 || unclaimed > 0);
+  const showInside = !open && claimers.length > 0;
   // The line grows in when a claim brings it and collapses out when a claim removes it, so the rows under it glide; opening or closing the Bundle already moves them.
   const [was, setWas] = useState({ open, showInside });
   const [byClaim, setByClaim] = useState(false);
@@ -214,7 +214,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`} style={divided && [styles.divided, { borderTopColor: c.hairline }]}>
       <PressTarget
-        name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, unclaimed), open)}
+        name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, claimed), open)}
         expanded={open}
         controls={region}
         onPress={onToggle}
@@ -238,7 +238,7 @@ function BundleGroup({ bundle, open, unclaimed, claimers, selected, divided, onT
                     {claimers.map((person) => (
                       <Dot key={person.id} name={person.name} size={20} tone={person.id === selected?.id ? "me" : "dot"} />
                     ))}
-                    {unclaimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.unclaimedUnits(unclaimed)}</Text> : null}
+                    {claimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.claimedItems(claimed)}</Text> : null}
                   </View>
                 </Presence>
               </View>
