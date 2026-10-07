@@ -42,6 +42,8 @@ export const splitCopy = {
   owes: (name: string) => `${name} owes`,
   paidBy: (name: string) => `${name} paid`,
   paid: "Paid",
+  chipPaid: "paid",
+  chipPaidPart: "paid part",
   notPaid: "Not paid",
   nothingChecked: (whose: string | null) => (whose ? `Nothing checked for ${whose}.` : "Check off what you had."),
   items: (count: number) => `${count} ${count === 1 ? "item" : "items"}`,

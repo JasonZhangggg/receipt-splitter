@@ -209,7 +209,7 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
   await expect(breakdown(sam).getByText("Your share")).toBeVisible();
 
   await expect(priya.getByTestId("item-sheet")).toHaveCount(0, live);
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await priya.getByRole("button", { name: "Sam, paid", exact: true }).click();
   await expect(breakdown(priya).getByTestId("difference")).toHaveText("Sam paid $22.00. Jason owes Sam $8.00.", live);
   await expect(breakdown(priya).getByText("Paid", { exact: true })).toBeVisible();
 });
@@ -376,4 +376,33 @@ test("the picker overlay leaves no stray app name in the accessibility tree ahea
   expect(before).toContain("Pay Jason $14.20 on Venmo");
   expect(before.split("\n").filter((line) => /^\s*- text: Venmo$/.test(line))).toEqual([]);
   expect(before.replace(/- link "Pay Jason \$14\.20 on Venmo"[^\n]*/, "")).not.toMatch(/Venmo/);
+});
+
+test("Sam's chip on Priya's phone gets a check once he marks paid, and a partial mark when his share grows after, with the Host and Priya bare", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await circle(sam, "Tea", "Sam").click();
+  await circle(priya, "Tea", "Priya").click();
+  await expect(owe(sam)).toHaveText("$8.00", live);
+
+  await expect(priya.getByRole("button", { name: "Sam", exact: true })).toBeVisible(live);
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+
+  const samChip = priya.getByRole("button", { name: "Sam, paid", exact: true });
+  await expect(samChip).toBeVisible(live);
+  await expect(samChip.locator('[data-icon="check"]')).toHaveCount(1);
+  await expect(priya.getByRole("button", { name: "Priya, you", exact: true })).toBeVisible();
+  await expect(priya.getByRole("button", { name: "Jason", exact: true })).toBeVisible();
+  await expect(sam.getByRole("button", { name: "Sam, you, paid", exact: true })).toBeVisible(live);
+
+  await circle(priya, "Tea", "Priya").click();
+  const partial = priya.getByRole("button", { name: "Sam, paid part", exact: true });
+  await expect(partial).toBeVisible(live);
+  await expect(partial.locator('[data-icon="half"]')).toHaveCount(1);
+  await expect(partial.locator('[data-icon="check"]')).toHaveCount(0);
+  await expect(sam.getByRole("button", { name: "Sam, you, paid part", exact: true })).toBeVisible(live);
 });

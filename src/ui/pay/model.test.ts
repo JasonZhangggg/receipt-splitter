@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 
 import { cents } from "../../core/money";
-import { differenceNote, payState } from "./model";
+import type { Shares } from "../../core/shares";
+import type { Split } from "../../core/split";
+import { differenceNote, paidMarks, payState } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -50,6 +52,33 @@ describe("differenceNote", () => {
     expect([differenceNote(payState(cents(2200), cents(2200)), "payer", "Sam", "Jason"), differenceNote(payState(cents(2100), cents(2200)), "payer", "Sam", "Jason")]).toEqual([
       null,
       "You paid $22.00. Jason owes you $1.00.",
+    ]);
+  });
+});
+
+describe("paidMarks", () => {
+  const shares = {
+    shares: [
+      { participantId: "jason", share: cents(1000) },
+      { participantId: "sam", share: cents(2600), paid: cents(2200), owed: cents(400) },
+      { participantId: "priya", share: cents(1400), paid: cents(1400), owed: cents(0) },
+      { participantId: "kim", share: cents(900), paid: cents(0), owed: cents(900) },
+      { participantId: "lee", share: cents(500), paid: cents(800), owed: cents(-300) },
+    ],
+    unclaimed: { itemIds: [], total: cents(0) },
+  } as unknown as Shares;
+  const payments = [
+    { participantId: "sam", amount: cents(2200) },
+    { participantId: "priya", amount: cents(1400) },
+    { participantId: "lee", amount: cents(800) },
+    { participantId: "jason", amount: cents(1000) },
+  ] as unknown as Split["payments"];
+
+  test("marks short and settled or over payers, and leaves the Host and anyone unpaid bare", () => {
+    expect([...paidMarks(shares, payments)]).toEqual([
+      ["sam", "short"],
+      ["priya", "paid"],
+      ["lee", "paid"],
     ]);
   });
 });

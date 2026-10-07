@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { Participant, ParticipantId } from "../../core/split";
+import type { PaidMark } from "../pay/model";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
@@ -12,6 +13,7 @@ type Props = {
   people: readonly Participant[];
   picked: ReadonlySet<ParticipantId>;
   me: ParticipantId | null;
+  marks: ReadonlyMap<ParticipantId, PaidMark>;
   selected: ParticipantId | null;
   onSelect: (id: ParticipantId) => void;
   onAdd: (name: string) => void;
@@ -19,7 +21,7 @@ type Props = {
   label?: string;
 };
 
-export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, entering = false, label = say.people }: Props) {
+export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, entering = false, label = say.people }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [typing, setTyping] = useState<string | null>(null);
@@ -45,10 +47,12 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
       {people.map((person, index) => {
         const isSelected = person.id === selected;
         const away = !picked.has(person.id) && !isSelected;
+        const mark = marks.get(person.id);
+        const named = person.id === me ? `${person.name}, ${say.you}` : person.name;
         return (
           <View key={person.id} style={enter(index)}>
             <PressTarget
-              name={person.id === me ? `${person.name}, ${say.you}` : person.name}
+              name={mark ? `${named}, ${mark === "paid" ? say.chipPaid : say.chipPaidPart}` : named}
               outsideScroll
               onPress={() => onSelect(person.id)}
               style={(pressed) => pressStyle(pressed, reduce)}
@@ -65,6 +69,11 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
                     {person.name}
                   </Text>
                   {person.id === me ? <Text style={[type.caption, styles.you, { color: isSelected ? c.onAction : c.ink }]}>{say.you}</Text> : null}
+                  {mark ? (
+                    <View style={styles.mark}>
+                      <Icon name={mark === "paid" ? "check" : "half"} size={markSize} color={isSelected ? c.onAction : away ? c.muted : c.ink} />
+                    </View>
+                  ) : null}
                 </View>
               )}
             </PressTarget>
@@ -101,6 +110,7 @@ export function PeopleChips({ people, picked, me, selected, onSelect, onAdd, ent
   );
 }
 
+const markSize = 15;
 const chipEnterMs = 180;
 const stagger = 30;
 const staggered = 3;
@@ -117,6 +127,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, maxWidth: 160, paddingHorizontal: 14, borderRadius: 22 },
   name: { flexShrink: 1 },
+  mark: { flexShrink: 0 },
   you: { opacity: 0.7 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
