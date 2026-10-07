@@ -126,25 +126,20 @@ export function receiptRows(receipt: Receipt<SplitItem>): { readonly rows: reado
 
 function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>): BundleRow {
   const percent = percentOff(row.name);
-  const units = items.reduce((total, { quantity = 1 }) => total + quantity, 0);
   const label = row.name.startsWith(`${row.bundle.name} `) ? row.name.slice(row.bundle.name.length + 1) : row.name;
   return {
     id: row.id,
     name: row.bundle.name,
     items,
     discount: { label: label.charAt(0).toUpperCase() + label.slice(1), amount: row.amount },
-    summary: say.bundleSummary(units, percent ? `${percent}%` : money(Math.abs(row.amount))),
+    summary: say.bundleSummary(items.length, percent ? `${percent}%` : money(Math.abs(row.amount))),
     net: items.reduce((total, { price }) => total + price, 0) + row.amount,
   };
 }
 
-export function unclaimedUnits(bundle: BundleRow): number {
-  return bundle.items.reduce((total, { split, quantity = 1 }) => total + (claimersOf(split).length === 0 ? quantity : 0), 0);
-}
-
-/** Lines on the receipt nobody had, counted as the Split page shows them: a quantity line is one line. */
-export function unclaimedLines(receipt: Receipt<SplitItem>): number {
-  return receipt.items.filter(({ split }) => claimersOf(split).length === 0).length;
+/** The Bundle's Items off the Unclaimed line (`unclaimed`), one per row whatever its quantity, so a By amount line with money left over is not claimed. */
+export function claimedItems(bundle: BundleRow, unclaimed: readonly ItemId[]): number {
+  return bundle.items.filter(({ id }) => !unclaimed.includes(id)).length;
 }
 
 export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId, price: number): string | null {

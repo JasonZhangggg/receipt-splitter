@@ -70,12 +70,12 @@ test("a Beer Bucket opens and closes from the keyboard in place, says so through
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
 
-  await expect(page.getByRole("button", { name: "Beer Bucket, 6 items, 10% off, collapsed" })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Beer Bucket, 4 items, 10% off, collapsed" })).toHaveCount(2);
   await firstBucket(page).focus();
   await page.keyboard.press("Enter");
 
   await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "true");
-  await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, expanded");
+  await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, expanded");
   await expect(firstBucket(page)).toBeFocused();
   await expect(guinness(page)).toHaveCount(1);
   await expect(guinness(page)).toBeVisible();
@@ -130,8 +130,8 @@ test("the Guinness line is one 3x row at 21.87, and its circle claims the whole 
   await expect(guinnessCircle(page, "Sam")).toHaveAttribute("aria-pressed", "true", live);
   await expect(page.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, had by Sam" })).toHaveCount(1);
   await firstBucket(page).click();
-  await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 3 unclaimed, collapsed");
-  await expect(firstBucket(page).getByText("3 unclaimed", { exact: true })).toBeVisible();
+  await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 1 claimed, collapsed");
+  await expect(firstBucket(page).getByText("1 claimed", { exact: true })).toBeVisible();
 });
 
 test("the Item sheet shows the gray line under a row's name in its Detail field, and renaming the Item keeps that line", async ({ browser, request }, { workerIndex }) => {
@@ -208,7 +208,7 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
   await expect(guinness(sam)).toHaveCount(0);
   await expect(priya.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Sam" })).toHaveCount(3, live);
   await expect(priya.locator(`[id="${await firstBucket(priya).getAttribute("aria-controls")}"]`).getByText("3x", { exact: true })).toHaveCount(0);
-  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 3 unclaimed, expanded");
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 3 claimed, expanded");
 
   await priya.getByRole("button", { name: "History" }).click();
   await priya.getByRole("button", { name: "Revert Split Guinness Draught 14.9oz Can into 3" }).click();
@@ -467,13 +467,13 @@ test("Delete item takes a Bundle Item off for everyone, and Revert brings it bac
   await expect(sheet.getByRole("button", { name: /^Split into/ })).toHaveCount(0);
   await sheet.getByRole("button", { name: "Delete item" }).click();
   await expect(sheet).toHaveCount(0, live);
-  await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 5 items, 10% off, had by Sam, 2 unclaimed, expanded");
-  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 5 items, 10% off, had by Sam, 2 unclaimed, collapsed", live);
+  await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, expanded");
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, collapsed", live);
 
   await sam.getByRole("button", { name: "History" }).click();
   await sam.getByRole("button", { name: "Revert Removed Michelob Ultra 16oz Aluminum Bottle" }).click();
   await expect(sam.getByText("Reverted")).toBeVisible(live);
-  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 3 unclaimed, collapsed", live);
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 1 claimed, collapsed", live);
 });
 
 test("a name already on the Split keeps the cursor in Add yourself after Enter, so the next keys fix it", async ({ browser, request }, { workerIndex }) => {
@@ -528,12 +528,15 @@ const secondBundleTops = (page: Page) =>
       }),
   );
 
-test("a collapsed Bundle's unclaimed line grows in on the first claim and collapses out on the last, so the rows under it glide", { tag: "@frame-timing" }, async ({ page, request }, { workerIndex }) => {
-  await page.goto(await createSplit(request, workerIndex));
+test("a collapsed Bundle's claimed line grows in on the first claim and collapses out on the last, so the rows under it glide", { tag: "@frame-timing" }, async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const page = await open(browser, link);
+  const priya = await open(browser, link);
   await pick(page, "Sam");
-  const second = page.getByRole("button", { name: /^Beer Bucket, / }).nth(1);
-  await expect(second).toBeVisible(live);
-  const claim = page.getByRole("button", { name: "Gameplay, check for Sam" });
+  await pick(priya, "Priya");
+  await firstBucket(priya).click();
+  const claim = guinnessCircle(priya, "Priya");
+  await expect(claim).toBeVisible(live);
 
   const down = secondBundleTops(page);
   await claim.click();

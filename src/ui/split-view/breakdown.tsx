@@ -14,7 +14,7 @@ import { PayBlock } from "../pay/pay-block";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import type { FoldTrack } from "./bottom-sheet";
-import { breakdownCharges, breakdownLines, unclaimedLines } from "./model";
+import { breakdownCharges, breakdownLines } from "./model";
 
 /** Folded, the phone's sheet shows only the share row under the chips. */
 export const foldedRow = layout.row;
@@ -44,7 +44,6 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   const breakdown = shareBreakdown(split, person.id);
   const { items, difference, share } = breakdown;
   const adjustments = breakdownCharges(split.receipt, breakdown);
-  const unclaimed = unclaimedLines(split.receipt);
   const [host] = split.participants;
   const isHost = person.id === host.id;
   const mine = person.id === viewer;
@@ -64,7 +63,7 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   const above = (
     <>
       <View style={styles.head}>
-        <Text style={[type.caption, { color: c.muted }]}>{say.items(items.reduce((units, { quantity = 1 }) => units + quantity, 0))}</Text>
+        <Text style={[type.caption, { color: c.muted }]}>{say.items(items.length)}</Text>
         {isHost ? null : paid ? (
           <View style={[styles.status, { backgroundColor: c.action }]}>
             <Icon name="check" size={15} color={c.onAction} />
@@ -77,26 +76,19 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
           </View>
         )}
       </View>
-      <ItemList lines={breakdownLines(breakdown)} edge={edge} holdsDrag={fold !== undefined}>
-        {charges.length > 0 || unclaimed > 0 ? (
+      <ItemList lines={breakdownLines(breakdown)} empty={say.nothingChecked(mine ? null : person.name)} edge={edge} holdsDrag={fold !== undefined}>
+        {charges.length > 0 ? (
           <View style={styles.tail}>
-            {charges.length > 0 ? (
-              <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
-                {charges.map((row) => (
-                  <View key={row.id} style={styles.row}>
-                    <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
-                      {row.name}
-                    </Text>
-                    <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {unclaimed > 0 ? (
-              <Text testID="unclaimed-items" style={[type.caption, styles.unclaimed, { color: c.muted }]}>
-                {say.unclaimedItems(unclaimed)}
-              </Text>
-            ) : null}
+            <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
+              {charges.map((row) => (
+                <View key={row.id} style={styles.row}>
+                  <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
+                    {row.name}
+                  </Text>
+                  <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
       </ItemList>
@@ -232,8 +224,11 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
   );
 }
 
-/** The Items, then `children` (the share's tax, tip, fees and discounts), scroll as one list. */
-function ItemList({ lines, edge, holdsDrag, children }: { lines: ReturnType<typeof breakdownLines>; edge: number; holdsDrag: boolean; children: ReactNode }) {
+/**
+ * The Items, then `children` (the share's tax, tip, fees and discounts), scroll as one list. With no Items it holds `empty` in a row's height, so the folding sheet
+ * travels as far as with one Item and a flick fades the list no faster than a one-Item list.
+ */
+function ItemList({ lines, empty, edge, holdsDrag, children }: { lines: ReturnType<typeof breakdownLines>; empty: string; edge: number; holdsDrag: boolean; children: ReactNode }) {
   const c = useColors();
   const box = useRef(0);
   const content = useRef(0);
@@ -253,6 +248,11 @@ function ItemList({ lines, edge, holdsDrag, children }: { lines: ReturnType<type
       style={[styles.list, { marginRight: -edge }, contain, scrolls && edgeFade, holdsDrag && !scrolls && holdsGesture]}
       contentContainerStyle={{ paddingRight: edge }}
     >
+      {lines.length === 0 ? (
+        <View style={styles.line}>
+          <Text style={[type.secondary, { color: c.muted }]}>{empty}</Text>
+        </View>
+      ) : null}
       {lines.map((line, index) => (
         <View key={line.id} style={[styles.line, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
           <Text numberOfLines={1} style={[type.item, styles.name, { color: c.ink }]}>
@@ -292,12 +292,11 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 46 },
   divided: { borderTopWidth: 1 },
   name: { flex: 1, minWidth: 0 },
-  // The list ends on a short row or the note, so this keeps their text clear of its edge fade once scrolled to the end.
+  // The list ends on a short row, so this keeps its text clear of the edge fade once scrolled to the end.
   tail: { paddingBottom: 8 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   rowLabel: { flexShrink: 1 },
-  unclaimed: { marginTop: 8, marginHorizontal: 2 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: rowGap, paddingTop: 14, borderTopWidth: 1 },
   note: { marginTop: 6, marginHorizontal: 2 },
   foldedNote: { marginHorizontal: 2 },

@@ -486,10 +486,38 @@ export async function picked(page: Page, people = table, receipt: object = dinne
   await page.waitForTimeout(300);
 }
 
-async function expanded(page: Page) {
-  await picked(page);
+async function expand(page: Page) {
   await tap(page.getByTestId("owe"));
   await page.getByTestId("breakdown").waitFor();
+  await still(sheet(page));
+}
+
+async function expanded(page: Page) {
+  await picked(page);
+  await expand(page);
+}
+
+async function hadRice(page: Page) {
+  await picked(page);
+  await tap(page.getByRole("button", { name: "Rice, check for Jason" }));
+  await page.locator('[aria-label="Rice, check for Jason"][aria-pressed="true"]').waitFor();
+  await expand(page);
+}
+
+const twoPlates = { items: [{ id: "rice", name: "Rice", price: 800 }, { id: "tostones", name: "Tostones", price: 100 }], adjustments: [], subtotal: 900, total: 900 };
+
+/** Jason has no Items and Sam had every one, so Jason's breakdown is as short as it gets. */
+async function othersHadAll(page: Page) {
+  await picked(page, table, twoPlates);
+  await tap(page.getByRole("button", { name: "Sam", exact: true }));
+  for (const item of ["Rice", "Tostones"]) {
+    await tap(page.getByRole("button", { name: `${item}, check for Sam` }));
+    await page.locator(`[aria-label="${item}, check for Sam"][aria-pressed="true"]`).waitFor();
+  }
+  await page.getByTestId("unclaimed").filter({ hasText: "$0.00" }).waitFor();
+  // Choosing a person opens their breakdown, so going back to Jason leaves his open.
+  await tap(meChip(page));
+  await page.getByRole("button", { name: "Your share $0.00, Hide what you owe" }).waitFor();
   await still(sheet(page));
 }
 
@@ -896,8 +924,22 @@ const sheetAndHome: Scenario[] = [
   },
   {
     id: "collapse-flick",
-    name: "Split sheet: breakdown collapses by flick",
+    name: "Split sheet: an empty breakdown collapses by flick while Items are unclaimed",
     setup: expanded,
+    act: async (page) => drag(page, await sheetBody(page), 200, 100),
+    probes: shareSheet,
+  },
+  {
+    id: "collapse-flick-mine",
+    name: "Split sheet: breakdown collapses by flick",
+    setup: hadRice,
+    act: async (page) => drag(page, await sheetBody(page), 200, 100),
+    probes: shareSheet,
+  },
+  {
+    id: "collapse-flick-others-had-all",
+    name: "Split sheet: an empty breakdown collapses by flick after the others had every Item",
+    setup: othersHadAll,
     act: async (page) => drag(page, await sheetBody(page), 200, 100),
     probes: shareSheet,
   },

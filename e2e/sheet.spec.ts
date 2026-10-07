@@ -193,6 +193,25 @@ test("a swipe up on the share bar opens your breakdown, a swipe down closes it, 
   await expect(page.getByTestId("breakdown")).toBeVisible(live);
 });
 
+test("a breakdown with no Items says so and is as tall as one with an Item, so it folds as far", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  await pickJason(page);
+  await page.getByTestId("owe").click();
+  const items = page.getByTestId("breakdown-items");
+  await expect(items.getByText("Check off what you had.")).toBeVisible(live);
+  await settled(page.getByTestId("split-sheet"));
+  const empty = (await items.boundingBox())!.height;
+
+  await page.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(items.getByText("Nothing checked for Sam.")).toBeVisible(live);
+
+  await page.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await page.getByRole("button", { name: /, check for Jason$/ }).first().click();
+  await expect(items.getByText("Check off what you had.")).toHaveCount(0, live);
+  await settled(page.getByTestId("split-sheet"));
+  expect(Math.round((await items.boundingBox())!.height)).toBe(Math.round(empty));
+});
+
 test("a finger that catches the sheet mid-glide moves it from where it is, with no jump", { tag: "@frame-timing" }, async ({ browser, request, browserName }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
   await pickJason(page);
