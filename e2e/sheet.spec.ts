@@ -132,12 +132,12 @@ async function framesDuring(page: Page, act: () => Promise<void>) {
       let shown = owe ? 1 : 0;
       for (let el = owe; el && el !== sheet; el = el.parentElement) shown *= Number(getComputedStyle(el).opacity);
       frames.push({ top: Math.round(sheet.getBoundingClientRect().top), asking: [...sheet.querySelectorAll('[role="heading"]')].some((h) => h.textContent === "Which one are you?"), shown });
-      if (frames.length < 60) requestAnimationFrame(sample);
+      if (frames.filter((frame) => !frame.asking).length < 60 && frames.length < 3000) requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
   });
   await act();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { sheetFrames: unknown[] }).sheetFrames.length), live).toBe(60);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { sheetFrames: { asking: boolean }[] }).sheetFrames.filter((frame) => !frame.asking).length), live).toBe(60);
   return page.evaluate(() => (window as unknown as { sheetFrames: { top: number; asking: boolean; shown: number }[] }).sheetFrames);
 }
 

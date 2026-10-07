@@ -560,13 +560,13 @@ test.describe("reading through the server", () => {
     await expect(stage).toHaveText("Finding the text");
     releaseOcr();
     await expect(stage).toHaveText("Matching items to prices", scanTimeout);
-    const serverAt = Date.now();
     await expect.poll(() => askedAt).toBeGreaterThan(0);
     await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
-    expect(Date.now() - serverAt).toBeGreaterThan(3_000);
+    expect(Date.now() - askedAt).toBeGreaterThan(3_000);
     answer();
     await expect(card(page)).toBeVisible(scanTimeout);
     await expect(stage).toHaveCount(0);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
     const seen = await lines();
     expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
