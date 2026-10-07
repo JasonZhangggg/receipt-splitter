@@ -1,4 +1,6 @@
 import { cents, type Cents } from "../../core/money";
+import type { Shares } from "../../core/shares";
+import type { ParticipantId, Split } from "../../core/split";
 import { money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 
@@ -21,4 +23,19 @@ export function differenceNote(state: PayState, viewer: Viewer, payer: string, h
   if (state.kind === "over") return say.paidOver(viewer, payer, host, money(state.paid), money(state.back));
   if (state.kind === "short") return say.paidShort(viewer, payer, money(state.paid), money(state.rest));
   return null;
+}
+
+export type PaidMark = "paid" | "short";
+
+/** Who shows a mark on their chip. The Host is owed, so never marked; someone who hasn't paid has none. */
+export function paidMarks(shares: Shares, payments: Split["payments"]): ReadonlyMap<ParticipantId, PaidMark> {
+  const [, ...others] = shares.shares;
+  const marks = new Map<ParticipantId, PaidMark>();
+  for (const { participantId, share } of others) {
+    const amount = payments.find((payment) => payment.participantId === participantId)?.amount ?? null;
+    const state = payState(share, amount);
+    if (state.kind === "short") marks.set(participantId, "short");
+    else if (state.kind === "settled" || state.kind === "over") marks.set(participantId, "paid");
+  }
+  return marks;
 }

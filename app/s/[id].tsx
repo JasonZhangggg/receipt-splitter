@@ -7,6 +7,7 @@ import { cents } from "../../src/core/money";
 import type { Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
+import { paidMarks } from "../../src/ui/pay/model";
 import { isRoutableSplitId, type AdjustmentId, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
@@ -136,6 +137,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   useEffect(() => noteSplit(split), [split]);
 
   const shares = useMemo(() => computeShares(split), [split]);
+  const marks = useMemo(() => paidMarks(shares, split.payments), [shares, split.payments]);
   const people = split.participants;
   const picked = new Set(split.picks.map(({ participantId }) => participantId));
   const selectedPerson = people.find((person) => person.id === (selected ?? me)) ?? null;
@@ -242,6 +244,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         people={people}
         picked={picked}
         me={me}
+        marks={marks}
         selected={me ? (selectedPerson?.id ?? null) : null}
         entering={phase === "collapsing"}
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
@@ -274,6 +277,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
                 people={people}
                 picked={picked}
                 me={me}
+                marks={marks}
                 selected={selectedPerson.id}
                 onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
                 onAdd={(typed) => void addPerson(typed)}
