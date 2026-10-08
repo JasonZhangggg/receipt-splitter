@@ -53,7 +53,7 @@ test("on a narrow window a mouse wheel over the row scrolls it sideways", async 
   await expect.poll(left, live).toBeGreaterThan(40);
 });
 
-test("on a phone the row of twelve names clips 4 px outside the 22 px gutter on both sides, and the last chip ends on the right gutter", async ({ browser, request }, { workerIndex }) => {
+test("on a phone the row of twelve names scrolls edge to edge of the screen, the first chip resting on the 22 px gutter and the last ending on the right gutter", async ({ browser, request }, { workerIndex }) => {
   const page = await (await newContext(browser)).newPage();
   await page.setViewportSize({ width: 390, height: 844 });
   const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
@@ -71,17 +71,19 @@ test("on a phone the row of twelve names clips 4 px outside the 22 px gutter on 
     });
 
   expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
-  expect(await clip()).toEqual({ left: 18, right: 372 });
+  expect(await clip()).toEqual({ left: 0, right: 390 });
 
   await scrollBy("middle");
   await sam.waitForTimeout(100);
-  expect(await clip()).toEqual({ left: 18, right: 372 });
+  const chipsOnScreen = await people(sam).getByRole("button").evaluateAll((all) => all.map((one) => one.getBoundingClientRect()).filter((box) => box.left < 22 || box.right > 368).length);
+  expect(chipsOnScreen).toBeGreaterThan(1);
+  expect(await clip()).toEqual({ left: 0, right: 390 });
 
   await scrollBy("end");
   await sam.waitForTimeout(100);
   const add = await chip(sam, "Add a person").boundingBox();
   expect((add?.x ?? 0) + (add?.width ?? 0)).toBeCloseTo(368, 0);
-  expect(await clip()).toEqual({ left: 18, right: 372 });
+  expect(await clip()).toEqual({ left: 0, right: 390 });
 });
 
 test("the Remove menu opens above its chip on a phone and on a desktop window", async ({ browser, request, page }, { workerIndex }) => {

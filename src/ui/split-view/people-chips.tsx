@@ -19,6 +19,8 @@ type Props = {
   onAdd: (name: string) => void;
   /** A long-press or right-click on anyone but the Host. */
   onHold?: (id: ParticipantId, press: Press) => void;
+  /** How far the row may scroll past its column on each side: to the sheet's or pane's edge. At rest the first chip still sits on the column. */
+  bleed: number;
   /** The side-by-side layout: the chips wrap onto several lines instead of scrolling on one. */
   wrap?: boolean;
   entering?: boolean;
@@ -27,7 +29,7 @@ type Props = {
 
 type Ghost = { readonly person: Participant; readonly mark: PaidMark | undefined };
 
-export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, wrap = false, entering = false, label = say.people }: Props) {
+export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, bleed, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
   // Wrapped chips reflow across lines and the pane changes height, so on desktop a removal closes up in one frame, with no slide or fade.
   const reduce = useReducedMotion();
@@ -107,7 +109,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     box.style.scrollBehavior = "";
   }, [opened, count, reduce]);
 
-  // The scroll padding stops a chip scrolled into view on the gutter, not on the clip box's edge.
+  // The scroll padding stops a chip scrolled into view on the gutter, not on the screen edge.
   const seenSelected = useRef(selected);
   useLayoutEffect(() => {
     if (selected === seenSelected.current) return;
@@ -158,7 +160,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
 
   return (
     <View role="group" aria-label={label}>
-      <Row wrap={wrap} scroller={scroller}>
+      <Row wrap={wrap} bleed={bleed} scroller={scroller}>
         {people.map((person, index) => {
           const mark = marks.get(person.id);
           const named = person.id === me ? `${person.name}, ${say.you}` : person.name;
@@ -222,7 +224,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
 }
 
 /** The phone's one-row scroller, or on desktop a plain row that wraps. */
-function Row({ wrap, scroller, children }: { wrap: boolean; scroller: React.RefObject<ScrollView | null>; children: React.ReactNode }) {
+function Row({ wrap, bleed, scroller, children }: { wrap: boolean; bleed: number; scroller: React.RefObject<ScrollView | null>; children: React.ReactNode }) {
   if (wrap) return <View style={styles.wrapRow}>{children}</View>;
   return (
     <ScrollView
@@ -230,8 +232,8 @@ function Row({ wrap, scroller, children }: { wrap: boolean; scroller: React.RefO
       horizontal
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={[{ margin: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${ringRoom}px` })]}
-      contentContainerStyle={[styles.row, { padding: ringRoom }]}
+      style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${bleed}px` })]}
+      contentContainerStyle={[styles.row, { paddingHorizontal: bleed, paddingVertical: ringRoom }]}
     >
       {children}
     </ScrollView>
@@ -250,7 +252,7 @@ const chipLeaveMs = 200;
 const stagger = 30;
 const staggered = 3;
 const chipsEnterFor = chipEnterMs + staggered * stagger;
-// The scroller's clip box reaches this far past the chips on every side, so the 3 px focus ring outside a chip or the name field is not cut, with a pixel to spare for fractional chip widths. The chips stay on the page gutter.
+// The scroller's clip box reaches this far above and below the chips, so the 3 px focus ring outside a chip or the name field is not cut, with a pixel to spare for fractional chip widths. The chips stay on the page gutter.
 const ringRoom = 4;
 const glideFrom = 24;
 
