@@ -94,7 +94,22 @@ test("the Remove menu opens above its chip on a phone and on a desktop window", 
     const [menuBox, chipBox] = [await dialog.boundingBox(), await chip(dialog.page(), chipName).boundingBox()];
     return (menuBox?.y ?? 0) + (menuBox?.height ?? 0) < (chipBox?.y ?? 0);
   };
+  const hangs = async (chipName: string, dialog: Locator) => {
+    const [menuBox, chipBox] = [await dialog.boundingBox(), await chip(dialog.page(), chipName).boundingBox()];
+    return (menuBox?.x ?? 0) - (chipBox?.x ?? 0);
+  };
   expect(await above("Priya", phone)).toBe(true);
+  // Priya's chip is past the point where a 248 px menu still fits, so the menu sits on the right margin: 390 - 16 - 248 = 126.
+  expect((await phone.boundingBox())?.x).toBeCloseTo(126, 0);
+  await sam.keyboard.press("Escape");
+  await expect(phone).toHaveCount(0, live);
+  await touch(chip(sam, "Sam, you"), { holdMs: 800 });
+  // Near the left the menu's start edge overhangs the chip's by 14 px.
+  await expect(menu(sam, "Sam")).toBeVisible(live);
+  await sam.waitForTimeout(400);
+  // The chip is measured while pressed and scaled, so allow a couple of pixels.
+  expect(await hangs("Sam, you", menu(sam, "Sam"))).toBeCloseTo(-14, -1);
+  expect(await above("Sam, you", menu(sam, "Sam"))).toBe(true);
 
   const desk = await (await newContext(browser)).newPage();
   await desk.setViewportSize({ width: 1280, height: 800 });
@@ -106,6 +121,23 @@ test("the Remove menu opens above its chip on a phone and on a desktop window", 
   await expect(menu(desk, "Priya")).toBeVisible(live);
   await desk.waitForTimeout(400);
   expect(await above("Priya", menu(desk, "Priya"))).toBe(true);
+  expect(await hangs("Priya", menu(desk, "Priya"))).toBeCloseTo(-14, 0);
+});
+
+test("the Remove menu of the last chip, scrolled to the end, stays on screen between the 16 px margins", async ({ page, request }, { workerIndex }) => {
+  const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
+  await people(sam).evaluate((group) => {
+    const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+    if (box) box.scrollLeft = box.scrollWidth;
+  });
+  await sam.waitForTimeout(200);
+  await touch(chip(sam, "Ingrid"), { holdMs: 800 });
+  await expect(menu(sam, "Ingrid")).toBeVisible(live);
+  await sam.waitForTimeout(400);
+  const box = await menu(sam, "Ingrid").boundingBox();
+  expect(box?.x).toBeGreaterThanOrEqual(16);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(374);
+  expect(box?.y).toBeLessThan((await chip(sam, "Ingrid").boundingBox())?.y ?? 0);
 });
 
 const dozen = ["Jason", "Sam", "Priya", "Alexandra", "Bartholomew", "Chen", "Dmitri", "Esperanza", "Fatima", "Giovanni", "Hiroshi", "Ingrid"];

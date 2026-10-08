@@ -489,7 +489,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         </BottomSheet>
       ) : null}
       {menu ? (
-        <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above">
+        <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
         </Popover>
       ) : null}
