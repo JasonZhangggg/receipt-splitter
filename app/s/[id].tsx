@@ -311,7 +311,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
         onAdd={(typed) => void addPerson(typed)}
         onHold={hold}
-        bleed={layout.gutter + insets.left}
         wrap={wide}
       />
       {peopleNote}
@@ -347,7 +346,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
                 onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
                 onAdd={(typed) => void addPerson(typed)}
                 onHold={hold}
-                bleed={paneEdge}
                 wrap={wide}
               />
               {peopleNote}
@@ -491,7 +489,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         </BottomSheet>
       ) : null}
       {menu ? (
-        <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth}>
+        <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
         </Popover>
       ) : null}

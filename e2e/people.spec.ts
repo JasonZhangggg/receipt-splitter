@@ -53,6 +53,93 @@ test("on a narrow window a mouse wheel over the row scrolls it sideways", async 
   await expect.poll(left, live).toBeGreaterThan(40);
 });
 
+test("on a phone the row of twelve names clips 4 px outside the 22 px gutter on both sides, and the last chip ends on the right gutter", async ({ browser, request }, { workerIndex }) => {
+  const page = await (await newContext(browser)).newPage();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
+  const scrollBy = (to: "start" | "middle" | "end") =>
+    people(sam).evaluate((group, where) => {
+      const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+      if (!box) throw new Error("no scroller");
+      box.scrollLeft = where === "start" ? 0 : where === "end" ? box.scrollWidth : (box.scrollWidth - box.clientWidth) / 2;
+    }, to);
+  const clip = () =>
+    people(sam).evaluate((group) => {
+      const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+      const { left, right } = box?.getBoundingClientRect() ?? { left: -1, right: -1 };
+      return { left, right };
+    });
+
+  expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
+  expect(await clip()).toEqual({ left: 18, right: 372 });
+
+  await scrollBy("middle");
+  await sam.waitForTimeout(100);
+  expect(await clip()).toEqual({ left: 18, right: 372 });
+
+  await scrollBy("end");
+  await sam.waitForTimeout(100);
+  const add = await chip(sam, "Add a person").boundingBox();
+  expect((add?.x ?? 0) + (add?.width ?? 0)).toBeCloseTo(368, 0);
+  expect(await clip()).toEqual({ left: 18, right: 372 });
+});
+
+test("the Remove menu opens above its chip on a phone and on a desktop window", async ({ browser, request, page }, { workerIndex }) => {
+  const sam = await open(page, await createSplit(request, workerIndex), "Sam");
+  await touch(chip(sam, "Priya"), { holdMs: 800 });
+  const phone = menu(sam, "Priya");
+  await expect(phone).toBeVisible(live);
+  await sam.waitForTimeout(400);
+  const above = async (chipName: string, dialog: Locator) => {
+    const [menuBox, chipBox] = [await dialog.boundingBox(), await chip(dialog.page(), chipName).boundingBox()];
+    return (menuBox?.y ?? 0) + (menuBox?.height ?? 0) < (chipBox?.y ?? 0);
+  };
+  const hangs = async (chipName: string, dialog: Locator) => {
+    const [menuBox, chipBox] = [await dialog.boundingBox(), await chip(dialog.page(), chipName).boundingBox()];
+    return (menuBox?.x ?? 0) - (chipBox?.x ?? 0);
+  };
+  expect(await above("Priya", phone)).toBe(true);
+  // Priya's chip is past the point where a 248 px menu still fits, so the menu sits on the right margin: 390 - 16 - 248 = 126.
+  expect((await phone.boundingBox())?.x).toBeCloseTo(126, 0);
+  await sam.keyboard.press("Escape");
+  await expect(phone).toHaveCount(0, live);
+  await touch(chip(sam, "Sam, you"), { holdMs: 800 });
+  // Near the left the menu's start edge overhangs the chip's by 14 px.
+  await expect(menu(sam, "Sam")).toBeVisible(live);
+  await sam.waitForTimeout(400);
+  // The chip is measured while pressed and scaled, so allow a couple of pixels.
+  expect(await hangs("Sam, you", menu(sam, "Sam"))).toBeCloseTo(-14, -1);
+  expect(await above("Sam, you", menu(sam, "Sam"))).toBe(true);
+
+  const desk = await (await newContext(browser)).newPage();
+  await desk.setViewportSize({ width: 1280, height: 800 });
+  await desk.goto(await createSplit(request, workerIndex));
+  await desk.getByRole("complementary", { name: "People" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(chip(desk, "Sam, you")).toBeVisible(live);
+  await desk.waitForTimeout(600);
+  await chip(desk, "Priya").click({ button: "right" });
+  await expect(menu(desk, "Priya")).toBeVisible(live);
+  await desk.waitForTimeout(400);
+  expect(await above("Priya", menu(desk, "Priya"))).toBe(true);
+  expect(await hangs("Priya", menu(desk, "Priya"))).toBeCloseTo(-14, 0);
+});
+
+test("the Remove menu of the last chip, scrolled to the end, stays on screen between the 16 px margins", async ({ page, request }, { workerIndex }) => {
+  const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
+  await people(sam).evaluate((group) => {
+    const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+    if (box) box.scrollLeft = box.scrollWidth;
+  });
+  await sam.waitForTimeout(200);
+  await touch(chip(sam, "Ingrid"), { holdMs: 800 });
+  await expect(menu(sam, "Ingrid")).toBeVisible(live);
+  await sam.waitForTimeout(400);
+  const box = await menu(sam, "Ingrid").boundingBox();
+  expect(box?.x).toBeGreaterThanOrEqual(16);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(374);
+  expect(box?.y).toBeLessThan((await chip(sam, "Ingrid").boundingBox())?.y ?? 0);
+});
+
 const dozen = ["Jason", "Sam", "Priya", "Alexandra", "Bartholomew", "Chen", "Dmitri", "Esperanza", "Fatima", "Giovanni", "Hiroshi", "Ingrid"];
 
 let creates = 0;
