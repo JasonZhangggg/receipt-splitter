@@ -107,7 +107,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     box.style.scrollBehavior = "";
   }, [opened, count, reduce]);
 
-  // The scroll padding stops a chip scrolled into view on the gutter, not on the clip box's edge.
+  // The scroll padding stops a chip scrolled into view on the gutter, not on the screen edge.
   const seenSelected = useRef(selected);
   useLayoutEffect(() => {
     if (selected === seenSelected.current) return;
@@ -129,6 +129,32 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     };
     box.addEventListener("wheel", onWheel, { passive: false });
     return () => box.removeEventListener("wheel", onWheel);
+  }, [wrap]);
+
+  // Each end of the row fades out over as much as is scrolled away, up to fadeMax,, so a chip at rest is crisp and the fade grows with the scroll. It is painted by the mask, so it never takes a tap.
+  useEffect(() => {
+    const box = wrap || Platform.OS !== "web" ? undefined : (scroller.current?.getScrollableNode() as HTMLElement | undefined);
+    if (!box) return;
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
+      const hidden = { left: Math.floor(box.scrollLeft), right: Math.floor(box.scrollWidth - box.clientWidth - box.scrollLeft) };
+      box.style.setProperty(fadeLeft, `${Math.max(0, Math.min(fadeMax, hidden.left))}px`);
+      box.style.setProperty(fadeRight, `${Math.max(0, Math.min(fadeMax, hidden.right))}px`);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
+    paint();
+    box.addEventListener("scroll", schedule, { passive: true });
+    const sizes = new ResizeObserver(schedule);
+    sizes.observe(box);
+    if (box.firstElementChild) sizes.observe(box.firstElementChild);
+    return () => {
+      cancelAnimationFrame(frame);
+      box.removeEventListener("scroll", schedule);
+      sizes.disconnect();
+    };
   }, [wrap]);
 
   const face = (person: Participant, mark: PaidMark | undefined) => {
@@ -230,7 +256,7 @@ function Row({ wrap, scroller, children }: { wrap: boolean; scroller: React.RefO
       horizontal
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={[{ margin: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${ringRoom}px` })]}
+      style={[{ margin: -ringRoom }, rowScroll, rowFade, webStyle({ scrollPaddingInline: `${ringRoom}px` })]}
       contentContainerStyle={[styles.row, { padding: ringRoom }]}
     >
       {children}
@@ -253,6 +279,8 @@ const chipsEnterFor = chipEnterMs + staggered * stagger;
 // The scroller's clip box reaches this far past the chips on every side, so the 3 px focus ring outside a chip or the name field is not cut, with a pixel to spare for fractional chip widths. The chips stay on the page gutter.
 const ringRoom = 4;
 const glideFrom = 24;
+// The longest fade at each clip edge, 4 px of it over the ring room, so a chip sitting on the gutter loses at most its outer 16 px to the fade while names are hidden beyond it.
+const fadeMax = 20;
 
 const chipEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.96)" }, to: { opacity: 1, transform: "none" } }],
@@ -263,6 +291,11 @@ const chipEnter = webAnimation({
 
 // The row owns sideways drags; a vertical one still reaches the sheet's drag. A swipe at the row's end does not go back a page.
 const rowScroll = webStyle({ touchAction: "pan-x", overscrollBehaviorX: "contain" });
+
+const fadeLeft = "--fade-left";
+const fadeRight = "--fade-right";
+const fadeMask = `linear-gradient(to right, transparent 0, #000 var(${fadeLeft}, 0px), #000 calc(100% - var(${fadeRight}, 0px)), transparent 100%)`;
+const rowFade = webStyle({ maskImage: fadeMask, WebkitMaskImage: fadeMask });
 
 const styles = StyleSheet.create({
   wrapRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: layout.chipRowGap, rowGap: layout.pairGap },

@@ -53,7 +53,7 @@ test("on a narrow window a mouse wheel over the row scrolls it sideways", async 
   await expect.poll(left, live).toBeGreaterThan(40);
 });
 
-test("on a phone the row of twelve names clips 4 px outside the 22 px gutter on both sides, and the last chip ends on the right gutter", async ({ browser, request }, { workerIndex }) => {
+test("on a phone the row of twelve names scrolls between the 22 px gutters, the first chip resting on the left gutter and the last ending on the right gutter", async ({ browser, request }, { workerIndex }) => {
   const page = await (await newContext(browser)).newPage();
   await page.setViewportSize({ width: 390, height: 844 });
   const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
@@ -75,6 +75,8 @@ test("on a phone the row of twelve names clips 4 px outside the 22 px gutter on 
 
   await scrollBy("middle");
   await sam.waitForTimeout(100);
+  const chipsOnScreen = await people(sam).getByRole("button").evaluateAll((all) => all.map((one) => one.getBoundingClientRect()).filter((box) => box.left < 22 || box.right > 368).length);
+  expect(chipsOnScreen).toBeGreaterThan(1);
   expect(await clip()).toEqual({ left: 18, right: 372 });
 
   await scrollBy("end");
@@ -82,6 +84,36 @@ test("on a phone the row of twelve names clips 4 px outside the 22 px gutter on 
   const add = await chip(sam, "Add a person").boundingBox();
   expect((add?.x ?? 0) + (add?.width ?? 0)).toBeCloseTo(368, 0);
   expect(await clip()).toEqual({ left: 18, right: 372 });
+});
+
+test("on a phone the row fades into each end of its clip box only where names are scrolled out of view", async ({ browser, request }, { workerIndex }) => {
+  const page = await (await newContext(browser)).newPage();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
+  const fades = async (to: "start" | "middle" | "end") => {
+    await people(sam).evaluate((group, where) => {
+      const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+      if (!box) throw new Error("no scroller");
+      box.scrollLeft = where === "start" ? 0 : where === "end" ? box.scrollWidth : (box.scrollWidth - box.clientWidth) / 2;
+    }, to);
+    await sam.waitForTimeout(150);
+    return people(sam).evaluate((group) => {
+      const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+      if (!box) throw new Error("no scroller");
+      const style = getComputedStyle(box);
+      return { left: style.getPropertyValue("--fade-left"), right: style.getPropertyValue("--fade-right"), mask: style.maskImage || style.webkitMaskImage };
+    });
+  };
+
+  const rest = await fades("start");
+  expect({ left: rest.left, right: rest.right }).toEqual({ left: "0px", right: "20px" });
+  expect(rest.mask).toContain("linear-gradient");
+  const middle = await fades("middle");
+  expect({ left: middle.left, right: middle.right }).toEqual({ left: "20px", right: "20px" });
+  const end = await fades("end");
+  expect({ left: end.left, right: end.right }).toEqual({ left: "20px", right: "0px" });
+  await fades("start");
+  expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
 });
 
 test("the Remove menu opens above its chip on a phone and on a desktop window", async ({ browser, request, page }, { workerIndex }) => {

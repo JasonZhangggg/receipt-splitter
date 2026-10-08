@@ -34,6 +34,8 @@ type WebOnly = Partial<
     | "overscrollBehaviorX"
     | "scrollPaddingInline"
     | "touchAction"
+    | "maskImage"
+    | "WebkitMaskImage"
     | "willChange"
     | "position"
     | "top"
