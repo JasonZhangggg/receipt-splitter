@@ -98,10 +98,16 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
   useLayoutEffect(() => {
     if (!opened && !follow.current) return;
     follow.current = false;
-    scroller.current?.scrollToEnd({ animated: !reduce });
+    // Setting scrollLeft moves the row in WebKit, where the ScrollView's scrollToEnd leaves it in place.
+    const box = scroller.current?.getScrollableNode() as HTMLElement | undefined;
+    if (!box) return;
+    // A few pixels to the field's ring need no glide; a whole new chip does.
+    box.style.scrollBehavior = reduce || box.scrollWidth - box.clientWidth - box.scrollLeft < glideFrom ? "auto" : "smooth";
+    box.scrollLeft = box.scrollWidth;
+    box.style.scrollBehavior = "";
   }, [opened, count, reduce]);
 
-  // The row clips at the page gutter, so a chip scrolled into view stops on it.
+  // The scroll padding stops a chip scrolled into view on the gutter, not on the clip box's edge.
   const seenSelected = useRef(selected);
   useLayoutEffect(() => {
     if (selected === seenSelected.current) return;
@@ -166,7 +172,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
                 name={mark ? `${named}, ${{ paid: say.chipPaid, short: say.chipPaidShort, over: say.chipPaidOver }[mark]}` : named}
                 onPress={() => onSelect(person.id)}
                 onLongPress={index === 0 || !onHold ? undefined : (press) => onHold(person.id, press)}
-                style={(pressed) => [pressStyle(pressed, reduce), insetRing]}
+                style={(pressed) => pressStyle(pressed, reduce)}
               >
                 {() => face(person, mark)}
               </PressTarget>
@@ -175,7 +181,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
         })}
         {typing === null ? (
           <View style={enter(people.length)}>
-            <PressTarget name={say.addPerson} onPress={() => setTyping("")} style={(pressed) => [pressStyle(pressed, reduce), insetRing]}>
+            <PressTarget name={say.addPerson} onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
               {() => (
                 <View style={[styles.chip, styles.add, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
                   <Icon name="plus" size={18} color={c.muted} />
@@ -205,7 +211,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
             aria-hidden
             pointerEvents="none"
             ref={track(ghostNodes, person.id)}
-            style={[styles.ghost, { top: 0 }]}
+            style={[styles.ghost, { top: ringRoom }]}
           >
             {face(person, mark)}
           </View>
@@ -224,8 +230,8 @@ function Row({ wrap, scroller, children }: { wrap: boolean; scroller: React.RefO
       horizontal
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={rowScroll}
-      contentContainerStyle={styles.row}
+      style={[{ margin: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${ringRoom}px` })]}
+      contentContainerStyle={[styles.row, { padding: ringRoom }]}
     >
       {children}
     </ScrollView>
@@ -244,8 +250,9 @@ const chipLeaveMs = 200;
 const stagger = 30;
 const staggered = 3;
 const chipsEnterFor = chipEnterMs + staggered * stagger;
-// The row clips at the page gutter on both sides, so the keyboard focus ring is drawn inside the chip instead of outside, where the clip would cut it.
-const insetRing = webStyle({ outlineOffset: "-2px" });
+// The scroller's clip box reaches this far past the chips on every side, so the 3 px focus ring outside a chip or the name field is not cut, with a pixel to spare for fractional chip widths. The chips stay on the page gutter.
+const ringRoom = 4;
+const glideFrom = 24;
 
 const chipEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.96)" }, to: { opacity: 1, transform: "none" } }],
