@@ -53,7 +53,7 @@ test("on a narrow window a mouse wheel over the row scrolls it sideways", async 
   await expect.poll(left, live).toBeGreaterThan(40);
 });
 
-test("on a phone the row of twelve names scrolls edge to edge of the screen, the first chip resting on the 22 px gutter and the last ending on the right gutter", async ({ browser, request }, { workerIndex }) => {
+test("on a phone the row of twelve names scrolls between the 22 px gutters, the first chip resting on the left gutter and the last ending on the right gutter", async ({ browser, request }, { workerIndex }) => {
   const page = await (await newContext(browser)).newPage();
   await page.setViewportSize({ width: 390, height: 844 });
   const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
@@ -71,22 +71,22 @@ test("on a phone the row of twelve names scrolls edge to edge of the screen, the
     });
 
   expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
-  expect(await clip()).toEqual({ left: 0, right: 390 });
+  expect(await clip()).toEqual({ left: 18, right: 372 });
 
   await scrollBy("middle");
   await sam.waitForTimeout(100);
   const chipsOnScreen = await people(sam).getByRole("button").evaluateAll((all) => all.map((one) => one.getBoundingClientRect()).filter((box) => box.left < 22 || box.right > 368).length);
   expect(chipsOnScreen).toBeGreaterThan(1);
-  expect(await clip()).toEqual({ left: 0, right: 390 });
+  expect(await clip()).toEqual({ left: 18, right: 372 });
 
   await scrollBy("end");
   await sam.waitForTimeout(100);
   const add = await chip(sam, "Add a person").boundingBox();
   expect((add?.x ?? 0) + (add?.width ?? 0)).toBeCloseTo(368, 0);
-  expect(await clip()).toEqual({ left: 0, right: 390 });
+  expect(await clip()).toEqual({ left: 18, right: 372 });
 });
 
-test("on a phone the row fades into each screen edge only where names are scrolled out of view", async ({ browser, request }, { workerIndex }) => {
+test("on a phone the row fades into each end of its clip box only where names are scrolled out of view", async ({ browser, request }, { workerIndex }) => {
   const page = await (await newContext(browser)).newPage();
   await page.setViewportSize({ width: 390, height: 844 });
   const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
@@ -106,12 +106,12 @@ test("on a phone the row fades into each screen edge only where names are scroll
   };
 
   const rest = await fades("start");
-  expect({ left: rest.left, right: rest.right }).toEqual({ left: "0px", right: "22px" });
+  expect({ left: rest.left, right: rest.right }).toEqual({ left: "0px", right: "20px" });
   expect(rest.mask).toContain("linear-gradient");
   const middle = await fades("middle");
-  expect({ left: middle.left, right: middle.right }).toEqual({ left: "22px", right: "22px" });
+  expect({ left: middle.left, right: middle.right }).toEqual({ left: "20px", right: "20px" });
   const end = await fades("end");
-  expect({ left: end.left, right: end.right }).toEqual({ left: "22px", right: "0px" });
+  expect({ left: end.left, right: end.right }).toEqual({ left: "20px", right: "0px" });
   await fades("start");
   expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
 });

@@ -311,7 +311,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
         onAdd={(typed) => void addPerson(typed)}
         onHold={hold}
-        bleed={layout.gutter + insets.left}
         wrap={wide}
       />
       {peopleNote}
@@ -347,7 +346,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
                 onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
                 onAdd={(typed) => void addPerson(typed)}
                 onHold={hold}
-                bleed={paneEdge}
                 wrap={wide}
               />
               {peopleNote}
