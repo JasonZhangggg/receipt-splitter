@@ -1,6 +1,7 @@
 import type { HandleProblem } from "../core/operations";
 import type { PaymentService } from "../core/split";
 import type { Blocker, Ready } from "../draft";
+import type { Scheme } from "./appearance";
 import type { ReadingStage } from "./receipt-input/reading";
 
 export const copy = {
@@ -34,6 +35,7 @@ export const copy = {
   removeName: (name: string) => `Remove ${name}`,
   newName: "Name",
   removeApp: (app: string) => `Remove ${app}`,
+  switchTo: { light: "Switch to light mode", dark: "Switch to dark mode" } satisfies Record<Scheme, string>,
 };
 
 export const createCopy = {

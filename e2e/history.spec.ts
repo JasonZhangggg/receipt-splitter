@@ -78,11 +78,13 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
-test("the icon sits at the top right of home and its sheet lists every stored Split newest first, past five", async ({ page }) => {
+test("the icon sits at the top right of home beside the appearance toggle and its sheet lists every stored Split newest first, past five", async ({ page }) => {
   await seed(page, [ana, jason, priya, kim, omar, lin, max]);
   await expect(page.getByText("Recent splits")).toHaveCount(0);
   const box = (await icon(page).boundingBox())!;
-  expect(box.x + box.width).toBeGreaterThanOrEqual(phone.width - 22);
+  const toggle = (await page.getByRole("button", { name: "Switch to dark mode" }).boundingBox())!;
+  expect([box.x + box.width + 6, box.y]).toEqual([toggle.x, toggle.y]);
+  expect(toggle.x + toggle.width).toBeGreaterThanOrEqual(phone.width - 22);
   expect(box.y + box.height).toBeLessThanOrEqual(72);
   expect([box.width, box.height]).toEqual([44, 44]);
 

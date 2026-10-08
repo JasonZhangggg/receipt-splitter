@@ -10,6 +10,7 @@ import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client
 import { prefetchModel, recognize } from "../src/ocr";
 import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
+import { AppearanceToggle } from "../src/ui/appearance-toggle";
 import { Button, PressTarget } from "../src/ui/components/button";
 import { focusInPlace } from "../src/ui/components/keyboard-lift";
 import { NameChips, type NameField } from "../src/ui/components/name-chips";
@@ -226,11 +227,10 @@ export default function Home() {
           </Text>
           <View style={styles.headerButtons}>
             {scan.status === "empty" && width >= breakpoints.exampleFrom ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
-            {stored.length > 0 ? (
-              <View style={styles.recent}>
-                <RecentSplits splits={stored} now={now} wide={wide} />
-              </View>
-            ) : null}
+            {stored.length > 0 ? <RecentSplits splits={stored} now={now} wide={wide} /> : null}
+            <View style={styles.edge}>
+              <AppearanceToggle />
+            </View>
           </View>
         </View>
         {wide ? (
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerButtons: { flexDirection: "row", alignItems: "center", gap: 6 },
-  recent: { marginRight: -12 },
+  edge: { marginRight: -12 },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
   zone: { flexGrow: 0, paddingVertical: 32, paddingHorizontal: 40, borderRadius: 26, borderWidth: 1.5, borderStyle: "dashed" },
   reading: { borderColor: "transparent" },

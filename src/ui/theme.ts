@@ -1,10 +1,33 @@
+import { useSyncExternalStore } from "react";
 import { Easing, StyleSheet, useColorScheme } from "react-native";
 
+import { readAppearance, resolveScheme, storeAppearance, type Appearance, type Scheme } from "./appearance";
 import { colors, type Colors } from "./colors";
-import { installDocument } from "./document";
+import { installDocument, paintAppearance } from "./document";
+
+let picked = readAppearance();
+const listeners = new Set<() => void>();
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+const current = () => picked;
+
+export function setAppearance(next: Appearance) {
+  picked = next;
+  storeAppearance(next);
+  paintAppearance(next);
+  listeners.forEach((listener) => listener());
+}
+
+export const useAppearance = () => useSyncExternalStore(subscribe, current, current);
+
+export const useSystemScheme = (): Scheme => (useColorScheme() === "dark" ? "dark" : "light");
+
+export const useScheme = (): Scheme => resolveScheme(useAppearance(), useSystemScheme());
 
 export function useColors(): Colors {
-  return colors[useColorScheme() === "dark" ? "dark" : "light"];
+  return colors[useScheme()];
 }
 
 export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24, xxl: 32, xxxl: 48, huge: 64 } as const;
@@ -26,7 +49,8 @@ export const layout = {
 
 const sans = "'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', system-ui, -apple-system, sans-serif";
 
-installDocument(colors);
+installDocument();
+paintAppearance(picked);
 
 export const type = StyleSheet.create({
   hero: { fontFamily: sans, fontWeight: "400", fontSize: 26, lineHeight: 29, letterSpacing: -0.52 },
