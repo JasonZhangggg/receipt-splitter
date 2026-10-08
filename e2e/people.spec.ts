@@ -86,6 +86,36 @@ test("on a phone the row of twelve names scrolls edge to edge of the screen, the
   expect(await clip()).toEqual({ left: 0, right: 390 });
 });
 
+test("on a phone the row fades into each screen edge only where names are scrolled out of view", async ({ browser, request }, { workerIndex }) => {
+  const page = await (await newContext(browser)).newPage();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
+  const fades = async (to: "start" | "middle" | "end") => {
+    await people(sam).evaluate((group, where) => {
+      const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+      if (!box) throw new Error("no scroller");
+      box.scrollLeft = where === "start" ? 0 : where === "end" ? box.scrollWidth : (box.scrollWidth - box.clientWidth) / 2;
+    }, to);
+    await sam.waitForTimeout(150);
+    return people(sam).evaluate((group) => {
+      const box = [...group.querySelectorAll<HTMLElement>("*")].find((element) => element.scrollWidth > element.clientWidth + 1 && getComputedStyle(element).overflowX !== "visible");
+      if (!box) throw new Error("no scroller");
+      const style = getComputedStyle(box);
+      return { left: style.getPropertyValue("--fade-left"), right: style.getPropertyValue("--fade-right"), mask: style.maskImage || style.webkitMaskImage };
+    });
+  };
+
+  const rest = await fades("start");
+  expect({ left: rest.left, right: rest.right }).toEqual({ left: "0px", right: "22px" });
+  expect(rest.mask).toContain("linear-gradient");
+  const middle = await fades("middle");
+  expect({ left: middle.left, right: middle.right }).toEqual({ left: "22px", right: "22px" });
+  const end = await fades("end");
+  expect({ left: end.left, right: end.right }).toEqual({ left: "22px", right: "0px" });
+  await fades("start");
+  expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
+});
+
 test("the Remove menu opens above its chip on a phone and on a desktop window", async ({ browser, request, page }, { workerIndex }) => {
   const sam = await open(page, await createSplit(request, workerIndex), "Sam");
   await touch(chip(sam, "Priya"), { holdMs: 800 });

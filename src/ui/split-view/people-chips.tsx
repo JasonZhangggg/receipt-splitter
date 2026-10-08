@@ -133,6 +133,32 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     return () => box.removeEventListener("wheel", onWheel);
   }, [wrap]);
 
+  // Each end of the row fades out over as much of the gutter as is scrolled away, so a chip at rest is crisp and the fade grows with the scroll. It is painted by the mask, so it never takes a tap.
+  useEffect(() => {
+    const box = wrap || Platform.OS !== "web" ? undefined : (scroller.current?.getScrollableNode() as HTMLElement | undefined);
+    if (!box) return;
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
+      const hidden = { left: Math.floor(box.scrollLeft), right: Math.floor(box.scrollWidth - box.clientWidth - box.scrollLeft) };
+      box.style.setProperty(fadeLeft, `${Math.max(0, Math.min(bleed, hidden.left))}px`);
+      box.style.setProperty(fadeRight, `${Math.max(0, Math.min(bleed, hidden.right))}px`);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
+    paint();
+    box.addEventListener("scroll", schedule, { passive: true });
+    const sizes = new ResizeObserver(schedule);
+    sizes.observe(box);
+    if (box.firstElementChild) sizes.observe(box.firstElementChild);
+    return () => {
+      cancelAnimationFrame(frame);
+      box.removeEventListener("scroll", schedule);
+      sizes.disconnect();
+    };
+  }, [wrap, bleed]);
+
   const face = (person: Participant, mark: PaidMark | undefined) => {
     const isSelected = person.id === selected;
     const away = !picked.has(person.id) && !isSelected;
@@ -232,7 +258,7 @@ function Row({ wrap, bleed, scroller, children }: { wrap: boolean; bleed: number
       horizontal
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${bleed}px` })]}
+      style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, rowFade, webStyle({ scrollPaddingInline: `${bleed}px` })]}
       contentContainerStyle={[styles.row, { paddingHorizontal: bleed, paddingVertical: ringRoom }]}
     >
       {children}
@@ -265,6 +291,11 @@ const chipEnter = webAnimation({
 
 // The row owns sideways drags; a vertical one still reaches the sheet's drag. A swipe at the row's end does not go back a page.
 const rowScroll = webStyle({ touchAction: "pan-x", overscrollBehaviorX: "contain" });
+
+const fadeLeft = "--fade-left";
+const fadeRight = "--fade-right";
+const fadeMask = `linear-gradient(to right, transparent 0, #000 var(${fadeLeft}, 0px), #000 calc(100% - var(${fadeRight}, 0px)), transparent 100%)`;
+const rowFade = webStyle({ maskImage: fadeMask, WebkitMaskImage: fadeMask });
 
 const styles = StyleSheet.create({
   wrapRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
