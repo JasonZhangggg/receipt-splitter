@@ -452,7 +452,10 @@ test("side safe-area insets keep the header and the sheet clear of a landscape n
     return [box.x, box.x + box.width];
   };
   expect((await edges(page.getByRole("heading", { name: "Receipt Splitter" })))[0]).toBe(47 + 22);
-  expect((await edges(page.getByRole("button", { name: "Example" })))[1]).toBe(landscape.width - 47 - 22);
+  // The edge icon's box hangs 12 px into the gutter so its glyph lines up with the content.
+  const [toggleLeft, toggleRight] = await edges(page.getByRole("button", { name: "Switch to dark mode" }));
+  expect(toggleRight).toBe(landscape.width - 47 - 22 + 12);
+  expect((await edges(page.getByRole("button", { name: "Example" })))[1]).toBeLessThanOrEqual(toggleLeft);
   const sheet = await sheetOf(action(page));
   expect([sheet.left, sheet.width]).toEqual([0, landscape.width]);
   const [left, right] = await edges(action(page));
@@ -658,6 +661,7 @@ const glyphs = {
     '<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.5"/>',
   chevron: '<path d="M6 9l6 6 6-6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  moon: '<path d="M19.5 14.2A7.5 7.5 0 0 1 9.8 4.5a7.5 7.5 0 1 0 9.7 9.7z"/>',
 };
 
 test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from assistive tech, at 390 px", async ({ page }) => {
@@ -673,7 +677,7 @@ test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from 
     })),
   );
   const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", stroke, width: "1.5", glyph: glyphs[name] });
-  expect(icons).toEqual([icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
+  expect(icons).toEqual([icon("moon", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
 });
 
 for (const [width, named] of [
