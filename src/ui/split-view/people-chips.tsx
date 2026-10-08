@@ -19,8 +19,6 @@ type Props = {
   onAdd: (name: string) => void;
   /** A long-press or right-click on anyone but the Host. */
   onHold?: (id: ParticipantId, press: Press) => void;
-  /** How far the row may scroll past its column on each side: to the sheet's or pane's edge. At rest the first chip still sits on the column. */
-  bleed: number;
   /** The side-by-side layout: the chips wrap onto several lines instead of scrolling on one. */
   wrap?: boolean;
   entering?: boolean;
@@ -29,7 +27,7 @@ type Props = {
 
 type Ghost = { readonly person: Participant; readonly mark: PaidMark | undefined };
 
-export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, bleed, wrap = false, entering = false, label = say.people }: Props) {
+export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
   // Wrapped chips reflow across lines and the pane changes height, so on desktop a removal closes up in one frame, with no slide or fade.
   const reduce = useReducedMotion();
@@ -103,7 +101,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
     scroller.current?.scrollToEnd({ animated: !reduce });
   }, [opened, count, reduce]);
 
-  // The row's scroll padding keeps a chip scrolled into view clear of the edge, on the gutter.
+  // The row clips at the page gutter, so a chip scrolled into view stops on it.
   const seenSelected = useRef(selected);
   useLayoutEffect(() => {
     if (selected === seenSelected.current) return;
@@ -154,7 +152,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
 
   return (
     <View role="group" aria-label={label}>
-      <Row wrap={wrap} bleed={bleed} scroller={scroller}>
+      <Row wrap={wrap} scroller={scroller}>
         {people.map((person, index) => {
           const mark = marks.get(person.id);
           const named = person.id === me ? `${person.name}, ${say.you}` : person.name;
@@ -168,7 +166,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
                 name={mark ? `${named}, ${{ paid: say.chipPaid, short: say.chipPaidShort, over: say.chipPaidOver }[mark]}` : named}
                 onPress={() => onSelect(person.id)}
                 onLongPress={index === 0 || !onHold ? undefined : (press) => onHold(person.id, press)}
-                style={(pressed) => pressStyle(pressed, reduce)}
+                style={(pressed) => [pressStyle(pressed, reduce), insetRing]}
               >
                 {() => face(person, mark)}
               </PressTarget>
@@ -177,7 +175,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
         })}
         {typing === null ? (
           <View style={enter(people.length)}>
-            <PressTarget name={say.addPerson} onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
+            <PressTarget name={say.addPerson} onPress={() => setTyping("")} style={(pressed) => [pressStyle(pressed, reduce), insetRing]}>
               {() => (
                 <View style={[styles.chip, styles.add, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
                   <Icon name="plus" size={18} color={c.muted} />
@@ -207,7 +205,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
             aria-hidden
             pointerEvents="none"
             ref={track(ghostNodes, person.id)}
-            style={[styles.ghost, { top: ringRoom }]}
+            style={[styles.ghost, { top: 0 }]}
           >
             {face(person, mark)}
           </View>
@@ -218,7 +216,7 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
 }
 
 /** The phone's one-row scroller, or on desktop a plain row that wraps. */
-function Row({ wrap, bleed, scroller, children }: { wrap: boolean; bleed: number; scroller: React.RefObject<ScrollView | null>; children: React.ReactNode }) {
+function Row({ wrap, scroller, children }: { wrap: boolean; scroller: React.RefObject<ScrollView | null>; children: React.ReactNode }) {
   if (wrap) return <View style={styles.wrapRow}>{children}</View>;
   return (
     <ScrollView
@@ -226,8 +224,8 @@ function Row({ wrap, bleed, scroller, children }: { wrap: boolean; bleed: number
       horizontal
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={[{ marginHorizontal: -bleed, marginVertical: -ringRoom }, rowScroll, webStyle({ scrollPaddingInline: `${bleed}px` })]}
-      contentContainerStyle={[styles.row, { paddingHorizontal: bleed, paddingVertical: ringRoom }]}
+      style={rowScroll}
+      contentContainerStyle={styles.row}
     >
       {children}
     </ScrollView>
@@ -246,8 +244,8 @@ const chipLeaveMs = 200;
 const stagger = 30;
 const staggered = 3;
 const chipsEnterFor = chipEnterMs + staggered * stagger;
-// Room inside the scroller for a focus ring, which a horizontal scroller would otherwise clip.
-const ringRoom = 4;
+// The row clips at the page gutter on both sides, so the keyboard focus ring is drawn inside the chip instead of outside, where the clip would cut it.
+const insetRing = webStyle({ outlineOffset: "-2px" });
 
 const chipEnter = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.96)" }, to: { opacity: 1, transform: "none" } }],

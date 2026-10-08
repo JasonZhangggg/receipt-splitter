@@ -16,6 +16,8 @@ type Props = {
   width?: number;
   /** Which edge of the anchor the surface lines up with: a line's trailing edge, or the leading edge of a control at a row's start. */
   align?: "start" | "end";
+  /** "above" always opens over the anchor, whatever room there is below; "auto" picks the side with more room. */
+  side?: "auto" | "above";
   children: ReactNode;
 };
 
@@ -63,7 +65,7 @@ function useTabTrap(surface: { current: View | null }) {
   }, [surface]);
 }
 
-export function Popover({ anchor, label, closing, instant, onClose, onGone, width = sheetWidth, align = "end", children }: Props) {
+export function Popover({ anchor, label, closing, instant, onClose, onGone, width = sheetWidth, align = "end", side = "auto", children }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const layer = useRef<View>(null);
@@ -89,8 +91,8 @@ export function Popover({ anchor, label, closing, instant, onClose, onGone, widt
       align === "start"
         ? Math.max(margin, Math.min(line.left - frame.left - overhang, frame.width - margin - across))
         : Math.max(margin, Math.min(line.right - frame.left + overhang, frame.width - margin) - across);
-    setPlacement(natural <= below || below >= above ? { side: "below", top, left, width: across, maxHeight: below } : { side: "above", bottom, left, width: across, maxHeight: above });
-  }, [anchor, width, align]);
+    setPlacement(side === "auto" && (natural <= below || below >= above) ? { side: "below", top, left, width: across, maxHeight: below } : { side: "above", bottom, left, width: across, maxHeight: above });
+  }, [anchor, width, align, side]);
 
   const enter = useEffectEvent(() => {
     const element = surface.current as unknown as HTMLElement;
