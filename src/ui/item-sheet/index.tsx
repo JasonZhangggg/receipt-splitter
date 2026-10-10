@@ -414,7 +414,7 @@ function SplitRows({ item, me, nameOf, edit, typedAmount, refills, typed }: Spli
         const shares = item.split.by === "shares" ? (item.split.units[0][index]?.[1] ?? 1) : 0;
         const value = (next: number): ItemValue => ({ participantId, value: next });
         return (
-          <View key={participantId} style={[styles.splitRow, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
+          <View key={participantId} style={styles.splitRow}>
             <View style={styles.who}>
               <Dot name={nameOf(participantId)} tone={participantId === me ? "me" : "dot"} />
               <Text numberOfLines={1} style={[type.button, styles.whoName, { color: c.ink }]}>
@@ -606,7 +606,6 @@ const styles = StyleSheet.create({
   segmentFace: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },
   splitRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54 },
-  divided: { borderTopWidth: 1 },
   who: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
   whoName: { flexShrink: 1 },
   amount: { minWidth: 64, textAlign: "right" },
