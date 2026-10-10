@@ -43,7 +43,6 @@ export const splitCopy = {
   unclaimedLine: "nobody had it",
   subtotal: "Subtotal",
   total: "Total",
-  unclaimedTotal: (lines: number) => (lines === 0 ? "Unclaimed" : `Unclaimed · ${lines} ${lines === 1 ? "item" : "items"}`),
   yourShare: "Your share",
   receiptDifference: "Items off the subtotal",
   shareOf: (name: string) => `${name}'s share`,

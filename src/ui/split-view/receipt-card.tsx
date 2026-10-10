@@ -49,7 +49,6 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   const { items, adjustments, subtotal, total } = split.receipt;
   const { rows, charges } = useMemo(() => receiptRows(split.receipt), [split.receipt]);
   const [entering, settle] = useEntering([...items, ...adjustments].map(({ id }) => id));
-  const started = items.some((item) => claimersOfItem(item).length > 0);
   const note = totalNote(split.receipt);
   const order = split.participants.map(({ id }) => id);
   const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
@@ -176,16 +175,6 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           {money(total)}
         </Text>
       </View>
-      {started ? (
-        <View style={styles.unclaimed}>
-          <Text testID="unclaimed-count" numberOfLines={1} style={[type.secondary, tabular, styles.rowLabel, { color: c.muted }]}>
-            {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
-          </Text>
-          <Text testID="unclaimed" style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>
-            {money(shares.unclaimed.total)}
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -572,5 +561,4 @@ const styles = StyleSheet.create({
   rowLabel: { flexShrink: 1 },
   strong: { fontWeight: "500" },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
-  unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
 });

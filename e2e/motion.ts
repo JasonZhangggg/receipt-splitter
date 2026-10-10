@@ -516,7 +516,7 @@ async function othersHadAll(page: Page) {
     if (item === "Rice") await tap(page.getByRole("dialog", { name: "Check Rice for Sam?" }).getByRole("button", { name: "Check for Sam" }));
     await page.locator(`[aria-label="${item}, check for Sam"][aria-pressed="true"]`).waitFor();
   }
-  await page.getByTestId("unclaimed").filter({ hasText: "$0.00" }).waitFor();
+  await page.locator('[data-testid="split-sheet"] [data-testid="claim-bar"][aria-valuenow="100"]').waitFor();
   await tap(meChip(page));
   await tap(page.getByRole("button", { name: "Your share $0.00, Show what you owe" }));
   await page.getByRole("button", { name: "Your share $0.00, Hide what you owe" }).waitFor();
@@ -1162,7 +1162,7 @@ export const scenarios: Scenario[] = [
     act: (page) => pane(page).getByRole("button", { name: "Sam", exact: true }).click(),
     probes: [
       { key: "mine", find: breakdownSaying("Your share"), kind: "opacity" },
-      { key: "theirs", find: breakdownSaying("Sam owes"), kind: "opacity" },
+      { key: "theirs", find: breakdownSaying("Sam's share"), kind: "opacity" },
     ],
   },
   deskBundleExpand,

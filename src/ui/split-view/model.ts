@@ -1,10 +1,9 @@
 import { claimersOf, type Operation } from "../../core/operations";
-import type { ShareBreakdown, Shares } from "../../core/shares";
+import type { ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
 import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
 import { gapNote, groupedAmount, money } from "../../draft";
-import { statusWords, type ShareStatus } from "../pay/model";
 import { splitCopy as say } from "../split-copy";
 
 const UNICODE_FRACTIONS: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾", "1/5": "⅕", "1/6": "⅙", "1/8": "⅛" };
@@ -194,19 +193,4 @@ export function keepInPlace<Row extends { readonly id: string }>(was: readonly K
   }
   for (; taken < rows.length; taken += 1) next.push({ row: rows[taken], gone: false });
   return next;
-}
-
-/** The one quiet line under a share. `claimed` is the share of the Total someone has checked, for its bar. */
-export type ShareNote = { readonly kind: "status"; readonly text: string } | { readonly kind: "claim"; readonly text: string; readonly claimed: number };
-
-/**
- * A payment state outranks what is left to claim, since it is about the shown person. The Host's count waits until everything is claimed:
- * until then the shares can still move, and the unclaimed money is what the Host stands to lose.
- */
-export function shareNote(status: ShareStatus, unclaimed: Shares["unclaimed"], total: Cents): ShareNote | null {
-  const words = statusWords(status);
-  const paidNote: ShareNote | null = words === null ? null : { kind: "status", text: words };
-  const claimNote: ShareNote | null =
-    unclaimed.total > 0 && total > 0 ? { kind: "claim", text: say.leftToClaim(money(unclaimed.total)), claimed: Math.max(0, 1 - unclaimed.total / total) } : null;
-  return status.kind === "host" ? (claimNote ?? paidNote) : (paidNote ?? claimNote);
 }

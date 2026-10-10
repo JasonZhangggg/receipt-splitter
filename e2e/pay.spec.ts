@@ -174,16 +174,16 @@ test("Sam's one pay pill switches among Jason's four apps, links each at his $14
   await expect(copy).toBeVisible();
 });
 
-test("Priya's breakdown, before anyone pays, says what is left to claim under her share and has no buttons", async ({ browser, request }, { workerIndex }) => {
+test("Priya's breakdown, before anyone pays, has no paid line under her share and no buttons", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, everyApp));
   await pick(sam, "Sam");
   await sam.getByRole("button", { name: "Priya", exact: true }).click();
   await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
-  await expect(note(sam)).toHaveText("$44.20 left to claim", live);
+  await expect(breakdown(sam).getByRole("button", { name: "Priya's share $0.00, Hide Priya's breakdown" })).toBeVisible(live);
+  await expect(note(sam)).toHaveCount(0);
   await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
   await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
   await expect(breakdown(sam).getByRole("button")).toHaveAccessibleName("Priya's share $0.00, Hide Priya's breakdown");
-  await expect(breakdown(sam).getByRole("button")).toHaveAccessibleDescription("$44.20 left to claim");
 });
 
 test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, and both browsers say he paid $8.00 too much", async ({ browser, request }, { workerIndex }) => {
@@ -279,7 +279,7 @@ test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays 
   await priya.getByRole("button", { name: "Sam", exact: true }).click();
   await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
   await expect(breakdown(priya).getByRole("button", { name: /^Sam's share \$14\.20, Hide/ })).toBeVisible(live);
-  await expect(note(priya)).toHaveText("$30.00 left to claim");
+  await expect(note(priya)).toHaveCount(0);
   await sam.reload();
   await expect(owe(sam)).toHaveText("$14.20", live);
   await owe(sam).click();

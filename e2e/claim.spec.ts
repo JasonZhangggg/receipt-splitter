@@ -75,7 +75,7 @@ test("two browsers pick, check lines, and see each other's claims and Shares, an
 
   await expect(owe(sam)).toHaveText("$8.50", live);
   await expect(owe(priya)).toHaveText("$0.50", live);
-  await expect(sam.getByTestId("unclaimed")).toHaveText("$26.50", live);
+  await expect(sam.getByRole("progressbar", { name: "$26.50 left to claim" })).toBeVisible(live);
 
   await sam.reload();
   await expect(owe(sam)).toHaveText("$8.50", live);

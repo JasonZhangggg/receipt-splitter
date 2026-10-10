@@ -140,9 +140,9 @@ report.reconnect = { downMs: restoredAt - droppedAt, attemptsWhileDown: connects
 await sam.getByRole("button", { name: "Priya", exact: true }).click();
 await priya.getByTestId("owe").click();
 await priya.getByRole("button", { name: "I already paid" }).click();
-await priya.getByText("You paid").waitFor();
+await priya.getByTestId("share-note").getByText("Paid ").waitFor();
 await shot(priya, "G2-paid");
-await sam.getByText("Priya paid").waitFor();
+await sam.getByRole("button", { name: "Priya, paid", exact: true }).waitFor();
 await sam.waitForTimeout(400);
 await shot(sam, "H-someone");
 await sam.getByRole("button", { name: "Priya", exact: true }).click();
@@ -182,8 +182,8 @@ await lee.getByRole("button", { name: "That's me" }).click();
 await sam.getByText("Pick your name to check off what you had.").waitFor();
 check("That's me drops the first phone to browsing", true);
 
-const shares = await Promise.all([host, priya, lee].map((page) => page.getByTestId("unclaimed").innerText()));
-check("every browser shows the same Unclaimed figure", new Set(shares).size === 1, shares);
+const shares = await Promise.all([host, priya, lee].map((page) => page.getByTestId("split-sheet").getByTestId("claim-bar").getAttribute("aria-valuenow")));
+check("every browser shows the same left-to-claim bar", new Set(shares).size === 1, shares);
 const total = await host.getByTestId("total").innerText();
 report.total = total;
 report.errors = errors;

@@ -3,8 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
-import { splitCopy } from "../split-copy";
-import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, claimedItems, shareNote } from "./model";
+import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, claimedItems } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -249,13 +248,13 @@ describe("receiptRows at Topgolf", () => {
     ]);
   });
 
-  test("the Unclaimed line counts six lines nobody had, a 3x and two 2x lines as one each, and five once Ann and Bob take the 3x Guinness", () => {
+  test("unclaimed Items count six lines nobody had, a 3x and two 2x lines as one each, and five once Ann and Bob take the 3x Guinness", () => {
     const participants = [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }] as const;
-    const line = (receipt: Receipt<SplitItem>) => splitCopy.unclaimedTotal(computeShares({ receipt, participants, payments: [] }).unclaimed.itemIds.length);
-    expect([line(topgolf()), line(topgolf([ann, bob]))]).toEqual(["Unclaimed · 6 items", "Unclaimed · 5 items"]);
+    const count = (receipt: Receipt<SplitItem>) => computeShares({ receipt, participants, payments: [] }).unclaimed.itemIds.length;
+    expect([count(topgolf()), count(topgolf([ann, bob]))]).toEqual([6, 5]);
   });
 
-  test("a collapsed Beer Bucket counts Items claimed, leaves a By amount line with money left over out of them as the Unclaimed line does, and counts an untouched 2x line as one Item", () => {
+  test("a collapsed Beer Bucket counts Items claimed, leaves a By amount line with money left over out of them as the unclaimed Items do, and counts an untouched 2x line as one Item", () => {
     const participants = [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }] as const;
     const shared = topgolf([ann, bob]);
     const partly = (row: SplitItem): SplitItem => (row.id === "pineapple1" ? { ...row, split: { by: "amount", units: [[[ann, cents(500)]]] } } : row);
@@ -263,7 +262,7 @@ describe("receiptRows at Topgolf", () => {
     const receipt = { ...shared, items: [partly(first), ...rest.map(partly)] as const };
     const { itemIds } = computeShares({ receipt, participants, payments: [] }).unclaimed;
     const buckets = receiptRows(receipt).rows.flatMap((row) => (row.kind === "bundle" ? [claimedItems(row.bundle, itemIds)] : []));
-    expect([buckets, splitCopy.unclaimedTotal(itemIds.length)]).toEqual([[3, 0], "Unclaimed · 6 items"]);
+    expect([buckets, itemIds.length]).toEqual([[3, 0], 6]);
   });
 });
 
@@ -274,30 +273,4 @@ test("barFor asks for a name until someone picks, then shows the selected person
   expect(barFor(ann, false, null)).toEqual({ kind: "share", me: ann, person: ann });
   expect(barFor(ann, true, bob)).toEqual({ kind: "breakdown", me: ann, person: bob });
   expect(barFor(ann, true, null)).toEqual({ kind: "breakdown", me: ann, person: ann });
-});
-
-describe("shareNote", () => {
-  const left = { itemIds: [itemId("watermelon")], total: cents(6015) };
-  const none = { itemIds: [], total: cents(0) };
-  const total = cents(20729);
-
-  test("says what is left to claim with the claimed part of the Total, and nothing once all of it is claimed", () => {
-    expect([shareNote({ kind: "unpaid", owe: cents(8436) }, left, total), shareNote({ kind: "unpaid", owe: cents(8436) }, none, total)]).toEqual([
-      { kind: "claim", text: "$60.15 left to claim", claimed: 1 - 6015 / 20729 },
-      null,
-    ]);
-  });
-
-  test("puts a payer's paid state ahead of what is left to claim", () => {
-    expect(shareNote({ kind: "short", paid: cents(4000), rest: cents(1347) }, left, total)).toEqual({ kind: "status", text: "Paid $40.00 · $13.47 still owed" });
-  });
-
-  test("shows the Host what is left to claim first, and who paid them once everything is claimed", () => {
-    const host = { kind: "host", paid: 2, of: 3, started: true } as const;
-    expect([shareNote(host, left, total)?.text, shareNote(host, none, total)?.text, shareNote({ kind: "host", paid: 0, of: 3, started: false }, none, total)]).toEqual([
-      "$60.15 left to claim",
-      "2 of 3 paid you",
-      null,
-    ]);
-  });
 });
