@@ -30,11 +30,12 @@ export function SplitHeader({ onMore, moreOpen = false, onShare }: Props) {
 
 export const headerMenuWidth = 220;
 
-/** What the header's More button holds: the receipt photo while the Split has one, and History. */
-export function HeaderMenu({ onPhoto, onHistory }: { onPhoto?: (press: Press) => void; onHistory: (press: Press) => void }) {
+/** What the header's More button holds: Payments first, since it is the one people open to check on something, then the receipt photo while the Split has one, and History. */
+export function HeaderMenu({ onPayments, onPhoto, onHistory }: { onPayments: (press: Press) => void; onPhoto?: (press: Press) => void; onHistory: (press: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const rows: { icon: IconName; label: string; onPress: (press: Press) => void }[] = [
+    { icon: "check", label: say.payments, onPress: onPayments },
     ...(onPhoto ? [{ icon: "receipt" as const, label: say.receiptPhotoItem, onPress: onPhoto }] : []),
     { icon: "history", label: say.history, onPress: onHistory },
   ];

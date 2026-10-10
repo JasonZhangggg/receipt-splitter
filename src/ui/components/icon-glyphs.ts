@@ -16,7 +16,6 @@ export const paths = {
   minus: '<path d="M5 12h14"/>',
   history: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4.5v3.7h3.7"/><path d="M12 8.5V12l2.5 1.8"/>',
   expand: '<path d="M14 5h5v5M10 19H5v-5M19 5l-6 6M5 19l6-6"/>',
-  exclaim: '<path d="M12 4v10.5" stroke-width="2"/><path d="M12 19.5h.01" stroke-width="2.5"/>',
   person: '<g stroke-width="2"><circle cx="12" cy="8" r="3.75"/><path d="M4.75 20a7.25 7.25 0 0 1 14.5 0"/></g>',
   more: '<path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"/>',
   clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>',

@@ -311,6 +311,27 @@ test("Add item opens its form as a popover from its row, and the new row lands i
   await expect(pane(page)).toContainText("Fries");
 });
 
+test("Payments opens from the More menu as a popover under More, lists the people with their share, and Escape hands focus back to More", async ({ page, request }, { workerIndex }) => {
+  await open(page, await createSplit(request, workerIndex));
+  await pick(page, "Jason");
+  const more = moreButton(page);
+  const list = page.getByRole("dialog", { name: "Payments" });
+
+  await fromMore(page, "Payments");
+
+  await expect(list).toBeVisible();
+  await expect(page.getByTestId("payments-sheet")).toHaveCount(0);
+  const button = await box(more);
+  const popover = await box(list);
+  expect(popover.y).toBeGreaterThanOrEqual(button.y + button.height);
+  expect(inside(popover, desktop)).toBe(true);
+  await expect(list.getByRole("listitem").first()).toContainText("You get paid");
+
+  await page.keyboard.press("Escape");
+  await expect(list).toHaveCount(0);
+  await expect(more).toBeFocused();
+});
+
 test("History opens from the More menu as a popover under More, and Escape hands focus back to More", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   const history = moreButton(page);

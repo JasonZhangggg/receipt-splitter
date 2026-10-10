@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { Participant, ParticipantId } from "../../core/split";
-import type { PaidMark } from "../pay/model";
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
@@ -12,7 +11,6 @@ import { layout, motion, type, useColors } from "../theme";
 type Props = {
   people: readonly Participant[];
   me: ParticipantId | null;
-  marks: ReadonlyMap<ParticipantId, PaidMark>;
   selected: ParticipantId | null;
   onSelect: (id: ParticipantId) => void;
   onAdd: (name: string) => void;
@@ -24,9 +22,7 @@ type Props = {
   label?: string;
 };
 
-type Ghost = { readonly person: Participant; readonly mark: PaidMark | undefined };
-
-export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHold, wrap = false, entering = false, label = say.people }: Props) {
+export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
   // Wrapped chips reflow across lines and the pane changes height, so on desktop a removal closes up in one frame, with no slide or fade.
   const reduce = useReducedMotion();
@@ -56,16 +52,13 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
   const enter = (index: number) => (entrance && !reduce ? [chipEnter, webStyle({ animationDelay: `${Math.min(index, staggered) * stagger}ms` })] : null);
 
   // A person who leaves fades where their chip stood while the chips after it slide over, so the row closes the gap without a jump.
-  const [ghosts, setGhosts] = useState<readonly Ghost[]>([]);
+  const [ghosts, setGhosts] = useState<readonly Participant[]>([]);
   const [shownPeople, setShownPeople] = useState(people);
-  // The marks as last drawn: the new Split no longer knows a removed person paid, and their chip must not lose its check as it fades.
-  const [shownMarks, setShownMarks] = useState(marks);
-  if (marks !== shownMarks) setShownMarks(marks);
   if (people !== shownPeople) {
     setShownPeople(people);
     const gone = reduce || wrap ? [] : shownPeople.filter((person) => !people.some(({ id }) => id === person.id));
-    const kept = ghosts.filter(({ person }) => !people.some(({ id }) => id === person.id));
-    if (gone.length > 0 || kept.length !== ghosts.length) setGhosts([...kept, ...gone.map((person) => ({ person, mark: shownMarks.get(person.id) }))]);
+    const kept = ghosts.filter((person) => !people.some(({ id }) => id === person.id));
+    if (gone.length > 0 || kept.length !== ghosts.length) setGhosts([...kept, ...gone]);
   }
   const ghostNodes = useRef(new Map<ParticipantId, HTMLElement>());
   useLayoutEffect(() => {
@@ -76,7 +69,7 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
       node.dataset.placed = "1";
       node.style.left = `${before.get(id) ?? 0}px`;
       node.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0.96)" }], { duration: chipLeaveMs, easing: motion.easeOut, fill: "forwards" }).onfinish = () =>
-        setGhosts((all) => all.filter(({ person }) => person.id !== id));
+        setGhosts((all) => all.filter((person) => person.id !== id));
     }
     const leaving = ghosts.length > 0;
     const after = new Map<ParticipantId, number>();
@@ -156,7 +149,7 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
     };
   }, [wrap]);
 
-  const face = (person: Participant, mark: PaidMark | undefined) => {
+  const face = (person: Participant) => {
     // Two looks only: the selected chip in ink, everyone else in one quiet fill, whether or not they have picked their name.
     const isSelected = person.id === selected;
     const ink = isSelected ? c.onAction : c.ink;
@@ -170,11 +163,6 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
             <Icon name="person" size={youSize} color={ink} />
           </View>
         ) : null}
-        {mark ? (
-          <View style={[styles.mark, mark !== "paid" && styles.narrow]}>
-            <Icon name={mark === "paid" ? "check" : "exclaim"} size={markSize} color={ink} />
-          </View>
-        ) : null}
       </View>
     );
   };
@@ -183,7 +171,6 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
     <View role="group" aria-label={label}>
       <Row wrap={wrap} scroller={scroller}>
         {people.map((person, index) => {
-          const mark = marks.get(person.id);
           const named = person.id === me ? `${person.name}, ${say.you}` : person.name;
           return (
             <View
@@ -192,12 +179,12 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
               style={enter(index)}
             >
               <PressTarget
-                name={mark ? `${named}, ${{ paid: say.chipPaid, short: say.chipPaidShort, over: say.chipPaidOver }[mark]}` : named}
+                name={named}
                 onPress={() => onSelect(person.id)}
                 onLongPress={index === 0 || !onHold ? undefined : (press) => onHold(person.id, press)}
                 style={(pressed) => pressStyle(pressed, reduce)}
               >
-                {() => face(person, mark)}
+                {() => face(person)}
               </PressTarget>
             </View>
           );
@@ -228,7 +215,7 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
             style={[type.input, styles.input, { color: c.ink, backgroundColor: c.sheetIn }]}
           />
         )}
-        {ghosts.map(({ person, mark }) => (
+        {ghosts.map((person) => (
           <View
             key={`gone-${person.id}`}
             aria-hidden
@@ -236,7 +223,7 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
             ref={track(ghostNodes, person.id)}
             style={[styles.ghost, { top: ringRoom }]}
           >
-            {face(person, mark)}
+            {face(person)}
           </View>
         ))}
       </Row>
@@ -267,7 +254,6 @@ const track = (nodes: { readonly current: Map<ParticipantId, HTMLElement> }, id:
   else nodes.current.delete(id);
 };
 
-const markSize = 15;
 const youSize = 13;
 const chipEnterMs = 180;
 const chipLeaveMs = 200;
@@ -301,8 +287,6 @@ const styles = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, maxWidth: 160, paddingHorizontal: 14, borderRadius: 22 },
   name: { flexShrink: 1 },
   mark: { flexShrink: 0 },
-  // The "!" is a thin stroke in a square glyph box, so it would sit farther from the name than the check does.
-  narrow: { marginHorizontal: -3 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
   ghost: { position: "absolute" },

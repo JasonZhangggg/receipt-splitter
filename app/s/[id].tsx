@@ -7,7 +7,6 @@ import { cents } from "../../src/core/money";
 import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
-import { paidMarks } from "../../src/ui/pay/model";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
@@ -19,6 +18,7 @@ import { Swap } from "../../src/ui/components/swap";
 import { AddAdjustmentSheet, AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
 import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
+import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
 import { AddItemSheet } from "../../src/ui/item-sheet/add";
@@ -87,7 +87,8 @@ type OverlayKind =
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
   | { readonly kind: "addAdjustment" }
-  | { readonly kind: "history" };
+  | { readonly kind: "history" }
+  | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
 /** What is open over the page and the press that opened it: the popover hangs from its trigger, and focus goes back there. */
 type Overlay = OverlayKind & { readonly from: Press };
 /** The right pane shows the pick content until this device has picked, then that person's share. */
@@ -100,7 +101,7 @@ const overlayLabel = (overlay: OverlayKind, split: Split) =>
     ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
       ? say.discount
       : say.charge
-    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history }[overlay.kind];
+    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history, payments: say.payments }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
 const crossFadeFor = 200;
@@ -139,7 +140,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   useEffect(() => noteSplit(split), [split]);
 
   const shares = useMemo(() => computeShares(split), [split]);
-  const marks = useMemo(() => paidMarks(shares, split.payments), [shares, split.payments]);
   const people = split.participants;
   // A selected person someone removed falls back to this device's own name.
   const selectedPerson = people.find((person) => person.id === selected) ?? people.find((person) => person.id === me) ?? null;
@@ -296,6 +296,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           : null;
     trigger?.focus({ preventScroll: true });
   };
+  // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own.
+  const viewerGone = overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me;
+  if (viewerGone && !closing) setClosing(true);
   useEscape(overlay !== null && !closing && !wide, closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
@@ -316,7 +319,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       <PeopleChips
         people={people}
         me={me}
-        marks={marks}
         selected={me ? (selectedPerson?.id ?? null) : null}
         entering={phase === "collapsing"}
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
@@ -351,8 +353,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
               <PeopleChips
                 people={people}
                         me={me}
-                marks={marks}
-                selected={selectedPerson.id}
+                        selected={selectedPerson.id}
                 onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
                 onAdd={(typed) => void addPerson(typed)}
                 onHold={hold}
@@ -388,6 +389,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       <AddItemSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : overlay.kind === "adjustment" ? (
       <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
+    ) : overlay.kind === "payments" ? (
+      <PaymentsSheet split={split} me={me} onClose={closeOverlay} />
     ) : overlay.kind === "addAdjustment" ? (
       <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : (
@@ -505,7 +508,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       ) : null}
       {more ? (
         <Popover anchor={more.from.trigger} label={say.more} instant={more.from.keyboard} closing={more.closing} onClose={closeMore} onGone={moreGone} width={headerMenuWidth}>
-          <HeaderMenu onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} />
+          <HeaderMenu onPayments={fromMore((from) => open({ kind: "payments", viewer: me }, from))} onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} />
         </Popover>
       ) : null}
       {confirming ? (

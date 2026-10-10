@@ -267,6 +267,20 @@ test("removing a person who checked an Item gives the other claimer the whole It
   await expect(owe(sam)).toHaveText("$4.00", live);
 });
 
+test("Payments open on a phone closes when another phone removes its person", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link, "Sam");
+  const priya = await open(browser, link, "Priya");
+  await fromMore(priya, "Payments");
+  await expect(priya.getByRole("list", { name: "Payments" })).toBeVisible(live);
+
+  await chip(sam, "Priya").click({ button: "right" });
+  await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
+
+  await expect(priya.getByRole("list", { name: "Payments" })).toHaveCount(0, live);
+  await expect(priya.getByText("Pick your name to check off what you had.")).toBeVisible(live);
+});
+
 test("twelve names stay on one row that a sideways drag scrolls without selecting anyone", async ({ page, request }, { workerIndex }) => {
   const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
   const rows = () =>
@@ -330,7 +344,7 @@ test("a removal the server refuses says so under the chips, and the person stays
   await expect(chip(sam, "Priya")).toBeVisible();
 });
 
-test("the chip of a paid person who is removed keeps its check while it fades, and a Revert does not bring back a selection of them", async ({ browser, request }, { workerIndex }) => {
+test("the chip of a paid person who is removed fades with only their name, and a Revert does not bring back a selection of them", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const priya = await open(browser, link, "Priya");
   const sam = await open(browser, link, "Sam");
@@ -338,27 +352,27 @@ test("the chip of a paid person who is removed keeps its check while it fades, a
   await expect(owe(priya)).toHaveText("$2.50", live);
   await owe(priya).click();
   await priya.getByRole("button", { name: "I already paid" }).click();
-  await chip(sam, "Priya, paid").click();
+  await chip(sam, "Priya").click();
   await expect(sam.getByText("Priya's share")).toBeVisible(live);
 
   await sam.evaluate(() => {
     const seen: boolean[] = [];
-    (window as unknown as { ghostMarks: boolean[] }).ghostMarks = seen;
+    (window as unknown as { ghostIcons: boolean[] }).ghostIcons = seen;
     new MutationObserver((records) => {
       for (const record of records)
         for (const node of record.addedNodes)
           if (node instanceof HTMLElement && node.getAttribute("aria-hidden") === "true" && node.textContent === "Priya") seen.push(node.querySelector("svg") !== null);
     }).observe(document.body, { childList: true, subtree: true });
   });
-  await chip(sam, "Priya, paid").click({ button: "right" });
+  await chip(sam, "Priya").click({ button: "right" });
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
-  await expect(chip(sam, "Priya, paid")).toHaveCount(0, live);
-  expect(await sam.evaluate(() => (window as unknown as { ghostMarks: boolean[] }).ghostMarks)).toEqual([true]);
+  await expect(chip(sam, "Priya")).toHaveCount(0, live);
+  expect(await sam.evaluate(() => (window as unknown as { ghostIcons: boolean[] }).ghostIcons)).toEqual([false]);
   await expect(sam.getByText("Your share")).toBeVisible(live);
 
   await fromMore(sam, "History");
   await sam.getByRole("button", { name: /^Revert Removed Priya/ }).click();
-  await expect(chip(sam, "Priya, paid")).toBeVisible(live);
+  await expect(chip(sam, "Priya")).toBeVisible(live);
   await sam.waitForTimeout(300);
   await expect(sam.getByText("Your share")).toBeVisible();
 });

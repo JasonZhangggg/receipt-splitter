@@ -19,6 +19,7 @@ Only the device that picked a name can record or clear that person's Payment. Th
 - Pick your name, check a line, and tap "Your share" or your own chip.
 - Tap another person's chip to see their status.
 - Tap **More**, then **History**.
+- Tap **More**, then **Payments** to see who has paid.
 
 ## Driving it
 
@@ -37,3 +38,4 @@ Preconditions are the same as [claim.md](./claim.md). Create the Split over `POS
 - Device ids travel in every state frame, so a hand-made frame can present another phone's id. The check stops every other device in the app, and **That's me** already lets anyone take a name in the open. The cleanup PR owns this.
 - `venmo://paycharge` is used only in the native app. The web, phones included, uses the https link.
 - The note is always "Receipt split", because the Receipt keeps no merchant name and Venmo notes can be public. Cash App and PayPal.me take no note.
+- **Payments (`pay-status`).** Tap **More**, then **Payments** (first in the menu). It is a bottom sheet (`payments-sheet`) on the phone and a popover under **More** from 1024 px, titled "Payments". The people chips carry no check or "!" and their names read plain, `<name>` or `<name>, you`. Under the title a gray line reads "N of M paid you" for the Host or "N of M paid" for everyone else (test id `payments-summary`). M counts people other than the Host who owe or paid anything, and N those with a payment recorded, so a person with a $0.00 share and no payment is not counted. The list (role `list`, name "Payments") has one row per person in chip order. The name is on the left, with the person icon after the viewer's, and the share is right-aligned. Under the name a gray line says "Paid $22.00", "Paid $22.00 · $4.00 still owed", "Paid $22.00 · $8.00 too much", "Not paid" or "Nothing to pay", and for the Host "You get paid" (their own phone) or "Gets paid". A tap on a row does nothing. The sheet updates when another phone pays or claims, and closes if its viewer is removed. The words come from `paymentStatus` in `src/ui/pay/model.ts`; `e2e/pay.spec.ts` drives the live updates, `e2e/people.spec.ts` the removal, and `e2e/desktop.spec.ts` the popover.

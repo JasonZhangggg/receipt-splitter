@@ -16,7 +16,7 @@ The Host's device sends one downscaled JPEG of the receipt after the Split is cr
 
 - Scan a receipt on home, fill the payment handle and a name, and tap **Create split link**. The Host's device sends the PUT right after the link opens.
 - On any browser with the link, close "Which one are you?", tap **More** in the header, then **Receipt photo**. **Close photo** closes the viewer.
-- A Split made with **Example**, or before V2-6b, has no photo, so **More** holds only **History**.
+- A Split made with **Example**, or before V2-6b, has no photo, so **More** holds **Payments** and **History**.
 
 ## Driving it with verify.mjs
 

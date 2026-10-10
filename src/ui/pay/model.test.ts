@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { differenceNote, paidMarks, payState } from "./model";
+import { differenceNote, payState, paymentStatus } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -56,44 +56,60 @@ describe("differenceNote", () => {
   });
 });
 
-describe("paidMarks", () => {
-  const shares = {
-    shares: [
-      { participantId: "jason", share: cents(1000) },
-      { participantId: "sam", share: cents(2600), paid: cents(2200), owed: cents(400) },
-      { participantId: "priya", share: cents(1400), paid: cents(1400), owed: cents(0) },
-      { participantId: "kim", share: cents(900), paid: cents(0), owed: cents(900) },
-      { participantId: "lee", share: cents(500), paid: cents(800), owed: cents(-300) },
-    ],
-    unclaimed: { itemIds: [], total: cents(0) },
-  } as unknown as Shares;
-  const payments = [
-    { participantId: "sam", amount: cents(2200) },
-    { participantId: "priya", amount: cents(1400) },
-    { participantId: "lee", amount: cents(800) },
-    { participantId: "jason", amount: cents(1000) },
-  ] as unknown as Split["payments"];
+describe("paymentStatus", () => {
+  const people = ["jason", "sam", "priya", "kim", "lee", "zoe"].map(participantId);
+  const [jason, sam, priya, , lee, zoe] = people;
+  const names = ["Jason", "Sam", "Priya", "Kim", "Lee", "Zoe"];
+  const participants = people.map((id, index) => ({ id, name: names[index] })) as unknown as Split["participants"];
+  const shares = (amounts: number[]) =>
+    ({ shares: people.map((participantId, index) => ({ participantId, share: cents(amounts[index]) })), unclaimed: { itemIds: [], total: cents(0) } }) as unknown as Shares;
+  const paying = (...pairs: [(typeof people)[number], number][]) => pairs.map(([participantId, amount]) => ({ participantId, amount: cents(amount) })) as unknown as Split["payments"];
+  const mixed = shares([1000, 2600, 1400, 900, 500, 0]);
+  const payments = paying([sam, 2200], [priya, 1400], [lee, 800]);
 
-  test("marks short, settled and over payers, and leaves the Host and anyone unpaid bare", () => {
-    expect([...paidMarks(shares, payments)]).toEqual([
-      ["sam", "short"],
-      ["priya", "paid"],
-      ["lee", "over"],
+  test("lists everyone in chip order with the share and the paid state in words", () => {
+    expect(paymentStatus({ participants, payments }, mixed, jason).rows.map(({ name, share, words }) => [name, share, words])).toEqual([
+      ["Jason", 1000, "You get paid"],
+      ["Sam", 2600, "Paid $22.00 · $4.00 still owed"],
+      ["Priya", 1400, "Paid $14.00"],
+      ["Kim", 900, "Not paid"],
+      ["Lee", 500, "Paid $8.00 · $3.00 too much"],
+      ["Zoe", 0, "Nothing to pay"],
     ]);
   });
 
-  test("marks over once a payer who paid exactly gets a co-claimer on their Item, so their share shrinks", () => {
-    const [jason, sam, priya] = ["jason", "sam", "priya"].map(participantId);
-    const people = [{ id: jason, name: "Jason" }, { id: sam, name: "Sam" }, { id: priya, name: "Priya" }] as const;
+  test("counts the people who paid out of the people who owe or paid, never the Host, and a $0 share owes nobody", () => {
+    const status = paymentStatus({ participants, payments }, mixed, jason);
+    expect([status.paid, status.owing, status.summary]).toEqual([3, 4, "3 of 4 paid you"]);
+  });
+
+  test("words the summary for everyone but the Host without 'you', and the Host row as theirs", () => {
+    const status = paymentStatus({ participants, payments }, mixed, sam);
+    expect([status.summary, status.rows[0].words]).toEqual(["3 of 4 paid", "Gets paid"]);
+  });
+
+  test("has no summary while nobody owes anything", () => {
+    expect(paymentStatus({ participants, payments: paying() }, shares([1000, 0, 0, 0, 0, 0]), jason).summary).toBeNull();
+  });
+
+  test("reads a recorded $0 as no payment, and a payer whose share fell to $0 as paid too much", () => {
+    const rows = paymentStatus({ participants, payments: paying([sam, 0], [zoe, 500]) }, mixed, jason).rows;
+    expect([rows[1].words, rows[5].words]).toEqual(["Not paid", "Paid $5.00 · $5.00 too much"]);
+  });
+
+  test("moves a payer who paid exactly to paid too much once a co-claimer on their Item shrinks their share", () => {
+    const three = [{ id: participantId("jason"), name: "Jason" }, { id: sam, name: "Sam" }, { id: priya, name: "Priya" }] as const;
     const receipt = (rice: ItemSplit) => ({
       items: [{ id: itemId("rice"), name: "Rice", price: price(1200), split: rice }] as const,
       adjustments: [],
       subtotal: cents(1200),
       total: cents(1200),
     });
-    const payments = [{ participantId: sam, amount: cents(1200) }] as unknown as Split["payments"];
-    const before = computeShares({ receipt: receipt({ by: "even", units: [[sam]] }), participants: people, payments });
-    const after = computeShares({ receipt: receipt({ by: "even", units: [[sam, priya]] }), participants: people, payments });
-    expect([[...paidMarks(before, payments)], [...paidMarks(after, payments)]]).toEqual([[["sam", "paid"]], [["sam", "over"]]]);
+    const recorded = paying([sam, 1200]);
+    const wordsFor = (rice: ItemSplit) => {
+      const split = { receipt: receipt(rice), participants: three, payments: recorded };
+      return paymentStatus(split, computeShares(split), jason).rows[1].words;
+    };
+    expect([wordsFor({ by: "even", units: [[sam]] }), wordsFor({ by: "even", units: [[sam, priya]] })]).toEqual(["Paid $12.00", "Paid $12.00 · $6.00 too much"]);
   });
 });
