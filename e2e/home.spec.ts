@@ -63,7 +63,6 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "JPEG, PNG, or WebP",
     "V",
     "Venmo",
-    "Another way to get paid",
     "Add name",
     "Create split link",
   ]);
@@ -388,12 +387,12 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 
-test("the sheet stands 277 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
+test("the sheet stands 247 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const sheet = await sheetOf(action(page));
   expect(sheet.top + sheet.height).toBe(phone.height);
-  expect(sheet.height).toBe(277);
+  expect(sheet.height).toBe(247);
 });
 
 test("the camera button and Add receipt sit fully above the sheet at 375 by 667", async ({ page }) => {
@@ -438,7 +437,7 @@ test("the sheet lifts its content by the bottom safe-area inset", async ({ page 
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
   await page.reload();
   await expect.poll(gapBelowAction).toBe(flush + 34);
-  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(311);
+  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(281);
 });
 
 test("side safe-area insets keep the header and the sheet clear of a landscape notch", async ({ page }) => {
@@ -454,7 +453,7 @@ test("side safe-area insets keep the header and the sheet clear of a landscape n
   };
   expect((await edges(page.getByRole("heading", { name: "Receipt Splitter" })))[0]).toBe(47 + 22);
   // The edge icon's box hangs 12 px into the gutter so its glyph lines up with the content.
-  const [toggleLeft, toggleRight] = await edges(page.getByRole("button", { name: "Switch to dark mode" }));
+  const [toggleLeft, toggleRight] = await edges(page.getByRole("button", { name: "Menu", exact: true }));
   expect(toggleRight).toBe(landscape.width - 47 - 22 + 12);
   expect((await edges(page.getByRole("button", { name: "Example" })))[1]).toBeLessThanOrEqual(toggleLeft);
   const sheet = await sheetOf(action(page));
@@ -678,7 +677,7 @@ const glyphs = {
     '<path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.5"/>',
   chevron: '<path d="M6 9l6 6 6-6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
-  moon: '<path d="M19.5 14.2A7.5 7.5 0 0 1 9.8 4.5a7.5 7.5 0 1 0 9.7 9.7z"/>',
+  menu: '<path d="M5 7h14M5 12h14M5 17h14"/>',
 };
 
 test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from assistive tech, at 390 px", async ({ page }) => {
@@ -694,7 +693,7 @@ test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from 
     })),
   );
   const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", stroke, width: "1.5", glyph: glyphs[name] });
-  expect(icons).toEqual([icon("moon", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#696D74"), icon("plus", "#696D74")]);
+  expect(icons).toEqual([icon("menu", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
 });
 
 for (const [width, named] of [

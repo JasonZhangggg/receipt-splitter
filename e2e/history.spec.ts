@@ -1,4 +1,5 @@
 import { openExample } from "./files";
+import { fromMenu, menuButton, menuPopover } from "./header";
 import { simulateKeyboard } from "./motion";
 import { expect, test, type Locator, type Page } from "./without-ocr";
 
@@ -37,17 +38,22 @@ async function seed(page: Page, splits: Stored[]) {
   await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
 }
 
-const icon = (page: Page) => page.getByRole("button", { name: "Recent splits" });
+const icon = (page: Page) => menuButton(page);
+/** Opens the header menu and picks History, which opens the list. */
+const openList = (page: Page) => fromMenu(page, "History");
 const list = (page: Page) => page.getByRole("dialog", { name: "Recent splits" });
 const rows = (page: Page) => list(page).getByRole("link");
 const action = (page: Page) => page.getByRole("button", { name: "Create split link" });
 const labels = (page: Page) => rows(page).evaluateAll((links) => links.map((link) => link.getAttribute("aria-label")));
 const focusedName = (page: Page) => page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? null);
 
-test("a fresh home shows no Recent splits icon", async ({ page }) => {
+test("a fresh home's menu holds no History row", async ({ page }) => {
   await page.goto("/");
   await expect(action(page)).toBeVisible();
-  await expect(icon(page)).toHaveCount(0);
+  await icon(page).click();
+  await expect(menuPopover(page).getByRole("button", { name: "Dark mode", exact: true })).toBeVisible();
+  await expect(menuPopover(page).getByRole("button", { name: "History", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await expect(page.getByText("Recent splits")).toHaveCount(0);
 });
 
@@ -70,7 +76,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await icon(page).click();
+  await openList(page);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, ${total}`);
   await rows(page).first().click();
@@ -78,17 +84,15 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
-test("the icon sits at the top right of home beside the appearance toggle and its sheet lists every stored Split newest first, past five", async ({ page }) => {
+test("the menu button sits at the top right of home and History lists every stored Split newest first, past five", async ({ page }) => {
   await seed(page, [ana, jason, priya, kim, omar, lin, max]);
   await expect(page.getByText("Recent splits")).toHaveCount(0);
   const box = (await icon(page).boundingBox())!;
-  const toggle = (await page.getByRole("button", { name: "Switch to dark mode" }).boundingBox())!;
-  expect([box.x + box.width + 6, box.y]).toEqual([toggle.x, toggle.y]);
-  expect(toggle.x + toggle.width).toBeGreaterThanOrEqual(phone.width - 22);
+  expect(box.x + box.width).toBeGreaterThanOrEqual(phone.width - 22);
   expect(box.y + box.height).toBeLessThanOrEqual(72);
   expect([box.width, box.height]).toEqual([44, 44]);
 
-  await icon(page).click();
+  await openList(page);
   await expect(list(page).getByRole("heading", { name: "Recent splits" })).toBeVisible();
   expect(await labels(page)).toEqual([
     "Jason and Sam, Today, $42.10",
@@ -106,28 +110,28 @@ test("the icon sits at the top right of home beside the appearance toggle and it
 
 test("the phone sheet closes on a scrim tap and on Escape, and focus returns to the icon", async ({ page }) => {
   await seed(page, [ana, jason]);
-  await icon(page).click();
+  await openList(page);
   await expect(rows(page)).toHaveCount(2);
   await page.mouse.click(phone.width / 2, 40);
   await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
+  expect(await focusedName(page)).toBe("Menu");
 
-  await icon(page).click();
+  await openList(page);
   await expect(rows(page)).toHaveCount(2);
   await page.keyboard.press("Escape");
   await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
+  expect(await focusedName(page)).toBe("Menu");
 });
 
-test("the icon announces a dialog popup and its expanded state follows the sheet", async ({ page }) => {
+test("the menu button announces a dialog popup and its expanded state follows the menu", async ({ page }) => {
   await seed(page, [ana, jason]);
   const state = () => icon(page).evaluate((el) => [el.getAttribute("aria-haspopup"), el.getAttribute("aria-expanded")]);
   expect(await state()).toEqual(["dialog", "false"]);
   await icon(page).click();
-  await expect(rows(page)).toHaveCount(2);
+  await expect(menuPopover(page)).toBeVisible();
   expect(await state()).toEqual(["dialog", "true"]);
   await page.keyboard.press("Escape");
-  await expect(list(page)).toHaveCount(0);
+  await expect(menuPopover(page)).toHaveCount(0);
   expect(await state()).toEqual(["dialog", "false"]);
 });
 
@@ -136,7 +140,7 @@ test("at 1440 px the list is a popover under the icon that closes on an outside 
   await seed(page, [ana, jason, priya, kim, omar, lin]);
   const button = (await icon(page).boundingBox())!;
   expect(button.x + button.width).toBeGreaterThan(1440 - 80);
-  await icon(page).click();
+  await openList(page);
   await expect(rows(page)).toHaveCount(6);
   const popover = (await list(page).boundingBox())!;
   expect(popover.y).toBeGreaterThanOrEqual(button.y + button.height);
@@ -145,15 +149,15 @@ test("at 1440 px the list is a popover under the icon that closes on an outside 
 
   await page.mouse.click(200, 600);
   await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
+  expect(await focusedName(page)).toBe("Menu");
 
-  await icon(page).click();
+  await openList(page);
   await expect(rows(page)).toHaveCount(6);
   await page.keyboard.press("Escape");
   await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
+  expect(await focusedName(page)).toBe("Menu");
 
-  await icon(page).click();
+  await openList(page);
   await rows(page).nth(1).click();
   await expect(page).toHaveURL(new RegExp(`/s/${priya.id}$`));
 });
@@ -163,20 +167,20 @@ test("a Split this browser last opened 61 days ago is not listed, and one opened
     { ...jason, added: now - 90 * DAY, seen: now - 61 * DAY },
     { ...priya, added: now - 90 * DAY, seen: now - 59 * DAY },
   ]);
-  await icon(page).click();
+  await openList(page);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 });
 
 test("an entry whose link says the split has expired is gone back on home, and the icon hides with the last one", async ({ page }) => {
   await seed(page, [jason, priya]);
-  await icon(page).click();
+  await openList(page);
   await rows(page).first().click();
   await expect(page).toHaveURL(new RegExp(`/s/${jason.id}$`));
   await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(page).toHaveURL(/\/$/);
-  await icon(page).click();
+  await openList(page);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 
@@ -184,7 +188,8 @@ test("an entry whose link says the split has expired is gone back on home, and t
   await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(action(page)).toBeVisible();
-  await expect(icon(page)).toHaveCount(0);
+  await icon(page).click();
+  await expect(menuPopover(page).getByRole("button", { name: "History", exact: true })).toHaveCount(0);
 });
 
 const dashedBox = (page: Page) =>
@@ -205,11 +210,11 @@ for (const height of [844, 740]) {
   });
 }
 
-test("at 390 by 700 the dashed Add receipt box stays at its 271 px floor with 44 px above and at least 16 px clear of the panel", async ({ page }) => {
+test("at 390 by 700 the dashed Add receipt box stays at its 301 px floor with 44 px above and at least 16 px clear of the panel", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 700 });
   await seed(page, [jason]);
   const { aboveBox, belowBox, height } = await dashedBox(page);
-  expect(height).toBe(271);
+  expect(height).toBe(301);
   expect(aboveBox).toBe(44);
   expect(belowBox).toBeGreaterThanOrEqual(16);
 });

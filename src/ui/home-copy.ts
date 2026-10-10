@@ -35,7 +35,9 @@ export const copy = {
   removeName: (name: string) => `Remove ${name}`,
   newName: "Name",
   removeApp: (app: string) => `Remove ${app}`,
-  switchTo: { light: "Switch to light mode", dark: "Switch to dark mode" } satisfies Record<Scheme, string>,
+  menu: "Menu",
+  mode: { light: "Light mode", dark: "Dark mode" } satisfies Record<Scheme, string>,
+  history: "History",
 };
 
 export const createCopy = {
@@ -134,6 +136,6 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, desktop.hint, copy.formats, copy.addApp, paymentApps.venmo.name, copy.addYourName, copy.action],
+  400: [copy.example, desktop.hint, copy.formats, paymentApps.venmo.name, copy.addYourName, copy.action],
   600: [copy.wordmark, paymentApps.venmo.glyph, phone.title, desktop.title],
 };

@@ -1,6 +1,6 @@
 export const splitCopy = {
   history: "History",
-  more: "More",
+  menu: "Menu",
   payments: "Payments",
   receiptPhotoItem: "Receipt photo",
   receiptPhoto: "Receipt",

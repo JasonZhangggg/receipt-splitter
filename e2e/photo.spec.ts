@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test, type APIRequestContext, type Browser, type Page, type Request } from "@playwright/test";
 
-import { fromMore, moreButton, moreMenu } from "./header";
+import { fromMenu, fromMore, moreButton, moreMenu } from "./header";
 import { mountHarness } from "./harness";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -127,7 +127,7 @@ test.describe("on Chromium", () => {
 
     await page.getByRole("button", { name: "Split a receipt" }).click();
     await expect(page.getByRole("button", { name: /^(Add|Drop a) receipt/ })).toBeVisible();
-    await expect(moreButton(page)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Share link" })).toHaveCount(0);
   });
 
   test("a scan kept across a visit to Recent splits and Back still sends its photo after Create", async ({ page, request, browserName }, testInfo) => {
@@ -139,7 +139,7 @@ test.describe("on Chromium", () => {
     page.on("request", (request) => isPut(request) && puts.push(request));
 
     await scan(page);
-    await page.getByRole("button", { name: "Recent splits" }).click();
+    await fromMenu(page, "History");
     await page.getByRole("dialog", { name: "Recent splits" }).getByRole("link").first().click();
     await expect(page).toHaveURL(new RegExp(`/s/${earlier.id}$`));
     await page.goBack();
@@ -180,7 +180,7 @@ test.describe("on Chromium", () => {
       await expect(moreButton(page)).toBeVisible(live);
       await page.waitForTimeout(400);
       const offscreen: string[] = [];
-      for (const name of ["Split a receipt", "More", "Share link"]) {
+      for (const name of ["Split a receipt", "Menu", "Share link"]) {
         const box = await page.getByRole("button", { name }).boundingBox();
         if (!box || box.x < 0 || box.x + box.width > width) offscreen.push(name);
       }

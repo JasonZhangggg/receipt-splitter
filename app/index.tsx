@@ -10,8 +10,9 @@ import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client
 import { prefetchModel, recognize } from "../src/ocr";
 import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
-import { AppearanceToggle } from "../src/ui/appearance-toggle";
-import { Button, PressTarget } from "../src/ui/components/button";
+import { Button, PressTarget, type Press } from "../src/ui/components/button";
+import { MenuRows, menuWidth } from "../src/ui/components/menu";
+import { Popover } from "../src/ui/components/popover";
 import { focusInPlace } from "../src/ui/components/keyboard-lift";
 import { NameChips, type NameField } from "../src/ui/components/name-chips";
 import { PaymentRows } from "../src/ui/components/payment-row";
@@ -20,6 +21,7 @@ import { useLayoutHeight } from "../src/ui/components/viewport";
 import { Slip } from "../src/ui/components/slip";
 import { Toast } from "../src/ui/components/toast";
 import { blockerText, copy, joinCopy } from "../src/ui/home-copy";
+import { useAppearanceFlip } from "../src/ui/use-appearance-flip";
 import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { RecentSplits } from "../src/ui/recent-splits";
@@ -106,6 +108,26 @@ export default function Home() {
   useEffect(() => (photo ? () => releasePhotoUri(photo.uri) : undefined), [photo]);
 
   const wide = width >= breakpoints.columnFrom;
+  // The header menu and the list it opens. Choosing a row removes the menu at once; the list or the new scheme takes over, and focus goes back to the menu button.
+  const appearance = useAppearanceFlip();
+  const [menu, setMenu] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
+  const [recent, setRecent] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
+  const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
+  const menuGone = () => {
+    if (menu?.from.trigger.isConnected) menu.from.trigger.focus({ preventScroll: true });
+    setMenu(null);
+  };
+  const fromMenu = (then: (from: Press) => void) => (row: Press) => {
+    if (!menu) return;
+    menu.from.trigger.focus({ preventScroll: true });
+    setMenu(null);
+    then({ trigger: menu.from.trigger, keyboard: row.keyboard });
+  };
+  const closeRecent = () => setRecent((open) => open && { ...open, closing: true });
+  const recentGone = () => {
+    if (recent?.from.trigger.isConnected) recent.from.trigger.focus({ preventScroll: true });
+    setRecent(null);
+  };
   const roomy = width >= breakpoints.roomyFrom;
   const hero = wide ? copy.hero.desktop : copy.hero.phone;
   const gutter = wide ? 40 : layout.gutter;
@@ -226,9 +248,8 @@ export default function Home() {
           </Text>
           <View style={styles.headerButtons}>
             {scan.status === "empty" && width >= breakpoints.exampleFrom ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
-            {stored.length > 0 ? <RecentSplits splits={stored} now={now} wide={wide} /> : null}
             <View style={styles.edge}>
-              <AppearanceToggle />
+              <Button kind="icon" icon="menu" name={copy.menu} popup="dialog" expanded={menu !== null && !menu.closing} onPress={(from) => setMenu({ from, closing: false })} />
             </View>
           </View>
         </View>
@@ -250,6 +271,17 @@ export default function Home() {
           {details}
         </Sheet>
       )}
+      {menu ? (
+        <Popover anchor={menu.from.trigger} label={copy.menu} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={menuWidth}>
+          <MenuRows
+            rows={[
+              ...(stored.length > 0 ? [{ icon: "history" as const, label: copy.history, onPress: fromMenu((from) => setRecent({ from, closing: false })) }] : []),
+              { icon: appearance.next === "dark" ? ("moon" as const) : ("sun" as const), label: copy.mode[appearance.next], onPress: fromMenu(appearance.flip) },
+            ]}
+          />
+        </Popover>
+      ) : null}
+      {recent ? <RecentSplits splits={stored} now={now} wide={wide} from={recent.from} closing={recent.closing} onClose={closeRecent} onGone={recentGone} /> : null}
       {viewing && photo ? <PhotoViewer photo={photo} onExited={() => setViewing(false)} onReplace={choose} /> : null}
       <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 0 : sheetHeight} />
     </View>

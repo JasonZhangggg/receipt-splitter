@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button, PressTarget, type Press } from "../components/button";
-import { Icon, type IconName } from "../components/icon";
+import { MenuRows } from "../components/menu";
 import { copy, joinCopy } from "../home-copy";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
@@ -21,39 +21,23 @@ export function SplitHeader({ onMore, moreOpen = false, onShare }: Props) {
         </PressTarget>
       </View>
       <View style={styles.buttons}>
-        {onMore ? <Button kind="icon" icon="more" name={say.more} popup="dialog" expanded={moreOpen} onPress={onMore} /> : null}
         {onShare ? <Button kind="icon" icon="share" name={say.shareLink} onPress={onShare} /> : null}
+        {onMore ? <Button kind="icon" icon="menu" name={say.menu} popup="dialog" expanded={moreOpen} onPress={onMore} /> : null}
       </View>
     </View>
   );
 }
 
-export const headerMenuWidth = 220;
-
-/** What the header's More button holds: Payments first, since it is the one people open to check on something, then the receipt photo while the Split has one, and History. */
+/** What the header's menu button holds: Payments first, since it is the one people open to check on something, then the receipt photo while the Split has one, and History. */
 export function HeaderMenu({ onPayments, onPhoto, onHistory }: { onPayments: (press: Press) => void; onPhoto?: (press: Press) => void; onHistory: (press: Press) => void }) {
-  const c = useColors();
-  const reduce = useReducedMotion();
-  const rows: { icon: IconName; label: string; onPress: (press: Press) => void }[] = [
-    { icon: "check", label: say.payments, onPress: onPayments },
-    ...(onPhoto ? [{ icon: "receipt" as const, label: say.receiptPhotoItem, onPress: onPhoto }] : []),
-    { icon: "history", label: say.history, onPress: onHistory },
-  ];
   return (
-    <View>
-      {rows.map(({ icon, label, onPress }) => (
-        <PressTarget key={icon} name={label} outsideScroll onPress={onPress} style={(pressed) => [pressStyle(pressed, reduce), styles.press]}>
-          {(pressed) => (
-            <View style={[styles.row, pressed && { backgroundColor: c.sheetIn }]}>
-              <Icon name={icon} size={20} color={c.ink} />
-              <Text numberOfLines={1} style={[type.body, styles.label, { color: c.ink }]}>
-                {label}
-              </Text>
-            </View>
-          )}
-        </PressTarget>
-      ))}
-    </View>
+    <MenuRows
+      rows={[
+        { icon: "check", label: say.payments, onPress: onPayments },
+        ...(onPhoto ? [{ icon: "receipt" as const, label: say.receiptPhotoItem, onPress: onPhoto }] : []),
+        { icon: "history", label: say.history, onPress: onHistory },
+      ]}
+    />
   );
 }
 
@@ -61,7 +45,4 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.header, paddingTop: 6 },
   buttons: { flexDirection: "row", alignItems: "center", marginRight: -12 },
   home: { minHeight: 44, justifyContent: "center" },
-  press: { alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
-  label: { flexShrink: 1 },
 });

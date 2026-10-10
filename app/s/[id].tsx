@@ -25,7 +25,8 @@ import { AddItemSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { Breakdown, foldedRow } from "../../src/ui/split-view/breakdown";
-import { HeaderMenu, headerMenuWidth, SplitHeader } from "../../src/ui/split-view/header";
+import { menuWidth as headerMenuWidth } from "../../src/ui/components/menu";
+import { HeaderMenu, SplitHeader } from "../../src/ui/split-view/header";
 import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { AddMenu, addMenuWidth, type AddChoice } from "../../src/ui/split-view/add-menu";
@@ -524,7 +525,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         </Popover>
       ) : null}
       {more ? (
-        <Popover anchor={more.from.trigger} label={say.more} instant={more.from.keyboard} closing={more.closing} onClose={closeMore} onGone={moreGone} width={headerMenuWidth}>
+        <Popover anchor={more.from.trigger} label={say.menu} instant={more.from.keyboard} closing={more.closing} onClose={closeMore} onGone={moreGone} width={headerMenuWidth}>
           <HeaderMenu onPayments={fromMore((from) => open({ kind: "payments", viewer: me }, from))} onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} />
         </Popover>
       ) : null}

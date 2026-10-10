@@ -36,9 +36,10 @@ for (const width of [390, 1440]) {
       }
       await page.getByRole("button", { name: "Create split link" }).waitFor();
       await page.evaluate(() => document.fonts.ready);
-      const icon = page.getByRole("button", { name: "Recent splits" });
+      const icon = page.getByRole("button", { name: "Menu", exact: true });
       if (state === "open") {
         await icon.click();
+        await page.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "History", exact: true }).click();
         await page.getByRole("dialog", { name: "Recent splits" }).waitFor();
         await page.waitForTimeout(700);
       }
