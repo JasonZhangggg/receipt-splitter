@@ -7,7 +7,7 @@ import { Icon, type IconName } from "./icon";
 const pressFace = { dataSet: { pressFace: "" } };
 
 const slipHeight = 188;
-const compactScale = 0.56;
+const compactScale = 0.66;
 const compactTrim = ((slipHeight + 26) * (1 - compactScale)) / 2;
 
 export function Slip({ icon, pressed, compact = false }: { icon: IconName; pressed: boolean; compact?: boolean }) {

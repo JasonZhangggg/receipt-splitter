@@ -176,10 +176,7 @@ export default function Home() {
   const details = (
     <>
       <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} outsideScroll={!wide} />
-      <View style={styles.part}>
-        <Text style={[type.caption, styles.partLabel, { color: c.muted }]}>{copy.people}</Text>
-        <NameChips ref={nameField} names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
-      </View>
+      <NameChips ref={nameField} names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
     </>
   );
 
@@ -264,7 +261,7 @@ const still = webStyle({ overflow: "clip" });
 
 const wideHeader = 76;
 
-const shortScreen = 800;
+const shortScreen = 762;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
@@ -285,7 +282,5 @@ const styles = StyleSheet.create({
   ticketColumn: { maxWidth: 440 },
   center: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   column: { width: "100%", gap: layout.blockGap },
-  part: { gap: 6 },
-  partLabel: { paddingHorizontal: 4 },
   wideAction: { paddingTop: layout.blockGap },
 });

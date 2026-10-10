@@ -64,13 +64,12 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "V",
     "Venmo",
     "Another way to get paid",
-    "People at the table",
-    "Your name",
+    "Add name",
     "Create split link",
   ]);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
   await expect(page.getByRole("button", { name: "Another way to get paid" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "People at the table" })).toContainText("Your name");
+  await expect(page.getByRole("group", { name: "People at the table" })).toContainText("Add name");
   await expect(action(page)).toHaveAttribute("aria-disabled", "true");
 });
 
@@ -134,7 +133,7 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
 const venmoRule = "Venmo usernames need at least 5 characters. This one has 4.";
 
 async function addHost(page: Page, name: string) {
-  await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).click();
+  await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Add name" }).click();
   const field = page.getByRole("textbox", { name: "Your name", exact: true });
   await field.fill(name);
   await field.press("Enter");
@@ -212,7 +211,7 @@ test.describe("with the iPhone keyboard up", () => {
     await keyboardUp(page);
     await expect.poll(() => aboveKeyboard(handle)).toBe(true);
 
-    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
+    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Add name" }).tap();
     const name = page.getByRole("textbox", { name: "Your name", exact: true });
     await expect(name).toBeFocused();
     await expect.poll(() => aboveKeyboard(name)).toBe(true);
@@ -228,7 +227,7 @@ test.describe("with the iPhone keyboard up", () => {
     await animationsDone(page);
     const rising = (await tops()).map((top) => top.panel);
     expect(await action(page).evaluate((el) => el.getBoundingClientRect().bottom <= visualViewport!.height)).toBe(true);
-    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
+    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Add name" }).tap();
     await animationsDone(page);
     await page.locator("h1").tap();
     await keyboardDown(page);
@@ -266,7 +265,7 @@ test.describe("with the iPhone keyboard up and twelve names", () => {
       await settle(page);
 
       const people = page.getByRole("group", { name: "People at the table" });
-      await people.getByRole("button", { name: "Your name" }).tap();
+      await people.getByRole("button", { name: "Add name" }).tap();
       for (let i = 1; i <= 12; i++) {
         await page.keyboard.type(`Guest ${i}`);
         await page.keyboard.press("Enter");
@@ -389,12 +388,12 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 
-test("the sheet stands 300 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
+test("the sheet stands 277 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const sheet = await sheetOf(action(page));
   expect(sheet.top + sheet.height).toBe(phone.height);
-  expect(sheet.height).toBe(300);
+  expect(sheet.height).toBe(277);
 });
 
 test("the camera button and Add receipt sit fully above the sheet at 375 by 667", async ({ page }) => {
@@ -439,7 +438,7 @@ test("the sheet lifts its content by the bottom safe-area inset", async ({ page 
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
   await page.reload();
   await expect.poll(gapBelowAction).toBe(flush + 34);
-  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(334);
+  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(311);
 });
 
 test("side safe-area insets keep the header and the sheet clear of a landscape notch", async ({ page }) => {
@@ -550,7 +549,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       };
       return {
         title: font("Add receipt"),
-        name: getComputedStyle(leaf("Your name")).color,
+        name: getComputedStyle(leaf("Add name")).color,
         glyph: getComputedStyle(leaf("V")).color,
         handle: getComputedStyle(document.querySelector("input")!).fontSize,
       };
@@ -625,7 +624,7 @@ test("names go in by keyboard alone: Enter adds the chip and leaves a fresh fiel
   await page.goto("/");
   await settle(page);
   const people = page.getByRole("group", { name: "People at the table" });
-  await people.getByRole("button", { name: "Your name" }).click();
+  await people.getByRole("button", { name: "Add name" }).click();
   await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
   await expect(people.getByRole("button", { name: "Add a name" })).toHaveText("Add");
 
@@ -643,12 +642,12 @@ test("names go in by keyboard alone: Enter adds the chip and leaves a fresh fiel
   await expect(next).toHaveValue("");
 });
 
-test("the panel labels its names, and marks the Host's chip \"you\"", async ({ page }) => {
+test("the panel has no section labels, and marks the Host's chip \"you\"", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  await expect(page.getByText("People at the table", { exact: true })).toBeVisible();
+  await expect(page.getByText("People at the table", { exact: true })).toHaveCount(0);
   const people = page.getByRole("group", { name: "People at the table" });
-  await people.getByRole("button", { name: "Your name" }).click();
+  await people.getByRole("button", { name: "Add name" }).click();
   for (const name of ["Jason", "Sam"]) {
     await page.keyboard.type(name);
     await page.keyboard.press("Enter");

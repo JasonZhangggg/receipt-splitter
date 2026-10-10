@@ -619,7 +619,7 @@ async function homeTyping(page: Page) {
   const people = page.getByRole("group", { name: "People at the table" });
   await people.waitFor();
   await page.waitForTimeout(800);
-  await tap(people.getByRole("button", { name: "Your name" }));
+  await tap(people.getByRole("button", { name: "Add name" }));
   await page.keyboard.type("Jason");
   await page.keyboard.press("Enter");
   await page.keyboard.type("Samantha");

@@ -19,7 +19,7 @@ async function readyHome(page: Page, names: string[] = []) {
   await openExample(page);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   for (const [index, name] of ["Jason", ...names].entries()) {
-    await page.getByRole("button", { name: index === 0 ? "Your name" : "Add a name" }).click();
+    await page.getByRole("button", { name: index === 0 ? "Add name" : "Add a name" }).click();
     await page.getByRole("textbox", { name: index === 0 ? "Your name" : "Name", exact: true }).fill(name);
     await page.keyboard.press("Enter");
   }
@@ -173,7 +173,7 @@ test("a reload of home clears the receipt and the names, and the kept Venmo hand
   await expect(people.getByText("Sam", { exact: true })).toHaveCount(0);
 
   await openExample(page);
-  await page.getByRole("button", { name: "Your name" }).click();
+  await page.getByRole("button", { name: "Add name" }).click();
   await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
   await page.keyboard.press("Enter");
   const sent = page.waitForRequest((request) => request.method() === "POST" && new URL(request.url()).pathname === "/api/splits");

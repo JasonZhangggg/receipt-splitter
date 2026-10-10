@@ -25,7 +25,7 @@ export const copy = {
   people: "People at the table",
   you: "you",
   addName: { label: "Add", name: "Add a name" },
-  addYourName: "Your name",
+  addYourName: "Add name",
   yourName: "Your name",
   action: "Create split link",
   creating: "Creating link",
@@ -134,6 +134,6 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, phone.title, desktop.title, desktop.hint, copy.formats, copy.people, copy.addApp, paymentApps.venmo.name],
+  400: [copy.example, phone.title, desktop.title, desktop.hint, copy.formats, copy.addApp, paymentApps.venmo.name],
   500: [copy.wordmark, paymentApps.venmo.glyph, copy.addYourName, copy.action],
 };

@@ -41,8 +41,8 @@ const items1040 = [
 ];
 
 async function addName(page: Page, name: string) {
-  const first = await page.getByRole("button", { name: "Your name" }).count();
-  await page.getByRole("button", { name: first ? "Your name" : "Add a name" }).click();
+  const first = await page.getByRole("button", { name: "Add name" }).count();
+  await page.getByRole("button", { name: first ? "Add name" : "Add a name" }).click();
   await page.getByRole("textbox", { name: first ? "Your name" : "Name", exact: true }).fill(name);
   await page.keyboard.press("Enter");
 }
@@ -370,7 +370,7 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
   const people = page.getByRole("group", { name: "People at the table" });
-  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Your name"]);
+  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Add name"]);
   expect(await page.getByRole("combobox", { name: "Payment app" }).evaluateAll((pickers) => pickers.map((picker) => (picker as HTMLSelectElement).value))).toEqual([
     "cashApp",
     "venmo",
