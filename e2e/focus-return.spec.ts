@@ -1,3 +1,4 @@
+import { addRow, type AddChoice } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
@@ -62,15 +63,19 @@ const focused = (page: Page) => page.evaluate(() => document.activeElement?.getA
 for (const how of ["Enter", "Space", "assistive click"] as const) {
   test(`${how} on Close gives focus back to the row or button that opened each sheet`, async ({ browser, request }, { workerIndex }) => {
     const sam = await samsPhone(browser, await createSplit(request, workerIndex));
-    const openers: readonly (readonly [Locator, string])[] = [
-      [sam.getByRole("button", { name: /^Open Rice, / }), "Item"],
-      [sam.getByRole("button", { name: "Open Coupon, -$1.00" }), "Discount"],
-      [sam.getByRole("button", { name: "Add item", exact: true }), "New item"],
-      [sam.getByRole("button", { name: "Add tax, tip or discount", exact: true }), "Add tax, tip or discount"],
-      [sam.getByRole("button", { name: "History", exact: true }), "History"],
+    const menu = async (choice: AddChoice) => {
+      await addRow(sam).click();
+      await sam.getByRole("dialog", { name: "Add to the receipt" }).getByRole("button", { name: choice, exact: true }).click();
+    };
+    const openers: readonly (readonly [Locator, string, () => Promise<void>])[] = [
+      [sam.getByRole("button", { name: /^Open Rice, / }), "Item", () => sam.getByRole("button", { name: /^Open Rice, / }).click()],
+      [sam.getByRole("button", { name: "Open Coupon, -$1.00" }), "Discount", () => sam.getByRole("button", { name: "Open Coupon, -$1.00" }).click()],
+      [addRow(sam), "New item", () => menu("Item")],
+      [addRow(sam), "Add tax, tip or discount", () => menu("Tip")],
+      [sam.getByRole("button", { name: "History", exact: true }), "History", () => sam.getByRole("button", { name: "History", exact: true }).click()],
     ];
-    for (const [opener, title] of openers) {
-      await opener.click();
+    for (const [opener, title, open] of openers) {
+      await open();
       const sheet = sam.getByRole("dialog", { name: title });
       await expect(sheet).toBeVisible();
       await closeBy(how, sheet);

@@ -1,3 +1,4 @@
+import { openAdd } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
@@ -241,7 +242,7 @@ test("Your share stays open while another phone fixes the tax, and its lines fol
 test("a tip added from the receipt shows on both phones with the Total up by it", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
 
-  await sam.getByRole("button", { name: "Add tax, tip or discount" }).click();
+  await openAdd(sam, "Tip");
   const sheet = dialog(sam, "Add tax, tip or discount");
   await expect(sheet.getByRole("button", { name: "Tip", exact: true })).toHaveAttribute("aria-pressed", "true");
   await sheet.getByRole("button", { name: "Add tip", exact: true }).click();

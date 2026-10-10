@@ -68,7 +68,7 @@ for (const width of [390, 1440]) {
       await settle();
     };
 
-    const addRow = page.getByRole("button", { name: "Add tax, tip or discount", exact: true });
+    const addRow = page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true });
     await addRow.scrollIntoViewIfNeeded();
     await shot("receipt");
 
@@ -97,6 +97,7 @@ for (const width of [390, 1440]) {
     await close(discount);
 
     await addRow.click();
+    await page.getByRole("dialog", { name: "Add to the receipt" }).getByRole("button", { name: "Tip", exact: true }).click();
     const add = page.getByRole("dialog", { name: "Add tax, tip or discount" });
     await add.waitFor();
     await settle();

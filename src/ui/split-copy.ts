@@ -73,6 +73,8 @@ export const splitCopy = {
   inBundle: (bundle: string, percent: string | null, off: string) => `In ${bundle}. Its ${percent ? `${percent}% off` : "discount"} takes ${off} off this line.`,
   claimedItems: (count: number) => `${count} claimed`,
   deleteItem: "Delete item",
+  add: "Add",
+  addMenu: "Add to the receipt",
   addItem: "Add item",
   newItem: "New item",
   pricePlaceholder: "0.00",
