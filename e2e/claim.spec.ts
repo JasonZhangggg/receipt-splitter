@@ -25,11 +25,11 @@ const people = [
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, participants = people): Promise<string> {
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.51.${100 + workerIndex}.${creates}` },
-    data: { split: { receipt: dinner, participants: people, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
+    data: { split: { receipt: dinner, participants, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
@@ -349,4 +349,62 @@ test("Priya's open confirm to check Rice for Sam closes when Sam checks Rice him
 
   await expect(asks(priya, "Check Rice for Sam?")).toHaveCount(0, live);
   await expect(circle(priya, "Rice", "Sam")).toHaveAttribute("aria-pressed", "true", live);
+});
+
+const line = (page: Page, id: string) => page.getByTestId(`line-${id}`);
+const marksOf = (page: Page, id: string) => line(page, id).getByTestId("claimer-marks");
+
+/** Selects a person's chip and checks lines for them, saying yes to the first confirm. */
+async function checkFor(page: Page, name: string, items: readonly string[]) {
+  await page.getByRole("button", { name, exact: true }).click();
+  await expect(page.getByText(`Check what ${name} had`, { exact: true })).toBeVisible(live);
+  for (const [at, item] of items.entries()) {
+    await circle(page, item, name).click();
+    if (at === 0) await page.getByRole("dialog", { name: `Check ${item} for ${name}?` }).getByRole("button", { name: `Check for ${name}` }).click();
+    await expect(page.getByRole("button", { name: `${item}, check for ${name}` })).toHaveAttribute("aria-pressed", "true", live);
+  }
+}
+
+test("the leading circle is the viewer's own check and everyone else shows as marks before the price, three then +N", async ({ browser, request }, { workerIndex }) => {
+  const jason = await open(browser, await createSplit(request, workerIndex, ["Jason", "Sam", "Priya", "Lee", "Ana"].map((name) => ({ id: name.toLowerCase(), name }))));
+  await pick(jason, "Jason");
+
+  await expect(line(jason, "sprite").getByTestId("checked")).toHaveCount(0);
+  await expect(marksOf(jason, "sprite")).toHaveCount(0);
+
+  await circle(jason, "Rice", "Jason").click();
+  await expect(jason.getByRole("button", { name: "Rice, check for Jason" })).toHaveAttribute("aria-pressed", "true", live);
+  await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
+  await expect(marksOf(jason, "rice")).toHaveCount(0);
+
+  await checkFor(jason, "Sam", ["Tostones", "Rice"]);
+  await checkFor(jason, "Priya", ["Rice"]);
+  await checkFor(jason, "Lee", ["Rice"]);
+  await checkFor(jason, "Ana", ["Rice"]);
+  await jason.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await expect(jason.getByText("Check what you had", { exact: true })).toBeVisible(live);
+
+  await expect(jason.getByRole("button", { name: "Tostones, check for Jason" })).toHaveAttribute("aria-pressed", "false");
+  await expect(line(jason, "tostones").getByTestId("checked")).toHaveCount(0);
+  await expect(marksOf(jason, "tostones")).toHaveText("S");
+  await expect(marksOf(jason, "rice")).toHaveText("SPL+1");
+  await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
+
+  await jason.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(jason.getByText("Check what Sam had", { exact: true })).toBeVisible(live);
+  await expect(jason.getByRole("button", { name: "Tostones, check for Sam" })).toHaveAttribute("aria-pressed", "true");
+  await expect(line(jason, "tostones").getByTestId("checked")).toBeVisible();
+  await expect(marksOf(jason, "tostones")).toHaveCount(0);
+  await expect(marksOf(jason, "rice")).toHaveText("JPL+1");
+  await expect(jason.getByRole("button", { name: "Sprite, check for Sam" })).toHaveAttribute("aria-pressed", "false");
+
+  await jason.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await expect(marksOf(jason, "tostones")).toHaveText("S", live);
+  await jason.setViewportSize({ width: 320, height: 640 });
+  for (const [id, price] of [["rice", "8.00"], ["tostones", "1.00"]] as const) {
+    const [name, marks, figure] = await Promise.all(
+      [line(jason, id).getByText(id === "rice" ? /^Rice/ : /^Tostones/), marksOf(jason, id), line(jason, id).getByText(price, { exact: true })].map((one) => one.boundingBox()),
+    );
+    expect({ id, nameBeforeMarks: name!.x + name!.width <= marks!.x, marksBeforePrice: marks!.x + marks!.width <= figure!.x }).toEqual({ id, nameBeforeMarks: true, marksBeforePrice: true });
+  }
 });
