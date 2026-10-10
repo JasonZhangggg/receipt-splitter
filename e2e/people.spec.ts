@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { fromMore } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -259,7 +260,7 @@ test("removing a person who checked an Item gives the other claimer the whole It
   await expect(priya.getByText("Pick your name to check off what you had.")).toBeVisible(live);
   await expect(chip(priya, "Priya")).toHaveCount(0, live);
 
-  await sam.getByRole("button", { name: "History" }).click();
+  await fromMore(sam, "History");
   await expect(sam.getByText("Removed Priya from the split")).toBeVisible(live);
   await sam.getByRole("button", { name: /^Revert Removed Priya/ }).click();
   await expect(chip(sam, "Priya")).toBeVisible(live);
@@ -355,7 +356,7 @@ test("the chip of a paid person who is removed keeps its check while it fades, a
   expect(await sam.evaluate(() => (window as unknown as { ghostMarks: boolean[] }).ghostMarks)).toEqual([true]);
   await expect(sam.getByText("Your share")).toBeVisible(live);
 
-  await sam.getByRole("button", { name: "History" }).click();
+  await fromMore(sam, "History");
   await sam.getByRole("button", { name: /^Revert Removed Priya/ }).click();
   await expect(chip(sam, "Priya, paid")).toBeVisible(live);
   await sam.waitForTimeout(300);

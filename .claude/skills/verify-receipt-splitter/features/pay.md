@@ -18,7 +18,7 @@ Only the device that picked a name can record or clear that person's Payment. Th
 
 - Pick your name, check a line, and tap "Your share" or your own chip.
 - Tap another person's chip to see their status.
-- Tap the clock icon for History.
+- Tap **More**, then **History**.
 
 ## Driving it
 
@@ -30,7 +30,7 @@ Preconditions are the same as [claim.md](./claim.md). Create the Split over `POS
 - **Status (`pay-status`).** In another browser, tap the payer's chip. The breakdown shows `Paid` and `<name> paid`, with no links, and on the phone no button but the share row that folds the sheet.
 - **Difference (`pay-difference`).** After the payer marks paid, change a Claim from another browser so the Share moves. Both browsers show the difference sentence.
 - **Refused (`pay-refused`).** From a page of another device, open `ws://<host>/parties/split-server/<id>` and send `{"ref":"forged","op":{"type":"recordPayment","by":"<id>","participantId":"<id>","device":"not-the-payer","amount":2200}}`. The answer is `{"type":"rejected","ref":"forged","rejection":{"reason":"payerOnly"}}`, and the payer stays Not paid.
-- **History (`pay-history`).** Tap **History**. The Payment row shows no **Revert**.
+- **History (`pay-history`).** Tap **More**, then **History**. The Payment row shows no **Revert**.
 
 ## Gotchas
 

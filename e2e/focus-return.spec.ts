@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { fromMore, moreButton } from "./header";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -67,10 +68,11 @@ for (const how of ["Enter", "Space", "assistive click"] as const) {
       [sam.getByRole("button", { name: "Open Coupon, -$1.00" }), "Discount"],
       [sam.getByRole("button", { name: "Add item", exact: true }), "New item"],
       [sam.getByRole("button", { name: "Add tax, tip or discount", exact: true }), "Add tax, tip or discount"],
-      [sam.getByRole("button", { name: "History", exact: true }), "History"],
+      [moreButton(sam), "History"],
     ];
     for (const [opener, title] of openers) {
-      await opener.click();
+      if (title === "History") await fromMore(sam, "History");
+      else await opener.click();
       const sheet = sam.getByRole("dialog", { name: title });
       await expect(sheet).toBeVisible();
       await closeBy(how, sheet);

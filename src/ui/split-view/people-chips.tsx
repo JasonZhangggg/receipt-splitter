@@ -11,7 +11,6 @@ import { layout, motion, type, useColors } from "../theme";
 
 type Props = {
   people: readonly Participant[];
-  picked: ReadonlySet<ParticipantId>;
   me: ParticipantId | null;
   marks: ReadonlyMap<ParticipantId, PaidMark>;
   selected: ParticipantId | null;
@@ -27,7 +26,7 @@ type Props = {
 
 type Ghost = { readonly person: Participant; readonly mark: PaidMark | undefined };
 
-export function PeopleChips({ people, picked, me, marks, selected, onSelect, onAdd, onHold, wrap = false, entering = false, label = say.people }: Props) {
+export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHold, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
   // Wrapped chips reflow across lines and the pane changes height, so on desktop a removal closes up in one frame, with no slide or fade.
   const reduce = useReducedMotion();
@@ -158,24 +157,22 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
   }, [wrap]);
 
   const face = (person: Participant, mark: PaidMark | undefined) => {
+    // Two looks only: the selected chip in ink, everyone else in one quiet fill, whether or not they have picked their name.
     const isSelected = person.id === selected;
-    const away = !picked.has(person.id) && !isSelected;
+    const ink = isSelected ? c.onAction : c.ink;
     return (
-      <View
-        aria-selected={isSelected}
-        style={[styles.chip, { backgroundColor: isSelected ? c.action : away ? "transparent" : c.sheetIn, boxShadow: away ? `inset 0 0 0 1px ${c.hairline}` : undefined }]}
-      >
-        <Text numberOfLines={1} selectable={false} style={[type.label, styles.name, { color: isSelected ? c.onAction : away ? c.muted : c.ink }]}>
+      <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : c.off }]}>
+        <Text numberOfLines={1} selectable={false} style={[type.label, styles.name, { color: ink }]}>
           {person.name}
         </Text>
         {person.id === me ? (
-          <Text selectable={false} style={[type.caption, styles.you, { color: isSelected ? c.onAction : c.ink }]}>
+          <Text selectable={false} style={[type.caption, styles.you, { color: ink }]}>
             {say.you}
           </Text>
         ) : null}
         {mark ? (
           <View style={[styles.mark, mark !== "paid" && styles.narrow]}>
-            <Icon name={mark === "paid" ? "check" : "exclaim"} size={markSize} color={isSelected ? c.onAction : away ? c.muted : c.ink} />
+            <Icon name={mark === "paid" ? "check" : "exclaim"} size={markSize} color={ink} />
           </View>
         ) : null}
       </View>
@@ -209,8 +206,8 @@ export function PeopleChips({ people, picked, me, marks, selected, onSelect, onA
           <View style={enter(people.length)}>
             <PressTarget name={say.addPerson} onPress={() => setTyping("")} style={(pressed) => pressStyle(pressed, reduce)}>
               {() => (
-                <View style={[styles.chip, styles.add, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
-                  <Icon name="plus" size={18} color={c.muted} />
+                <View style={[styles.chip, styles.add, { backgroundColor: c.off }]}>
+                  <Icon name="plus" size={18} color={c.ink} />
                 </View>
               )}
             </PressTarget>

@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Locator, type Page } from "./without-ocr";
+import { fromMore, moreButton, moreMenu } from "./header";
 
 const desktop = { width: 1440, height: 900 };
 test.use({ viewport: desktop, isMobile: false, hasTouch: false });
@@ -216,14 +217,14 @@ test("at 1280 px with a Bundle open, the Add item popover opens above its row, a
   expect(await tabsInside(form, 16, "Shift+Tab")).toEqual(Array(16).fill(true));
 });
 
-test("a line, Add item and History each announce a dialog popup, and expanded follows their popover", async ({ page, request }, { workerIndex }) => {
+test("a line, Add item and More each announce a dialog popup, and expanded follows their popover", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
   const state = (trigger: Locator) => trigger.evaluate((el) => [el.getAttribute("aria-haspopup"), el.getAttribute("aria-expanded")]);
   const triggers = [
     { trigger: gameplay(page), popover: itemPopover(page) },
     { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), popover: page.getByRole("dialog", { name: "New item" }) },
-    { trigger: page.getByRole("button", { name: "History", exact: true }), popover: page.getByRole("dialog", { name: "History" }) },
+    { trigger: moreButton(page), popover: moreMenu(page) },
   ];
   for (const { trigger, popover } of triggers) {
     expect(await state(trigger)).toEqual(["dialog", "false"]);
@@ -236,7 +237,7 @@ test("a line, Add item and History each announce a dialog popup, and expanded fo
   }
 });
 
-test("at phone width Escape closes the Item, Add item and History sheets and hands focus back to what opened them", async ({ page, request }, { workerIndex }) => {
+test("at phone width Escape closes the Item, Add item and History sheets and hands focus back to what opened them, More for History", async ({ page, request }, { workerIndex }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(await createSplit(request, workerIndex));
   const asked = page.getByRole("dialog", { name: "Which one are you?" });
@@ -245,11 +246,15 @@ test("at phone width Escape closes the Item, Add item and History sheets and han
   const sheets = [
     { trigger: gameplay(page), sheet: page.getByTestId("item-sheet") },
     { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), sheet: page.getByTestId("add-sheet") },
-    { trigger: page.getByRole("button", { name: "History", exact: true }), sheet: page.getByTestId("history-sheet") },
+    { trigger: moreButton(page), row: "History", sheet: page.getByTestId("history-sheet") },
   ];
-  for (const { trigger, sheet } of sheets) {
+  for (const { trigger, row, sheet } of sheets) {
     await trigger.focus();
     await page.keyboard.press("Enter");
+    if (row) {
+      await moreMenu(page).getByRole("button", { name: row, exact: true }).focus();
+      await page.keyboard.press("Enter");
+    }
     await expect(sheet).toBeVisible();
 
     await page.keyboard.press("Escape");
@@ -306,12 +311,12 @@ test("Add item opens its form as a popover from its row, and the new row lands i
   await expect(pane(page)).toContainText("Fries");
 });
 
-test("History opens as a popover from its button, and Escape hands focus back to the button", async ({ page, request }, { workerIndex }) => {
+test("History opens from the More menu as a popover under More, and Escape hands focus back to More", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
-  const history = page.getByRole("button", { name: "History", exact: true });
+  const history = moreButton(page);
   const list = page.getByRole("dialog", { name: "History" });
 
-  await history.click();
+  await fromMore(page, "History");
 
   await expect(list).toBeVisible();
   await expect(page.getByTestId("history-sheet")).toHaveCount(0);

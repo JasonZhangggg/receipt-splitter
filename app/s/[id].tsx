@@ -25,7 +25,7 @@ import { AddItemSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { Breakdown, foldedRow } from "../../src/ui/split-view/breakdown";
-import { SplitHeader } from "../../src/ui/split-view/header";
+import { HeaderMenu, headerMenuWidth, SplitHeader } from "../../src/ui/split-view/header";
 import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
@@ -141,7 +141,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const shares = useMemo(() => computeShares(split), [split]);
   const marks = useMemo(() => paidMarks(shares, split.payments), [shares, split.payments]);
   const people = split.participants;
-  const picked = new Set(split.picks.map(({ participantId }) => participantId));
   // A selected person someone removed falls back to this device's own name.
   const selectedPerson = people.find((person) => person.id === selected) ?? people.find((person) => person.id === me) ?? null;
   const creating = memory.creatorSecret !== undefined;
@@ -264,6 +263,19 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     setPeopleProblem(null);
     setMenu((open) => (open && !open.closing ? open : { person, from, closing: false }));
   };
+  // The header's More menu. Choosing a row removes the menu at once, so it never fades over what the row opens. That sheet or popover hangs from the More button and gives focus back to it.
+  const [more, setMore] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
+  const closeMore = () => setMore((open) => open && { ...open, closing: true });
+  const moreGone = () => {
+    if (more && (wide || more.from.keyboard || actedByKey()) && more.from.trigger.isConnected) more.from.trigger.focus({ preventScroll: true });
+    setMore(null);
+  };
+  const fromMore = (then: (from: Press) => void) => (row: Press) => {
+    if (!more) return;
+    more.from.trigger.focus({ preventScroll: true });
+    setMore(null);
+    then({ trigger: more.from.trigger, keyboard: row.keyboard });
+  };
   const peopleNote = peopleProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
@@ -303,7 +315,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     <View style={styles.chips}>
       <PeopleChips
         people={people}
-        picked={picked}
         me={me}
         marks={marks}
         selected={me ? (selectedPerson?.id ?? null) : null}
@@ -339,8 +350,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
             <View style={styles.chips}>
               <PeopleChips
                 people={people}
-                picked={picked}
-                me={me}
+                        me={me}
                 marks={marks}
                 selected={selectedPerson.id}
                 onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
@@ -436,7 +446,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       }
     />
   );
-  const header = <SplitHeader onReceipt={photo ? () => setViewing(true) : undefined} onHistory={(from) => open({ kind: "history" }, from)} historyOpen={showingNow?.kind === "history"} onShare={() => void share()} />;
+  const header = <SplitHeader onMore={(from) => setMore({ from, closing: false })} moreOpen={more !== null && !more.closing} onShare={() => void share()} />;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
@@ -491,6 +501,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
+        </Popover>
+      ) : null}
+      {more ? (
+        <Popover anchor={more.from.trigger} label={say.more} instant={more.from.keyboard} closing={more.closing} onClose={closeMore} onGone={moreGone} width={headerMenuWidth}>
+          <HeaderMenu onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} />
         </Popover>
       ) : null}
       {confirming ? (

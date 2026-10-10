@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
+import { fromMore } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -178,7 +179,7 @@ test("typing a sized row's name back to what it was saves nothing, so History ha
   await field("Detail").fill("16oz Can");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
-  await page.getByRole("button", { name: "History" }).click();
+  await fromMore(page, "History");
   await expect(page.getByRole("button", { name: /^Revert / })).toHaveCount(1, live);
   await expect(page.getByRole("button", { name: /^Revert Michelob Ultra/ })).toHaveCount(1);
 });
@@ -210,7 +211,7 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
   await expect(priya.locator(`[id="${await firstBucket(priya).getAttribute("aria-controls")}"]`).getByText("3x", { exact: true })).toHaveCount(0);
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 3 claimed, expanded");
 
-  await priya.getByRole("button", { name: "History" }).click();
+  await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Split Guinness Draught 14.9oz Can into 3" }).click();
   await priya.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
   await expect(priya.getByText("Reverted")).toBeVisible(live);
@@ -470,7 +471,7 @@ test("Delete item takes a Bundle Item off for everyone, and Revert brings it bac
   await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, expanded");
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, collapsed", live);
 
-  await sam.getByRole("button", { name: "History" }).click();
+  await fromMore(sam, "History");
   await sam.getByRole("button", { name: "Revert Removed Michelob Ultra 16oz Aluminum Bottle" }).click();
   await expect(sam.getByText("Reverted")).toBeVisible(live);
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 1 claimed, collapsed", live);
