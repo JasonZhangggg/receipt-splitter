@@ -71,7 +71,7 @@ export function PhotoViewer({ photo, onExited, onReplace }: Props) {
           <View style={[styles.fill, surface, { backgroundColor: photoGround, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             <View style={[styles.bar, { paddingLeft: 12 + insets.left, paddingRight: 12 + insets.right }]}>
               <Button kind="onPhoto" icon="x" name={copy.closePhoto} onPress={close} outsideScroll />
-              <Text numberOfLines={1} style={[type.label, styles.name]}>
+              <Text numberOfLines={1} style={[type.body, styles.name]}>
                 {photo.name}
               </Text>
               {replace ? <Button kind="onPhoto" icon="camera" name={copy.replace} onPress={replace} outsideScroll /> : <View style={styles.noButton} />}

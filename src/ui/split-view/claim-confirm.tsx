@@ -11,7 +11,7 @@ export function ClaimConfirm({ question, action, onYes, onNo }: { question: stri
   const c = useColors();
   return (
     <View style={styles.box}>
-      <Text style={[type.secondary, styles.question, { color: c.ink }]}>{question}</Text>
+      <Text style={[type.body, styles.question, { color: c.ink }]}>{question}</Text>
       <View style={styles.actions}>
         <Button label={action} onPress={onYes} outsideScroll />
         <Button kind="soft" label={say.cancel} onPress={onNo} outsideScroll />

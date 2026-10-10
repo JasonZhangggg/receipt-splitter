@@ -73,7 +73,7 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
               <View style={styles.say}>
                 {href === null ? <View style={styles.icon}><Icon name={done ? "check" : "copy"} size={18} color={c.onAction} /></View> : null}
                 {done ? null : <Mark glyph={app.glyph} ink={c.onAction} fill={c.action} />}
-                <Text numberOfLines={1} style={[type.button, { color: c.onAction }]}>{done ? say.copied : app.name}</Text>
+                <Text numberOfLines={1} style={[type.body, { color: c.onAction }]}>{done ? say.copied : app.name}</Text>
               </View>
               {choices.length > 1 ? <Switcher tint={c.onAction} /> : null}
             </View>
@@ -87,7 +87,7 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
       </View>
       {/* A long line breaks after a dot, never before one or between an app and its handle. */}
       <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((each) => `${paymentApps[each.service].name}\u00a0${handleText(each)}`).join("\u00a0· ")}</Text>
-      {problem ? <Text style={[type.small, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
+      {problem ? <Text style={[type.caption, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );
 }

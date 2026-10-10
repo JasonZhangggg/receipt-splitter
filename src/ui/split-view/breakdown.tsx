@@ -38,9 +38,9 @@ const tabular = { fontVariant: ["tabular-nums" as const] };
 const rowGap = 10;
 // From the share amount's baseline box to the pay buttons.
 const payGap = 20;
-const amountSlack = (foldedRow - type.total.lineHeight) / 2;
+const amountSlack = (foldedRow - type.hero.lineHeight) / 2;
 // The label and its paid line. The label keeps this height with or without the line, so the share row never grows or shrinks as people pay.
-const labelHeight = type.button.lineHeight + type.caption.lineHeight;
+const labelHeight = type.body.lineHeight + type.caption.lineHeight;
 
 export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }: Props) {
   const c = useColors();
@@ -66,10 +66,10 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
             <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
               {charges.map((row) => (
                 <View key={row.id} style={styles.row}>
-                  <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
+                  <Text numberOfLines={1} style={[type.body, styles.rowLabel, { color: c.muted }]}>
                     {row.name}
                   </Text>
-                  <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(row.portion)}</Text>
+                  <Text style={[type.body, tabular, { color: c.muted }]}>{money(row.portion)}</Text>
                 </View>
               ))}
             </View>
@@ -91,7 +91,7 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
       {above}
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
         <ShareLabel label={label} note={note} />
-        <Text testID="share" style={[type.total, tabular, { color: c.ink }]}>
+        <Text testID="share" style={[type.hero, tabular, { color: c.ink }]}>
           {money(share)}
         </Text>
       </View>
@@ -181,7 +181,7 @@ function Folding({ fold, person, whose, label, note, share, above, below }: Fold
                   <Swap view={person} style={styles.grow}>
                     <View style={styles.amounts}>
                       <ShareLabel label={label} note={note} noteId={noteId} />
-                      <Text testID={open ? "share" : "owe"} style={[type.total, tabular, { color: c.ink }]}>
+                      <Text testID={open ? "share" : "owe"} style={[type.hero, tabular, { color: c.ink }]}>
                         {money(share)}
                       </Text>
                     </View>
@@ -206,7 +206,7 @@ function ShareLabel({ label, note, noteId }: { label: string; note: string | nul
   const c = useColors();
   return (
     <View style={styles.label}>
-      <Text numberOfLines={1} style={[type.button, { color: c.ink }]}>
+      <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
         {label}
       </Text>
       {note ? (
@@ -244,17 +244,17 @@ function ItemList({ lines, empty, edge, holdsDrag, children }: { lines: ReturnTy
     >
       {lines.length === 0 ? (
         <View style={styles.line}>
-          <Text style={[type.secondary, { color: c.muted }]}>{empty}</Text>
+          <Text style={[type.body, { color: c.muted }]}>{empty}</Text>
         </View>
       ) : null}
       {lines.map((line) => (
         <View key={line.id} style={styles.line}>
-          <Text numberOfLines={1} style={[type.item, styles.name, { color: c.ink }]}>
+          <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
             {line.quantity ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${line.quantity}  `}</Text> : null}
             {line.name}
             {line.part ? <Text style={[type.caption, { color: c.muted }]}>{`  ${line.part}`}</Text> : null}
           </Text>
-          <Text style={[type.item, tabular, { color: c.ink }]}>{groupedAmount(line.portion)}</Text>
+          <Text style={[type.body, tabular, { color: c.ink }]}>{groupedAmount(line.portion)}</Text>
         </View>
       ))}
       {children}
@@ -280,7 +280,6 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   grow: { flex: 1 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26, marginHorizontal: 2, marginBottom: 4 },
-  strong: { fontWeight: "500" },
   list: { flexGrow: 0, flexShrink: 1 },
   line: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 46 },
   name: { flex: 1, minWidth: 0 },

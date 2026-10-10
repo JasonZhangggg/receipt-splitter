@@ -30,7 +30,7 @@ export function ReceiptSummary({ items, total, thumbnail, onView, onReplace, sta
       <View testID="receipt" style={[styles.ticket, { backgroundColor: c.paper }]}>
         <View style={styles.ticketReplace}>{replace}</View>
         {thumb}
-        <Text style={[type.total, tabular, styles.ticketTotal, { color: c.ink }]}>{amount}</Text>
+        <Text style={[type.hero, tabular, styles.ticketTotal, { color: c.ink }]}>{amount}</Text>
         <Text style={[type.caption, { color: c.muted }]}>{count}</Text>
       </View>
     );

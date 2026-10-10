@@ -110,27 +110,27 @@ type Tone = { fill?: string; ink: string; ring?: string };
 const kinds = {
   primary: {
     face: { height: 54, paddingHorizontal: 24, borderRadius: 27 },
-    label: type.button,
+    label: type.body,
     icon: 20,
     tone: (c: Colors, disabled: boolean): Tone => (disabled ? { fill: c.off, ink: c.onOff } : { fill: c.action, ink: c.onAction }),
   },
   soft: {
     face: { height: 54, paddingHorizontal: 24, borderRadius: 27 },
-    label: type.button,
+    label: type.body,
     icon: 20,
     tone: (c: Colors): Tone => ({ fill: c.sheetIn, ink: c.ink }),
   },
-  outline: { face: { width: 54, height: 54, borderRadius: 16 }, label: type.button, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
+  outline: { face: { width: 54, height: 54, borderRadius: 16 }, label: type.body, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
   chip: {
     face: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
-    label: type.label,
+    label: type.body,
     icon: 16,
     tone: (c: Colors): Tone => ({ ink: c.muted, ring: c.hairline }),
   },
-  link: { face: { minHeight: 44, paddingHorizontal: 2 }, label: type.small, icon: 16, tone: (c: Colors): Tone => ({ ink: c.muted }) },
-  icon: { face: { width: 44, height: 44 }, label: type.small, icon: 18, tone: (c: Colors): Tone => ({ ink: c.muted }) },
-  onPhoto: { face: { width: 44, height: 44, borderRadius: 22 }, label: type.small, icon: 18, tone: (): Tone => ({ fill: "rgba(255, 255, 255, 0.14)", ink: "#FFFFFF" }) },
-  overPhoto: { face: { width: 44, height: 44, borderRadius: 22 }, label: type.small, icon: 18, tone: (): Tone => ({ fill: "rgba(255, 255, 255, 0.9)", ink: "#111214" }) },
+  link: { face: { minHeight: 44, paddingHorizontal: 2 }, label: type.caption, icon: 16, tone: (c: Colors): Tone => ({ ink: c.muted }) },
+  icon: { face: { width: 44, height: 44 }, label: type.caption, icon: 18, tone: (c: Colors): Tone => ({ ink: c.muted }) },
+  onPhoto: { face: { width: 44, height: 44, borderRadius: 22 }, label: type.caption, icon: 18, tone: (): Tone => ({ fill: "rgba(255, 255, 255, 0.14)", ink: "#FFFFFF" }) },
+  overPhoto: { face: { width: 44, height: 44, borderRadius: 22 }, label: type.caption, icon: 18, tone: (): Tone => ({ fill: "rgba(255, 255, 255, 0.9)", ink: "#111214" }) },
 } satisfies Record<string, { face: ViewStyle; label: TextStyle; icon: number; tone: (c: Colors, disabled: boolean) => Tone }>;
 
 type Props = ({ label: string; name?: string } | { label?: undefined; name: string }) &
@@ -189,7 +189,7 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
   if (!reason && !note) return target;
   return (
     <View style={styles.withReason}>
-      <Text id={reasonId} style={[type.small, styles.reason, { color: c.muted }]}>
+      <Text id={reasonId} style={[type.caption, styles.reason, { color: c.muted }]}>
         {reason || note}
       </Text>
       {target}

@@ -52,22 +52,16 @@ const sans = "'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', system-ui, -app
 installDocument();
 paintAppearance(picked);
 
+// Four sizes, two weights. Hero is the share amount; title heads a sheet or the Total; body is every row, chip and button; caption is every line of supporting text.
 export const type = StyleSheet.create({
-  hero: { fontFamily: sans, fontWeight: "400", fontSize: 26, lineHeight: 29, letterSpacing: -0.52 },
-  reading: { fontFamily: sans, fontWeight: "400", fontSize: 23, lineHeight: 27, letterSpacing: -0.46 },
-  total: { fontFamily: sans, fontWeight: "500", fontSize: 26, lineHeight: 30, letterSpacing: -0.52 },
-  wordmark: { fontFamily: sans, fontWeight: "500", fontSize: 17, lineHeight: 21, letterSpacing: -0.26 },
-  body: { fontFamily: sans, fontWeight: "400", fontSize: 15, lineHeight: 22 },
-  // A receipt line: one step under body on the same leading ratio, so a list of Items reads denser without going under 14 px.
-  item: { fontFamily: sans, fontWeight: "400", fontSize: 14, lineHeight: 20.5 },
-  title: { fontFamily: sans, fontWeight: "500", fontSize: 16, lineHeight: 20, letterSpacing: -0.16 },
+  hero: { fontFamily: sans, fontWeight: "600", fontSize: 28, lineHeight: 34, letterSpacing: -0.56 },
+  title: { fontFamily: sans, fontWeight: "600", fontSize: 17, lineHeight: 22, letterSpacing: -0.17 },
+  body: { fontFamily: sans, fontWeight: "400", fontSize: 15, lineHeight: 21 },
+  caption: { fontFamily: sans, fontWeight: "400", fontSize: 13, lineHeight: 18 },
+  // A text field stays at 16 px so iOS Safari does not zoom the page on focus.
   input: { fontFamily: sans, fontWeight: "400", fontSize: 16, lineHeight: 23 },
-  button: { fontFamily: sans, fontWeight: "500", fontSize: 15, lineHeight: 20 },
-  label: { fontFamily: sans, fontWeight: "500", fontSize: 14, lineHeight: 19 },
-  glyph: { fontFamily: sans, fontWeight: "500", fontSize: 12, lineHeight: 15 },
-  secondary: { fontFamily: sans, fontWeight: "400", fontSize: 14, lineHeight: 21 },
-  small: { fontFamily: sans, fontWeight: "400", fontSize: 13, lineHeight: 19 },
-  caption: { fontFamily: sans, fontWeight: "400", fontSize: 12.5, lineHeight: 17 },
+  // A person's initial inside a dot; the dot sets its own size.
+  glyph: { fontFamily: sans, fontWeight: "600", fontSize: 12, lineHeight: 15 },
 });
 
 const easeOut = [0.23, 1, 0.32, 1] as const;

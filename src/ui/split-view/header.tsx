@@ -17,7 +17,7 @@ export function SplitHeader({ onMore, moreOpen = false, onShare }: Props) {
     <View style={styles.header}>
       <View role="heading" aria-level={1}>
         <PressTarget name={joinCopy.wordmarkHome} onPress={() => router.push("/")} style={(pressed) => [styles.home, pressStyle(pressed, reduce)]}>
-          {() => <Text style={[type.wordmark, { color: c.ink }]}>{copy.wordmark}</Text>}
+          {() => <Text style={[type.title, { color: c.ink }]}>{copy.wordmark}</Text>}
         </PressTarget>
       </View>
       <View style={styles.buttons}>
@@ -46,7 +46,7 @@ export function HeaderMenu({ onPayments, onPhoto, onHistory }: { onPayments: (pr
           {(pressed) => (
             <View style={[styles.row, pressed && { backgroundColor: c.sheetIn }]}>
               <Icon name={icon} size={20} color={c.ink} />
-              <Text numberOfLines={1} style={[type.button, styles.label, { color: c.ink }]}>
+              <Text numberOfLines={1} style={[type.body, styles.label, { color: c.ink }]}>
                 {label}
               </Text>
             </View>

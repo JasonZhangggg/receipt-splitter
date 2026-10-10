@@ -37,7 +37,7 @@ export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url }: 
   return (
     <View pointerEvents={chosen === null ? "auto" : "none"} style={styles.sheet}>
       <View style={styles.topline}>
-        <Text style={[type.secondary, styles.invite, { color: c.muted }]}>
+        <Text style={[type.body, styles.invite, { color: c.muted }]}>
           <Text style={[styles.strong, { color: c.ink }]}>{intro.lead}</Text>
           {intro.rest}
           {intro.strong ? <Text style={[styles.strong, { color: c.ink }]}>{intro.strong}</Text> : null}
@@ -48,7 +48,7 @@ export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url }: 
           </View>
         ) : null}
       </View>
-      <Text role="heading" aria-level={2} style={[type.hero, styles.ask, { color: c.ink }]}>
+      <Text role="heading" aria-level={2} style={[type.title, styles.ask, { color: c.ink }]}>
         {say.question}
       </Text>
       <PickRows rows={rows} chosen={chosen} onPick={onPick} />
@@ -84,7 +84,7 @@ export function PickSheet({ rows, intro, chosen, onPick, onAdd, onClose, url }: 
             blurOnSubmit={false}
             style={[type.input, styles.field, { color: c.ink, backgroundColor: c.sheetIn, boxShadow: `inset 0 0 0 1.5px ${c.ink}` }]}
           />
-          {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
+          {problem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
           <Button label={typing.trim() ? say.joinAs(typing.trim()) : say.yourName} disabled={!typing.trim()} onPress={join} outsideScroll />
         </View>
       )}
@@ -108,9 +108,9 @@ function PickRows({ rows, chosen, onPick }: RowsProps) {
             <View key={person.id} role="listitem" style={[styles.claimback, { boxShadow: `inset 0 0 0 1.5px ${c.ink}` }]}>
               <View style={styles.rowLead}>
                 <Dot name={person.name} size={32} tone="sheetIn" />
-                <Text style={[type.button, { color: c.ink }]}>{person.name}</Text>
+                <Text style={[type.body, { color: c.ink }]}>{person.name}</Text>
               </View>
-              <Text style={[type.secondary, styles.indent, { color: c.muted }]}>{say.pickedElsewhere}</Text>
+              <Text style={[type.body, styles.indent, { color: c.muted }]}>{say.pickedElsewhere}</Text>
               <View style={[styles.two, styles.indent]}>
                 <View style={styles.half}>
                   <Button label={say.thatsMe} onPress={() => onPick(person.id, true)} outsideScroll />
@@ -136,7 +136,7 @@ function PickRows({ rows, chosen, onPick }: RowsProps) {
                     <View style={[styles.row, { backgroundColor: fill, boxShadow: picked && !isChosen ? `inset 0 0 0 1px ${c.hairline}` : undefined }]}>
                       <View style={styles.rowLead}>
                         <Dot name={person.name} size={32} tone={isChosen ? "onAction" : picked ? "sheetIn" : "sheet"} />
-                        <Text numberOfLines={1} style={[type.button, styles.name, { color: ink }]}>
+                        <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }]}>
                           {person.name}
                         </Text>
                       </View>
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   invite: { flex: 1, marginTop: 2, marginLeft: 2 },
-  strong: { fontWeight: "500" },
+  strong: { fontWeight: "600" },
   close: { marginTop: -10, marginRight: -12 },
   ask: { marginHorizontal: 2, marginBottom: 4 },
   rows: { gap: layout.pairGap },
@@ -172,6 +172,6 @@ const styles = StyleSheet.create({
   ring: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   adding: { gap: 10 },
   link: { marginTop: 12 },
-  field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius, fontWeight: "500" },
+  field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

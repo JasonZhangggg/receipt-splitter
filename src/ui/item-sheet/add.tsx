@@ -89,7 +89,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
           enterKeyHint="next"
           submitBehavior="submit"
           onSubmitEditing={() => detailField.current?.focus()}
-          style={[type.input, styles.field, styles.strong, { color: c.ink }]}
+          style={[type.input, styles.field, { color: c.ink }]}
         />
         <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
         <TextInput
@@ -121,7 +121,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
             enterKeyHint="done"
             submitBehavior="blurAndSubmit"
             onSubmitEditing={() => void add()}
-            style={[type.input, tabular, styles.priceInput, styles.strong, { color: c.ink }]}
+            style={[type.input, tabular, styles.priceInput, { color: c.ink }]}
           />
         </View>
         <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
@@ -145,7 +145,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
             >
               {() => (
                 <View style={[styles.chip, { backgroundColor: on ? c.action : c.sheetIn }]}>
-                  <Text style={[type.label, { color: on ? c.onAction : c.ink }]}>{person.name}</Text>
+                  <Text style={[type.body, { color: on ? c.onAction : c.ink }]}>{person.name}</Text>
                 </View>
               )}
             </PressTarget>
@@ -156,7 +156,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
         <Button label={say.addItem} busy={sending} outsideScroll onPress={() => void add()} />
       </View>
       {/* Always laid out one line tall, so a problem appearing does not resize the sheet. */}
-      <Text role="status" style={[type.small, styles.problem, { minHeight: type.small.lineHeight, color: c.muted }]}>
+      <Text role="status" style={[type.caption, styles.problem, { minHeight: type.caption.lineHeight, color: c.muted }]}>
         {problem === null ? "" : problem === "overLimit" ? say.addProblem.overLimit(`$${(MAX_CENTS / 100).toLocaleString("en-US")}`) : say.addProblem[problem]}
       </Text>
     </View>
@@ -166,13 +166,12 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 18, lineHeight: 22, marginTop: 2 },
+  title: { marginTop: 2 },
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
   groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   field: { minHeight: layout.field, paddingHorizontal: 16 },
-  strong: { fontWeight: "500" },
   row: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingLeft: 16, paddingRight: 6 },
   rowLabel: { marginRight: "auto" },
   priceInput: { width: 96, textAlign: "right", minHeight: 44, paddingRight: 10 },

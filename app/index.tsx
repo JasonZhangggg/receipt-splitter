@@ -192,8 +192,8 @@ export default function Home() {
         {(pressed) => (
           <View style={[styles.drop, !wide && [styles.dashed, styles.dropFills, compact && styles.dropCompact, { borderColor: dragging ? c.ink : c.dash }]]}>
             <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact || (wide && !roomy)} />
-            <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
-            {hero.hint ? <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text> : null}
+            <Text style={[type.hero, styles.heroTitle, { color: c.ink }]}>{hero.title}</Text>
+            {hero.hint ? <Text style={[type.body, { color: c.muted }]}>{hero.hint}</Text> : null}
             <Text style={[type.caption, { color: c.muted }]}>{copy.formats}</Text>
           </View>
         )}
@@ -221,7 +221,7 @@ export default function Home() {
     <View style={[styles.screen, still, { backgroundColor: c.field }]}>
       <ScrollView style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: wide ? 0 : sheetHeight }]}>
         <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? wideHeader : layout.header) + insets.top }]}>
-          <Text role="heading" aria-level={1} style={[type.wordmark, { color: c.ink }]}>
+          <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
             {copy.wordmark}
           </Text>
           <View style={styles.headerButtons}>
@@ -269,6 +269,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerButtons: { flexDirection: "row", alignItems: "center", gap: 6 },
   edge: { marginRight: -12 },
+  // The upload headline keeps the old 29 px leading, so the box still clears the sheet at 375 by 667.
+  heroTitle: { lineHeight: 29 },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
   zone: { flexGrow: 0, paddingVertical: 32, paddingHorizontal: 40, borderRadius: 26, borderWidth: 1.5, borderStyle: "dashed" },
   reading: { borderColor: "transparent" },

@@ -35,7 +35,6 @@ const circleColumn = tapSize - tapBleed;
 const columnGap = 3;
 const nameStart = circleColumn + columnGap;
 const priceGap = 10;
-const dotCenter = dotSize / 2;
 const bleed = 12;
 const adjustmentsGap = 8;
 const chevronSize = 16;
@@ -119,10 +118,10 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                 >
                   {() => (
                     <>
-                      <Text numberOfLines={1} style={[type.secondary, styles.name, { color: c.muted }]}>
+                      <Text numberOfLines={1} style={[type.body, styles.name, { color: c.muted }]}>
                         {bundle.discount.label}
                       </Text>
-                      <Text style={[type.secondary, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
+                      <Text style={[type.body, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
                     </>
                   )}
                 </PressTarget>
@@ -154,17 +153,17 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         </KeptRows>
       </View>
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <Text style={[type.item, styles.totalText, { color: c.ink }]}>{say.total}</Text>
-        <Text testID="total" style={[type.item, styles.totalText, tabular, { color: c.ink }]}>
+        <Text style={[type.title, { color: c.ink }]}>{say.total}</Text>
+        <Text testID="total" style={[type.title, tabular, { color: c.ink }]}>
           {money(total)}
         </Text>
       </View>
       {started ? (
         <View style={styles.unclaimed}>
-          <Text testID="unclaimed-count" numberOfLines={1} style={[type.secondary, tabular, styles.rowLabel, { color: c.muted }]}>
+          <Text testID="unclaimed-count" numberOfLines={1} style={[type.body, tabular, styles.rowLabel, { color: c.muted }]}>
             {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
           </Text>
-          <Text testID="unclaimed" style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>
+          <Text testID="unclaimed" style={[type.body, tabular, { color: c.ink }]}>
             {money(shares.unclaimed.total)}
           </Text>
         </View>
@@ -216,7 +215,7 @@ function BundleGroup({ bundle, open, claimed, claimers, order, onToggle, childre
             </View>
             <View style={styles.headerLead}>
               <View style={styles.name}>
-                <Text numberOfLines={1} style={[type.item, styles.strong, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
                   {bundle.name}
                 </Text>
                 <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
@@ -228,12 +227,11 @@ function BundleGroup({ bundle, open, claimed, claimers, order, onToggle, childre
               </View>
             </View>
             {showInside ? <Marks people={claimers} order={order} /> : null}
-            <Text style={[type.item, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
+            <Text style={[type.body, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
           </>
         )}
       </PressTarget>
       <Collapse open={open} id={region} label={bundle.name}>
-        <View aria-hidden style={[styles.rule, { backgroundColor: c.hairline }]} />
         {children}
       </Collapse>
     </View>
@@ -459,7 +457,7 @@ function Line({ item, order, claimers, selected, inBundle, onCircle, onOpen, exp
         {() => (
           <View style={styles.bodyRow}>
             <View style={styles.name}>
-              <Text numberOfLines={2} style={[type.item, { color: c.ink }]}>
+              <Text numberOfLines={2} style={[type.body, { color: c.ink }]}>
                 {count ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${count}  `}</Text> : null}
                 {title}
                 {tag ? <Text style={[type.caption, { color: c.muted }]}>{`  ${tag}`}</Text> : null}
@@ -471,7 +469,7 @@ function Line({ item, order, claimers, selected, inBundle, onCircle, onOpen, exp
               ) : null}
             </View>
             <Marks people={others} order={order} />
-            <Text style={[type.item, tabular, { color: c.ink }]}>{price}</Text>
+            <Text style={[type.body, tabular, { color: c.ink }]}>{price}</Text>
           </View>
         )}
       </PressTarget>
@@ -489,7 +487,7 @@ function AddRow({ expanded, onPress }: { expanded: boolean; onPress: (press: Pre
           <View style={styles.addIcon}>
             <Icon name="plus" size={dotSize} color={c.muted} />
           </View>
-          <Text style={[type.item, { color: c.muted }]}>{say.add}</Text>
+          <Text style={[type.body, { color: c.muted }]}>{say.add}</Text>
         </>
       )}
     </PressTarget>
@@ -508,10 +506,10 @@ function RowFace({ label, amount }: { label: string; amount: number }) {
   const c = useColors();
   return (
     <>
-      <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
+      <Text numberOfLines={1} style={[type.body, styles.rowLabel, { color: c.muted }]}>
         {label}
       </Text>
-      <Text style={[type.secondary, tabular, { color: c.ink }]}>{money(amount)}</Text>
+      <Text style={[type.body, tabular, { color: c.muted }]}>{money(amount)}</Text>
     </>
   );
 }
@@ -536,7 +534,6 @@ const styles = StyleSheet.create({
   chevron: { width: dotSize, height: dotSize, marginRight: nameStart - dotSize - priceGap, alignItems: "center", justifyContent: "center" },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   collapsed: { minHeight: 0 },
-  rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart },
   // A full row that overlaps the gap above the Subtotal hairline, so "Add" sits where the last Item's row would.
   add: { marginBottom: -adjustmentsGap },
@@ -547,9 +544,7 @@ const styles = StyleSheet.create({
   // A 44 px tap target that still sits on the 34 px row pitch; the overlap goes to the later row.
   tapRow: { minHeight: tapSize, marginVertical: (layout.adjustmentRow - tapSize) / 2 },
   rowLabel: { flexShrink: 1 },
-  strong: { fontWeight: "500" },
-  // A whole-pixel line height, so the card ends on a whole pixel above the folded sheet.
-  totalText: { fontWeight: "500", lineHeight: 20 },
+  strong: { fontWeight: "600" },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
 });

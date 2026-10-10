@@ -4,7 +4,7 @@ import type { Appearance, Scheme } from "./appearance";
 import { colors } from "./colors";
 import { fallbackMetrics, faces } from "./fonts.generated";
 
-const weights = [400, 500] as const;
+const weights = [400, 600] as const;
 /** A flip of the appearance crossfades the whole page instead of jumping from one brightness to the other. */
 const appearanceFade = 200;
 const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans", "Roboto", "Roboto-Regular"];
