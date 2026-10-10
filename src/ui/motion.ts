@@ -21,7 +21,6 @@ type WebOnly = Partial<
     | "transitionProperty"
     | "transitionDuration"
     | "transitionTimingFunction"
-    | "transitionDelay"
     | "animationDuration"
     | "animationDelay"
     | "animationTimingFunction"

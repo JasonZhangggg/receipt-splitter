@@ -39,42 +39,7 @@ async function join(browser: Browser, link: string, name: string): Promise<Page>
 
 const circle = (page: Page, item: string, name: string) => page.getByRole("button", { name: `${item}, check for ${name}` });
 const note = (page: Page) => page.getByTestId("split-sheet").getByTestId("share-note");
-const bar = (page: Page) => page.getByTestId("split-sheet").getByTestId("claim-bar");
 const owe = (page: Page) => page.getByTestId("owe");
-// Where the share row rests once the sheet has stopped gliding.
-async function top(page: Page): Promise<number> {
-  let last = Number.NaN;
-  for (;;) {
-    const y = (await owe(page).boundingBox())!.y;
-    if (y === last) return y;
-    last = y;
-    await page.waitForTimeout(150);
-  }
-}
-
-test("the bar under the share fills as Items are checked, names what is left to claim, and fades at everything claimed without moving the share row", async ({ browser, request }, { workerIndex }) => {
-  const people = [
-    { id: "jason", name: "Jason" },
-    { id: "sam", name: "Sam" },
-  ];
-  const sam = await join(browser, await createSplit(request, workerIndex, people), "Sam");
-  const sheet = sam.getByTestId("split-sheet");
-  await expect(sheet.getByRole("progressbar", { name: "$44.20 left to claim" })).toHaveAttribute("aria-valuenow", "0", live);
-  await expect(note(sam)).toHaveCount(0);
-  const before = await top(sam);
-
-  await circle(sam, "Pho", "Sam").click();
-  await expect(sheet.getByRole("progressbar", { name: "$30.00 left to claim" })).toHaveAttribute("aria-valuenow", "32", live);
-  await circle(sam, "Wings", "Sam").click();
-  await expect(sheet.getByRole("progressbar", { name: "$16.00 left to claim" })).toBeVisible(live);
-  await circle(sam, "Tea", "Sam").click();
-  await expect(owe(sam)).toHaveText("$44.20", live);
-  await expect(bar(sam)).toHaveAttribute("aria-valuenow", "100");
-  await expect(sheet.getByRole("progressbar")).toHaveCount(0);
-  await expect(bar(sam)).toHaveCSS("opacity", "0");
-  await expect(note(sam)).toHaveCount(0);
-  expect(await top(sam)).toBe(before);
-});
 
 test("the line under a share reads nothing unpaid, Paid, too much, still owed, and the Host's count of who paid them", async ({ browser, request }, { workerIndex }) => {
   const people = [
@@ -90,7 +55,6 @@ test("the line under a share reads nothing unpaid, Paid, too much, still owed, a
   await circle(sam, "Tea", "Sam").click();
   await circle(priya, "Pho", "Priya").click();
   await expect(owe(sam)).toHaveText("$30.00", live);
-  await expect(bar(jason)).toHaveAttribute("aria-valuenow", "100", live);
 
   await expect(note(jason)).toHaveCount(0);
   await jason.getByRole("button", { name: "Priya", exact: true }).click();
@@ -140,7 +104,7 @@ test("a long name's share label and its paid line give way to the amount instead
 test.describe("on desktop", () => {
   test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false });
 
-  test("the pane shows the left-to-claim bar, and its share row keeps its height when the paid line appears", async ({ browser, request }, { workerIndex }) => {
+  test("the pane's share row keeps its height when the paid line appears", async ({ browser, request }, { workerIndex }) => {
     const people = [
       { id: "jason", name: "Jason" },
       { id: "sam", name: "Sam" },
@@ -152,7 +116,7 @@ test.describe("on desktop", () => {
     await expect(pane.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
     const row = pane.getByTestId("share").locator("..");
     await circle(sam, "Pho", "Sam").click();
-    await expect(pane.getByRole("progressbar", { name: "$30.00 left to claim" })).toBeVisible(live);
+    await expect(pane.getByTestId("share")).toHaveText("$14.20", live);
     await expect(pane.getByTestId("share-note")).toHaveCount(0);
     const withoutLine = (await row.boundingBox())!.height;
 

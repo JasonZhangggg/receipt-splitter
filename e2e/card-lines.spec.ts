@@ -51,52 +51,52 @@ async function pick(page: Page, link: string, name: string): Promise<Page> {
 const joinAs = async (browser: Browser, link: string, name: string) => pick(await (await newContext(browser)).newPage(), link, name);
 
 const check = (page: Page, item: string, name: string) => page.getByRole("button", { name: `${item}, check for ${name}` }).click();
-const claimBar = (page: Page) => page.getByTestId("split-sheet").getByTestId("claim-bar");
+const totalLine = (page: Page) => [page.getByTestId("unclaimed-count"), page.getByTestId("unclaimed")] as const;
 
-async function expectLeft(pages: readonly Page[], amount: string) {
+async function expectLine(pages: readonly Page[], label: string, amount: string) {
   for (const page of pages) {
-    if (amount === "$0.00") await expect(claimBar(page)).toHaveAttribute("aria-valuenow", "100", live);
-    else await expect(page.getByTestId("split-sheet").getByRole("progressbar", { name: `${amount} left to claim` })).toBeVisible(live);
+    const [count, figure] = totalLine(page);
+    await expect(count).toHaveText(label, live);
+    await expect(figure).toHaveText(amount, live);
   }
 }
 
-test("the left-to-claim bar counts what nobody fully had, a By amount remainder included, live on both phones, and the card has no Unclaimed line", async ({ browser, request }, { workerIndex }) => {
+test("the Unclaimed total line counts the lines nobody fully had, a quantity line once and a By amount remainder as one, live on both phones", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await joinAs(browser, link, "Sam");
   const priya = await joinAs(browser, link, "Priya");
   const both = [sam, priya] as const;
 
-  await expect(sam.getByTestId("total")).toBeVisible(live);
-  await expect(sam.getByText(/^Unclaimed/)).toHaveCount(0);
+  await expect(sam.getByTestId("unclaimed-count")).toHaveCount(0);
 
   await check(sam, "Rice", "Sam");
-  await expectLeft(both, "$27.50");
+  await expectLine(both, "Unclaimed · 3 items", "$27.50");
 
   await check(priya, "Pitchers", "Priya");
-  await expectLeft(both, "$3.50");
+  await expectLine(both, "Unclaimed · 2 items", "$3.50");
 
   await check(sam, "Tostones", "Sam");
-  await expectLeft(both, "$2.50");
+  await expectLine(both, "Unclaimed · 1 item", "$2.50");
 
   await check(priya, "Sprite", "Priya");
-  await expectLeft(both, "$0.00");
+  await expectLine(both, "Unclaimed", "$0.00");
 
   const sheet = priya.getByRole("dialog", { name: "Item" });
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
   await sheet.getByRole("group", { name: "Split" }).getByRole("button", { name: "By amount", exact: true }).click();
-  await expectLeft(both, "$2.50");
+  await expectLine(both, "Unclaimed · 1 item", "$2.50");
 
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("1.00");
-  await expectLeft(both, "$1.50");
+  await expectLine(both, "Unclaimed · 1 item", "$1.50");
 
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("2.50");
-  await expectLeft(both, "$0.00");
+  await expectLine(both, "Unclaimed", "$0.00");
 });
 
-test("the Your share breakdown says nothing about unclaimed lines while the bar names what is left", async ({ browser, request }, { workerIndex }) => {
+test("the Your share breakdown says nothing about unclaimed lines while the total line counts them", async ({ browser, request }, { workerIndex }) => {
   const sam = await joinAs(browser, await createSplit(request, workerIndex), "Sam");
   await check(sam, "Rice", "Sam");
-  await expectLeft([sam], "$27.50");
+  await expectLine([sam], "Unclaimed · 3 items", "$27.50");
 
   await sam.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
   const breakdown = sam.getByTestId("breakdown");

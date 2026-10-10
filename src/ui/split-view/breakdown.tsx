@@ -2,7 +2,6 @@ import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, ty
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { shareBreakdown, type Shares } from "../../core/shares";
-import type { Cents } from "../../core/money";
 import type { Participant, ParticipantId, Split } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { PressTarget } from "../components/button";
@@ -17,18 +16,13 @@ import { layout, motion, type, useColors } from "../theme";
 import type { FoldTrack } from "./bottom-sheet";
 import { breakdownCharges, breakdownLines } from "./model";
 
-// The left-to-claim bar under the share row: 4 px above it, 2 px of bar, 2 px below.
-const barHeight = 2;
-const barTop = 4;
-const claimRow = barTop + barHeight + 2;
-/** Folded, the phone's sheet shows only the share row and the left-to-claim bar under the chips. */
-export const foldedRow = layout.row + claimRow;
+/** Folded, the phone's sheet shows only the share row under the chips. */
+export const foldedRow = layout.row;
 
 type Fold = { open: boolean; track: FoldTrack; onToggle: () => void };
 
 type Props = {
   split: Split;
-  /** The same Shares the receipt's Total reads, so the left-to-claim line and the Unclaimed line agree. */
   shares: Shares;
   person: Participant;
   viewer: ParticipantId | null;
@@ -44,7 +38,7 @@ const tabular = { fontVariant: ["tabular-nums" as const] };
 const rowGap = 10;
 // From the share amount's baseline box to the pay buttons.
 const payGap = 20;
-const amountSlack = (layout.row - type.total.lineHeight) / 2;
+const amountSlack = (foldedRow - type.total.lineHeight) / 2;
 // The label and its paid line. The label keeps this height with or without the line, so the share row never grows or shrinks as people pay.
 const labelHeight = type.button.lineHeight + type.caption.lineHeight;
 
@@ -59,7 +53,6 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
   const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
   const label = mine ? say.yourShare : say.shareOf(person.name);
   const note = statusWords(shareStatus(shares, split.payments, person.id, viewer));
-  const claimBar = <ClaimBar unclaimed={shares.unclaimed.total} total={split.receipt.total} />;
   const charges = [...adjustments, ...(difference === 0 ? [] : [{ id: "difference", name: say.receiptDifference, portion: difference }])];
 
   const above = (
@@ -92,7 +85,7 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
       </View>
     ) : null;
 
-  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={label} note={note} share={share} claimBar={claimBar} above={above} below={below} />;
+  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={label} note={note} share={share} above={above} below={below} />;
   return (
     <View testID="breakdown" style={styles.shrink}>
       {above}
@@ -102,19 +95,18 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
           {money(share)}
         </Text>
       </View>
-      {claimBar}
       {below}
     </View>
   );
 }
 
-type FoldingProps = { fold: Fold; person: ParticipantId; whose: string | null; label: string; note: string | null; share: number; claimBar: ReactNode; above: ReactNode; below: ReactNode };
+type FoldingProps = { fold: Fold; person: ParticipantId; whose: string | null; label: string; note: string | null; share: number; above: ReactNode; below: ReactNode };
 
 /**
  * The share row is one element in both states. Folded it sits under the chips; open it sits under the list. It moves down the sheet while the sheet rises, so on screen it travels a short way into place,
  * and a cover under it hides the list until the row has passed. The list and the rule fade with the same progress and the pay block over its last tenth, so a drag can stop or turn back at any frame.
  */
-function Folding({ fold, person, whose, label, note, share, claimBar, above, below }: FoldingProps) {
+function Folding({ fold, person, whose, label, note, share, above, below }: FoldingProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const { open, track, onToggle } = fold;
@@ -200,7 +192,6 @@ function Folding({ fold, person, whose, label, note, share, claimBar, above, bel
                 </View>
               )}
             </PressTarget>
-            {claimBar}
           </View>
           <View pointerEvents="none" style={{ height: travel, backgroundColor: c.sheet }} />
           <View ref={rule} style={[styles.rule, styles.hidden, { backgroundColor: c.hairline }]} />
@@ -223,33 +214,6 @@ function ShareLabel({ label, note, noteId }: { label: string; note: string | nul
           {note}
         </Text>
       ) : null}
-    </View>
-  );
-}
-
-/**
- * How much of the Total someone has checked, as a thin bar across the sheet under the share row. Once everything is claimed it fades out after the fill
- * reaches the end, and keeps its room, so nothing under it moves. Coming back, it waits for the fill to shrink first, so no frame shows a full bar.
- */
-function ClaimBar({ unclaimed, total }: { unclaimed: Cents; total: Cents }) {
-  const c = useColors();
-  const reduce = useReducedMotion();
-  const done = unclaimed <= 0 || total <= 0;
-  const claimed = done ? 1 : Math.max(0, 1 - unclaimed / total);
-  return (
-    <View style={styles.claimRow}>
-      <View
-        testID="claim-bar"
-        role="progressbar"
-        aria-label={done ? undefined : say.leftToClaim(money(unclaimed))}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(claimed * 100)}
-        aria-hidden={done}
-        style={[styles.bar, { backgroundColor: c.hairline, opacity: done ? 0 : 1 }, reduce ? barFade : barFadeAfterFill]}
-      >
-        <View style={[styles.fill, { backgroundColor: c.ink, transform: [{ scaleX: claimed }] }, reduce ? null : fillGlide]} />
-      </View>
     </View>
   );
 }
@@ -309,11 +273,6 @@ const contain = webStyle({ overscrollBehavior: "contain" });
 const fadeEdge = 16;
 const edgeFade = webStyle({ maskImage: `linear-gradient(transparent, black ${fadeEdge}px, black calc(100% - ${fadeEdge}px), transparent)` });
 const holdsGesture = webStyle({ touchAction: "none" });
-// The claimed part of the bar grows from its left end as Items are checked.
-const fillGlide = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
-const barFade = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
-// The fill moves before the bar fades out or in.
-const barFadeAfterFill = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut, transitionDelay: "200ms" });
 
 const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
@@ -332,13 +291,10 @@ const styles = StyleSheet.create({
   rowLabel: { flexShrink: 1 },
   total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: rowGap, paddingTop: 14, borderTopWidth: 1 },
   label: { flexShrink: 1, minWidth: 0, minHeight: labelHeight, justifyContent: "center" },
-  claimRow: { height: claimRow, paddingTop: barTop },
-  bar: { height: barHeight, borderRadius: 1, overflow: "hidden" },
-  fill: { height: barHeight, transformOrigin: "left" },
   spacer: { height: rowGap + foldedRow },
   track: { position: "absolute", top: -ringRoom, left: -ringRoom, right: -ringRoom, paddingTop: ringRoom, paddingHorizontal: ringRoom, overflow: "hidden" },
   rule: { position: "absolute", top: 0, left: 0, right: 0, height: 1 },
-  shareRow: { flexDirection: "row", alignItems: "center", height: layout.row, paddingHorizontal: 2 },
+  shareRow: { flexDirection: "row", alignItems: "center", height: foldedRow, paddingHorizontal: 2 },
   amounts: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   chevron: { marginLeft: 4, transform: [{ rotate: "180deg" }] },
 });
