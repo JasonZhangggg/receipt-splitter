@@ -27,7 +27,7 @@ const focusRing = (target: Locator) =>
   });
 
 async function settle(page: Page) {
-  await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Splitwith" })).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
 }
@@ -58,7 +58,7 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
   await expect(appPicker(page)).toHaveValue("venmo");
   await page.locator("#root select").evaluateAll((pickers) => pickers.forEach((picker) => ((picker as HTMLElement).style.display = "none")));
   expect((await page.locator("#root").innerText()).split("\n").filter(Boolean)).toEqual([
-    "Receipt Splitter",
+    "Splitwith",
     "Add receipt",
     "JPEG, PNG, or WebP",
     "V",
@@ -418,7 +418,7 @@ test("the whole upload box sits above the sheet at 375 by 667 with both safe-are
   const fit = async () => {
     const sheet = await sheetOf(action(page));
     const box = (await page.getByText("JPEG, PNG, or WebP", { exact: true }).locator("..").boundingBox())!;
-    const wordmark = (await page.getByRole("heading", { name: "Receipt Splitter" }).boundingBox())!;
+    const wordmark = (await page.getByRole("heading", { name: "Splitwith" }).boundingBox())!;
     const slip = (await hero(page).locator("[data-press-face]").boundingBox())!;
     return { boxAboveSheet: box.y + box.height <= sheet.top, slipBelowHeader: slip.y >= wordmark.y + wordmark.height };
   };
@@ -451,7 +451,7 @@ test("side safe-area insets keep the header and the sheet clear of a landscape n
     const box = (await target.boundingBox())!;
     return [box.x, box.x + box.width];
   };
-  expect((await edges(page.getByRole("heading", { name: "Receipt Splitter" })))[0]).toBe(47 + 22);
+  expect((await edges(page.getByRole("heading", { name: "Splitwith" })))[0]).toBe(47 + 22);
   // The edge icon's box hangs 12 px into the gutter so its glyph lines up with the content.
   const [toggleLeft, toggleRight] = await edges(page.getByRole("button", { name: "Menu", exact: true }));
   expect(toggleRight).toBe(landscape.width - 47 - 22 + 12);
@@ -568,7 +568,7 @@ test("the hero fills the space between the header and the sheet, and the header 
   const layout = async () => {
     const heroBox = (await hero(page).boundingBox())!;
     const sheet = await sheetOf(action(page));
-    const wordmark = (await page.getByRole("heading", { name: "Receipt Splitter" }).boundingBox())!;
+    const wordmark = (await page.getByRole("heading", { name: "Splitwith" }).boundingBox())!;
     return { heroTop: heroBox.y, heroBottom: heroBox.y + heroBox.height, sheetTop: sheet.top, wordmarkTop: wordmark.y };
   };
   await page.goto("/");
@@ -591,7 +591,7 @@ test("Example lines up with the wordmark", async ({ page }) => {
     const box = (await target.boundingBox())!;
     return box.y + box.height / 2;
   };
-  const wordmark = await middle(page.getByRole("heading", { name: "Receipt Splitter" }));
+  const wordmark = await middle(page.getByRole("heading", { name: "Splitwith" }));
   const example = await middle(page.getByText("Example", { exact: true }));
   expect(Math.abs(example - wordmark)).toBeLessThanOrEqual(1);
 });
@@ -844,7 +844,7 @@ for (const { width, colorScheme, reducedMotion } of matrix) {
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Splitwith" })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
 

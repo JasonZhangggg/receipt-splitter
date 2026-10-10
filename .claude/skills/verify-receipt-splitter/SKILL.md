@@ -1,9 +1,9 @@
 ---
 name: verify-receipt-splitter
-description: Launch, check, drive, and tear down the Receipt Splitter website (Expo web export served by wrangler dev) on a port of your choice, then capture screenshots and ARIA snapshots as proof. Use to prove any change to the site's routes or UI works in a real browser, and in every live verification lane.
+description: Launch, check, drive, and tear down the Splitwith website (Expo web export served by wrangler dev) on a port of your choice, then capture screenshots and ARIA snapshots as proof. Use to prove any change to the site's routes or UI works in a real browser, and in every live verification lane.
 ---
 
-# Verify Receipt Splitter
+# Verify Splitwith
 
 The app is an Expo Router website. `npm run build` exports it to `dist/`. `wrangler dev` serves `dist/` as Workers static assets with the SPA fallback, and routes `/api/*` and `/parties/*` to `worker/index.ts`. A user touches the site in a phone browser, so a drive runs Playwright's Chromium with the Pixel 7 profile unless `--width` asks for a desktop width. Drive flags change the viewport size, the color scheme, and the reduced-motion setting.
 

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("home screen loads", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Splitwith" })).toBeVisible();
 });
 
 test("a split link opened first loads the Split page through the SPA fallback", async ({ page }) => {

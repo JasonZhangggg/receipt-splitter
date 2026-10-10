@@ -20,7 +20,7 @@ Preconditions:
 - `verify.mjs doctor --port 8811` reports `"ok":true`.
 - `<out>` is the lane's output folder, as defined in [README.md](./README.md). Without one, it is `/tmp/verify-receipt-splitter/8811/`.
 
-- **Home.** Open `/`. Run `verify.mjs drive --port 8811 --path / --expect-heading "Receipt Splitter" --shot <out>/routes-home.png`. The JSON line has `"ok":true` and the screenshot shows the `Receipt Splitter` heading.
+- **Home.** Open `/`. Run `verify.mjs drive --port 8811 --path / --expect-heading "Splitwith" --shot <out>/routes-home.png`. The JSON line has `"ok":true` and the screenshot shows the `Splitwith` heading.
 - **Split link.** Open `/s/abc` as the first page. Run `verify.mjs drive --port 8811 --path /s/abc --expect-heading "This split has expired" --shot <out>/routes-split.png --aria <out>/routes-split.aria.txt`. The JSON line has `"ok":true`, and the ARIA snapshot has the heading `This split has expired`.
 - **Deep-link fallback.** The Split link drive above fails on any status other than 200, so it also proves `routes-deep-link`. `verify.mjs doctor` checks the same fallback on `/s/doctor`.
 

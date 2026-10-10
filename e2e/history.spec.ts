@@ -35,7 +35,7 @@ async function seed(page: Page, splits: Stored[]) {
     for (const { id, names, total, added, seen } of splits) localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { names, total, added, seen: seen ?? added } }));
   }, splits);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Splitwith" })).toBeVisible();
 }
 
 const icon = (page: Page) => menuButton(page);
@@ -231,7 +231,7 @@ const blockStorage = (page: Page) =>
 test("home renders with blocked storage", async ({ page }) => {
   await blockStorage(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Receipt Splitter" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Splitwith" })).toBeVisible();
   await expect(action(page)).toBeVisible();
 });
 

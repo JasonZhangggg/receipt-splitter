@@ -1,6 +1,6 @@
-# Receipt Splitter verification map
+# Splitwith verification map
 
-This folder is the maintained source for verifying what a user can do on the Receipt Splitter website. Read this index before driving the app, then use the matching feature file as the recipe.
+This folder is the maintained source for verifying what a user can do on the Splitwith website. Read this index before driving the app, then use the matching feature file as the recipe.
 
 ## Baseline preconditions
 

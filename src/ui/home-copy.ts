@@ -5,7 +5,7 @@ import type { Scheme } from "./appearance";
 import type { ReadingStage } from "./receipt-input/reading";
 
 export const copy = {
-  wordmark: "Receipt Splitter",
+  wordmark: "Splitwith",
   example: "Example",
   hero: {
     phone: { title: "Add receipt", hint: null },
@@ -99,7 +99,7 @@ export const joinCopy = {
   atTheTable: "At the table",
   newSplit: "Split a receipt",
   /** The Split page's wordmark opens a fresh home; its name starts with the visible wordmark (WCAG 2.5.3). */
-  wordmarkHome: "Receipt Splitter, split a receipt",
+  wordmarkHome: "Splitwith, split a receipt",
   expired: { title: "This split has expired", hint: "A split lasts 60 days after its last change." },
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
