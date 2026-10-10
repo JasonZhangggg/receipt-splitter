@@ -351,7 +351,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
               {peopleNote}
             </View>
             <Swap view={selectedPerson.id} style={styles.shrink}>
-              <Breakdown split={split} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} edge={paneEdge} />
+              <Breakdown split={split} shares={shares} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} edge={paneEdge} />
               {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
             </Swap>
           </View>
@@ -401,6 +401,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         <>
           <Breakdown
             split={split}
+            shares={shares}
             person={shown}
             viewer={bar.me}
             onPaid={(paid) => void markPaid(bar.me, paid)}

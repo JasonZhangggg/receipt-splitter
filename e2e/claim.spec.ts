@@ -228,7 +228,7 @@ test("a breakdown counts a 2x line as 1 item, as a Bundle header counts it", asy
   await expect(priya.getByTestId("breakdown").getByText("2 items", { exact: true })).toBeVisible(live);
 });
 
-test("the payer marks themselves paid, and another browser sees Paid on their breakdown", async ({ browser, request }, { workerIndex }) => {
+test("the payer marks themselves paid, and another browser sees Paid $2.50 under their share", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const priya = await open(browser, link);
   const sam = await open(browser, link);
@@ -239,13 +239,12 @@ test("the payer marks themselves paid, and another browser sees Paid on their br
 
   await owe(priya).click();
   await priya.getByRole("button", { name: "I already paid" }).click();
-  await expect(priya.getByTestId("breakdown").getByText("Paid", { exact: true })).toBeVisible(live);
+  await expect(priya.getByTestId("split-sheet").getByTestId("share-note")).toHaveText("Paid $2.50", live);
   await expect(priya.getByRole("button", { name: "I haven't paid" })).toBeVisible();
 
   await sam.getByRole("button", { name: "Priya, paid", exact: true }).click();
   await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
-  await expect(sam.getByTestId("breakdown").getByText("Paid", { exact: true })).toBeVisible(live);
-  await expect(sam.getByText("Priya paid")).toBeVisible(live);
+  await expect(sam.getByTestId("split-sheet").getByTestId("share-note")).toHaveText("Paid $2.50", live);
 });
 
 test("someone who owes $0.00 sees no Pay button and no I already paid, and both appear once they check a line", async ({ browser, request }, { workerIndex }) => {

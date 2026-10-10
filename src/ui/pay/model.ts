@@ -17,12 +17,40 @@ export function payState(share: Cents, paid: Cents | null): PayState {
   return paid > share ? { kind: "over", paid, back: cents(paid - share) } : { kind: "short", paid, rest: cents(share - paid) };
 }
 
-export type Viewer = "payer" | "host" | "other";
+/**
+ * What the line under a share says: the shown person's PayState, or for the Host on their own share how many of the people who owe something have paid
+ * in full (settled or over), out of how many owe something. `started` is whether anyone has paid anything, short included.
+ */
+export type ShareStatus = PayState | { readonly kind: "host"; readonly paid: number; readonly of: number; readonly started: boolean };
 
-export function differenceNote(state: PayState, viewer: Viewer, payer: string, host: string): string | null {
-  if (state.kind === "over") return say.paidOver(viewer, payer, host, money(state.paid), money(state.back));
-  if (state.kind === "short") return say.paidShort(viewer, payer, money(state.paid), money(state.rest));
-  return null;
+export function shareStatus(shares: Shares, payments: Split["payments"], person: ParticipantId, viewer: ParticipantId | null): ShareStatus {
+  const [host, ...others] = shares.shares;
+  const stateOf = (id: ParticipantId, share: Cents) => payState(share, payments.find((payment) => payment.participantId === id)?.amount ?? null);
+  if (person !== host.participantId) {
+    const row = others.find(({ participantId }) => participantId === person);
+    return row ? stateOf(person, row.share) : { kind: "nothing" };
+  }
+  if (viewer !== host.participantId) return { kind: "nothing" };
+  const states = others.map(({ participantId, share }) => stateOf(participantId, share)).filter(({ kind }) => kind !== "nothing");
+  const paid = states.filter(({ kind }) => kind === "settled" || kind === "over").length;
+  return { kind: "host", paid, of: states.length, started: paid > 0 || states.some(({ kind }) => kind === "short") };
+}
+
+/** Quiet by default: nothing until someone has paid. */
+export function statusWords(status: ShareStatus): string | null {
+  switch (status.kind) {
+    case "nothing":
+    case "unpaid":
+      return null;
+    case "settled":
+      return say.status.paid(money(status.paid));
+    case "short":
+      return say.status.short(money(status.paid), money(status.rest));
+    case "over":
+      return say.status.over(money(status.paid), money(status.back));
+    case "host":
+      return status.started ? say.status.paidYou(status.paid, status.of) : null;
+  }
 }
 
 /** "short" and "over" both draw "!" on the chip: they paid, and their share has moved since. */
