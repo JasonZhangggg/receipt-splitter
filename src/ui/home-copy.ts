@@ -19,9 +19,9 @@ export const copy = {
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
   pastedPhoto: "Pasted photo",
+  formats: "JPEG, PNG, or WebP",
   paymentApp: "Payment app",
-  addApp: "Add another payment app",
-  payLabel: "How people pay you",
+  addApp: "Another way to get paid",
   people: "People at the table",
   you: "you",
   addName: { label: "Add", name: "Add a name" },
@@ -134,6 +134,6 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, phone.title, desktop.title, desktop.hint, copy.payLabel, copy.people, paymentApps.venmo.name],
+  400: [copy.example, phone.title, desktop.title, desktop.hint, copy.formats, copy.people, copy.addApp, paymentApps.venmo.name],
   500: [copy.wordmark, paymentApps.venmo.glyph, copy.addYourName, copy.action],
 };

@@ -360,7 +360,7 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
   await openExample(page);
   await page.getByRole("combobox", { name: "Payment app" }).selectOption("cashApp");
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveAttribute("placeholder", "$cashtag");
-  await page.getByRole("button", { name: "Add another payment app" }).click();
+  await page.getByRole("button", { name: "Another way to get paid" }).click();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
   for (const name of ["Jason", "Sam", "Priya"]) await addName(page, name);
   await page.getByRole("button", { name: "Remove Sam" }).click();
@@ -435,7 +435,7 @@ test.describe("the sheet", () => {
   test("a tall sheet scrolls its own content and keeps the action on screen", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/");
-    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Add another payment app" }).click();
+    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Another way to get paid" }).click();
     for (const name of ["Jason", "Sam", "Priya", "Lee", "Ana", "Jo", "Kai"]) await addName(page, name);
     const scrolls = await page.locator("[data-sheet-surface]").evaluate((sheet) =>
       [...sheet.querySelectorAll("div")].some((el) => getComputedStyle(el).overflowY === "auto" && el.scrollHeight > el.clientHeight),

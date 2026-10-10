@@ -175,10 +175,7 @@ export default function Home() {
   );
   const details = (
     <>
-      <View style={styles.part}>
-        <Text style={[type.caption, styles.partLabel, { color: c.muted }]}>{copy.payLabel}</Text>
-        <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} outsideScroll={!wide} />
-      </View>
+      <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} outsideScroll={!wide} />
       <View style={styles.part}>
         <Text style={[type.caption, styles.partLabel, { color: c.muted }]}>{copy.people}</Text>
         <NameChips ref={nameField} names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
@@ -200,6 +197,7 @@ export default function Home() {
             <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact || (wide && !roomy)} />
             <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
             {hero.hint ? <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text> : null}
+            <Text style={[type.caption, { color: c.muted }]}>{copy.formats}</Text>
           </View>
         )}
       </PressTarget>
@@ -266,7 +264,7 @@ const still = webStyle({ overflow: "clip" });
 
 const wideHeader = 76;
 
-const shortScreen = 700;
+const shortScreen = 800;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

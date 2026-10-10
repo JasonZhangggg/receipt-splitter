@@ -205,11 +205,11 @@ for (const height of [844, 740]) {
   });
 }
 
-test("at 390 by 700 the dashed Add receipt box stays at its 332 px floor with 44 px above and at least 16 px clear of the panel", async ({ page }) => {
+test("at 390 by 700 the dashed Add receipt box stays at its 248 px floor with 44 px above and at least 16 px clear of the panel", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 700 });
   await seed(page, [jason]);
   const { aboveBox, belowBox, height } = await dashedBox(page);
-  expect(height).toBe(332);
+  expect(height).toBe(248);
   expect(aboveBox).toBe(44);
   expect(belowBox).toBeGreaterThanOrEqual(16);
 });
