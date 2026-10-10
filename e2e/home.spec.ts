@@ -60,9 +60,10 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
   expect((await page.locator("#root").innerText()).split("\n").filter(Boolean)).toEqual([
     "Receipt Splitter",
     "Add receipt",
-    "JPEG, PNG, or WebP",
+    "How people pay you",
     "V",
     "Venmo",
+    "People at the table",
     "Your name",
     "Create split link",
   ]);
@@ -387,12 +388,12 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 
-test("the sheet stands 247 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
+test("the sheet stands 293 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const sheet = await sheetOf(action(page));
   expect(sheet.top + sheet.height).toBe(phone.height);
-  expect(sheet.height).toBe(247);
+  expect(sheet.height).toBe(293);
 });
 
 test("the camera button and Add receipt sit fully above the sheet at 375 by 667", async ({ page }) => {
@@ -417,7 +418,7 @@ test("the whole upload box sits above the sheet at 375 by 667 with both safe-are
   await settle(page);
   const fit = async () => {
     const sheet = await sheetOf(action(page));
-    const box = (await page.getByText("JPEG, PNG, or WebP", { exact: true }).locator("..").boundingBox())!;
+    const box = (await page.getByText("Add receipt", { exact: true }).locator("..").boundingBox())!;
     const wordmark = (await page.getByRole("heading", { name: "Receipt Splitter" }).boundingBox())!;
     const slip = (await hero(page).locator("[data-press-face]").boundingBox())!;
     return { boxAboveSheet: box.y + box.height <= sheet.top, slipBelowHeader: slip.y >= wordmark.y + wordmark.height };
@@ -437,7 +438,7 @@ test("the sheet lifts its content by the bottom safe-area inset", async ({ page 
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
   await page.reload();
   await expect.poll(gapBelowAction).toBe(flush + 34);
-  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(281);
+  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(327);
 });
 
 test("side safe-area insets keep the header and the sheet clear of a landscape notch", async ({ page }) => {
@@ -480,7 +481,7 @@ for (const width of [1024, 1440]) {
     expect([pay.left, pay.width]).toEqual([zone.left, zone.width]);
     expect([create.left, create.width]).toEqual([zone.left, zone.width]);
     await expect(page.locator("[data-sheet]")).toHaveCount(0);
-    expect(await hero(page).innerText()).toBe("Drop a receipt\nChoose a photo, or paste one\nJPEG, PNG, or WebP");
+    expect(await hero(page).innerText()).toBe("Drop a receipt\nChoose a photo, or paste one");
   });
 }
 
@@ -639,6 +640,22 @@ test("names go in by keyboard alone: Enter adds the chip and leaves a fresh fiel
   const next = page.getByRole("textbox", { name: "Name", exact: true });
   await expect(next).toBeFocused();
   await expect(next).toHaveValue("");
+});
+
+test("the panel labels its payment rows and its names, and marks the Host's chip \"you\"", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await expect(page.getByText("How people pay you", { exact: true })).toBeVisible();
+  await expect(page.getByText("People at the table", { exact: true })).toBeVisible();
+  const people = page.getByRole("group", { name: "People at the table" });
+  await people.getByRole("button", { name: "Your name" }).click();
+  for (const name of ["Jason", "Sam"]) {
+    await page.keyboard.type(name);
+    await page.keyboard.press("Enter");
+  }
+  await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(2);
+  const chips = people.getByText(/^(Jason|Sam)/);
+  expect(await chips.evaluateAll((els) => els.map((el) => el.parentElement!.innerText.replace(/\s+/g, " ").trim()))).toEqual(["Jason you", "Sam"]);
 });
 
 test("the handle placeholder fits its field at 320 px", async ({ page }) => {
@@ -866,8 +883,8 @@ const componentHarness = `
     <SafeAreaProvider>
       <View style={{ width: 350, padding: 20, gap: 16 }}>
         <Button label="Create split link" onPress={() => window.presses++} reason="Items are $0.50 short." />
-        <ReceiptSummary name="IMG_4127.jpg" items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
-        <ReceiptSummary name="Example receipt" items={1} total={1599} thumbnail={null} onReplace={() => {}} stacked />
+        <ReceiptSummary items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
+        <ReceiptSummary items={1} total={1599} thumbnail={null} onReplace={() => {}} stacked />
       </View>
     </SafeAreaProvider>,
   );
@@ -909,13 +926,13 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
-test("the receipt card shows the file name, the item count, and the total, and opens the photo only when there is one", async ({ page }) => {
+test("the receipt card leads with the total over the item count, and opens the photo only when there is one", async ({ page }) => {
   await mountHarness(page, componentHarness);
   const cards = page.getByTestId("receipt");
   await expect(cards).toHaveCount(2);
   expect(await cards.evaluateAll((els) => els.map((el) => (el as HTMLElement).innerText.split("\n").filter(Boolean)))).toEqual([
-    ["IMG_4127.jpg", "5 items", "$28.04", "Total"],
-    ["Example receipt", "1 item", "$15.99"],
+    ["$28.04", "5 items"],
+    ["$15.99", "1 item"],
   ]);
   await expect(page.getByRole("button", { name: "View receipt photo" })).toHaveCount(1);
   await page.getByRole("button", { name: "View receipt photo" }).click();

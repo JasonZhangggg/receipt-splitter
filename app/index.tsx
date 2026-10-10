@@ -175,8 +175,14 @@ export default function Home() {
   );
   const details = (
     <>
-      <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} outsideScroll={!wide} />
-      <NameChips ref={nameField} names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
+      <View style={styles.part}>
+        <Text style={[type.caption, styles.partLabel, { color: c.muted }]}>{copy.payLabel}</Text>
+        <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} outsideScroll={!wide} />
+      </View>
+      <View style={styles.part}>
+        <Text style={[type.caption, styles.partLabel, { color: c.muted }]}>{copy.people}</Text>
+        <NameChips ref={nameField} names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
+      </View>
     </>
   );
 
@@ -194,7 +200,6 @@ export default function Home() {
             <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact || (wide && !roomy)} />
             <Text style={[type.hero, { color: c.ink }]}>{hero.title}</Text>
             {hero.hint ? <Text style={[type.secondary, { color: c.muted }]}>{hero.hint}</Text> : null}
-            <Text style={[type.caption, { color: c.muted }]}>{copy.formats}</Text>
           </View>
         )}
       </PressTarget>
@@ -206,7 +211,6 @@ export default function Home() {
       <View style={[!wide && [styles.hero, sides], styles.stack]}>
         <View style={[styles.cardColumn, !wide && styles.ticketColumn]}>
           <ReceiptSummary
-            name={scan.file.name}
             items={scan.receipt?.items.length ?? 0}
             total={scan.receipt?.total ?? cents(0)}
             thumbnail={scan.file.thumbnail}
@@ -275,7 +279,7 @@ const styles = StyleSheet.create({
   reading: { borderColor: "transparent" },
   drop: { alignItems: "center", gap: 6 },
   dashed: { alignSelf: "stretch", paddingVertical: 28, paddingHorizontal: 16, borderRadius: 28, borderWidth: 2, borderStyle: "dashed" },
-  dropCompact: { paddingVertical: 14 },
+  dropCompact: { paddingVertical: 6 },
   fills: { paddingTop: 44, paddingBottom: 48 },
   dropFills: { flexGrow: 1, justifyContent: "center" },
   stack: { alignSelf: "stretch" },
@@ -283,5 +287,7 @@ const styles = StyleSheet.create({
   ticketColumn: { maxWidth: 440 },
   center: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   column: { width: "100%", gap: layout.blockGap },
+  part: { gap: 6 },
+  partLabel: { paddingHorizontal: 4 },
   wideAction: { paddingTop: layout.blockGap },
 });

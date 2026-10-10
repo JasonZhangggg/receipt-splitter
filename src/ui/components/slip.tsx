@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   compact: {
     transform: [{ scale: compactScale }],
     marginTop: -compactTrim,
-    marginBottom: -compactTrim - 12,
+    marginBottom: -compactTrim - 20,
   },
   lines: { position: "absolute", top: 26, left: 24, right: 24, gap: 11 },
   line: { height: 5, borderRadius: 3 },

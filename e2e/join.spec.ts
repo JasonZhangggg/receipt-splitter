@@ -126,13 +126,13 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
 
   await page.goBack();
-  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
   const people = page.getByRole("group", { name: "People at the table" });
   await expect(people.getByText("Jason", { exact: true })).toHaveCount(0);
   await expect(people.getByText("Lee", { exact: true })).toHaveCount(0);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
 
   await lee.reload();
@@ -150,7 +150,7 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
   await expect(page.getByRole("group", { name: "People at the table" }).getByText("Jason", { exact: true })).toHaveCount(0);
 
@@ -166,7 +166,7 @@ test("a reload of home clears the receipt and the names, and the kept Venmo hand
   await expect(people.getByText("Sam", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "Add receipt JPEG, PNG, or WebP" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
   await expect(page.getByTestId("receipt")).toHaveCount(0);
   await expect(people.getByText("Jason", { exact: true })).toHaveCount(0);
@@ -233,7 +233,7 @@ test("a receipt replaced while the link is being created stays on home and finis
 
   await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
   await page.goBack();
-  await expect(page.getByText("srd-1040-no-sprite.jpg")).toBeVisible(linkTimeout);
+  await expect(page.getByText("0 items")).toBeVisible(linkTimeout);
   await expect(page.getByText("Reading receipt")).toHaveCount(0);
 });
 

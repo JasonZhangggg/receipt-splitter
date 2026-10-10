@@ -34,9 +34,10 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll, ref }: Props)
   };
   return (
     <View role="group" aria-label={copy.people} style={styles.row}>
-      {names.map((name) => (
+      {names.map((name, index) => (
         <View key={name} style={[styles.chip, onRemove && styles.named, { backgroundColor: c.sheetIn }]}>
           <Text style={[type.label, { color: c.ink }]}>{name}</Text>
+          {index === 0 ? <Text style={[type.caption, styles.you, { color: c.ink }]}>{copy.you}</Text> : null}
           {onRemove ? (
             <Button
               kind="icon"
@@ -135,6 +136,7 @@ function afterPress(pressing: boolean, run: () => void) {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", gap: layout.pairGap },
   chip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: "center" },
+  you: { opacity: 0.7, marginLeft: 6 },
   named: { flexDirection: "row", alignItems: "center", paddingRight: 0 },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
   refusalLine: { flexBasis: "100%" },
