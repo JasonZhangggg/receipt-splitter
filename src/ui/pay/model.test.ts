@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { differenceNote, payState, paymentStatus } from "./model";
+import { payState, paymentStatus, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -23,35 +23,46 @@ describe("payState", () => {
   });
 });
 
-describe("differenceNote", () => {
-  const over = payState(cents(1400), cents(2200));
-  const short = payState(cents(2600), cents(2200));
+describe("shareStatus and statusWords", () => {
+  const shares = {
+    shares: [
+      { participantId: "jason", share: cents(8436) },
+      { participantId: "sam", share: cents(5347), paid: cents(10694), owed: cents(-5347) },
+      { participantId: "priya", share: cents(931), paid: cents(931), owed: cents(0) },
+      { participantId: "lee", share: cents(5347), paid: cents(4000), owed: cents(1347) },
+      { participantId: "kim", share: cents(10694), paid: cents(0), owed: cents(10694) },
+      { participantId: "ana", share: cents(0), paid: cents(0), owed: cents(0) },
+    ],
+    unclaimed: { itemIds: [], total: cents(0) },
+  } as unknown as Shares;
+  const payments = [
+    { participantId: "sam", amount: cents(10694) },
+    { participantId: "priya", amount: cents(931) },
+    { participantId: "lee", amount: cents(4000) },
+  ] as unknown as Split["payments"];
+  const words = (person: string, viewer: string, paid = payments) => statusWords(shareStatus(shares, paid, participantId(person), participantId(viewer)));
 
-  test("tells the payer, the Host, and anyone else what the Host owes back", () => {
-    expect([differenceNote(over, "payer", "Sam", "Jason"), differenceNote(over, "host", "Sam", "Jason"), differenceNote(over, "other", "Sam", "Jason")]).toEqual([
-      "You paid $22.00. Jason owes you $8.00.",
-      "Sam paid $22.00. You owe Sam $8.00.",
-      "Sam paid $22.00. Jason owes Sam $8.00.",
-    ]);
-  });
-
-  test("groups amounts of $1,000 and up by thousands", () => {
-    expect(differenceNote(payState(cents(100_000), cents(123_456)), "payer", "Sam", "Jason")).toBe("You paid $1,234.56. Jason owes you $234.56.");
-    expect(differenceNote(payState(cents(10_099_999), cents(99_999)), "other", "Sam", "Jason")).toBe("Sam paid $999.99 and owes $100,000.00 more.");
-  });
-
-  test("tells the payer and everyone else what is still owed", () => {
-    expect([differenceNote(short, "payer", "Sam", "Jason"), differenceNote(short, "host", "Sam", "Jason"), differenceNote(short, "other", "Sam", "Jason")]).toEqual([
-      "You paid $22.00. You owe $4.00 more.",
-      "Sam paid $22.00 and owes $4.00 more.",
-      "Sam paid $22.00 and owes $4.00 more.",
-    ]);
-  });
-
-  test("says nothing when the Payment matches the Share, and the over line once it doesn't", () => {
-    expect([differenceNote(payState(cents(2200), cents(2200)), "payer", "Sam", "Jason"), differenceNote(payState(cents(2100), cents(2200)), "payer", "Sam", "Jason")]).toEqual([
+  test("says nothing before a payment, then what was paid and how far off it is", () => {
+    expect([words("kim", "jason"), words("ana", "jason"), words("priya", "jason"), words("lee", "lee"), words("sam", "priya")]).toEqual([
       null,
-      "You paid $22.00. Jason owes you $1.00.",
+      null,
+      "Paid $9.31",
+      "Paid $40.00 · $13.47 still owed",
+      "Paid $106.94 · $53.47 too much",
+    ]);
+  });
+
+  test("counts for the Host who has paid them out of everyone who owes something, settled and overpaid as paid", () => {
+    expect(shareStatus(shares, payments, participantId("jason"), participantId("jason"))).toEqual({ kind: "host", paid: 2, of: 4, started: true });
+    expect(words("jason", "jason")).toBe("2 of 4 paid you");
+  });
+
+  test("stays quiet for the Host before anyone pays, counts from the first payment even a short one, and says nothing on the Host's share seen from another phone", () => {
+    expect([words("jason", "jason", []), words("jason", "jason", payments.slice(2)), words("jason", "jason", payments.slice(1, 2)), words("jason", "sam")]).toEqual([
+      null,
+      "0 of 4 paid you",
+      "1 of 4 paid you",
+      null,
     ]);
   });
 });
@@ -76,6 +87,12 @@ describe("paymentStatus", () => {
       ["Lee", 500, "over", "Paid $8.00 · $3.00 too much"],
       ["Zoe", 0, "nothing", "Nothing to pay"],
     ]);
+  });
+
+  test("words settled, short and over exactly as the line under the share does", () => {
+    const rows = paymentStatus({ participants, payments }, mixed, jason).rows;
+    const line = (person: (typeof people)[number]) => statusWords(shareStatus(mixed, payments, person, jason));
+    expect([sam, priya, lee].map((id) => rows.find((row) => row.id === id)?.words)).toEqual([sam, priya, lee].map(line));
   });
 
   test("counts the people paid in full (settled or over, not short) out of the people who owe or paid, never the Host, and a $0 share owes nobody", () => {

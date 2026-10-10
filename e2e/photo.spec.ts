@@ -66,7 +66,7 @@ async function scanAndCreate(page: Page) {
 
 async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
-  await page.getByRole("button", { name: "Your name" }).click();
+  await page.getByRole("button", { name: "Add name" }).click();
   await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Create split link" }).click();

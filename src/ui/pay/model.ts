@@ -17,12 +17,40 @@ export function payState(share: Cents, paid: Cents | null): PayState {
   return paid > share ? { kind: "over", paid, back: cents(paid - share) } : { kind: "short", paid, rest: cents(share - paid) };
 }
 
-export type Viewer = "payer" | "host" | "other";
+/**
+ * What the line under a share says: the shown person's PayState, or for the Host on their own share how many of the people who owe something have paid
+ * in full (settled or over), out of how many owe something. `started` is whether anyone has paid anything, short included.
+ */
+export type ShareStatus = PayState | { readonly kind: "host"; readonly paid: number; readonly of: number; readonly started: boolean };
 
-export function differenceNote(state: PayState, viewer: Viewer, payer: string, host: string): string | null {
-  if (state.kind === "over") return say.paidOver(viewer, payer, host, money(state.paid), money(state.back));
-  if (state.kind === "short") return say.paidShort(viewer, payer, money(state.paid), money(state.rest));
-  return null;
+export function shareStatus(shares: Shares, payments: Split["payments"], person: ParticipantId, viewer: ParticipantId | null): ShareStatus {
+  const [host, ...others] = shares.shares;
+  const stateOf = (id: ParticipantId, share: Cents) => payState(share, payments.find((payment) => payment.participantId === id)?.amount ?? null);
+  if (person !== host.participantId) {
+    const row = others.find(({ participantId }) => participantId === person);
+    return row ? stateOf(person, row.share) : { kind: "nothing" };
+  }
+  if (viewer !== host.participantId) return { kind: "nothing" };
+  const states = others.map(({ participantId, share }) => stateOf(participantId, share)).filter(({ kind }) => kind !== "nothing");
+  const paid = states.filter(({ kind }) => kind === "settled" || kind === "over").length;
+  return { kind: "host", paid, of: states.length, started: paid > 0 || states.some(({ kind }) => kind === "short") };
+}
+
+/** The one wording for a paid state: null while quiet (nothing or unpaid), so the line under a share stays empty and a Payments row falls back to its own words. */
+export function statusWords(status: ShareStatus): string | null {
+  switch (status.kind) {
+    case "nothing":
+    case "unpaid":
+      return null;
+    case "settled":
+      return say.status.paid(money(status.paid));
+    case "short":
+      return say.status.short(money(status.paid), money(status.rest));
+    case "over":
+      return say.status.over(money(status.paid), money(status.back));
+    case "host":
+      return status.started ? say.status.paidYou(status.paid, status.of) : null;
+  }
 }
 
 export type PaymentRow = {
@@ -46,21 +74,6 @@ export type PaymentStatus = {
   readonly summary: string | null;
 };
 
-const stateWords = (state: PayState): string => {
-  switch (state.kind) {
-    case "settled":
-      return `Paid ${money(state.paid)}`;
-    case "short":
-      return `Paid ${money(state.paid)} · ${money(state.rest)} still owed`;
-    case "over":
-      return `Paid ${money(state.paid)} · ${money(state.back)} too much`;
-    case "unpaid":
-      return "Not paid";
-    case "nothing":
-      return "Nothing to pay";
-  }
-};
-
 /** Everyone in chip order with their share and paid state in words. */
 export function paymentStatus(split: Pick<Split, "participants" | "payments">, shares: Shares, viewer: ParticipantId | null): PaymentStatus {
   const host = split.participants[0];
@@ -72,7 +85,7 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments">, s
     const state = payState(share, split.payments.find((payment) => payment.participantId === id)?.amount ?? null);
     if (state.kind !== "nothing") owing += 1;
     if (state.kind === "settled" || state.kind === "over") paid += 1;
-    return { id, name, isHost: false, share, state: state.kind, words: stateWords(state) };
+    return { id, name, isHost: false, share, state: state.kind, words: statusWords(state) ?? (state.kind === "unpaid" ? say.status.unpaid : say.status.nothing) };
   });
   const summary = owing === 0 ? null : `${paid} of ${owing} paid${viewer === host.id ? " you" : ""}`;
   return { rows, paid, owing, summary };

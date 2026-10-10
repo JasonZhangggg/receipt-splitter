@@ -4,6 +4,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { copy } from "../home-copy";
 import { layout, type, useColors } from "../theme";
 import { Button } from "./button";
+import { Icon } from "./icon";
 import { focusInPlace } from "./keyboard-lift";
 
 type Props = {
@@ -34,9 +35,14 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll, ref }: Props)
   };
   return (
     <View role="group" aria-label={copy.people} style={styles.row}>
-      {names.map((name) => (
+      {names.map((name, index) => (
         <View key={name} style={[styles.chip, onRemove && styles.named, { backgroundColor: c.sheetIn }]}>
           <Text style={[type.label, { color: c.ink }]}>{name}</Text>
+          {index === 0 ? (
+            <View role="img" aria-label={copy.you} style={styles.you}>
+              <Icon name="person" size={13} color={c.ink} />
+            </View>
+          ) : null}
           {onRemove ? (
             <Button
               kind="icon"
@@ -135,6 +141,7 @@ function afterPress(pressing: boolean, run: () => void) {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", gap: layout.pairGap },
   chip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: "center" },
+  you: { opacity: 0.7, marginLeft: 6, justifyContent: "center" },
   named: { flexDirection: "row", alignItems: "center", paddingRight: 0 },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
   refusalLine: { flexBasis: "100%" },

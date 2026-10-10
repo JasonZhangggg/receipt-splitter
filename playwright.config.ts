@@ -17,7 +17,7 @@ export default defineConfig({
     {
       name: "mobile-safari",
       use: { ...devices["iPhone 15"] },
-      testMatch: ["sheet.spec.ts", "add-item.spec.ts", "adjustments.spec.ts", "claim.spec.ts", "motion.spec.ts", "flash.spec.ts", "photo.spec.ts", "home-pan.spec.ts", "focus-return.spec.ts", "people.spec.ts", "theme.spec.ts"],
+      testMatch: ["sheet.spec.ts", "add-item.spec.ts", "adjustments.spec.ts", "claim.spec.ts", "motion.spec.ts", "flash.spec.ts", "photo.spec.ts", "home-pan.spec.ts", "focus-return.spec.ts", "people.spec.ts", "theme.spec.ts", "share-note.spec.ts"],
       grepInvert: process.platform === "linux" ? /@frame-timing/ : undefined,
     },
   ],

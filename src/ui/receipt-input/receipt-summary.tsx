@@ -9,7 +9,6 @@ import { pressStyle, useReducedMotion } from "../motion";
 import { layout, type, useColors } from "../theme";
 
 type Props = {
-  name: string;
   items: number;
   total: Cents;
   thumbnail: string | null;
@@ -20,7 +19,7 @@ type Props = {
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 
-export function ReceiptSummary({ name, items, total, thumbnail, onView, onReplace, stacked = false }: Props) {
+export function ReceiptSummary({ items, total, thumbnail, onView, onReplace, stacked = false }: Props) {
   const c = useColors();
   const count = `${items} ${items === 1 ? "item" : "items"}`;
   const amount = money(total);
@@ -31,11 +30,8 @@ export function ReceiptSummary({ name, items, total, thumbnail, onView, onReplac
       <View testID="receipt" style={[styles.ticket, { backgroundColor: c.paper }]}>
         <View style={styles.ticketReplace}>{replace}</View>
         {thumb}
-        <Text numberOfLines={1} style={[type.title, styles.ticketName, { color: c.ink }]}>
-          {name}
-        </Text>
-        <Text style={[type.caption, { color: c.muted }]}>{count}</Text>
         <Text style={[type.total, tabular, styles.ticketTotal, { color: c.ink }]}>{amount}</Text>
+        <Text style={[type.caption, { color: c.muted }]}>{count}</Text>
       </View>
     );
   }
@@ -43,21 +39,15 @@ export function ReceiptSummary({ name, items, total, thumbnail, onView, onReplac
     <View testID="receipt" style={[styles.row, { backgroundColor: c.paper }]}>
       {thumb}
       <View style={styles.meta}>
-        <Text numberOfLines={1} style={[type.title, { color: c.ink }]}>
-          {name}
-        </Text>
-        <Text style={[type.caption, { color: c.muted }]}>{count}</Text>
-      </View>
-      <View style={styles.total}>
         <Text style={[type.title, tabular, { color: c.ink }]}>{amount}</Text>
-        <Text style={[type.caption, { color: c.muted }]}>{copy.total}</Text>
+        <Text style={[type.caption, { color: c.muted }]}>{count}</Text>
       </View>
       {replace}
     </View>
   );
 }
 
-const sizes = { row: { width: 52, height: 64, radius: 10 }, stacked: { width: 116, height: 148, radius: 14 } };
+const sizes = { row: { width: 52, height: 64, radius: 10 }, stacked: { width: 100, height: 128, radius: 14 } };
 
 function Thumbnail({ thumbnail, onView, size }: { thumbnail: string | null; onView?: () => void; size: (typeof sizes)["row"] }) {
   const c = useColors();
@@ -88,11 +78,9 @@ function Thumbnail({ thumbnail, onView, size }: { thumbnail: string | null; onVi
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, paddingLeft: 12, paddingRight: 4, borderRadius: 20 },
   meta: { flex: 1, minWidth: 0 },
-  total: { alignItems: "flex-end" },
-  ticket: { alignItems: "center", paddingTop: 28, paddingBottom: 26, paddingHorizontal: 20, borderRadius: layout.cardRadius + 2 },
+  ticket: { alignItems: "center", paddingTop: 24, paddingBottom: 22, paddingHorizontal: 20, borderRadius: layout.cardRadius + 2 },
   ticketReplace: { position: "absolute", top: 8, right: 8, zIndex: 1 },
-  ticketName: { marginTop: 18, maxWidth: "100%" },
-  ticketTotal: { marginTop: 12 },
+  ticketTotal: { marginTop: 14 },
   placeholder: { alignItems: "center", justifyContent: "center" },
   thumbTarget: { minWidth: 44, minHeight: 44, borderRadius: 10 },
   expand: { position: "absolute", right: 4, bottom: 4, width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(17, 18, 20, 0.55)" },

@@ -41,7 +41,7 @@ await host.goto(base);
 await host.getByRole("button", { name: "Example" }).click();
 await host.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
 for (const [index, name] of ["Jason", "Sam", "Priya", "Lee"].entries()) {
-  await host.getByRole("button", { name: index === 0 ? "Your name" : "Add a name" }).click();
+  await host.getByRole("button", { name: index === 0 ? "Add name" : "Add a name" }).click();
   await host.getByRole("textbox", { name: index === 0 ? "Your name" : "Name", exact: true }).fill(name);
   await host.keyboard.press("Enter");
 }
@@ -140,9 +140,9 @@ report.reconnect = { downMs: restoredAt - droppedAt, attemptsWhileDown: connects
 await sam.getByRole("button", { name: "Priya", exact: true }).click();
 await priya.getByTestId("owe").click();
 await priya.getByRole("button", { name: "I already paid" }).click();
-await priya.getByText("You paid").waitFor();
+await priya.getByTestId("share-note").getByText("Paid ").waitFor();
 await shot(priya, "G2-paid");
-await sam.getByText("Priya paid").waitFor();
+await sam.getByRole("button", { name: "Priya, paid", exact: true }).waitFor();
 await sam.waitForTimeout(400);
 await shot(sam, "H-someone");
 await sam.getByRole("button", { name: "Priya", exact: true }).click();
