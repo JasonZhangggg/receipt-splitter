@@ -7,6 +7,7 @@ import { copy, joinCopy } from "../home-copy";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
+import { useAppearanceFlip } from "../use-appearance-flip";
 
 type Props = { onMore?: (press: Press) => void; moreOpen?: boolean; onShare?: () => void };
 
@@ -29,13 +30,15 @@ export function SplitHeader({ onMore, moreOpen = false, onShare }: Props) {
 }
 
 /** What the header's menu button holds: Payments first, since it is the one people open to check on something, then the receipt photo while the Split has one, and History. */
-export function HeaderMenu({ onPayments, onPhoto, onHistory }: { onPayments: (press: Press) => void; onPhoto?: (press: Press) => void; onHistory: (press: Press) => void }) {
+export function HeaderMenu({ onPayments, onPhoto, onHistory, onAppearance }: { onPayments: (press: Press) => void; onPhoto?: (press: Press) => void; onHistory: (press: Press) => void; onAppearance: (press: Press) => void }) {
+  const appearance = useAppearanceFlip();
   return (
     <MenuRows
       rows={[
         { icon: "check", label: say.payments, onPress: onPayments },
         ...(onPhoto ? [{ icon: "receipt" as const, label: say.receiptPhotoItem, onPress: onPhoto }] : []),
         { icon: "history", label: say.history, onPress: onHistory },
+        { icon: appearance.next === "dark" ? ("moon" as const) : ("sun" as const), label: copy.mode[appearance.next], onPress: (press: Press) => { onAppearance(press); appearance.flip(); } },
       ]}
     />
   );

@@ -526,7 +526,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       ) : null}
       {more ? (
         <Popover anchor={more.from.trigger} label={say.menu} instant={more.from.keyboard} closing={more.closing} onClose={closeMore} onGone={moreGone} width={headerMenuWidth}>
-          <HeaderMenu onPayments={fromMore((from) => open({ kind: "payments", viewer: me }, from))} onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} />
+          <HeaderMenu onPayments={fromMore((from) => open({ kind: "payments", viewer: me }, from))} onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} onAppearance={fromMore(() => {})} />
         </Popover>
       ) : null}
       {confirming ? (

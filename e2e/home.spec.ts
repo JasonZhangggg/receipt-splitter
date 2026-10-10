@@ -63,7 +63,7 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "JPEG, PNG, or WebP",
     "V",
     "Venmo",
-    "Optional",
+    "*optional",
     "Add name",
     "Create split link",
   ]);

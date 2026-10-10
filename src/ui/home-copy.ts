@@ -22,7 +22,7 @@ export const copy = {
   formats: "JPEG, PNG, or WebP",
   paymentApp: "Payment app",
   addApp: "Another way to get paid",
-  optional: "Optional",
+  optional: "*optional",
   people: "People at the table",
   you: "you",
   addName: { label: "Add", name: "Add a name" },
