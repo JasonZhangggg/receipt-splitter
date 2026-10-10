@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test, type APIRequestContext, type Browser, type Page, type Request } from "@playwright/test";
 
+import { fromMore, moreButton, moreMenu } from "./header";
 import { mountHarness } from "./harness";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -73,7 +74,14 @@ async function create(page: Page) {
 }
 
 const isPut = (request: Request) => request.method() === "PUT" && request.url().endsWith("/photo");
-const viewReceipt = (page: Page) => page.getByRole("button", { name: "View receipt" });
+const photoRow = (page: Page) => moreMenu(page).getByRole("button", { name: "Receipt photo", exact: true });
+
+/** Closes the pick sheet and opens the header's More menu, where the receipt photo sits while the Split has one. */
+async function openMore(page: Page) {
+  await page.getByRole("button", { name: "Close, just look" }).click();
+  await moreButton(page).click();
+  await expect(moreMenu(page).getByRole("button", { name: "History", exact: true })).toBeVisible();
+}
 
 async function openAsGuest(browser: Browser, link: string) {
   const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
@@ -95,7 +103,10 @@ test.describe("on Chromium", () => {
 
     await scanAndCreate(page);
     const { creatorSecret } = await (await created).json();
-    await expect(viewReceipt(page)).toBeVisible({ timeout: 2_000 });
+    await openMore(page);
+    await expect(photoRow(page)).toBeVisible({ timeout: 2_000 });
+    await page.keyboard.press("Escape");
+    await expect(moreMenu(page)).toHaveCount(0);
     const body = new Uint8Array(puts[0].postDataBuffer()!);
     expect({ puts: puts.length, authorization: puts[0].headers().authorization, type: puts[0].headers()["content-type"] }).toEqual({
       puts: 1,
@@ -105,7 +116,7 @@ test.describe("on Chromium", () => {
     expect({ underCap: body.length <= 150 * KB, metadata: metadata(body) }).toEqual({ underCap: true, metadata: [] });
 
     const guest = await openAsGuest(browser, page.url());
-    await viewReceipt(guest).click();
+    await fromMore(guest, "Receipt photo");
     const shown = guest.getByRole("img", { name: "Receipt" });
     await expect(shown).toBeVisible();
     const served = await guest.request.get(new URL(page.url()).pathname.replace(/^\/s\//, "/api/splits/") + "/photo");
@@ -114,10 +125,9 @@ test.describe("on Chromium", () => {
     await expect(shown).toHaveCount(0);
     await guest.context().close();
 
-    await page.getByRole("button", { name: "Close, just look" }).click();
     await page.getByRole("button", { name: "Split a receipt" }).click();
     await expect(page.getByRole("button", { name: /^(Add|Drop a) receipt/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: "View receipt" })).toHaveCount(0);
+    await expect(moreButton(page)).toHaveCount(0);
   });
 
   test("a scan kept across a visit to Recent splits and Back still sends its photo after Create", async ({ page, request, browserName }, testInfo) => {
@@ -136,11 +146,12 @@ test.describe("on Chromium", () => {
     await expect(page.getByTestId("receipt")).toBeVisible();
     await create(page);
 
-    await expect(viewReceipt(page)).toBeVisible({ timeout: 2_000 });
+    await openMore(page);
+    await expect(photoRow(page)).toBeVisible({ timeout: 2_000 });
     expect(puts.map((put) => new URL(put.url()).pathname)).toEqual([new URL(page.url()).pathname.replace(/^\/s\//, "/api/splits/") + "/photo"]);
   });
 
-  test("a failed upload is tried once more and then left, and the Split shows no View receipt", async ({ page }) => {
+  test("a failed upload is tried once more and then left, and the More menu holds no Receipt photo", async ({ page }) => {
     test.setTimeout(150_000);
     let puts = 0;
     await page.route("**/api/splits/*/photo", (route) => {
@@ -152,10 +163,11 @@ test.describe("on Chromium", () => {
     await expect.poll(() => puts, live).toBe(2);
     await page.waitForTimeout(1_500);
     expect(puts).toBe(2);
-    await expect(viewReceipt(page)).toHaveCount(0);
+    await openMore(page);
+    await expect(photoRow(page)).toHaveCount(0);
   });
 
-  test("View receipt is an icon with no text, and the header fits 320, 360 and 390 px", async ({ browser, request, browserName }, testInfo) => {
+  test("More is an icon with no text, and the header fits 320, 360 and 390 px", async ({ browser, request, browserName }, testInfo) => {
     const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
     expect((await putPhoto(request, id, creatorSecret, new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0x11, 0xff, 0xd9]))).status()).toBe(204);
     const seen: Record<string, unknown> = {};
@@ -165,15 +177,15 @@ test.describe("on Chromium", () => {
       await page.goto(`/s/${id}`);
       await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
       await page.getByRole("button", { name: "Close, just look" }).click();
-      await expect(viewReceipt(page)).toBeVisible(live);
+      await expect(moreButton(page)).toBeVisible(live);
       await page.waitForTimeout(400);
       const offscreen: string[] = [];
-      for (const name of ["Split a receipt", "View receipt", "History", "Share link"]) {
+      for (const name of ["Split a receipt", "More", "Share link"]) {
         const box = await page.getByRole("button", { name }).boundingBox();
         if (!box || box.x < 0 || box.x + box.width > width) offscreen.push(name);
       }
       seen[width] = {
-        receiptText: (await viewReceipt(page).innerText()).trim(),
+        receiptText: (await moreButton(page).innerText()).trim(),
         docOverflow: await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
         offscreen,
       };
@@ -186,7 +198,7 @@ test.describe("on Chromium", () => {
     });
   });
 
-  test("View receipt shows only while the Split has a photo", async ({ browser, request, browserName }, testInfo) => {
+  test("the open More menu shows Receipt photo only while the Split has a photo", async ({ browser, request, browserName }, testInfo) => {
     const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const guest = await context.newPage();
@@ -204,14 +216,15 @@ test.describe("on Chromium", () => {
     });
     await guest.goto(`/s/${id}`);
     await expect(guest.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
-    await guest.getByRole("button", { name: "Close, just look" }).click();
-    await expect(viewReceipt(guest)).toHaveCount(0);
+    await openMore(guest);
+    await expect(photoRow(guest)).toHaveCount(0);
 
     expect((await putPhoto(request, id, creatorSecret, new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0x11, 0xff, 0xd9]))).status()).toBe(204);
-    await expect(viewReceipt(guest)).toBeVisible(live);
+    await expect(photoRow(guest)).toBeVisible(live);
 
     clients.at(-1)!.send(JSON.stringify({ ...states.at(-1), ref: null, photo: false }));
-    await expect(viewReceipt(guest)).toHaveCount(0);
+    await expect(photoRow(guest)).toHaveCount(0);
+    await expect(moreMenu(guest).getByRole("button", { name: "History", exact: true })).toBeVisible();
     await context.close();
   });
 });
@@ -258,3 +271,36 @@ test("the canvas JPEG of a 12 MP photo and of an EXIF-rotated one fits 150 KB, c
   for (const { bytes } of results) stored.push((await putPhoto(request, id, creatorSecret, bytes)).status());
   expect(stored).toEqual([204, 204]);
 });
+
+for (const width of [390, 1440]) {
+  test(`at ${width} px More opens History and then the receipt photo, each hands focus back to More, and a resize across 1024 px closes it`, async ({ page, request, browserName }, testInfo) => {
+    const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
+    expect((await putPhoto(request, id, creatorSecret, new Uint8Array(readFileSync("e2e/fixtures/srd-1040-no-sprite.jpg")))).status()).toBe(204);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`/s/${id}`);
+    await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+    if (width < 1024) await page.getByRole("button", { name: "Close, just look" }).click();
+    const history = page.getByRole("dialog", { name: "History" });
+    const shown = page.getByRole("img", { name: "Receipt" });
+
+    await fromMore(page, "History");
+    await expect(history).toBeVisible();
+    await expect(moreMenu(page)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(history).toHaveCount(0, live);
+    await expect(moreButton(page), "History hands focus back").toBeFocused();
+
+    await fromMore(page, "Receipt photo");
+    await expect(shown).toBeVisible();
+    await expect(moreMenu(page)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Close photo" }), "the viewer holds focus before Escape").toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(shown).toHaveCount(0, live);
+    await expect(moreButton(page), "the photo hands focus back").toBeFocused();
+
+    await moreButton(page).click();
+    await expect(moreMenu(page)).toBeVisible();
+    await page.setViewportSize({ width: width < 1024 ? 1100 : 900, height: 844 });
+    await expect(moreMenu(page)).toHaveCount(0);
+  });
+}

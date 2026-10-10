@@ -1,5 +1,6 @@
 import { addRow, type AddChoice } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { fromMore, moreButton } from "./header";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -72,7 +73,7 @@ for (const how of ["Enter", "Space", "assistive click"] as const) {
       [sam.getByRole("button", { name: "Open Coupon, -$1.00" }), "Discount", () => sam.getByRole("button", { name: "Open Coupon, -$1.00" }).click()],
       [addRow(sam), "New item", () => menu("Item")],
       [addRow(sam), "Add tax, tip or discount", () => menu("Tip")],
-      [sam.getByRole("button", { name: "History", exact: true }), "History", () => sam.getByRole("button", { name: "History", exact: true }).click()],
+      [moreButton(sam), "History", () => fromMore(sam, "History")],
     ];
     for (const [opener, title, open] of openers) {
       await open();

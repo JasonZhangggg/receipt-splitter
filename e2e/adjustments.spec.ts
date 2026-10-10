@@ -1,5 +1,6 @@
 import { openAdd } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { fromMore } from "./header";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -297,7 +298,7 @@ test("Revert from the other phone asks first and puts the tax and the Total back
   await closeSheet(sam, "Charge");
   await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
 
-  await priya.getByRole("button", { name: "History" }).click();
+  await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Tax" }).click();
   await priya.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
   await expect(priya.getByText("Reverted")).toBeVisible(live);

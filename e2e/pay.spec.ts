@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
+import { fromMore } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -211,7 +212,7 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
   await expect(breakdown(sam).getByText("Your share")).toBeVisible();
 
   await expect(priya.getByTestId("item-sheet")).toHaveCount(0, live);
-  await priya.getByRole("button", { name: "Sam, paid too much", exact: true }).click();
+  await priya.getByRole("button", { name: "Sam", exact: true }).click();
   await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
   await expect(note(priya)).toHaveText("Paid $22.00 · $8.00 too much", live);
 });
@@ -312,7 +313,12 @@ test("the pill's visible label is only the app mark and the method, with the ful
   expect(box?.height).toBeGreaterThanOrEqual(44);
 });
 
-test("Sam's chip on Priya's phone gets a check once he marks paid, and a partial mark when his share grows after, with the Host and Priya bare", async ({ browser, request }, { workerIndex }) => {
+const paymentsList = (page: Page) => page.getByRole("list", { name: "Payments" });
+const paymentRow = (page: Page, name: string) => paymentsList(page).getByRole("listitem").filter({ hasText: name });
+/** The one glyph after the name besides the viewer's person icon: check, x or exclaim, or none. */
+const markOf = async (page: Page, name: string) => paymentRow(page, name).locator('[data-icon]:not([data-icon="person"])').evaluateAll((all) => all.map((one) => one.getAttribute("data-icon")));
+
+test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, then still owed when his share grows, with chips that never carry a mark", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -322,26 +328,57 @@ test("Sam's chip on Priya's phone gets a check once he marks paid, and a partial
   await circle(priya, "Tea", "Priya").click();
   await expect(owe(sam)).toHaveText("$8.00", live);
 
-  await expect(priya.getByRole("button", { name: "Sam", exact: true })).toBeVisible(live);
+  await fromMore(priya, "Payments");
+  await expect(priya.getByTestId("payments-summary")).toHaveText("0 of 2 paid", live);
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamNot paid$8.00");
+  await expect(paymentRow(priya, "Jason")).toHaveText(/^JasonGets paid\$/);
+  await expect(paymentRow(priya, "Priya")).toHaveText("PriyaNot paid$8.00");
+  expect([await markOf(priya, "Sam"), await markOf(priya, "Jason"), await markOf(priya, "Priya")]).toEqual([["x"], [], ["x"]]);
+  await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
+
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00$8.00", live);
+  await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
+  await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "settled");
+  expect(await markOf(priya, "Sam")).toEqual(["check"]);
 
-  const samChip = priya.getByRole("button", { name: "Sam, paid", exact: true });
-  await expect(samChip).toBeVisible(live);
-  await expect(samChip.locator('[data-icon="check"]')).toHaveCount(1);
-  await expect(priya.getByRole("button", { name: "Priya, you", exact: true })).toBeVisible();
-  await expect(priya.getByRole("button", { name: "Jason", exact: true })).toBeVisible();
-  await expect(sam.getByRole("button", { name: "Sam, you, paid", exact: true })).toBeVisible(live);
+  await circle(sam, "Pho", "Sam").click();
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00 · $14.20 still owed$22.20", live);
+  await expect(priya.getByTestId("payments-summary")).toHaveText("0 of 2 paid");
+  await circle(sam, "Pho", "Sam").click();
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00$8.00", live);
 
+  await priya.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(paymentsList(priya)).toHaveCount(0, live);
   await circle(priya, "Tea", "Priya").click();
-  const partial = priya.getByRole("button", { name: "Sam, paid too little", exact: true });
-  await expect(partial).toBeVisible(live);
-  await expect(partial.locator('[data-icon="exclaim"]')).toHaveCount(1);
-  await expect(partial.locator('[data-icon="check"]')).toHaveCount(0);
-  await expect(sam.getByRole("button", { name: "Sam, you, paid too little", exact: true })).toBeVisible(live);
+  await fromMore(priya, "Payments");
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00 · $8.00 still owed$16.00", live);
+  await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "short");
+  expect(await markOf(priya, "Sam")).toEqual(["exclaim"]);
 });
 
-test("Sam pays his $16.00 for Tea, then Priya checks Tea too, so his chip shows ! named paid too much on both phones", async ({ browser, request }, { workerIndex }) => {
+test("the people chips show no check or exclamation mark and keep their plain names, however the payments stand", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await circle(sam, "Tea", "Sam").click();
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(breakdown(sam).getByRole("button", { name: "I haven't paid" })).toBeVisible(live);
+  await circle(priya, "Tea", "Priya").click();
+  await expect(priya.getByRole("button", { name: "Sam", exact: true })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+  for (const page of [sam, priya]) {
+    const chips = page.getByRole("group", { name: "People" });
+    await expect(chips.locator('[data-icon="check"]')).toHaveCount(0);
+    await expect(chips.locator('[data-icon="exclaim"]')).toHaveCount(0);
+  }
+});
+
+test("Payments lists Sam as paid too much once Priya checks Tea too, and the person icon marks only the viewer's row", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -351,12 +388,14 @@ test("Sam pays his $16.00 for Tea, then Priya checks Tea too, so his chip shows 
   await expect(owe(sam)).toHaveText("$16.00", live);
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(priya.getByRole("button", { name: "Sam, paid", exact: true })).toBeVisible(live);
-
   await circle(priya, "Tea", "Priya").click();
-  const over = priya.getByRole("button", { name: "Sam, paid too much", exact: true });
-  await expect(over).toBeVisible(live);
-  await expect(over.locator('[data-icon="exclaim"]')).toHaveCount(1);
-  await expect(over.locator('[data-icon="check"]')).toHaveCount(0);
-  await expect(sam.getByRole("button", { name: "Sam, you, paid too much", exact: true })).toBeVisible(live);
+
+  await fromMore(priya, "Payments");
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $16.00 · $8.00 too much$8.00", live);
+  await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
+  await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "over");
+  expect(await markOf(priya, "Sam")).toEqual(["exclaim"]);
+  await expect(paymentRow(priya, "Priya").locator("[data-icon]")).toHaveCount(2);
+  await expect(priya.getByRole("dialog", { name: "Payments" }).locator('[data-icon="person"]')).toHaveCount(1);
+  await expect(sam.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
 });

@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { fromMore } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -204,7 +205,7 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
   await expect(jason.getByText("Items are $0.25 over the subtotal.")).toBeVisible(live);
 
-  await jason.getByRole("button", { name: "History" }).click();
+  await fromMore(jason, "History");
   await expect.poll(async () => (await jason.getByTestId("split-sheet").boundingBox())?.y, live).toBeGreaterThanOrEqual(844);
   await jason.getByRole("button", { name: "Revert Sprite" }).click();
   const confirm = jason.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" });
@@ -242,7 +243,7 @@ test("the payer marks themselves paid, and another browser sees Paid $2.50 under
   await expect(priya.getByTestId("split-sheet").getByTestId("share-note")).toHaveText("Paid $2.50", live);
   await expect(priya.getByRole("button", { name: "I haven't paid" })).toBeVisible();
 
-  await sam.getByRole("button", { name: "Priya, paid", exact: true }).click();
+  await sam.getByRole("button", { name: "Priya", exact: true }).click();
   await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
   await expect(sam.getByTestId("split-sheet").getByTestId("share-note")).toHaveText("Paid $2.50", live);
 });
