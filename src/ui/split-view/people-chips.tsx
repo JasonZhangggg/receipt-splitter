@@ -166,9 +166,9 @@ export function PeopleChips({ people, me, marks, selected, onSelect, onAdd, onHo
           {person.name}
         </Text>
         {person.id === me ? (
-          <Text selectable={false} style={[type.caption, styles.you, { color: ink }]}>
-            {say.you}
-          </Text>
+          <View style={styles.mark}>
+            <Icon name="person" size={youSize} color={ink} />
+          </View>
         ) : null}
         {mark ? (
           <View style={[styles.mark, mark !== "paid" && styles.narrow]}>
@@ -268,6 +268,7 @@ const track = (nodes: { readonly current: Map<ParticipantId, HTMLElement> }, id:
 };
 
 const markSize = 15;
+const youSize = 13;
 const chipEnterMs = 180;
 const chipLeaveMs = 200;
 const stagger = 30;
@@ -302,7 +303,6 @@ const styles = StyleSheet.create({
   mark: { flexShrink: 0 },
   // The "!" is a thin stroke in a square glyph box, so it would sit farther from the name than the check does.
   narrow: { marginHorizontal: -3 },
-  you: { opacity: 0.7 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
   input: { minHeight: 44, width: 120, paddingHorizontal: 16, borderRadius: 22 },
   ghost: { position: "absolute" },
