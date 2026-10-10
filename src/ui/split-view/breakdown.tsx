@@ -229,7 +229,7 @@ function ShareLabel({ label, note, noteId }: { label: string; note: string | nul
 
 /**
  * How much of the Total someone has checked, as a thin bar across the sheet under the share row. Once everything is claimed it fades out after the fill
- * reaches the end, and keeps its room, so nothing under it moves.
+ * reaches the end, and keeps its room, so nothing under it moves. Coming back, it waits for the fill to shrink first, so no frame shows a full bar.
  */
 function ClaimBar({ unclaimed, total }: { unclaimed: Cents; total: Cents }) {
   const c = useColors();
@@ -246,7 +246,7 @@ function ClaimBar({ unclaimed, total }: { unclaimed: Cents; total: Cents }) {
         aria-valuemax={100}
         aria-valuenow={Math.round(claimed * 100)}
         aria-hidden={done}
-        style={[styles.bar, { backgroundColor: c.hairline, opacity: done ? 0 : 1 }, reduce ? barFade : done ? barFadeAfterFill : barFade]}
+        style={[styles.bar, { backgroundColor: c.hairline, opacity: done ? 0 : 1 }, reduce ? barFade : barFadeAfterFill]}
       >
         <View style={[styles.fill, { backgroundColor: c.ink, transform: [{ scaleX: claimed }] }, reduce ? null : fillGlide]} />
       </View>
@@ -312,7 +312,7 @@ const holdsGesture = webStyle({ touchAction: "none" });
 // The claimed part of the bar grows from its left end as Items are checked.
 const fillGlide = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
 const barFade = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
-// The bar fills to the end before it fades.
+// The fill moves before the bar fades out or in.
 const barFadeAfterFill = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut, transitionDelay: "200ms" });
 
 const styles = StyleSheet.create({
