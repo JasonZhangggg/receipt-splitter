@@ -642,7 +642,7 @@ test("names go in by keyboard alone: Enter adds the chip and leaves a fresh fiel
   await expect(next).toHaveValue("");
 });
 
-test("the panel has no section labels, and marks the Host's chip \"you\"", async ({ page }) => {
+test("the panel has no section labels, and marks the Host's chip with a person icon named \"you\"", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await expect(page.getByText("People at the table", { exact: true })).toHaveCount(0);
@@ -653,8 +653,9 @@ test("the panel has no section labels, and marks the Host's chip \"you\"", async
     await page.keyboard.press("Enter");
   }
   await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(2);
+  await expect(people.getByRole("img", { name: "you" })).toHaveCount(1);
   const chips = people.getByText(/^(Jason|Sam)/);
-  expect(await chips.evaluateAll((els) => els.map((el) => el.parentElement!.innerText.replace(/\s+/g, " ").trim()))).toEqual(["Jason you", "Sam"]);
+  expect(await chips.evaluateAll((els) => els.map((el) => `${el.parentElement!.innerText.replace(/\s+/g, " ").trim()}|${el.parentElement!.querySelectorAll('[role="img"]').length}`))).toEqual(["Jason|1", "Sam|0"]);
 });
 
 test("the handle placeholder fits its field at 320 px", async ({ page }) => {
