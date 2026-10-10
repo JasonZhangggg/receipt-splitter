@@ -29,6 +29,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: No env or Wrangler var files are tracked
+        run: |
+          tracked=$(git ls-files | grep -E '(^|/)(\.env|\.dev\.vars)($|\.)' | grep -vE '\.example$' || true)
+          if [ -n "$tracked" ]; then echo "::error::Secret files are tracked:"; echo "$tracked"; exit 1; fi
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
