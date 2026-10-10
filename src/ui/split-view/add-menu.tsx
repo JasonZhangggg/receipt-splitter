@@ -27,7 +27,7 @@ export function AddMenu({ onChoose }: { onChoose: (choice: AddChoice) => void })
         <PressTarget key={choice} name={label} outsideScroll onPress={() => onChoose(choice)} style={(pressed) => [pressStyle(pressed, reduce), styles.press]}>
           {(pressed) => (
             <View style={[styles.row, pressed && { backgroundColor: c.sheetIn }]}>
-              <Text style={[type.button, { color: c.ink }]}>{label}</Text>
+              <Text style={[type.body, { color: c.ink }]}>{label}</Text>
             </View>
           )}
         </PressTarget>

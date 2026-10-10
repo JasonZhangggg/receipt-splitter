@@ -17,7 +17,7 @@ The reference image (`images/6.png`) was never saved to disk. I worked from the 
 
 ## Font
 
-Plus Jakarta Sans by Tokotype, weights 400 and 500, Latin subset as WOFF2. It is licensed under the SIL Open Font License 1.1, and `fonts/OFL.txt` is the license file from the package. The files come from npm `@fontsource/plus-jakarta-sans@5.3.0`. The font has `tnum`, so prices and totals keep tabular figures.
+Plus Jakarta Sans by Tokotype, weights 400 and 600 (the Split page type scale moved from 500 to 600), Latin subset as WOFF2. It is licensed under the SIL Open Font License 1.1, and `fonts/OFL.txt` is the license file from the package. The files come from npm `@fontsource/plus-jakarta-sans@5.3.0`. The font has `tnum`, so prices and totals keep tabular figures.
 
 I picked it over Manrope and Outfit because its round, open geometric shapes are closest to the reference's headline. It also stays readable at 13 to 15 px in gray. Archivo SemiCondensed Bold is gone. Nothing on the page goes above weight 500.
 

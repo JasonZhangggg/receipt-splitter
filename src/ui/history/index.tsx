@@ -56,7 +56,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           )}
         </PressTarget>
       </View>
-      {problem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
+      {problem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (
           <Row
@@ -65,7 +65,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
             meta={[entry.name ? say.asName(entry.name) : say.someone, whenText(entry.at, now)]}
             reverted={entry.reverted}
             what={
-              <Text style={[type.button, styles.what, { color: c.ink }]}>
+              <Text style={[type.body, styles.what, { color: c.ink }]}>
                 {entry.lead}
                 {entry.before !== undefined ? <Text style={[styles.muted, { color: c.muted }]}>{`${entry.lead ? " " : ""}${entry.before} → `}</Text> : null}
                 {entry.after ?? ""}
@@ -84,7 +84,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           name={host.name}
           meta={[say.asName(host.name)]}
           reverted={false}
-          what={<Text style={[type.button, styles.what, { color: c.ink }]}>{say.created}</Text>}
+          what={<Text style={[type.body, styles.what, { color: c.ink }]}>{say.created}</Text>}
           confirm={asking?.revision === "restore" ? <Confirm question={say.confirmRestore} action={say.confirmRestoreAction} onYes={() => run(onRestore)} onNo={() => setAsking(null)} /> : null}
           end={split.original && asking?.revision !== "restore" ? <End label={say.restore} name={say.restoreName} onPress={() => setAsking({ revision: "restore", name: null })} /> : null}
         />
@@ -121,7 +121,7 @@ function End({ label, name, onPress }: { label: string; name: string; onPress: (
     <PressTarget name={name} outsideScroll onPress={onPress} style={(pressed) => pressStyle(pressed, reduce)}>
       {() => (
         <View style={[styles.end, { backgroundColor: c.sheetIn }]}>
-          <Text style={[type.label, { color: c.ink }]}>{label}</Text>
+          <Text style={[type.body, { color: c.ink }]}>{label}</Text>
         </View>
       )}
     </PressTarget>
@@ -132,7 +132,7 @@ function Confirm({ question, action, onYes, onNo }: { question: string; action: 
   const c = useColors();
   return (
     <View role="alertdialog" aria-label={question} style={styles.confirm}>
-      <Text style={[type.secondary, { color: c.ink }]}>{question}</Text>
+      <Text style={[type.body, { color: c.ink }]}>{question}</Text>
       <View style={styles.two}>
         <View style={styles.half}>
           <Button label={action} onPress={onYes} outsideScroll />
@@ -150,7 +150,7 @@ const dim = webStyle({ transitionProperty: "opacity", transitionDuration: "150ms
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 18, lineHeight: 22, marginTop: 2 },
+  title: { marginTop: 2 },
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },

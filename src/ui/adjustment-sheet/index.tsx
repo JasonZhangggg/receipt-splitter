@@ -224,7 +224,7 @@ function AdjustmentFields({ split, row, typed, onChange, onTidy, nameField, amou
           enterKeyHint="next"
           submitBehavior="submit"
           onSubmitEditing={onNameDone}
-          style={[type.input, styles.field, styles.strong, { color: c.ink }]}
+          style={[type.input, styles.field, { color: c.ink }]}
         />
         <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
         <View style={styles.row}>
@@ -246,7 +246,7 @@ function AdjustmentFields({ split, row, typed, onChange, onTidy, nameField, amou
             }}
             onBlur={onTidy}
             selectTextOnFocus={!adding}
-            style={[type.input, tabular, styles.amountInput, styles.strong, { color: c.ink }]}
+            style={[type.input, tabular, styles.amountInput, { color: c.ink }]}
           />
         </View>
       </View>
@@ -288,7 +288,7 @@ function ProblemLine({ problem, reserve = false }: { problem: AdjustmentProblem 
   const c = useColors();
   if (!problem && !reserve) return null;
   return (
-    <Text role="status" style={[type.small, styles.problem, reserve && { minHeight: type.small.lineHeight }, { color: c.muted }]}>
+    <Text role="status" style={[type.caption, styles.problem, reserve && { minHeight: type.caption.lineHeight }, { color: c.muted }]}>
       {problem ? problemText(problem) : ""}
     </Text>
   );
@@ -299,7 +299,7 @@ function DeleteFace({ label }: { label: string }) {
   return (
     <View style={[styles.wide, { backgroundColor: c.sheetIn }]}>
       <Icon name="trash" size={18} color={c.danger} />
-      <Text style={[type.button, { color: c.danger }]}>{label}</Text>
+      <Text style={[type.body, { color: c.danger }]}>{label}</Text>
     </View>
   );
 }
@@ -307,13 +307,12 @@ function DeleteFace({ label }: { label: string }) {
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 18, lineHeight: 22, marginTop: 2 },
+  title: { marginTop: 2 },
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
   groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   field: { minHeight: layout.field, paddingHorizontal: 16 },
-  strong: { fontWeight: "500" },
   row: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingLeft: 16, paddingRight: 6 },
   rowLabel: { marginRight: "auto" },
   amountInput: { width: 96, textAlign: "right", minHeight: 44, paddingRight: 10 },

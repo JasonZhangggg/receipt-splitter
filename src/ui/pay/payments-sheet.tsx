@@ -32,7 +32,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
         </PressTarget>
       </View>
       {summary ? (
-        <Text testID="payments-summary" style={[type.secondary, { color: c.muted }]}>
+        <Text testID="payments-summary" style={[type.body, { color: c.muted }]}>
           {summary}
         </Text>
       ) : null}
@@ -41,7 +41,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
           <View key={id} role="listitem" style={styles.row} {...{ dataSet: { state } }}>
             <View style={styles.body}>
               <View style={styles.who}>
-                <Text numberOfLines={1} style={[type.button, styles.name, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
                   {name}
                 </Text>
                 {id === me ? <Icon name="person" size={13} color={c.ink} /> : null}
@@ -53,7 +53,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
               </View>
               <Text style={[type.caption, { color: c.muted }]}>{words}</Text>
             </View>
-            <Text style={[type.button, styles.amount, { color: c.ink }]}>{money(share)}</Text>
+            <Text style={[type.body, styles.amount, { color: c.ink }]}>{money(share)}</Text>
           </View>
         ))}
       </View>
@@ -68,7 +68,7 @@ const marks: Record<PaymentRow["state"], IconName | null> = { settled: "check", 
 const styles = StyleSheet.create({
   sheet: { gap: layout.pairGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 18, lineHeight: 22, marginTop: 2 },
+  title: { marginTop: 2 },
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   list: { gap: 4 },

@@ -559,7 +559,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect({ sheet, slip, text, themeColor }).toEqual({
       sheet: { shadow: tokens.sheetShadow, grab: [36, 5, tokens.hairline] },
       slip: { fill: tokens.paper, lift: tokens.lift, lines: [100, 70, 100, 70].map((width) => [width, 5, tokens.hairline]) },
-      text: { title: ["26px", "400", "-0.52px", tokens.ink], name: tokens.muted, glyph: tokens.paper, handle: "16px" },
+      text: { title: ["28px", "600", "-0.56px", tokens.ink], name: tokens.muted, glyph: tokens.paper, handle: "16px" },
       themeColor: tokens.themeColor,
     });
   });
@@ -738,7 +738,7 @@ test("the fonts load as same-origin WOFF2 files with an immutable cache header w
   const immutable = { status: 200, type: "font/woff2", cache: "public, max-age=31536000, immutable" };
   expect(fonts.sort((a, b) => a.path.localeCompare(b.path))).toEqual([
     { path: "/fonts/plus-jakarta-sans-400-<hash>.woff2", ...immutable },
-    { path: "/fonts/plus-jakarta-sans-500-<hash>.woff2", ...immutable },
+    { path: "/fonts/plus-jakarta-sans-600-<hash>.woff2", ...immutable },
   ]);
 });
 
@@ -801,7 +801,7 @@ test("no sample line is wider in the shipped fallback face than in Plus Jakarta 
   await settle(page);
   const widest = await page.evaluate(async (samples) => {
     const result: Record<string, { ratio: number; line: string; faces: string[] }> = {};
-    for (const weight of ["400", "500"] as const) {
+    for (const weight of ["400", "600"] as const) {
       const faces = await Promise.all(
         ["Plus Jakarta Sans", "Plus Jakarta Sans Fallback"].map(
           async (face) => (await document.fonts.load(`${weight} 100px "${face}"`))[0]?.status ?? "missing",
@@ -818,7 +818,7 @@ test("no sample line is wider in the shipped fallback face than in Plus Jakarta 
     }
     return result;
   }, fallbackSamples);
-  for (const weight of ["400", "500"]) {
+  for (const weight of ["400", "600"]) {
     expect(widest[weight].faces, `${weight} web and fallback faces`).toEqual(["loaded", "loaded"]);
     expect(widest[weight].ratio, `"${widest[weight].line}" in the ${weight} fallback against Plus Jakarta Sans`).toBeLessThanOrEqual(1);
   }
@@ -860,7 +860,7 @@ for (const { width, colorScheme, reducedMotion } of matrix) {
     const loaded = await page.evaluate(() =>
       [...document.fonts].filter((f) => f.status === "loaded" && f.family.replaceAll('"', "") === "Plus Jakarta Sans").map((f) => f.weight),
     );
-    expect(loaded.sort()).toEqual(["400", "500"]);
+    expect(loaded.sort()).toEqual(["400", "600"]);
     expect(errors).toEqual([]);
     if (process.env.SHOTS) {
       await page.screenshot({ path: `${process.env.SHOTS}/home-${width}-${colorScheme}-${reducedMotion}.png` });

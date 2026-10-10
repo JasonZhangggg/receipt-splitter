@@ -24,12 +24,12 @@ export function PersonMenu({ split, person, onRemove }: { split: Split; person: 
   });
   return (
     <View>
-      {note ? <Text style={[type.small, styles.note, { color: c.muted }]}>{note}</Text> : null}
+      {note ? <Text style={[type.caption, styles.note, { color: c.muted }]}>{note}</Text> : null}
       <PressTarget name={say.removePerson(person.name)} outsideScroll onPress={onRemove} style={(pressed) => [pressStyle(pressed, reduce), styles.press]}>
         {(pressed) => (
           <View style={[styles.row, pressed && { backgroundColor: c.sheetIn }]}>
             <Icon name="trash" size={18} color={c.danger} />
-            <Text numberOfLines={1} style={[type.button, styles.label, { color: c.danger }]}>
+            <Text numberOfLines={1} style={[type.body, styles.label, { color: c.danger }]}>
               {say.removePerson(person.name)}
             </Text>
           </View>

@@ -35,7 +35,7 @@ function hashedFace(weight) {
   return file;
 }
 
-const faces = [400, 500].map((weight) => ({
+const faces = [400, 600].map((weight) => ({
   file: hashedFace(weight),
   weight,
   local: "Arial",

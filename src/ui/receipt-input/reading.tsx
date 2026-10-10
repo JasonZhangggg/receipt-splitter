@@ -60,7 +60,7 @@ export function Reading({ progress, title, stage, line }: { progress: number; ti
           </View>
         ))}
       </View>
-      <Text style={[type.reading, { color: c.ink }]}>{title}</Text>
+      <Text style={[type.title, { color: c.ink }]}>{title}</Text>
       <View style={[styles.track, { backgroundColor: c.hairline }]}>
         <View
           testID="reading-bar"
@@ -72,7 +72,7 @@ export function Reading({ progress, title, stage, line }: { progress: number; ti
         />
       </View>
       {/* A new key swaps the text in one commit, so the old line never shares a frame with the new one. The first stage arrives with the slip. */}
-      <Text key={stage} testID="reading-stage" numberOfLines={1} style={[type.secondary, styles.stage, { color: c.muted }, stage !== "text" && (reduce ? reducedStageIn : stageIn)]}>
+      <Text key={stage} testID="reading-stage" numberOfLines={1} style={[type.body, styles.stage, { color: c.muted }, stage !== "text" && (reduce ? reducedStageIn : stageIn)]}>
         {line}
       </Text>
     </View>

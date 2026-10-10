@@ -251,7 +251,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           defaultValue={title}
           onChangeText={(name) => name.trim() && edit({ name: name.trim(), ...(sized && { detail: line }) })}
           enterKeyHint="done"
-          style={[type.input, styles.field, styles.strong, { color: c.ink }]}
+          style={[type.input, styles.field, { color: c.ink }]}
         />
         <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
         <TextInput
@@ -281,7 +281,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
             }}
             enterKeyHint="done"
             selectTextOnFocus
-            style={[type.input, tabular, styles.priceInput, styles.strong, { color: c.ink }]}
+            style={[type.input, tabular, styles.priceInput, { color: c.ink }]}
           />
         </View>
         {quantity > 1 ? (
@@ -289,7 +289,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
             <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
             <View style={styles.priceField}>
               <Text style={[type.caption, styles.fieldLabel, { color: c.muted }]}>{say.quantity}</Text>
-              <Text testID="quantity" style={[type.input, tabular, styles.strong, styles.quantity, { color: c.ink }]}>
+              <Text testID="quantity" style={[type.input, tabular, styles.quantity, { color: c.ink }]}>
                 {quantity}
               </Text>
             </View>
@@ -307,7 +307,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           {() => (
             <View style={[styles.wide, { backgroundColor: c.sheetIn }]}>
               <Icon name="split" size={18} color={c.ink} />
-              <Text style={[type.button, { color: c.ink }]}>{say.splitInto(quantity)}</Text>
+              <Text style={[type.body, { color: c.ink }]}>{say.splitInto(quantity)}</Text>
             </View>
           )}
         </PressTarget>
@@ -320,7 +320,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
             <PressTarget key={person.id} name={person.name} toggled={on} outsideScroll onPress={() => toggle(person.id, on)} style={(pressed) => pressStyle(pressed, reduce)}>
               {() => (
                 <View style={[styles.chip, { backgroundColor: on ? c.action : c.sheetIn }]}>
-                  <Text style={[type.label, { color: on ? c.onAction : c.ink }]}>{person.name}</Text>
+                  <Text style={[type.body, { color: on ? c.onAction : c.ink }]}>{person.name}</Text>
                 </View>
               )}
             </PressTarget>
@@ -378,7 +378,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       </View>
       {item.split.by === "shares" ? <Text style={[type.caption, styles.sum, { color: c.muted }]}>{say.shares(item.split.units[0].reduce((total, [, weight]) => total + weight, 0))}</Text> : null}
       {shownProblem ? (
-        <Text role="status" style={[type.small, styles.problem, { color: c.muted }]}>
+        <Text role="status" style={[type.caption, styles.problem, { color: c.muted }]}>
           {shownProblem}
         </Text>
       ) : null}
@@ -386,7 +386,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
         {() => (
           <View style={[styles.wide, styles.delete, { backgroundColor: c.sheetIn }]}>
             <Icon name="trash" size={18} color={c.danger} />
-            <Text style={[type.button, { color: c.danger }]}>{say.deleteItem}</Text>
+            <Text style={[type.body, { color: c.danger }]}>{say.deleteItem}</Text>
           </View>
         )}
       </PressTarget>
@@ -417,7 +417,7 @@ function SplitRows({ item, me, nameOf, edit, typedAmount, refills, typed }: Spli
           <View key={participantId} style={styles.splitRow}>
             <View style={styles.who}>
               <Dot name={nameOf(participantId)} tone={participantId === me ? "me" : "dot"} />
-              <Text numberOfLines={1} style={[type.button, styles.whoName, { color: c.ink }]}>
+              <Text numberOfLines={1} style={[type.body, styles.whoName, { color: c.ink }]}>
                 {nameOf(participantId)}
               </Text>
             </View>
@@ -426,7 +426,7 @@ function SplitRows({ item, me, nameOf, edit, typedAmount, refills, typed }: Spli
             ) : null}
             {item.split.by === "amount" ? (
               <View {...fieldGroup} style={[styles.amountField, { backgroundColor: c.sheetIn }]}>
-                <Text style={[type.button, { color: (typed?.find((one) => one.participantId === participantId)?.cents ?? amount) === 0 ? c.muted : c.ink }]}>$</Text>
+                <Text style={[type.body, { color: (typed?.find((one) => one.participantId === participantId)?.cents ?? amount) === 0 ? c.muted : c.ink }]}>$</Text>
                 <TextInput
                   key={refills.get(participantId) ?? 0}
                   aria-label={say.amountOf(nameOf(participantId))}
@@ -439,7 +439,7 @@ function SplitRows({ item, me, nameOf, edit, typedAmount, refills, typed }: Spli
                     if (typed !== null) edit({ values: [value(typed)] });
                   }}
                   selectTextOnFocus
-                  style={[type.input, tabular, styles.amountInput, styles.strong, { color: c.ink }]}
+                  style={[type.input, tabular, styles.amountInput, { color: c.ink }]}
                 />
               </View>
             ) : (
@@ -469,15 +469,15 @@ function AmountLine({ status, price, nameOf, onFill }: AmountLineProps) {
   return (
     <View style={styles.amountLine}>
       <View style={styles.amountWords}>
-        <Text testID="amount-status" numberOfLines={1} style={[type.label, tabular, styles.amountSaid, { color: c.ink }]}>
+        <Text testID="amount-status" numberOfLines={1} style={[type.body, tabular, styles.amountSaid, { color: c.ink }]}>
           {words}
         </Text>
-        {status.by === "over" ? <Text style={[type.small, { color: c.muted }]}>{say.notSaved}</Text> : null}
+        {status.by === "over" ? <Text style={[type.caption, { color: c.muted }]}>{say.notSaved}</Text> : null}
         {status.by === "left" && to !== null && onFill ? (
           <PressTarget name={say.giveTheRestName(nameOf(to), money(status.left))} outsideScroll onPress={() => onFill(to, status.left)} style={(pressed) => [styles.fillHit, pressStyle(pressed, reduce)]}>
             {() => (
               <View style={[styles.fill, { backgroundColor: c.sheetIn }]}>
-                <Text numberOfLines={1} style={[type.label, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
                   {say.giveTheRest(nameOf(to))}
                 </Text>
               </View>
@@ -520,7 +520,7 @@ export function Segments<Option extends string>({ options, labels, name, value, 
         <PressTarget key={option} name={labels[option]} toggled={option === value} outsideScroll onPress={() => onChange(option)} style={() => styles.segment}>
           {() => (
             <View style={styles.segmentFace}>
-              <Text style={[type.label, { color: option === value ? c.ink : c.muted }]}>{labels[option]}</Text>
+              <Text style={[type.body, { color: option === value ? c.ink : c.muted }]}>{labels[option]}</Text>
             </View>
           )}
         </PressTarget>
@@ -541,7 +541,7 @@ export function Stepper({ value, min, max, onChange, names }: StepperProps) {
   return (
     <View style={[styles.stepper, { backgroundColor: c.sheetIn }]}>
       <Button kind="icon" icon="minus" name={names[0]} disabled={value <= min} onPress={() => step(-1)} outsideScroll />
-      <Text aria-live="polite" style={[type.button, tabular, styles.count, { color: c.ink }]}>
+      <Text aria-live="polite" style={[type.body, tabular, styles.count, { color: c.ink }]}>
         {value}
       </Text>
       <Button kind="icon" icon="plus" name={names[1]} disabled={value >= max} onPress={() => step(1)} outsideScroll />
@@ -583,13 +583,12 @@ const msLeft = (node: View | null) =>
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { fontSize: 18, lineHeight: 22, marginTop: 2 },
+  title: { marginTop: 2 },
   closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
   group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
   groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
-  strong: { fontWeight: "500" },
   priceField: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingHorizontal: 16 },
   fieldLabel: { marginRight: "auto" },
   priceInput: { width: 80, textAlign: "right", minHeight: 44 },

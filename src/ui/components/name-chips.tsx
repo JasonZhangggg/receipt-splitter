@@ -37,7 +37,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll, ref }: Props)
     <View role="group" aria-label={copy.people} style={styles.row}>
       {names.map((name, index) => (
         <View key={name} style={[styles.chip, onRemove && styles.named, { backgroundColor: c.sheetIn }]}>
-          <Text style={[type.label, { color: c.ink }]}>{name}</Text>
+          <Text style={[type.body, { color: c.ink }]}>{name}</Text>
           {index === 0 ? (
             <View role="img" aria-label={copy.you} style={styles.you}>
               <Icon name="person" size={13} color={c.ink} />
@@ -97,7 +97,7 @@ export function NameChips({ names, onAdd, onRemove, outsideScroll, ref }: Props)
       </View>
       {refusal ? (
         <View style={styles.refusalLine}>
-          <Text role="alert" style={[type.small, styles.refusal, { color: c.muted }]}>
+          <Text role="alert" style={[type.caption, styles.refusal, { color: c.muted }]}>
             {refusal}
           </Text>
         </View>

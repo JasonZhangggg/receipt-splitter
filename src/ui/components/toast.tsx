@@ -49,10 +49,10 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
     <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: space.l + (lift || insets.bottom) }]}>
       {shown ? (
         <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }] }]}>
-          <Text style={[type.small, styles.message, { color: c.field }]}>{shown}</Text>
+          <Text style={[type.caption, styles.message, { color: c.field }]}>{shown}</Text>
           {action ? (
             <Pressable role="button" onPress={action.onPress} style={styles.action}>
-              <Text style={[type.small, styles.actionLabel, { color: c.field }]}>{action.label}</Text>
+              <Text style={[type.caption, styles.actionLabel, { color: c.field }]}>{action.label}</Text>
             </Pressable>
           ) : null}
         </Animated.View>

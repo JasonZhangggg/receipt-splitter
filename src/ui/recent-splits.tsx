@@ -139,12 +139,12 @@ function Entries({ splits, now, onPick }: { splits: readonly RecentSplit[]; now:
               {({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => (
                 <View style={[styles.row, pressed || hovered ? [fillIn, { backgroundColor: c.sheetIn }] : fillOut]}>
                   <View style={styles.text}>
-                    <Text numberOfLines={1} style={[type.label, { color: c.ink }]}>
+                    <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
                       {who}
                     </Text>
-                    <Text style={[type.small, { color: c.muted }]}>{when}</Text>
+                    <Text style={[type.caption, { color: c.muted }]}>{when}</Text>
                   </View>
-                  <Text style={[type.label, tabular, { color: c.ink }]}>{amount}</Text>
+                  <Text style={[type.body, tabular, { color: c.ink }]}>{amount}</Text>
                 </View>
               )}
             </Pressable>

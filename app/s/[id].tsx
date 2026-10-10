@@ -57,7 +57,7 @@ export default function SplitScreen() {
         {live.status === "gone" ? (
           <Gone reason={live.reason} />
         ) : (
-          <Text role="status" style={[type.secondary, styles.opening, { color: c.muted }]}>
+          <Text role="status" style={[type.body, styles.opening, { color: c.muted }]}>
             {joinCopy.opening}
           </Text>
         )}
@@ -74,7 +74,7 @@ function Gone({ reason }: { reason: GoneReason }) {
       <Text role="heading" aria-level={1} style={[type.hero, { color: c.ink }]}>
         {words.title}
       </Text>
-      <Text style={[type.secondary, { color: c.muted }]}>{words.hint}</Text>
+      <Text style={[type.body, { color: c.muted }]}>{words.hint}</Text>
       <View style={styles.goneAction}>
         <Button kind="soft" label={joinCopy.newSplit} onPress={() => router.replace("/")} />
       </View>
@@ -278,7 +278,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     setMore(null);
     then({ trigger: more.from.trigger, keyboard: row.keyboard });
   };
-  const peopleNote = peopleProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
+  const peopleNote = peopleProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
   const closeAddMenu = () => setAddMenu((was) => was && { ...was, closing: true });
@@ -352,7 +352,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         onClose={wide ? undefined : lookOnly}
         url={splitUrl(splitId)}
       />
-      {pickProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
+      {pickProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
     </>
   );
   const paneView: PaneView = me && phase !== "pick" ? "share" : "pick";
@@ -375,7 +375,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
             </View>
             <Swap view={selectedPerson.id} style={styles.shrink}>
               <Breakdown split={split} shares={shares} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} edge={paneEdge} />
-              {payProblem && selectedPerson.id === me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
+              {payProblem && selectedPerson.id === me ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
             </Swap>
           </View>
         ) : (
@@ -419,7 +419,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     <View style={[styles.regular, styles.shrink]}>
       {bar.kind === "ask" ? (
         <>
-          <Text style={[type.secondary, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
+          <Text style={[type.body, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
           <Button label={say.question} name={say.question} onPress={() => setPhase("pick")} outsideScroll />
         </>
       ) : shown ? (
@@ -433,7 +433,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
             edge={layout.gutter}
             fold={{ open: expanded, track: foldTrack, onToggle: expanded ? collapse : () => setExpanded(true) }}
           />
-          {payProblem && shown.id === bar.me ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
+          {payProblem && shown.id === bar.me ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
         </>
       ) : null}
     </View>

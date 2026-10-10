@@ -155,7 +155,7 @@ export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wra
     const ink = isSelected ? c.onAction : c.ink;
     return (
       <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : c.off }]}>
-        <Text numberOfLines={1} selectable={false} style={[type.label, styles.name, { color: ink }]}>
+        <Text numberOfLines={1} selectable={false} style={[type.body, styles.name, { color: ink }]}>
           {person.name}
         </Text>
         {person.id === me ? (
