@@ -140,9 +140,9 @@ report.reconnect = { downMs: restoredAt - droppedAt, attemptsWhileDown: connects
 await sam.getByRole("button", { name: "Priya", exact: true }).click();
 await priya.getByTestId("owe").click();
 await priya.getByRole("button", { name: "I already paid" }).click();
-await priya.getByText("You paid").waitFor();
+await priya.getByTestId("share-note").getByText("Paid ").waitFor();
 await shot(priya, "G2-paid");
-await sam.getByText("Priya paid").waitFor();
+await sam.getByRole("button", { name: "Priya, paid", exact: true }).waitFor();
 await sam.waitForTimeout(400);
 await shot(sam, "H-someone");
 await sam.getByRole("button", { name: "Priya", exact: true }).click();

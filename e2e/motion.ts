@@ -1162,7 +1162,7 @@ export const scenarios: Scenario[] = [
     act: (page) => pane(page).getByRole("button", { name: "Sam", exact: true }).click(),
     probes: [
       { key: "mine", find: breakdownSaying("Your share"), kind: "opacity" },
-      { key: "theirs", find: breakdownSaying("Sam owes"), kind: "opacity" },
+      { key: "theirs", find: breakdownSaying("Sam's share"), kind: "opacity" },
     ],
   },
   deskBundleExpand,

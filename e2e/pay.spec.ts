@@ -54,6 +54,7 @@ async function pick(page: Page, name: string) {
 const circle = (page: Page, item: string, name: string) => page.getByRole("button", { name: `${item}, check for ${name}` });
 const owe = (page: Page) => page.getByTestId("owe");
 const breakdown = (page: Page) => page.getByTestId("breakdown");
+const note = (page: Page) => page.getByTestId("split-sheet").getByTestId("share-note");
 
 test("a guest's collapsed bar shows Your share and no pay button, and the pay button waits in the breakdown it pulls up", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, [venmo]));
@@ -173,19 +174,19 @@ test("Sam's one pay pill switches among Jason's four apps, links each at his $14
   await expect(copy).toBeVisible();
 });
 
-test("Priya's breakdown shows Not paid with no buttons", async ({ browser, request }, { workerIndex }) => {
+test("Priya's breakdown, before anyone pays, has no paid line under her share and no buttons", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, everyApp));
   await pick(sam, "Sam");
   await sam.getByRole("button", { name: "Priya", exact: true }).click();
   await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
-  await expect(breakdown(sam).getByText("Not paid", { exact: true })).toBeVisible(live);
-  await expect(breakdown(sam).getByText("Priya owes")).toBeVisible();
+  await expect(breakdown(sam).getByRole("button", { name: "Priya's share $0.00, Hide Priya's breakdown" })).toBeVisible(live);
+  await expect(note(sam)).toHaveCount(0);
   await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
   await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
-  await expect(breakdown(sam).getByRole("button")).toHaveAccessibleName("Priya owes $0.00, Hide Priya's breakdown");
+  await expect(breakdown(sam).getByRole("button")).toHaveAccessibleName("Priya's share $0.00, Hide Priya's breakdown");
 });
 
-test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, and both browsers show what Jason owes back", async ({ browser, request }, { workerIndex }) => {
+test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, and both browsers say he paid $8.00 too much", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -199,21 +200,20 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
   await expect(breakdown(sam).getByRole("button", { name: "I haven't paid" })).toBeVisible(live);
-  await expect(breakdown(sam).getByText("Paid", { exact: true })).toBeVisible(live);
+  await expect(note(sam)).toHaveText("Paid $22.00", live);
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
   await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
   await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
 
-  await expect(breakdown(sam).getByTestId("difference")).toHaveText("You paid $22.00. Jason owes you $8.00.", live);
+  await expect(note(sam)).toHaveText("Paid $22.00 · $8.00 too much", live);
   await expect(breakdown(sam).getByTestId("share")).toHaveText("$14.00");
   await expect(breakdown(sam).getByText("Your share")).toBeVisible();
 
   await expect(priya.getByTestId("item-sheet")).toHaveCount(0, live);
   await priya.getByRole("button", { name: "Sam, paid too much", exact: true }).click();
   await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(breakdown(priya).getByTestId("difference")).toHaveText("Sam paid $22.00. Jason owes Sam $8.00.", live);
-  await expect(breakdown(priya).getByText("Paid", { exact: true })).toBeVisible();
+  await expect(note(priya)).toHaveText("Paid $22.00 · $8.00 too much", live);
 });
 
 test("a name picked by a page that sent the browser's raw device id stays this phone's after the update, and no frame carries the raw id", async ({ browser, request }, { workerIndex }) => {
@@ -244,7 +244,7 @@ test("a name picked by a page that sent the browser's raw device id stays this p
   await expect(sam.getByRole("heading", { name: "Which one are you?" })).toHaveCount(0);
 });
 
-test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays Not paid", async ({ browser, request }, { workerIndex }) => {
+test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays unpaid", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -278,8 +278,8 @@ test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays 
 
   await priya.getByRole("button", { name: "Sam", exact: true }).click();
   await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(breakdown(priya).getByText("Not paid", { exact: true })).toBeVisible(live);
-  await expect(breakdown(priya).getByText("Sam owes")).toBeVisible();
+  await expect(breakdown(priya).getByRole("button", { name: /^Sam's share \$14\.20, Hide/ })).toBeVisible(live);
+  await expect(note(priya)).toHaveCount(0);
   await sam.reload();
   await expect(owe(sam)).toHaveText("$14.20", live);
   await owe(sam).click();

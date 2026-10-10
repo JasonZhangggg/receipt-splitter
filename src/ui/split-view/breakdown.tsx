@@ -1,7 +1,7 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { shareBreakdown } from "../../core/shares";
+import { shareBreakdown, type Shares } from "../../core/shares";
 import type { Participant, ParticipantId, Split } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { PressTarget } from "../components/button";
@@ -9,7 +9,7 @@ import { Icon } from "../components/icon";
 import { glide, reducedFade } from "../components/sheet-motion";
 import { Swap } from "../components/swap";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
-import { differenceNote, payState } from "../pay/model";
+import { payState, shareStatus, statusWords } from "../pay/model";
 import { PayBlock } from "../pay/pay-block";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
@@ -23,6 +23,7 @@ type Fold = { open: boolean; track: FoldTrack; onToggle: () => void };
 
 type Props = {
   split: Split;
+  shares: Shares;
   person: Participant;
   viewer: ParticipantId | null;
   onPaid: (paid: boolean) => void;
@@ -38,8 +39,10 @@ const rowGap = 10;
 // From the share amount's baseline box to the pay buttons.
 const payGap = 20;
 const amountSlack = (foldedRow - type.total.lineHeight) / 2;
+// The label and its paid line. The label keeps this height with or without the line, so the share row never grows or shrinks as people pay.
+const labelHeight = type.button.lineHeight + type.caption.lineHeight;
 
-export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) {
+export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }: Props) {
   const c = useColors();
   const breakdown = shareBreakdown(split, person.id);
   const { items, difference, share } = breakdown;
@@ -48,33 +51,14 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   const isHost = person.id === host.id;
   const mine = person.id === viewer;
   const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
-  const paid = state.kind === "settled" || state.kind === "over" || state.kind === "short";
-  // Your own row always says Your share, so the amount never swaps its words mid-glide. The Paid pill above the list shows the paid state.
-  const label = mine
-    ? say.yourShare
-    : isHost || state.kind === "over" || state.kind === "short"
-      ? say.shareOf(person.name)
-      : state.kind === "settled"
-        ? say.paidBy(person.name)
-        : say.owes(person.name);
-  const note = differenceNote(state, mine ? "payer" : viewer === host.id ? "host" : "other", person.name, host.name);
+  const label = mine ? say.yourShare : say.shareOf(person.name);
+  const note = statusWords(shareStatus(shares, split.payments, person.id, viewer));
   const charges = [...adjustments, ...(difference === 0 ? [] : [{ id: "difference", name: say.receiptDifference, portion: difference }])];
 
   const above = (
     <>
       <View style={styles.head}>
         <Text style={[type.caption, { color: c.muted }]}>{say.items(items.length)}</Text>
-        {isHost ? null : paid ? (
-          <View style={[styles.status, { backgroundColor: c.action }]}>
-            <Icon name="check" size={15} color={c.onAction} />
-            <Text style={[type.caption, styles.strong, { color: c.onAction }]}>{say.paid}</Text>
-          </View>
-        ) : mine ? null : (
-          <View style={[styles.status, { backgroundColor: c.sheetIn }]}>
-            <Icon name="clock" size={15} color={c.ink} />
-            <Text style={[type.caption, styles.strong, { color: c.ink }]}>{say.notPaid}</Text>
-          </View>
-        )}
       </View>
       <ItemList lines={breakdownLines(breakdown)} empty={say.nothingChecked(mine ? null : person.name)} edge={edge} holdsDrag={fold !== undefined}>
         {charges.length > 0 ? (
@@ -94,28 +78,19 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
       </ItemList>
     </>
   );
-  const below = (
-    <>
-      {note ? (
-        <Text testID="difference" style={[type.secondary, fold ? styles.foldedNote : styles.note, { color: c.muted }]}>
-          {note}
-        </Text>
-      ) : null}
-      {mine && !isHost ? (
-        <View style={{ marginTop: fold && !note ? payGap - amountSlack : payGap }}>
-          <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={state} onPaid={onPaid} />
-        </View>
-      ) : null}
-    </>
-  );
+  const below =
+    mine && !isHost ? (
+      <View style={{ marginTop: fold ? payGap - amountSlack : payGap }}>
+        <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={state} onPaid={onPaid} />
+      </View>
+    ) : null;
 
-  const folded = mine ? say.yourShare : say.shareOf(person.name);
-  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={fold.open ? label : folded} share={share} above={above} below={below} />;
+  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={label} note={note} share={share} above={above} below={below} />;
   return (
     <View testID="breakdown" style={styles.shrink}>
       {above}
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <Text style={[type.button, { color: c.ink }]}>{label}</Text>
+        <ShareLabel label={label} note={note} />
         <Text testID="share" style={[type.total, tabular, { color: c.ink }]}>
           {money(share)}
         </Text>
@@ -125,13 +100,13 @@ export function Breakdown({ split, person, viewer, onPaid, edge, fold }: Props) 
   );
 }
 
-type FoldingProps = { fold: Fold; person: ParticipantId; whose: string | null; label: string; share: number; above: ReactNode; below: ReactNode };
+type FoldingProps = { fold: Fold; person: ParticipantId; whose: string | null; label: string; note: string | null; share: number; above: ReactNode; below: ReactNode };
 
 /**
  * The share row is one element in both states. Folded it sits under the chips; open it sits under the list. It moves down the sheet while the sheet rises, so on screen it travels a short way into place,
  * and a cover under it hides the list until the row has passed. The list and the rule fade with the same progress and the pay block over its last tenth, so a drag can stop or turn back at any frame.
  */
-function Folding({ fold, person, whose, label, share, above, below }: FoldingProps) {
+function Folding({ fold, person, whose, label, note, share, above, below }: FoldingProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const { open, track, onToggle } = fold;
@@ -143,6 +118,7 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
   const rule = useRef<View>(null);
   const chevron = useRef<View>(null);
   const travel = listHeight + rowGap;
+  const noteId = useId();
 
   const apply = useEffectEvent((progress: number, ms: number, span: number) => {
     const el = (ref: RefObject<View | null>) => ref.current as unknown as HTMLElement | null;
@@ -199,12 +175,12 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
         <View ref={mover} pointerEvents="box-none">
           {/* The row shrinks while pressed, and a drag that opens or closes the sheet starts as a press, so a background that keeps its size hides the list at the row's sides. */}
           <View style={{ backgroundColor: c.sheet }}>
-            <PressTarget name={`${label} ${money(share)}, ${open ? say.hideBreakdown(whose) : say.showBreakdown(whose)}`} expanded={open} outsideScroll onPress={onToggle} style={(pressed) => pressStyle(pressed, reduce)}>
+            <PressTarget name={`${label} ${money(share)}, ${open ? say.hideBreakdown(whose) : say.showBreakdown(whose)}`} describedBy={note ? noteId : undefined} expanded={open} outsideScroll onPress={onToggle} style={(pressed) => pressStyle(pressed, reduce)}>
               {() => (
                 <View style={[styles.shareRow, { backgroundColor: c.sheet }]}>
                   <Swap view={person} style={styles.grow}>
                     <View style={styles.amounts}>
-                      <Text style={[type.button, { color: c.ink }]}>{label}</Text>
+                      <ShareLabel label={label} note={note} noteId={noteId} />
                       <Text testID={open ? "share" : "owe"} style={[type.total, tabular, { color: c.ink }]}>
                         {money(share)}
                       </Text>
@@ -221,6 +197,23 @@ function Folding({ fold, person, whose, label, share, above, below }: FoldingPro
           <View ref={rule} style={[styles.rule, styles.hidden, { backgroundColor: c.hairline }]} />
         </View>
       </View>
+    </View>
+  );
+}
+
+/** The share's name, and under it one quiet line once the person has paid. The label keeps one height with or without it, so the share row never moves. */
+function ShareLabel({ label, note, noteId }: { label: string; note: string | null; noteId?: string }) {
+  const c = useColors();
+  return (
+    <View style={styles.label}>
+      <Text numberOfLines={1} style={[type.button, { color: c.ink }]}>
+        {label}
+      </Text>
+      {note ? (
+        <Text testID="share-note" nativeID={noteId} numberOfLines={1} style={[type.caption, tabular, { color: c.muted }]}>
+          {note}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -254,8 +247,8 @@ function ItemList({ lines, empty, edge, holdsDrag, children }: { lines: ReturnTy
           <Text style={[type.secondary, { color: c.muted }]}>{empty}</Text>
         </View>
       ) : null}
-      {lines.map((line, index) => (
-        <View key={line.id} style={[styles.line, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
+      {lines.map((line) => (
+        <View key={line.id} style={styles.line}>
           <Text numberOfLines={1} style={[type.item, styles.name, { color: c.ink }]}>
             {line.quantity ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${line.quantity}  `}</Text> : null}
             {line.name}
@@ -287,20 +280,17 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   grow: { flex: 1 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 26, marginHorizontal: 2, marginBottom: 4 },
-  status: { flexDirection: "row", alignItems: "center", gap: 4, height: 26, paddingLeft: 7, paddingRight: 10, borderRadius: 13 },
   strong: { fontWeight: "500" },
   list: { flexGrow: 0, flexShrink: 1 },
   line: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 46 },
-  divided: { borderTopWidth: 1 },
   name: { flex: 1, minWidth: 0 },
   // The list ends on a short row, so this keeps its text clear of the edge fade once scrolled to the end.
   tail: { paddingBottom: 8 },
   adjustments: { marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   rowLabel: { flexShrink: 1 },
-  total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: rowGap, paddingTop: 14, borderTopWidth: 1 },
-  note: { marginTop: 6, marginHorizontal: 2 },
-  foldedNote: { marginHorizontal: 2 },
+  total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: rowGap, paddingTop: 14, borderTopWidth: 1 },
+  label: { flexShrink: 1, minWidth: 0, minHeight: labelHeight, justifyContent: "center" },
   spacer: { height: rowGap + foldedRow },
   track: { position: "absolute", top: -ringRoom, left: -ringRoom, right: -ringRoom, paddingTop: ringRoom, paddingHorizontal: ringRoom, overflow: "hidden" },
   rule: { position: "absolute", top: 0, left: 0, right: 0, height: 1 },

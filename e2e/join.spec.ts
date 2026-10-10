@@ -106,7 +106,7 @@ test("after the Host picks on a link not yet shared, the bar shows Your share wi
   await expect(samChip).toHaveCount(1);
   await samChip.click();
   await sheet.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(sheet.getByTestId("breakdown").getByText("Sam owes")).toBeVisible();
+  await expect(sheet.getByTestId("breakdown").getByText("Sam's share")).toBeVisible();
   await expect(sheet.getByTestId("split-link")).toHaveCount(0);
 });
 
