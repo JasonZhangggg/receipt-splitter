@@ -29,6 +29,7 @@ type Props = {
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
 const dotSize = 16;
+const markSize = 18;
 const tapSize = 44;
 const tapBleed = 13;
 const circleColumn = tapSize - tapBleed;
@@ -82,12 +83,18 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   return (
     <View testID="receipt" style={[styles.card, { backgroundColor: c.paper, boxShadow: c.cardLift }]}>
       {selected ? (
-        <Text style={[type.caption, styles.hint, { color: c.muted }]}>{selected.id === me ? say.checkYours : say.checkTheirs(selected.name)}</Text>
+        <Text style={[type.caption, styles.hint, { color: c.muted }]}>
+          {selected.id === me ? (
+            say.checkYours
+          ) : (
+            <>
+              {say.checkTheirs[0]}
+              <Text style={[styles.strong, { color: c.ink }]}>{selected.name}</Text>
+              {say.checkTheirs[1]}
+            </>
+          )}
+        </Text>
       ) : null}
-      <View aria-hidden style={styles.columns}>
-        <Text style={[type.caption, styles.name, { color: c.muted }]}>{say.itemColumn}</Text>
-        <Text style={[type.caption, { color: c.muted }]}>{say.priceColumn}</Text>
-      </View>
       <View role="list" aria-label={say.item}>
         <KeptRows rows={rows} entering={entering}>
           {(row, divided) => {
@@ -99,19 +106,19 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                 open={opened.has(bundle.id)}
                 claimed={claimedItems(bundle, shares.unclaimed.itemIds)}
                 claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
-                selected={selected}
+                order={order}
                 divided={divided}
                 onToggle={() => toggle(bundle.id)}
               >
                 <KeptRows rows={bundle.items} entering={entering}>
-                  {(item, divided) => line(item, divided, true)}
+                  {(item) => line(item, false, true)}
                 </KeptRows>
                 <PressTarget
                   name={say.openAdjustment(bundle.discount.label, money(bundle.discount.amount))}
                   popup="dialog"
                   expanded={showing === bundle.id}
                   onPress={(press) => openAdjustment(bundle.id, press)}
-                  style={(pressed) => [styles.discount, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
+                  style={(pressed) => [styles.discount, pressStyle(pressed, reduce)]}
                 >
                   {() => (
                     <>
@@ -188,7 +195,7 @@ type BundleProps = {
   open: boolean;
   claimed: number;
   claimers: readonly Participant[];
-  selected: Participant | null;
+  order: readonly ParticipantId[];
   divided: boolean;
   onToggle: () => void;
   children: ReactNode;
@@ -199,7 +206,7 @@ function inside(claimers: readonly Participant[], claimed: number): string {
   return [had, claimed > 0 ? say.claimedItems(claimed) : ""].filter(Boolean).join(", ");
 }
 
-function BundleGroup({ bundle, open, claimed, claimers, selected, divided, onToggle, children }: BundleProps) {
+function BundleGroup({ bundle, open, claimed, claimers, order, divided, onToggle, children }: BundleProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const region = useId();
@@ -234,13 +241,11 @@ function BundleGroup({ bundle, open, claimed, claimers, selected, divided, onTog
                   {bundle.summary}
                 </Text>
                 <Presence present={showInside} animate={byClaim}>
-                  <View style={styles.inside}>
-                    <DotStack people={claimers} selected={selected} />
-                    {claimed > 0 ? <Text style={[type.caption, tabular, { color: c.muted }]}>{say.claimedItems(claimed)}</Text> : null}
-                  </View>
+                  <Text style={[type.caption, tabular, styles.inside, { color: c.muted }]}>{say.claimedItems(claimed)}</Text>
                 </Presence>
               </View>
             </View>
+            {showInside ? <Marks people={claimers} order={order} /> : null}
             <Text style={[type.item, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
           </>
         )}
@@ -401,15 +406,22 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
   );
 }
 
-function DotStack({ people, selected }: { people: readonly Participant[]; selected: Participant | null }) {
+const shownMarks = 3;
+
+/** Who else had a line, as small overlapping initials before its price in table order: three at most, then "+N". The row's label already names them. */
+function Marks({ people, order }: { people: readonly Participant[]; order: readonly ParticipantId[] }) {
   const c = useColors();
+  if (people.length === 0) return null;
+  const extra = people.length - shownMarks;
+  const seated = [...people].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
   return (
-    <View style={styles.dots}>
-      {people.map((person, index) => (
+    <View aria-hidden testID="claimer-marks" style={styles.marks}>
+      {seated.slice(0, shownMarks).map((person, index) => (
         <View key={person.id} style={index > 0 && styles.overlap}>
-          <Dot name={person.name} size={dotSize} tone={person.id === selected?.id ? "me" : "dot"} ring={`0 0 0 2px ${c.paper}`} />
+          <Dot name={person.name} size={markSize} tone="quiet" ring={`0 0 0 1.5px ${c.paper}`} />
         </View>
       ))}
+      {extra > 0 ? <Text style={[type.caption, tabular, styles.more, { color: c.muted }]}>{`+${extra}`}</Text> : null}
     </View>
   );
 }
@@ -432,7 +444,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   const reduce = useReducedMotion();
   const tag = lineTag(item, order);
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
-  const ordered = [...claimers].sort((a, b) => Number(a.id === selected?.id) - Number(b.id === selected?.id));
+  const others = claimers.filter(({ id }) => id !== selected?.id);
   const price = groupedAmount(cost);
   const [title, detail] = nameParts(item);
   const count = quantityText(item);
@@ -454,13 +466,15 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
         onPress={onCircle}
         style={(pressed) => [styles.circle, pressStyle(pressed, reduce)]}
       >
-        {() => (
-          ordered.length === 0 ? (
-            <View style={[styles.empty, { boxShadow: `inset 0 0 0 1.5px ${c.muted}`, opacity: 0.6 }]} />
+        {() =>
+          mine ? (
+            <View testID="checked" style={[styles.empty, { backgroundColor: c.action }]}>
+              <Icon name="tick" size={dotSize} color={c.onAction} />
+            </View>
           ) : (
-            <DotStack people={ordered} selected={selected} />
+            <View style={[styles.empty, { boxShadow: `inset 0 0 0 1.5px ${c.muted}`, opacity: 0.6 }]} />
           )
-        )}
+        }
       </PressTarget>
       <PressTarget name={`${say.open(label)}, $${price}, ${who}`} popup="dialog" expanded={expanded} onPress={onOpen} style={() => styles.body}>
         {() => (
@@ -477,6 +491,7 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
                 </Text>
               ) : null}
             </View>
+            <Marks people={others} order={order} />
             <Text style={[type.item, tabular, { color: c.ink }]}>{price}</Text>
           </View>
         )}
@@ -517,7 +532,7 @@ function RowFace({ label, amount }: { label: string; amount: number }) {
       <Text numberOfLines={1} style={[type.secondary, styles.rowLabel, { color: c.muted }]}>
         {label}
       </Text>
-      <Text style={[type.secondary, tabular, styles.strong, { color: c.ink }]}>{money(amount)}</Text>
+      <Text style={[type.secondary, tabular, { color: c.ink }]}>{money(amount)}</Text>
     </>
   );
 }
@@ -527,24 +542,24 @@ const turn = webStyle({ transitionProperty: "transform", transitionDuration: "20
 const styles = StyleSheet.create({
   card: { paddingTop: 18, paddingLeft: 16, paddingRight: 17, paddingBottom: 20, borderRadius: layout.cardRadius },
   hint: { marginTop: 0, marginBottom: 6 },
-  columns: { flexDirection: "row", alignItems: "center", gap: priceGap, paddingLeft: nameStart, minHeight: 24 },
   line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: columnGap },
   divided: { borderTopWidth: 1 },
   circle: { minWidth: tapSize, height: tapSize, marginLeft: -tapBleed, paddingLeft: tapBleed, justifyContent: "center" },
-  dots: { flexDirection: "row", alignItems: "center" },
-  overlap: { marginLeft: -6 },
+  marks: { flexDirection: "row", alignItems: "center", flexShrink: 0 },
+  overlap: { marginLeft: -3 },
+  more: { marginLeft: 4 },
   empty: { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
   body: { flex: 1, minWidth: 0, minHeight: layout.row, paddingVertical: 8, justifyContent: "center" },
   bodyRow: { flexDirection: "row", alignItems: "center", gap: priceGap },
   name: { flex: 1, minWidth: 0 },
   header: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 60, paddingVertical: 8 },
   headerLead: { flex: 1, minWidth: 0, flexDirection: "row" },
-  inside: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
+  inside: { marginTop: 2 },
   chevron: { width: dotSize, height: dotSize, marginRight: nameStart - dotSize - priceGap, alignItems: "center", justifyContent: "center" },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   collapsed: { minHeight: 0 },
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
-  discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, borderTopWidth: 1, marginLeft: nameStart, paddingLeft: nameStart },
+  discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart },
   // A full row that overlaps the gap above the Subtotal hairline, so "Add item" sits halfway between the two hairlines, as each Item does.
   add: { marginBottom: -adjustmentsGap },
   addIcon: { width: circleColumn, alignItems: "flex-start" },

@@ -32,7 +32,8 @@ export const splitCopy = {
   newPerson: "Name",
   browse: "Pick your name to check off what you had.",
   checkYours: "Check what you had",
-  checkTheirs: (name: string) => `Check what ${name} had`,
+  /** The text around the selected person's name. The card sets the name in ink, so the reader sees whose checks the circles show. */
+  checkTheirs: ["Check what ", " had"] as const,
   claimFor: (item: string, name: string) => `${item}, check for ${name}`,
   whoHad: (item: string) => `Who had ${item}`,
   confirmFor: (item: string, name: string, had: boolean) => `${had ? "Uncheck" : "Check"} ${item} for ${name}?`,
@@ -73,8 +74,6 @@ export const splitCopy = {
   bundleLabel: (name: string, summary: string, inside: string, open: boolean) => `${name}, ${summary.replace(" · ", ", ")}, ${inside ? `${inside}, ` : ""}${open ? "expanded" : "collapsed"}`,
   inBundle: (bundle: string, percent: string | null, off: string) => `In ${bundle}. Its ${percent ? `${percent}% off` : "discount"} takes ${off} off this line.`,
   claimedItems: (count: number) => `${count} claimed`,
-  itemColumn: "Item",
-  priceColumn: "Price",
   deleteItem: "Delete item",
   addItem: "Add item",
   newItem: "New item",
