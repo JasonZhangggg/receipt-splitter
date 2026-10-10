@@ -221,6 +221,15 @@ describe("createSplit", () => {
     ]);
   });
 
+  test("stores a PayPal handle without a pasted paypal.me/ link start", () => {
+    const stored = (handle: string) =>
+      accepted(createSplit({ id: minted, receipt: dinner, participants: [{ id: ann, name: "Ann" }], paymentHandles: [{ service: "paypal", handle }] })).paymentHandles;
+
+    expect(stored("paypal.me/jasonz")).toEqual([{ service: "paypal", handle: "jasonz" }]);
+    expect(stored("https://www.paypal.me/jasonz")).toEqual([{ service: "paypal", handle: "jasonz" }]);
+    expect(stored("jasonz")).toEqual([{ service: "paypal", handle: "jasonz" }]);
+  });
+
   test("creates a Split with no way to pay, which loads back as stored", () => {
     const split = accepted(createSplit({ id: minted, receipt: dinner, participants: [{ id: ann, name: "Ann" }], paymentHandles: [] }));
 

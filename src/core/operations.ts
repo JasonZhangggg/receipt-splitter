@@ -837,8 +837,11 @@ export function handleText({ service, handle }: PaymentHandle): string {
   return `${HANDLE_RULES[service].sigil}${handle}`;
 }
 
+const PAYPAL_ME_PREFIX = /^(?:https?:\/\/)?(?:www\.)?paypal\.me\//i;
+
 function canonical({ service, handle }: PaymentHandle): PaymentHandle {
   const { sigil } = HANDLE_RULES[service];
+  if (service === "paypal") return { service, handle: handle.replace(PAYPAL_ME_PREFIX, "") };
   return { service, handle: sigil !== "" && handle.startsWith(sigil) ? handle.slice(sigil.length) : handle };
 }
 

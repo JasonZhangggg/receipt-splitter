@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { PAYMENT_SERVICES } from "../../core/split";
 import type { DraftAction, HandleRow } from "../../draft";
@@ -47,13 +47,15 @@ export function PaymentRows({ handles, dispatch, inputs, outsideScroll }: Props)
           </View>
         );
       })}
+      <Text style={[type.caption, styles.optional, { color: c.muted }]}>{copy.optional}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   rows: { gap: layout.pairGap },
+  optional: { paddingHorizontal: 4 },
   row: { flexDirection: "row", gap: layout.pairGap },
   field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: layout.field, borderRadius: layout.fieldRadius, overflow: "hidden" },
-  handle: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
+  handle: { flex: 1, minWidth: 0, paddingLeft: 14, paddingRight: 19 },
 });

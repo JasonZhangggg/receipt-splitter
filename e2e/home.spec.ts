@@ -63,6 +63,7 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "JPEG, PNG, or WebP",
     "V",
     "Venmo",
+    "Optional",
     "Add name",
     "Create split link",
   ]);
@@ -387,12 +388,12 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 
-test("the sheet stands 247 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
+test("the sheet stands 275 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const sheet = await sheetOf(action(page));
   expect(sheet.top + sheet.height).toBe(phone.height);
-  expect(sheet.height).toBe(247);
+  expect(sheet.height).toBe(275);
 });
 
 test("the camera button and Add receipt sit fully above the sheet at 375 by 667", async ({ page }) => {
@@ -437,7 +438,7 @@ test("the sheet lifts its content by the bottom safe-area inset", async ({ page 
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
   await page.reload();
   await expect.poll(gapBelowAction).toBe(flush + 34);
-  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(281);
+  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(309);
 });
 
 test("side safe-area insets keep the header and the sheet clear of a landscape notch", async ({ page }) => {

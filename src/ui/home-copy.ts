@@ -22,6 +22,7 @@ export const copy = {
   formats: "JPEG, PNG, or WebP",
   paymentApp: "Payment app",
   addApp: "Another way to get paid",
+  optional: "Optional",
   people: "People at the table",
   you: "you",
   addName: { label: "Add", name: "Add a name" },
@@ -129,13 +130,13 @@ export const historyCopy = {
 export const paymentApps: Record<PaymentService, { name: string; glyph: string; hint: string }> = {
   venmo: { name: "Venmo", glyph: "V", hint: "@username" },
   cashApp: { name: "Cash App", glyph: "$", hint: "$cashtag" },
-  paypal: { name: "PayPal", glyph: "P", hint: "paypal.me/name" },
+  paypal: { name: "PayPal", glyph: "P", hint: "username" },
   zelle: { name: "Zelle", glyph: "Z", hint: "Email or phone" },
 };
 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, desktop.hint, copy.formats, paymentApps.venmo.name, copy.addYourName, copy.action],
+  400: [copy.example, desktop.hint, copy.formats, paymentApps.venmo.name, copy.addYourName, copy.action, copy.optional],
   600: [copy.wordmark, paymentApps.venmo.glyph, phone.title, desktop.title],
 };

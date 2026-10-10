@@ -28,7 +28,7 @@ export function AppPicker({ service, choices, onPick }: AppPickerProps) {
 }
 
 const styles = StyleSheet.create({
-  picker: { justifyContent: "center", paddingLeft: 12, paddingRight: 10, borderRightWidth: 1 },
+  picker: { justifyContent: "center", paddingLeft: 17, paddingRight: 10, borderRightWidth: 1 },
   face: { flexDirection: "row", alignItems: "center", gap: 8 },
   glyph: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
 });
