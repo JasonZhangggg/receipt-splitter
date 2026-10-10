@@ -305,7 +305,7 @@ test("the bar's name field has room around it for its focus ring inside every cl
   expect(clipped).toEqual([]);
 });
 
-test("Back from a Split page paints home settled from its first frame: the hero, the Recent splits icon and the panel never move", async ({ page }, { workerIndex, repeatEachIndex }) => {
+test("Back from a Split page paints home settled from its first frame: the hero, the menu button and the panel never move", async ({ page }, { workerIndex, repeatEachIndex }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const created = await page.request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.53.${200 + workerIndex}.${repeatEachIndex + 1}` },
@@ -329,7 +329,8 @@ test("Back from a Split page paints home settled from its first frame: the hero,
       localStorage.setItem(`receipt-splitter:split:${split}`, JSON.stringify({ recent: { names: ["Jason", "Sam"], total: 2000, added: now - i * 60_000, seen: now - i * 60_000 } }));
   }, id);
   await page.reload();
-  await tap(page.getByRole("button", { name: "Recent splits" }));
+  await tap(page.getByRole("button", { name: "Menu", exact: true }));
+  await tap(page.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "History", exact: true }));
   await tap(page.getByRole("dialog", { name: "Recent splits" }).getByRole("link").first());
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 30_000 });
 
@@ -338,13 +339,13 @@ test("Back from a Split page paints home settled from its first frame: the hero,
     `(() => {
       const hero = document.evaluate("//*[text()='Add receipt']", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
       if (!hero || hero.getClientRects().length === 0) return null;
-      const icon = document.querySelector('[role="button"][aria-label="Recent splits"]');
+      const icon = document.querySelector('[role="button"][aria-label="Menu"]');
       const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : null);
       return JSON.stringify({ hero: top(hero), icon: top(icon), dialog: document.querySelector('[role="dialog"][aria-label="Recent splits"]') !== null, panel: top(document.querySelector("[data-sheet-surface]")) });
     })()`,
   );
   await page.goBack();
-  await expect(page.getByRole("button", { name: "Recent splits" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
   await page.waitForTimeout(1500);
   expect(runs((await layouts()).filter((layout) => layout !== null))).toHaveLength(1);
 });

@@ -1,4 +1,4 @@
-# Receipt Splitter
+# Splitwith
 
 Splitting one group bill from a photo of its receipt: reading the items, deciding who owes what, and handing each person off to pay.
 

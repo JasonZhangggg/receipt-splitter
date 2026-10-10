@@ -121,6 +121,8 @@ const kinds = {
     tone: (c: Colors): Tone => ({ fill: c.sheetIn, ink: c.ink }),
   },
   outline: { face: { width: 54, height: 54, borderRadius: 16 }, label: type.body, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
+  /** The outline box beside the payment field: as tall as the field, 4 px wider each side than the remove box so the plus has more room. */
+  add: { face: { width: 62, height: 54, borderRadius: 16 }, label: type.body, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
   chip: {
     face: { height: 44, paddingLeft: 12, paddingRight: 16, borderRadius: 22 },
     label: type.body,

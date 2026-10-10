@@ -93,7 +93,7 @@ test("the wordmark is the page's only level-1 heading, and the pane's question i
   await open(page, await createSplit(request, workerIndex));
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveAccessibleName("Receipt Splitter, split a receipt");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveAccessibleName("Splitwith, split a receipt");
   await expect(pane(page).getByRole("heading", { name: "Which one are you?", level: 2 })).toBeVisible();
 });
 

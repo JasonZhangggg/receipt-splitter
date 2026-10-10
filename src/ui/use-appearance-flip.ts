@@ -1,13 +1,11 @@
 import { flushSync } from "react-dom";
 
 import { flipped, pick } from "./appearance";
-import { Button } from "./components/button";
-import { copy } from "./home-copy";
 import { useReducedMotion } from "./motion";
 import { setAppearance, useScheme, useSystemScheme } from "./theme";
 
-/** The glyph shows the scheme a tap goes to, as its name says. */
-export function AppearanceToggle() {
+/** The scheme a flip goes to, and the flip itself. */
+export function useAppearanceFlip() {
   const scheme = useScheme();
   const system = useSystemScheme();
   const reduce = useReducedMotion();
@@ -20,5 +18,5 @@ export function AppearanceToggle() {
     else document.startViewTransition(swap);
   };
 
-  return <Button kind="icon" icon={next === "dark" ? "moon" : "sun"} name={copy.switchTo[next]} onPress={flip} />;
+  return { next, flip };
 }

@@ -5,7 +5,7 @@ import type { Scheme } from "./appearance";
 import type { ReadingStage } from "./receipt-input/reading";
 
 export const copy = {
-  wordmark: "Receipt Splitter",
+  wordmark: "Splitwith",
   example: "Example",
   hero: {
     phone: { title: "Add receipt", hint: null },
@@ -22,6 +22,7 @@ export const copy = {
   formats: "JPEG, PNG, or WebP",
   paymentApp: "Payment app",
   addApp: "Another way to get paid",
+  optional: "*optional",
   people: "People at the table",
   you: "you",
   addName: { label: "Add", name: "Add a name" },
@@ -35,7 +36,9 @@ export const copy = {
   removeName: (name: string) => `Remove ${name}`,
   newName: "Name",
   removeApp: (app: string) => `Remove ${app}`,
-  switchTo: { light: "Switch to light mode", dark: "Switch to dark mode" } satisfies Record<Scheme, string>,
+  menu: "Menu",
+  mode: { light: "Light mode", dark: "Dark mode" } satisfies Record<Scheme, string>,
+  history: "History",
 };
 
 export const createCopy = {
@@ -97,7 +100,7 @@ export const joinCopy = {
   atTheTable: "At the table",
   newSplit: "Split a receipt",
   /** The Split page's wordmark opens a fresh home; its name starts with the visible wordmark (WCAG 2.5.3). */
-  wordmarkHome: "Receipt Splitter, split a receipt",
+  wordmarkHome: "Splitwith, split a receipt",
   expired: { title: "This split has expired", hint: "A split lasts 60 days after its last change." },
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
@@ -127,13 +130,13 @@ export const historyCopy = {
 export const paymentApps: Record<PaymentService, { name: string; glyph: string; hint: string }> = {
   venmo: { name: "Venmo", glyph: "V", hint: "@username" },
   cashApp: { name: "Cash App", glyph: "$", hint: "$cashtag" },
-  paypal: { name: "PayPal", glyph: "P", hint: "paypal.me/name" },
+  paypal: { name: "PayPal", glyph: "P", hint: "username" },
   zelle: { name: "Zelle", glyph: "Z", hint: "Email or phone" },
 };
 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, desktop.hint, copy.formats, copy.addApp, paymentApps.venmo.name, copy.addYourName, copy.action],
+  400: [copy.example, desktop.hint, copy.formats, paymentApps.venmo.name, copy.addYourName, copy.action, copy.optional],
   600: [copy.wordmark, paymentApps.venmo.glyph, phone.title, desktop.title],
 };

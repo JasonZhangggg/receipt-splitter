@@ -1,20 +1,17 @@
 import { Link } from "expo-router";
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import type { RecentSplit } from "../device";
 import { money } from "../draft";
-import { Button, scrollViewTouchDelay } from "./components/button";
+import { scrollViewTouchDelay, type Press } from "./components/button";
 import { useLayoutHeight } from "./components/viewport";
 import { historyCopy as say } from "./home-copy";
 import { useReducedMotion, webStyle } from "./motion";
 import { BottomSheet } from "./split-view/bottom-sheet";
 import { motion, type, useColors } from "./theme";
 
-type Props = { splits: readonly RecentSplit[]; now: number; wide: boolean };
-
-/** One value for the list, so the sheet and the popover can never show at once or reopen mid-exit. */
-type Shown = "closed" | "open" | "closing";
+type Props = { splits: readonly RecentSplit[]; now: number; wide: boolean; from: Press; closing: boolean; onClose: () => void; onGone: () => void };
 
 type Anchor = { top: number; right: number };
 
@@ -22,51 +19,33 @@ const popoverWidth = 360;
 const popoverGap = 6;
 const popoverOut = 150;
 
-export function RecentSplits({ splits, now, wide }: Props) {
-  const [shown, setShown] = useState<Shown>("closed");
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
-  const button = useRef<View>(null);
-
-  const open = () => {
-    const box = (button.current as unknown as HTMLElement).getBoundingClientRect();
-    setAnchor({ top: box.bottom + popoverGap, right: document.documentElement.clientWidth - box.right });
-    setShown("open");
-  };
-  const close = () => setShown((current) => (current === "open" ? "closing" : current));
-  const gone = () => setShown("closed");
+/** The list of stored Splits, opened from the header menu's History row. It hangs from the menu button, and the page gives focus back to that button when it is gone. */
+export function RecentSplits({ splits, now, wide, from, closing, onClose, onGone }: Props) {
+  const [anchor] = useState<Anchor>(() => {
+    const box = from.trigger.getBoundingClientRect();
+    return { top: box.bottom + popoverGap, right: document.documentElement.clientWidth - box.right };
+  });
   // React Native Web's Modal hears Escape only once it marks itself active, a frame or more after it shows, so the list listens from its first commit.
   useLayoutEffect(() => {
-    if (shown !== "open") return;
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setShown("closing");
+    if (closing) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [shown]);
-  // The Modal gives focus back to what held it at open, which in Safari is the page after a tap, so the icon takes it back itself.
-  const opened = useRef(false);
-  useEffect(() => {
-    if (shown !== "closed") opened.current = true;
-    else if (opened.current) {
-      opened.current = false;
-      (button.current as unknown as HTMLElement).querySelector<HTMLElement>("[role='button']")?.focus();
-    }
-  }, [shown]);
+  }, [closing, onClose]);
 
-  const list = <Entries splits={splits} now={now} onPick={gone} />;
+  const list = <Entries splits={splits} now={now} onPick={onGone} />;
   return (
-    <View ref={button}>
-      <Button kind="icon" icon="history" name={say.title} popup="dialog" expanded={shown === "open"} onPress={open} />
-      <Modal transparent visible={shown !== "closed"} animationType="none" onRequestClose={close}>
-        {wide && anchor ? (
-          <Popover anchor={anchor} closing={shown === "closing"} onClose={close} onGone={gone}>
-            {list}
-          </Popover>
-        ) : (
-          <BottomSheet scrim label={say.title} onDown={gone} closing={shown === "closing"} testID="recent-sheet">
-            {list}
-          </BottomSheet>
-        )}
-      </Modal>
-    </View>
+    <Modal transparent visible animationType="none" onRequestClose={onClose}>
+      {wide ? (
+        <Popover anchor={anchor} closing={closing} onClose={onClose} onGone={onGone}>
+          {list}
+        </Popover>
+      ) : (
+        <BottomSheet scrim label={say.title} onDown={onGone} closing={closing} testID="recent-sheet">
+          {list}
+        </BottomSheet>
+      )}
+    </Modal>
   );
 }
 
