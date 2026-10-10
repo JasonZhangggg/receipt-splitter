@@ -154,8 +154,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         </KeptRows>
       </View>
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <Text style={[type.item, styles.strong, { color: c.ink }]}>{say.total}</Text>
-        <Text testID="total" style={[type.item, styles.strong, tabular, { color: c.ink }]}>
+        <Text style={[type.item, styles.totalText, { color: c.ink }]}>{say.total}</Text>
+        <Text testID="total" style={[type.item, styles.totalText, tabular, { color: c.ink }]}>
           {money(total)}
         </Text>
       </View>
@@ -548,6 +548,8 @@ const styles = StyleSheet.create({
   tapRow: { minHeight: tapSize, marginVertical: (layout.adjustmentRow - tapSize) / 2 },
   rowLabel: { flexShrink: 1 },
   strong: { fontWeight: "500" },
+  // A whole-pixel line height, so the card ends on a whole pixel above the folded sheet.
+  totalText: { fontWeight: "500", lineHeight: 20 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
 });
