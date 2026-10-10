@@ -2,8 +2,17 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".claude/**"
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".claude/**"
 
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
@@ -11,6 +20,8 @@ concurrency:
 
 jobs:
   check:
+    # Draft pull requests skip CI. Agents push revisions as drafts, and marking the PR ready runs the full suite once.
+    if: github.event_name == 'push' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,5 +37,16 @@ jobs:
       - run: npm run test:worker
       - run: npm run build
       - run: npm run size
-      - run: npx playwright install --with-deps chromium webkit
-      - run: npm run e2e
+      # The PR head already passed e2e, so a push to main deploys after the fast gates above.
+      - if: github.event_name == 'pull_request'
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - if: github.event_name == 'pull_request'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - if: github.event_name == 'pull_request'
+        run: npx playwright install --with-deps chromium webkit
+      - if: github.event_name == 'pull_request'
+        run: npm run e2e
