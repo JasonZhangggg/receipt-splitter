@@ -7,7 +7,7 @@ import { Icon, type IconName } from "./icon";
 const pressFace = { dataSet: { pressFace: "" } };
 
 const slipHeight = 188;
-const compactScale = 0.72;
+const compactScale = 0.66;
 const compactTrim = ((slipHeight + 26) * (1 - compactScale)) / 2;
 
 export function Slip({ icon, pressed, compact = false }: { icon: IconName; pressed: boolean; compact?: boolean }) {
@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   compact: {
     transform: [{ scale: compactScale }],
     marginTop: -compactTrim,
-    marginBottom: -compactTrim - 12,
+    marginBottom: -compactTrim - 16,
   },
   lines: { position: "absolute", top: 26, left: 24, right: 24, gap: 11 },
   line: { height: 5, borderRadius: 3 },

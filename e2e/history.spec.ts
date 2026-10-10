@@ -56,7 +56,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await openExample(page);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   for (const [index, name] of ["Jason", "Sam"].entries()) {
-    await page.getByRole("button", { name: index === 0 ? "Your name" : "Add a name" }).click();
+    await page.getByRole("button", { name: index === 0 ? "Add name" : "Add a name" }).click();
     await page.getByRole("textbox", { name: index === 0 ? "Your name" : "Name", exact: true }).fill(name);
     await page.keyboard.press("Enter");
   }
@@ -205,11 +205,11 @@ for (const height of [844, 740]) {
   });
 }
 
-test("at 390 by 700 the dashed Add receipt box stays at its 332 px floor with 44 px above and at least 16 px clear of the panel", async ({ page }) => {
+test("at 390 by 700 the dashed Add receipt box stays at its 271 px floor with 44 px above and at least 16 px clear of the panel", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 700 });
   await seed(page, [jason]);
   const { aboveBox, belowBox, height } = await dashedBox(page);
-  expect(height).toBe(332);
+  expect(height).toBe(271);
   expect(aboveBox).toBe(44);
   expect(belowBox).toBeGreaterThanOrEqual(16);
 });

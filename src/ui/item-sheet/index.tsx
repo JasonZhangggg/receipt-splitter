@@ -14,6 +14,7 @@ import { layout, motion, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
 import { bundleNote, lineAmounts, nameParts, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
+import { amountStatus, type AmountStatus } from "./amount-status";
 import { readAmount } from "./new-item";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
@@ -70,6 +71,8 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   // Text in an amount field that does not read as an amount saves nothing, so closing holds the sheet open on its problem instead of dropping it.
   const [unread, setUnread] = useState<ReadonlyMap<AmountField, "price" | "overLimit">>(new Map());
   const [held, setHeld] = useState(false);
+  // A filled field remounts on its new amount, since the amount fields are uncontrolled.
+  const [refills, setRefills] = useState<ReadonlyMap<ParticipantId, number>>(new Map());
   const flushRef = useRef<() => void>(() => {});
   const [shown, setShown] = useState<SplitItem | undefined>(() => split.receipt.items.find(({ id }) => id === itemId));
   const [leaving, setLeaving] = useState<Leaving | null>(null);
@@ -89,10 +92,12 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   const patch = (edit: ItemEdit): Operation => ({ by: me, type: "editReceipt", items: [{ type: "edit", itemId, ...edit }] });
   const live = split.receipt.items.find(({ id }) => id === itemId);
   const unconfirmed = leavingFrom ? {} : [...sent, pending].reduce(merge, {});
-  const preview = live && Object.keys(unconfirmed).length > 0 ? applyOperation(split, patch(unconfirmed), { creator: false }) : null;
+  const tried = live && Object.keys(unconfirmed).length > 0 ? applyOperation(split, patch(unconfirmed), { creator: false }) : null;
+  const refusal = tried && !tried.ok ? tried.rejection.reason : null;
+  // Amounts over the price save nothing, but the sheet still shows the rest of the edit, such as the switch to By amount, while the fields keep what was typed.
+  const preview = refusal === "amountOverPrice" ? applyOperation(split, patch({ ...unconfirmed, values: [] }), { creator: false }) : tried;
   const seen = preview?.ok ? preview.split : split;
   const item: SplitItem | undefined = seen.receipt.items.find(({ id }) => id === itemId);
-  const refusal = preview && !preview.ok ? preview.rejection.reason : null;
 
   if (last !== current) {
     setLast(current);
@@ -211,6 +216,13 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
   const sized = item.detail === undefined && line !== null;
   const note = bundleNote(seen.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
+  const typed = lineAmounts(item).map(({ participantId, cents }) => ({ participantId, cents: unconfirmed.values?.findLast((value) => value.participantId === participantId)?.value ?? cents }));
+  const status = item.split.by === "amount" ? amountStatus(item.price, typed) : null;
+  const fill = (participantId: ParticipantId, cents: number) => {
+    forget((field) => field === participantId);
+    edit({ values: [{ participantId, value: cents }] });
+    setRefills(new Map([...refills, [participantId, (refills.get(participantId) ?? 0) + 1]]));
+  };
   const splitLine = () => {
     const [first, ...rest] = splitIds(split.receipt, item);
     if (!first || leavingFrom) return;
@@ -342,7 +354,6 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
           </PressTarget>
         )}
       </View>
-      <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.split}</Text>
       <Segments
         options={SPLIT_MODES}
         labels={say.modes}
@@ -355,16 +366,17 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
       />
       <View>
         <View ref={incomingRef} key={item.split.by} style={reduce ? null : enterAfter === null ? rowsEnter : [rowsEnterAfter, webStyle({ animationDelay: `${enterAfter}ms` })]}>
-          <SplitRows key={fields} item={item} me={me} nameOf={nameOf} edit={edit} typedAmount={typedAmount} />
+          {status ? <AmountLine status={status} price={item.price} nameOf={nameOf} onFill={fill} /> : null}
+          <SplitRows key={fields} item={item} me={me} nameOf={nameOf} edit={edit} typedAmount={typedAmount} refills={refills} typed={typed} />
         </View>
         {leaving && !reduce ? (
           <View ref={leavingRef} key={`${leaving.item.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, { opacity: leaving.from }]}>
-            <SplitRows item={leaving.item} me={me} nameOf={nameOf} edit={() => {}} typedAmount={() => null} />
+            {leaving.item.split.by === "amount" ? <AmountLine status={amountStatus(leaving.item.price, lineAmounts(leaving.item))} price={leaving.item.price} nameOf={nameOf} /> : null}
+            <SplitRows item={leaving.item} me={me} nameOf={nameOf} edit={() => {}} typedAmount={() => null} refills={new Map()} />
           </View>
         ) : null}
       </View>
-      <SumLine item={item} />
-      {refusal === "amountOverPrice" ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{say.overPrice}</Text> : null}
+      {item.split.by === "shares" ? <Text style={[type.caption, styles.sum, { color: c.muted }]}>{say.shares(item.split.units[0].reduce((total, [, weight]) => total + weight, 0))}</Text> : null}
       {shownProblem ? (
         <Text role="status" style={[type.small, styles.problem, { color: c.muted }]}>
           {shownProblem}
@@ -388,9 +400,12 @@ type SplitRowsProps = {
   nameOf: (id: ParticipantId) => string;
   edit: (next: ItemEdit) => void;
   typedAmount: (field: ParticipantId, text: string) => Cents | null;
+  refills: ReadonlyMap<ParticipantId, number>;
+  /** What each amount field holds as typed, which the Item does not show while the amounts are over the price. */
+  typed?: readonly { readonly participantId: ParticipantId; readonly cents: number }[];
 };
 
-function SplitRows({ item, me, nameOf, edit, typedAmount }: SplitRowsProps) {
+function SplitRows({ item, me, nameOf, edit, typedAmount, refills, typed }: SplitRowsProps) {
   const c = useColors();
   const amounts = lineAmounts(item);
   return (
@@ -399,7 +414,7 @@ function SplitRows({ item, me, nameOf, edit, typedAmount }: SplitRowsProps) {
         const shares = item.split.by === "shares" ? (item.split.units[0][index]?.[1] ?? 1) : 0;
         const value = (next: number): ItemValue => ({ participantId, value: next });
         return (
-          <View key={participantId} style={[styles.splitRow, index > 0 && [styles.divided, { borderTopColor: c.hairline }]]}>
+          <View key={participantId} style={styles.splitRow}>
             <View style={styles.who}>
               <Dot name={nameOf(participantId)} tone={participantId === me ? "me" : "dot"} />
               <Text numberOfLines={1} style={[type.button, styles.whoName, { color: c.ink }]}>
@@ -411,13 +426,16 @@ function SplitRows({ item, me, nameOf, edit, typedAmount }: SplitRowsProps) {
             ) : null}
             {item.split.by === "amount" ? (
               <View {...fieldGroup} style={[styles.amountField, { backgroundColor: c.sheetIn }]}>
-                <Text style={[type.button, { color: c.ink }]}>$</Text>
+                <Text style={[type.button, { color: (typed?.find((one) => one.participantId === participantId)?.cents ?? amount) === 0 ? c.muted : c.ink }]}>$</Text>
                 <TextInput
+                  key={refills.get(participantId) ?? 0}
                   aria-label={say.amountOf(nameOf(participantId))}
                   inputMode="decimal"
-                  defaultValue={plainAmount(amount)}
+                  defaultValue={amount === 0 ? "" : plainAmount(amount)}
+                  placeholder={plainAmount(0)}
+                  placeholderTextColor={c.muted}
                   onChangeText={(text) => {
-                    const typed = typedAmount(participantId, text);
+                    const typed = typedAmount(participantId, text.trim() === "" ? "0" : text);
                     if (typed !== null) edit({ values: [value(typed)] });
                   }}
                   selectTextOnFocus
@@ -439,21 +457,36 @@ function amountProblem(field: AmountField, problem: "price" | "overLimit"): stri
   return problem === "price" ? say.adjustmentProblem.amount : say.adjustmentProblem.overLimit(maxAmount);
 }
 
-function SumLine({ item: { split, price } }: { item: SplitItem }) {
+type AmountLineProps = { status: AmountStatus; price: number; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void };
+
+/** Where a By amount split stands, with a bar for the part assigned and, while one person is still at $0.00, a button that gives them the rest. */
+function AmountLine({ status, price, nameOf, onFill }: AmountLineProps) {
   const c = useColors();
-  if (split.by === "even") return null;
-  if (split.by === "shares") {
-    const count = split.units[0].reduce((total, [, weight]) => total + weight, 0);
-    return <Text style={[type.caption, styles.sum, { color: c.muted }]}>{say.shares(count)}</Text>;
-  }
-  const counted = split.units[0].reduce((total, [, amount]) => total + amount, 0);
-  const left = price - counted;
+  const reduce = useReducedMotion();
+  const assigned = status.by === "left" ? status.assigned / price : 1;
+  const words = status.by === "exact" ? say.allAssigned(money(price)) : status.by === "over" ? say.overThePrice(money(status.over)) : say.leftToAssign(money(status.left));
+  const to = status.by === "left" ? status.fillsInto : null;
   return (
-    <View style={styles.sumRow}>
-      <Text style={[type.caption, { color: c.muted }]}>{say.ofTotal(money(counted), money(price))}</Text>
-      <View style={styles.sumEnd}>
-        {left === 0 ? <Icon name="check" size={14} color={c.ink} /> : null}
-        <Text style={[type.caption, styles.strong, { color: c.ink }]}>{left === 0 ? say.addsUp : say.left(money(left))}</Text>
+    <View style={styles.amountLine}>
+      <View style={styles.amountWords}>
+        <Text testID="amount-status" numberOfLines={1} style={[type.label, tabular, styles.amountSaid, { color: c.ink }]}>
+          {words}
+        </Text>
+        {status.by === "over" ? <Text style={[type.small, { color: c.muted }]}>{say.notSaved}</Text> : null}
+        {status.by === "left" && to !== null && onFill ? (
+          <PressTarget name={say.giveTheRestName(nameOf(to), money(status.left))} outsideScroll onPress={() => onFill(to, status.left)} style={(pressed) => [styles.fillHit, pressStyle(pressed, reduce)]}>
+            {() => (
+              <View style={[styles.fill, { backgroundColor: c.sheetIn }]}>
+                <Text numberOfLines={1} style={[type.label, { color: c.ink }]}>
+                  {say.giveTheRest(nameOf(to))}
+                </Text>
+              </View>
+            )}
+          </PressTarget>
+        ) : null}
+      </View>
+      <View style={[styles.track, { backgroundColor: c.sheetIn }]}>
+        <View style={[styles.bar, { backgroundColor: c.ink, transform: [{ scaleX: Math.min(1, assigned) }] }]} />
       </View>
     </View>
   );
@@ -573,7 +606,6 @@ const styles = StyleSheet.create({
   segmentFace: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },
   splitRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 54 },
-  divided: { borderTopWidth: 1 },
   who: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
   whoName: { flexShrink: 1 },
   amount: { minWidth: 64, textAlign: "right" },
@@ -582,8 +614,13 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: "row", alignItems: "center", borderRadius: 14 },
   count: { minWidth: 18, textAlign: "center" },
   sum: { marginHorizontal: 2 },
-  sumRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 2 },
-  sumEnd: { flexDirection: "row", alignItems: "center", gap: 4 },
+  amountLine: { gap: 8, marginHorizontal: 2, marginBottom: 4 },
+  amountWords: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 28 },
+  amountSaid: { flexShrink: 0 },
+  fillHit: { flexShrink: 1, minWidth: 0, marginVertical: -8, paddingVertical: 8 },
+  fill: { height: 28, paddingHorizontal: 12, borderRadius: 14, justifyContent: "center" },
+  track: { height: 3, borderRadius: 1.5, overflow: "hidden" },
+  bar: { height: 3, transformOrigin: "left" },
   note: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 2 },
   noteText: { flexShrink: 1 },
   wide: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: layout.field, borderRadius: layout.fieldRadius },

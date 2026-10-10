@@ -18,18 +18,18 @@ export const copy = {
     slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
-  formats: "JPEG, PNG, or WebP",
   pastedPhoto: "Pasted photo",
+  formats: "JPEG, PNG, or WebP",
   paymentApp: "Payment app",
-  addApp: "Add another payment app",
+  addApp: "Another way to get paid",
   people: "People at the table",
+  you: "you",
   addName: { label: "Add", name: "Add a name" },
-  addYourName: "Your name",
+  addYourName: "Add name",
   yourName: "Your name",
   action: "Create split link",
   creating: "Creating link",
   replace: "Replace receipt",
-  total: "Total",
   viewPhoto: "View receipt photo",
   closePhoto: "Close photo",
   removeName: (name: string) => `Remove ${name}`,
@@ -134,6 +134,6 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
 const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
-  400: [copy.example, phone.title, desktop.title, desktop.hint, copy.formats, paymentApps.venmo.name],
+  400: [copy.example, phone.title, desktop.title, desktop.hint, copy.formats, copy.addApp, paymentApps.venmo.name],
   500: [copy.wordmark, paymentApps.venmo.glyph, copy.addYourName, copy.action],
 };

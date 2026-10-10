@@ -21,6 +21,7 @@ export const paths = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   moon: '<path d="M19.5 14.2A7.5 7.5 0 0 1 9.8 4.5a7.5 7.5 0 1 0 9.7 9.7z"/>',
   split: '<path d="M12 20.5V13L5.5 6.5M12 13l6.5-6.5"/><path d="M5 11.5V6h5.5M19 11.5V6h-5.5"/>',
+  person: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c0-3.6 3.1-6 7-6s7 2.4 7 6"/>',
 };
 
 export type IconName = keyof typeof paths;
