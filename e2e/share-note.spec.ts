@@ -129,3 +129,27 @@ test("a long name's share label and its line give way to the amount instead of p
   const line = (await note(jason).boundingBox())!;
   expect([amount.x + amount.width <= 390, line.x + line.width <= amount.x]).toEqual([true, true]);
 });
+
+test.describe("on desktop", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false });
+
+  test("the pane's share row keeps its height when the line under the share goes away", async ({ browser, request }, { workerIndex }) => {
+    const people = [
+      { id: "jason", name: "Jason" },
+      { id: "sam", name: "Sam" },
+    ];
+    const sam = await (await newContext(browser)).newPage();
+    await sam.goto(await createSplit(request, workerIndex, people));
+    const pane = sam.getByRole("complementary");
+    await pane.getByRole("button", { name: "Sam", exact: true }).click();
+    await expect(pane.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+    const row = pane.getByTestId("share").locator("..");
+    await expect(pane.getByTestId("share-note")).toHaveText("$44.20 left to claim", live);
+    const withLine = (await row.boundingBox())!.height;
+
+    for (const item of ["Pho", "Wings", "Tea"]) await circle(sam, item, "Sam").click();
+    await expect(pane.getByTestId("share")).toHaveText("$44.20", live);
+    await expect(pane.getByTestId("share-note")).toHaveCount(0);
+    expect((await row.boundingBox())!.height).toBe(withLine);
+  });
+});

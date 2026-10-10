@@ -40,6 +40,10 @@ const rowGap = 10;
 // From the share amount's baseline box to the pay buttons.
 const payGap = 20;
 const amountSlack = (foldedRow - type.total.lineHeight) / 2;
+// The label, its line and the claim bar. The label keeps this height with or without the line, so the share row never grows or shrinks as people claim or pay.
+const barHeight = 2;
+const barGap = 3;
+const labelHeight = type.button.lineHeight + type.caption.lineHeight + barGap + barHeight;
 
 export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }: Props) {
   const c = useColors();
@@ -300,10 +304,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   rowLabel: { flexShrink: 1 },
   total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: rowGap, paddingTop: 14, borderTopWidth: 1 },
-  label: { flexShrink: 1, minWidth: 0 },
+  label: { flexShrink: 1, minWidth: 0, minHeight: labelHeight, justifyContent: "center" },
   note: { alignSelf: "flex-start", maxWidth: "100%" },
-  bar: { height: 2, marginTop: 3, borderRadius: 1, overflow: "hidden" },
-  fill: { height: 2, transformOrigin: "left" },
+  bar: { height: barHeight, marginTop: barGap, borderRadius: 1, overflow: "hidden" },
+  fill: { height: barHeight, transformOrigin: "left" },
   spacer: { height: rowGap + foldedRow },
   track: { position: "absolute", top: -ringRoom, left: -ringRoom, right: -ringRoom, paddingTop: ringRoom, paddingHorizontal: ringRoom, overflow: "hidden" },
   rule: { position: "absolute", top: 0, left: 0, right: 0, height: 1 },
