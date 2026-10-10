@@ -22,9 +22,8 @@ type Props = {
   onOpen: (item: SplitItem, press: Press) => void;
   onAdd: (press: Press) => void;
   onOpenAdjustment: (row: Adjustment, press: Press) => void;
-  onAddAdjustment: (press: Press) => void;
   /** The line whose detail is open, or an add form, so its trigger reads as expanded. */
-  showing: ItemId | AdjustmentId | "add" | "addAdjustment" | null;
+  showing: ItemId | AdjustmentId | "add" | null;
 };
 
 const tabular = { fontVariant: ["tabular-nums" as const] };
@@ -42,7 +41,7 @@ const adjustmentsGap = 8;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, onAddAdjustment, showing }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
@@ -66,13 +65,12 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       return next;
     });
   };
-  const line = (item: SplitItem, divided: boolean, inBundle: boolean) => (
+  const line = (item: SplitItem, inBundle: boolean) => (
     <Line
       item={item}
       order={order}
       claimers={claimersOf(item.split).map(person)}
       selected={selected}
-      divided={divided}
       inBundle={inBundle}
       onCircle={(press) => onCircle(item, press)}
       onOpen={(press) => onOpen(item, press)}
@@ -81,7 +79,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   );
 
   return (
-    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper, boxShadow: c.cardLift }]}>
+    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper }]}>
       {selected ? (
         <Text style={[type.caption, styles.hint, { color: c.muted }]}>
           {selected.id === me ? (
@@ -97,8 +95,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       ) : null}
       <View role="list" aria-label={say.item}>
         <KeptRows rows={rows} entering={entering}>
-          {(row, divided) => {
-            if (row.kind === "item") return line(row.item, divided, false);
+          {(row) => {
+            if (row.kind === "item") return line(row.item, false);
             const { bundle } = row;
             return (
               <BundleGroup
@@ -107,11 +105,10 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                 claimed={claimedItems(bundle, shares.unclaimed.itemIds)}
                 claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
                 order={order}
-                divided={divided}
                 onToggle={() => toggle(bundle.id)}
               >
                 <KeptRows rows={bundle.items} entering={entering}>
-                  {(item) => line(item, false, true)}
+                  {(item) => line(item, true)}
                 </KeptRows>
                 <PressTarget
                   name={say.openAdjustment(bundle.discount.label, money(bundle.discount.amount))}
@@ -134,7 +131,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           }}
         </KeptRows>
       </View>
-      <AddRow divided={rows.length > 0} expanded={showing === "add"} onPress={onAdd} />
+      <AddRow expanded={showing === "add"} onPress={onAdd} />
       {note ? (
         <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
           {note}
@@ -155,24 +152,10 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
             </PressTarget>
           )}
         </KeptRows>
-        <PressTarget
-          name={say.addAdjustment}
-          popup="dialog"
-          expanded={showing === "addAdjustment"}
-          onPress={onAddAdjustment}
-          style={(pressed) => [styles.row, styles.tapRow, styles.addCharge, pressStyle(pressed, reduce)]}
-        >
-          {() => (
-            <>
-              <Icon name="plus" size={14} color={c.muted} />
-              <Text style={[type.secondary, { color: c.muted }]}>{say.addAdjustment}</Text>
-            </>
-          )}
-        </PressTarget>
       </View>
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <Text style={[type.button, { color: c.ink }]}>{say.total}</Text>
-        <Text testID="total" style={[type.total, tabular, { color: c.ink }]}>
+        <Text style={[type.item, styles.totalText, { color: c.ink }]}>{say.total}</Text>
+        <Text testID="total" style={[type.item, styles.totalText, tabular, { color: c.ink }]}>
           {money(total)}
         </Text>
       </View>
@@ -196,7 +179,6 @@ type BundleProps = {
   claimed: number;
   claimers: readonly Participant[];
   order: readonly ParticipantId[];
-  divided: boolean;
   onToggle: () => void;
   children: ReactNode;
 };
@@ -206,7 +188,7 @@ function inside(claimers: readonly Participant[], claimed: number): string {
   return [had, claimed > 0 ? say.claimedItems(claimed) : ""].filter(Boolean).join(", ");
 }
 
-function BundleGroup({ bundle, open, claimed, claimers, order, divided, onToggle, children }: BundleProps) {
+function BundleGroup({ bundle, open, claimed, claimers, order, onToggle, children }: BundleProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const region = useId();
@@ -219,7 +201,7 @@ function BundleGroup({ bundle, open, claimed, claimers, order, divided, onToggle
     setByClaim(was.open === open);
   }
   return (
-    <View role="listitem" testID={`bundle-${bundle.id}`} style={divided && [styles.divided, { borderTopColor: c.hairline }]}>
+    <View role="listitem" testID={`bundle-${bundle.id}`}>
       <PressTarget
         name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, claimed), open)}
         expanded={open}
@@ -356,8 +338,8 @@ function Presence({ present, animate, children }: { present: boolean; animate: b
   return leaving ? <Shrink onDone={() => setLeaving(false)}>{last}</Shrink> : null;
 }
 
-/** Each row in place. A row the list drops keeps showing what it last showed and collapses out where it stood, and a row the list adds grows in. A row is divided from the one above when a row still on the receipt sits above it. */
-function KeptRows<Row extends { readonly id: string }>({ rows, entering, children }: { rows: readonly Row[]; entering: ReadonlySet<string>; children: (row: Row, divided: boolean) => ReactNode }) {
+/** Each row in place. A row the list drops keeps showing what it last showed and collapses out where it stood, and a row the list adds grows in. */
+function KeptRows<Row extends { readonly id: string }>({ rows, entering, children }: { rows: readonly Row[]; entering: ReadonlySet<string>; children: (row: Row) => ReactNode }) {
   const [last, setLast] = useState(rows);
   const [kept, setKept] = useState<readonly Kept<Row>[]>(() => rows.map((row) => ({ row, gone: false })));
   if (rows.length !== last.length || rows.some((row, at) => row !== last[at])) {
@@ -365,18 +347,17 @@ function KeptRows<Row extends { readonly id: string }>({ rows, entering, childre
     setKept(keepInPlace(kept, rows));
   }
   const forget = (id: string) => setKept((was) => was.filter(({ row, gone }) => !(gone && row.id === id)));
-  return kept.map(({ row, gone }, at) => {
-    const divided = kept.slice(0, at).some((above) => !above.gone);
-    return gone ? (
+  return kept.map(({ row, gone }) =>
+    gone ? (
       <Shrink key={row.id} onDone={() => forget(row.id)}>
-        {children(row, divided)}
+        {children(row)}
       </Shrink>
     ) : (
       <Grow key={row.id} enter={entering.has(row.id)}>
-        {children(row, divided)}
+        {children(row)}
       </Grow>
-    );
-  });
+    ),
+  );
 }
 
 /** Collapses its children out over rowsOut, or fades them under reduced motion, so the rows under them glide up; then onDone. They are out of reach of taps, Tab and screen readers from the first frame. */
@@ -431,14 +412,13 @@ type LineProps = {
   order: readonly ParticipantId[];
   claimers: readonly Participant[];
   selected: Participant | null;
-  divided: boolean;
   inBundle: boolean;
   onCircle: (press: Press) => void;
   onOpen: (press: Press) => void;
   expanded: boolean;
 };
 
-function Line({ item, order, claimers, selected, divided, inBundle, onCircle, onOpen, expanded }: LineProps) {
+function Line({ item, order, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
   const cost = item.price;
   const c = useColors();
   const reduce = useReducedMotion();
@@ -456,7 +436,6 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
       testID={`line-${item.id}`}
       style={[
         styles.line,
-        divided && [styles.divided, { borderTopColor: c.hairline }],
         inBundle && { marginLeft: nameStart },
       ]}
     >
@@ -500,17 +479,17 @@ function Line({ item, order, claimers, selected, divided, inBundle, onCircle, on
   );
 }
 
-function AddRow({ divided, expanded, onPress }: { divided: boolean; expanded: boolean; onPress: (press: Press) => void }) {
+function AddRow({ expanded, onPress }: { expanded: boolean; onPress: (press: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={say.addItem} popup="dialog" expanded={expanded} onPress={onPress} style={(pressed) => [styles.line, styles.add, divided && [styles.divided, { borderTopColor: c.hairline }], pressStyle(pressed, reduce)]}>
+    <PressTarget name={say.add} popup="dialog" expanded={expanded} onPress={onPress} style={(pressed) => [styles.line, styles.add, pressStyle(pressed, reduce)]}>
       {() => (
         <>
           <View style={styles.addIcon}>
             <Icon name="plus" size={dotSize} color={c.muted} />
           </View>
-          <Text style={[type.item, { color: c.muted }]}>{say.addItem}</Text>
+          <Text style={[type.item, { color: c.muted }]}>{say.add}</Text>
         </>
       )}
     </PressTarget>
@@ -543,7 +522,6 @@ const styles = StyleSheet.create({
   card: { paddingTop: 18, paddingLeft: 16, paddingRight: 17, paddingBottom: 20, borderRadius: layout.cardRadius },
   hint: { marginTop: 0, marginBottom: 6 },
   line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: columnGap },
-  divided: { borderTopWidth: 1 },
   circle: { minWidth: tapSize, height: tapSize, marginLeft: -tapBleed, paddingLeft: tapBleed, justifyContent: "center" },
   marks: { flexDirection: "row", alignItems: "center", flexShrink: 0 },
   overlap: { marginLeft: -3 },
@@ -560,7 +538,7 @@ const styles = StyleSheet.create({
   collapsed: { minHeight: 0 },
   rule: { position: "absolute", top: 0, bottom: 12, left: dotCenter, width: 1 },
   discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart },
-  // A full row that overlaps the gap above the Subtotal hairline, so "Add item" sits halfway between the two hairlines, as each Item does.
+  // A full row that overlaps the gap above the Subtotal hairline, so "Add" sits where the last Item's row would.
   add: { marginBottom: -adjustmentsGap },
   addIcon: { width: circleColumn, alignItems: "flex-start" },
   why: { marginTop: 8, marginBottom: 2 },
@@ -568,9 +546,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.adjustmentRow, gap: 12 },
   // A 44 px tap target that still sits on the 34 px row pitch; the overlap goes to the later row.
   tapRow: { minHeight: tapSize, marginVertical: (layout.adjustmentRow - tapSize) / 2 },
-  addCharge: { justifyContent: "flex-start", gap: 6 },
   rowLabel: { flexShrink: 1 },
   strong: { fontWeight: "500" },
+  // A whole-pixel line height, so the card ends on a whole pixel above the folded sheet.
+  totalText: { fontWeight: "500", lineHeight: 20 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
 });

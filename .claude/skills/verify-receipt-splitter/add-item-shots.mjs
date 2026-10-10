@@ -59,10 +59,11 @@ for (const width of [390, 1440]) {
       await page.screenshot({ path: file });
       results.push(file);
     };
-    const addRow = page.getByRole("button", { name: "Add item", exact: true });
+    const addRow = page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true });
     await addRow.scrollIntoViewIfNeeded();
     await shot("receipt");
     await addRow.click();
+    await page.getByRole("dialog", { name: "Add to the receipt" }).getByRole("button", { name: "Item", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "New item" });
     await sheet.waitFor();
     await page.waitForTimeout(600);

@@ -786,6 +786,8 @@ const splitRows: Scenario = {
 };
 
 const addSheet = (page: Page) => page.getByTestId("add-sheet");
+const addRowButton = (page: Page) => page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true });
+const addMenu = (page: Page) => page.getByRole("dialog", { name: "Add to the receipt" });
 const addProbes: Probe[] = [
   { key: "add", find: testId("add-sheet"), kind: "top" },
   { key: "scrim", find: `document.querySelector('[data-testid="add-sheet"]')?.previousElementSibling?.firstElementChild ?? null`, kind: "opacity" },
@@ -793,15 +795,20 @@ const addProbes: Probe[] = [
 ];
 const addOpenScenario: Scenario = {
   id: "add-open",
-  name: "Add item: the sheet opens from the row under the receipt",
-  setup: picked,
-  act: (page) => tap(page.getByRole("button", { name: "Add item", exact: true })),
+  name: "Add item: the sheet opens from the Add row after the menu",
+  setup: async (page) => {
+    await picked(page);
+    await tap(addRowButton(page));
+    await still(addMenu(page));
+  },
+  act: (page) => tap(addMenu(page).getByRole("button", { name: "Item", exact: true })),
   probes: addProbes,
 };
 
 async function addFilled(page: Page) {
   await picked(page);
-  await tap(page.getByRole("button", { name: "Add item", exact: true }));
+  await tap(addRowButton(page));
+  await tap(addMenu(page).getByRole("button", { name: "Item", exact: true }));
   await addSheet(page).getByRole("textbox", { name: "Item name", exact: true }).fill("Tea");
   await addSheet(page).getByRole("textbox", { name: "Price", exact: true }).fill("3.00");
   await tap(addSheet(page).getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Jason", exact: true }));
@@ -819,7 +826,7 @@ const addRowScenario: Scenario = {
   probes: [
     { key: "rowHeight", find: addedRow, kind: "height" },
     { key: "rowFade", find: addedRow, kind: "opacity" },
-    { key: "addRow", find: label("Add item"), kind: "top" },
+    { key: "addRow", find: label("Add"), kind: "top" },
   ],
 };
 
@@ -836,7 +843,7 @@ const chargeDelete: Scenario = {
   act: (page) => tap(page.getByTestId("adjustment-sheet").getByRole("button", { name: "Delete charge" })),
   quietMs: 800,
   probes: [
-    { key: "addRow", find: label("Add tax, tip or discount"), kind: "top" },
+    { key: "addRow", find: label("Add"), kind: "top" },
     { key: "total", find: testId("total"), kind: "top" },
   ],
 };
@@ -857,7 +864,7 @@ const itemDelete: Scenario = {
   probes: [
     { key: "rowFade", find: leaving("tostones"), kind: "opacity" },
     { key: "bundle", find: testId("bundle-bucket"), kind: "top" },
-    { key: "addRow", find: label("Add item"), kind: "top" },
+    { key: "addRow", find: label("Add"), kind: "top" },
   ],
 };
 
@@ -873,7 +880,7 @@ const bundleItemDelete: Scenario = {
   quietMs: 800,
   probes: [
     { key: "rowFade", find: leaving("sprite"), kind: "opacity" },
-    { key: "addRow", find: label("Add item"), kind: "top" },
+    { key: "addRow", find: label("Add"), kind: "top" },
   ],
 };
 

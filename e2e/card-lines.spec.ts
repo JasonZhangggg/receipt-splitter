@@ -1,3 +1,4 @@
+import { addRow } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -108,27 +109,27 @@ test("the Your share breakdown says nothing about unclaimed lines while the tota
 
 const centeredAddItem = async ({ page, request }: { page: Page; request: APIRequestContext }, { workerIndex }: { workerIndex: number }) => {
   await pick(page, await createSplit(request, workerIndex), "Sam");
-  const add = page.getByRole("button", { name: "Add item", exact: true });
+  const add = addRow(page);
   await add.scrollIntoViewIfNeeded();
   const circle = page.getByRole("button", { name: "Sprite, check for Sam" });
   const middle = (box: { left: number; width: number }) => box.left + box.width / 2;
   await expect
     .poll(async () => {
       const dot = await circle.evaluate((target) => target.querySelector("div:empty")!.getBoundingClientRect().toJSON() as DOMRect);
-      const { above, below, label, plus } = await add.evaluate((row) => {
+      const { row, label, plus } = await add.evaluate((row) => {
         const box = (el: Element) => el.getBoundingClientRect().toJSON() as DOMRect;
-        const text = [...row.querySelectorAll("*")].find((el) => el.children.length === 0 && el.textContent === "Add item")!;
-        return { above: box(row).top + 1, below: box(row.nextElementSibling!).top, label: box(text), plus: box(row.querySelector("svg")!) };
+        const text = [...row.querySelectorAll("*")].find((el) => el.children.length === 0 && el.textContent === "Add")!;
+        return { row: box(row), label: box(text), plus: box(row.querySelector("svg")!) };
       });
       return {
-        labelBetweenHairlines: Math.abs(label.top + label.height / 2 - (above + below) / 2) <= 1,
+        labelCenteredInRow: Math.abs(label.top + label.height / 2 - (row.top + row.height / 2)) <= 1,
         plusOnCircleColumn: Math.abs(middle(plus) - middle(dot)) <= 1,
       };
     }, live)
-    .toEqual({ labelBetweenHairlines: true, plusOnCircleColumn: true });
+    .toEqual({ labelCenteredInRow: true, plusOnCircleColumn: true });
 };
 
-const title = "Add item sits halfway between the hairline above it and the Subtotal hairline, its plus centered on the Item circles";
+const title = "Add is centered in its row, its plus centered on the Item circles";
 
 test(`on a phone, ${title}`, centeredAddItem);
 

@@ -161,7 +161,7 @@ test("a read with no Items keeps Create split link off with its reason, and home
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Add item" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add", exact: true })).toHaveCount(0);
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Couldn't read any items. Try another photo." });
   const picker = page.waitForEvent("filechooser");
   await action(page).click();

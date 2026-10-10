@@ -76,7 +76,8 @@ for (const scheme of ["light", "dark"]) {
     report[`${width}-${scheme}-focusInDialog`] = await dialog.evaluate((el) => el.contains(document.activeElement));
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
-    await page.getByRole("button", { name: "Add item", exact: true }).click();
+    await page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByRole("dialog", { name: "Add to the receipt" }).getByRole("button", { name: "Item", exact: true }).click();
     await page.getByRole("dialog", { name: "New item" }).waitFor();
     report[`${width}-${scheme}-pointerAnimations`] = await page.getByRole("dialog", { name: "New item" }).evaluate((el) => el.getAnimations().length);
     await page.waitForTimeout(400);

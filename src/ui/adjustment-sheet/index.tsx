@@ -128,13 +128,13 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, gu
   );
 }
 
-type AddProps = { split: Split; me: ParticipantId | null; send: Send; onClose: () => void };
+type AddProps = { split: Split; me: ParticipantId | null; send: Send; onClose: () => void; /** The kind the form opens on; without one, the first of tax and tip the receipt lacks. */ kind?: ReceiptLevelKind };
 
 /** A missing tax, tip, fee or discount as a form: nothing reaches the Split until Add, so other phones never see it half typed. */
-export function AddAdjustmentSheet({ split, me, send, onClose }: AddProps) {
+export function AddAdjustmentSheet({ split, me, send, onClose, kind }: AddProps) {
   // Minted once, so a retry after a lost answer cannot add the line twice.
   const [id] = useState(() => adjustmentId(randomId(12)));
-  const [typed, setTyped] = useState<TypedAdjustment & { readonly kind: ReceiptLevelKind }>(() => ({ kind: missingKind(split.receipt.adjustments), name: "", amount: "" }));
+  const [typed, setTyped] = useState<TypedAdjustment & { readonly kind: ReceiptLevelKind }>(() => ({ kind: kind ?? missingKind(split.receipt.adjustments), name: "", amount: "" }));
   const [problem, setProblem] = useState<AdjustmentProblem | null>(null);
   const [sending, setSending] = useState(false);
   const splitRef = useRef(split);

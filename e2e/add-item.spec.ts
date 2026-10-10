@@ -1,3 +1,4 @@
+import { openAdd } from "./add-menu";
 import { simulateKeyboard } from "./motion";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 import { fromMore } from "./header";
@@ -54,13 +55,12 @@ async function pick(page: Page, name: string) {
   await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
 }
 
-const addRow = (page: Page) => page.getByRole("button", { name: "Add item", exact: true });
 const sheet = (page: Page) => page.getByRole("dialog", { name: "New item" });
 const field = (page: Page, name: string) => sheet(page).getByRole("textbox", { name, exact: true });
 const fries = (page: Page) => page.getByRole("button", { name: /^Open Fries, \$6\.50, / });
 
 async function addFries(page: Page, who: string[]) {
-  await addRow(page).click();
+  await openAdd(page, "Item");
   await field(page, "Item name").fill("Fries");
   await field(page, "Price").fill("6.50");
   for (const name of who) await sheet(page).getByRole("group", { name: "Who had it" }).getByRole("button", { name, exact: true }).click();
@@ -132,7 +132,7 @@ test("a Split at 100 Items says it is full and sends nothing", async ({ browser,
   await pick(sam, "Sam");
   await expect.poll(() => sent.some((frame) => frame.includes('"pick"'))).toBe(true);
 
-  await addRow(sam).click();
+  await openAdd(sam, "Item");
   await field(sam, "Item name").fill("Fries");
   await field(sam, "Price").fill("6.50");
   await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
@@ -145,7 +145,7 @@ test("a Split at 100 Items says it is full and sends nothing", async ({ browser,
 test("Add item with no name focuses the name and says so, and Return walks name, detail and price, then adds", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
-  await addRow(sam).click();
+  await openAdd(sam, "Item");
 
   await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
   await expect(sheet(sam).getByText("Add a name.")).toBeVisible();
@@ -168,7 +168,7 @@ test("Add item with no name focuses the name and says so, and Return walks name,
 test("the sheet keeps its top and height when a problem line appears", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
-  await addRow(sam).click();
+  await openAdd(sam, "Item");
   await expect(field(sam, "Item name")).toBeVisible();
   await sam.waitForTimeout(800);
   const box = async () => {
@@ -197,7 +197,7 @@ test("with the iPhone keyboard up, each focused field of the add sheet is above 
   await simulateKeyboard(page, iphoneKeyboard);
   await page.goto(await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  await addRow(page).click();
+  await openAdd(page, "Item");
   const surface = page.getByTestId("add-sheet");
   await expect(surface).toBeVisible();
   await page.waitForTimeout(600);
@@ -231,7 +231,7 @@ for (const rafDelay of [0, 200]) {
   test(`the added row's first painted frame is at height 0, and it opens with its claim on every frame, with frames ${rafDelay} ms late @frame-timing`, async ({ browser, request }, { workerIndex }) => {
     const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex, bucketRows, 0, bucket), rafDelay);
     await pick(sam, "Sam");
-    await addRow(sam).click();
+    await openAdd(sam, "Item");
     await field(sam, "Item name").fill("Fries");
     await field(sam, "Price").fill("6.50");
     await sheet(sam).getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam", exact: true }).click();

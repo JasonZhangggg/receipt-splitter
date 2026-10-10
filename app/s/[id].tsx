@@ -7,7 +7,7 @@ import { cents } from "../../src/core/money";
 import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
-import { isRoutableSplitId, type AdjustmentId, type Participant, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
+import { isRoutableSplitId, type AdjustmentId, type Participant, type ReceiptLevelKind, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
@@ -28,6 +28,7 @@ import { Breakdown, foldedRow } from "../../src/ui/split-view/breakdown";
 import { HeaderMenu, headerMenuWidth, SplitHeader } from "../../src/ui/split-view/header";
 import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
+import { AddMenu, addMenuWidth, type AddChoice } from "../../src/ui/split-view/add-menu";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
@@ -86,7 +87,7 @@ type OverlayKind =
   | { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] }
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
-  | { readonly kind: "addAdjustment" }
+  | { readonly kind: "addAdjustment"; readonly adjustmentKind: ReceiptLevelKind }
   | { readonly kind: "history" }
   | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
 /** What is open over the page and the press that opened it: the popover hangs from its trigger, and focus goes back there. */
@@ -233,6 +234,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
 
   // The menu keeps the person it opened for, so it can finish leaving after they are gone.
+  const [addMenu, setAddMenu] = useState<{ readonly from: Press; readonly closing: boolean; readonly choice: AddChoice | null } | null>(null);
   const [menu, setMenu] = useState<{ readonly person: Participant; readonly from: Press; readonly closing: boolean } | null>(null);
   const [peopleProblem, setPeopleProblem] = useState<string | null>(null);
   const present = (id: ParticipantId) => people.some((person) => person.id === id);
@@ -279,6 +281,16 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const peopleNote = peopleProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
+  const closeAddMenu = () => setAddMenu((was) => was && { ...was, closing: true });
+  const chooseAdd = (choice: AddChoice) => setAddMenu((was) => was && { ...was, closing: true, choice });
+  const addMenuGone = () => {
+    if (!addMenu) return;
+    setAddMenu(null);
+    const { choice, from } = addMenu;
+    if (choice === "item") return open({ kind: "add" }, from);
+    if (choice) return open({ kind: "addAdjustment", adjustmentKind: choice }, from);
+    if (wide || from.keyboard || actedByKey()) from.trigger.focus({ preventScroll: true });
+  };
   const closeGuard = useRef<CloseGuard | null>(null);
   const closeOverlay = () => {
     if (!closeGuard.current?.()) setClosing(true);
@@ -292,7 +304,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       : overlay.kind === "item"
         ? nearestLine(split, overlay.lines, overlay.itemId)
         : overlay.kind === "adjustment"
-          ? document.querySelector<HTMLElement>(`[aria-label="${say.addAdjustment}"]`)
+          ? document.querySelector<HTMLElement>(`[data-pressable][aria-label="${say.add}"]`)
           : null;
     trigger?.focus({ preventScroll: true });
   };
@@ -392,7 +404,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     ) : overlay.kind === "payments" ? (
       <PaymentsSheet split={split} me={me} onClose={closeOverlay} />
     ) : overlay.kind === "addAdjustment" ? (
-      <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} />
+      <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} kind={overlay.adjustmentKind} />
     ) : (
       <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
@@ -436,16 +448,15 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       me={me}
       onCircle={(item, from) => void onCircle(item, from)}
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
-      onAdd={(from) => open({ kind: "add" }, from)}
+      onAdd={(from) => setAddMenu({ from, closing: false, choice: null })}
       onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
-      onAddAdjustment={(from) => open({ kind: "addAdjustment" }, from)}
       showing={
         showingNow?.kind === "item"
           ? showingNow.itemId
           : showingNow?.kind === "adjustment"
             ? showingNow.adjustmentId
-            : showingNow?.kind === "add" || showingNow?.kind === "addAdjustment"
-              ? showingNow.kind
+            : showingNow?.kind === "add" || showingNow?.kind === "addAdjustment" || (addMenu && !addMenu.closing)
+              ? "add"
               : null
       }
     />
@@ -501,6 +512,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         <BottomSheet scrim label={overlayLabel(overlay, split)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlayContent}
         </BottomSheet>
+      ) : null}
+      {addMenu ? (
+        <Popover anchor={addMenu.from.trigger} label={say.addMenu} instant={addMenu.from.keyboard} closing={addMenu.closing} onClose={closeAddMenu} onGone={addMenuGone} width={addMenuWidth} align="start">
+          <AddMenu onChoose={chooseAdd} />
+        </Popover>
       ) : null}
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">

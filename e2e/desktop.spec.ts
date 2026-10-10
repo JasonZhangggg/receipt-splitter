@@ -1,3 +1,4 @@
+import { addRow, openAdd } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Locator, type Page } from "./without-ocr";
 import { fromMore, moreButton, moreMenu } from "./header";
 
@@ -205,25 +206,25 @@ test("at 1280 px with a Bundle open, the Add item popover opens above its row, a
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
   await firstBucket(page).click();
-  const addRow = receipt(page).getByRole("button", { name: "Add item", exact: true });
+  const add = addRow(page);
   const form = page.getByRole("dialog", { name: "New item" });
 
-  await addRow.click();
+  await openAdd(page, "Item");
 
   await expect(form).toBeVisible();
   const popover = await box(form);
-  expect(popover.y + popover.height).toBeLessThan((await box(addRow)).y + 2);
+  expect(popover.y + popover.height).toBeLessThan((await box(add)).y + 2);
   expect(await tabsInside(form, 16)).toEqual(Array(16).fill(true));
   expect(await tabsInside(form, 16, "Shift+Tab")).toEqual(Array(16).fill(true));
 });
 
-test("a line, Add item and More each announce a dialog popup, and expanded follows their popover", async ({ page, request }, { workerIndex }) => {
+test("a line, Add and More each announce a dialog popup, and expanded follows their popover", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
   const state = (trigger: Locator) => trigger.evaluate((el) => [el.getAttribute("aria-haspopup"), el.getAttribute("aria-expanded")]);
   const triggers = [
     { trigger: gameplay(page), popover: itemPopover(page) },
-    { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), popover: page.getByRole("dialog", { name: "New item" }) },
+    { trigger: addRow(page), popover: page.getByRole("dialog", { name: "Add to the receipt" }) },
     { trigger: moreButton(page), popover: moreMenu(page) },
   ];
   for (const { trigger, popover } of triggers) {
@@ -237,7 +238,7 @@ test("a line, Add item and More each announce a dialog popup, and expanded follo
   }
 });
 
-test("at phone width Escape closes the Item, Add item and History sheets and hands focus back to what opened them, More for History", async ({ page, request }, { workerIndex }) => {
+test("at phone width Escape closes the Item, Add menu and History sheets and hands focus back to what opened them, More for History", async ({ page, request }, { workerIndex }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(await createSplit(request, workerIndex));
   const asked = page.getByRole("dialog", { name: "Which one are you?" });
@@ -245,7 +246,7 @@ test("at phone width Escape closes the Item, Add item and History sheets and han
   await expect(asked).toHaveCount(0, live);
   const sheets = [
     { trigger: gameplay(page), sheet: page.getByTestId("item-sheet") },
-    { trigger: receipt(page).getByRole("button", { name: "Add item", exact: true }), sheet: page.getByTestId("add-sheet") },
+    { trigger: addRow(page), sheet: page.getByRole("dialog", { name: "Add to the receipt" }) },
     { trigger: moreButton(page), row: "History", sheet: page.getByTestId("history-sheet") },
   ];
   for (const { trigger, row, sheet } of sheets) {
@@ -289,14 +290,14 @@ test("another device's Delete item closes the open popover and hands focus to th
 test("Add item opens its form as a popover from its row, and the new row lands in the receipt with its claim", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  const addRow = receipt(page).getByRole("button", { name: "Add item", exact: true });
+  const add = addRow(page);
   const form = page.getByRole("dialog", { name: "New item" });
 
-  await addRow.click();
+  await openAdd(page, "Item");
 
   await expect(form).toBeVisible();
   await expect(page.getByTestId("add-sheet")).toHaveCount(0);
-  const row = await box(addRow);
+  const row = await box(add);
   const popover = await box(form);
   expect(inside(popover, desktop)).toBe(true);
   expect(popover.y >= row.y + row.height || popover.y + popover.height <= row.y).toBe(true);
