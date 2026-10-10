@@ -19,7 +19,7 @@ Every animation on the site runs without long frames, jumps, pops or reversals, 
 ## How to get to it (user POV)
 
 - The Split page `/s/<id>`: pick yourself, tap or swipe the bar, tap a Bundle header, tap an Item, tap the scrim.
-- The home page `/`: tap **Your name**, type a name and press Enter. Drag the panel from beside the payment row and let go.
+- The home page `/`: tap **Add name**, type a name and press Enter. Drag the panel from beside the payment row and let go.
 - The receipt card on `/`: tap the thumbnail to open the photo.
 
 ## Driving it with verify.mjs

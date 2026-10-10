@@ -206,7 +206,6 @@ export default function Home() {
       <View style={[!wide && [styles.hero, sides], styles.stack]}>
         <View style={[styles.cardColumn, !wide && styles.ticketColumn]}>
           <ReceiptSummary
-            name={scan.file.name}
             items={scan.receipt?.items.length ?? 0}
             total={scan.receipt?.total ?? cents(0)}
             thumbnail={scan.file.thumbnail}
@@ -262,7 +261,7 @@ const still = webStyle({ overflow: "clip" });
 
 const wideHeader = 76;
 
-const shortScreen = 700;
+const shortScreen = 762;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
@@ -275,7 +274,7 @@ const styles = StyleSheet.create({
   reading: { borderColor: "transparent" },
   drop: { alignItems: "center", gap: 6 },
   dashed: { alignSelf: "stretch", paddingVertical: 28, paddingHorizontal: 16, borderRadius: 28, borderWidth: 2, borderStyle: "dashed" },
-  dropCompact: { paddingVertical: 14 },
+  dropCompact: { paddingVertical: 6 },
   fills: { paddingTop: 44, paddingBottom: 48 },
   dropFills: { flexGrow: 1, justifyContent: "center" },
   stack: { alignSelf: "stretch" },

@@ -41,7 +41,7 @@ await host.goto(base);
 await host.getByRole("button", { name: "Example" }).click();
 await host.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
 for (const [index, name] of ["Jason", "Sam", "Priya", "Lee"].entries()) {
-  await host.getByRole("button", { name: index === 0 ? "Your name" : "Add a name" }).click();
+  await host.getByRole("button", { name: index === 0 ? "Add name" : "Add a name" }).click();
   await host.getByRole("textbox", { name: index === 0 ? "Your name" : "Name", exact: true }).fill(name);
   await host.keyboard.press("Enter");
 }

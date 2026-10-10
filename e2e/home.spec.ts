@@ -63,12 +63,13 @@ test("the empty home at 390 px shows the hero over the sheet, and only those wor
     "JPEG, PNG, or WebP",
     "V",
     "Venmo",
-    "Your name",
+    "Another way to get paid",
+    "Add name",
     "Create split link",
   ]);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
-  await expect(page.getByRole("button", { name: "Add another payment app" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "People at the table" })).toContainText("Your name");
+  await expect(page.getByRole("button", { name: "Another way to get paid" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "People at the table" })).toContainText("Add name");
   await expect(action(page)).toHaveAttribute("aria-disabled", "true");
 });
 
@@ -132,7 +133,7 @@ test("Create split link shows the blocked look with a 180 ms ease color transiti
 const venmoRule = "Venmo usernames need at least 5 characters. This one has 4.";
 
 async function addHost(page: Page, name: string) {
-  await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).click();
+  await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Add name" }).click();
   const field = page.getByRole("textbox", { name: "Your name", exact: true });
   await field.fill(name);
   await field.press("Enter");
@@ -210,7 +211,7 @@ test.describe("with the iPhone keyboard up", () => {
     await keyboardUp(page);
     await expect.poll(() => aboveKeyboard(handle)).toBe(true);
 
-    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
+    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Add name" }).tap();
     const name = page.getByRole("textbox", { name: "Your name", exact: true });
     await expect(name).toBeFocused();
     await expect.poll(() => aboveKeyboard(name)).toBe(true);
@@ -226,7 +227,7 @@ test.describe("with the iPhone keyboard up", () => {
     await animationsDone(page);
     const rising = (await tops()).map((top) => top.panel);
     expect(await action(page).evaluate((el) => el.getBoundingClientRect().bottom <= visualViewport!.height)).toBe(true);
-    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Your name" }).tap();
+    await page.getByRole("group", { name: "People at the table" }).getByRole("button", { name: "Add name" }).tap();
     await animationsDone(page);
     await page.locator("h1").tap();
     await keyboardDown(page);
@@ -264,7 +265,7 @@ test.describe("with the iPhone keyboard up and twelve names", () => {
       await settle(page);
 
       const people = page.getByRole("group", { name: "People at the table" });
-      await people.getByRole("button", { name: "Your name" }).tap();
+      await people.getByRole("button", { name: "Add name" }).tap();
       for (let i = 1; i <= 12; i++) {
         await page.keyboard.type(`Guest ${i}`);
         await page.keyboard.press("Enter");
@@ -387,12 +388,12 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 
-test("the sheet stands 247 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
+test("the sheet stands 277 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const sheet = await sheetOf(action(page));
   expect(sheet.top + sheet.height).toBe(phone.height);
-  expect(sheet.height).toBe(247);
+  expect(sheet.height).toBe(277);
 });
 
 test("the camera button and Add receipt sit fully above the sheet at 375 by 667", async ({ page }) => {
@@ -437,7 +438,7 @@ test("the sheet lifts its content by the bottom safe-area inset", async ({ page 
   await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
   await page.reload();
   await expect.poll(gapBelowAction).toBe(flush + 34);
-  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(281);
+  expect((await sheetOf(action(page))).height, "sheet height with the inset").toBe(311);
 });
 
 test("side safe-area insets keep the header and the sheet clear of a landscape notch", async ({ page }) => {
@@ -548,7 +549,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       };
       return {
         title: font("Add receipt"),
-        name: getComputedStyle(leaf("Your name")).color,
+        name: getComputedStyle(leaf("Add name")).color,
         glyph: getComputedStyle(leaf("V")).color,
         handle: getComputedStyle(document.querySelector("input")!).fontSize,
       };
@@ -623,7 +624,7 @@ test("names go in by keyboard alone: Enter adds the chip and leaves a fresh fiel
   await page.goto("/");
   await settle(page);
   const people = page.getByRole("group", { name: "People at the table" });
-  await people.getByRole("button", { name: "Your name" }).click();
+  await people.getByRole("button", { name: "Add name" }).click();
   await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
   await expect(people.getByRole("button", { name: "Add a name" })).toHaveText("Add");
 
@@ -639,6 +640,22 @@ test("names go in by keyboard alone: Enter adds the chip and leaves a fresh fiel
   const next = page.getByRole("textbox", { name: "Name", exact: true });
   await expect(next).toBeFocused();
   await expect(next).toHaveValue("");
+});
+
+test("the panel has no section labels, and marks the Host's chip with a person icon named \"you\"", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await expect(page.getByText("People at the table", { exact: true })).toHaveCount(0);
+  const people = page.getByRole("group", { name: "People at the table" });
+  await people.getByRole("button", { name: "Add name" }).click();
+  for (const name of ["Jason", "Sam"]) {
+    await page.keyboard.type(name);
+    await page.keyboard.press("Enter");
+  }
+  await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(2);
+  await expect(people.getByRole("img", { name: "you" })).toHaveCount(1);
+  const chips = people.getByText(/^(Jason|Sam)/);
+  expect(await chips.evaluateAll((els) => els.map((el) => `${el.parentElement!.innerText.replace(/\s+/g, " ").trim()}|${el.parentElement!.querySelectorAll('[role="img"]').length}`))).toEqual(["Jason|1", "Sam|0"]);
 });
 
 test("the handle placeholder fits its field at 320 px", async ({ page }) => {
@@ -677,7 +694,7 @@ test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from 
     })),
   );
   const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", stroke, width: "1.5", glyph: glyphs[name] });
-  expect(icons).toEqual([icon("moon", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
+  expect(icons).toEqual([icon("moon", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#696D74"), icon("plus", "#696D74")]);
 });
 
 for (const [width, named] of [
@@ -866,8 +883,8 @@ const componentHarness = `
     <SafeAreaProvider>
       <View style={{ width: 350, padding: 20, gap: 16 }}>
         <Button label="Create split link" onPress={() => window.presses++} reason="Items are $0.50 short." />
-        <ReceiptSummary name="IMG_4127.jpg" items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
-        <ReceiptSummary name="Example receipt" items={1} total={1599} thumbnail={null} onReplace={() => {}} stacked />
+        <ReceiptSummary items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
+        <ReceiptSummary items={1} total={1599} thumbnail={null} onReplace={() => {}} stacked />
       </View>
     </SafeAreaProvider>,
   );
@@ -909,13 +926,13 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
-test("the receipt card shows the file name, the item count, and the total, and opens the photo only when there is one", async ({ page }) => {
+test("the receipt card leads with the total over the item count, and opens the photo only when there is one", async ({ page }) => {
   await mountHarness(page, componentHarness);
   const cards = page.getByTestId("receipt");
   await expect(cards).toHaveCount(2);
   expect(await cards.evaluateAll((els) => els.map((el) => (el as HTMLElement).innerText.split("\n").filter(Boolean)))).toEqual([
-    ["IMG_4127.jpg", "5 items", "$28.04", "Total"],
-    ["Example receipt", "1 item", "$15.99"],
+    ["$28.04", "5 items"],
+    ["$15.99", "1 item"],
   ]);
   await expect(page.getByRole("button", { name: "View receipt photo" })).toHaveCount(1);
   await page.getByRole("button", { name: "View receipt photo" }).click();

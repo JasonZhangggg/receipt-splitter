@@ -41,12 +41,15 @@ export function PaymentRows({ handles, dispatch, inputs, outsideScroll }: Props)
             </View>
             {index > 0 ? (
               <Button kind="outline" icon="x" name={copy.removeApp(app.name)} onPress={() => dispatch({ type: "removeHandle", index })} outsideScroll={outsideScroll} />
-            ) : roomForMore ? (
-              <Button kind="outline" icon="plus" name={copy.addApp} onPress={() => dispatch({ type: "addHandle" })} outsideScroll={outsideScroll} />
             ) : null}
           </View>
         );
       })}
+      {roomForMore ? (
+        <View style={styles.another}>
+          <Button kind="link" icon="plus" label={copy.addApp} onPress={() => dispatch({ type: "addHandle" })} outsideScroll={outsideScroll} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -54,6 +57,7 @@ export function PaymentRows({ handles, dispatch, inputs, outsideScroll }: Props)
 const styles = StyleSheet.create({
   rows: { gap: layout.pairGap },
   row: { flexDirection: "row", gap: layout.pairGap },
+  another: { alignSelf: "flex-start", marginVertical: -12 },
   field: { flex: 1, flexDirection: "row", alignItems: "stretch", minHeight: layout.field, borderRadius: layout.fieldRadius, overflow: "hidden" },
   handle: { flex: 1, minWidth: 0, paddingHorizontal: 14 },
 });
