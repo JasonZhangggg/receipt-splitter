@@ -68,33 +68,33 @@ describe("paymentStatus", () => {
   const payments = paying([sam, 2200], [priya, 1400], [lee, 800]);
 
   test("lists everyone in chip order with the share and the paid state in words", () => {
-    expect(paymentStatus({ participants, payments }, mixed, jason).rows.map(({ name, share, words }) => [name, share, words])).toEqual([
-      ["Jason", 1000, "You get paid"],
-      ["Sam", 2600, "Paid $22.00 · $4.00 still owed"],
-      ["Priya", 1400, "Paid $14.00"],
-      ["Kim", 900, "Not paid"],
-      ["Lee", 500, "Paid $8.00 · $3.00 too much"],
-      ["Zoe", 0, "Nothing to pay"],
+    expect(paymentStatus({ participants, payments }, mixed, jason).rows.map(({ name, share, state, words }) => [name, share, state, words])).toEqual([
+      ["Jason", 1000, "host", "You get paid"],
+      ["Sam", 2600, "short", "Paid $22.00 · $4.00 still owed"],
+      ["Priya", 1400, "settled", "Paid $14.00"],
+      ["Kim", 900, "unpaid", "Not paid"],
+      ["Lee", 500, "over", "Paid $8.00 · $3.00 too much"],
+      ["Zoe", 0, "nothing", "Nothing to pay"],
     ]);
   });
 
-  test("counts the people who paid out of the people who owe or paid, never the Host, and a $0 share owes nobody", () => {
+  test("counts the people paid in full (settled or over, not short) out of the people who owe or paid, never the Host, and a $0 share owes nobody", () => {
     const status = paymentStatus({ participants, payments }, mixed, jason);
-    expect([status.paid, status.owing, status.summary]).toEqual([3, 4, "3 of 4 paid you"]);
+    expect([status.paid, status.owing, status.summary]).toEqual([2, 4, "2 of 4 paid you"]);
   });
 
   test("words the summary for everyone but the Host without 'you', and the Host row as theirs", () => {
     const status = paymentStatus({ participants, payments }, mixed, sam);
-    expect([status.summary, status.rows[0].words]).toEqual(["3 of 4 paid", "Gets paid"]);
+    expect([status.summary, status.rows[0].words]).toEqual(["2 of 4 paid", "Gets paid"]);
   });
 
   test("has no summary while nobody owes anything", () => {
     expect(paymentStatus({ participants, payments: paying() }, shares([1000, 0, 0, 0, 0, 0]), jason).summary).toBeNull();
   });
 
-  test("reads a recorded $0 as no payment, and a payer whose share fell to $0 as paid too much", () => {
-    const rows = paymentStatus({ participants, payments: paying([sam, 0], [zoe, 500]) }, mixed, jason).rows;
-    expect([rows[1].words, rows[5].words]).toEqual(["Not paid", "Paid $5.00 · $5.00 too much"]);
+  test("reads a payer whose share fell to $0 as paid too much, and counts them paid", () => {
+    const status = paymentStatus({ participants, payments: paying([zoe, 500]) }, mixed, jason);
+    expect([status.rows[5].words, status.paid, status.owing]).toEqual(["Paid $5.00 · $5.00 too much", 1, 5]);
   });
 
   test("moves a payer who paid exactly to paid too much once a co-claimer on their Item shrinks their share", () => {

@@ -4,11 +4,11 @@ import type { ParticipantId, Split } from "../../core/split";
 import { computeShares } from "../../core/shares";
 import { money } from "../../draft";
 import { PressTarget } from "../components/button";
-import { Icon } from "../components/icon";
+import { Icon, type IconName } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
-import { paymentStatus } from "./model";
+import { paymentStatus, type PaymentRow } from "./model";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void };
 
@@ -37,14 +37,19 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
         </Text>
       ) : null}
       <View role="list" aria-label={say.payments} style={styles.list}>
-        {rows.map(({ id, name, share, words }) => (
-          <View key={id} role="listitem" style={styles.row}>
+        {rows.map(({ id, name, share, state, words }) => (
+          <View key={id} role="listitem" style={styles.row} {...{ dataSet: { state } }}>
             <View style={styles.body}>
               <View style={styles.who}>
                 <Text numberOfLines={1} style={[type.button, styles.name, { color: c.ink }]}>
                   {name}
                 </Text>
                 {id === me ? <Icon name="person" size={13} color={c.ink} /> : null}
+                {marks[state] ? (
+                  <View style={marks[state] === "exclaim" && styles.narrow}>
+                    <Icon name={marks[state]} size={markSize} color={c.ink} />
+                  </View>
+                ) : null}
               </View>
               <Text style={[type.caption, { color: c.muted }]}>{words}</Text>
             </View>
@@ -55,6 +60,10 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
     </View>
   );
 }
+
+const markSize = 14;
+/** The glyph after the name: a check once paid in full, an x while unpaid, "!" when they paid and the share has moved. The Host and a $0 share get none. */
+const marks: Record<PaymentRow["state"], IconName | null> = { settled: "check", unpaid: "x", short: "exclaim", over: "exclaim", nothing: null, host: null };
 
 const styles = StyleSheet.create({
   sheet: { gap: layout.pairGap },
@@ -67,5 +76,7 @@ const styles = StyleSheet.create({
   body: { flex: 1, minWidth: 0, gap: 2 },
   who: { flexDirection: "row", alignItems: "center", gap: 5 },
   name: { flexShrink: 1 },
+  // The "!" is a thin stroke in a square glyph box, so it would sit farther from the name than the check does.
+  narrow: { marginHorizontal: -3 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });

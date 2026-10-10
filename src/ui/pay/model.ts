@@ -30,13 +30,15 @@ export type PaymentRow = {
   readonly name: string;
   readonly isHost: boolean;
   readonly share: Cents;
+  /** The row's PayState kind, or "host" for the Host, who is paid and never pays. */
+  readonly state: PayState["kind"] | "host";
   /** The paid state in words, or what the Host does. */
   readonly words: string;
 };
 
 export type PaymentStatus = {
   readonly rows: readonly PaymentRow[];
-  /** People other than the Host who have a payment recorded. */
+  /** People other than the Host who have paid in full or more. */
   readonly paid: number;
   /** People other than the Host who owe or paid anything. */
   readonly owing: number;
@@ -59,19 +61,18 @@ const stateWords = (state: PayState): string => {
   }
 };
 
-/** Everyone in chip order with their share and paid state in words. A recorded $0 counts as no payment. */
+/** Everyone in chip order with their share and paid state in words. */
 export function paymentStatus(split: Pick<Split, "participants" | "payments">, shares: Shares, viewer: ParticipantId | null): PaymentStatus {
   const host = split.participants[0];
   let paid = 0;
   let owing = 0;
   const rows = split.participants.map(({ id, name }, index): PaymentRow => {
     const share = shares.shares[index].share;
-    if (index === 0) return { id, name, isHost: true, share, words: viewer === host.id ? "You get paid" : "Gets paid" };
-    const recorded = split.payments.find((payment) => payment.participantId === id)?.amount ?? null;
-    const state = payState(share, recorded !== null && recorded > 0 ? recorded : null);
+    if (index === 0) return { id, name, isHost: true, share, state: "host", words: viewer === host.id ? "You get paid" : "Gets paid" };
+    const state = payState(share, split.payments.find((payment) => payment.participantId === id)?.amount ?? null);
     if (state.kind !== "nothing") owing += 1;
-    if (state.kind === "settled" || state.kind === "short" || state.kind === "over") paid += 1;
-    return { id, name, isHost: false, share, words: stateWords(state) };
+    if (state.kind === "settled" || state.kind === "over") paid += 1;
+    return { id, name, isHost: false, share, state: state.kind, words: stateWords(state) };
   });
   const summary = owing === 0 ? null : `${paid} of ${owing} paid${viewer === host.id ? " you" : ""}`;
   return { rows, paid, owing, summary };
