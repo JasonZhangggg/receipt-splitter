@@ -61,7 +61,8 @@ for (const scheme of ["light", "dark"]) {
     await page.getByRole("button", { name: /^Beer Bucket, / }).last().click();
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${out}/${width}-${scheme}-3-bucket.png` });
-    await page.getByRole("button", { name: "History", exact: true }).click();
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.getByRole("dialog", { name: "More" }).getByRole("button", { name: "History", exact: true }).click();
     await page.getByRole("dialog", { name: "History" }).waitFor();
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${out}/${width}-${scheme}-4-history.png` });

@@ -7,7 +7,6 @@ import { cents } from "../../src/core/money";
 import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
-import { paidMarks } from "../../src/ui/pay/model";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
@@ -19,13 +18,14 @@ import { Swap } from "../../src/ui/components/swap";
 import { AddAdjustmentSheet, AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
 import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
+import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
 import { AddItemSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { Breakdown, foldedRow } from "../../src/ui/split-view/breakdown";
-import { SplitHeader } from "../../src/ui/split-view/header";
+import { HeaderMenu, headerMenuWidth, SplitHeader } from "../../src/ui/split-view/header";
 import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
@@ -87,7 +87,8 @@ type OverlayKind =
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
   | { readonly kind: "addAdjustment" }
-  | { readonly kind: "history" };
+  | { readonly kind: "history" }
+  | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
 /** What is open over the page and the press that opened it: the popover hangs from its trigger, and focus goes back there. */
 type Overlay = OverlayKind & { readonly from: Press };
 /** The right pane shows the pick content until this device has picked, then that person's share. */
@@ -100,7 +101,7 @@ const overlayLabel = (overlay: OverlayKind, split: Split) =>
     ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
       ? say.discount
       : say.charge
-    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history }[overlay.kind];
+    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history, payments: say.payments }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
 const crossFadeFor = 200;
@@ -139,9 +140,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   useEffect(() => noteSplit(split), [split]);
 
   const shares = useMemo(() => computeShares(split), [split]);
-  const marks = useMemo(() => paidMarks(shares, split.payments), [shares, split.payments]);
   const people = split.participants;
-  const picked = new Set(split.picks.map(({ participantId }) => participantId));
   // A selected person someone removed falls back to this device's own name.
   const selectedPerson = people.find((person) => person.id === selected) ?? people.find((person) => person.id === me) ?? null;
   const creating = memory.creatorSecret !== undefined;
@@ -264,6 +263,19 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     setPeopleProblem(null);
     setMenu((open) => (open && !open.closing ? open : { person, from, closing: false }));
   };
+  // The header's More menu. Choosing a row removes the menu at once, so it never fades over what the row opens. That sheet or popover hangs from the More button and gives focus back to it.
+  const [more, setMore] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
+  const closeMore = () => setMore((open) => open && { ...open, closing: true });
+  const moreGone = () => {
+    if (more && (wide || more.from.keyboard || actedByKey()) && more.from.trigger.isConnected) more.from.trigger.focus({ preventScroll: true });
+    setMore(null);
+  };
+  const fromMore = (then: (from: Press) => void) => (row: Press) => {
+    if (!more) return;
+    more.from.trigger.focus({ preventScroll: true });
+    setMore(null);
+    then({ trigger: more.from.trigger, keyboard: row.keyboard });
+  };
   const peopleNote = peopleProblem ? <Text style={[type.small, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
@@ -284,6 +296,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           : null;
     trigger?.focus({ preventScroll: true });
   };
+  // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own.
+  const viewerGone = overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me;
+  if (viewerGone && !closing) setClosing(true);
   useEscape(overlay !== null && !closing && !wide, closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
@@ -303,9 +318,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     <View style={styles.chips}>
       <PeopleChips
         people={people}
-        picked={picked}
         me={me}
-        marks={marks}
         selected={me ? (selectedPerson?.id ?? null) : null}
         entering={phase === "collapsing"}
         onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
@@ -339,10 +352,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
             <View style={styles.chips}>
               <PeopleChips
                 people={people}
-                picked={picked}
-                me={me}
-                marks={marks}
-                selected={selectedPerson.id}
+                        me={me}
+                        selected={selectedPerson.id}
                 onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
                 onAdd={(typed) => void addPerson(typed)}
                 onHold={hold}
@@ -378,6 +389,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       <AddItemSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : overlay.kind === "adjustment" ? (
       <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
+    ) : overlay.kind === "payments" ? (
+      <PaymentsSheet split={split} me={me} onClose={closeOverlay} />
     ) : overlay.kind === "addAdjustment" ? (
       <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : (
@@ -437,7 +450,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       }
     />
   );
-  const header = <SplitHeader onReceipt={photo ? () => setViewing(true) : undefined} onHistory={(from) => open({ kind: "history" }, from)} historyOpen={showingNow?.kind === "history"} onShare={() => void share()} />;
+  const header = <SplitHeader onMore={(from) => setMore({ from, closing: false })} moreOpen={more !== null && !more.closing} onShare={() => void share()} />;
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
@@ -492,6 +505,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
+        </Popover>
+      ) : null}
+      {more ? (
+        <Popover anchor={more.from.trigger} label={say.more} instant={more.from.keyboard} closing={more.closing} onClose={closeMore} onGone={moreGone} width={headerMenuWidth}>
+          <HeaderMenu onPayments={fromMore((from) => open({ kind: "payments", viewer: me }, from))} onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} />
         </Popover>
       ) : null}
       {confirming ? (

@@ -77,7 +77,7 @@ test("the line under a share reads nothing unpaid, Paid, too much, still owed, a
   await circle(sam, "Pho", "Sam").click();
   await expect(note(sam)).toHaveText("Paid $30.00 · $14.20 still owed", live);
   await expect(note(jason)).toHaveText("0 of 1 paid you", live);
-  await jason.getByRole("button", { name: "Sam, paid too little", exact: true }).click();
+  await jason.getByRole("button", { name: "Sam", exact: true }).click();
   await expect(note(jason)).toHaveText("Paid $30.00 · $14.20 still owed", live);
 });
 
@@ -93,7 +93,7 @@ test("a long name's share label and its paid line give way to the amount instead
   await circle(max, "Pho", long).click();
   await owe(max).click();
   await max.getByTestId("breakdown").getByRole("button", { name: "I already paid" }).click();
-  await jason.getByRole("button", { name: `${long}, paid`, exact: true }).click();
+  await jason.getByRole("button", { name: long, exact: true }).click();
   await expect(jason.getByRole("button", { name: new RegExp(`^${long}'s share \\$14\\.20, Show`) })).toBeVisible(live);
   await expect(note(jason)).toHaveText("Paid $14.20");
   const amount = (await owe(jason).boundingBox())!;

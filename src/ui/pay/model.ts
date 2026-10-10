@@ -36,7 +36,7 @@ export function shareStatus(shares: Shares, payments: Split["payments"], person:
   return { kind: "host", paid, of: states.length, started: paid > 0 || states.some(({ kind }) => kind === "short") };
 }
 
-/** Quiet by default: nothing until someone has paid. */
+/** The one wording for a paid state: null while quiet (nothing or unpaid), so the line under a share stays empty and a Payments row falls back to its own words. */
 export function statusWords(status: ShareStatus): string | null {
   switch (status.kind) {
     case "nothing":
@@ -53,18 +53,40 @@ export function statusWords(status: ShareStatus): string | null {
   }
 }
 
-/** "short" and "over" both draw "!" on the chip: they paid, and their share has moved since. */
-export type PaidMark = "paid" | "short" | "over";
+export type PaymentRow = {
+  readonly id: ParticipantId;
+  readonly name: string;
+  readonly isHost: boolean;
+  readonly share: Cents;
+  /** The row's PayState kind, or "host" for the Host, who is paid and never pays. */
+  readonly state: PayState["kind"] | "host";
+  /** The paid state in words, or what the Host does. */
+  readonly words: string;
+};
 
-/** Who shows a mark on their chip. The Host is owed, so never marked; someone who hasn't paid has none. */
-export function paidMarks(shares: Shares, payments: Split["payments"]): ReadonlyMap<ParticipantId, PaidMark> {
-  const [, ...others] = shares.shares;
-  const marks = new Map<ParticipantId, PaidMark>();
-  for (const { participantId, share } of others) {
-    const amount = payments.find((payment) => payment.participantId === participantId)?.amount ?? null;
-    const state = payState(share, amount);
-    if (state.kind === "short" || state.kind === "over") marks.set(participantId, state.kind);
-    else if (state.kind === "settled") marks.set(participantId, "paid");
-  }
-  return marks;
+export type PaymentStatus = {
+  readonly rows: readonly PaymentRow[];
+  /** People other than the Host who have paid in full or more. */
+  readonly paid: number;
+  /** People other than the Host who owe or paid anything. */
+  readonly owing: number;
+  /** "N of M paid you" for the Host, "N of M paid" for everyone else; null while nobody owes anything. */
+  readonly summary: string | null;
+};
+
+/** Everyone in chip order with their share and paid state in words. */
+export function paymentStatus(split: Pick<Split, "participants" | "payments">, shares: Shares, viewer: ParticipantId | null): PaymentStatus {
+  const host = split.participants[0];
+  let paid = 0;
+  let owing = 0;
+  const rows = split.participants.map(({ id, name }, index): PaymentRow => {
+    const share = shares.shares[index].share;
+    if (index === 0) return { id, name, isHost: true, share, state: "host", words: viewer === host.id ? "You get paid" : "Gets paid" };
+    const state = payState(share, split.payments.find((payment) => payment.participantId === id)?.amount ?? null);
+    if (state.kind !== "nothing") owing += 1;
+    if (state.kind === "settled" || state.kind === "over") paid += 1;
+    return { id, name, isHost: false, share, state: state.kind, words: statusWords(state) ?? (state.kind === "unpaid" ? say.status.unpaid : say.status.nothing) };
+  });
+  const summary = owing === 0 ? null : `${paid} of ${owing} paid${viewer === host.id ? " you" : ""}`;
+  return { rows, paid, owing, summary };
 }

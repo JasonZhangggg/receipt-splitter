@@ -150,7 +150,8 @@ await sam.getByTestId("owe").click();
 await sam.waitForTimeout(500);
 await shot(sam, "G-yours");
 
-await host.getByRole("button", { name: "History" }).click();
+await host.getByRole("button", { name: "More", exact: true }).click();
+await host.getByRole("dialog", { name: "More" }).getByRole("button", { name: "History", exact: true }).click();
 await host.waitForTimeout(600);
 await shot(host, "I3-history");
 await host.getByRole("button", { name: "Revert Sprite" }).click();

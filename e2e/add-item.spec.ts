@@ -1,5 +1,6 @@
 import { simulateKeyboard } from "./motion";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { fromMore } from "./header";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -115,7 +116,7 @@ test("History lists the add, and Revert from another phone asks first and takes 
   await addFries(sam, []);
   await expect(fries(priya)).toBeVisible(live);
 
-  await priya.getByRole("button", { name: "History" }).click();
+  await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Added Fries" }).click();
   await priya.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
   await expect(priya.getByText("Reverted")).toBeVisible(live);
