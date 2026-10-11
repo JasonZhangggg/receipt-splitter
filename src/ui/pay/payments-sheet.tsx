@@ -7,7 +7,9 @@ import { PressTarget } from "../components/button";
 import { Icon, type IconName } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, type, useColors } from "../theme";
+import type { Colors } from "../colors";
+import { layout, type, useColors, useScheme } from "../theme";
+import { personInk } from "../colors";
 import { paymentStatus, type PaymentRow } from "./model";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void };
@@ -17,6 +19,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const { rows, summary } = paymentStatus(split, computeShares(split), me);
+  const scheme = useScheme();
   return (
     <View style={styles.sheet}>
       <View style={styles.topline}>
@@ -41,17 +44,18 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
           <View key={id} role="listitem" style={styles.row} {...{ dataSet: { state } }}>
             <View style={styles.body}>
               <View style={styles.who}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, marginRight: 3, backgroundColor: personInk(scheme, id) }} />
                 <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
                   {name}
                 </Text>
                 {id === me ? <Icon name="person" size={13} color={c.ink} /> : null}
                 {marks[state] ? (
                   <View style={marks[state] === "exclaim" && styles.narrow}>
-                    <Icon name={marks[state]} size={markSize} color={c.ink} />
+                    <Icon name={marks[state]} size={markSize} color={stateInk(c, state)} />
                   </View>
                 ) : null}
               </View>
-              <Text style={[type.caption, { color: c.muted }]}>{words}</Text>
+              <Text style={[type.caption, { color: stateInk(c, state) }]}>{words}</Text>
             </View>
             <Text style={[type.body, styles.amount, { color: c.ink }]}>{money(share)}</Text>
           </View>
@@ -62,6 +66,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
 }
 
 const markSize = 14;
+const stateInk = (c: Colors, state: PaymentRow["state"]) => (state === "settled" ? c.good : state === "short" || state === "over" ? c.warn : c.muted);
 /** The glyph after the name: a check once paid in full, an x while unpaid, "!" when they paid and the share has moved. The Host and a $0 share get none. */
 const marks: Record<PaymentRow["state"], IconName | null> = { settled: "check", unpaid: "x", short: "exclaim", over: "exclaim", nothing: null, host: null };
 

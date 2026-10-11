@@ -6,7 +6,8 @@ import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, type, useColors } from "../theme";
+import { layout, type, useColors, useScheme } from "../theme";
+import { personInk } from "../colors";
 import { Dot } from "./dot";
 import { LinkLine } from "./link-line";
 
@@ -99,6 +100,7 @@ type RowsProps = Pick<Props, "rows" | "chosen" | "onPick">;
 
 function PickRows({ rows, chosen, onPick }: RowsProps) {
   const c = useColors();
+  const scheme = useScheme();
   const reduce = useReducedMotion();
   const [asking, setAsking] = useState<ParticipantId | null>(null);
   return (
@@ -135,7 +137,7 @@ function PickRows({ rows, chosen, onPick }: RowsProps) {
                   return (
                     <View style={[styles.row, { backgroundColor: fill, boxShadow: picked && !isChosen ? `inset 0 0 0 1px ${c.hairline}` : undefined }]}>
                       <View style={styles.rowLead}>
-                        <Dot name={person.name} size={32} tone={isChosen ? "onAction" : picked ? "sheetIn" : "sheet"} />
+                        <Dot name={person.name} size={32} tone={isChosen ? "onAction" : picked ? "sheetIn" : "sheet"} inkOverride={isChosen ? undefined : personInk(scheme, person.id)} />
                         <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }]}>
                           {person.name}
                         </Text>

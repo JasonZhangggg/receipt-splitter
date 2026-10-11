@@ -11,6 +11,8 @@ const light = {
   off: "#EEEFF1",
   onOff: "#696D74",
   danger: "#C0281A",
+  good: "#17734A",
+  warn: "#8F5200",
   bar: "rgba(255, 255, 255, 0.86)",
   sheet: "#FFFFFF",
   sheetIn: "#F5F6F7",
@@ -43,6 +45,8 @@ const dark: Colors = {
   off: "#26272B",
   onOff: "#A0A3A9",
   danger: "#FF8A7A",
+  good: "#4CC38A",
+  warn: "#F0B23E",
   bar: "rgba(18, 19, 21, 0.86)",
   sheet: "#1C1D20",
   sheetIn: "#2A2B2F",
@@ -61,3 +65,20 @@ const dark: Colors = {
 };
 
 export const colors = { light, dark };
+
+/** Six hues for text and glyphs only; the second of each pair is for dark surfaces. Kept clear of the status green and amber. */
+export const people = [
+  ["#2F5FB3", "#86A9F0"],
+  ["#B3401F", "#F2917A"],
+  ["#0B6F8C", "#5CC3E0"],
+  ["#7A45B8", "#BC9CEE"],
+  ["#B02F63", "#EE86AE"],
+  ["#9A3496", "#E39AE0"],
+] as const;
+
+/** A person keeps one hue for good: it comes from their id, so nobody is recolored when someone else leaves. */
+export const personInk = (scheme: "light" | "dark", id: string) => {
+  let hash = 2166136261;
+  for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return people[(hash >>> 0) % people.length][scheme === "light" ? 0 : 1];
+};

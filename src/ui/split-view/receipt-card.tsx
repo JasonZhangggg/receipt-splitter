@@ -9,7 +9,8 @@ import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, motion, type, useColors } from "../theme";
+import { layout, motion, type, useColors, useScheme } from "../theme";
+import { personInk } from "../colors";
 import { Dot } from "./dot";
 import { claimersOfItem, keepInPlace, lineTag, nameParts, quantityText, receiptRows, totalNote, claimedItems, type BundleRow, type Kept } from "./model";
 
@@ -390,6 +391,7 @@ const shownMarks = 3;
 /** Who else had a line, as small overlapping initials before its price in table order: three at most, then "+N". The row's label already names them. */
 function Marks({ people, order }: { people: readonly Participant[]; order: readonly ParticipantId[] }) {
   const c = useColors();
+  const scheme = useScheme();
   if (people.length === 0) return null;
   const extra = people.length - shownMarks;
   const seated = [...people].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
@@ -397,7 +399,7 @@ function Marks({ people, order }: { people: readonly Participant[]; order: reado
     <View aria-hidden testID="claimer-marks" style={styles.marks}>
       {seated.slice(0, shownMarks).map((person, index) => (
         <View key={person.id} style={index > 0 && styles.overlap}>
-          <Dot name={person.name} size={markSize} tone="quiet" ring={`0 0 0 1.5px ${c.paper}`} />
+          <Dot name={person.name} size={markSize} tone="quiet" inkOverride={personInk(scheme, person.id)} ring={`0 0 0 1.5px ${c.paper}`} />
         </View>
       ))}
       {extra > 0 ? <Text style={[type.caption, tabular, styles.more, { color: c.muted }]}>{`+${extra}`}</Text> : null}
