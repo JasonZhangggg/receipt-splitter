@@ -91,12 +91,13 @@ export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wra
   const count = people.length;
   useLayoutEffect(() => {
     if (!opened && !follow.current) return;
+    const added = follow.current;
     follow.current = false;
     // Setting scrollLeft moves the row in WebKit, where the ScrollView's scrollToEnd leaves it in place.
     const box = scroller.current?.getScrollableNode() as HTMLElement | undefined;
     if (!box) return;
-    // A few pixels to the field's ring need no glide; a whole new chip does.
-    box.style.scrollBehavior = reduce || box.scrollWidth - box.clientWidth - box.scrollLeft < glideFrom ? "auto" : "smooth";
+    // The field opening, or a few pixels to its ring, need no glide; a whole new chip does.
+    box.style.scrollBehavior = reduce || !added || box.scrollWidth - box.clientWidth - box.scrollLeft < glideFrom ? "auto" : "smooth";
     box.scrollLeft = box.scrollWidth;
     box.style.scrollBehavior = "";
   }, [opened, count, reduce]);
