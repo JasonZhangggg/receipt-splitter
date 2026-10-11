@@ -80,5 +80,7 @@ export const people = [
 export const personInk = (scheme: "light" | "dark", id: string) => {
   let hash = 2166136261;
   for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-  return people[(hash >>> 0) % people.length][scheme === "light" ? 0 : 1];
+  hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+  hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
+  return people[((hash ^ (hash >>> 16)) >>> 0) % people.length][scheme === "light" ? 0 : 1];
 };
