@@ -1,4 +1,4 @@
-# Splitwith
+# SplitWith
 
 A free website with two modes:
 

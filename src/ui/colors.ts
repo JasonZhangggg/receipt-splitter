@@ -11,6 +11,8 @@ const light = {
   off: "#EEEFF1",
   onOff: "#696D74",
   danger: "#C0281A",
+  good: "#17734A",
+  warn: "#8F5200",
   bar: "rgba(255, 255, 255, 0.86)",
   sheet: "#FFFFFF",
   sheetIn: "#F5F6F7",
@@ -43,6 +45,8 @@ const dark: Colors = {
   off: "#26272B",
   onOff: "#A0A3A9",
   danger: "#FF8A7A",
+  good: "#4CC38A",
+  warn: "#F0B23E",
   bar: "rgba(18, 19, 21, 0.86)",
   sheet: "#1C1D20",
   sheetIn: "#2A2B2F",
@@ -61,3 +65,47 @@ const dark: Colors = {
 };
 
 export const colors = { light, dark };
+
+/**
+ * Six pastel hues, each a soft `fill` for chips and initials (ink reads on it) and a deeper `mark` for the payments dots and ring arcs. Indexed by scheme.
+ * Kept clear of the status green and amber.
+ */
+export const people = [
+  { light: { fill: "#CFDFF7", mark: "#8FB2EA" }, dark: { fill: "#B3C7E8", mark: "#8FB2EA" } },
+  { light: { fill: "#F8D8C8", mark: "#F0A98A" }, dark: { fill: "#E8C1AE", mark: "#F0A98A" } },
+  { light: { fill: "#C5E8EC", mark: "#7CCAD3" }, dark: { fill: "#ABD4DA", mark: "#7CCAD3" } },
+  { light: { fill: "#DFD5F4", mark: "#B7A2E6" }, dark: { fill: "#C8BBE8", mark: "#B7A2E6" } },
+  { light: { fill: "#F5D0DE", mark: "#E98FB0" }, dark: { fill: "#E4B7C8", mark: "#E98FB0" } },
+  { light: { fill: "#EDE3B6", mark: "#D6C16A" }, dark: { fill: "#D9CE9C", mark: "#D6C16A" } },
+] as const;
+
+/** Text on a pastel fill: dark in both schemes, since the fills stay light in dark mode too. */
+export const onPastel = "#111214";
+
+export type PersonInk = { readonly fill: string; readonly mark: string };
+
+const hueOf = (id: string) => {
+  let hash = 2166136261;
+  for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+  hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
+  return ((hash ^ (hash >>> 16)) >>> 0) % people.length;
+};
+
+/**
+ * Everyone's hue, from their ids in table order. Each id starts at its own hash; if an earlier person holds that hue it takes the next free one, wrapping.
+ * Every phone sees the same table order, so every phone paints the same hues, and a person is recolored only when someone before them who shared their hash leaves.
+ * Past six people the hues start over.
+ */
+export function personInks(scheme: "light" | "dark", ids: readonly string[]): Map<string, PersonInk> {
+  const taken = new Set<number>();
+  const inks = new Map<string, PersonInk>();
+  for (const id of ids) {
+    if (taken.size === people.length) taken.clear();
+    let hue = hueOf(id);
+    while (taken.has(hue)) hue = (hue + 1) % people.length;
+    taken.add(hue);
+    inks.set(id, people[hue][scheme]);
+  }
+  return inks;
+}

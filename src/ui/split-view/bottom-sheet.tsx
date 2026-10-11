@@ -279,19 +279,21 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
       >
         {/* A drag past the top rest lifts the bottom edge off the screen, so the sheet runs on below it and the page never shows there. */}
         <View style={[styles.below, { height: tallest, backgroundColor: c.sheet }]} />
-        <View style={[styles.column, { paddingLeft: layout.gutter - ringRoom + insets.left, paddingRight: layout.gutter - ringRoom + insets.right }]}>
+        <View style={styles.column}>
           <View {...{ dataSet: { sheetGrab: "" } }} style={[styles.grabArea, grip]}>
             <View style={[styles.grab, { backgroundColor: c.hairline }]} />
           </View>
           <ScrollView
             style={[{ maxHeight: tallest - grabHeight + ringRoom }, contain, fits, fold && unclipped]}
-            contentContainerStyle={[{ paddingTop: ringRoom, paddingHorizontal: ringRoom, paddingBottom: 30 + insets.bottom }, fits, fold && { maxHeight: tallest - grabHeight + ringRoom }]}
+            contentContainerStyle={[{ paddingTop: ringRoom, paddingBottom: 30 + insets.bottom }, fits, fold && { maxHeight: tallest - grabHeight + ringRoom }]}
           >
-            <View ref={body} onLayout={measure} {...{ dataSet: { sheetBody: "" } }} style={styles.shrink}>
-              <View ref={top}>{header}</View>
-              <Swap view={view} style={styles.shrink}>
-                {children}
-              </Swap>
+            <View style={[styles.inset, styles.shrink, { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
+              <View ref={body} onLayout={measure} {...{ dataSet: { sheetBody: "" } }} style={styles.shrink}>
+                <View ref={top}>{header}</View>
+                <Swap view={view} style={styles.shrink}>
+                  {children}
+                </Swap>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -309,7 +311,8 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   below: { position: "absolute", top: "100%", left: 0, right: 0 },
-  column: { alignSelf: "center", width: "100%", maxWidth: 480 },
+  column: { width: "100%" },
+  inset: { alignSelf: "center", width: "100%", maxWidth: 480 },
   grabArea: { alignSelf: "stretch", height: grabHeight - ringRoom, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },
   shrink: { flexShrink: 1 },

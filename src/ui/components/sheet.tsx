@@ -98,7 +98,7 @@ export function Sheet({ children, action, onHeight }: Props) {
         style={[
           styles.sheet,
           pinned,
-          { backgroundColor: c.sheet, boxShadow: c.sheetShadow, paddingBottom: bottomPadding + insets.bottom, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right },
+          { backgroundColor: c.sheet, boxShadow: c.sheetShadow, paddingBottom: bottomPadding + insets.bottom },
         ]}
       >
         <View {...grabMarker} style={styles.grabArea}>
@@ -107,12 +107,14 @@ export function Sheet({ children, action, onHeight }: Props) {
         <ScrollView
           ref={scroller}
           style={[{ maxHeight: maxContent }, contain, overflows ? scrolls : pinned]}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={{ paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
           onContentSizeChange={onContentSizeChange}
         >
-          {children}
+          <View style={styles.content}>{children}</View>
         </ScrollView>
-        <View style={styles.action}>{action}</View>
+        <View style={{ paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}>
+          <View style={styles.action}>{action}</View>
+        </View>
         <View style={[styles.below, { backgroundColor: c.sheet }]} />
       </View>
     </View>

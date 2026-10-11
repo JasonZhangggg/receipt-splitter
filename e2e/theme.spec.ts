@@ -35,7 +35,7 @@ test("the Dark mode row turns home dark on a light device, status bar included",
   await flipTo(page, "Dark mode");
   await offers(page, "Light mode");
   expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#121315", "#121315"], stored: "dark" });
-  await expect(page.getByRole("heading", { name: "Splitwith" })).toHaveCSS("color", "rgb(242, 242, 243)");
+  await expect(page.getByRole("heading", { name: "SplitWith" })).toHaveCSS("color", "rgb(242, 242, 243)");
 });
 
 test("a reload keeps dark, and the page is dark before the app's script runs", async ({ page }) => {

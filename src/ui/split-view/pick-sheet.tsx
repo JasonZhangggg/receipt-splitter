@@ -7,6 +7,7 @@ import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
+import { usePersonInks } from "../person-inks";
 import { Dot } from "./dot";
 import { LinkLine } from "./link-line";
 
@@ -99,6 +100,7 @@ type RowsProps = Pick<Props, "rows" | "chosen" | "onPick">;
 
 function PickRows({ rows, chosen, onPick }: RowsProps) {
   const c = useColors();
+  const inkOf = usePersonInks(rows.map(({ person }) => person.id));
   const reduce = useReducedMotion();
   const [asking, setAsking] = useState<ParticipantId | null>(null);
   return (
@@ -135,7 +137,7 @@ function PickRows({ rows, chosen, onPick }: RowsProps) {
                   return (
                     <View style={[styles.row, { backgroundColor: fill, boxShadow: picked && !isChosen ? `inset 0 0 0 1px ${c.hairline}` : undefined }]}>
                       <View style={styles.rowLead}>
-                        <Dot name={person.name} size={32} tone={isChosen ? "onAction" : picked ? "sheetIn" : "sheet"} />
+                        <Dot name={person.name} size={32} tone={isChosen ? "onAction" : picked ? "sheetIn" : "sheet"} fillOverride={isChosen ? undefined : inkOf(person.id).fill} />
                         <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }]}>
                           {person.name}
                         </Text>
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
   close: { marginTop: -10, marginRight: -12 },
   ask: { marginHorizontal: 2, marginBottom: 4 },
   rows: { gap: layout.pairGap },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 58, paddingLeft: 13, paddingRight: 18, borderRadius: 16 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 58, paddingLeft: 13, paddingRight: 18, borderRadius: 29 },
   rowLead: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 1 },
   name: { flexShrink: 1 },
   claimback: { gap: 12, padding: 14, paddingLeft: 13, borderRadius: 16 },

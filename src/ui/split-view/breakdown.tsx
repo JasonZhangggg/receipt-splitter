@@ -52,7 +52,9 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
   const mine = person.id === viewer;
   const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
   const label = mine ? say.yourShare : say.shareOf(person.name);
-  const note = statusWords(shareStatus(shares, split.payments, person.id, viewer));
+  const status = shareStatus(shares, split.payments, person.id, viewer);
+  const note = statusWords(status);
+  const noteInk = status.kind === "settled" ? c.good : status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
   const charges = [...adjustments, ...(difference === 0 ? [] : [{ id: "difference", name: say.receiptDifference, portion: difference }])];
 
   const above = (
@@ -85,12 +87,12 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
       </View>
     ) : null;
 
-  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={label} note={note} share={share} above={above} below={below} />;
+  if (fold) return <Folding fold={fold} person={person.id} whose={mine ? null : person.name} label={label} note={note} noteInk={noteInk} share={share} above={above} below={below} />;
   return (
     <View testID="breakdown" style={styles.shrink}>
       {above}
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <ShareLabel label={label} note={note} />
+        <ShareLabel label={label} note={note} noteInk={noteInk} />
         <Text testID="share" style={[type.hero, tabular, { color: c.ink }]}>
           {money(share)}
         </Text>
@@ -100,13 +102,13 @@ export function Breakdown({ split, shares, person, viewer, onPaid, edge, fold }:
   );
 }
 
-type FoldingProps = { fold: Fold; person: ParticipantId; whose: string | null; label: string; note: string | null; share: number; above: ReactNode; below: ReactNode };
+type FoldingProps = { fold: Fold; person: ParticipantId; whose: string | null; label: string; note: string | null; noteInk: string; share: number; above: ReactNode; below: ReactNode };
 
 /**
  * The share row is one element in both states. Folded it sits under the chips; open it sits under the list. It moves down the sheet while the sheet rises, so on screen it travels a short way into place,
  * and a cover under it hides the list until the row has passed. The list and the rule fade with the same progress and the pay block over its last tenth, so a drag can stop or turn back at any frame.
  */
-function Folding({ fold, person, whose, label, note, share, above, below }: FoldingProps) {
+function Folding({ fold, person, whose, label, note, noteInk, share, above, below }: FoldingProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const { open, track, onToggle } = fold;
@@ -180,7 +182,7 @@ function Folding({ fold, person, whose, label, note, share, above, below }: Fold
                 <View style={[styles.shareRow, { backgroundColor: c.sheet }]}>
                   <Swap view={person} style={styles.grow}>
                     <View style={styles.amounts}>
-                      <ShareLabel label={label} note={note} noteId={noteId} />
+                      <ShareLabel label={label} note={note} noteInk={noteInk} noteId={noteId} />
                       <Text testID={open ? "share" : "owe"} style={[type.hero, tabular, { color: c.ink }]}>
                         {money(share)}
                       </Text>
@@ -202,7 +204,7 @@ function Folding({ fold, person, whose, label, note, share, above, below }: Fold
 }
 
 /** The share's name, and under it one quiet line once the person has paid. The label keeps one height with or without it, so the share row never moves. */
-function ShareLabel({ label, note, noteId }: { label: string; note: string | null; noteId?: string }) {
+function ShareLabel({ label, note, noteInk, noteId }: { label: string; note: string | null; noteInk: string; noteId?: string }) {
   const c = useColors();
   return (
     <View style={styles.label}>
@@ -210,7 +212,7 @@ function ShareLabel({ label, note, noteId }: { label: string; note: string | nul
         {label}
       </Text>
       {note ? (
-        <Text testID="share-note" nativeID={noteId} numberOfLines={1} style={[type.caption, tabular, { color: c.muted }]}>
+        <Text testID="share-note" nativeID={noteId} numberOfLines={1} style={[type.caption, tabular, { color: noteInk }]}>
           {note}
         </Text>
       ) : null}

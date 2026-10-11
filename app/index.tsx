@@ -99,6 +99,11 @@ export default function Home() {
   }, [dispatch]);
   const dragging = usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);
+  const shareApp = async () => {
+    const url = window.location.origin;
+    if (typeof navigator.share === "function") await navigator.share({ title: copy.wordmark, url }).catch(() => {});
+    else await navigator.clipboard?.writeText(url).catch(() => {});
+  };
   const example = () => {
     scanning.current++;
     pageCopy = null;
@@ -248,7 +253,8 @@ export default function Home() {
           </Text>
           <View style={styles.headerButtons}>
             {scan.status === "empty" && width >= breakpoints.exampleFrom ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
-            <View style={styles.edge}>
+            <View style={[styles.edge, styles.headerEnd]}>
+              <Button kind="icon" icon="share" name={copy.shareApp} onPress={() => void shareApp()} />
               <Button kind="icon" icon="menu" name={copy.menu} popup="dialog" expanded={menu !== null && !menu.closing} onPress={(from) => setMenu({ from, closing: false })} />
             </View>
           </View>
@@ -301,6 +307,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerButtons: { flexDirection: "row", alignItems: "center", gap: 6 },
   edge: { marginRight: -12 },
+  headerEnd: { flexDirection: "row", alignItems: "center" },
   // The upload headline keeps the old 29 px leading, so the box still clears the sheet at 375 by 667.
   heroTitle: { lineHeight: 29 },
   hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },

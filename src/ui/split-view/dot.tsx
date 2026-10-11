@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import type { Colors } from "../colors";
+import { type Colors, onPastel } from "../colors";
 import { type, useColors } from "../theme";
 
 type Tone = "dot" | "quiet" | "me" | "sheet" | "sheetIn" | "onAction" | "none";
@@ -15,12 +15,14 @@ const fills: Record<Tone, (c: Colors) => { fill: string; ink: string }> = {
   none: (c) => ({ fill: "transparent", ink: c.muted }),
 };
 
-export function Dot({ name, size = 24, tone = "dot", ring }: { name: string; size?: number; tone?: Tone; ring?: string }) {
+export function Dot({ name, size = 24, tone = "dot", ring, fillOverride }: { name: string; size?: number; tone?: Tone; ring?: string; fillOverride?: string }) {
   const c = useColors();
-  const { fill, ink } = fills[tone](c);
+  const { fill: toneFill, ink: toneInk } = fills[tone](c);
+  const fill = fillOverride ?? toneFill;
+  const ink = fillOverride ? onPastel : toneInk;
   return (
     <View aria-hidden style={[styles.dot, { width: size, height: size, borderRadius: size / 2, backgroundColor: fill, boxShadow: ring }]}>
-      <Text style={[type.glyph, { color: ink, fontSize: size > 24 ? 12 : size > 18 ? 10.5 : 9.5, lineHeight: size > 24 ? 14 : size > 18 ? 12 : 11 }]}>{[...name.trim()][0]?.toUpperCase() ?? ""}</Text>
+      <Text style={[type.glyph, { color: ink, fontSize: size > 24 ? 12 : size > 18 ? 10.5 : 11, lineHeight: size > 24 ? 14 : size > 18 ? 12 : 13 }]}>{[...name.trim()][0]?.toUpperCase() ?? ""}</Text>
     </View>
   );
 }
