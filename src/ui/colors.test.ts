@@ -32,6 +32,7 @@ const text: [fg: keyof Colors, bg: keyof Colors][] = [
   ["muted", "sheetIn"],
   ["onAction", "action"],
   ["onOff", "off"],
+  ["onSelfBadge", "selfBadge"],
   ["danger", "sheetIn"],
   ["good", "sheet"],
   ["good", "sheetIn"],
@@ -67,17 +68,27 @@ describe.each(["light", "dark"] as const)("%s colors", (scheme) => {
 });
 
 describe.each(["light", "dark"] as const)("%s person hues", (scheme) => {
-  test.each(people.map((hue) => hue[scheme].fill))("text on the pastel fill %s meets 4.5:1", (fill) => {
+  test.each(people.map((hue) => hue[scheme].fill))("text on the fill %s meets 4.5:1", (fill) => {
     expect(contrast(onPastel, fill)).toBeGreaterThanOrEqual(4.5);
   });
 
-  // The chip fill sits beside the selected chip's action fill; the ring arc marks sit on the sheet.
-  test.each(people.map((hue) => hue[scheme].fill))("the fill %s stays apart from the sheet it is drawn on", (fill) => {
-    expect(contrast(fill, colors[scheme].sheet)).toBeGreaterThanOrEqual(1.1);
+  // The claimer initials sit on the card; the ring arcs on the sheet; the chip dots on the chip's quiet fill.
+  test.each(people.map((hue) => hue[scheme].fill))("the fill %s stays apart from the card it is drawn on", (fill) => {
+    expect(contrast(fill, colors[scheme].paper)).toBeGreaterThanOrEqual(1.1);
   });
 
   test.each(people.map((hue) => hue[scheme].mark))("the ring mark %s shows against the sheet at 1.5:1", (mark) => {
     expect(contrast(mark, colors[scheme].sheet)).toBeGreaterThanOrEqual(1.5);
+  });
+
+  test.each(people.map((hue) => hue[scheme].mark))("the chip dot %s shows against the chip fill at 1.5:1", (mark) => {
+    expect(contrast(mark, colors[scheme].sheetIn)).toBeGreaterThanOrEqual(1.5);
+  });
+
+  // The selected person's badge is white in light mode, so a hairline sets it off the card; in dark mode the badge itself is bright against the card.
+  test("the selected person's badge reads against the card: by its edge in light, by its fill in dark", () => {
+    const { selfBadge, selfBadgeEdge, paper } = colors[scheme];
+    expect(Math.max(contrast(selfBadge, paper), selfBadgeEdge === "transparent" ? 0 : contrast(selfBadgeEdge, paper))).toBeGreaterThanOrEqual(1.8);
   });
 });
 
@@ -100,7 +111,7 @@ describe("personInks", () => {
     const ids = ["jason", "sam", "priya", "dee", "eli", "fay"];
     expect(inksOf(ids)).toEqual(inksOf(ids));
     expect([...personInks("dark", ids).values()]).toEqual([people[2].dark, people[1].dark, people[4].dark, people[0].dark, people[5].dark, people[3].dark]);
-    expect(hueOf("#B3C7E8", "dark")).toEqual({ fill: "#B3C7E8", mark: "#8FB2EA" });
+    expect(hueOf("#BBC1CA", "dark")).toEqual({ fill: "#BBC1CA", mark: "#8899B1" });
   });
 
   test("someone who leaves recolors nobody unless they held a hue a later person had collided with", () => {

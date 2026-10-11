@@ -20,6 +20,9 @@ const light = {
   scrim: "rgba(17, 18, 20, 0.32)",
   segment: "#FFFFFF",
   segmentShadow: "0 1px 2px rgba(17, 18, 20, 0.08), 0 0 0 0.5px rgba(17, 18, 20, 0.06)",
+  selfBadge: "#FFFFFF",
+  onSelfBadge: "#111214",
+  selfBadgeEdge: "#B0B4BA",
   skeleton: "#E0E1E3",
   skeletonInk: "#B1B2B3",
   focus: "#111214",
@@ -54,6 +57,9 @@ const dark: Colors = {
   scrim: "rgba(0, 0, 0, 0.5)",
   segment: "#3A3C41",
   segmentShadow: "none",
+  selfBadge: "#F2F2F3",
+  onSelfBadge: "#111214",
+  selfBadgeEdge: "transparent",
   skeleton: "#2F3033",
   skeletonInk: "#5C5D5F",
   focus: "#F2F2F3",
@@ -67,19 +73,19 @@ const dark: Colors = {
 export const colors = { light, dark };
 
 /**
- * Six pastel hues, each a soft `fill` for chips and initials (ink reads on it) and a deeper `mark` for the payments dots and ring arcs. Indexed by scheme.
- * Kept clear of the status green and amber.
+ * Six dusty hues (blue, peach, aqua, lavender, rose, butter), each a grayish `fill` for the claimer initials on the card and in the pick sheet, with ink on it,
+ * and a deeper `mark` for the chip dots, the payments dots and the ring arcs. Indexed by scheme. Kept clear of the status green and amber.
  */
 export const people = [
-  { light: { fill: "#CFDFF7", mark: "#8FB2EA" }, dark: { fill: "#B3C7E8", mark: "#8FB2EA" } },
-  { light: { fill: "#F8D8C8", mark: "#F0A98A" }, dark: { fill: "#E8C1AE", mark: "#F0A98A" } },
-  { light: { fill: "#C5E8EC", mark: "#7CCAD3" }, dark: { fill: "#ABD4DA", mark: "#7CCAD3" } },
-  { light: { fill: "#DFD5F4", mark: "#B7A2E6" }, dark: { fill: "#C8BBE8", mark: "#B7A2E6" } },
-  { light: { fill: "#F5D0DE", mark: "#E98FB0" }, dark: { fill: "#E4B7C8", mark: "#E98FB0" } },
-  { light: { fill: "#EDE3B6", mark: "#D6C16A" }, dark: { fill: "#D9CE9C", mark: "#D6C16A" } },
+  { light: { fill: "#E0E7F0", mark: "#91A1BA" }, dark: { fill: "#BBC1CA", mark: "#8899B1" } },
+  { light: { fill: "#F0E1DC", mark: "#BB9588" }, dark: { fill: "#C8BCB4", mark: "#B08F7A" } },
+  { light: { fill: "#C8D7D9", mark: "#77A0A5" }, dark: { fill: "#BFCDD0", mark: "#7CA4AD" } },
+  { light: { fill: "#DDDAE5", mark: "#9F95B3" }, dark: { fill: "#D3D1DD", mark: "#A19BBA" } },
+  { light: { fill: "#DDCFD4", mark: "#AF8B99" }, dark: { fill: "#D2C4C7", mark: "#B58F99" } },
+  { light: { fill: "#DFDED0", mark: "#A29D78" }, dark: { fill: "#D2CEC1", mark: "#A99D79" } },
 ] as const;
 
-/** Text on a pastel fill: dark in both schemes, since the fills stay light in dark mode too. */
+/** Text on a person's fill: dark in both schemes, since the fills stay light in dark mode too. */
 export const onPastel = "#111214";
 
 export type PersonInk = { readonly fill: string; readonly mark: string };

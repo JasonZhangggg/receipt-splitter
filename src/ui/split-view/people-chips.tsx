@@ -7,7 +7,6 @@ import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
-import { onPastel } from "../colors";
 import { usePersonInks } from "../person-inks";
 
 type Props = {
@@ -154,11 +153,12 @@ export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wra
   }, [wrap]);
 
   const face = (person: Participant) => {
-    // Two looks only: the selected chip in ink with a ring set off by a gap, everyone else in their own pastel, whether or not they have picked their name.
+    // Two looks only: the selected chip in ink with a ring set off by a gap, everyone else on a quiet fill with a dot in their own hue, whether or not they have picked their name.
     const isSelected = person.id === selected;
-    const ink = isSelected ? c.onAction : onPastel;
+    const ink = isSelected ? c.onAction : c.ink;
     return (
-      <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : inkOf(person.id).fill }, isSelected && { boxShadow: `0 0 0 2px ${c.sheet}, 0 0 0 4px ${c.action}` }]}>
+      <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : c.sheetIn }, isSelected && { boxShadow: `0 0 0 2px ${c.sheet}, 0 0 0 4px ${c.action}` }]}>
+        {isSelected ? null : <View style={[styles.dot, { backgroundColor: inkOf(person.id).mark }]} />}
         <Text numberOfLines={1} selectable={false} style={[type.body, styles.name, { color: ink }]}>
           {person.name}
         </Text>
@@ -289,6 +289,7 @@ const styles = StyleSheet.create({
   wrapRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: layout.chipRowGap, rowGap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "center", columnGap: layout.chipRowGap },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, maxWidth: 160, paddingHorizontal: 14, borderRadius: 22 },
+  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   name: { flexShrink: 1 },
   mark: { flexShrink: 0 },
   add: { width: 44, paddingHorizontal: 0, justifyContent: "center" },
