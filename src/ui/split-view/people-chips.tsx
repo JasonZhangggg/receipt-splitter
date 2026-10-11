@@ -154,11 +154,11 @@ export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wra
   }, [wrap]);
 
   const face = (person: Participant) => {
-    // Two looks only: the selected chip in ink, everyone else in their own pastel, whether or not they have picked their name.
+    // Two looks only: the selected chip in ink with a ring set off by a gap, everyone else in their own pastel, whether or not they have picked their name.
     const isSelected = person.id === selected;
     const ink = isSelected ? c.onAction : onPastel;
     return (
-      <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : inkOf(person.id).fill }]}>
+      <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : inkOf(person.id).fill }, isSelected && { boxShadow: `0 0 0 2px ${c.sheet}, 0 0 0 4px ${c.action}` }]}>
         <Text numberOfLines={1} selectable={false} style={[type.body, styles.name, { color: ink }]}>
           {person.name}
         </Text>
