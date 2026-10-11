@@ -51,10 +51,17 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
       ) : null}
       {total > 0 ? (
         <View role="img" aria-label={label} style={styles.ring}>
-          <DonutRing markup={ringMarkup(slices(shares), (id) => (id === null ? c.dash : inkOf(id)))} />
+          <DonutRing markup={ringMarkup(slices(shares), inkOf, c.hairline)} />
           <View aria-hidden style={styles.center}>
-            <Text style={[type.title, styles.tabular, { color: c.ink }]}>{money(total)}</Text>
-            <Text numberOfLines={1} style={[type.caption, styles.tabular, { color: c.muted }]}>{unclaimed > 0 ? say.ring.unclaimed(money(unclaimed)) : say.ring.claimed(money(total))}</Text>
+            <Text style={[type.hero, styles.tabular, { color: c.ink }]}>{money(total)}</Text>
+            {unclaimed > 0 ? (
+              <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
+                {money(unclaimed)}
+              </Text>
+            ) : null}
+            <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
+              {unclaimed > 0 ? say.ring.unclaimed : say.ring.claimed}
+            </Text>
           </View>
         </View>
       ) : null}
@@ -91,7 +98,8 @@ const marks: Record<PaymentRow["state"], IconName | null> = { settled: "check", 
 
 const styles = StyleSheet.create({
   tabular: { fontVariant: ["tabular-nums"] },
-  ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 4 },
+  caption: { textAlign: "center" },
+  ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 8 },
   center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

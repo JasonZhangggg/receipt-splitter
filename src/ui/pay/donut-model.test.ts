@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents } from "../../core/money";
 import type { Shares } from "../../core/shares";
 import { participantId, type ItemId } from "../../core/split";
-import { arcs, slices } from "./donut-model";
+import { arcs, ringMarkup, slices } from "./donut-model";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -18,7 +18,7 @@ const shares = (own: [typeof ann, number][], unclaimed: number): Shares => {
 };
 
 describe("slices", () => {
-  test("run in chip order from the top with the unclaimed rest last, and fill the ring", () => {
+  test("run in chip order from the top as parts of the Total, and leave the unclaimed rest as the open track", () => {
     expect(
       slices(
         shares(
@@ -32,11 +32,10 @@ describe("slices", () => {
     ).toEqual([
       { id: "ann", cents: 5000, start: 0, fraction: 0.5 },
       { id: "bob", cents: 3000, start: 0.5, fraction: 0.3 },
-      { id: null, cents: 2000, start: 0.8, fraction: 0.2 },
     ]);
   });
 
-  test("leave out a $0.00 Share and an unclaimed $0.00", () => {
+  test("leave out a $0.00 Share", () => {
     expect(
       slices(
         shares(
@@ -51,33 +50,50 @@ describe("slices", () => {
     ).toEqual([{ id: "bob", cents: 400, start: 0, fraction: 1 }]);
   });
 
-  test("one person who had everything is one full slice", () => {
+  test("one person who had everything fills the ring", () => {
     expect(slices(shares([[ann, 7710]], 0))).toEqual([{ id: "ann", cents: 7710, start: 0, fraction: 1 }]);
   });
 
-  test("a receipt nobody claimed is the unclaimed ring alone", () => {
-    expect(slices(shares([[ann, 0]], 1250))).toEqual([{ id: null, cents: 1250, start: 0, fraction: 1 }]);
+  test("a receipt nobody claimed has no arcs, only the track", () => {
+    expect(slices(shares([[ann, 0]], 1250))).toEqual([]);
   });
 
-  test("nothing at all gives no slices", () => {
+  test("nothing at all gives no arcs", () => {
     expect(slices(shares([[ann, 0]], 0))).toEqual([]);
   });
 });
 
 describe("arcs", () => {
-  test("cut each slice 2 px short so neighbors leave a 2 px gap, and start it half a gap in", () => {
-    const length = 2 * Math.PI * 64;
+  const length = 2 * Math.PI * 99.5;
+
+  test("trim each arc by the gap and the stroke so round-capped neighbors leave 5 px of track, and start it half the trim in", () => {
     const [first, second] = arcs([
       { id: ann, cents: 5000, start: 0, fraction: 0.5 },
       { id: bob, cents: 5000, start: 0.5, fraction: 0.5 },
     ]);
-    expect(first.dash).toBe(`${0.5 * length - 2} ${length}`);
-    expect(first.offset).toBe(-1);
-    expect(second.offset).toBe(-(0.5 * length + 1));
+    expect(first.dash).toBe(`${0.5 * length - 14} ${length}`);
+    expect(first.offset).toBe(-7);
+    expect(second.offset).toBe(-(0.5 * length + 7));
   });
 
-  test("leave a lone slice whole, with no gap", () => {
-    const length = 2 * Math.PI * 64;
+  test("leave a lone arc untrimmed", () => {
     expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toEqual([{ id: "ann", dash: `${length} ${length}`, offset: -0 }]);
+  });
+
+  test("shrink a sliver to a dot rather than a negative length", () => {
+    const [sliver] = arcs([
+      { id: ann, cents: 1, start: 0, fraction: 0.001 },
+      { id: bob, cents: 999, start: 0.001, fraction: 0.999 },
+    ]);
+    expect(sliver.dash).toBe(`0 ${length}`);
+  });
+});
+
+describe("ringMarkup", () => {
+  test("draws the track first, then one round-capped circle per arc", () => {
+    const markup = ringMarkup([{ id: ann, cents: 100, start: 0, fraction: 1 }], () => "#123456", "#abcdef");
+    expect(markup.match(/<circle/g)).toHaveLength(2);
+    expect(markup.indexOf('stroke="#abcdef"')).toBeLessThan(markup.indexOf('stroke="#123456"'));
+    expect(markup).toContain('stroke-linecap="round"');
   });
 });
