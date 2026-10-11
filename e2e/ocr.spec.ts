@@ -8,7 +8,7 @@ async function readBoxes(page: Page): Promise<TextBox[]> {
 test("home paints before the model download starts, then prefetches the models", async ({ page }) => {
   const firstModelRequest = page.context().waitForEvent("request", (request) => new URL(request.url()).pathname.startsWith("/models/"));
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Splitwith" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
   expect(await page.evaluate(() => self.crossOriginIsolated)).toBe(true);
 
   const request = await firstModelRequest;
