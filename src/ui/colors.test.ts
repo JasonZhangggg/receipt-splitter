@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { colors, people, personInk, type Colors } from "./colors";
+import { colors, people, personInks, type Colors } from "./colors";
 
 function luminance(hex: string) {
   const [r, g, b] = [1, 3, 5].map((i) => {
@@ -83,8 +83,35 @@ describe.each(["light", "dark"] as const)("%s person hues", (scheme) => {
   });
 });
 
-test("a person's hue comes from their id alone", () => {
-  expect(personInk("light", "p-abc")).toBe(personInk("light", "p-abc"));
-  expect(people.map((pair) => pair[0])).toContain(personInk("light", "p-abc"));
-  expect(people.map((pair) => pair[1])).toContain(personInk("dark", "p-abc"));
+const blue = "#2F5FB3";
+const rust = "#B3401F";
+const cyan = "#0B6F8C";
+const violet = "#7A45B8";
+const rose = "#B02F63";
+const magenta = "#9A3496";
+const inksOf = (ids: string[]) => Object.fromEntries(personInks("light", ids));
+
+describe("personInks", () => {
+  // The hashes of jason and fay both land on cyan, and priya's, eli's and bob's all land on rose.
+  test("each id takes its own hue, and a later id that hashes to a taken hue takes the next free one", () => {
+    expect(inksOf(["jason", "sam", "priya", "dee", "eli", "fay"])).toEqual({ jason: cyan, sam: rust, priya: rose, dee: blue, eli: magenta, fay: violet });
+  });
+
+  test("the same table order gives the same hues, and the dark scheme gives the dark tones of the same hues", () => {
+    const ids = ["jason", "sam", "priya", "dee", "eli", "fay"];
+    expect(inksOf(ids)).toEqual(inksOf(ids));
+    expect([...personInks("dark", ids).values()]).toEqual(["#5CC3E0", "#F2917A", "#EE86AE", "#86A9F0", "#E39AE0", "#BC9CEE"]);
+  });
+
+  test("someone who leaves recolors nobody unless they held a hue a later person had collided with", () => {
+    expect(inksOf(["jason", "priya", "dee", "eli", "fay"])).toEqual({ jason: cyan, priya: rose, dee: blue, eli: magenta, fay: violet });
+    expect(inksOf(["sam", "priya", "dee", "eli", "fay"])).toEqual({ sam: rust, priya: rose, dee: blue, eli: magenta, fay: cyan });
+  });
+
+  test("with more people than hues the hues start over", () => {
+    const seven = inksOf(["jason", "sam", "priya", "dee", "eli", "fay", "ann"]);
+    expect(new Set(Object.values(seven).slice(0, 6)).size).toBe(6);
+    expect(seven.ann).toBe(magenta);
+    expect(people.map((pair) => pair[0])).toContain(seven.ann);
+  });
 });

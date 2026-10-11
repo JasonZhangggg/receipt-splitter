@@ -6,8 +6,8 @@ import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, motion, type, useColors, useScheme } from "../theme";
-import { personInk } from "../colors";
+import { layout, motion, type, useColors } from "../theme";
+import { usePersonInks } from "../person-inks";
 
 type Props = {
   people: readonly Participant[];
@@ -25,7 +25,7 @@ type Props = {
 
 export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wrap = false, entering = false, label = say.people }: Props) {
   const c = useColors();
-  const scheme = useScheme();
+  const inkOf = usePersonInks(people.map(({ id }) => id));
   // Wrapped chips reflow across lines and the pane changes height, so on desktop a removal closes up in one frame, with no slide or fade.
   const reduce = useReducedMotion();
   const scroller = useRef<ScrollView>(null);
@@ -158,7 +158,7 @@ export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wra
     const ink = isSelected ? c.onAction : c.ink;
     return (
       <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : c.off }]}>
-        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: personInk(isSelected ? (scheme === "light" ? "dark" : "light") : scheme, person.id) }} />
+        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: inkOf(person.id, isSelected) }} />
         <Text numberOfLines={1} selectable={false} style={[type.body, styles.name, { color: ink }]}>
           {person.name}
         </Text>

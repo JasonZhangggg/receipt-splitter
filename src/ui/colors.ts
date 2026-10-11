@@ -76,11 +76,28 @@ export const people = [
   ["#9A3496", "#E39AE0"],
 ] as const;
 
-/** A person keeps one hue for good: it comes from their id, so nobody is recolored when someone else leaves. */
-export const personInk = (scheme: "light" | "dark", id: string) => {
+const hueOf = (id: string) => {
   let hash = 2166136261;
   for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
   hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
   hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
-  return people[((hash ^ (hash >>> 16)) >>> 0) % people.length][scheme === "light" ? 0 : 1];
+  return ((hash ^ (hash >>> 16)) >>> 0) % people.length;
 };
+
+/**
+ * Everyone's hue, from their ids in table order. Each id starts at its own hash; if an earlier person holds that hue it takes the next free one, wrapping.
+ * Every phone sees the same table order, so every phone paints the same hues, and a person is recolored only when someone before them who shared their hash leaves.
+ * Past six people the hues start over.
+ */
+export function personInks(scheme: "light" | "dark", ids: readonly string[]): Map<string, string> {
+  const taken = new Set<number>();
+  const inks = new Map<string, string>();
+  for (const id of ids) {
+    if (taken.size === people.length) taken.clear();
+    let hue = hueOf(id);
+    while (taken.has(hue)) hue = (hue + 1) % people.length;
+    taken.add(hue);
+    inks.set(id, people[hue][scheme === "light" ? 0 : 1]);
+  }
+  return inks;
+}

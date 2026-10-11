@@ -8,8 +8,8 @@ import { Icon, type IconName } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import type { Colors } from "../colors";
-import { layout, type, useColors, useScheme } from "../theme";
-import { personInk } from "../colors";
+import { layout, type, useColors } from "../theme";
+import { usePersonInks } from "../person-inks";
 import { slices, ringMarkup, ring } from "./donut-model";
 import { DonutRing } from "./donut-ring";
 import { paymentStatus, type PaymentRow } from "./model";
@@ -22,7 +22,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
   const reduce = useReducedMotion();
   const shares = computeShares(split);
   const { rows, summary } = paymentStatus(split, shares, me);
-  const scheme = useScheme();
+  const inkOf = usePersonInks(split.participants.map(({ id }) => id));
   const total = split.receipt.total;
   const unclaimed = shares.unclaimed.total;
   const label = say.ring.label(
@@ -51,7 +51,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
       ) : null}
       {total > 0 ? (
         <View role="img" aria-label={label} style={styles.ring}>
-          <DonutRing markup={ringMarkup(slices(shares), (id) => (id === null ? c.dash : personInk(scheme, id)))} />
+          <DonutRing markup={ringMarkup(slices(shares), (id) => (id === null ? c.dash : inkOf(id)))} />
           <View aria-hidden style={styles.center}>
             <Text style={[type.title, styles.tabular, { color: c.ink }]}>{money(total)}</Text>
             <Text numberOfLines={1} style={[type.caption, styles.tabular, { color: c.muted }]}>{unclaimed > 0 ? say.ring.unclaimed(money(unclaimed)) : say.ring.claimed(money(total))}</Text>
@@ -63,7 +63,7 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
           <View key={id} role="listitem" style={styles.row} {...{ dataSet: { state } }}>
             <View style={styles.body}>
               <View style={styles.who}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, marginRight: 3, backgroundColor: personInk(scheme, id) }} />
+                <View style={{ width: 8, height: 8, borderRadius: 4, marginRight: 3, backgroundColor: inkOf(id) }} />
                 <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
                   {name}
                 </Text>
