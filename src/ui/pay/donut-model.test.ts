@@ -66,7 +66,7 @@ describe("slices", () => {
 
 describe("arcs", () => {
   test("cut each slice 2 px short so neighbors leave a 2 px gap, and start it half a gap in", () => {
-    const length = 2 * Math.PI * 63;
+    const length = 2 * Math.PI * 64;
     const [first, second] = arcs([
       { id: ann, cents: 5000, start: 0, fraction: 0.5 },
       { id: bob, cents: 5000, start: 0.5, fraction: 0.5 },
@@ -77,7 +77,7 @@ describe("arcs", () => {
   });
 
   test("leave a lone slice whole, with no gap", () => {
-    const length = 2 * Math.PI * 63;
+    const length = 2 * Math.PI * 64;
     expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toEqual([{ id: "ann", dash: `${length} ${length}`, offset: -0 }]);
   });
 });

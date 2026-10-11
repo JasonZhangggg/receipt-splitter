@@ -21,7 +21,7 @@ export function slices({ shares, unclaimed }: Pick<Shares, "shares" | "unclaimed
   });
 }
 
-export const ring = { size: 140, thickness: 14, gap: 2 } as const;
+export const ring = { size: 140, thickness: 12, gap: 2 } as const;
 
 /** Each slice is a stroked circle cut to its length, so a full ring and a sliver draw the same way. A gap of `ring.gap` px sits between neighbors, and none when one slice fills the ring. */
 export function arcs(all: readonly Slice[]): { id: ParticipantId | null; dash: string; offset: number }[] {
