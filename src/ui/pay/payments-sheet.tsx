@@ -10,6 +10,8 @@ import { splitCopy as say } from "../split-copy";
 import type { Colors } from "../colors";
 import { layout, type, useColors, useScheme } from "../theme";
 import { personInk } from "../colors";
+import { slices, ringMarkup, ring } from "./donut-model";
+import { DonutRing } from "./donut-ring";
 import { paymentStatus, type PaymentRow } from "./model";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void };
@@ -18,8 +20,16 @@ type Props = { split: Split; me: ParticipantId | null; onClose: () => void };
 export function PaymentsSheet({ split, me, onClose }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const { rows, summary } = paymentStatus(split, computeShares(split), me);
+  const shares = computeShares(split);
+  const { rows, summary } = paymentStatus(split, shares, me);
   const scheme = useScheme();
+  const total = split.receipt.total;
+  const unclaimed = shares.unclaimed.total;
+  const label = say.ring.label(
+    money(total),
+    rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share)}`),
+    unclaimed > 0 ? money(unclaimed) : null,
+  );
   return (
     <View style={styles.sheet}>
       <View style={styles.topline}>
@@ -38,6 +48,15 @@ export function PaymentsSheet({ split, me, onClose }: Props) {
         <Text testID="payments-summary" style={[type.body, { color: c.muted }]}>
           {summary}
         </Text>
+      ) : null}
+      {total > 0 ? (
+        <View role="img" aria-label={label} style={styles.ring}>
+          <DonutRing markup={ringMarkup(slices(shares), (id) => (id === null ? c.dash : personInk(scheme, id)))} />
+          <View aria-hidden style={styles.center}>
+            <Text style={[type.title, styles.tabular, { color: c.ink }]}>{money(total)}</Text>
+            <Text numberOfLines={1} style={[type.caption, styles.tabular, { color: c.muted }]}>{unclaimed > 0 ? say.ring.unclaimed(money(unclaimed)) : say.ring.claimed(money(total))}</Text>
+          </View>
+        </View>
       ) : null}
       <View role="list" aria-label={say.payments} style={styles.list}>
         {rows.map(({ id, name, share, state, words }) => (
@@ -71,6 +90,9 @@ const stateInk = (c: Colors, state: PaymentRow["state"]) => (state === "settled"
 const marks: Record<PaymentRow["state"], IconName | null> = { settled: "check", unpaid: "x", short: "exclaim", over: "exclaim", nothing: null, host: null };
 
 const styles = StyleSheet.create({
+  tabular: { fontVariant: ["tabular-nums"] },
+  ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 4 },
+  center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
   topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   title: { marginTop: 2 },

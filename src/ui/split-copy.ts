@@ -59,6 +59,11 @@ export const splitCopy = {
   copyToPayOnZelle: (handle: string, host: string, amount: string) => `Copy ${handle} to pay ${host} ${amount} on Zelle`,
   copyValueFailed: "Couldn't copy that. Select it and copy it by hand.",
   payerOnly: "Only the phone that picked your name can mark you paid.",
+  ring: {
+    claimed: (amount: string) => `${amount} claimed`,
+    unclaimed: (amount: string) => `${amount} unclaimed`,
+    label: (total: string, each: readonly string[], unclaimed: string | null) => `Receipt total ${total}. ${[...each, ...(unclaimed ? [`${unclaimed} unclaimed`] : [])].join(", ")}.`,
+  },
   status: {
     paid: (paid: string) => `Paid ${paid}`,
     short: (paid: string, rest: string) => `Paid ${paid} · ${rest} still owed`,
