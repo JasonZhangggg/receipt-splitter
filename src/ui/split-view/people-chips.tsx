@@ -7,6 +7,7 @@ import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
+import { onPastel } from "../colors";
 import { usePersonInks } from "../person-inks";
 
 type Props = {
@@ -155,7 +156,7 @@ export function PeopleChips({ people, me, selected, onSelect, onAdd, onHold, wra
   const face = (person: Participant) => {
     // Two looks only: the selected chip in ink, everyone else in their own pastel, whether or not they have picked their name.
     const isSelected = person.id === selected;
-    const ink = isSelected ? c.onAction : c.ink;
+    const ink = isSelected ? c.onAction : onPastel;
     return (
       <View aria-selected={isSelected} style={[styles.chip, { backgroundColor: isSelected ? c.action : inkOf(person.id).fill }]}>
         <Text numberOfLines={1} selectable={false} style={[type.body, styles.name, { color: ink }]}>

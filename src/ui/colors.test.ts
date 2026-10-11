@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { colors, people, personInks, type Colors } from "./colors";
+import { colors, onPastel, people, personInks, type Colors } from "./colors";
 
 function luminance(hex: string) {
   const [r, g, b] = [1, 3, 5].map((i) => {
@@ -67,8 +67,8 @@ describe.each(["light", "dark"] as const)("%s colors", (scheme) => {
 });
 
 describe.each(["light", "dark"] as const)("%s person hues", (scheme) => {
-  test.each(people.map((hue) => hue[scheme].fill))("ink on the pastel fill %s meets 4.5:1", (fill) => {
-    expect(contrast(colors[scheme].ink, fill)).toBeGreaterThanOrEqual(4.5);
+  test.each(people.map((hue) => hue[scheme].fill))("text on the pastel fill %s meets 4.5:1", (fill) => {
+    expect(contrast(onPastel, fill)).toBeGreaterThanOrEqual(4.5);
   });
 
   // The chip fill sits beside the selected chip's action fill; the ring arc marks sit on the sheet.
@@ -100,7 +100,7 @@ describe("personInks", () => {
     const ids = ["jason", "sam", "priya", "dee", "eli", "fay"];
     expect(inksOf(ids)).toEqual(inksOf(ids));
     expect([...personInks("dark", ids).values()]).toEqual([people[2].dark, people[1].dark, people[4].dark, people[0].dark, people[5].dark, people[3].dark]);
-    expect(hueOf("#2C4268", "dark")).toEqual({ fill: "#2C4268", mark: "#6F93D1" });
+    expect(hueOf("#B3C7E8", "dark")).toEqual({ fill: "#B3C7E8", mark: "#8FB2EA" });
   });
 
   test("someone who leaves recolors nobody unless they held a hue a later person had collided with", () => {

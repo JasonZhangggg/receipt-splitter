@@ -71,13 +71,16 @@ export const colors = { light, dark };
  * Kept clear of the status green and amber.
  */
 export const people = [
-  { light: { fill: "#CFDFF7", mark: "#8FB2EA" }, dark: { fill: "#2C4268", mark: "#6F93D1" } },
-  { light: { fill: "#F8D8C8", mark: "#F0A98A" }, dark: { fill: "#5B382B", mark: "#D9805F" } },
-  { light: { fill: "#C5E8EC", mark: "#7CCAD3" }, dark: { fill: "#1F4B53", mark: "#4DAAB8" } },
-  { light: { fill: "#DFD5F4", mark: "#B7A2E6" }, dark: { fill: "#43365F", mark: "#9C86D6" } },
-  { light: { fill: "#F5D0DE", mark: "#E98FB0" }, dark: { fill: "#5A3045", mark: "#D06F96" } },
-  { light: { fill: "#EDE3B6", mark: "#D6C16A" }, dark: { fill: "#50462A", mark: "#B9A44F" } },
+  { light: { fill: "#CFDFF7", mark: "#8FB2EA" }, dark: { fill: "#B3C7E8", mark: "#8FB2EA" } },
+  { light: { fill: "#F8D8C8", mark: "#F0A98A" }, dark: { fill: "#E8C1AE", mark: "#F0A98A" } },
+  { light: { fill: "#C5E8EC", mark: "#7CCAD3" }, dark: { fill: "#ABD4DA", mark: "#7CCAD3" } },
+  { light: { fill: "#DFD5F4", mark: "#B7A2E6" }, dark: { fill: "#C8BBE8", mark: "#B7A2E6" } },
+  { light: { fill: "#F5D0DE", mark: "#E98FB0" }, dark: { fill: "#E4B7C8", mark: "#E98FB0" } },
+  { light: { fill: "#EDE3B6", mark: "#D6C16A" }, dark: { fill: "#D9CE9C", mark: "#D6C16A" } },
 ] as const;
+
+/** Text on a pastel fill: dark in both schemes, since the fills stay light in dark mode too. */
+export const onPastel = "#111214";
 
 export type PersonInk = { readonly fill: string; readonly mark: string };
 
