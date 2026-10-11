@@ -388,7 +388,7 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
 
 const shownMarks = 3;
 
-/** Who else had a line, as small overlapping initials before its price in table order: three at most, then "+N". The row's label already names them. */
+/** Who had a line, the viewer included, as small overlapping initials before its price in table order: three at most, then "+N". The row's label already names them. */
 function Marks({ people, order }: { people: readonly Participant[]; order: readonly ParticipantId[] }) {
   const c = useColors();
   const inkOf = usePersonInks(order);
@@ -399,7 +399,7 @@ function Marks({ people, order }: { people: readonly Participant[]; order: reado
     <View aria-hidden testID="claimer-marks" style={styles.marks}>
       {seated.slice(0, shownMarks).map((person, index) => (
         <View key={person.id} style={index > 0 && styles.overlap}>
-          <Dot name={person.name} size={markSize} tone="quiet" inkOverride={inkOf(person.id)} ring={`0 0 0 1.5px ${c.paper}`} />
+          <Dot name={person.name} size={markSize} tone="quiet" fillOverride={inkOf(person.id).fill} ring={`0 0 0 1.5px ${c.paper}`} />
         </View>
       ))}
       {extra > 0 ? <Text style={[type.caption, tabular, styles.more, { color: c.muted }]}>{`+${extra}`}</Text> : null}
@@ -424,7 +424,6 @@ function Line({ item, order, claimers, selected, inBundle, onCircle, onOpen, exp
   const reduce = useReducedMotion();
   const tag = lineTag(item, order);
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
-  const others = claimers.filter(({ id }) => id !== selected?.id);
   const price = groupedAmount(cost);
   const [title, detail] = nameParts(item);
   const count = quantityText(item);
@@ -470,7 +469,7 @@ function Line({ item, order, claimers, selected, inBundle, onCircle, onOpen, exp
                 </Text>
               ) : null}
             </View>
-            <Marks people={others} order={order} />
+            <Marks people={claimers} order={order} />
             <Text style={[type.body, tabular, { color: c.ink }]}>{price}</Text>
           </View>
         )}

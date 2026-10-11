@@ -366,7 +366,7 @@ async function checkFor(page: Page, name: string, items: readonly string[]) {
   }
 }
 
-test("the leading circle is the viewer's own check and everyone else shows as marks before the price, three then +N", async ({ browser, request }, { workerIndex }) => {
+test("the leading circle is the viewer's own check and everyone who checked a line, the viewer too, shows as marks before the price, three then +N", async ({ browser, request }, { workerIndex }) => {
   const jason = await open(browser, await createSplit(request, workerIndex, ["Jason", "Sam", "Priya", "Lee", "Ana"].map((name) => ({ id: name.toLowerCase(), name }))));
   await pick(jason, "Jason");
 
@@ -376,7 +376,7 @@ test("the leading circle is the viewer's own check and everyone else shows as ma
   await circle(jason, "Rice", "Jason").click();
   await expect(jason.getByRole("button", { name: "Rice, check for Jason" })).toHaveAttribute("aria-pressed", "true", live);
   await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
-  await expect(marksOf(jason, "rice")).toHaveCount(0);
+  await expect(marksOf(jason, "rice")).toHaveText("J");
 
   await checkFor(jason, "Sam", ["Tostones", "Rice"]);
   await checkFor(jason, "Priya", ["Rice"]);
@@ -388,15 +388,15 @@ test("the leading circle is the viewer's own check and everyone else shows as ma
   await expect(jason.getByRole("button", { name: "Tostones, check for Jason" })).toHaveAttribute("aria-pressed", "false");
   await expect(line(jason, "tostones").getByTestId("checked")).toHaveCount(0);
   await expect(marksOf(jason, "tostones")).toHaveText("S");
-  await expect(marksOf(jason, "rice")).toHaveText("SPL+1");
+  await expect(marksOf(jason, "rice")).toHaveText("JSP+2");
   await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
 
   await jason.getByRole("button", { name: "Sam", exact: true }).click();
   await expect(jason.getByText("Check what Sam had", { exact: true })).toBeVisible(live);
   await expect(jason.getByRole("button", { name: "Tostones, check for Sam" })).toHaveAttribute("aria-pressed", "true");
   await expect(line(jason, "tostones").getByTestId("checked")).toBeVisible();
-  await expect(marksOf(jason, "tostones")).toHaveCount(0);
-  await expect(marksOf(jason, "rice")).toHaveText("JPL+1");
+  await expect(marksOf(jason, "tostones")).toHaveText("S");
+  await expect(marksOf(jason, "rice")).toHaveText("JSP+2");
   await expect(jason.getByRole("button", { name: "Sprite, check for Sam" })).toHaveAttribute("aria-pressed", "false");
 
   await jason.getByRole("button", { name: "Jason, you", exact: true }).click();

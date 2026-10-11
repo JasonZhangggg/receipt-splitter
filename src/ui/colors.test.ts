@@ -66,52 +66,52 @@ describe.each(["light", "dark"] as const)("%s colors", (scheme) => {
   });
 });
 
-const surfaces = {
-  light: ["#FFFFFF", "#F5F6F7", "#EEEFF1", "#E3E5E8"],
-  dark: ["#1C1D20", "#2A2B2F", "#26272B", "#3A3C41"],
-};
-
 describe.each(["light", "dark"] as const)("%s person hues", (scheme) => {
-  const tone = scheme === "light" ? 0 : 1;
-  test.each(people.map((pair) => pair[tone]))("%s meets 4.5:1 on every surface it sits on", (hue) => {
-    for (const surface of surfaces[scheme]) expect(contrast(hue, surface)).toBeGreaterThanOrEqual(4.5);
+  test.each(people.map((hue) => hue[scheme].fill))("ink on the pastel fill %s meets 4.5:1", (fill) => {
+    expect(contrast(colors[scheme].ink, fill)).toBeGreaterThanOrEqual(4.5);
   });
 
-  // A selected chip is filled with the action color, so its dot uses the other scheme's tone.
-  test.each(people.map((pair) => pair[1 - tone]))("%s meets 4.5:1 on the selected chip fill", (hue) => {
-    expect(contrast(hue, colors[scheme].action)).toBeGreaterThanOrEqual(4.5);
+  // The chip fill sits beside the selected chip's action fill; the ring arc marks sit on the sheet.
+  test.each(people.map((hue) => hue[scheme].fill))("the fill %s stays apart from the sheet it is drawn on", (fill) => {
+    expect(contrast(fill, colors[scheme].sheet)).toBeGreaterThanOrEqual(1.1);
+  });
+
+  test.each(people.map((hue) => hue[scheme].mark))("the ring mark %s shows against the sheet at 1.5:1", (mark) => {
+    expect(contrast(mark, colors[scheme].sheet)).toBeGreaterThanOrEqual(1.5);
   });
 });
 
-const blue = "#2F5FB3";
-const rust = "#B3401F";
-const cyan = "#0B6F8C";
-const violet = "#7A45B8";
-const rose = "#B02F63";
-const magenta = "#9A3496";
+const hueOf = (name: string, scheme: "light" | "dark" = "light") => people.find((hue) => hue.light.fill === name || hue.dark.fill === name)![scheme];
+const blue = people[0].light;
+const peach = people[1].light;
+const aqua = people[2].light;
+const lavender = people[3].light;
+const rose = people[4].light;
+const butter = people[5].light;
 const inksOf = (ids: string[]) => Object.fromEntries(personInks("light", ids));
 
 describe("personInks", () => {
-  // The hashes of jason and fay both land on cyan, and priya's, eli's and bob's all land on rose.
+  // The hashes of jason and fay both land on aqua, and priya's, eli's and bob's all land on rose.
   test("each id takes its own hue, and a later id that hashes to a taken hue takes the next free one", () => {
-    expect(inksOf(["jason", "sam", "priya", "dee", "eli", "fay"])).toEqual({ jason: cyan, sam: rust, priya: rose, dee: blue, eli: magenta, fay: violet });
+    expect(inksOf(["jason", "sam", "priya", "dee", "eli", "fay"])).toEqual({ jason: aqua, sam: peach, priya: rose, dee: blue, eli: butter, fay: lavender });
   });
 
   test("the same table order gives the same hues, and the dark scheme gives the dark tones of the same hues", () => {
     const ids = ["jason", "sam", "priya", "dee", "eli", "fay"];
     expect(inksOf(ids)).toEqual(inksOf(ids));
-    expect([...personInks("dark", ids).values()]).toEqual(["#5CC3E0", "#F2917A", "#EE86AE", "#86A9F0", "#E39AE0", "#BC9CEE"]);
+    expect([...personInks("dark", ids).values()]).toEqual([people[2].dark, people[1].dark, people[4].dark, people[0].dark, people[5].dark, people[3].dark]);
+    expect(hueOf("#2C4268", "dark")).toEqual({ fill: "#2C4268", mark: "#6F93D1" });
   });
 
   test("someone who leaves recolors nobody unless they held a hue a later person had collided with", () => {
-    expect(inksOf(["jason", "priya", "dee", "eli", "fay"])).toEqual({ jason: cyan, priya: rose, dee: blue, eli: magenta, fay: violet });
-    expect(inksOf(["sam", "priya", "dee", "eli", "fay"])).toEqual({ sam: rust, priya: rose, dee: blue, eli: magenta, fay: cyan });
+    expect(inksOf(["jason", "priya", "dee", "eli", "fay"])).toEqual({ jason: aqua, priya: rose, dee: blue, eli: butter, fay: lavender });
+    expect(inksOf(["sam", "priya", "dee", "eli", "fay"])).toEqual({ sam: peach, priya: rose, dee: blue, eli: butter, fay: aqua });
   });
 
   test("with more people than hues the hues start over", () => {
     const seven = inksOf(["jason", "sam", "priya", "dee", "eli", "fay", "ann"]);
-    expect(new Set(Object.values(seven).slice(0, 6)).size).toBe(6);
-    expect(seven.ann).toBe(magenta);
-    expect(people.map((pair) => pair[0])).toContain(seven.ann);
+    expect(new Set(Object.values(seven).slice(0, 6).map(({ fill }) => fill)).size).toBe(6);
+    expect(seven.ann).toEqual(butter);
+    expect(people.map((hue) => hue.light)).toContainEqual(seven.ann);
   });
 });

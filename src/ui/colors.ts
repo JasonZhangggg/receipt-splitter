@@ -66,15 +66,20 @@ const dark: Colors = {
 
 export const colors = { light, dark };
 
-/** Six hues for text and glyphs only; the second of each pair is for dark surfaces. Kept clear of the status green and amber. */
+/**
+ * Six pastel hues, each a soft `fill` for chips and initials (ink reads on it) and a deeper `mark` for the payments dots and ring arcs. Indexed by scheme.
+ * Kept clear of the status green and amber.
+ */
 export const people = [
-  ["#2F5FB3", "#86A9F0"],
-  ["#B3401F", "#F2917A"],
-  ["#0B6F8C", "#5CC3E0"],
-  ["#7A45B8", "#BC9CEE"],
-  ["#B02F63", "#EE86AE"],
-  ["#9A3496", "#E39AE0"],
+  { light: { fill: "#CFDFF7", mark: "#8FB2EA" }, dark: { fill: "#2C4268", mark: "#6F93D1" } },
+  { light: { fill: "#F8D8C8", mark: "#F0A98A" }, dark: { fill: "#5B382B", mark: "#D9805F" } },
+  { light: { fill: "#C5E8EC", mark: "#7CCAD3" }, dark: { fill: "#1F4B53", mark: "#4DAAB8" } },
+  { light: { fill: "#DFD5F4", mark: "#B7A2E6" }, dark: { fill: "#43365F", mark: "#9C86D6" } },
+  { light: { fill: "#F5D0DE", mark: "#E98FB0" }, dark: { fill: "#5A3045", mark: "#D06F96" } },
+  { light: { fill: "#EDE3B6", mark: "#D6C16A" }, dark: { fill: "#50462A", mark: "#B9A44F" } },
 ] as const;
+
+export type PersonInk = { readonly fill: string; readonly mark: string };
 
 const hueOf = (id: string) => {
   let hash = 2166136261;
@@ -89,15 +94,15 @@ const hueOf = (id: string) => {
  * Every phone sees the same table order, so every phone paints the same hues, and a person is recolored only when someone before them who shared their hash leaves.
  * Past six people the hues start over.
  */
-export function personInks(scheme: "light" | "dark", ids: readonly string[]): Map<string, string> {
+export function personInks(scheme: "light" | "dark", ids: readonly string[]): Map<string, PersonInk> {
   const taken = new Set<number>();
-  const inks = new Map<string, string>();
+  const inks = new Map<string, PersonInk>();
   for (const id of ids) {
     if (taken.size === people.length) taken.clear();
     let hue = hueOf(id);
     while (taken.has(hue)) hue = (hue + 1) % people.length;
     taken.add(hue);
-    inks.set(id, people[hue][scheme === "light" ? 0 : 1]);
+    inks.set(id, people[hue][scheme]);
   }
   return inks;
 }

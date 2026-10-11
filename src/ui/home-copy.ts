@@ -6,6 +6,7 @@ import type { ReadingStage } from "./receipt-input/reading";
 
 export const copy = {
   wordmark: "SplitWith",
+  shareApp: "Share SplitWith",
   example: "Example",
   hero: {
     phone: { title: "Add receipt", hint: null },

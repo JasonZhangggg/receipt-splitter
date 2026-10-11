@@ -137,7 +137,7 @@ function PickRows({ rows, chosen, onPick }: RowsProps) {
                   return (
                     <View style={[styles.row, { backgroundColor: fill, boxShadow: picked && !isChosen ? `inset 0 0 0 1px ${c.hairline}` : undefined }]}>
                       <View style={styles.rowLead}>
-                        <Dot name={person.name} size={32} tone={isChosen ? "onAction" : picked ? "sheetIn" : "sheet"} inkOverride={isChosen ? undefined : inkOf(person.id)} />
+                        <Dot name={person.name} size={32} tone={isChosen ? "onAction" : picked ? "sheetIn" : "sheet"} fillOverride={isChosen ? undefined : inkOf(person.id).fill} />
                         <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }]}>
                           {person.name}
                         </Text>

@@ -62,6 +62,9 @@ export const splitCopy = {
   ring: {
     claimed: "All claimed",
     unclaimed: "unclaimed",
+    yourPart: "Your part",
+    partOf: (name: string) => `${name}'s part`,
+    showTotal: "Show the total",
     label: (total: string, each: readonly string[], unclaimed: string | null) => `Receipt total ${total}. ${[...each, ...(unclaimed ? [`${unclaimed} unclaimed`] : [])].join(", ")}.`,
   },
   status: {

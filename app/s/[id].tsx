@@ -403,7 +403,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     ) : overlay.kind === "adjustment" ? (
       <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
-      <PaymentsSheet split={split} me={me} onClose={closeOverlay} />
+      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet={!wide} />
     ) : overlay.kind === "addAdjustment" ? (
       <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} kind={overlay.adjustmentKind} />
     ) : (

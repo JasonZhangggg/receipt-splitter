@@ -20,30 +20,38 @@ export function slices({ shares, unclaimed }: Pick<Shares, "shares" | "unclaimed
     });
 }
 
-export const ring = { size: 208, thickness: 9, gap: 5 } as const;
+export const ring = { size: 208, thickness: 9, picked: 14, gap: 5 } as const;
+
+export type Arc = { id: ParticipantId; dash: string; offset: number; width: number };
 
 /**
  * Each arc is a stroked circle cut to its length, so a full ring and a sliver draw the same way. Round caps stand half a stroke past each end, so the cut takes the
- * stroke off too: neighbors then leave `ring.gap` px of clear track between their caps. One arc alone has no gap to leave.
+ * stroke off too: neighbors then leave `ring.gap` px of clear track between their caps, however thick either is. One arc alone has no gap to leave.
+ * The `picked` person's arc is drawn `ring.picked` thick.
  */
-export function arcs(all: readonly Slice[]): { id: ParticipantId; dash: string; offset: number }[] {
+export function arcs(all: readonly Slice[], picked: ParticipantId | null = null): Arc[] {
   const radius = (ring.size - ring.thickness) / 2;
   const length = 2 * Math.PI * radius;
-  const trim = all.length > 1 ? ring.gap + ring.thickness : 0;
-  return all.map(({ id, start, fraction }) => ({
-    id,
-    dash: `${Math.max(0, fraction * length - trim)} ${length}`,
-    offset: -(start * length + trim / 2),
-  }));
+  return all.map(({ id, start, fraction }) => {
+    const width = id === picked ? ring.picked : ring.thickness;
+    const trim = all.length > 1 ? ring.gap + width : 0;
+    return { id, width, dash: `${Math.max(0, fraction * length - trim)} ${length}`, offset: -(start * length + trim / 2) };
+  });
 }
 
+/** What the ring shows of a person while someone else is picked. */
+export const dimmed = 0.4;
+
 /** The ring's shapes as SVG markup in a `ring.size` square: a faint full track, then the arcs from 12 o'clock clockwise. `paint` gives an arc's color. */
-export function ringMarkup(all: readonly Slice[], paint: (id: ParticipantId) => string, track: string): string {
+export function ringMarkup(all: readonly Slice[], paint: (id: ParticipantId) => string, track: string, picked: ParticipantId | null = null): string {
   const { size, thickness } = ring;
   const middle = size / 2;
   const radius = (size - thickness) / 2;
-  const arc = arcs(all)
-    .map(({ id, dash, offset }) => `<circle cx="${middle}" cy="${middle}" r="${radius}" fill="none" stroke="${paint(id)}" stroke-width="${thickness}" stroke-linecap="round" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"/>`)
+  const arc = arcs(all, picked)
+    .map(({ id, dash, offset, width }) => {
+      const faded = picked !== null && id !== picked ? ` opacity="${dimmed}"` : "";
+      return `<circle cx="${middle}" cy="${middle}" r="${radius}" fill="none" stroke="${paint(id)}" stroke-width="${width}" stroke-linecap="round" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"${faded}/>`;
+    })
     .join("");
   return `<circle cx="${middle}" cy="${middle}" r="${radius}" fill="none" stroke="${track}" stroke-width="${thickness}"/><g transform="rotate(-90 ${middle} ${middle})">${arc}</g>`;
 }

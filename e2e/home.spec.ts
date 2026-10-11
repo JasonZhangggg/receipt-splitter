@@ -679,6 +679,7 @@ const glyphs = {
   chevron: '<path d="M6 9l6 6 6-6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   menu: '<path d="M5 7h14M5 12h14M5 17h14"/>',
+  share: '<path d="M12 4v11M8 8l4-4 4 4"/><path d="M6 12v6.5A1.5 1.5 0 0 0 7.5 20h9a1.5 1.5 0 0 0 1.5-1.5V12"/>',
 };
 
 test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from assistive tech, at 390 px", async ({ page }) => {
@@ -694,7 +695,7 @@ test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from 
     })),
   );
   const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", stroke, width: "1.5", glyph: glyphs[name] });
-  expect(icons).toEqual([icon("menu", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
+  expect(icons).toEqual([icon("share", "#696D74"), icon("menu", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
 });
 
 for (const [width, named] of [
@@ -938,4 +939,21 @@ test("the receipt card leads with the total over the item count, and opens the p
   await page.getByRole("button", { name: "View receipt photo" }).click();
   await cards.first().getByRole("button", { name: "Replace receipt" }).click();
   expect(await page.evaluate(() => [(window as unknown as { views: number }).views, (window as unknown as { replaces: number }).replaces])).toEqual([1, 1]);
+});
+
+test("Share sits beside the menu button and shares the app's address", async ({ page }) => {
+  await page.addInitScript(() => {
+    (navigator as unknown as { share: (data: unknown) => Promise<void> }).share = async (data) => {
+      (window as unknown as { shared: unknown }).shared = data;
+    };
+  });
+  await page.goto("/");
+  await settle(page);
+  const share = page.getByRole("button", { name: "Share SplitWith" });
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  const [a, b] = [(await share.boundingBox())!, (await menu.boundingBox())!];
+  expect(a.x + a.width).toBeLessThanOrEqual(b.x + 0.5);
+  expect(a.y).toBeCloseTo(b.y, 0);
+  await share.click();
+  expect(await page.evaluate(() => (window as unknown as { shared: unknown }).shared)).toEqual({ title: "SplitWith", url: new URL(page.url()).origin });
 });

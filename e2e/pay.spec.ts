@@ -399,3 +399,36 @@ test("Payments lists Sam as paid too much once Priya checks Tea too, and the per
   await expect(priya.getByRole("dialog", { name: "Payments" }).locator('[data-icon="person"]')).toHaveCount(1);
   await expect(sam.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
 });
+
+test("tapping a person in Payments picks them: the arc thickens, the ring's center shows their part, and tapping the center returns to the total", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await circle(sam, "Tea", "Sam").click();
+  await circle(priya, "Tea", "Priya").click();
+  await expect(owe(sam)).toHaveText("$8.00", live);
+
+  await fromMore(priya, "Payments");
+  const dialog = priya.getByRole("dialog", { name: "Payments" });
+  const thick = dialog.locator('svg circle[style*="stroke-width: 14"]');
+  const samRow = paymentsList(priya).getByRole("button", { name: /^Sam, / });
+  await expect(samRow).toHaveAttribute("aria-pressed", "false");
+  await expect(thick).toHaveCount(0);
+
+  await samRow.click();
+  await expect(samRow).toHaveAttribute("aria-pressed", "true");
+  await expect(thick).toHaveCount(1);
+  await expect(dialog.getByText("Sam's part", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("$8.00", { exact: true }).first()).toBeVisible();
+
+  await paymentsList(priya).getByRole("button", { name: /^Priya, you, / }).click();
+  await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
+  await expect(samRow).toHaveAttribute("aria-pressed", "false");
+
+  await dialog.getByRole("button", { name: "Show the total" }).click();
+  await expect(thick).toHaveCount(0);
+  await expect(dialog.getByText("Your part", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByText("unclaimed")).toBeVisible();
+});

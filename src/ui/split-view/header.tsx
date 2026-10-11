@@ -35,7 +35,7 @@ export function HeaderMenu({ onPayments, onPhoto, onHistory, onAppearance }: { o
   return (
     <MenuRows
       rows={[
-        { icon: "check", label: say.payments, onPress: onPayments },
+        { icon: "pie", label: say.payments, onPress: onPayments },
         ...(onPhoto ? [{ icon: "receipt" as const, label: say.receiptPhotoItem, onPress: onPhoto }] : []),
         { icon: "history", label: say.history, onPress: onHistory },
         { icon: appearance.next === "dark" ? ("moon" as const) : ("sun" as const), label: copy.mode[appearance.next], onPress: (press: Press) => { onAppearance(press); appearance.flip(); } },
