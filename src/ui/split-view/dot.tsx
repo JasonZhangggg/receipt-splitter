@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { type Colors, onPastel } from "../colors";
 import { type, useColors } from "../theme";
 
-type Tone = "dot" | "quiet" | "me" | "sheet" | "sheetIn" | "onAction" | "none";
+type Tone = "dot" | "quiet" | "me" | "sheet" | "sheetIn" | "onAction" | "self" | "none";
 
 const fills: Record<Tone, (c: Colors) => { fill: string; ink: string }> = {
   dot: (c) => ({ fill: c.dot, ink: c.ink }),
@@ -12,6 +12,7 @@ const fills: Record<Tone, (c: Colors) => { fill: string; ink: string }> = {
   sheet: (c) => ({ fill: c.sheet, ink: c.ink }),
   sheetIn: (c) => ({ fill: c.sheetIn, ink: c.muted }),
   onAction: (c) => ({ fill: c.onAction, ink: c.action }),
+  self: (c) => ({ fill: c.selfBadge, ink: c.onSelfBadge }),
   none: (c) => ({ fill: "transparent", ink: c.muted }),
 };
 

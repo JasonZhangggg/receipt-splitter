@@ -105,6 +105,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                 claimed={claimedItems(bundle, shares.unclaimed.itemIds)}
                 claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
                 order={order}
+                selectedId={selected?.id}
                 onToggle={() => toggle(bundle.id)}
               >
                 <KeptRows rows={bundle.items} entering={entering}>
@@ -179,6 +180,7 @@ type BundleProps = {
   claimed: number;
   claimers: readonly Participant[];
   order: readonly ParticipantId[];
+  selectedId?: ParticipantId;
   onToggle: () => void;
   children: ReactNode;
 };
@@ -188,7 +190,7 @@ function inside(claimers: readonly Participant[], claimed: number): string {
   return [had, claimed > 0 ? say.claimedItems(claimed) : ""].filter(Boolean).join(", ");
 }
 
-function BundleGroup({ bundle, open, claimed, claimers, order, onToggle, children }: BundleProps) {
+function BundleGroup({ bundle, open, claimed, claimers, order, selectedId, onToggle, children }: BundleProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const region = useId();
@@ -227,7 +229,7 @@ function BundleGroup({ bundle, open, claimed, claimers, order, onToggle, childre
                 </Presence>
               </View>
             </View>
-            {showInside ? <Marks people={claimers} order={order} /> : null}
+            {showInside ? <Marks people={claimers} order={order} selectedId={selectedId} /> : null}
             <Text style={[type.body, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
           </>
         )}
@@ -389,7 +391,7 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
 const shownMarks = 3;
 
 /** Who had a line, the viewer included, as small overlapping initials before its price in table order: three at most, then "+N". The row's label already names them. */
-function Marks({ people, order }: { people: readonly Participant[]; order: readonly ParticipantId[] }) {
+function Marks({ people, order, selectedId }: { people: readonly Participant[]; order: readonly ParticipantId[]; selectedId?: ParticipantId }) {
   const c = useColors();
   const inkOf = usePersonInks(order);
   if (people.length === 0) return null;
@@ -399,7 +401,11 @@ function Marks({ people, order }: { people: readonly Participant[]; order: reado
     <View aria-hidden testID="claimer-marks" style={styles.marks}>
       {seated.slice(0, shownMarks).map((person, index) => (
         <View key={person.id} style={index > 0 && styles.overlap}>
-          <Dot name={person.name} size={markSize} tone="quiet" fillOverride={inkOf(person.id).fill} ring={`0 0 0 1.5px ${c.paper}`} />
+          {person.id === selectedId ? (
+            <Dot name={person.name} size={markSize} tone="self" ring={`inset 0 0 0 1px ${c.selfBadgeEdge}, 0 0 0 1.5px ${c.paper}`} />
+          ) : (
+            <Dot name={person.name} size={markSize} tone="quiet" fillOverride={inkOf(person.id).fill} ring={`0 0 0 1.5px ${c.paper}`} />
+          )}
         </View>
       ))}
       {extra > 0 ? <Text style={[type.caption, tabular, styles.more, { color: c.muted }]}>{`+${extra}`}</Text> : null}
@@ -469,7 +475,7 @@ function Line({ item, order, claimers, selected, inBundle, onCircle, onOpen, exp
                 </Text>
               ) : null}
             </View>
-            <Marks people={claimers} order={order} />
+            <Marks people={claimers} order={order} selectedId={selected?.id} />
             <Text style={[type.body, tabular, { color: c.ink }]}>{price}</Text>
           </View>
         )}
