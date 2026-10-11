@@ -38,5 +38,5 @@ export function AddMenu({ onChoose }: { onChoose: (choice: AddChoice) => void })
 
 const styles = StyleSheet.create({
   press: { alignSelf: "stretch" },
-  row: { justifyContent: "center", minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
+  row: { justifyContent: "center", minHeight: 44, paddingHorizontal: 12, borderRadius: 22 },
 });

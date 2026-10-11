@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   close: { marginTop: -10, marginRight: -12 },
   ask: { marginHorizontal: 2, marginBottom: 4 },
   rows: { gap: layout.pairGap },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 58, paddingLeft: 13, paddingRight: 18, borderRadius: 16 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 58, paddingLeft: 13, paddingRight: 18, borderRadius: 29 },
   rowLead: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 1 },
   name: { flexShrink: 1 },
   claimback: { gap: 12, padding: 14, paddingLeft: 13, borderRadius: 16 },

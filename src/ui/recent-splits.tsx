@@ -140,6 +140,6 @@ const styles = StyleSheet.create({
   popoverContent: { padding: 8 },
   list: { alignSelf: "stretch", gap: 2 },
   title: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 8 },
-  row: { flexDirection: "row", alignItems: "center", gap: 16, minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14 },
+  row: { flexDirection: "row", alignItems: "center", gap: 16, minHeight: 56, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 28 },
   text: { flex: 1, minWidth: 0 },
 });

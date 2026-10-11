@@ -33,6 +33,6 @@ export function MenuRows({ rows }: { rows: readonly MenuRow[] }) {
 
 const styles = StyleSheet.create({
   press: { alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44, paddingHorizontal: 12, borderRadius: 22 },
   label: { flexShrink: 1 },
 });

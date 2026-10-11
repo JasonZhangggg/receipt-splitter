@@ -40,7 +40,7 @@ export const layout = {
   row: 52,
   adjustmentRow: 34,
   field: 54,
-  fieldRadius: 16,
+  fieldRadius: 27,
   cardRadius: 22,
   blockGap: 14,
   pairGap: 10,

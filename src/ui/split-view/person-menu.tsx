@@ -42,6 +42,6 @@ export function PersonMenu({ split, person, onRemove }: { split: Split; person: 
 const styles = StyleSheet.create({
   note: { paddingTop: 8, paddingBottom: 4, paddingHorizontal: 12 },
   press: { alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, paddingHorizontal: 12, borderRadius: 22 },
   label: { flexShrink: 1 },
 });
