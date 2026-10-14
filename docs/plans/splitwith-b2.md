@@ -205,7 +205,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Build.**
 
-- [ ] When this device held a name and the Split's picks move that name to another device, show a bar once: "<Name> was picked on another phone", with a "That's me" button that takes the name back through the existing `pick` takeover. The bar uses the existing toast surface and leaves within 6 s or on tap. No bar when this device gave the name up itself, picked another name, or the person was removed.
+- [ ] When this device held a name and the Split's picks move that name to another device, show a bar once that reads "<Name> was picked on another phone", with a "That's me" button that takes the name back through the existing `pick` takeover. The bar uses the existing toast surface and leaves within 6 s or on tap. No bar when this device gave the name up itself, picked another name, or the person was removed.
 
 **You see.**
 
