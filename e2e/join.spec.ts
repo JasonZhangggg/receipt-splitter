@@ -368,3 +368,38 @@ test("when the browser refuses to save, a pick holds for the session and tapping
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
   await expect(question(page)).toHaveCount(0);
 });
+
+test("a phone that loses its name to another phone is told once and can take it back", async ({ page, browser }) => {
+  await readyHome(page, ["Sam", "Priya"]);
+  const link = await createLink(page);
+  const bar = (phone: Page) => phone.getByRole("status");
+  const told = (phone: Page) => phone.getByText("was picked on another phone");
+  const sam = { name: "Sam, you", exact: true };
+
+  const priya = await open(browser, link);
+  await priya.getByRole("button", { name: "Priya", exact: true }).click();
+  await expect(priya.getByRole("button", { name: "Priya, you", exact: true })).toBeVisible();
+  await expect(told(priya)).toHaveCount(0);
+
+  const first = await open(browser, link);
+  await first.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(first.getByRole("button", sam)).toBeVisible();
+  await expect(told(first)).toHaveCount(0);
+
+  const second = await open(browser, link);
+  await second.getByRole("button", { name: "Sam, picked on another phone" }).click();
+  await second.getByRole("button", { name: "That's me" }).click();
+  await expect(second.getByRole("button", sam)).toBeVisible();
+
+  await expect(told(first)).toHaveCount(1);
+  await expect(bar(first)).toContainText("Sam was picked on another phone");
+  await expect(bar(first).getByRole("button", { name: "That's me" })).toBeVisible();
+  await expect(told(priya)).toHaveCount(0);
+
+  await bar(first).getByRole("button", { name: "That's me" }).click();
+  await expect(first.getByRole("button", sam)).toBeVisible();
+  await expect(told(first)).toHaveCount(0);
+  await expect(told(second)).toHaveCount(1);
+  await second.getByRole("button", { name: /^Open / }).first().click();
+  await expect(question(second)).toBeVisible();
+});
