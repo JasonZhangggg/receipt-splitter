@@ -25,13 +25,15 @@ The operator made these calls while iterating. They win over older design docs a
 8. Receipt, People, Payments and History are underlined text links under the intro. Each opens its own sheet. There is no menu button and no sideways row of people chips.
 9. Item rows: the dot toggles the claim; the rest of the row opens the Edit item sheet. No arrow. The left column shows the name, the description, then who had it. The right column shows the full price, and under it the split line ("$4.67 yours", "$6.25 each").
 10. The list reads like a receipt in three parts: the Items, then a muted charges section (Subtotal, Tax, Tip, discounts and fees) with "+ Add item, tax, tip or discount" under it, then the Total between gray rules.
-11. A fixed footer shows "Your share" with the amount and a black "Pay Sam" pill.
+11. A fixed footer shows "Your share" with the amount and a black "Pay Sam" pill. The pill opens the Pay sheet (decision 25).
 12. Edit item sheet: the title "Edit item", a trash icon and an X at the top right. Fields for Item name, Price and Description. "Who had it" as dot toggles. "How to split" as underlined options (Evenly, By shares, By amount) with a one-line hint, then each person's part, then a status line with a tick or a warning.
 13. Delete: the trash icon sits beside the X, drawn smaller so the two look the same size. Its lid lifts as it is pressed. After a delete an undo bar reads "Deleted Burrata · Undo" for 4 s. With one Item left the trash is disabled, and a tap says "A split needs at least one item."
 14. Add sheet: an Item, Tax, Tip or Discount chooser as underlined options, Name and Amount fields, and an "Add <kind>" pill.
 15. People sheet: everyone with their share. Tapping a person shows the list from their side ("Viewing as Priya. Dots tick for them. Back to you"). "Switch account" re-picks who this phone is.
 16. Payments sheet: a monochrome ring with round caps. The selected person's arc is black, the rest gray. Tapping a row selects that person. The ring draws in, one arc after another, when the sheet opens. "Paid" rows read "✓ Paid" in green.
 17. History sheet: every change with an underlined Revert (or Restore) link and an animated undo arrow. The arrow swings back, then the row settles to a gray "✓ Reverted".
+
+25. Pay sheet (operator, 2026-10-14): "Pay Sam" opens a sheet with the person's Items and their part of each, their part of tax, tip and discounts, and their total. Below it, the Host's payment methods as a radio list, a Pay button for the chosen one (Zelle copies the handle), and "I already paid". The two buttons stay fixed at the bottom of the sheet. Marking paid closes the sheet, shows an undo bar, and turns the footer pill into a green "✓ Paid". Tapping it again shows "You paid $X" with "Mark as not paid". Screens `split-17` to `split-21`.
 
 ### Home
 

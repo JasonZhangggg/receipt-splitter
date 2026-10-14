@@ -100,6 +100,24 @@ body{margin:0}
 @keyframes b-done-in{from{opacity:0;transform:translateX(4px)}}
 .b-paysub{display:inline-flex;align-items:center;gap:4px;font-size:14px;color:var(--muted)}
 .b-paysub[data-paid="true"]{color:var(--ok)}
+.b-pline{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:7px 0;font-variant-numeric:tabular-nums}
+.b-pline > span:first-child{min-width:0}
+.b-pnote{display:block;font-size:14px;line-height:20px;color:var(--muted)}
+.b-pcharges{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}
+.b-pcharges .b-pline{padding:4px 0}
+.b-ptotal{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:12px;border-top:1px solid var(--line);font-weight:500;font-variant-numeric:tabular-nums}
+.b .b-method{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;border-top:1px solid var(--line);color:var(--muted);transition:color 150ms ease}
+.b .b-method[data-on="true"]{color:var(--fg)}
+.b-method i{flex:none;width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--faint);transition:background-color 150ms ease,box-shadow 150ms ease}
+.b-method[data-on="true"] i{background:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.b-handle{margin-left:auto;font-size:14px;color:var(--faint)}
+.b-paybar{flex:none;padding:12px 24px 22px;border-top:1px solid var(--line);background:var(--bg)}
+.b .b-paybtn{width:100%;height:52px;border-radius:26px;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:500;transition:transform 160ms var(--ease-out)}
+.b .b-paybtn:active{transform:scale(.97)}
+.b .b-already{display:block;margin:6px auto 0;height:44px;font-size:14px;color:var(--muted);text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--underline);transition:color 150ms ease}
+.b .b-already:active{color:var(--fg)}
+.b-paidnote{display:flex;align-items:center;justify-content:center;gap:6px;height:52px;border-radius:26px;box-shadow:inset 0 0 0 1px var(--line);color:var(--ok);font-weight:500}
+.b .b-pay[data-paid="true"]{background:transparent !important;color:var(--ok) !important;box-shadow:inset 0 0 0 1px var(--line)}
 @media (prefers-reduced-motion:reduce){.b-done{animation:none}}
 [data-play] .ai-tray .arrow,.ai-tray[data-play] .arrow{animation:ai-lift 500ms ease-in-out}
 [data-play] .ai-users .second,.ai-users[data-play] .second{animation:ai-join 520ms cubic-bezier(.34,1.56,.64,1) 60ms both}
@@ -260,11 +278,59 @@ body{margin:0}
 </div>
 <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px">
 <span style="font-size: 32px; line-height: 44px; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums">{{share}}</span>
-<button class="b-pay" data-anim style="height: 44px; padding: 0 18px 0 20px; border-radius: 22px; background: var(--fg); color: var(--bg); font-size: 15px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px">{{payLabel}}<svg class="ai ai-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"></path><path class="line" d="M21 12H3"></path></svg></button>
+<button class="b-pay" data-anim data-paid="{{pay.paidAttr}}" aria-haspopup="dialog" onClick="{{openPay}}" style="height: 44px; padding: 0 18px 0 20px; border-radius: 22px; background: var(--fg); color: var(--bg); font-size: 15px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px"><sc-if value="{{pay.paid}}" hint-placeholder-val="{{false}}"><svg class="ai ai-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="m4.5 12.75 6 6 9-13.5"></path></svg></sc-if>{{payLabel}}<sc-if value="{{pay.unpaid}}" hint-placeholder-val="{{true}}"><svg class="ai ai-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"></path><path class="line" d="M21 12H3"></path></svg></sc-if></button>
 </div>
 </div>
 </div>
 
+<sc-if value="{{payOpen}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; inset: 0; z-index: 20">
+<button class="b-scrim" aria-label="Close" onClick="{{closePay}}" style="position: absolute; inset: 0; width: 100%; height: 100%"></button>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; height: {{paySh.h}}; max-height: {{paySh.max}}; transform: translateY({{paySh.y}}px); transition: {{paySh.ease}}">
+<div class="b-sheet" role="dialog" aria-modal="true" aria-label="{{pay.title}}" style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--bg)">
+<div class="b-grab" aria-hidden="true" onPointerDown="{{paySh.down}}" onPointerMove="{{paySh.move}}" onPointerUp="{{paySh.up}}" onPointerCancel="{{paySh.up}}" style="flex: none; height: 30px; display: grid; place-items: center"><span style="width: 36px; height: 4px; border-radius: 2px; background: var(--faint)"></span></div>
+<div class="b-scroll" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; box-sizing: border-box; padding: 0 24px 32px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<h2 style="margin: 0; font-size: 16px; font-weight: 500">{{pay.title}}</h2>
+<button class="b-x" data-anim aria-label="Close" onClick="{{closePay}}"><svg class="ai ai-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M6 6l12 12"></path><path pathLength="1" d="M18 6 6 18"></path></svg></button>
+</div>
+<p style="margin: 2px 0 10px; font-size: 14px; color: var(--muted)">{{pay.sub}}</p>
+<div>
+<sc-for list="{{pay.items}}" as="r" hint-placeholder-count="3">
+<div class="b-pline"><span>{{r.name}}<sc-if value="{{r.hasNote}}" hint-placeholder-val="{{true}}"><span class="b-pnote">{{r.note}}</span></sc-if></span><span>{{r.amount}}</span></div>
+</sc-for>
+</div>
+<div class="b-pcharges">
+<sc-for list="{{pay.charges}}" as="c" hint-placeholder-count="3">
+<div class="b-pline"><span>{{c.name}}</span><span>{{c.amount}}</span></div>
+</sc-for>
+</div>
+<div class="b-ptotal"><span>{{pay.totalLabel}}</span><span style="font-size: 22px; letter-spacing: -0.02em">{{pay.total}}</span></div>
+<sc-if value="{{pay.unpaid}}" hint-placeholder-val="{{true}}">
+<div class="b-sechead" style="margin: 26px 0 6px; color: var(--muted)">Pay with</div>
+<div role="radiogroup" aria-label="Pay with">
+<sc-for list="{{pay.methods}}" as="m" hint-placeholder-count="3">
+<button class="b-method" role="radio" aria-checked="{{m.on}}" data-on="{{m.onAttr}}" onClick="{{m.pick}}"><i></i><span>{{m.app}}</span><span class="b-handle">{{m.handle}}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div class="b-paybar">
+<sc-if value="{{pay.unpaid}}" hint-placeholder-val="{{true}}">
+<button class="b-paybtn" data-anim onClick="{{pay.go}}">{{pay.goLabel}}<sc-if value="{{pay.goArrow}}" hint-placeholder-val="{{true}}"><svg class="ai ai-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"></path><path class="line" d="M21 12H3"></path></svg></sc-if></button>
+<button class="b-already" onClick="{{pay.markPaid}}">I already paid</button>
+</sc-if>
+<sc-if value="{{pay.paid}}" hint-placeholder-val="{{false}}">
+<div>
+<div class="b-paidnote" role="status"><svg class="ai ai-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="m4.5 12.75 6 6 9-13.5"></path></svg>{{pay.paidLine}}</div>
+<button class="b-already" onClick="{{pay.unmark}}">Mark as not paid</button>
+</div>
+</sc-if>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
 <sc-if value="{{panelOpen}}" hint-placeholder-val="{{false}}">
 <div style="position: absolute; inset: 0; z-index: 20">
 <button class="b-scrim" aria-label="Close" onClick="{{closePanel}}" style="position: absolute; inset: 0; width: 100%; height: 100%"></button>
@@ -481,6 +547,7 @@ const TAX = 0.08875;
 const TIP = 0.18;
 const DISCOUNT = -500;
 const MODES = [{ key: 'even', label: 'Evenly' }, { key: 'shares', label: 'By shares' }, { key: 'amount', label: 'By amount' }];
+const METHODS = [{ id: 'venmo', app: 'Venmo', handle: '@sam-lee' }, { id: 'cashapp', app: 'Cash App', handle: '$samlee' }, { id: 'zelle', app: 'Zelle', handle: 'sam@lee.mail' }];
 const money = (c) => { const r = Math.round(c); return (r < 0 ? '-$' : '$') + (Math.abs(r) / 100).toFixed(2); };
 const cents = (t) => { const n = parseFloat(String(t == null ? '' : t).replace(/[^0-9.]/g, '')); return isFinite(n) ? Math.round(n * 100) : 0; };
 const byId = {};
@@ -647,7 +714,7 @@ class Component extends DCLogic {
       const part = money(sub[pick] * factor);
       return {
         title: 'Payments', isPhoto: false, isPay: true, rows: [],
-        sub: 'Everyone pays Sam. 1 of 5 paid' + (unclaimed >= 1 ? ' · ' + money(unclaimed) + ' unclaimed.' : '.'),
+        sub: 'Everyone pays Sam. ' + PEOPLE.filter((p) => p.id !== 'sam' && this.paidSet()[p.id]).length + ' of 5 paid' + (unclaimed >= 1 ? ' · ' + money(unclaimed) + ' unclaimed.' : '.'),
         ring: {
           arcs, amount: part,
           caption: pick === this.self() ? 'Your part' : chosen.name + '’s part', total: money(total),
@@ -655,8 +722,8 @@ class Component extends DCLogic {
         },
         people: PEOPLE.map((p) => ({
           title: this.nm(p.id), on: p.id === pick, onAttr: String(p.id === pick),
-          sub: p.id === 'sam' ? 'Gets paid' : p.id === 'priya' ? 'Paid' : 'Not paid yet',
-          paid: p.id === 'priya', paidAttr: String(p.id === 'priya'),
+          sub: p.id === 'sam' ? 'Gets paid' : this.paidSet()[p.id] ? 'Paid' : 'Not paid yet',
+          paid: !!this.paidSet()[p.id] && p.id !== 'sam', paidAttr: String(!!this.paidSet()[p.id] && p.id !== 'sam'),
           right: money(sub[p.id] * factor),
           pick: () => this.set({ paySel: p.id }),
         })),
@@ -735,6 +802,34 @@ class Component extends DCLogic {
     this.setState({ ...st, items, extras, log: st.log.map((e) => (e.key === key ? { ...e, reverted: true } : e)) });
   }
   set(patch) { this.setState({ ...this.st(), ...patch }); }
+  paidSet() { return { priya: true, ...(this.st().paid || {}) }; }
+  payFor(v, isSelf, vName, rowsIn, adjustments, myShare, share) {
+    const s = this.st();
+    const paid = !!this.paidSet()[v];
+    const method = METHODS.find((m) => m.id === s.payWith) || METHODS[0];
+    const close = () => this.set({ paying: false, dragging: false, drag: 0, tall: false });
+    const setPaid = (on, text) => {
+      this.set({ paid: { ...(s.paid || {}), [v]: on }, paying: false, dragging: false, drag: 0, tall: false });
+      this.toast(text ? { text, unpay: v } : null);
+    };
+    return {
+      title: isSelf ? 'Pay Sam' : vName + ' pays Sam',
+      sub: isSelf ? 'What you had, with your part of tax and tip.' : 'What ' + vName + ' had, with their part of tax and tip.',
+      items: rowsIn.filter((r) => r.mine).map((r) => ({ name: r.name, amount: r.myPart, note: r.payNote, hasNote: !!r.payNote })),
+      charges: adjustments.filter((a) => a.amount).map((a) => ({ name: a.name, amount: money(a.amount * myShare) })),
+      totalLabel: isSelf ? 'Your total' : vName + '’s total',
+      total: share,
+      paid, unpaid: !paid, paidAttr: String(paid),
+      paidLine: (isSelf ? 'You' : vName) + ' paid ' + share,
+      methods: METHODS.map((m) => ({ app: m.app, handle: m.handle, on: m.id === method.id, onAttr: String(m.id === method.id), pick: () => this.set({ payWith: m.id }) })),
+      goLabel: method.id === 'zelle' ? (s.copied ? 'Copied' : 'Copy Zelle email') : 'Pay ' + share + ' on ' + method.app,
+      goArrow: method.id !== 'zelle',
+      go: () => { if (method.id === 'zelle') { this.set({ copied: true }); clearTimeout(this.copyT); this.copyT = setTimeout(() => this.set({ copied: false }), 1600); } },
+      markPaid: () => setPaid(true, 'Marked ' + share + ' as paid'),
+      unmark: () => setPaid(false, null),
+      close,
+    };
+  }
   toast(t) {
     clearTimeout(this.toastT);
     if (t) this.set({ toast: t });
@@ -897,6 +992,7 @@ class Component extends DCLogic {
         mine, notMine: !mine, onAttr: String(mine),
         myPart: money(p[v] || 0),
         whoLine: ids.length ? ids.map((x) => this.nm(x)).join(', ') : 'Nobody yet',
+        payNote: ids.length < 2 ? '' : it.mode === 'shares' ? it.who[v] + ' of ' + ids.reduce((t, x) => t + it.who[x], 0) + ' shares' : it.mode === 'amount' ? 'By amount' : 'Split ' + ids.length + ' ways',
         lastAttr: String(i === s.items.length - 1),
         isOpen, openAttr: String(isOpen),
         toggle: () => this.toggleMine(it.id),
@@ -915,6 +1011,7 @@ class Component extends DCLogic {
     const total = subtotal + adjustments.reduce((sum, a) => sum + a.amount, 0);
     const factor = subtotal ? total / subtotal : 1;
     const myShare = subtotal ? mySub / subtotal : 0;
+    const pay = this.payFor(v, isSelf, vName, rows, adjustments, myShare, money(mySub * factor));
     const adjRows = adjustments.map((a, i) => ({
       name: a.name,
       sub: a.sub,
@@ -924,11 +1021,11 @@ class Component extends DCLogic {
     }));
     return {
       theme: this.isDark() ? 'dark' : 'light',
-      toastOn: !!this.st().toast && !this.st().tab && !this.st().adding,
+      toastOn: !!this.st().toast && !this.st().tab && !this.st().adding && !this.st().paying,
       toastText: this.st().toast ? this.st().toast.text : '',
-      toastUndo: !!(this.st().toast && this.st().toast.key),
+      toastUndo: !!(this.st().toast && (this.st().toast.key || this.st().toast.unpay)),
       toastBottom: this.st().open ? 28 : 132,
-      undoToast: () => { const t = this.st().toast; clearTimeout(this.toastT); if (t && t.key) this.revert(t.key); this.set({ toast: null }); },
+      undoToast: () => { const t = this.st().toast; clearTimeout(this.toastT); if (t && t.key) this.revert(t.key); if (t && t.unpay) { this.set({ paid: { ...(this.st().paid || {}), [t.unpay]: false }, toast: null }); return; } this.set({ toast: null }); },
       toggleTheme: (e) => this.toggleTheme(e),
       iconDarkAttr: String(this.st().wipe ? !!this.st().iconDark : this.isDark()),
       themeLabel: this.isDark() ? 'Switch to light mode' : 'Switch to dark mode',
@@ -946,7 +1043,12 @@ class Component extends DCLogic {
       count: mineCount + ' of ' + rows.length,
       countText: mineCount + ' of ' + rows.length + (isSelf ? ' yours' : ' ' + vName + '’s'),
       shareLabel: isSelf ? 'Your share' : vName + '’s share',
-      payLabel: v === 'sam' ? 'Share link' : 'Pay Sam',
+      payLabel: v === 'sam' ? 'Share link' : pay.paid ? 'Paid' : 'Pay Sam',
+      pay,
+      payOpen: !!s.paying,
+      openPay: () => { if (v !== 'sam') this.set({ paying: true, open: null, tab: null, adding: null, tall: false, drag: 0, dragging: false }); },
+      closePay: pay.close,
+      paySh: this.sheetFrame('86%', pay.close),
       viewingOther: !isSelf, viewerName: vName,
       backToMe: () => this.set({ viewAs: null }),
       countLong: mineCount + ' of ' + rows.length + ' items',

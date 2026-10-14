@@ -28,7 +28,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 **Out of scope.** Native iOS and Android sheets (`@expo/ui` BottomSheet stays a later spike, decision 24 in `docs/design/b2/README.md`). New money logic. Account mode. Any change to receipt reading except the optional merchant name in B2-9.
 
-**Decisions.** The B2 decisions in `docs/design/b2/README.md` (1 to 24) are binding. The defaults in Appendix B fill the gaps the mock leaves. Domain terms follow `CONTEXT.md` (Split, Host, Item, Bundle, Claim, Share, Adjustment, Payment). ADRs 0004 (one Durable Object per Split), 0009 (signed Split ids and per-Split device ids) and 0003 (equal access) apply unchanged.
+**Decisions.** The B2 decisions in `docs/design/b2/README.md` (1 to 25) are binding. The defaults in Appendix B fill the gaps the mock leaves. Domain terms follow `CONTEXT.md` (Split, Host, Item, Bundle, Claim, Share, Adjustment, Payment). ADRs 0004 (one Durable Object per Split), 0009 (signed Split ids and per-Split device ids) and 0003 (equal access) apply unchanged.
 
 ## Program checklist
 
@@ -373,7 +373,8 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 - [ ] Header with the wordmark as the Home button (Appendix B), the theme toggle and the share icon. The menu button goes.
 - [ ] The intro line ("Sam paid $135.83. Tap the dot next to what you had. Tap a line to edit it or split it another way.") and the Receipt, People, Payments and History links that open their existing sheets.
-- [ ] A fixed footer with "Your share" (or "Priya's share"), the amount, the Items count line, and a "Pay Sam" pill that keeps the method picker and Zelle copy (Appendix B).
+- [ ] A fixed footer with "Your share" (or "Priya's share"), the amount, the Items count line, and a "Pay Sam" pill.
+- [ ] The pill opens the Pay sheet (decision 25, `docs/design/b2/screens/split-17-pay.png` to `split-21-pay-dark.png`). It lists the viewed person's Items with their part, their part of each Adjustment, and their total, then the Host's payment methods as a radio list, a Pay button for the chosen method (Zelle copies the handle and says "Copied"), and "I already paid". The buttons sit in a bar fixed to the bottom of the sheet. Marking paid closes the sheet, turns the footer pill into a green "✓ Paid", and shows an undo bar. The Pay sheet replaces the folding breakdown and keeps every behavior of `Breakdown` and `PayBlock`.
 - [ ] Desktop renders the same single column, centered (Appendix B).
 
 **You see.**
@@ -386,12 +387,12 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Update the specs that opened the menu or chips to use the links. `pay.spec.ts` gains "the footer pill pays the selected method". Run the touched specs on both engines.
+- [ ] Update the specs that opened the menu or chips to use the links. `pay.spec.ts` gains "the Pay sheet lists the viewer's Items and Adjustment parts and its total equals the footer share" and "I already paid marks the viewer paid and Undo reverts it". Run the touched specs on both engines.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `swarm`, per the boot recipe.
 
 - [ ] Lane 1. Regression lane against trunk. Seed a Split, pick a name, open each of the four sheets and pay at trunk and head (`features/pay.md`). Save `b2-4-flow.png`. Pass when every action trunk can do, head can do.
-- [ ] Lane 2. Two methods, Zelle selected. Save `b2-4-zelle.png`. Pass when the pill copies the handle and says "Copied".
+- [ ] Lane 2. Open the Pay sheet with two methods, pick Zelle, then mark paid and undo. Save `b2-4-pay.png`. Pass when Zelle copies the handle and says "Copied", the sheet total equals the footer share to the cent, and Undo restores "Not paid".
 - [ ] Lane 3. 12 people with long names (rule 80a). Save `b2-4-long.png`. Pass when nothing overflows.
 - [ ] Lane 4. Resize across 1024 px. Save `b2-4-resize.png`. Pass when the page reflows with no lost state.
 
@@ -780,8 +781,7 @@ These are the root's defaults where the mock is silent. The operator can overrid
 - **Revert confirm and History scope.** Kept (rules 3 and 29). The mock reverts on one tap and lists claims only for illustration.
 - **Claimer marks.** Replaced by the "who had it" line, which the operator asked for ("move the people back to the left").
 - **Desktop.** One centered column with the same sheets, not the side-by-side pair. Two layouts would double every B2 PR's verification.
-- **Pay pill.** "Pay Sam" as in the mock. With several methods the pill keeps a chevron that opens the method picker. Zelle still copies. "I already paid" moves to your row in Payments.
-- **Breakdown.** The folding breakdown goes. Viewing as yourself already lists your Items and amounts.
+- **Pay sheet.** The operator asked for it on 2026-10-14 (decision 25). It replaces the folding breakdown and the pill-side method picker.
 - **Home panel.** The drag-to-spring panel (rule 33) goes with the panel. Rule 17's promise, a focused field never under the keyboard, stays.
 - **Example link and home share button.** Removed, as in the mock. The operator believed the Example link was gone already.
 - **Format line.** "JPEG, PNG, or WebP" goes, per "reduce text in general".
