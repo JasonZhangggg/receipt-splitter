@@ -2,7 +2,7 @@ const spring = "cubic-bezier(.34, 1.56, .64, 1)";
 const out = "cubic-bezier(.23, 1, .32, 1)";
 const inOut = "cubic-bezier(.77, 0, .175, 1)";
 
-/** The motions of docs/design/b2/split.dc.html, ported from heroicons-animated. A replay sets data-play on the svg (icon.web.tsx); tick and warning play as they mount, once the first press or key has set data-icons-live on the page so a Split that loads with ticks already drawn does not play them all at once. Reduced motion drops every rule. */
+/** Motions of docs/design/b2/split.dc.html. icon.web.tsx sets data-play for a replay. Tick and warning play on mount, but only after the first press or key sets data-icons-live, so a Split that loads with ticks drawn does not animate them all at once. */
 export const iconCss = `
 .ai { overflow: visible; }
 .ai * { transform-box: fill-box; transform-origin: center; }
