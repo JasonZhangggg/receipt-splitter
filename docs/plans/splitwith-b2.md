@@ -799,6 +799,20 @@ These are the root's defaults where the mock is silent. The operator can overrid
 
 ## Appendix D. Links and reading list
 
+Emil design rules for every B2 PR, from the B2-1 design review (PASS+NOTES).
+
+1. Sheets enter with `motion.easeDrawer` and leave with `motion.easeOut` in about 200 ms. Never `ease-in`.
+2. Sheet drag, the claim dot and the undo bar use transitions or WAAPI that retarget from the current state. Keyframes are only for one-shot icon motions.
+3. Pills press to `scale(0.97)` over 160 ms, small icon buttons to 0.88 to 0.9 over 140 ms, the dot to 0.8. Entrances start at 0.95 or more with opacity. Never `scale(0)`.
+4. Hover motion sits behind `@media (hover: hover) and (pointer: fine)`.
+5. Reduced motion removes movement, icon rotate and scale included, and keeps fades of 150 ms or less.
+6. The tall snap animates `transform`, never `height`. Drag writes `transform` on the sheet itself.
+7. The Payments ring arcs stagger 30 to 80 ms and never block input.
+8. Readable text is `fg` or `muted`. `faint` is only for placeholders, disabled items and decoration.
+9. Red only for a problem, green only for "Paid".
+10. Every amount uses `tabular-nums`, split lines included.
+
+
 - `docs/design/b2/README.md` and its screens, before any B2 PR.
 - `.claude/orchestrate/preferences.md`, `CONTEXT.md`, `docs/adr/0004`, `0009`.
 - `.claude/skills/verify-receipt-splitter/SKILL.md` and `features/README.md`.
