@@ -103,6 +103,8 @@ body{margin:0}
 .b-pline{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:7px 0;font-variant-numeric:tabular-nums}
 .b-pline > span:first-child{min-width:0}
 .b-pnote{display:block;font-size:14px;line-height:20px;color:var(--muted)}
+.b-pitems .b-pline{padding:10px 0}
+.b-pitems .b-pline + .b-pline{border-top:1px solid var(--line)}
 .b-pcharges{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}
 .b-pcharges .b-pline{padding:4px 0}
 .b-ptotal{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
@@ -303,7 +305,7 @@ body{margin:0}
 <button class="b-x" data-anim aria-label="Close" onClick="{{closePay}}"><svg class="ai ai-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M6 6l12 12"></path><path pathLength="1" d="M18 6 6 18"></path></svg></button>
 </div>
 <p style="margin: 2px 0 10px; font-size: 14px; color: var(--muted)">{{pay.sub}}</p>
-<div>
+<div class="b-pitems">
 <sc-for list="{{pay.items}}" as="r" hint-placeholder-count="3">
 <div class="b-pline"><span>{{r.name}}<sc-if value="{{r.hasNote}}" hint-placeholder-val="{{true}}"><span class="b-pnote">{{r.note}}</span></sc-if></span><span>{{r.amount}}</span></div>
 </sc-for>
