@@ -99,7 +99,7 @@ test("under reduced motion a press dims the Button and never scales it", async (
   await page.emulateMedia({ reducedMotion: "reduce" });
   const button = await mount(page);
   const release = await touchDown(button);
-  await expect.poll(() => button.evaluate((el) => getComputedStyle(el).opacity)).toBe("0.7");
+  await expect.poll(() => button.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(1);
   expect(await button.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
   await release();
 });

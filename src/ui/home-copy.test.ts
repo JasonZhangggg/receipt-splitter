@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { PaymentService } from "../core/split";
 import { emptyDraft, readiness, reduceDraft, type Draft, type DraftAction } from "../draft";
-import { blockerText, copy, historyCopy } from "./home-copy";
+import { blockerText, historyCopy } from "./home-copy";
 
 describe("a recent split's row", () => {
   test("names up to three people, then counts the rest", () => {
@@ -19,14 +19,6 @@ describe("a recent split's row", () => {
     const days = [new Date(2026, 9, 4, 0, 5), new Date(2026, 9, 3, 23, 50), new Date(2026, 8, 28, 12), new Date(2025, 8, 28, 12)];
     expect(days.map((day) => historyCopy.when(day.getTime(), now))).toEqual(["Today", "Yesterday", "Sep 28", "Sep 28, 2025"]);
   });
-});
-
-test("the line under the reading bar names what the phone is waiting on", () => {
-  expect((["text", "server", "slow"] as const).map((stage) => copy.readingStage[stage])).toEqual([
-    "Finding the text",
-    "Matching items to prices",
-    "Taking a few more seconds",
-  ]);
 });
 
 describe("why Create split link is off", () => {

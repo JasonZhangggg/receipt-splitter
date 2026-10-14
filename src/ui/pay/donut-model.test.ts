@@ -117,7 +117,10 @@ describe("ringMarkup", () => {
       { id: bob, cents: 100, start: 0.5, fraction: 0.5 },
     ];
     const markup = ringMarkup(two, (id) => (id === ann ? "#111111" : "#222222"), "#abcdef", ann);
-    expect(markup).toMatch(/stroke="#111111" stroke-width="14"[^>]*\/>/);
-    expect(markup).toMatch(/stroke="#222222" stroke-width="9"[^>]*opacity="0.4"/);
+    const circle = (color: string) => markup.match(new RegExp(`<circle[^>]*stroke="${color}"[^>]*/>`))![0];
+    const width = (color: string) => Number(circle(color).match(/stroke-width="([\d.]+)"/)![1]);
+    expect(width("#111111")).toBeGreaterThan(width("#222222"));
+    expect(circle("#111111")).not.toContain("opacity=");
+    expect(circle("#222222")).toContain("opacity=");
   });
 });

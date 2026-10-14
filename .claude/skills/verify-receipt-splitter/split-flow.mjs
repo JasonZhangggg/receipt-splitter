@@ -36,22 +36,39 @@ const pickName = async (page, name) => {
   await page.getByRole("button", { name: `${name}, you`, exact: true }).waitFor();
 };
 
-const host = await open(null);
-await host.goto(base);
-await host.getByRole("button", { name: "Example" }).click();
-await host.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
-for (const [index, name] of ["Jason", "Sam", "Priya", "Lee"].entries()) {
-  await host.getByRole("button", { name: index === 0 ? "Add name" : "Add a name" }).click();
-  await host.getByRole("textbox", { name: index === 0 ? "Your name" : "Name", exact: true }).fill(name);
-  await host.keyboard.press("Enter");
-}
-await shot(host, "A-home");
-await host.getByRole("button", { name: "Create split link" }).click();
+const receipt = {
+  items: [
+    { id: "i1", name: "Chicken Fried Rice And Egg", price: 799 },
+    { id: "i2", name: "California Tropic And Miso", price: 799 },
+    { id: "i3", name: "Add Two Tostones", price: 100 },
+    { id: "i4", name: "Sprite", price: 250 },
+    { id: "i5", name: "Perrier Sparkling Water", price: 350 },
+  ],
+  adjustments: [
+    { id: "a1", kind: "tax", name: "Tax", amount: 161 },
+    { id: "a2", kind: "serviceCharge", name: "Service fees on tables", amount: 345 },
+  ],
+  subtotal: 2298,
+  total: 2804,
+};
+const created = await fetch(`${base}/api/splits`, {
+  method: "POST",
+  headers: { "content-type": "application/json", "cf-connecting-ip": `198.51.${Math.floor(Math.random() * 56) + 200}.${Math.floor(Math.random() * 254) + 1}` },
+  body: JSON.stringify({
+    split: {
+      receipt,
+      participants: ["Jason", "Sam", "Priya", "Lee"].map((name) => ({ id: name.toLowerCase(), name })),
+      paymentHandles: [{ service: "venmo", handle: "jason-z" }],
+    },
+  }),
+});
+if (created.status !== 201) throw new Error(`POST /api/splits returned ${created.status}`);
+const link = `${base}/s/${(await created.json()).id}`;
+report.link = link;
+const host = await open(link);
 await host.getByRole("heading", { name: "Which one are you?" }).waitFor({ timeout: 30_000 });
 await host.waitForTimeout(600);
 await shot(host, "B-creator");
-const link = host.url();
-report.link = link;
 await host.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
 await host.waitForTimeout(170);
 await shot(host, "E-mid");
@@ -128,13 +145,13 @@ const droppedAt = Date.now();
 await sam.getByRole("button", { name: /^Open Sprite/ }).click();
 await sam.getByRole("textbox", { name: "Price" }).fill("2.75");
 await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
-await host.getByText("Items are $0.25 over.").waitFor();
+await host.getByText("Items are $0.25 over the subtotal.").waitFor();
 await shot(host, "I3a-mismatch");
 await host.waitForTimeout(Math.max(0, 10_000 - (Date.now() - droppedAt)));
-const staleWhileDown = await priya.getByText("Items are $0.25 over.").count();
+const staleWhileDown = await priya.getByText("Items are $0.25 over the subtotal.").count();
 blocked = false;
 const restoredAt = Date.now();
-await priya.getByText("Items are $0.25 over.").waitFor({ timeout: 30_000 });
+await priya.getByText("Items are $0.25 over the subtotal.").waitFor({ timeout: 30_000 });
 report.reconnect = { downMs: restoredAt - droppedAt, attemptsWhileDown: connects.filter((c) => c.blocked).length, caughtUpMs: Date.now() - restoredAt, staleWhileDown };
 
 await sam.getByRole("button", { name: "Priya", exact: true }).click();
@@ -142,16 +159,21 @@ await priya.getByTestId("owe").click();
 await priya.getByRole("button", { name: "I already paid" }).click();
 await priya.getByTestId("share-note").getByText("Paid ").waitFor();
 await shot(priya, "G2-paid");
-await sam.getByRole("button", { name: "Priya, paid", exact: true }).waitFor();
+await sam.getByRole("button", { name: "Menu", exact: true }).click();
+await sam.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Payments", exact: true }).click();
+await sam.getByRole("list", { name: "Payments" }).locator('[data-state="settled"]', { hasText: "Priya" }).waitFor();
+check("Payments shows Priya as paid", true);
 await sam.waitForTimeout(400);
 await shot(sam, "H-someone");
+await sam.keyboard.press("Escape");
+await sam.getByRole("dialog", { name: "Payments" }).waitFor({ state: "detached" });
 await sam.getByRole("button", { name: "Priya", exact: true }).click();
 await sam.getByTestId("owe").click();
 await sam.waitForTimeout(500);
 await shot(sam, "G-yours");
 
-await host.getByRole("button", { name: "More", exact: true }).click();
-await host.getByRole("dialog", { name: "More" }).getByRole("button", { name: "History", exact: true }).click();
+await host.getByRole("button", { name: "Menu", exact: true }).click();
+await host.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "History", exact: true }).click();
 await host.waitForTimeout(600);
 await shot(host, "I3-history");
 await host.getByRole("button", { name: "Revert Sprite" }).click();
@@ -165,7 +187,7 @@ await host.waitForTimeout(300);
 await shot(host, "I3c-restore");
 await host.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
 await host.getByRole("dialog", { name: "History" }).getByRole("button", { name: "Close" }).click();
-await sam.getByText("Items are $0.25 over.").waitFor({ state: "detached" });
+await sam.getByText("Items are $0.25 over the subtotal.").waitFor({ state: "detached" });
 
 await sam.reload();
 await sam.getByRole("button", { name: "Sam, you", exact: true }).waitFor();

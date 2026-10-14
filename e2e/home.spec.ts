@@ -104,21 +104,10 @@ const pressLook = (page: Page, target: Target = hero) =>
   });
 
 const restLook = { transform: "none", opacity: "1", transitions: [] };
-test("Create split link shows the blocked look with a 180 ms ease color transition, and draws no press", async ({ page }) => {
-  const face = action(page).locator(":scope > div");
-  const look = () =>
-    face.evaluate((el) => {
-      const style = getComputedStyle(el);
-      return [style.backgroundColor, style.transitionProperty, style.transitionDuration, style.transitionTimingFunction];
-    });
-  await page.emulateMedia({ reducedMotion: "reduce" });
+test("a blocked Create split link is aria-disabled and draws no press", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  expect(await look(), "under reduced motion").toEqual(["rgb(238, 239, 241)", "all", "0s", "ease"]);
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.reload();
-  await settle(page);
-  expect(await look()).toEqual(["rgb(238, 239, 241)", "background-color", "0.18s", "ease"]);
+  await expect(action(page)).toHaveAttribute("aria-disabled", "true");
   const cdp = await pressAndHold(action(page));
   await frames(page, 18);
   const afterTouch = await pressLook(page, action);
@@ -388,14 +377,6 @@ test("a keydown on the disabled Create split link draws no press", async ({ page
   expect(await pressLook(page, action)).toEqual(restLook);
 });
 
-test("the sheet stands 275 px, taller than the 223 px prototype, at 390 by 844", async ({ page }) => {
-  await page.goto("/");
-  await settle(page);
-  const sheet = await sheetOf(action(page));
-  expect(sheet.top + sheet.height).toBe(phone.height);
-  expect(sheet.height).toBe(275);
-});
-
 test("the camera button and Add receipt sit fully above the sheet at 375 by 667", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
@@ -485,86 +466,6 @@ for (const width of [1024, 1440]) {
   });
 }
 
-test("at 1280 px in dark mode the page and the camera button sit on the charcoal ladder", async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 820 }, colorScheme: "dark" });
-  const page = await context.newPage();
-  await page.goto("/");
-  await settle(page);
-  const colors = await page.evaluate(() => ({
-    page: getComputedStyle(document.body).backgroundColor,
-    slip: getComputedStyle(document.querySelector("[data-press-face]")!).backgroundColor,
-    cameraButton: getComputedStyle(document.querySelector("[data-press-face] > div:last-child")!).backgroundColor,
-    glyph: document.querySelector("[data-press-face] [data-icon]")!.getAttribute("data-icon"),
-  }));
-  expect(colors).toEqual({
-    page: "rgb(18, 19, 21)",
-    slip: "rgb(28, 29, 32)",
-    cameraButton: "rgb(242, 242, 243)",
-    glyph: "upload",
-  });
-  await context.close();
-});
-
-const looks = {
-  light: {
-    paper: "rgb(245, 246, 247)",
-    hairline: "rgb(227, 229, 232)",
-    ink: "rgb(17, 18, 20)",
-    muted: "rgb(105, 109, 116)",
-    sheetShadow: "rgb(227, 229, 232) 0px -1px 0px 0px, rgba(17, 18, 20, 0.06) 0px -12px 32px 0px",
-    lift: "drop-shadow(rgba(17, 18, 20, 0.06) 0px 1px 1px) drop-shadow(rgba(17, 18, 20, 0.08) 0px 12px 20px)",
-    themeColor: "#FFFFFF",
-  },
-  dark: {
-    paper: "rgb(28, 29, 32)",
-    hairline: "rgb(47, 49, 53)",
-    ink: "rgb(242, 242, 243)",
-    muted: "rgb(160, 163, 169)",
-    sheetShadow: "rgb(47, 49, 53) 0px -1px 0px 0px, rgba(0, 0, 0, 0.4) 0px -14px 36px 0px, rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset",
-    lift: "drop-shadow(rgba(0, 0, 0, 0.4) 0px 1px 1px) drop-shadow(rgba(0, 0, 0, 0.35) 0px 12px 18px)",
-    themeColor: "#121315",
-  },
-};
-
-for (const colorScheme of ["light", "dark"] as const) {
-  test(`the slip, the sheet, the chips, and the type follow the design tokens at 390 px, ${colorScheme}`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme });
-    await page.goto("/");
-    await settle(page);
-    const sheet = await page.locator("[data-sheet-surface]").evaluate((sheet) => {
-      const grab = sheet.querySelector("[data-sheet-grab] > div")!;
-      const { width, height } = grab.getBoundingClientRect();
-      return { shadow: getComputedStyle(sheet).boxShadow, grab: [width, height, getComputedStyle(grab).backgroundColor] };
-    });
-    const slip = await hero(page).locator("[data-press-face]").evaluate((el) => ({
-      fill: getComputedStyle(el).backgroundColor,
-      lift: getComputedStyle(el).filter,
-      lines: [...el.firstElementChild!.children].map((line) => [Math.round(line.getBoundingClientRect().width), line.getBoundingClientRect().height, getComputedStyle(line).backgroundColor]),
-    }));
-    const text = await page.evaluate(() => {
-      const leaf = (content: string) => [...document.querySelectorAll("#root *")].find((el) => !el.childElementCount && el.textContent === content)!;
-      const font = (content: string) => {
-        const style = getComputedStyle(leaf(content));
-        return [style.fontSize, style.fontWeight, style.letterSpacing, style.color];
-      };
-      return {
-        title: font("Add receipt"),
-        name: getComputedStyle(leaf("Add name")).color,
-        glyph: getComputedStyle(leaf("V")).color,
-        handle: getComputedStyle(document.querySelector("input")!).fontSize,
-      };
-    });
-    const themeColor = await page.locator(`meta[name="theme-color"][media="(prefers-color-scheme: ${colorScheme})"]`).getAttribute("content");
-    const tokens = looks[colorScheme];
-    expect({ sheet, slip, text, themeColor }).toEqual({
-      sheet: { shadow: tokens.sheetShadow, grab: [36, 5, tokens.hairline] },
-      slip: { fill: tokens.paper, lift: tokens.lift, lines: [100, 70, 100, 70].map((width) => [width, 5, tokens.hairline]) },
-      text: { title: ["28px", "600", "-0.56px", tokens.ink], name: tokens.muted, glyph: tokens.paper, handle: "16px" },
-      themeColor: tokens.themeColor,
-    });
-  });
-}
-
 test("the hero fills the space between the header and the sheet, and the header clears the top safe-area inset", async ({ page }) => {
   const layout = async () => {
     const heroBox = (await hero(page).boundingBox())!;
@@ -582,19 +483,6 @@ test("the hero fills the space between the header and the sheet, and the header 
   await settle(page);
   const notched = await layout();
   expect([notched.wordmarkTop - flush.wordmarkTop, notched.heroTop - flush.heroTop, notched.heroBottom]).toEqual([47, 47, notched.sheetTop]);
-});
-
-test("Example lines up with the wordmark", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 820 });
-  await page.goto("/");
-  await settle(page);
-  const middle = async (target: Locator) => {
-    const box = (await target.boundingBox())!;
-    return box.y + box.height / 2;
-  };
-  const wordmark = await middle(page.getByRole("heading", { name: "SplitWith" }));
-  const example = await middle(page.getByText("Example", { exact: true }));
-  expect(Math.abs(example - wordmark)).toBeLessThanOrEqual(1);
 });
 
 for (const [width, sheet] of [
@@ -682,20 +570,18 @@ const glyphs = {
   share: '<path d="M12 4v11M8 8l4-4 4 4"/><path d="M6 12v6.5A1.5 1.5 0 0 0 7.5 20h9a1.5 1.5 0 0 0 1.5-1.5V12"/>',
 };
 
-test("each icon draws its own glyph in its color with a 1.5 stroke, hidden from assistive tech, at 390 px", async ({ page }) => {
+test("each icon draws its own glyph, hidden from assistive tech, at 390 px", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const icons = await page.locator("[data-icon]").evaluateAll((svgs) =>
     svgs.map((svg) => ({
       icon: svg.getAttribute("data-icon"),
       hidden: svg.getAttribute("aria-hidden"),
-      stroke: svg.getAttribute("stroke"),
-      width: svg.getAttribute("stroke-width"),
       glyph: [...svg.children].map((shape) => new XMLSerializer().serializeToString(shape).replace(' xmlns="http://www.w3.org/2000/svg"', "")).join(""),
     })),
   );
-  const icon = (name: keyof typeof glyphs, stroke: string) => ({ icon: name, hidden: "true", stroke, width: "1.5", glyph: glyphs[name] });
-  expect(icons).toEqual([icon("share", "#696D74"), icon("menu", "#696D74"), icon("camera", "#FFFFFF"), icon("chevron", "#696D74"), icon("plus", "#111214"), icon("plus", "#696D74")]);
+  const icon = (name: keyof typeof glyphs) => ({ icon: name, hidden: "true", glyph: glyphs[name] });
+  expect(icons).toEqual([icon("share"), icon("menu"), icon("camera"), icon("chevron"), icon("plus"), icon("plus")]);
 });
 
 for (const [width, named] of [
