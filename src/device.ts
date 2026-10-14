@@ -80,9 +80,15 @@ export function splitOnDevice(id: SplitId): SplitOnDevice {
   return memory;
 }
 
-export function rememberSplit(id: SplitId, change: { creatorSecret?: string; me?: ParticipantId | null; payWith?: PaymentService }) {
-  const { me, ...rest } = { ...readRecord(keyOf(id)), ...change };
-  writeRecord(id, me === null ? rest : { ...rest, me });
+export type SplitChange = { creatorSecret?: string; me?: ParticipantId | null; payWith?: PaymentService };
+
+export function applyChange<R extends SplitOnDevice>(record: R, change: SplitChange): R {
+  const { me, ...rest } = { ...record, ...change };
+  return me === null ? (rest as R) : ({ ...rest, me } as R);
+}
+
+export function rememberSplit(id: SplitId, change: SplitChange) {
+  writeRecord(id, applyChange(readRecord(keyOf(id)), change));
 }
 
 export function noteSplit(split: Split, now = Date.now()) {

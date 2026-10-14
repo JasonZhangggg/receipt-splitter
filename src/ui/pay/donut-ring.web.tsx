@@ -53,6 +53,7 @@ export function DonutRing({ slices, paint, track, picked }: Props) {
               fill="none"
               stroke={paint(id)}
               strokeLinecap="round"
+              data-picked={id === picked ? "" : undefined}
               style={{ strokeWidth: width, strokeDasharray: dash, strokeDashoffset: offset, opacity: picked !== null && id !== picked ? dimmed : 1, transition: ease }}
             />
           ))}

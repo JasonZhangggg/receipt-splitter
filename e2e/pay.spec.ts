@@ -412,7 +412,7 @@ test("tapping a person in Payments picks them: the arc thickens, the ring's cent
 
   await fromMore(priya, "Payments");
   const dialog = priya.getByRole("dialog", { name: "Payments" });
-  const thick = dialog.locator('svg circle[style*="stroke-width: 14"]');
+  const thick = dialog.locator("svg circle[data-picked]");
   const samRow = paymentsList(priya).getByRole("button", { name: /^Sam, / });
   await expect(samRow).toHaveAttribute("aria-pressed", "false");
   await expect(thick).toHaveCount(0);
