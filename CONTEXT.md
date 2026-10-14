@@ -81,7 +81,7 @@ One Participant's part of the bill: their Claimed Items, a part of each Bundle d
 _Avoid_: Portion, amount owed, balance
 
 **Recent split**:
-A Split this device created or opened, listed behind the Recent splits icon on home with its names, the day the device first saw it, and its total. It stays on the device only, and leaves the list 60 days after the device last opened it or once its link says it has expired.
+A Split this device created or opened, listed under the History row of home's header menu, in a list titled Recent splits, with its names, the day the device first saw it, and its total. It stays on the device only, and leaves the list 60 days after the device last opened it or once its link says it has expired.
 _Avoid_: History, which is the Split page's list of payments and receipt changes
 
 **Payment**:

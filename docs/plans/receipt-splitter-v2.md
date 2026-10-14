@@ -5,12 +5,12 @@ Friends read a receipt by quantity and Bundle instead of a flat list, the Host's
 The rules it enforces are that no deploy makes a live Split unreadable and that a failing Total check blocks nothing.
 The PRs, in stack order, are V2-1, V2-2, V2-3, V2-4, V2-5, V2-6a, and V2-6b. V2-7a and V2-7b, server-side receipt reading, were added on 2026-10-03.
 
-**Status at `main` = `fe301a4`.**
+**Status on 2026-10-14. Complete as built, with three closing boxes open.** The text below the merge list is the plan as written on 2026-10-04 at `main` = `fe301a4`.
 
 - Merged and deployed, in this order: V2-1 as PR 29 (`9e3a34d`), V2-2 as PR 30 (`ade639d`), V2-5 as PR 31 (`f5e5b8e`), V2-6a as PR 32 (`461b37a`), and V2-3 as PR 33 (`2da1e47`).
 - Merged beside them: PR 27 (`96abf06`), the bug-fix PR on `fix/pay-note-sheet-flash`. PR 28 (`1440d94`), the quiet Total check note. PR 34 (`967c9aa`), the per-IP daily create limit. PR 35 (`d0cf6ce`), the Split page sheet rebuilt for iOS with the link row, the Home button, and a fresh home after create. [PR 36](https://github.com/JasonZhangggg/receipt-splitter/pull/36) (`19c8e93`), `fix/create-silent`, which makes every Create tap act and keeps the home panel open. [PR 37](https://github.com/JasonZhangggg/receipt-splitter/pull/37) (`fe301a4`), docs only, which adds the receipt-reading research and brings this plan up to rulings 55 to 59.
-- In flight. `fix/flash-root` is a local branch, not pushed. It fixes the Split page flashes at their causes.
-- Queued, in order: server-side receipt reading as V2-7a then V2-7b, the bar after a pick, quantities follow the receipt (full section below), a home reload that keeps only the payment handles, Add Item on the Split page, Recent splits on home, V2-4, V2-6b, then the open notes in `notes.md`. V2-4 and V2-6b are amended below to the rulings since approval. V2-7a and V2-7b have full sections. The next five have short sections before **Close the program**.
+- Merged after that point: `fix/flash-root` as PR 40, home reload as PR 39, V2-7a as PR 41, V2-7b as PR 43, bar after a pick as PR 44, home keyboard as PR 45 and PR 61, Recent splits as PR 46 and PR 50, V2-6b as PR 47, quantities as PR 49, Add Item as PR 52, drop the home editor as PR 53, V2-4 as PR 54, Edit Adjustments as PR 69. Server reading moved from GLM and Luna to Gemini in PR 60 and PR 63 (ADR 0010).
+- Still open: the three boxes under **Close the program**. Most of the notes in `.claude/orchestrate/notes.md` are still open, so no cleanup PR closed them. The per-section checkboxes were not ticked as PRs merged. Treat the merged PRs, not the boxes, as the record. The B2 program (`docs/plans/splitwith-b2.md`) is the current work and supersedes the Split page and home design here.
 - "Preferences N" means ruling N in `~/.claude/orchestrate/receipt-splitter/preferences.md`.
 
 ## How to read this

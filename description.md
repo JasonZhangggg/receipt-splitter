@@ -1,5 +1,7 @@
 # SplitWith
 
+**Status (2026-10-14).** The shipped product is Quick split only. Account mode below is a future idea and has no code. The reading design changed after this brief was written. The phone still runs OCR, but the server then reads the receipt with Gemini (ADR 0008 and ADR 0010).
+
 A free website with two modes:
 
 1. **Quick split (no sign-in, the landing page).** A one-time receipt splitter. Take a photo of a receipt, and the site reads the line items. Share a link, and each person claims what they ordered and pays their share by Venmo, Cash App, PayPal or Zelle. Nothing to install and no account.
@@ -12,7 +14,7 @@ The products to beat are [Lily Split](https://www.lilysplit.com/) for Quick spli
 ### Quick split (landing page)
 
 - The landing page is the tool. Nothing above it but a one-line pitch and a "Take photo" button.
-- Flow: photo → items appear (read on the phone) → fix any rows the total check flags → share the link → friends open it and tap their items → each person pays their share.
+- Flow: photo → items appear (the phone runs OCR and the server reads the receipt) → fix any rows the total check flags → share the link → friends open it and tap their items → each person pays their share.
 - Works without an account. The split lives in a link and expires after 30–90 days.
 - A quiet "Save this split / keep a running tab" prompt appears after the split is settled, the moment people are most receptive. It never blocks the flow.
 
@@ -54,7 +56,7 @@ Feature list, matched against Splitwise. The Pro column comes from [Splitwise's 
 Items with no Splitwise equivalent, which are the reasons to switch:
 - Items are assigned by each friend tapping their own items, not by the payer entering everything.
 - The total check on every scan.
-- The photo never leaves the phone.
+- The server reads the photo and the OCR lines with a third-party model, and a downscaled copy of the photo is stored with the Split for 14 days so everyone in it can view the receipt (ADR 0007, ADR 0008).
 - Prorated utilities: enter each person's dates lived, and the bill splits by days.
 - Offline entry.
 - No daily limit and no ads.
@@ -73,7 +75,7 @@ Evidence from 2026-09-28: 24 of Splitwise's 50 most recent App Store reviews wer
 
 ## Sustainability
 
-The design keeps cost close to zero however many people use it, because OCR runs on the phone, no photos are stored, and the site is static on Cloudflare.
+The design keeps cost close to zero however many people use it, because the phone runs OCR, a downscaled photo is stored with each Split for only 14 days, scans are capped at $3 a day, and the site is static on Cloudflare.
 
 | Usage | Monthly cost |
 |---|---|
@@ -92,7 +94,7 @@ Risks: being found (many competitors, so make the page friends land on excellent
 
 ## Goals
 
-- **The photo never leaves the phone.** OCR runs in the browser, so running it costs the owner nothing.
+- **Reading is cheap and bounded.** The phone runs OCR. The server reads the photo and OCR lines with a third-party model at about $0.001 a receipt, capped at $3 a day (ADR 0008). A downscaled copy of the photo is stored with the Split for 14 days (ADR 0007).
 - **Every scan is checked against the receipt.** The items must add up to the subtotal, and the subtotal plus tax plus tip minus discounts must equal the total. When a check fails, the site highlights the rows that don't add up so the user can fix them with a tap.
 - **No friction.** No accounts, and no entering names before you see the items. Friends can claim items whenever they open the link, not only while the creator is online.
 - **Payment in one tap** for Venmo, Cash App, PayPal and Zelle.
@@ -117,9 +119,9 @@ Debt simplification uses the greedy method: settle the largest creditor against 
 | Concern | Choice |
 |---|---|
 | App | Static site built with Vite and React (or Svelte), hosted with Cloudflare Workers static assets |
-| OCR | PaddleOCR PP-OCRv5-mobile or PP-OCRv6-small, run with onnxruntime-web in a Web Worker. Use WebGPU when available and fall back to WASM. Cache the model in Cache Storage. It downloads about 20–30 MB on first visit, and each receipt should take about 1–3 s. Start downloading the model while the camera is open. |
+| OCR | PaddleOCR run with onnxruntime-web in a Web Worker, as built. The phone reads the characters and keeps the rule-based parser as the fallback. Gemini does the reading that decides the Items (next row). |
 | Parsing | Rule-based, using the layout. Group text boxes into rows by their vertical position. The rightmost price on a row is that item's price. Recognize quantity lines (`2 @ 4.50`), modifier lines, discounts and the SUBTOTAL, TAX, TIP and TOTAL lines. Then run the total check. |
-| Fallback | An opt-in endpoint on a Worker, rate-limited, that calls a paid LLM (Gemini Flash-Lite or Claude Haiku 4.5) only when the total check fails. Send the OCR text first, and the image only as a last resort. Never store the image, and never use a free tier that trains on the data. Cost is about $0.0004–0.005 per receipt. |
+| Reading | Shipped. `POST /api/scan` sends the photo and the OCR lines through OpenRouter to Gemini. Pass 1 is Gemini 3.1 Flash-Lite. Pass 2 runs only when the total check fails, on Gemini 3.8 Flash. A penny review uses Flash-Lite again. Every model is a var in `wrangler.jsonc`. The on-device reader is the fallback when a scan is refused, fails or runs slow. Scans are rate-limited per address and capped at $3 a day (ADR 0008, ADR 0010). |
 | Live claiming | One Cloudflare Durable Object per split (with `partyserver`). Each split expires after 30–90 days, and its JSON is capped at about 32 KB. |
 | Read-only share | Encode the split into the URL fragment (lz-string), with no server. |
 | Abuse control | A per-IP rate limit and a global daily cap on creating a split (ADR 0005), and a per-IP rate limit on the LLM fallback. |
@@ -155,7 +157,7 @@ Debt simplification uses the greedy method: settle the largest creditor against 
 - split-the-bill.app: OCR on the server, and no payment links.
 - Lily Split.
 
-The gap: no competitor combines on-device OCR, the total check, account-free claiming at any time, and payment links for all four services.
+The gap: no competitor combines OCR on the phone with a server reading, the total check, account-free claiming at any time, and payment links for all four services.
 
 ## Open questions
 

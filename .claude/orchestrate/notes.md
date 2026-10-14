@@ -14,7 +14,7 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 
 ## split-type crossfade (fixer: fix/split-type-crossfade, in progress)
 - Item sheet split-type change shows outgoing steppers under incoming fields for about 2 frames (verify strip-type2-rows-f1-6.jpg).
-- A flick in the simulator needs a 5-point touch_path 16 ms apart and a 20 s recording; 2-point paths only work for taps. Note it in the census procedure.
+- Mac only. A flick in the simulator needs a 5-point touch_path 16 ms apart and a 20 s recording; 2-point paths only work for taps. Note it in the census procedure.
 
 ## test tooling (fixer: next test-infra PR)
 - `e2e/motion.spec.ts:10` "pick hands off to the bar" (@frame-timing, mobile-safari) fails about once per full local e2e run and passes alone. Find the timing assumption.
@@ -63,7 +63,7 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - `fix/flash-root` (91fe313): item-sheet inflight edit, Bundle close height, keyboard inset on Split sheets, fade-through swap, "+" name box focus ring, flash census tool and `e2e/flash.spec.ts`. Partly overlaps the `e2e/motion.ts` note; closes none outright.
 
 ## Operator report 2026-10-03. Fixer: next home PR.
-- (see rule 71: handles are optional now) Home after a long idle or reload: the payment field shows a handle but Create reports it missing until the user types. Suspect the browser (Safari form restore or autofill) fills the input without firing onChange, so React state stays empty. Reproduce on iOS Simulator Safari before fixing.
+- Mac only. (see rule 71: handles are optional now) Home after a long idle or reload: the payment field shows a handle but Create reports it missing until the user types. Suspect the browser (Safari form restore or autofill) fills the input without firing onChange, so React state stays empty. Reproduce on iOS Simulator Safari before fixing.
 
 ## Server-side receipt reading. Fixer: the receipt-reading PR.
 - Use per-item promos, not the summary "Discount" block (Dollar General prints both).
@@ -73,16 +73,16 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - Send the model a sharper image (about 2048 px, cropped), not the 1280 px storage copy.
 - Extend the compact format and test each addition in one eval round, keeping it only if it raises the score or catches errors without slowing replies (operator asked 2026-10-03): `b|<header>` opens a Bundle and `>`-prefixed lines belong to it, including its discount; `+|name|cents` is a priced modifier folded into the item above; the printed unit price as `i|name|cents|qty|unit` with a qty x unit check; `CNT|n` for a printed item count; a marker for a subtotal printed before discounts; lines in printed order; two name variants (as printed vs expanded abbreviations). No description field, no confidence score, no JSON schema.
 - Items get a model-supplied `detail` line under the name (operator, 2026-10-03). The name holds everything needed to identify the item, and the detail is only supplementary (size, flavor, modifiers). Define Detail in CONTEXT.md. That needs an optional `detail` on Item in `src/core/split.ts`, with parse, storage and editing support, and it replaces the `nameParts` size regex in `src/ui/split-view/model.ts:49`. The on-device fallback keeps the regex.
-- Add receipts with Bundles and priced modifiers (Topgolf plus 2-3 more) to `~/receipts-eval/` with nested truth before trusting the scores. None of r1-r8 has a Bundle.
-- Format eval 2026-10-03 (`~/receipts-eval/format-eval.md`, $0.12 spent): v2 16/24, v3 15/24 against old format 19/24 + 5/8 same day. Bundles work on t1 (synthetic only). v3 had 4 readings that were wrong but passed the check: 2 are r4's per-item discount split, which the check can't see, 1 is an invented priced add-on on r8, and the scorer did not check per-item discounts for the old format. Root recommendation: ship v3 without priced `+` lines, with a retry on another host when pass 1 runs long. Needs a real Bundle photo and item-level truth for r6/r7 before trusting it.
+- Mac only. Add receipts with Bundles and priced modifiers (Topgolf plus 2-3 more) to `~/receipts-eval/` with nested truth before trusting the scores. None of r1-r8 has a Bundle.
+- Mac only. Format eval 2026-10-03 (`~/receipts-eval/format-eval.md`, $0.12 spent): v2 16/24, v3 15/24 against old format 19/24 + 5/8 same day. Bundles work on t1 (synthetic only). v3 had 4 readings that were wrong but passed the check: 2 are r4's per-item discount split, which the check can't see, 1 is an invented priced add-on on r8, and the scorer did not check per-item discounts for the old format. Root recommendation: ship v3 without priced `+` lines, with a retry on another host when pass 1 runs long. Needs a real Bundle photo and item-level truth for r6/r7 before trusting it.
 - Ablation 2026-10-03 ($0.11): the `-` child format (item discounts as `-|name|cents` under the item, server folds them; `d` is order-level only; Bundles, detail lines and the summary-block rule kept; no priced `+`) scored 20/24, pass 1 18/24, items F1 97.2%, 680 output tokens, the best arm. Bundle rules cost 93 input tokens and showed no harm. A swapped per-item split passes every check, so the UI must make item discounts easy to inspect. JSON schema compared 2026-10-03 ($0.05): both hosts enforce it, but it scored 19/24 vs 20/24, ran about 9x slower at the median, cost 43% more, and got t1's Bundle headers wrong. Use the compact `-` child format.
-- V2-7a follow-ups: the `|pre` subtotal flag comes back reversed on t3/t5, sending them to pass 2 every time; a guard that accepts the flipped reading when both sums fit would save a Luna call. `~/receipts-eval/truth.json` lacks per-item `under` flags, so r4's split is unscored. ADR 0008's "at most 4 DO row writes per scan" is unmeasured. Leftover worktree `agent-a3b74977caad8d802` (`v2-7a-harness`) can go after 7a lands.
+- Mac only. V2-7a follow-ups: the `|pre` subtotal flag comes back reversed on t3/t5, sending them to pass 2 every time; a guard that accepts the flipped reading when both sums fit would save a Luna call. `~/receipts-eval/truth.json` lacks per-item `under` flags, so r4's split is unscored. ADR 0008's "at most 4 DO row writes per scan" is unmeasured. Leftover worktree `agent-a3b74977caad8d802` (`v2-7a-harness`) can go after 7a lands.
 - `wrangler.jsonc` comment still says the scan limits await the operator's OK; they were approved 2026-10-03 (rules 63). Fix in the next worker PR.
 - A detail is stored in both `receipt` and `original`; worst case about +24 KB against the 32 KB Split budget (createSplit then drops `original`).
 - Silent misreads (wrong digits plus a matching wrong subtotal) are not caught; consider an independent total read on long receipts.
 
 ## Operator report 2026-10-04 12:1x. Fixers running.
-- Home scrolls down after a photo upload on iOS Safari and stays stuck (card cut off at top, empty band at bottom). Fixer: `fix/home-scroll-stuck` (opus owner, reproduce on simulator first).
+- Mac only. Home scrolls down after a photo upload on iOS Safari and stays stuck (card cut off at top, empty band at bottom). Fixer: `fix/home-scroll-stuck` (opus owner, reproduce on simulator first).
 - Item sheet detail field shows empty even for Items with a detail; empty ones need the placeholder "Add detail (optional)". The Split button in a quantity line's detail gets a split icon. Fixer: `fix/item-detail-field` (opus owner).
 
 ## polish/ui-notes follow-ups (owner report 2026-10-04). Fixer: next home PR.
@@ -92,7 +92,7 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## fix/home-scroll-stuck follow-ups (owner report 2026-10-04)
 - `iosKeyboard` in `e2e/motion.ts` pans `offsetTop`, but iOS 27 scrolls the window into real room and leaves it there on blur. Emulated keyboard tests can pass changes that break rule 17 on a device. Fixer: next test-infra PR.
 - Home's field reveal on iOS 27 depends on the Sheet's `below` fill hanging past #root (the room iOS scrolls into). Make that room deliberate (a named spacer) so a cleanup doesn't remove it. Fixer: next home PR.
-- Check the Split page reveals focused fields on iOS 27 at all: it has no window room (714/714), and iOS 27 did not reveal a field without room in the clip experiment. Fixer: a simulator check, then a Split-page PR if broken.
+- Mac only. Check the Split page reveals focused fields on iOS 27 at all: it has no window room (714/714), and iOS 27 did not reveal a field without room in the clip experiment. Fixer: a simulator check, then a Split-page PR if broken.
 - `e2e/scan.spec.ts:408` ("a touch while the sheet settles") failed once under load, passed 4/4 alone. Fixer: next test-infra PR.
 - eslint lints the gitignored `.verify/`; add it to the ignores. Fixer: next test-infra PR.
 
@@ -147,7 +147,6 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From PR #97 (2026-10-11), open (review PASS+NOTES)
 - "Show the total" button sits inside the ring's role="img", so screen readers may hide it. Move it beside the img. Row re-tap still deselects. Fixer: next UI owner.
 - Home Share falls back silently: it copies with no feedback, and does nothing without navigator.clipboard (same pattern as app/s/[id].tsx). Fixer: next UI owner.
-- personInks doc comment overstates color stability (cascade when an earlier collider leaves; the 7th person can repeat the 6th's hue). Fixer: next UI owner.
 - Native donut-ring.tsx uses an SVG data URI in RN Image, which won't draw on iOS/Android. Latent while web-only.
 - Mask id "ring-sweep" is a fixed global id; use useId() if two rings ever mount.
 - The selected chip ring's gap uses c.sheet; check the desktop layout, where chips may sit on paper.

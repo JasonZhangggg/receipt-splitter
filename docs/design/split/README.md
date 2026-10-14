@@ -1,5 +1,7 @@
 # Split page design
 
+> The B2 design in `docs/design/b2/` supersedes this one wherever the two differ.
+
 The approved design for the Split page `/s/[id]`, round 8 of the operator's split-page mockups, approved on 2026-10-01. This is a static sketch, not app code. RS-10 and RS-11 build from it.
 
 - `board.html` is the design. It draws every frame from one Split model with `render(state)` in `board.js`. Serve the repository root over HTTP and open `docs/design/split/board.html`. The fonts load from `../home/fonts/`, so this folder does not work on its own.
