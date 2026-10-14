@@ -1,6 +1,6 @@
 # SplitWith B2 plan
 
-B2 rebuilds the Split page and home in the calm black-and-white design the operator settled on 2026-10-14 (`docs/design/b2/`). Every feature the app has today survives. Only its place and look change. The program also drops dead and style-pinned tests, fixes the pick sheet that keeps coming back, and brings the docs up to date. PRs in order are T1, BUG1, B2-1 to B2-9, DOCS1.
+B2 rebuilds the Split page and home in the calm black-and-white design the operator settled on 2026-10-14 (`docs/design/b2/`). Every feature the app has today survives. Only its place and look change. The program also drops dead and style-pinned tests, fixes the pick sheet that keeps coming back, and brings the docs up to date. PRs in order are T1, BUG1, BUG2, B2-1 to B2-9, DOCS1.
 
 ## How to read this
 
@@ -51,7 +51,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 - [ ] Spawn one owner per PR with the full lifecycle the execution playbook names. Each owner is a background `poteto-agent` with `isolation: "worktree"`, model `sonnet`, with a short-lived `opus` advisor before a data shape, architecture or money-logic choice (rule 47). At most `max parallel` (4) owners and app instances run at once. Queue the rest.
 - [ ] Follow this dependency graph.
-  - [ ] T1, BUG1 and DOCS1 are independent and branch from `main`.
+  - [ ] T1, BUG1, BUG2 and DOCS1 are independent and branch from `main`. B2-7 carries BUG2's bar into the People sheet.
   - [ ] B2-1 branches from `main`. B2-2 after B2-1. B2-3 after B2-2. B2-4 after B2-3.
   - [ ] B2-5, B2-6, B2-7 and B2-8 build in parallel on B2-4. The root appends them in that order and rebases each onto its parent.
   - [ ] B2-9 (home) builds on B2-2 in parallel with B2-3 to B2-8 and appends after B2-8.
@@ -193,6 +193,60 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 - [ ] Bugbot triage done.
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
 - [ ] The root marks it ready, waits for green CI and merges.
+
+## Tell a phone when another phone takes its name (BUG2)
+
+**Depends on.** None.
+
+**Files.**
+
+- [ ] Edit `app/s/[id].tsx` and the Split page copy in `src/ui/split-copy.ts`.
+- [ ] Edit `e2e/join.spec.ts`.
+
+**Build.**
+
+- [ ] When this device held a name and the Split's picks move that name to another device, show a bar once: "<Name> was picked on another phone", with a "That's me" button that takes the name back through the existing `pick` takeover. The bar uses the existing toast surface and leaves within 6 s or on tap. No bar when this device gave the name up itself, picked another name, or the person was removed.
+
+**You see.**
+
+- [ ] Phone B taps Sam and "That's me" while phone A holds Sam, and phone A shows "Sam was picked on another phone" with "That's me".
+
+**Seams.**
+
+- [ ] Two browser contexts in `e2e/join.spec.ts`, the same seam as the "That's me" tests.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `join.spec.ts` gains "a phone that loses its name to another phone is told once and can take it back". Red before the change, green after.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Level `standard`, per the boot recipe.
+
+- [ ] Lane 1. Regression lane against trunk. Two phones, B takes A's name at trunk and head (`features/join.md`). Save `bug2-takeover.png`. Pass when trunk shows nothing on A and head shows the bar once.
+- [ ] Lane 2. A picks a different name itself, and the Host removes a person. Save `bug2-quiet.png`. Pass when no bar shows.
+
+**Feature map.**
+
+- [ ] Add the takeover notice to `features/join.md`.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Entry size.
+- [ ] Probe. `scripts/size.mjs` at trunk and head.
+- [ ] Baseline. Record the trunk bytes first.
+- [ ] Rule. Head stays under the limit in `scripts/size-budget.json` without raising it.
+
+**Review gate.** The operator reviews before merge.
+
+- [ ] Copy lane 1 screenshots into `.claude/ui-proposals/bug2/bug2-review-takeover.png`.
+- [ ] Record a 30 to 60 second two-phone video as `.claude/ui-proposals/bug2/bug2-review.mp4`.
+- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
+
+**Merge.**
+
+- [ ] Root's clean verdict at the exact head SHA.
+- [ ] Bugbot triage done.
+- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
+- [ ] The root marks it ready, waits for green CI and merges after approval.
 
 ## Adopt the B2 tokens, Geist and the theme reveal (B2-1)
 
