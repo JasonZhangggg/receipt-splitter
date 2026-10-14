@@ -17,6 +17,25 @@ export function releaseIntent(travel: number, velocity: number, visible: number)
   return "stay";
 }
 
+/** A pull down past this many px, after the release's momentum, closes a snapping sheet. */
+export const closeDistance = 110;
+const snapAt = 40;
+/** The share of the screen a sheet fills at its tall snap. */
+export const tallShare = 0.94;
+/** A sheet leaves in about this long. */
+export const leaveMs = 200;
+
+export type Snap = "close" | "tall" | "rest" | "stay";
+
+/** Where a released snapping sheet goes, from how far it is from the snap it started on (px, down is positive), its speed (px/s) and whether it started tall. */
+export function snapFor(travel: number, velocity: number, tall: boolean): Snap {
+  const projected = travel + project(velocity);
+  if (projected > closeDistance) return "close";
+  if (tall && projected > snapAt) return "rest";
+  if (!tall && projected < -snapAt) return "tall";
+  return "stay";
+}
+
 const recentMs = 100;
 const heldMs = 80;
 const fastest = 3000;
@@ -30,7 +49,7 @@ export function releaseVelocity(samples: readonly { y: number; t: number }[], at
 }
 
 /** Under reduced motion a sheet's content cross-fades for this long instead of moving. */
-export const reducedFade = 200;
+export const reducedFade = 150;
 
 export const glide = { ms: 300, shortest: 150, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 const startSlope = 0.72 / 0.32;

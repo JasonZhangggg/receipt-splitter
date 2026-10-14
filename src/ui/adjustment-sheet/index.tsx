@@ -13,6 +13,7 @@ import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, tabular, type, useColors } from "../theme";
 import { adjustmentEdit, adjustmentProblem, deleteAdjustment, newAdjustment, switchKind, takesOff, tidyAmount, typedFrom, type AdjustmentProblem, type TypedAdjustment } from "./adjustment";
+import { SheetHeader } from "../split-view/sheet-header";
 
 type Send = (op: Operation) => Promise<Answer>;
 /** Asked before the sheet closes; true keeps it open. */
@@ -107,7 +108,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, gu
   const off = takesOff(shown.kind);
   return (
     <View style={styles.sheet} pointerEvents={leaving ? "none" : "auto"}>
-      <Topline title={off ? say.discount : say.charge} keepsFocus onClose={close} />
+      <SheetHeader title={off ? say.discount : say.charge} onClose={close} keepsFocus />
       <AdjustmentFields
         split={split}
         row={row}
@@ -162,7 +163,7 @@ export function AddAdjustmentSheet({ split, me, send, onClose, kind }: AddProps)
   const word = say.kinds[typed.kind];
   return (
     <View style={styles.sheet} pointerEvents={sending ? "none" : "auto"}>
-      <Topline title={takesOff(typed.kind) ? say.newDiscount : say.newCharge} onClose={onClose} />
+      <SheetHeader title={takesOff(typed.kind) ? say.newDiscount : say.newCharge} onClose={onClose} />
       <AdjustmentFields
         split={split}
         typed={typed}
@@ -264,25 +265,6 @@ function Note({ children }: { children: ReactNode }) {
   );
 }
 
-function Topline({ title, keepsFocus, onClose }: { title: string; keepsFocus?: boolean; onClose: () => void }) {
-  const c = useColors();
-  const reduce = useReducedMotion();
-  return (
-    <View style={styles.topline}>
-      <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
-        {title}
-      </Text>
-      <PressTarget name={say.close} outsideScroll keepsFocus={keepsFocus} onPress={onClose} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
-        {() => (
-          <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
-            <Icon name="x" size={16} color={c.ink} />
-          </View>
-        )}
-      </PressTarget>
-    </View>
-  );
-}
-
 function ProblemLine({ problem, reserve = false }: { problem: AdjustmentProblem | null; reserve?: boolean }) {
   const c = useColors();
   if (!problem && !reserve) return null;
@@ -305,10 +287,6 @@ function DeleteFace({ label }: { label: string }) {
 
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
-  topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { marginTop: 2 },
-  closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
   groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   field: { minHeight: layout.field, paddingHorizontal: 16 },

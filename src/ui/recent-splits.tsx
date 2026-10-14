@@ -41,7 +41,7 @@ export function RecentSplits({ splits, now, wide, from, closing, onClose, onGone
           {list}
         </Popover>
       ) : (
-        <BottomSheet scrim label={say.title} onDown={onGone} closing={closing} testID="recent-sheet">
+        <BottomSheet tapAway label={say.title} onDown={onGone} closing={closing} testID="recent-sheet">
           {list}
         </BottomSheet>
       )}

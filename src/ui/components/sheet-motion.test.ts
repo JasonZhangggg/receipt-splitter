@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { animateSpring, glideFor, project, releaseIntent, releaseVelocity, rubberband } from "./sheet-motion";
+import { animateSpring, glideFor, project, releaseIntent, releaseVelocity, rubberband, snapFor } from "./sheet-motion";
 
 test("project carries a release velocity forward the way a scroll decelerates", () => {
   expect(project(1000)).toBeCloseTo(499, 0);
@@ -57,6 +57,23 @@ describe("releaseIntent", () => {
       nudgeUp: releaseIntent(-20, 0, 240),
       flickBackUpAfterLongDrag: releaseIntent(150, -900, 240),
     }).toEqual({ slowPastHalf: "down", slowShortOfHalf: "stay", flickDownFromNear: "down", pullUp: "up", flickUp: "up", nudgeUp: "stay", flickBackUpAfterLongDrag: "stay" });
+  });
+});
+
+describe("snapFor", () => {
+  test("closes past 110 px, snaps tall on a pull or flick up, and settles between", () => {
+    expect({
+      slowPast110: snapFor(120, 0, false),
+      slowShort: snapFor(100, 0, false),
+      flickDown: snapFor(20, 900, false),
+      pullUp: snapFor(-50, 0, false),
+      flickUp: snapFor(-8, -700, false),
+      nudgeUp: snapFor(-20, 0, false),
+      tallPullDownShort: snapFor(60, 0, true),
+      tallPullDownFar: snapFor(130, 0, true),
+      tallNudge: snapFor(20, 0, true),
+      tallPullUp: snapFor(-80, 0, true),
+    }).toEqual({ slowPast110: "close", slowShort: "stay", flickDown: "close", pullUp: "tall", flickUp: "tall", nudgeUp: "stay", tallPullDownShort: "rest", tallPullDownFar: "close", tallNudge: "stay", tallPullUp: "stay" });
   });
 });
 

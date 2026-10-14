@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Reac
 import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { glide, glideFor, reducedFade, releaseIntent, releaseVelocity, rubberband } from "../components/sheet-motion";
+import { glide, glideFor, leaveMs, reducedFade, releaseIntent, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
 import { Swap } from "../components/swap";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
@@ -48,10 +48,11 @@ type Fold = { open: boolean; peek: number; track: FoldTrack };
 
 type Props = {
   children: ReactNode;
-  scrim?: boolean;
-  /** A swipe down, or a tap on the scrim. */
+  /** Lays a transparent hit area over the page that closes the sheet on a tap. The page behind is never dimmed. */
+  tapAway?: boolean;
+  /** A swipe down, or a tap away. */
   onDown?: () => void;
-  /** Asked before a swipe down or a scrim tap takes the sheet away; true settles it back, as for content holding an edit that cannot save. */
+  /** Asked before a swipe down or a tap away takes the sheet away; true settles it back, as for content holding an edit that cannot save. */
   holds?: () => boolean;
   /** A swipe up. */
   onUp?: () => void;
@@ -78,25 +79,27 @@ type Props = {
 /** `resume` is where a sheet caught mid-glide was headed, so a touch that never drags lets it finish. */
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
-export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stays = false, closing = false, onHeight, view, header, fold, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
+export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, stays = false, closing = false, onHeight, view, header, fold, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
   // The keyboard neither moves nor shrinks the sheet. iOS pans the page to reveal the focused field.
-  const tallest = useLayoutHeight() - insets.top - 38;
+  const screen = useLayoutHeight();
+  const tallest = Math.min(Math.round(screen * tallShare), screen - insets.top - 8);
   const [content, setContent] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [tall, setTall] = useState(false);
+  const snaps = !fold && !stays;
   const natural = content + grabHeight + 30 + insets.bottom;
   const visible = content === 0 ? 0 : Math.min(Math.max(natural, minHeight), tallest);
   const scrolls = natural > tallest;
   const rest = tallest - visible;
   const folded = fold ? Math.min(headerHeight + fold.peek + grabHeight + 30 + insets.bottom, visible) : visible;
   const foldRest = tallest - folded;
-  const home = fold && !fold.open ? foldRest : rest;
+  const home = fold && !fold.open ? foldRest : snaps && tall ? 0 : rest;
   const surface = useRef<View>(null);
   const body = useRef<View>(null);
   const top = useRef<View>(null);
-  const shade = useRef<View>(null);
   const offset = useRef<number | null>(null);
   const drag = useRef<Drag | null>(null);
   const leaving = useRef(false);
@@ -106,7 +109,6 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
   const gestures = onDown !== undefined || onUp !== undefined;
 
   const element = () => surface.current as unknown as HTMLElement | null;
-  const dimFor = (value: number) => (visible > 0 ? Math.max(0, Math.min(1, 1 - (value - rest) / visible)) : 0);
 
   const progressAt = (at: number) => {
     if (!fold) return 1;
@@ -114,19 +116,13 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
     return Math.max(0, Math.min(1, (foldRest - at) / (foldRest - rest)));
   };
 
-  const place = (to: number, ms: number) => {
+  const place = (to: number, ms: number, easing = glide.easing) => {
     offset.current = to;
     fold?.track.move(progressAt(to), ms, foldRest - rest);
     const sheet = element();
-    const dim = shade.current as unknown as HTMLElement | null;
-    const transition = `${ms}ms ${glide.easing}`;
     if (sheet) {
-      sheet.style.transition = ms > 0 ? `transform ${transition}` : "none";
+      sheet.style.transition = ms > 0 ? `transform ${ms}ms ${easing}` : "none";
       sheet.style.transform = `translateY(${to}px)`;
-    }
-    if (dim) {
-      dim.style.transition = ms > 0 ? `opacity ${transition}` : "none";
-      dim.style.opacity = String(dimFor(to));
     }
   };
 
@@ -139,6 +135,12 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
     }
     const from = offset.current ?? tallest;
     const ms = glideFor(to - from, Math.sign(to - from) * velocity);
+    if (to >= tallest) {
+      const out = Math.min(leaveMs, ms);
+      place(to, out, motion.easeOut);
+      if (done) left.current = setTimeout(done, out);
+      return;
+    }
     place(to, ms);
     if (done) left.current = setTimeout(done, ms);
   };
@@ -218,6 +220,7 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
       const below = fold.open ? foldRest : foldRest + rubberband(at - foldRest, folded);
       return place(at < rest ? above : at > foldRest ? below : at, 0);
     }
+    if (snaps) return place(at < 0 ? rubberband(at, visible) : at > home && !onDown ? home + rubberband(at - home, visible) : at, 0);
     const below = at - rest;
     place(rest + (below > 0 && onDown ? below : rubberband(below, visible)), 0);
   };
@@ -237,6 +240,13 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
       settle(opens ? rest : foldRest, velocity);
       if (opens !== fold.open) (opens ? onUp : onDown)?.();
       return;
+    }
+    if (snaps) {
+      const snap = snapFor((offset.current ?? home) - home, velocity, tall);
+      if (snap === "close" && onDown) return leave(velocity);
+      const next = snap === "tall" || (snap === "stay" && tall);
+      settle(next ? 0 : rest, velocity);
+      return setTall(next);
     }
     const intent = releaseIntent((offset.current ?? rest) - rest, velocity, visible);
     if (intent === "down" && onDown) return leave(velocity);
@@ -263,9 +273,7 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
   const fits = scrolls ? null : grip;
   return (
     <>
-      <View pointerEvents={scrim ? "auto" : "none"} onPointerUp={onDown && (() => leave(0))} style={[styles.scrim, { opacity: scrim ? 1 : 0 }, reduce ? scrimCrossFade : scrimFade]}>
-        <View ref={shade} style={[styles.fill, { backgroundColor: c.scrim }]} />
-      </View>
+      <View pointerEvents={tapAway ? "auto" : "none"} onPointerUp={onDown && (() => leave(0))} style={styles.hitArea} />
       <View
         ref={surface}
         role="dialog"
@@ -303,13 +311,10 @@ export function BottomSheet({ children, scrim = false, onDown, holds, onUp, stay
 }
 
 const layer = webStyle({ willChange: "transform" });
-const scrimFade = webStyle({ transitionProperty: "opacity", transitionDuration: `${glide.ms}ms`, transitionTimingFunction: glide.easing });
-const scrimCrossFade = webStyle({ transitionProperty: "opacity", transitionDuration: `${reducedFade}ms`, transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
-  scrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  fill: { flex: 1 },
-  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
+  hitArea: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   below: { position: "absolute", top: "100%", left: 0, right: 0 },
   column: { width: "100%" },
   inset: { alignSelf: "center", width: "100%", maxWidth: 480 },

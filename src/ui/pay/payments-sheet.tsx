@@ -16,6 +16,7 @@ import { usePersonInks } from "../person-inks";
 import { slices, ring } from "./donut-model";
 import { DonutRing } from "./donut-ring";
 import { paymentStatus, type PaymentRow } from "./model";
+import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void; /** In a bottom sheet: the ring stays put and only the people scroll, out to the sheet's edge. */ sheet?: boolean };
 
@@ -42,18 +43,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   return (
     <View style={styles.sheet}>
       <View style={styles.sheet} onLayout={(event) => setFixed(event.nativeEvent.layout.height)}>
-      <View style={styles.topline}>
-        <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
-          {say.payments}
-        </Text>
-        <PressTarget name={say.close} outsideScroll onPress={onClose} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
-          {() => (
-            <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
-              <Icon name="x" size={16} color={c.ink} />
-            </View>
-          )}
-        </PressTarget>
-      </View>
+      <SheetHeader title={say.payments} onClose={onClose} />
       {summary ? (
         <Text testID="payments-summary" style={[type.body, { color: c.muted }]}>
           {summary}
@@ -169,10 +159,6 @@ const styles = StyleSheet.create({
   ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 8 },
   center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
-  topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { marginTop: 2 },
-  closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   centerHit: { top: 28, right: 28, bottom: 28, left: 28, borderRadius: 80, paddingHorizontal: 0 },
   list: { marginLeft: -rowPad },
   listContent: { gap: 4 },

@@ -488,7 +488,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       </ScrollView>
       {wide ? null : (
         <BottomSheet
-          scrim={phase === "pick"}
+          tapAway={phase === "pick"}
           label={phase === "pick" ? say.question : say.people}
           minHeight={phase === "pick" ? pageHeight - tallPickTop : 0}
           rises={false}
@@ -510,7 +510,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           {overlayContent}
         </Popover>
       ) : overlay ? (
-        <BottomSheet scrim label={overlayLabel(overlay, split)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} testID={`${overlay.kind}-sheet`}>
+        <BottomSheet tapAway label={overlayLabel(overlay, split)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} testID={`${overlay.kind}-sheet`}>
           {overlayContent}
         </BottomSheet>
       ) : null}

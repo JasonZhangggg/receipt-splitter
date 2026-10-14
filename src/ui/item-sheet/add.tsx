@@ -6,13 +6,13 @@ import { MAX_DETAIL_LENGTH, MAX_QUANTITY, MAX_ROW_NAME_LENGTH, type Operation } 
 import { itemId, randomId, type ParticipantId, type Split } from "../../core/split";
 import type { Answer } from "../../live/client";
 import { Button, PressTarget } from "../components/button";
-import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { fieldGroup } from "../document";
 import { layout, tabular, type, useColors } from "../theme";
 import { Stepper } from "./index";
 import { newItem, problemFor, type NewItem, type NewItemProblem } from "./new-item";
+import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = {
   split: Split;
@@ -63,18 +63,7 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
 
   return (
     <View style={styles.sheet} pointerEvents={sending ? "none" : "auto"}>
-      <View style={styles.topline}>
-        <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
-          {say.newItem}
-        </Text>
-        <PressTarget name={say.close} outsideScroll onPress={onClose} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
-          {() => (
-            <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
-              <Icon name="x" size={16} color={c.ink} />
-            </View>
-          )}
-        </PressTarget>
-      </View>
+      <SheetHeader title={say.newItem} onClose={onClose} />
       <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <TextInput
           ref={nameField}
@@ -164,10 +153,6 @@ export function AddItemSheet({ split, me, send, onClose }: Props) {
 
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
-  topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { marginTop: 2 },
-  closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
   groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
   field: { minHeight: layout.field, paddingHorizontal: 16 },
