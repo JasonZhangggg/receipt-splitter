@@ -42,6 +42,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
   - [ ] `.claude/skills/verify-receipt-splitter/SKILL.md`
   - [ ] `~/.claude/skills/poteto-mode/playbooks/opening-a-pr.md`
   - [ ] `~/.claude/skills/emil-design-eng/SKILL.md`, `~/.claude/skills/apple-design/SKILL.md`, `~/.claude/skills/mobile-native/SKILL.md`, `~/.claude/skills/animate/SKILL.md`, `~/.claude/skills/review-animations/SKILL.md` and `~/.claude/skills/unslop/SKILL.md` (CLAUDE.md, rule 14)
+  - [ ] Emil Kowalski's skills, read in full by every B2 owner and every B2 design reviewer (operator, 2026-10-14). `~/.claude/skills/emil-design-eng/SKILL.md`, `~/.claude/skills/review-animations/SKILL.md`, `~/.claude/skills/improve-animations/SKILL.md`, `~/.claude/skills/animation-vocabulary/SKILL.md`, `~/.claude/skills/find-animation-opportunities/SKILL.md`, and `~/.claude/skills/ask-sonner/SKILL.md` for the undo bars.
 - [ ] Arm the 30-minute audit tick as a real `/loop` in dynamic mode. Never leave the cadence to memory.
 - [ ] Use this tick prompt, verbatim. "Re-read the execution playbook and the standing objective. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Post to the operator only when something big changed since the last post, meaning a merge, a deploy, a FAIL verdict, a new operator gate, or a blocker. Otherwise stay quiet and log the tick in the trail. The full status (queue table of PR, owner, state, and head SHA, verdicts, merges, open gates, open notes and their fixers, blockers) is for when the operator runs `/status`."
 - [ ] On the operator's hold or stand-down, send every owner a zero-writes order at once. The status message for a hold names each owner and its last local SHA.
@@ -68,6 +69,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 - [ ] Triage every Bugbot and security-reviewer comment per `~/.claude/skills/poteto-mode/references/bugbot-triage.md`.
 - [ ] Rebase onto current trunk before babysit and again before the merge-ready report.
 - [ ] Before the code-ready report the owner states how each item of rule 80a's recurring-failure list applies, with a test for each that does.
+- [ ] Every B2 PR runs an Emil design pass before its code-ready report. The owner applies `emil-design-eng`, `review-animations` and `improve-animations` to its diff and lists each finding with the change made or the reason not. The verdict swarm adds one design lane on `opus` that reads the same skills and the screenshots, and returns findings under rule 41.
 
 ### Verdict and merge, for every PR
 
