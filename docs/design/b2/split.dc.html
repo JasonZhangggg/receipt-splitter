@@ -105,18 +105,26 @@ body{margin:0}
 .b-pnote{display:block;font-size:14px;line-height:20px;color:var(--muted)}
 .b-pcharges{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}
 .b-pcharges .b-pline{padding:4px 0}
-.b-ptotal{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:12px;border-top:1px solid var(--line);font-weight:500;font-variant-numeric:tabular-nums}
+.b-ptotal{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:12px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
 .b .b-method{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;border-top:1px solid var(--line);color:var(--muted);transition:color 150ms ease}
 .b .b-method[data-on="true"]{color:var(--fg)}
 .b-method i{flex:none;width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--faint);transition:background-color 150ms ease,box-shadow 150ms ease}
 .b-method[data-on="true"] i{background:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
 .b-handle{margin-left:auto;font-size:14px;color:var(--faint)}
 .b-paybar{flex:none;padding:12px 24px 22px;border-top:1px solid var(--line);background:var(--bg)}
+.b-pill{position:relative;display:flex;height:54px;border-radius:27px;background:var(--fg);color:var(--bg);overflow:hidden;transition:transform 160ms var(--ease-out)}
+.b-pill:has(.b-pillgo:active){transform:scale(.97)}
+.b .b-pillgo{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;color:var(--bg)}
+.b-mark{width:22px;height:22px;border-radius:11px;background:var(--bg);color:var(--fg);display:grid;place-items:center;font-size:12px;font-weight:500}
+.b-switch{position:relative;flex:none;width:54px;display:grid;place-items:center;color:var(--bg)}
+.b-switch i{position:absolute;left:0;top:15px;width:1px;height:24px;background:currentColor;opacity:.3}
+.b-switch select{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;font-size:16px}
+.b-handles{margin:10px 4px 0;text-align:center;font-size:14px;color:var(--muted)}
 .b .b-paybtn{width:100%;height:52px;border-radius:26px;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:500;transition:transform 160ms var(--ease-out)}
 .b .b-paybtn:active{transform:scale(.97)}
 .b .b-already{display:block;margin:6px auto 0;height:44px;font-size:14px;color:var(--muted);text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--underline);transition:color 150ms ease}
 .b .b-already:active{color:var(--fg)}
-.b-paidnote{display:flex;align-items:center;justify-content:center;gap:6px;height:52px;border-radius:26px;box-shadow:inset 0 0 0 1px var(--line);color:var(--ok);font-weight:500}
+.b-paidnote{display:flex;align-items:center;justify-content:center;gap:6px;height:52px;border-radius:26px;box-shadow:inset 0 0 0 1px var(--line);color:var(--ok)}
 .b .b-pay[data-paid="true"]{background:transparent !important;color:var(--ok) !important;box-shadow:inset 0 0 0 1px var(--line)}
 @media (prefers-reduced-motion:reduce){.b-done{animation:none}}
 [data-play] .ai-tray .arrow,.ai-tray[data-play] .arrow{animation:ai-lift 500ms ease-in-out}
@@ -222,7 +230,7 @@ body{margin:0}
 </sc-if>
 
 <div class="b-reveal" style="--i: 3; display: flex; justify-content: space-between; align-items: baseline; margin: 44px 0 12px">
-<h2 style="margin: 0; font-size: 16px; font-weight: 500">Items</h2>
+<h2 style="margin: 0; font-size: 16px; font-weight: 400">Items</h2>
 <span style="font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums">{{countText}}</span>
 </div>
 <div class="b-rows b-reveal" style="--i: 4">
@@ -265,8 +273,8 @@ body{margin:0}
 </section>
 
 <div style="margin-top: 10px; border-top: 1px solid var(--line); padding: 12px 0 0 26px; display: flex; justify-content: space-between; align-items: baseline; font-variant-numeric: tabular-nums">
-<span style="font-weight: 500">Total</span>
-<span style="font-weight: 500">{{total}}</span>
+<span>Total</span>
+<span>{{total}}</span>
 </div>
 </div>
 
@@ -305,19 +313,17 @@ body{margin:0}
 <div class="b-pline"><span>{{c.name}}</span><span>{{c.amount}}</span></div>
 </sc-for>
 </div>
-<div class="b-ptotal"><span>{{pay.totalLabel}}</span><span style="font-size: 22px; letter-spacing: -0.02em">{{pay.total}}</span></div>
+<div class="b-ptotal"><span>{{pay.totalLabel}}</span><span style="font-size: 20px; letter-spacing: -0.015em">{{pay.total}}</span></div>
 <sc-if value="{{pay.unpaid}}" hint-placeholder-val="{{true}}">
-<div class="b-sechead" style="margin: 26px 0 6px; color: var(--muted)">Pay with</div>
-<div role="radiogroup" aria-label="Pay with">
-<sc-for list="{{pay.methods}}" as="m" hint-placeholder-count="3">
-<button class="b-method" role="radio" aria-checked="{{m.on}}" data-on="{{m.onAttr}}" onClick="{{m.pick}}"><i></i><span>{{m.app}}</span><span class="b-handle">{{m.handle}}</span></button>
-</sc-for>
-</div>
 </sc-if>
 </div>
 <div class="b-paybar">
 <sc-if value="{{pay.unpaid}}" hint-placeholder-val="{{true}}">
-<button class="b-paybtn" data-anim onClick="{{pay.go}}">{{pay.goLabel}}<sc-if value="{{pay.goArrow}}" hint-placeholder-val="{{true}}"><svg class="ai ai-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"></path><path class="line" d="M21 12H3"></path></svg></sc-if></button>
+<div class="b-pill">
+<button class="b-pillgo" data-anim aria-label="{{pay.goName}}" onClick="{{pay.go}}"><sc-if value="{{pay.copyMode}}" hint-placeholder-val="{{false}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg></sc-if><sc-if value="{{pay.copiedNow}}" hint-placeholder-val="{{false}}"><svg class="ai ai-check" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="m4.5 12.75 6 6 9-13.5"></path></svg></sc-if><sc-if value="{{pay.showMark}}" hint-placeholder-val="{{true}}"><span class="b-mark" aria-hidden="true">{{pay.glyph}}</span></sc-if><span>{{pay.goLabel}}</span></button>
+<span class="b-switch"><i aria-hidden="true"></i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg><select aria-label="Pay with" onChange="{{pay.pickMethod}}" value="{{pay.methodId}}"><sc-for list="{{pay.methods}}" as="m" hint-placeholder-count="3"><option value="{{m.id}}">{{m.app}}</option></sc-for></select></span>
+</div>
+<p class="b-handles">{{pay.handles}}</p>
 <button class="b-already" onClick="{{pay.markPaid}}">I already paid</button>
 </sc-if>
 <sc-if value="{{pay.paid}}" hint-placeholder-val="{{false}}">
@@ -547,7 +553,7 @@ const TAX = 0.08875;
 const TIP = 0.18;
 const DISCOUNT = -500;
 const MODES = [{ key: 'even', label: 'Evenly' }, { key: 'shares', label: 'By shares' }, { key: 'amount', label: 'By amount' }];
-const METHODS = [{ id: 'venmo', app: 'Venmo', handle: '@sam-lee' }, { id: 'cashapp', app: 'Cash App', handle: '$samlee' }, { id: 'zelle', app: 'Zelle', handle: 'sam@lee.mail' }];
+const METHODS = [{ id: 'venmo', app: 'Venmo', glyph: 'V', handle: '@sam-lee' }, { id: 'cashapp', app: 'Cash App', glyph: '$', handle: '$samlee' }, { id: 'zelle', app: 'Zelle', glyph: 'Z', handle: 'sam@lee.mail' }];
 const money = (c) => { const r = Math.round(c); return (r < 0 ? '-$' : '$') + (Math.abs(r) / 100).toFixed(2); };
 const cents = (t) => { const n = parseFloat(String(t == null ? '' : t).replace(/[^0-9.]/g, '')); return isFinite(n) ? Math.round(n * 100) : 0; };
 const byId = {};
@@ -821,9 +827,16 @@ class Component extends DCLogic {
       total: share,
       paid, unpaid: !paid, paidAttr: String(paid),
       paidLine: (isSelf ? 'You' : vName) + ' paid ' + share,
-      methods: METHODS.map((m) => ({ app: m.app, handle: m.handle, on: m.id === method.id, onAttr: String(m.id === method.id), pick: () => this.set({ payWith: m.id }) })),
-      goLabel: method.id === 'zelle' ? (s.copied ? 'Copied' : 'Copy Zelle email') : 'Pay ' + share + ' on ' + method.app,
-      goArrow: method.id !== 'zelle',
+      methods: METHODS.map((m) => ({ id: m.id, app: m.app })),
+      methodId: method.id,
+      pickMethod: (e) => this.set({ payWith: e.target.value, copied: false }),
+      handles: METHODS.map((m) => m.app + '\u00a0' + m.handle).join('\u00a0· '),
+      glyph: method.glyph,
+      copyMode: method.id === 'zelle' && !s.copied,
+      copiedNow: method.id === 'zelle' && !!s.copied,
+      showMark: !(method.id === 'zelle' && s.copied),
+      goLabel: method.id === 'zelle' && s.copied ? 'Copied' : method.app,
+      goName: method.id === 'zelle' ? (s.copied ? 'Copied' : 'Copy ' + method.handle + ' to pay Sam ' + share + ' on Zelle') : 'Pay Sam ' + share + ' on ' + method.app,
       go: () => { if (method.id === 'zelle') { this.set({ copied: true }); clearTimeout(this.copyT); this.copyT = setTimeout(() => this.set({ copied: false }), 1600); } },
       markPaid: () => setPaid(true, 'Marked ' + share + ' as paid'),
       unmark: () => setPaid(false, null),
