@@ -3,10 +3,6 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - ".claude/**"
   push:
     branches: [main]
     paths-ignore:
@@ -25,32 +21,52 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+        with:
+          fetch-depth: 0
+      # main requires this check, so a docs-only pull request still reports it, after skipping the gates.
+      - id: scope
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ] && ! git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD | grep -qvE '^(docs/|\.claude/)|\.md$'; then
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.scope.outputs.code == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: No env or Wrangler var files are tracked
+      - if: steps.scope.outputs.code == 'true'
+        name: No env or Wrangler var files are tracked
         run: |
           tracked=$(git ls-files | grep -E '(^|/)(\.env|\.dev\.vars)($|\.)' | grep -vE '\.example$' || true)
           if [ -n "$tracked" ]; then echo "::error::Secret files are tracked:"; echo "$tracked"; exit 1; fi
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run bench:core
-      - run: npm run test:worker
-      - run: npm run build
-      - run: npm run size
+      - if: steps.scope.outputs.code == 'true'
+        run: npm ci
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run lint
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run typecheck
+      - if: steps.scope.outputs.code == 'true'
+        run: npm test
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run bench:core
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run test:worker
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run build
+      - if: steps.scope.outputs.code == 'true'
+        run: npm run size
       # The PR head already passed e2e, so a push to main deploys after the fast gates above.
-      - if: github.event_name == 'pull_request'
+      - if: steps.scope.outputs.code == 'true' && github.event_name == 'pull_request'
         id: playwright-version
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - if: github.event_name == 'pull_request'
+      - if: steps.scope.outputs.code == 'true' && github.event_name == 'pull_request'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-      - if: github.event_name == 'pull_request'
+      - if: steps.scope.outputs.code == 'true' && github.event_name == 'pull_request'
         run: npx playwright install --with-deps chromium webkit
-      - if: github.event_name == 'pull_request'
+      - if: steps.scope.outputs.code == 'true' && github.event_name == 'pull_request'
         run: npm run e2e
