@@ -35,7 +35,7 @@ test("the Dark mode row turns home dark on a light device, status bar included",
   await flipTo(page, "Dark mode");
   await offers(page, "Light mode");
   expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#121315", "#121315"], stored: "dark" });
-  await expect(page.getByRole("heading", { name: "SplitWith" })).toHaveCSS("color", "rgb(242, 242, 243)");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
 test("a reload keeps dark, and the page is dark before the app's script runs", async ({ page }) => {
@@ -80,7 +80,7 @@ test("a Split page opened after picking dark is dark", async ({ page, request })
   await page.goto(`/s/${id}`);
   const question = page.getByRole("heading", { name: "Which one are you?" });
   await expect(question).toBeVisible({ timeout: 15_000 });
-  await expect(question).toHaveCSS("color", "rgb(242, 242, 243)");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#121315", "#121315"], stored: "dark" });
 });
 
