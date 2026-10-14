@@ -8,7 +8,7 @@ import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ReceiptLevelKind, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
-import { forgetSplit, noteSplit, rememberSplit, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
+import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
 import { actedByKey } from "../../src/ui/components/acted-by-key";
@@ -116,9 +116,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const paneRef = useRef<View>(null);
   const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
-  const remember = (change: Parameters<typeof rememberSplit>[1]) => {
+  const remember = (change: SplitChange) => {
     rememberSplit(splitId, change);
-    setMemory(splitOnDevice(splitId));
+    setMemory((current) => applyChange(current, change));
   };
   const held = split.picks.find((pick) => pick.participantId === memory.me);
   const me = memory.me && held?.device === device ? memory.me : null;
