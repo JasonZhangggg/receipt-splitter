@@ -44,3 +44,9 @@ playwright-report/
 .verify/
 
 bench/data/own/
+
+# Claude Code: local-only state (shared setup in .claude/ is committed)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/ui-proposals/
+.playwright-mcp/

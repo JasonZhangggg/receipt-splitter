@@ -1,0 +1,208 @@
+line	note	verdict	evidence	fixer
+5	RS-6 lift Toast above home bottom bar	CLOSED	src/ui/components/toast.tsx:18,47 lift prop; app/index.tsx:198 passes sheetHeight	
+6	Toast e2e restart/live region/44px	CLOSED	e2e/toast.spec.ts:58,71	
+7	move Toast test, declare esbuild	CLOSED	e2e/toast.spec.ts; package.json:42	
+8	Sheet drag, velocity, max height, overscroll	CLOSED	src/ui/components/sheet.tsx:12,106,143	
+9	truncate OCR lines to 80 graphemes before createSplit	CLOSED	src/draft.ts:76 MAX_GRAPHEMES	
+12	installDocument orange body leak onto /s/:id	OBSOLETE	orange look gone; src/ui/colors.ts palette white/gray; theme-color is field	
+15	show tooLarge when "split among everyone" hits caps	OBSOLETE	control replaced by row detail Evenly/By shares (pref 21); no tooLarge in app/ or src/ui	
+18	export bare parseReceipt from core, no dummy Host	OBSOLETE	no dummy Host in bench/parsers/app.mjs; parse.ts has parseNewSplit/parseCreateSplitRequest only	
+19	re-add .ts resolve hook for bench	CLOSED	bench/register-ts.mjs:6	
+22	verify skill ps lstart locale/TZ	CLOSED	verify.mjs:319 LC_ALL=C TZ=UTC	
+23	verify skill empty start time	CLOSED	verify.mjs liveLauncher() guards on `started &&` start time	
+24	verify cleanup recheck before rmSync	CLOSED	verify.mjs cleanup() rechecks `latest` record and listeners before rmSync	
+25	verify wording height -1, left .verify	CLOSED	SKILL.md:122-124 cleanup rules rewritten	
+26	probes used twice move into skill	CLOSED	SKILL.md:81 --touch-scroll, :82 --video, :99 live-clients, split-flow.mjs	
+28	type test isId no kind / union	CLOSED	src/core/minted-split-id.test-d.ts:26	
+29	mintedId helper duplicated	CLOSED	src/core/test-ids.ts:3	
+30	CI runs no bench	CLOSED	.github/workflows/ci.yml:25 bench:core (PR 24)	
+31	plan erratum RS-2 lane 2	OBSOLETE	v1 plan shipped; PR 17 plan cleanup	
+34	Roboto fallback on Android inferred	OBSOLETE	fonts self-hosted: src/ui/fonts.generated.ts:2	
+35	touchscreen laptop pointer: fine	OBSOLETE	per-event press machine gone; src/ui/components/button.tsx is 161 lines PressTarget	
+38	routes.md says /api 404	CLOSED	routes.md:30 rewritten	
+39	worker envelope parsers repeat strict()	CLOSED	no strict( in worker/; core parse.ts owns it	
+40	creator secret vs Creator avoid term	CLOSED	CONTEXT.md:11-13 makes it the one exception	
+41	probe to random id wakes a DO (rate-limited socket stays open)	OBSOLETE	duplicate of line 46	
+42	load runs full parseSplit, tightening needs schema-version path	CLOSED	src/core/parse.ts:188 accepts versions 1 and 2 (PR 29)	
+43	.dev.vars committed with Turnstile test secret	CLOSED	.gitignore:33-35; not in tree; Turnstile removed PR 23	
+44	verify skill lacks WebSocket command	CLOSED	.claude/skills/verify-receipt-splitter/live-clients.mjs; SKILL.md:99	
+45	plan file-boundary line omits files	OBSOLETE	v1 plan shipped	
+46	socket probe to random 22-char id wakes a DO (~2 row writes; 50k probes use the Free daily writes)	OPEN	worker/index.ts:29 routePartykitRequest, no id check; pref 7 caps creates, not probes	hardening-2
+47	show unavailable/unreadable state (4500)	CLOSED	app/s/[id].tsx:56, src/ui/home-copy.ts:53, src/live/client.ts:27	
+48	tightening parseSplit must bump schemaVersion	OBSOLETE	standing rule, not a defect; parse.ts:188 versions 1,2	
+49	partyserver setTimeout info	OBSOLETE	info only	
+50	sourceSha256 pins hash pre-strip bytes	OPEN	bench/fetch.mjs:373-388 pins source bytes only; bench/data/ATTRIBUTION.md:5	hardening-2
+51	score.mjs subtotal check lacks no-subtotal test	CLOSED	bench/score.test.ts:126	
+52	srd-1015/1133 keep discount tag	OBSOLETE	conditional on tag semantics; ADR 0006 scoped discount	
+53	pen in scroll view presses at once	OBSOLETE	press machine gone; button.tsx:29 PressTarget	
+54	Button has no disabled prop	CLOSED	src/ui/components/button.tsx:17,29,42	
+55	no 10 px drag hysteresis on mouse leave/enter	OBSOLETE	press machine gone	
+58	live.md 100 rateLimited rule wrong	CLOSED	features/live.md:39	
+59	live-clients claims lane never shows client-0 receiving	CLOSED	features/live.md:29 each client claims and unclaims	
+60	N6 test fails by timeout not close assertion	OBSOLETE	test-only nit, not re-verified; dropped	
+61	plan names vitest.worker.config.ts	OBSOLETE	plan erratum; v1 shipped	
+62	test:worker prints workerd pipe-aborted line	OBSOLETE	duplicate of line 279	
+63	mutant N8 survives	OBSOLETE	mutation nit, not re-verified; dropped	
+64	flooder 1008 close ~5 s late	OBSOLETE	note says no fixer	
+67	renderer RSS climbs per scan; release worker	CLOSED	src/ocr/index.web.ts:17-19,31 release() terminates idle worker	
+68	_headers isolates only / and /debug/ocr	OBSOLETE	public/_headers has no COOP/COEP now	
+69	ORT glue over HTTP so no offline scan	CLOSED	offline e2e at e2e/scan.spec.ts; index.web.ts:57-64 keepForOffline	
+70	first-scan download 14.19 MB vs 15 MB cap; tiny fallback	OBSOLETE	conditional on phones proving slow; size gate scripts/size-budget.json	
+71	plan erratum RS-4 unit box	OBSOLETE	v1 plan shipped	
+72	OCR cache name bumped by hand	CLOSED	no hard-coded ocr-ort name outside src/ocr/worker.test.ts:103	
+73	run-ocr hard-codes bench/data	CLOSED	bench/run-ocr.mjs:9,17 --data	
+74	scan during prefetch waits on low-priority fetches	CLOSED	public/ocr-worker.mjs:147 high overtakes low	
+75	/debug/ocr/ trailing slash no COOP/COEP	OBSOLETE	no COOP/COEP in public/_headers	
+76	COEP require-corp blocks cross-origin subresources	OBSOLETE	no COEP in public/_headers	
+77	public/ort/LICENSE links ThirdPartyNotices instead of bundling	OPEN	public/ort/LICENSE:5-6	hardening-2
+78	467 MB claim and tiny numbers not rerunnable	OBSOLETE	stale measurement, not re-verified; dropped	
+79	EXIF-rotated phone photos untested	CLOSED	e2e/fixtures/srd-1040-exif-rotated.jpg	
+80	pointer.current keeps last mouse id	OBSOLETE	press machine gone (button.tsx 161 lines)	
+81	quick-tap e2e bounds too loose	OBSOLETE	press machine gone	
+82	vite Failed to load source map stack	CLOSED	vitest.config.mts:7 strips source-map comment	
+83	background-tab FCP / WebKit buffered paint untested	OBSOLETE	real-iPhone lane done in v2 flash census; prefetch at ocr-worker.mjs:180	
+84	Enter activates on keydown (rnw)	OBSOLETE	pre-existing, press machine gone	
+87	plan erratum receipt 1040 items	OBSOLETE	v1 plan shipped	
+88	features/README lists old testids	CLOSED	features/README.md:18	
+89	Item price match 90.3%, rerun bench on parser change	OPEN	bench score still near bar; docjay131 Walmart rows (lines 94, 101 merged here)	final-cleanup
+90	CORD receipts parse to null	OBSOLETE	bench-only Indonesian corpus, not the product's US receipts	
+91	bench median includes JSON read	OBSOLETE	trivia bench/score.mjs:88; dropped	
+92	rename future core parseReceipt	OBSOLETE	conditional, never happened	
+93	commit body wrong	OBSOLETE	info only	
+94	docjay131 score 72.8% / null parses	OBSOLETE	merged into line 89	
+95	srd-1046 discount name lost	CLOSED	src/parse/fixtures/srd-1046.json	
+96	srd-1099 stray letters join names	CLOSED	src/parse/fixtures/srd-1099.json	
+97	srd-1127 index and quantity fuse	CLOSED	src/parse/fixtures/srd-1127.json; src/parse/lines.ts:37 LEADING_COUNT	
+98	price 999999.99 over MAX_CENTS passes	CLOSED	src/draft.ts:145-168	
+99	0-cent Items must display	OBSOLETE	not re-verified; no current report	
+100	foldInto clamp silently zeroes Item	CLOSED	src/ui/receipt-editor/index.tsx:39 discountExceededPrice note	
+101	holdout 89.8% under bar	OBSOLETE	merged into line 89	
+102	plan push mechanics, CI push-main repeat	OBSOLETE	pref 39 replaces; deploy.yml after CI (PR 18)	
+103	button.tsx mouse hides held press	OBSOLETE	press machine replaced by PressTarget, button.tsx:29	
+104	census row wrong, PR body	OBSOLETE	RS-6 PR merged (PR 3)	
+105	Space blurred while held leaves listener	OBSOLETE	press machine gone	
+106	Cmd+Enter leaves look pressed	OBSOLETE	press machine gone	
+107	PR body cites pre-rebase SHAs	OBSOLETE	PR 3 merged	
+108	8 surviving RS-6 mutants	OBSOLETE	code deleted with press machine	
+111	approved home direction idea2	OBSOLETE	superseded by v2 home (prefs 32-33, PR 31)	
+112	home sheet slightly taller	OBSOLETE	pref 33 one-piece panel	
+113	reading animation on blank receipt	CLOSED	src/ui/receipt-input/reading.tsx; e2e testids reading-line, reading-bar	
+116	320 px handle field clips placeholder	OBSOLETE	home rebuilt PR 31; not re-verified	
+117	plan reword white pill	OBSOLETE	v1 plan shipped	
+118	polish vs idea2	OBSOLETE	home rebuilt PR 31	
+119	idea2.png says Photo or PDF	OBSOLETE	pref 9 and v2 home supersede the mock	
+122	F1-F5 22 RS-6 mutants survive	OBSOLETE	code gone, PR 3 merged	
+123	W16 adaptation unfaithful	OBSOLETE	PR 3 merged	
+124	PR body SHA map	OBSOLETE	PR 3 merged	
+125	fonts as data URLs	CLOSED	src/ui/fonts.generated.ts:2-3 same-origin /fonts woff2	
+126	desktop subline trailing period / Click	CLOSED	src/ui/home-copy.ts:8	
+127	no pen drag-off test	OBSOLETE	press machine gone	
+128	dark panelShadow invisible	OBSOLETE	colors.ts dark cardLift/sheetShadow differ from light	
+129	dark action check reads camera circle	OBSOLETE	RS-6 home rebuilt	
+132	lost mouseup look sticks	OBSOLETE	press machine gone	
+133	Alt/Ctrl+Enter press no activate	OBSOLETE	press machine gone	
+134	disabled Button 0.96 press on keydown	OBSOLETE	button.tsx:31,46 disabled guard	
+135	features/home.md rules-doc gaps (press)	OBSOLETE	press machine gone	
+138	375x667 sheet covers photo link	OBSOLETE	hero rebuilt PR 31	
+139	icons probe finds nothing	OBSOLETE	icons probe replaced by features/home.md:30 module-cost	
+142	Button disabled mid-hold sticks	OBSOLETE	button.tsx:31 `if (disabled && held) setHeld(false)`	
+143	disabled at down, enabled before release	OBSOLETE	press machine gone	
+144	Alt changed mid-hold	OBSOLETE	press machine gone	
+145	non-primary return activates	OBSOLETE	press machine gone	
+146	features/home.md press doc gaps	OBSOLETE	press machine gone	
+147	press8.mjs stale	OBSOLETE	not in tree	
+148	premise check on press machine	CLOSED	button.tsx now 161-line PressTarget (PR 12)	
+151	15 survivors in 755d411	OBSOLETE	code gone	
+152	nativeEvent as unknown as KeyPress cast	OBSOLETE	keyWithoutClick gone from button.tsx	
+153	keyActivates Chromium rule	OBSOLETE	press machine gone	
+156	Linux CI font fallback e2e	OBSOLETE	no Arial/Liberation cases in e2e/home.spec.ts	
+157	timing-sensitive e2e waits (scan.spec, home.spec)	OPEN	e2e/home.spec.ts:121,126,147 and e2e/scan.spec.ts:321,381,511 waitForTimeout	hardening-2
+160	dashed box 1 px dashes	OBSOLETE	home rebuilt PR 31	
+161	desktop card 8 px shorter	OBSOLETE	home rebuilt PR 31	
+162	desktop subline closes RS-6 note	CLOSED	src/ui/home-copy.ts:8	
+165	fromReceipt caps only Item prices	CLOSED	src/draft.ts:145-168 caps price, adjustment, subtotal, tip, total	
+166	mutant A4 nextId survives	OBSOLETE	mutation nit, not re-verified; dropped	
+167	no test stale draft schema dropped	CLOSED	src/draft.test.ts loadDraft cases (:208,215)	
+168	offline e2e never asserts crossOriginIsolated	OBSOLETE	no COOP/COEP now	
+169	saveDraft no storage guard	CLOSED	src/draft.ts saveDraft takes storage; draft.test.ts:208	
+170	keepForOffline caches API calls	CLOSED	src/ocr/index.web.ts:62-64 same-origin filter plus offlinePaths	
+171	sw.js no kill switch	CLOSED	public/sw.js:26 unregister	
+172	A1/A6 equivalent; A10	OBSOLETE	mutation nit	
+173	carried verification budget	OBSOLETE	stale lane notes	
+174	Replace during read queues	OBSOLETE	note says no fixer	
+177	participant page lacks Host handle	CLOSED	src/ui/pay/pay-block.tsx (PR 16)	
+178	offline /s/<id> browser error	OBSOLETE	conditional, offline links not a goal	
+179	hibernation/reconnect lane	OBSOLETE	lane note	
+182	create e2e needs Turnstile network	OBSOLETE	Turnstile removed PR 23	
+183	4500 test fixed 3 s wait	CLOSED	no waitForTimeout in e2e/join.spec.ts; test at :293	
+184	/s/<id> 355 KB vs 400 KB	OBSOLETE	size gate scripts/size.mjs + size-budget.json in CI (PR 19)	
+187	randomId entropy untested	CLOSED	src/core/split.test.ts:14-29	
+188	setJoined unjoin by any holder	OBSOLETE	pref 1 (any device any name)	
+189	Not Sam clears mark for every device	OBSOLETE	pref 1, 2	
+190	server accepts duplicate names	CLOSED	src/core/operations.ts:845 nameKey; operations.test.ts:1072 lookalikes	
+191	joined under schemaVersion 1 rollback	OBSOLETE	rollback premise gone; parse.ts:188	
+192	Turnstile test site key in prod build	OBSOLETE	Turnstile removed PR 23	
+193	siteverify contract tests	OBSOLETE	Turnstile removed PR 23	
+194	sw allowlist test, join e2e network, navigator.share assertion	OPEN	e2e/join.spec.ts:167 asserts typeof navigator.share is "undefined", platform-dependent	hardening-2
+197	flood evicts history, snapshot + restoreReceipt	CLOSED	src/core/operations.ts:103,239	
+198	claims not recorded, document	OBSOLETE	accepted decision	
+199	F3 tests, refusals, stop auto-picking	CLOSED	PR 15 (core r1 merged)	
+200	breakdown lines don't sum across people	OBSOLETE	breakdown rebuilt for one row per unit (PR 33, pref 24)	
+201	no device identity, Recent-changes copy	OBSOLETE	pref 1	
+202	names not normalized, link-holder payments, joined migration	CLOSED	operations.ts:845 NFC; pref 1 covers payments	
+205	huge receipt original > 32 KB accepted edge	OBSOLETE	accepted	
+206	home sheet post-link remove buttons	OBSOLETE	no removeParticipant in app/ or src/ui; pref 2	
+207	rate buckets reset on DO eviction	CLOSED	worker/split-server.ts:244 buckets stored in DO rows	
+208	rollback refuses original/joined	OBSOLETE	rollback premise gone	
+209	reloaded device gets namePicked	OBSOLETE	pick flow rebuilt (prefs 1, 25)	
+212	Link ready shown instead of breakdown	OBSOLETE	Split page rebuilt PR 33/35 (prefs 25, 26)	
+213	restore drops unit-2 claim; Pay $0.00	CLOSED	src/ui/pay/model.test.ts:7 hides pay at $0; one row per unit (pref 19)	
+214	claim dots overlap name, history sheet peek	OBSOLETE	board rebuilt PR 33	
+215	History x1 to x2 wraps, checked flash missing	OPEN	src/ui/history/describe.ts:58 still emits ×N to ×M; pref 19 allows no quantity number	history
+218	RS-10 r1 fixes ($0 tip, quantity bound, ceiling, phantom cents)	CLOSED	PR 15; src/core/parse.ts:179 MAX_QUANTITY	
+223	payer-only server-side	OBSOLETE	pref 1	
+224	Undo generic conflict, mutants, plan drift, RS-2 tooLarge	OBSOLETE	PR 17 plan cleanup	
+225	by design for operator	OBSOLETE	decisions recorded in prefs	
+226	device ids let a client forge another phone	OBSOLETE	pref 1	
+227	forged Payments confirmed	OBSOLETE	pref 1: payerOnly guards honest mistakes, not security	
+230	device ids in state frames link one phone across Splits	OPEN	picks[].device broadcast (src/core/split.ts:101, worker/split-server.test.ts:118); src/device.ts:6 one id per browser	hardening-2
+231	legacy pick no device gets payerOnly	OBSOLETE	pref 1	
+232	takeover plus Payment document	OBSOLETE	pref 1; ADR 0003 now equal access	
+233	venmo fallback, reserved chars, rel=noopener	CLOSED	src/ui/open-link.ts:4; e2e/pay.spec.ts:71	
+234	docs drift list	OBSOLETE	PR 17	
+242	N1 Cf names with empty key, U+2800	CLOSED	src/core/operations.test.ts:1258-1271	
+243	openWithFallback sync throw	CLOSED	src/ui/open-link.ts:4 Promise.resolve().then	
+244	draft note gaps	CLOSED	src/draft.ts:92 newName returns a reason (badName/nameTaken)	
+245	malformed ALLOWED_HOSTNAMES silent 403	OBSOLETE	no ALLOWED_HOSTNAMES in worker/	
+246	LAN create gets 503	CLOSED	docs/adr/0005:7 documents it; worker/create.test.ts:152	
+249	T17 quiet pipe-aborted line	OBSOLETE	duplicate of line 279	
+250	long grapheme gets Type your name	CLOSED	src/draft.ts:92 badName reason	
+253	cap-ordering probe test	CLOSED	worker/create.test.ts:309; ADR 0005:12	
+254	per-IP daily limit	CLOSED	pref 7, PR 34, ADR 0005:7	
+255	Try again copy lacks day	CLOSED	src/ui/home-copy.ts:33 tomorrow	
+258	3 Dependabot alerts	CLOSED	package.json:49 overrides, uuid ^11.1.1 at :50; open remainder in lines 280-281	
+261	exiting pick sheet takes taps	CLOSED	src/ui/split-view/pick-sheet.tsx:38 pointerEvents none when chosen	
+264	ADR 0007 numbers stale	CLOSED	docs/adr/0007:17 19 writes, cap 1,000, 2.1 GB	
+265	CONTEXT says photo deleted with Split	CLOSED	CONTEXT.md:47	
+266	plan V2-6a fence omits files	OBSOLETE	PR 32 merged	
+267	V2-6b: send secret as Bearer, strip EXIF	OPEN	no upload client yet (no authorization in src/ui/receipt-input); worker/photo.ts:15 allowlist refuses APP1	V2-6b
+268	live-clients idle/drop reads Item.claimedBy	CLOSED	live-clients.mjs:147-164 uses claim ops, no claimedBy	
+269	hardening takes live-clients fix	CLOSED	duplicate of line 268, PR 34	
+270	History: deleting in a Bundle reads Removed X and 1 more	OPEN	src/ui/history/describe.ts:49	history
+271	V2-6b test Chromium/WebKit toBlob JPEGs vs APP2 allowlist	OPEN	worker/photo.ts:9-15 allows only APP0/DQT/DHT/SOFn/DRI/COM/SOS	V2-6b
+272	History Removed one Guinness; focus after Enter; wrap; floating $	OPEN	describe.ts:49,58 (history part); focus return and wrap not re-verified	history
+275	touching a gliding sheet only stops after 10 px	OPEN	src/ui/split-view/bottom-sheet.tsx:150-160 freezes only after tapSlop move; not on branches	V2-4
+276	Bundle expand uses main-thread spring	OPEN	src/ui/split-view/receipt-card.tsx:10,220-237 animateSpring on height	V2-4
+279	photo.test.ts logs workerd pipe-aborted line	OPEN	worker/photo.test.ts over-cap streamed path (lines 62, 249 merged here)	hardening-2
+280	decode-uri-component 0.2.2 in web bundle via expo-router query-string	OPEN	package.json (no override); needs expo-router with query-string 9	hardening-2
+281	node-forge 1.4.0 no fix, in neither bundle	OPEN	operator to dismiss the Dependabot alert	hardening-2
+282	e2e reuses fixed IPs, hits per-IP daily limit	OPEN	e2e/size.spec.ts:9 cf-connecting-ip 198.51.250.1	hardening-2
+285	split-view header is a button, no h2	OPEN	src/ui/split-view/header.tsx has no heading role	V2-4
+286	flagged rows lost wash, problem styles keep padding	OBSOLETE	pref 15 no yellow; receipt-editor/index.tsx:74 notes are muted text	
+287	older build linked draft keeps names	OBSOLETE	Draft has no linked state, src/draft.ts:54	
+288	motion.ts divides step by frame gap, weak at opacity pops	OPEN	e2e/motion.ts:157-158 gap math; flash-census on branch fix/flash-root adds a stronger check	hardening-2
+289	Copy proven only in Chromium	OPEN	e2e/claim.spec.ts:129 skips WebKit	hardening-2
+290	daily-cap message yellow background	CLOSED	src/ui/colors.ts has no yellow token (pref 15)	
+291	90 ms hold variant for heldMs branch	CLOSED	e2e/sheet.spec.ts:132 held release reads as still (4efe269, PR 35)	
+291b	reduced-motion fades use "ease" not motion.easeOut	OPEN	src/ui/split-view/bottom-sheet.tsx:94,254	V2-4
+291c	draft.test case: created from a reading draft is fresh	OPEN	no such case in src/draft.test.ts	final-cleanup
