@@ -44,3 +44,6 @@ playwright-report/
 .verify/
 
 bench/data/own/
+
+# tasteskill v2 working files (direction draws, inspector screenshots)
+.taste-skill/
