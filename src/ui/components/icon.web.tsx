@@ -34,6 +34,7 @@ function useReplay(motion: string | undefined) {
       const type = event.type as "pointerdown" | "pointerover";
       if (host.getAttribute("aria-disabled") === "true" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       if (type === "pointerover" && (event.pointerType !== "mouse" || host.contains(event.relatedTarget as Node | null))) return;
+      if (type === "pointerover" && icon.hasAttribute("data-play")) return;
       if (!allow(type)) return;
       icon.removeAttribute("data-play");
       void icon.getBoundingClientRect();

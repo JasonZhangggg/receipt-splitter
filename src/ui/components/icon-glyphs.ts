@@ -8,7 +8,7 @@ const pie =
 const undo = '<path d="M3 9h12a6 6 0 0 1 0 12h-3"/><g class="head"><path d="M9 15 3 9m0 0 6-6"/></g>';
 const rays = ["M12 3v2.25", "M18.36 5.64l-1.59 1.59", "M21 12h-2.25", "M18.36 18.36l-1.59-1.59", "M12 18.75V21", "M7.23 16.77l-1.59 1.59", "M5.25 12H3", "M7.23 7.23 5.64 5.64"];
 
-/** Heroicons outline paths (MIT) on a 24-unit grid. `motion` names the ai-* class that iconCss in motion.ts animates. */
+/** Heroicons outline paths (MIT) on a 24-unit grid. `motion` names the ai-* class that iconCss in ui/icon-css.ts animates. */
 export const glyphs = {
   plus: { svg: '<path d="M5 12h14"/><path d="M12 5v14"/>', weight: 2, motion: "plus" },
   minus: { svg: '<path pathLength="1" d="M5 12h14"/>', weight: 2, motion: "minus" },

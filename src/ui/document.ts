@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 import type { Appearance, Scheme } from "./appearance";
 import { colors } from "./colors";
 import { fallbackMetrics, faces } from "./fonts.generated";
-import { iconCss } from "./motion";
+import { iconCss } from "./icon-css";
 
 const weights = [400, 500] as const;
 const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans", "Roboto", "Roboto-Regular"];
@@ -54,6 +54,9 @@ export function installDocument() {
   style.id = "rs-theme";
   style.textContent = css(colors);
   document.head.appendChild(style);
+
+  const live = () => document.documentElement.setAttribute("data-icons-live", "");
+  for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, live, { capture: true, once: true });
 
   const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
   if (viewport && !viewport.content.includes("viewport-fit")) viewport.content += ", viewport-fit=cover";
