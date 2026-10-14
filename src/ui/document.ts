@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import type { Appearance, Scheme } from "./appearance";
 import { colors } from "./colors";
 import { fallbackMetrics, faces } from "./fonts.generated";
+import { iconCss } from "./motion";
 
 const weights = [400, 500] as const;
 const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans", "Roboto", "Roboto-Regular"];
@@ -40,7 +41,7 @@ a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
 }
 [data-app-picker]:has(select:focus-visible) [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
 [data-app-picker]:has(select:focus-visible) [data-press-face][data-round] { border-radius: 20px; outline-color: var(--on-action); outline-offset: -2px; }
-`;
+${iconCss}`;
 }
 
 export function installDocument() {
