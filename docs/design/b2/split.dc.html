@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Split page, sheet and docked bar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.b{--bg:#fcfcfc;--fg:#171717;--muted:#737373;--faint:#a3a3a3;--line:#ebebeb;--underline:#d0d0d0;--warn:#c4342a;--ok:#1d7a46;--veil:rgba(252,252,252,.78);--ease-out:cubic-bezier(.23,1,.32,1);--ease-drawer:cubic-bezier(.32,.72,0,1);font-family:'Geist',system-ui,sans-serif;font-size:16px;line-height:1.6;letter-spacing:-0.006em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;background:var(--bg);color:var(--fg)}
+.b[data-theme="dark"]{--bg:#111111;--fg:#ededed;--muted:#999999;--faint:#5c5c5c;--line:#232323;--underline:#4a4a4a;--warn:#f0766b;--ok:#5cc489;--veil:rgba(17,17,17,.8)}
+:where(.b) button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.b button:focus-visible,.b input:focus-visible{outline:2px solid var(--fg);outline-offset:2px;border-radius:4px}
+.b ::selection{background:var(--fg);color:var(--bg)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.b-scroll{scrollbar-width:none}
+.b-scroll::-webkit-scrollbar{display:none}
+.b-row{border-top:1px solid var(--line)}
+.b-row[data-last="true"]{border-bottom:1px solid var(--line)}
+.b-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-height:28px;white-space:nowrap}
+.b-main{transition:opacity 200ms ease}
+.b-dot{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--faint);transition:background-color 200ms var(--ease-out),box-shadow 200ms var(--ease-out),transform 160ms var(--ease-out)}
+.b-check[data-on="true"] .b-dot{background:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.b-check:active .b-dot{transform:scale(.8)}
+.b .b-main:active{opacity:.55}
+.b-amt{color:var(--muted);transition:color 200ms ease}
+.b-amt[data-mine="true"]{color:var(--fg)}
+.b-plus{color:var(--faint);transition:transform 250ms var(--ease-out),color 150ms ease}
+.b-plusbtn:active .b-plus{transform:translateX(2px)}
+.b-scrim{background:transparent}
+.b-sheet{border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.06);animation:b-up 520ms var(--ease-drawer) both}
+.b-grab{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.b-grab:active{cursor:grabbing}
+@keyframes b-fadein{from{opacity:0}}
+@keyframes b-up{from{transform:translateY(100%)}}
+.b .b-tab{display:inline-flex;align-items:center;height:44px;font-size:14px;color:var(--muted);text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:4px;text-decoration-color:var(--muted);transition:color 150ms ease,text-decoration-color 150ms ease}
+.b .b-tab[data-on="true"]{color:var(--fg);text-decoration-color:var(--fg);text-decoration-thickness:1.5px}
+.b-who{display:inline-flex;align-items:center;gap:7px;height:36px;padding-right:14px;color:var(--faint);transition:color 150ms ease}
+.b-who[data-on="true"]{color:var(--fg)}
+.b-who i{width:7px;height:7px;border-radius:50%;box-shadow:inset 0 0 0 1px currentColor;transition:background-color 150ms ease}
+.b-who[data-on="true"] i{background:currentColor}
+.b-opt{height:36px;display:inline-flex;align-items:center;color:var(--muted);transition:color 150ms ease}
+.b-opt span{text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:transparent;transition:text-decoration-color 150ms ease}
+.b-opt[data-active="true"]{color:var(--fg)}
+.b-opt[data-active="true"] span{text-decoration-color:var(--fg)}
+.b-field{all:unset;box-sizing:border-box;border-bottom:1px solid var(--line);padding:2px 0;font-family:inherit;font-size:16px;line-height:1.6;color:var(--fg);transition:border-color 150ms ease}
+.b-field:focus{border-color:var(--fg)}
+.b .b-field:focus-visible{outline:none}
+.b-field::placeholder{color:var(--faint)}
+.b-step{width:32px;height:32px;display:grid;place-items:center;color:var(--muted);border-radius:8px;transition:color 150ms ease,transform 140ms var(--ease-out)}
+.b-step:active{transform:scale(.88)}
+.b .b-link{color:var(--muted);text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--muted);transition:text-decoration-color 200ms ease,color 150ms ease}
+.b-status{color:var(--muted)}
+.b-status[data-warn="true"]{color:var(--warn)}
+.b .b-x{width:40px;height:40px;margin-right:-10px;display:grid;place-items:center;border-radius:20px;color:var(--muted);transition:color 150ms ease,transform 140ms var(--ease-out)}
+.b .b-x:active{transform:scale(.9);color:var(--fg)}
+.b-sec{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.b-sechead{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--fg)}
+.b-sechead svg{color:var(--muted);flex:none}
+.b-hint{font-size:14px;color:var(--faint)}
+.b-flabel{font-size:14px;color:var(--muted)}
+.b-money{display:flex;align-items:baseline;justify-content:flex-end;gap:2px;border-bottom:1px solid var(--line);transition:border-color 150ms ease}
+.b-money:focus-within{border-color:var(--fg)}
+.b-who-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.b .b-who{height:40px}
+.b .b-step{width:36px;height:36px}
+.b-pay{transition:transform 160ms var(--ease-out),opacity 150ms ease}
+.b .b-theme{position:relative;flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:20px;color:var(--muted);transition:color 150ms ease}
+.b .b-theme:active{color:var(--fg)}
+.b-theme svg{position:absolute;transition:transform 460ms cubic-bezier(.34,1.56,.64,1),opacity 200ms ease}
+.b-theme .b-moon{opacity:0;transform:rotate(-90deg) scale(.4)}
+.b-theme[data-dark="true"] .b-sun{opacity:0;transform:rotate(90deg) scale(.4)}
+.b-theme[data-dark="true"] .b-moon{opacity:1;transform:none}
+.b-wipe{position:absolute;inset:0;z-index:60;pointer-events:none;animation:b-spread 560ms cubic-bezier(.32,.72,0,1) both}
+.b-wipe[data-out="true"]{opacity:0;transition:opacity 220ms ease}
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
+@keyframes b-spread{from{clip-path:circle(0px at var(--x) var(--y))}to{clip-path:circle(1000px at var(--x) var(--y))}}
+@media (prefers-reduced-motion:reduce){.b-theme svg{transition:opacity 150ms ease}.b-theme .b-moon,.b-theme[data-dark="true"] .b-sun{transform:none}}
+.b .b-revert{display:inline-flex;align-items:center;gap:5px;height:32px;font-size:14px;color:var(--muted);transition:color 150ms ease}
+.b-revert span{text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--muted)}
+.b .b-revert:active{color:var(--fg)}
+.ai{overflow:visible}
+.ai *{transform-box:fill-box;transform-origin:center}
+.ai-x path,.ai-minus path,.ai-check path{stroke-dasharray:1 1}
+[data-play] .ai-x path,.ai-x[data-play] path{animation:ai-draw 300ms ease-out both}
+[data-play] .ai-x path + path,.ai-x[data-play] path + path{animation-delay:110ms}
+[data-play] .ai-minus path,.ai-minus[data-play] path{animation:ai-draw 300ms ease-out both}
+[data-play] .ai-plus,.ai-plus[data-play]{animation:ai-spin 460ms cubic-bezier(.34,1.56,.64,1)}
+[data-play] .ai-trash .lid,.ai-trash[data-play] .lid{transform-origin:90% 100%;animation:ai-lid 360ms cubic-bezier(.34,1.56,.64,1) forwards}
+[data-play] .ai-trash .body,.ai-trash[data-play] .body{animation:ai-sink 360ms cubic-bezier(.34,1.56,.64,1) forwards}
+[data-play] .ai-undo,.ai-undo[data-play]{animation:ai-rewind 560ms cubic-bezier(.34,1.56,.64,1)}
+[data-play] .ai-undo .head,.ai-undo[data-play] .head{transform-origin:left center;animation:ai-stretch 450ms ease-in-out}
+.b-done{display:inline-flex;align-items:center;gap:4px;height:32px;font-size:14px;color:var(--faint);animation:b-done-in 260ms var(--ease-out) both}
+@keyframes ai-rewind{45%{transform:rotate(-55deg)}}
+@keyframes b-done-in{from{opacity:0;transform:translateX(4px)}}
+.b-paysub{display:inline-flex;align-items:center;gap:4px;font-size:14px;color:var(--muted)}
+.b-paysub[data-paid="true"]{color:var(--ok)}
+@media (prefers-reduced-motion:reduce){.b-done{animation:none}}
+[data-play] .ai-tray .arrow,.ai-tray[data-play] .arrow{animation:ai-lift 500ms ease-in-out}
+[data-play] .ai-users .second,.ai-users[data-play] .second{animation:ai-join 520ms cubic-bezier(.34,1.56,.64,1) 60ms both}
+[data-play] .ai-pie .slice,.ai-pie[data-play] .slice{animation:ai-pop 640ms cubic-bezier(.4,0,.2,1)}
+[data-play] .ai-arrow .head,.ai-arrow[data-play] .head{animation:ai-nudge 400ms ease-in-out}
+[data-play] .ai-arrow .line,.ai-arrow[data-play] .line{transform-origin:right;animation:ai-shrink 400ms ease-in-out}
+[data-play] .ai-cam,.ai-cam[data-play]{animation:ai-press 300ms ease-in-out}
+[data-play] .ai-cam .lens,.ai-cam[data-play] .lens{animation:ai-lens 300ms ease-in-out}
+.ai-check path{animation:ai-tick 400ms ease-out both}
+.ai-alert .mark{animation:ai-pulse 800ms ease-in-out 2}
+.b-theme[data-dark="false"] .ai-sun .ray{animation:ai-ray 300ms ease-out var(--d) both}
+.b-theme[data-dark="true"] .ai-moon path{animation:ai-wiggle 640ms ease-in-out 120ms}
+@keyframes ai-draw{from{stroke-dashoffset:1;opacity:0}30%{opacity:1}to{stroke-dashoffset:0;opacity:1}}
+@keyframes ai-tick{from{stroke-dashoffset:1;opacity:0;transform:scale(.5)}25%{opacity:1}to{stroke-dashoffset:0;opacity:1;transform:none}}
+@keyframes ai-spin{from{transform:none}to{transform:rotate(180deg)}}
+@keyframes ai-lid{to{transform:translateY(-1.5px) rotate(14deg)}}
+@keyframes ai-sink{to{transform:translateY(1px)}}
+@keyframes ai-stretch{50%{transform:translateX(-1.5px) scaleX(1.15)}}
+@keyframes ai-lift{40%{transform:translateY(-2px)}}
+@keyframes ai-join{from{transform:translateX(-6px);opacity:0}30%{opacity:0}to{transform:none;opacity:1}}
+@keyframes ai-pop{35%{transform:translate(1.6px,-1.6px)}60%{transform:translate(1.1px,-1.1px)}}
+@keyframes ai-nudge{50%{transform:translateX(-3px)}}
+@keyframes ai-shrink{50%{transform:scaleX(.8)}}
+@keyframes ai-press{50%{transform:scale(.95)}}
+@keyframes ai-lens{50%{transform:scale(1.1);opacity:.6}}
+@keyframes ai-pulse{50%{transform:scale(1.1);opacity:.4}}
+@keyframes ai-ray{from{opacity:0}}
+@keyframes ai-wiggle{20%{transform:rotate(-10deg)}40%{transform:rotate(10deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(5deg)}}
+@media (prefers-reduced-motion:reduce){.b .ai,.b .ai *{animation:none!important}}
+.b .b-trash{width:40px;height:40px;display:grid;place-items:center;border-radius:20px;color:var(--muted);transition:color 150ms ease,transform 140ms var(--ease-out)}
+.b .b-trash:active{transform:scale(.9);color:var(--warn)}
+.b .b-trash[data-off="true"]{color:var(--faint)}
+.b .b-trash[data-off="true"]:active{color:var(--faint)}
+@media (hover:hover){.b .b-trash:hover{color:var(--warn)}.b .b-trash[data-off="true"]:hover{color:var(--faint)}}
+.b-toast{position:absolute;left:24px;right:24px;z-index:30;height:48px;box-sizing:border-box;padding:0 6px 0 20px;border-radius:24px;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;animation:b-toast-in 260ms var(--ease-out) both}
+.b .b-undo{height:40px;padding:0 14px;color:var(--bg);text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;transition:opacity 150ms ease}
+.b .b-undo:active{opacity:.6}
+@keyframes b-toast-in{from{opacity:0;transform:translateY(8px) scale(.98)}}
+@media (prefers-reduced-motion:reduce){.b-toast{animation-name:b-fade}@keyframes b-fade{from{opacity:0}}}
+.b .b-person{display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%;padding:10px 0;border-top:1px solid var(--line);color:var(--muted);transition:color 150ms ease}
+.b .b-person[data-on="true"]{color:var(--fg)}
+.b-person i{flex:none;width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--faint);transform:translateY(1px);transition:background-color 150ms ease,box-shadow 150ms ease}
+.b-person[data-on="true"] i{background:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.b-tag{font-size:13px;color:var(--muted);margin-left:6px}
+.b-hrow[data-done="true"] > span:first-child{opacity:.45}
+.b-arc{transition:stroke 200ms ease;animation:b-arc-in 620ms var(--ease-out) both}
+.b-ring-mid{animation:b-ring-mid 420ms var(--ease-out) 260ms both}
+@keyframes b-arc-in{from{stroke-dasharray:0 var(--c);opacity:0}15%{opacity:1}}
+@keyframes b-ring-mid{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){.b-arc,.b-ring-mid{animation:none}}
+.b .b-payrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%;padding:10px 0;border-top:1px solid var(--line);color:var(--muted);transition:color 150ms ease}
+.b .b-payrow[data-on="true"]{color:var(--fg)}
+.b-payrow i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--underline);transform:translateY(-1px);transition:background-color 150ms ease}
+.b-payrow[data-on="true"] i{background:var(--fg)}
+.b .b-addlink{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;height:40px;font-size:14px;color:var(--muted)}
+.b-addlink span{text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--muted)}
+.b .b-add{display:flex;align-items:center;gap:14px;width:100%;min-height:48px;color:var(--muted);transition:color 150ms ease}
+.b .b-add:active{color:var(--fg)}
+.b .b-kind{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:56px;border-top:1px solid var(--line)}
+.b .b-kind:active{opacity:.55}
+.b .b-back{display:inline-flex;align-items:center;height:40px;font-size:14px;color:var(--muted)}
+.b-pay:active{transform:scale(.96)}
+.b-icon{color:var(--muted);transition:color 150ms ease,transform 160ms var(--ease-out)}
+.b-icon:active{transform:scale(.9)}
+.b-reveal{opacity:0;filter:blur(4px);transform:translateY(8px);animation:b-resolve 800ms var(--ease-out) forwards;animation-delay:calc(var(--i) * 65ms + 120ms)}
+@keyframes b-resolve{to{opacity:1;filter:blur(0);transform:none}}
+@keyframes b-in{to{opacity:1;filter:none}}
+@media (hover:hover) and (pointer:fine){
+.b-rows:has(.b-main:hover) .b-row:not(:has(.b-main:hover)) .b-main{opacity:.45}
+.b-plusbtn:hover .b-plus,.b-step:hover,.b-icon:hover{color:var(--fg)}
+.b .b-link:hover{text-decoration-color:var(--fg)}
+.b-opt:hover,.b-who:hover{color:var(--fg)}
+}
+@media (prefers-reduced-motion:reduce){
+.b-reveal{transform:none;filter:none;animation-name:b-in;animation-duration:300ms}
+.b-plus,.b-dot{transition-property:opacity}
+.b-sheet{animation:b-fadein 160ms ease both}
+}
+</style>
+</helmet>
+<div class="b" data-theme="{{theme}}" style="width: 390px; height: 844px; position: relative; overflow: hidden">
+<div class="b-scroll" style="height: 100%; overflow-y: auto; box-sizing: border-box; padding: 40px 24px 168px">
+<div class="b-reveal" style="--i: 0; display: flex; justify-content: space-between; align-items: flex-start; margin: 0 0 16px">
+<h1 style="margin: 0; font-size: 16px; font-weight: 500; line-height: inherit">Casa Lupa</h1>
+<span style="display: flex; margin: -8px -10px 0 0"><button class="b-theme" data-dark="{{iconDarkAttr}}" aria-label="{{themeLabel}}" onClick="{{toggleTheme}}"><svg class="b-sun ai-sun" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.75"></circle><path class="ray" style="--d: 0ms" d="M12 3v2.25"></path><path class="ray" style="--d: 50ms" d="M18.36 5.64l-1.59 1.59"></path><path class="ray" style="--d: 100ms" d="M21 12h-2.25"></path><path class="ray" style="--d: 150ms" d="M18.36 18.36l-1.59-1.59"></path><path class="ray" style="--d: 200ms" d="M12 18.75V21"></path><path class="ray" style="--d: 250ms" d="M7.23 16.77l-1.59 1.59"></path><path class="ray" style="--d: 300ms" d="M5.25 12H3"></path><path class="ray" style="--d: 350ms" d="M7.23 7.23 5.64 5.64"></path></svg><svg class="b-moon ai-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.75 15A9.72 9.72 0 0 1 18 15.75c-5.39 0-9.75-4.37-9.75-9.75 0-1.33.27-2.6.75-3.75A9.75 9.75 0 0 0 3 11.25C3 16.64 7.37 21 12.75 21a9.75 9.75 0 0 0 9-6Z"></path></svg></button>
+<button class="b-icon" data-anim aria-label="Share link" style="flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px">
+<svg class="ai ai-tray" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5"></path><g class="arrow"><path d="M7.5 7.5 12 3m0 0 4.5 4.5M12 3v13.5"></path></g></svg>
+</button>
+</span>
+</div>
+<p class="b-reveal" style="--i: 1; margin: 0; color: var(--muted); text-wrap: pretty">Sam paid {{total}} on Saturday, Oct 11. Tap the dot next to what you had. Tap a line to edit it or split it another way.</p>
+<nav class="b-reveal" aria-label="Split" style="--i: 2; display: flex; gap: 18px; margin-top: 4px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+<button class="b-link b-tab" data-on="{{t.onAttr}}" aria-pressed="{{t.on}}" onClick="{{t.pick}}">{{t.label}}</button>
+</sc-for>
+</nav>
+<sc-if value="{{viewingOther}}" hint-placeholder-val="{{false}}">
+<p style="margin: 14px 0 0; font-size: 14px; color: var(--muted); display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 12px">
+<span>Viewing as <span style="color: var(--fg)">{{viewerName}}</span>. Dots tick for them.</span>
+<button class="b-link" onClick="{{backToMe}}" style="font-size: 14px">Back to you</button>
+</p>
+</sc-if>
+
+<div class="b-reveal" style="--i: 3; display: flex; justify-content: space-between; align-items: baseline; margin: 44px 0 12px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 500">Items</h2>
+<span style="font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums">{{countText}}</span>
+</div>
+<div class="b-rows b-reveal" style="--i: 4">
+<sc-for list="{{rows}}" as="it" hint-placeholder-count="7">
+<div class="b-row" data-open="{{it.openAttr}}" data-last="{{it.lastAttr}}">
+<div style="display: flex; align-items: flex-start">
+<button class="b-check" data-on="{{it.onAttr}}" aria-pressed="{{it.mine}}" aria-label="{{it.checkLabel}}" onClick="{{it.toggle}}" style="flex: none; width: 40px; height: 50px; margin-left: -14px; display: flex; justify-content: center; padding-top: 19px; box-sizing: border-box">
+<span class="b-dot"></span>
+</button>
+<button class="b-main" aria-haspopup="dialog" onClick="{{it.open}}" style="flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 14px; padding: 12px 0">
+<span style="display: flex; flex-direction: column; min-width: 0">
+<span>{{it.name}}</span>
+<sc-if value="{{it.hasDetail}}" hint-placeholder-val="{{false}}">
+<span style="font-size: 14px; color: var(--muted)">{{it.detail}}</span>
+</sc-if>
+<span style="font-size: 14px; color: var(--faint)">{{it.whoLine}}</span>
+</span>
+<span style="display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap">
+<span>{{it.price}}</span>
+<span style="font-size: 14px; color: var(--muted)">{{it.splitLine}}</span>
+</span>
+</button>
+</div>
+</div>
+</sc-for>
+</div>
+
+<section aria-label="Charges" style="margin-top: 14px; padding: 0 0 0 26px; display: flex; flex-direction: column; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums">
+<div class="b-line">
+<span>Subtotal</span>
+<span>{{subtotal}}</span>
+</div>
+<sc-for list="{{adjRows}}" as="a" hint-placeholder-count="3">
+<div class="b-line">
+<span>{{a.name}}</span>
+<span>{{a.amount}}</span>
+</div>
+</sc-for>
+<button class="b-addlink" data-anim aria-haspopup="dialog" onClick="{{openAdd}}"><svg class="ai ai-plus" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg><span>Add item, tax, tip or discount</span></button>
+</section>
+
+<div style="margin-top: 10px; border-top: 1px solid var(--line); padding: 12px 0 0 26px; display: flex; justify-content: space-between; align-items: baseline; font-variant-numeric: tabular-nums">
+<span style="font-weight: 500">Total</span>
+<span style="font-weight: 500">{{total}}</span>
+</div>
+</div>
+
+<div style="position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 5">
+<div style="padding: 0 24px 40px">
+<div style="border-top: 1px solid var(--line); padding-top: 14px; display: flex; justify-content: space-between; font-size: 14px; line-height: 22px; color: var(--muted); font-variant-numeric: tabular-nums">
+<span>{{shareLabel}}</span>
+<span>{{countLong}} · incl. tax &amp; tip</span>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px">
+<span style="font-size: 32px; line-height: 44px; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums">{{share}}</span>
+<button class="b-pay" data-anim style="height: 44px; padding: 0 18px 0 20px; border-radius: 22px; background: var(--fg); color: var(--bg); font-size: 15px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px">{{payLabel}}<svg class="ai ai-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"></path><path class="line" d="M21 12H3"></path></svg></button>
+</div>
+</div>
+</div>
+
+<sc-if value="{{panelOpen}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; inset: 0; z-index: 20">
+<button class="b-scrim" aria-label="Close" onClick="{{closePanel}}" style="position: absolute; inset: 0; width: 100%; height: 100%"></button>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; height: {{panelSh.h}}; max-height: {{panelSh.max}}; transform: translateY({{panelSh.y}}px); transition: {{panelSh.ease}}">
+<div class="b-sheet" role="dialog" aria-modal="true" aria-label="{{panel.title}}" style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--bg)">
+<div class="b-grab" aria-hidden="true" onPointerDown="{{panelSh.down}}" onPointerMove="{{panelSh.move}}" onPointerUp="{{panelSh.up}}" onPointerCancel="{{panelSh.up}}" style="flex: none; height: 30px; display: grid; place-items: center"><span style="width: 36px; height: 4px; border-radius: 2px; background: var(--faint)"></span></div>
+<div class="b-scroll" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; box-sizing: border-box; padding: 0 24px 32px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<h2 style="margin: 0; font-size: 16px; font-weight: 500">{{panel.title}}</h2>
+<button class="b-x" data-anim aria-label="Close" onClick="{{closePanel}}"><svg class="ai ai-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M6 6l12 12"></path><path pathLength="1" d="M18 6 6 18"></path></svg></button>
+</div>
+<p style="margin: 2px 0 8px; font-size: 14px; color: var(--muted)">{{panel.sub}}</p>
+<sc-if value="{{panel.isPay}}" hint-placeholder-val="{{false}}">
+<div style="position: relative; width: 200px; height: 200px; margin: 8px auto 12px">
+<svg width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="{{panel.ring.label}}" style="transform: rotate(-90deg)">
+<circle cx="100" cy="100" r="80" fill="none" stroke-width="8" style="stroke: var(--line)"></circle>
+<sc-for list="{{panel.ring.arcs}}" as="a" hint-placeholder-count="5">
+<circle class="b-arc" cx="100" cy="100" r="80" fill="none" stroke-width="8" stroke-linecap="round" stroke-dasharray="{{a.dash}}" stroke-dashoffset="{{a.offset}}" style="stroke: {{a.color}}; --c: {{a.c}}; animation-delay: {{a.delay}}ms"></circle>
+</sc-for>
+</svg>
+<div class="b-ring-mid" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-variant-numeric: tabular-nums">
+<span style="font-size: 26px; font-weight: 500; letter-spacing: -0.02em">{{panel.ring.amount}}</span>
+<span style="font-size: 14px; line-height: 1.35; color: var(--muted); text-align: center">{{panel.ring.caption}}<br>of {{panel.ring.total}}</span>
+</div>
+</div>
+<div role="radiogroup" aria-label="Show a person's part" style="display: flex; flex-direction: column">
+<sc-for list="{{panel.people}}" as="r" hint-placeholder-count="6">
+<button class="b-payrow" role="radio" aria-checked="{{r.on}}" data-on="{{r.onAttr}}" onClick="{{r.pick}}">
+<span style="display: flex; align-items: baseline; gap: 10px; min-width: 0"><i aria-hidden="true"></i><span style="display: flex; flex-direction: column; min-width: 0; text-align: left"><span>{{r.title}}</span><span class="b-paysub" data-paid="{{r.paidAttr}}"><sc-if value="{{r.paid}}" hint-placeholder-val="{{false}}"><svg class="ai ai-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="m4.5 12.75 6 6 9-13.5"></path></svg></sc-if>{{r.sub}}</span></span></span>
+<span style="font-variant-numeric: tabular-nums">{{r.right}}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{panel.isPeople}}" hint-placeholder-val="{{false}}">
+<div role="radiogroup" aria-label="{{panel.groupLabel}}" style="display: flex; flex-direction: column">
+<sc-for list="{{panel.persons}}" as="r" hint-placeholder-count="6">
+<button class="b-person" role="radio" aria-checked="{{r.on}}" data-on="{{r.onAttr}}" onClick="{{r.pick}}">
+<span style="display: flex; align-items: baseline; gap: 12px; min-width: 0"><i aria-hidden="true"></i><span style="display: flex; flex-direction: column; min-width: 0; text-align: left"><span>{{r.title}}<span class="b-tag">{{r.tag}}</span></span><span style="font-size: 14px; color: var(--muted)">{{r.sub}}</span></span></span>
+<span style="font-variant-numeric: tabular-nums">{{r.right}}</span>
+</button>
+</sc-for>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted)">
+<span>{{panel.phoneLine}}</span>
+<button class="b-link" onClick="{{panel.switchToggle}}" style="flex: none; font-size: 14px">{{panel.switchLabel}}</button>
+</div>
+</sc-if>
+<sc-if value="{{panel.isPhoto}}" hint-placeholder-val="{{false}}">
+<div style="height: 300px; border-radius: 12px; background: var(--line); display: grid; place-items: center; font-size: 14px; color: var(--muted)">Receipt photo</div>
+</sc-if>
+<sc-for list="{{panel.rows}}" as="r" hint-placeholder-count="4">
+<div class="b-hrow" data-done="{{r.doneAttr}}" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line)">
+<span style="display: flex; align-items: baseline; gap: 10px; min-width: 0"><sc-if value="{{r.hasDot}}" hint-placeholder-val="{{false}}"><i aria-hidden="true" style="flex: none; width: 8px; height: 8px; border-radius: 50%; background: {{r.dot}}; transform: translateY(-1px)"></i></sc-if><span style="display: flex; flex-direction: column; min-width: 0"><span>{{r.title}}</span><span style="font-size: 14px; color: var(--muted)">{{r.sub}}</span></span></span>
+<span style="flex: none; font-variant-numeric: tabular-nums">{{r.right}}<sc-if value="{{r.canAct}}" hint-placeholder-val="{{false}}"><button class="b-revert" data-anim onClick="{{r.act}}"><svg class="ai ai-undo" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9h12a6 6 0 0 1 0 12h-3"></path><g class="head"><path d="M9 15 3 9m0 0 6-6"></path></g></svg><span>{{r.actLabel}}</span></button></sc-if><sc-if value="{{r.done}}" hint-placeholder-val="{{false}}"><span class="b-done"><svg class="ai ai-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="m4.5 12.75 6 6 9-13.5"></path></svg>{{r.doneLabel}}</span></sc-if></span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{sheetOpen}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; inset: 0; z-index: 20">
+<button class="b-scrim" aria-label="Close" onClick="{{close}}" style="position: absolute; inset: 0; width: 100%; height: 100%"></button>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; height: {{splitSh.h}}; max-height: {{splitSh.max}}; transform: translateY({{splitSh.y}}px); transition: {{splitSh.ease}}">
+<div class="b-sheet" role="dialog" aria-modal="true" aria-label="Split options for {{sheet.name}}" style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--bg)">
+<div class="b-grab" aria-hidden="true" onPointerDown="{{splitSh.down}}" onPointerMove="{{splitSh.move}}" onPointerUp="{{splitSh.up}}" onPointerCancel="{{splitSh.up}}" style="flex: none; height: 30px; display: grid; place-items: center"><span style="width: 36px; height: 4px; border-radius: 2px; background: var(--faint)"></span></div>
+<div class="b-scroll" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; box-sizing: border-box; padding: 0 24px 28px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<h2 style="margin: 0; font-size: 16px; font-weight: 500">Edit item</h2>
+<span style="display: flex; align-items: center">
+<button class="b-trash" data-anim aria-label="Delete item" aria-disabled="{{sheet.cantDelete}}" data-off="{{sheet.cantDeleteAttr}}" onClick="{{sheet.remove}}"><svg class="ai ai-trash" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="lid" d="M15.75 5.39V4.48c0-1.18-.91-2.17-2.09-2.2a51.9 51.9 0 0 0-3.32 0c-1.18.03-2.09 1.02-2.09 2.2v.91M3.75 5.96c1.4-.24 2.8-.43 4.5-.57M20.25 5.96c-1.4-.24-2.8-.43-4.5-.57M8.25 5.39a50 50 0 0 1 7.5 0"></path><path class="body" d="M14.74 9l-.35 9M9.6 18l-.34-9M19.23 5.79l-1.07 13.88a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79"></path></svg></button>
+<button class="b-x" data-anim aria-label="Close" onClick="{{close}}"><svg class="ai ai-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M6 6l12 12"></path><path pathLength="1" d="M18 6 6 18"></path></svg></button>
+</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 24px; margin-top: 10px">
+
+<div style="display: flex; gap: 20px">
+<label style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span class="b-flabel">Item name</span>
+<input class="b-field" placeholder="What was it?" value="{{sheet.name}}" onChange="{{sheet.onName}}">
+</label>
+<label style="flex: none; width: 96px; display: flex; flex-direction: column">
+<span class="b-flabel" style="text-align: right">Price</span>
+<span class="b-money"><span aria-hidden="true" style="color: var(--muted)">$</span><input class="b-field" inputmode="decimal" placeholder="0.00" value="{{sheet.priceText}}" onChange="{{sheet.onPrice}}" style="flex: 0 1 auto; width: 6ch; field-sizing: content; min-width: 3ch; border: 0; text-align: right; font-variant-numeric: tabular-nums"></span>
+</label>
+</div>
+<label style="display: flex; flex-direction: column; margin-top: -8px">
+<span class="b-flabel">Description</span>
+<input class="b-field" placeholder="Optional, like a size or a sauce" value="{{sheet.detail}}" onChange="{{sheet.onDetail}}">
+</label>
+
+<div class="b-sec">
+<div class="b-sechead"><svg data-anim-id="who" class="ai ai-users" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 19.13v-.01c0-1.11-.29-2.16-.79-3.07M15 19.13c-1.86 1.23-4.04 1.87-6.38 1.87s-4.51-.64-6.37-1.77v-.11a6.38 6.38 0 0 1 11.96-3.07M12 6.38a3.38 3.38 0 1 1-6.75 0 3.38 3.38 0 0 1 6.75 0Z"></path><path class="second" d="M15 19.13a9.4 9.4 0 0 0 6.75-.58v-.17a4.13 4.13 0 0 0-7.53-2.32M20.25 8.63a2.63 2.63 0 1 1-5.25 0 2.63 2.63 0 0 1 5.25 0Z"></path></svg>Who had it <span class="b-hint">· tap everyone who shared it</span></div>
+<div style="display: flex; flex-wrap: wrap; column-gap: 4px">
+<sc-for list="{{sheet.people}}" as="p" hint-placeholder-count="6">
+<button class="b-who" data-anim-for="who" data-on="{{p.onAttr}}" aria-pressed="{{p.on}}" onClick="{{p.toggle}}"><i></i>{{p.name}}</button>
+</sc-for>
+</div>
+</div>
+
+<div class="b-sec">
+<div class="b-sechead"><svg data-anim-id="split" class="ai ai-pie" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z"></path><path class="slice" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z"></path></svg>How to split {{sheet.priceLabel}}</div>
+<div role="radiogroup" aria-label="How to split" style="display: flex; gap: 20px">
+<sc-for list="{{sheet.modes}}" as="m" hint-placeholder-count="3">
+<button class="b-opt" data-anim-for="split" role="radio" aria-checked="{{m.active}}" data-active="{{m.activeAttr}}" onClick="{{m.pick}}"><span>{{m.label}}</span></button>
+</sc-for>
+</div>
+<p class="b-hint" style="margin: -4px 0 0">{{sheet.modeHint}}</p>
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{sheet.splitPeople}}" as="p" hint-placeholder-count="2">
+<div class="b-who-row">
+<span>{{p.name}}</span>
+<span style="display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums">
+<sc-if value="{{p.isShares}}" hint-placeholder-val="{{false}}">
+<button class="b-step" data-anim aria-label="{{p.decLabel}}" onClick="{{p.dec}}"><svg class="ai ai-minus" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12h14"></path></svg></button>
+<span style="font-size: 14px; color: var(--muted); min-width: 56px; text-align: center">{{p.sharesLabel}}</span>
+<button class="b-step" data-anim aria-label="{{p.incLabel}}" onClick="{{p.inc}}"><svg class="ai ai-plus" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button>
+<span style="min-width: 60px; text-align: right">{{p.amount}}</span>
+</sc-if>
+<sc-if value="{{p.isAmount}}" hint-placeholder-val="{{false}}">
+<label class="b-money" style="width: 88px">
+<span aria-hidden="true" style="color: var(--muted)">$</span><span class="sr-only">{{p.amtLabel}}</span>
+<input class="b-field" inputmode="decimal" placeholder="0.00" value="{{p.amt}}" onChange="{{p.onAmt}}" style="flex: 0 1 auto; width: 6ch; field-sizing: content; min-width: 3ch; border: 0; text-align: right; font-variant-numeric: tabular-nums">
+</label>
+</sc-if>
+<sc-if value="{{p.isEven}}" hint-placeholder-val="{{true}}">
+<span>{{p.amount}}</span>
+</sc-if>
+</span>
+</div>
+</sc-for>
+</div>
+<div class="b-status" data-warn="{{sheet.warnAttr}}" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-variant-numeric: tabular-nums">
+<sc-if value="{{sheet.ok}}" hint-placeholder-val="{{true}}"><svg class="ai ai-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="m4.5 12.75 6 6 9-13.5"></path></svg></sc-if>
+<sc-if value="{{sheet.notOk}}" hint-placeholder-val="{{false}}"><svg class="ai ai-alert" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path><g class="mark"><path d="M12 8.25v4.5"></path><path d="M12 15.75h.008v.008H12v-.008Z"></path></g></svg></sc-if>
+<span>{{sheet.status}}</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{addOpen}}" hint-placeholder-val="{{false}}">
+<div style="position: absolute; inset: 0; z-index: 20">
+<button class="b-scrim" aria-label="Close" onClick="{{closeAdd}}" style="position: absolute; inset: 0; width: 100%; height: 100%"></button>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; height: {{addSh.h}}; max-height: {{addSh.max}}; transform: translateY({{addSh.y}}px); transition: {{addSh.ease}}">
+<div class="b-sheet" role="dialog" aria-modal="true" aria-label="{{add.title}}" style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--bg)">
+<div class="b-grab" aria-hidden="true" onPointerDown="{{addSh.down}}" onPointerMove="{{addSh.move}}" onPointerUp="{{addSh.up}}" onPointerCancel="{{addSh.up}}" style="flex: none; height: 30px; display: grid; place-items: center"><span style="width: 36px; height: 4px; border-radius: 2px; background: var(--faint)"></span></div>
+<div class="b-scroll" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; box-sizing: border-box; padding: 0 24px 32px">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<h2 style="margin: 0; font-size: 16px; font-weight: 500">{{add.title}}</h2>
+<button class="b-x" data-anim aria-label="Close" onClick="{{closeAdd}}"><svg class="ai ai-x" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M6 6l12 12"></path><path pathLength="1" d="M18 6 6 18"></path></svg></button>
+</div>
+
+<div role="radiogroup" aria-label="What to add" style="display: flex; gap: 20px; margin-top: 6px">
+<sc-for list="{{add.kinds}}" as="k" hint-placeholder-count="4">
+<button class="b-opt" role="radio" aria-checked="{{k.active}}" data-active="{{k.activeAttr}}" onClick="{{k.pick}}"><span>{{k.label}}</span></button>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 22px; margin-top: 14px">
+<div style="display: flex; gap: 20px">
+<label style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span class="b-flabel">Name</span>
+<input class="b-field" placeholder="{{add.namePlaceholder}}" value="{{add.name}}" onChange="{{add.onName}}">
+</label>
+<label style="flex: none; width: 96px; display: flex; flex-direction: column">
+<span class="b-flabel" style="text-align: right">{{add.amountLabel}}</span>
+<span class="b-money"><span aria-hidden="true" style="color: var(--muted)">{{add.unit}}</span><input class="b-field" inputmode="decimal" placeholder="0.00" value="{{add.amount}}" onChange="{{add.onAmount}}" style="flex: 0 1 auto; width: 6ch; field-sizing: content; min-width: 3ch; border: 0; text-align: right; font-variant-numeric: tabular-nums"></span>
+</label>
+</div>
+<p class="b-hint" style="margin: -8px 0 0">{{add.note}}</p>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+<span class="b-status" data-warn="true" style="font-size: 14px">{{add.error}}</span>
+<button class="b-pay" onClick="{{add.submit}}" style="flex: none; height: 44px; padding: 0 22px; border-radius: 22px; background: var(--fg); color: var(--bg); font-size: 15px; font-weight: 500; display: inline-flex; align-items: center">{{add.submitLabel}}</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{toastOn}}" hint-placeholder-val="{{false}}">
+<div class="b-toast" role="status" style="bottom: {{toastBottom}}px"><span>{{toastText}}</span><sc-if value="{{toastUndo}}" hint-placeholder-val="{{true}}"><button class="b-undo" onClick="{{undoToast}}">Undo</button></sc-if></div>
+</sc-if>
+<sc-if value="{{wipeOn}}" hint-placeholder-val="{{false}}">
+<div class="b-wipe" data-out="{{wipeOutAttr}}" aria-hidden="true" style="--x: {{wipeX}}px; --y: {{wipeY}}px; background: {{wipeColor}}"></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":390,"height":844}}'>
+const PEOPLE = [
+  { id: 'me', name: 'Jordan', initial: 'J', bg: '#DCE6F6', fg: '#203C66' },
+  { id: 'sam', name: 'Sam', initial: 'S', bg: '#F4E1CE', fg: '#6A3913' },
+  { id: 'priya', name: 'Priya', initial: 'P', bg: '#E3DCF4', fg: '#43306D' },
+  { id: 'alex', name: 'Alex', initial: 'A', bg: '#D6EDE2', fg: '#1E5540' },
+  { id: 'maya', name: 'Maya', initial: 'M', bg: '#F4DAE2', fg: '#6D2440' },
+  { id: 'dev', name: 'Dev', initial: 'D', bg: '#ECE8D1', fg: '#594D12' },
+];
+const SEED = [
+  { id: 'burrata', name: 'Burrata', detail: 'Basil oil, grilled bread', priceText: '14.00', mode: 'even', who: { me: 1, sam: 1, priya: 1 }, amt: {} },
+  { id: 'pizza', name: 'Margherita pizza', detail: '', priceText: '18.50', mode: 'even', who: { sam: 1 }, amt: {} },
+  { id: 'rigatoni', name: 'Spicy rigatoni', detail: 'Calabrian chili, vodka sauce', priceText: '22.00', mode: 'even', who: { me: 1 }, amt: {} },
+  { id: 'caesar', name: 'Caesar salad', detail: '', priceText: '12.50', mode: 'even', who: { priya: 1, alex: 1 }, amt: {} },
+  { id: 'tiramisu', name: 'Tiramisu', detail: 'Espresso, mascarpone', priceText: '9.00', mode: 'even', who: { me: 1, sam: 1, priya: 1, alex: 1 }, amt: {} },
+  { id: 'lager', name: 'Pitcher of lager', detail: '', priceText: '28.00', mode: 'shares', who: { me: 2, sam: 1, maya: 1, dev: 2 }, amt: {} },
+  { id: 'knots', name: 'Garlic knots', detail: '', priceText: '7.00', mode: 'even', who: {}, amt: {} },
+];
+const TAX = 0.08875;
+const TIP = 0.18;
+const DISCOUNT = -500;
+const MODES = [{ key: 'even', label: 'Evenly' }, { key: 'shares', label: 'By shares' }, { key: 'amount', label: 'By amount' }];
+const money = (c) => { const r = Math.round(c); return (r < 0 ? '-$' : '$') + (Math.abs(r) / 100).toFixed(2); };
+const cents = (t) => { const n = parseFloat(String(t == null ? '' : t).replace(/[^0-9.]/g, '')); return isFinite(n) ? Math.round(n * 100) : 0; };
+const byId = {};
+PEOPLE.forEach((p) => { byId[p.id] = p; });
+const inSplit = (it) => PEOPLE.filter((p) => it.who[p.id] > 0).map((p) => p.id);
+function parts(it) {
+  const price = cents(it.priceText);
+  const ids = inSplit(it);
+  const out = {};
+  if (it.mode === 'amount') { ids.forEach((id) => { out[id] = cents(it.amt[id]); }); return out; }
+  const weight = (id) => (it.mode === 'shares' ? it.who[id] : 1);
+  const sum = ids.reduce((s, id) => s + weight(id), 0);
+  ids.forEach((id) => { out[id] = sum ? (price * weight(id)) / sum : 0; });
+  return out;
+}
+
+const TABS = [{ id: 'receipt', label: 'Receipt' }, { id: 'people', label: 'People' }, { id: 'pay', label: 'Payments' }, { id: 'history', label: 'History' }];
+const HISTORY = [
+  { title: 'Priya joined Caesar salad', sub: 'Priya · 2 min ago' },
+  { title: 'Pitcher of lager split by shares', sub: 'Sam · 6 min ago' },
+  { title: 'Garlic knots 6.00 → 7.00', sub: 'Sam · 9 min ago' },
+  { title: 'Created the split', sub: 'Sam · 12 min ago' },
+];
+
+const KINDS = [
+  { id: 'item', label: 'Item', hint: 'Something from the receipt that was missed', title: 'New item', placeholder: 'What was it?', amountLabel: 'Price', note: 'Nobody has it yet. Tap its dot, or open it to pick who had it.' },
+  { id: 'tax', label: 'Tax', hint: 'Split by what each person had', title: 'New tax', placeholder: 'Tax', amountLabel: 'Amount', note: 'Split by what each person had.' },
+  { id: 'tip', label: 'Tip', hint: 'Split by what each person had', title: 'New tip', placeholder: 'Tip', amountLabel: 'Amount', note: 'Split by what each person had.' },
+  { id: 'discount', label: 'Discount', hint: 'Comes off everyone’s share', title: 'New discount', placeholder: 'Discount', amountLabel: 'Amount off', note: 'Comes off by what each person had.' },
+];
+
+class Component extends DCLogic {
+  componentDidMount() {
+    // Replays an icon's motion on press, or on hover with a mouse, like heroicons-animated.
+    const play = (el) => this.playIcon(el);
+    this.onIcon = (e) => {
+      const t = e.target.closest && e.target.closest('[data-anim],[data-anim-for]');
+      if (!t || !t.closest('.b') || t.getAttribute('aria-disabled') === 'true') return;
+      if (e.type === 'pointerover' && (e.pointerType !== 'mouse' || t.contains(e.relatedTarget))) return;
+      const forId = t.getAttribute('data-anim-for');
+      if (!forId) {
+        // A press just after a hover lets the hover's motion finish instead of restarting it.
+        if (e.type === 'pointerdown' && t.aiHover && performance.now() - t.aiHover < 600) return;
+        if (e.type === 'pointerover') t.aiHover = performance.now();
+        play(t);
+        return;
+      }
+      if (e.type !== 'pointerdown') return;
+      const box = t.closest('.b-scroll') || t.closest('.b');
+      play(box.querySelector('[data-anim-id="' + forId + '"]'));
+    };
+    document.addEventListener('pointerdown', this.onIcon, true);
+    document.addEventListener('pointerover', this.onIcon, true);
+  }
+  playIcon(el) {
+    if (!el) return;
+    el.removeAttribute('data-play');
+    void el.getBoundingClientRect();
+    el.setAttribute('data-play', '');
+    clearTimeout(el.aiT);
+    el.aiT = setTimeout(() => el.removeAttribute('data-play'), 900);
+  }
+  // Lets a button's icon finish moving before the button disappears.
+  afterIcon(ev, fn, wait = 400) {
+    if (this.iconBusy) return;
+    this.iconBusy = true;
+    const el = ev && ev.currentTarget;
+    if (el && !el.hasAttribute('data-play')) this.playIcon(el);
+    setTimeout(() => { this.iconBusy = false; fn(); }, wait);
+  }
+  componentWillUnmount() {
+    document.removeEventListener('pointerdown', this.onIcon, true);
+    document.removeEventListener('pointerover', this.onIcon, true);
+    clearTimeout(this.toastT);
+  }
+  isDark() { const d = this.st().dark; return d == null ? this.props.theme === 'dark' : d; }
+  toggleTheme(e) {
+    const next = !this.isDark();
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { this.set({ dark: next, wipe: null }); return; }
+    const btn = e.currentTarget;
+    const root = btn.closest('.b');
+    const box = root.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    const k = root.offsetWidth / box.width;
+    if (document.startViewTransition) {
+      const cx = b.left + b.width / 2;
+      const cy = b.top + b.height / 2;
+      const r = Math.hypot(Math.max(cx, window.innerWidth - cx), Math.max(cy, window.innerHeight - cy));
+      const flip = () => new Promise((done) => { this.setState({ ...this.st(), dark: next, iconDark: next, wipe: null }, done); setTimeout(done, 120); });
+      document.startViewTransition(flip).ready.then(() => {
+        document.documentElement.animate(
+          { clipPath: ['circle(0px at ' + cx + 'px ' + cy + 'px)', 'circle(' + r + 'px at ' + cx + 'px ' + cy + 'px)'] },
+          { duration: 600, easing: 'cubic-bezier(.32,.72,0,1)', pseudoElement: '::view-transition-new(root)' },
+        );
+      }).catch(() => {});
+      return;
+    }
+    clearTimeout(this.wipeIn); clearTimeout(this.wipeOut);
+    this.set({ iconDark: next, wipe: { x: Math.round((b.left + b.width / 2 - box.left) * k), y: Math.round((b.top + b.height / 2 - box.top) * k), color: next ? '#111111' : '#fcfcfc', out: false } });
+    this.wipeIn = setTimeout(() => {
+      this.set({ dark: next, wipe: { ...this.st().wipe, out: true } });
+      this.wipeOut = setTimeout(() => this.set({ wipe: null }), 240);
+    }, 560);
+  }
+  addPanel(s) {
+    const kind = KINDS.find((k) => k.id === s.adding) || KINDS[0];
+    const draft = s.draft || { name: '', amount: '' };
+    const close = () => this.set({ adding: null, error: '', draft: { name: '', amount: '' }, dragging: false, drag: 0, tall: false });
+    const submit = () => {
+      const amount = cents(draft.amount);
+      const name = (draft.name || '').trim();
+      if (kind.id === 'item' && !name) { this.set({ error: 'Add a name.' }); return; }
+      if (!amount) { this.set({ error: kind.id === 'item' ? 'Add a price.' : 'Add an amount.' }); return; }
+      const st = this.st();
+      if (kind.id === 'item') {
+        const item = { id: 'added-' + Date.now(), name, detail: '', priceText: (amount / 100).toFixed(2), mode: 'even', who: {}, amt: {} };
+        this.record({ title: 'Added ' + name, itemId: item.id, before: null }, { items: [...st.items, item], adding: null, error: '', draft: { name: '', amount: '' } });
+        return;
+      }
+      const extra = { key: 'x' + Date.now(), name: name || kind.label, amount: kind.id === 'discount' ? -amount : amount };
+      this.record({ title: 'Added ' + extra.name + ' ' + money(extra.amount), extraKey: extra.key }, { extras: [...(st.extras || []), extra], adding: null, error: '', draft: { name: '', amount: '' } });
+    };
+    return {
+      close,
+      panel: {
+        title: 'Add to the receipt',
+        kinds: KINDS.map((k) => ({ label: k.label, active: k.id === kind.id, activeAttr: String(k.id === kind.id), pick: () => this.set({ adding: k.id, error: '' }) })),
+        name: draft.name, amount: draft.amount,
+        namePlaceholder: kind ? kind.placeholder : '',
+        amountLabel: kind ? kind.amountLabel : '',
+        unit: kind && kind.id === 'discount' ? '-$' : '$',
+        note: kind ? kind.note : '',
+        error: s.error || '',
+        submitLabel: kind ? 'Add ' + kind.label.toLowerCase() : '',
+        onName: (e) => { const v = e.target.value; this.set({ draft: { ...(this.st().draft || {}), name: v }, error: '' }); },
+        onAmount: (e) => { const v = e.target.value; this.set({ draft: { ...(this.st().draft || {}), amount: v }, error: '' }); },
+        submit,
+      },
+    };
+  }
+  panelFor(id, items, factor, sel) {
+    const sub = {};
+    PEOPLE.forEach((p) => { sub[p.id] = 0; });
+    items.forEach((it) => { const p = parts(it); Object.keys(p).forEach((k) => { sub[k] += p[k]; }); });
+    if (id === 'pay') {
+      const R = 80;
+      const STROKE = 8;
+      const C = 2 * Math.PI * R;
+      const total = items.reduce((t, it) => t + cents(it.priceText), 0) * factor;
+      const pick = sel || this.viewer();
+      let start = 0;
+      const arcs = [];
+      PEOPLE.forEach((p) => {
+        const share = sub[p.id] * factor;
+        if (!total || share <= 0) return;
+        const len = (share / total) * C;
+        arcs.push({ color: p.id === pick ? 'var(--fg)' : 'var(--underline)', dash: Math.max(len - STROKE - 4, 0.5).toFixed(2) + ' ' + C.toFixed(2), offset: (-(start + STROKE / 2 + 2)).toFixed(2), c: C.toFixed(2), delay: Math.round(120 + (start / C) * 420) });
+        start += len;
+      });
+      const claimed = PEOPLE.reduce((t, p) => t + sub[p.id] * factor, 0);
+      const unclaimed = Math.max(total - claimed, 0);
+      const chosen = byId[pick];
+      const part = money(sub[pick] * factor);
+      return {
+        title: 'Payments', isPhoto: false, isPay: true, rows: [],
+        sub: 'Everyone pays Sam. 1 of 5 paid' + (unclaimed >= 1 ? ' · ' + money(unclaimed) + ' unclaimed.' : '.'),
+        ring: {
+          arcs, amount: part,
+          caption: pick === this.self() ? 'Your part' : chosen.name + '’s part', total: money(total),
+          label: (pick === this.self() ? 'Your part' : chosen.name + '’s part') + ' is ' + part + ' of ' + money(total),
+        },
+        people: PEOPLE.map((p) => ({
+          title: this.nm(p.id), on: p.id === pick, onAttr: String(p.id === pick),
+          sub: p.id === 'sam' ? 'Gets paid' : p.id === 'priya' ? 'Paid' : 'Not paid yet',
+          paid: p.id === 'priya', paidAttr: String(p.id === 'priya'),
+          right: money(sub[p.id] * factor),
+          pick: () => this.set({ paySel: p.id }),
+        })),
+      };
+    }
+    if (id === 'history') {
+      const st = this.st();
+      const undone = st.undone || {};
+      const ago = (t) => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? 'Just now' : m + ' min ago'; };
+      const live = (st.log || []).map((e) => ({
+        title: e.title, sub: this.nm(e.by) + ' · ' + ago(e.at), right: '',
+        done: !!e.reverted, doneAttr: String(!!e.reverted), canAct: !e.reverted,
+        doneLabel: 'Reverted', actLabel: 'Revert', act: (ev) => this.afterIcon(ev, () => this.revert(e.key), 560),
+      }));
+      const earlier = HISTORY.map((h, i) => {
+        const created = i === HISTORY.length - 1;
+        const done = !!undone[i];
+        return {
+          ...h, right: '', done, doneAttr: String(done), canAct: !done,
+          doneLabel: created ? 'Restored' : 'Reverted',
+          actLabel: created ? 'Restore' : 'Revert',
+          act: (ev) => this.afterIcon(ev, () => this.set({ undone: { ...(this.st().undone || {}), [i]: true } }), 560),
+        };
+      });
+      return { title: 'History', sub: 'Every change to this split. Revert one to undo it.', isPhoto: false, rows: [...live, ...earlier] };
+    }
+    if (id === 'receipt') return { title: 'Receipt photo', sub: 'Kept for 14 days after the split was made.', isPhoto: true, rows: [] };
+    const st = this.st();
+    const me = this.self();
+    const viewing = this.viewer();
+    const switching = !!st.switching;
+    return {
+      title: 'People', isPhoto: false, isPeople: true, rows: [],
+      sub: switching ? 'Tap the name that’s you on this phone.' : 'Tap someone to see the receipt from their side.',
+      groupLabel: switching ? 'Who is this phone' : 'Whose side to show',
+      persons: PEOPLE.map((p) => {
+        const on = switching ? p.id === me : p.id === viewing;
+        return {
+          title: p.name, tag: p.id === me ? 'you' : p.id === 'sam' ? 'paid the bill' : '',
+          sub: p.id === me ? 'This phone' : p.id === 'sam' ? 'Gets paid' : 'Picked on another phone',
+          right: money(sub[p.id] * factor), on, onAttr: String(on),
+          pick: () => (switching
+            ? this.set({ self: p.id, viewAs: null, switching: false, tab: null })
+            : this.set({ viewAs: p.id === me ? null : p.id, tab: null })),
+        };
+      }),
+      phoneLine: 'This phone is ' + byId[me].name + '.',
+      switchLabel: switching ? 'Cancel' : 'Switch account',
+      switchToggle: () => this.set({ switching: !switching }),
+    };
+  }
+  st() { return this.state && this.state.items ? this.state : { items: SEED, open: null, tab: null, drag: 0, dragging: false, tall: false, adding: null, draft: { name: '', amount: '' }, error: '', extras: [], self: 'me', viewAs: null, switching: false, log: [] }; }
+  self() { return this.st().self || 'me'; }
+  viewer() { return this.st().viewAs || this.self(); }
+  nm(id) { return id === this.self() ? 'You' : byId[id].name; }
+  record(entry, patch) {
+    const st = this.st();
+    const log = st.log || [];
+    const last = log[0];
+    if (entry.merge && last && !last.reverted && last.merge === entry.merge) {
+      this.setState({ ...st, ...patch, log: [{ ...last, title: entry.title, at: Date.now() }, ...log.slice(1)] });
+      return;
+    }
+    this.setState({ ...st, ...patch, log: [{ key: 'h' + Date.now() + Math.random(), at: Date.now(), by: this.self(), ...entry }, ...log] });
+  }
+  revert(key) {
+    const st = this.st();
+    const entry = (st.log || []).find((e) => e.key === key);
+    if (!entry || entry.reverted) return;
+    let items = st.items;
+    let extras = st.extras || [];
+    if (entry.extraKey) extras = extras.filter((x) => x.key !== entry.extraKey);
+    else if (entry.deletedAt != null) { items = items.slice(); items.splice(Math.min(entry.deletedAt, items.length), 0, entry.before); }
+    else if (entry.before === null) items = items.filter((x) => x.id !== entry.itemId);
+    else items = items.map((x) => (x.id === entry.itemId ? entry.before : x));
+    this.setState({ ...st, items, extras, log: st.log.map((e) => (e.key === key ? { ...e, reverted: true } : e)) });
+  }
+  set(patch) { this.setState({ ...this.st(), ...patch }); }
+  toast(t) {
+    clearTimeout(this.toastT);
+    if (t) this.set({ toast: t });
+    this.toastT = setTimeout(() => this.set({ toast: null }), 4000);
+  }
+  dragDown(e) {
+    this.y0 = e.clientY;
+    const frame = e.currentTarget.parentNode.parentNode;
+    this.h0 = frame ? frame.getBoundingClientRect().height : 0;
+    this.hMax = frame && frame.parentNode ? frame.parentNode.getBoundingClientRect().height * 0.94 : 790;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
+    this.set({ dragging: true, drag: 0 });
+  }
+  dragMove(e) { if (this.st().dragging) this.set({ drag: e.clientY - this.y0 }); }
+  dragUp(onClose) {
+    const { dragging, drag, tall } = this.st();
+    if (!dragging) return;
+    if (drag > 110) { onClose(); return; }
+    let next = tall;
+    if (drag < -40) next = true;
+    else if (drag > 40) next = false;
+    this.set({ dragging: false, drag: 0, tall: next });
+  }
+  sheetFrame(base, onClose) {
+    const { dragging, drag, tall } = this.st();
+    const up = dragging && drag < 0;
+    let h = tall ? '94%' : 'auto';
+    if (up && !tall) h = Math.min(this.h0 - drag, this.hMax) + 'px';
+    const y = dragging ? (up ? (tall ? drag * 0.15 : 0) : drag) : 0;
+    const ease = dragging ? 'none' : 'transform 380ms cubic-bezier(.32,.72,0,1), height 380ms cubic-bezier(.32,.72,0,1)';
+    return { h, max: tall || up ? '94%' : base, y: Math.round(y), ease, down: (e) => this.dragDown(e), move: (e) => this.dragMove(e), up: () => this.dragUp(onClose) };
+  }
+  edit(id, fn, title, merge) {
+    const st = this.st();
+    const before = st.items.find((it) => it.id === id);
+    const items = st.items.map((it) => (it.id === id ? fn({ ...it, who: { ...it.who }, amt: { ...it.amt } }) : it));
+    if (!title) { this.setState({ ...st, items }); return; }
+    const last = (st.log || [])[0];
+    const keepBefore = merge && last && !last.reverted && last.merge === merge;
+    this.record({ title, itemId: id, before: keepBefore ? last.before : before, merge }, { items });
+  }
+  setPerson(id, pid, on) {
+    const item = this.st().items.find((x) => x.id === id);
+    this.edit(id, (it) => {
+      if (on) { it.who[pid] = 1; if (it.mode === 'amount') it.amt[pid] = ''; }
+      else { delete it.who[pid]; delete it.amt[pid]; }
+      return it;
+    }, this.nm(pid) + (on ? ' had ' : ' didn’t have ') + (item.name || 'an item'));
+  }
+  toggleMine(id) {
+    const it = this.st().items.find((x) => x.id === id);
+    const v = this.viewer();
+    const mine = it.who[v] > 0;
+    if (!mine && it.mode === 'amount') { this.set({ open: id }); return; }
+    this.setPerson(id, v, !mine);
+  }
+  setMode(id, mode) {
+    this.edit(id, (it) => {
+      if (it.mode === mode) return it;
+      const ids = inSplit(it);
+      if (mode === 'amount') {
+        const p = parts(it);
+        const price = cents(it.priceText);
+        const each = ids.map((pid) => Math.round(p[pid]));
+        const drift = price - each.reduce((s, c) => s + c, 0);
+        if (each.length) each[0] += drift;
+        it.amt = {};
+        ids.forEach((pid, i) => { it.amt[pid] = (each[i] / 100).toFixed(2); });
+      }
+      if (mode === 'even' || it.mode === 'amount') ids.forEach((pid) => { it.who[pid] = 1; });
+      it.mode = mode;
+      return it;
+    }, (this.st().items.find((x) => x.id === id).name || 'Item') + ' split ' + MODES.find((m) => m.key === mode).label.toLowerCase());
+  }
+  step(id, pid, d) { this.edit(id, (it) => { it.who[pid] = Math.max(1, Math.min(9, (it.who[pid] || 1) + d)); return it; }, 'Changed the shares for ' + (this.st().items.find((x) => x.id === id).name || 'an item'), 'shares:' + id); }
+  sheetFor(it) {
+    const id = it.id;
+    const p = parts(it);
+    const price = cents(it.priceText);
+    const ids = inSplit(it);
+    const flags = { isEven: it.mode === 'even', isShares: it.mode === 'shares', isAmount: it.mode === 'amount', notAmount: it.mode !== 'amount' };
+    const people = PEOPLE.map((person) => {
+      const on = it.who[person.id] > 0;
+      const w = it.who[person.id] || 0;
+      const name = this.nm(person.id);
+      return {
+        ...flags,
+        name, initial: person.initial, bg: person.bg, fg: person.fg,
+        on, onAttr: String(on),
+        toggle: () => this.setPerson(id, person.id, !on),
+        amount: on ? money(p[person.id] || 0) : '',
+        sharesLabel: w === 1 ? '1 share' : w + ' shares',
+        inc: () => this.step(id, person.id, 1),
+        dec: () => this.step(id, person.id, -1),
+        incLabel: 'More shares for ' + name,
+        decLabel: 'Fewer shares for ' + name,
+        amt: it.amt[person.id] == null ? '' : it.amt[person.id],
+        onAmt: (e) => { const v = e.target.value; this.edit(id, (x) => { x.amt[person.id] = v; return x; }, 'Changed the amounts for ' + (it.name || 'an item'), 'amt:' + id); },
+        amtLabel: name + ' amount',
+      };
+    });
+    let status = '';
+    let warn = false;
+    if (!ids.length) status = 'Nobody has this yet. Tap a name above.';
+    else if (it.mode === 'amount') {
+      const diff = price - ids.reduce((s, pid) => s + cents(it.amt[pid]), 0);
+      warn = diff !== 0;
+      status = diff === 0 ? 'All ' + money(price) + ' assigned' : diff > 0 ? money(diff) + ' left to assign' : money(-diff) + ' over the price';
+    } else status = (ids.length === 1 ? '1 person' : ids.length + ' people') + ' · ' + money(price);
+    return {
+      ...flags,
+      name: it.name, priceText: it.priceText, detail: it.detail,
+      onName: (e) => { const v = e.target.value; this.edit(id, (x) => { x.name = v; return x; }, 'Edited ' + (it.name || 'an item'), 'edit:' + id); },
+      onPrice: (e) => { const v = e.target.value; this.edit(id, (x) => { x.priceText = v; return x; }, 'Edited ' + (it.name || 'an item'), 'edit:' + id); },
+      onDetail: (e) => { const v = e.target.value; this.edit(id, (x) => { x.detail = v; return x; }, 'Edited ' + (it.name || 'an item'), 'edit:' + id); },
+      modes: MODES.map((m) => ({ label: m.label, active: it.mode === m.key, activeAttr: String(it.mode === m.key), pick: () => this.setMode(id, m.key) })),
+      people,
+      splitPeople: people.filter((x) => x.on),
+      status, warn, warnAttr: String(warn), ok: !warn && ids.length > 0, notOk: warn || ids.length === 0,
+      modeHint: it.mode === 'shares' ? 'Give more shares to whoever had more.' : it.mode === 'amount' ? 'Type what each person pays.' : 'Everyone who had it pays the same.',
+      priceLabel: money(price),
+      cantDelete: this.st().items.length < 2, cantDeleteAttr: String(this.st().items.length < 2),
+      remove: (ev) => {
+        if (this.st().items.length < 2) { this.toast({ text: 'A split needs at least one item.' }); return; }
+        this.afterIcon(ev, () => {
+          const st = this.st();
+          if (st.items.length < 2 || !st.items.some((x) => x.id === id)) return;
+          const at = st.items.findIndex((x) => x.id === id);
+          const key = 'h' + Date.now() + Math.random();
+          const title = 'Deleted ' + (it.name || 'an item');
+          this.record({ key, title, itemId: id, before: st.items[at], deletedAt: at }, { items: st.items.filter((x) => x.id !== id), open: null, tall: false, drag: 0, dragging: false, toast: { text: title, key } });
+          this.toast(null);
+        });
+      },
+    };
+  }
+  renderVals() {
+    const s = this.st();
+    let subtotal = 0;
+    let mySub = 0;
+    let mineCount = 0;
+    const v = this.viewer();
+    const isSelf = v === this.self();
+    const vName = isSelf ? 'You' : byId[v].name;
+    const rows = s.items.map((it, i) => {
+      const p = parts(it);
+      const price = cents(it.priceText);
+      subtotal += price;
+      const mine = it.who[v] > 0;
+      if (mine) { mySub += p[v] || 0; mineCount += 1; }
+      const ids = inSplit(it);
+      const tag = it.mode === 'shares' ? 'By shares' : it.mode === 'amount' ? 'By amount' : '';
+      const isOpen = s.open === it.id;
+      const label = it.name || 'item';
+      return {
+        id: it.id, name: it.name || 'Untitled item',
+        detail: it.detail, hasDetail: !!it.detail,
+        price: money(price),
+        splitLine: mine ? money(p[v] || 0) + (isSelf ? ' yours' : ' ' + vName + '’s') : ids.length > 1 && it.mode === 'even' ? money(price / ids.length) + ' each' : ids.length > 1 ? tag.toLowerCase() : '',
+        mine, notMine: !mine, onAttr: String(mine),
+        myPart: money(p[v] || 0),
+        whoLine: ids.length ? ids.map((x) => this.nm(x)).join(', ') : 'Nobody yet',
+        lastAttr: String(i === s.items.length - 1),
+        isOpen, openAttr: String(isOpen),
+        toggle: () => this.toggleMine(it.id),
+        open: () => this.set({ open: it.id, tab: null, tall: false, drag: 0, dragging: false }),
+        openLabel: 'Split options for ' + label,
+        checkLabel: (mine ? 'Uncheck ' : 'Check ') + label,
+        s: this.sheetFor(it),
+      };
+    });
+    const adjustments = [
+      { name: 'Tax', sub: '8.875%', amount: subtotal * TAX },
+      { name: 'Tip', sub: '18%', amount: subtotal * TIP },
+      { name: 'Happy hour', sub: 'Discount', amount: subtotal ? DISCOUNT : 0 },
+      ...(s.extras || []).map((e) => ({ name: e.name, sub: '', amount: e.amount })),
+    ];
+    const total = subtotal + adjustments.reduce((sum, a) => sum + a.amount, 0);
+    const factor = subtotal ? total / subtotal : 1;
+    const myShare = subtotal ? mySub / subtotal : 0;
+    const adjRows = adjustments.map((a, i) => ({
+      name: a.name,
+      sub: a.sub,
+      amount: money(a.amount),
+      myPart: money(a.amount * myShare),
+      lastAttr: String(i === adjustments.length - 1),
+    }));
+    return {
+      theme: this.isDark() ? 'dark' : 'light',
+      toastOn: !!this.st().toast && !this.st().tab && !this.st().adding,
+      toastText: this.st().toast ? this.st().toast.text : '',
+      toastUndo: !!(this.st().toast && this.st().toast.key),
+      toastBottom: this.st().open ? 28 : 132,
+      undoToast: () => { const t = this.st().toast; clearTimeout(this.toastT); if (t && t.key) this.revert(t.key); this.set({ toast: null }); },
+      toggleTheme: (e) => this.toggleTheme(e),
+      iconDarkAttr: String(this.st().wipe ? !!this.st().iconDark : this.isDark()),
+      themeLabel: this.isDark() ? 'Switch to light mode' : 'Switch to dark mode',
+      wipeOn: !!this.st().wipe,
+      wipeOutAttr: String(!!(this.st().wipe && this.st().wipe.out)),
+      wipeX: this.st().wipe ? this.st().wipe.x : 0,
+      wipeY: this.st().wipe ? this.st().wipe.y : 0,
+      wipeColor: this.st().wipe ? this.st().wipe.color : 'transparent',
+      rows,
+      adjRows,
+      subtotal: money(subtotal),
+      mySubtotal: money(mySub),
+      share: money(mySub * factor),
+      total: money(total),
+      count: mineCount + ' of ' + rows.length,
+      countText: mineCount + ' of ' + rows.length + (isSelf ? ' yours' : ' ' + vName + '’s'),
+      shareLabel: isSelf ? 'Your share' : vName + '’s share',
+      payLabel: v === 'sam' ? 'Share link' : 'Pay Sam',
+      viewingOther: !isSelf, viewerName: vName,
+      backToMe: () => this.set({ viewAs: null }),
+      countLong: mineCount + ' of ' + rows.length + ' items',
+      sheetOpen: rows.some((r) => r.isOpen),
+      sheet: (rows.find((r) => r.isOpen) || rows[0]).s,
+      close: () => this.set({ open: null, dragging: false, drag: 0, tall: false }),
+      splitSh: this.sheetFrame('88%', () => this.set({ open: null, dragging: false, drag: 0, tall: false })),
+      addOpen: !!s.adding,
+      add: this.addPanel(s).panel,
+      openAdd: () => this.set({ adding: 'item', open: null, tab: null, error: '', draft: { name: '', amount: '' }, tall: false, drag: 0, dragging: false }),
+      closeAdd: this.addPanel(s).close,
+      addSh: this.sheetFrame('82%', this.addPanel(s).close),
+      panelSh: this.sheetFrame('82%', () => this.set({ tab: null, dragging: false, drag: 0, tall: false })),
+      tabs: TABS.map((t) => ({ ...t, isReceipt: t.id === 'receipt', isPeople: t.id === 'people', isPay: t.id === 'pay', isHistory: t.id === 'history', on: s.tab === t.id, onAttr: String(s.tab === t.id), pick: () => this.set({ tab: s.tab === t.id ? null : t.id, open: null, tall: false, drag: 0, dragging: false, paySel: null, switching: false }) })),
+      panelOpen: !!s.tab,
+      panel: this.panelFor(s.tab || 'people', s.items, factor, s.paySel),
+      closePanel: () => this.set({ tab: null, dragging: false, drag: 0, tall: false }),
+    };
+  }
+}
+</script>
+</body>
+</html>
