@@ -12,7 +12,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { payState, shareStatus, statusWords } from "../pay/model";
 import { PayBlock } from "../pay/pay-block";
 import { splitCopy as say } from "../split-copy";
-import { layout, motion, type, useColors } from "../theme";
+import { layout, motion, tabular, type, useColors } from "../theme";
 import type { FoldTrack } from "./bottom-sheet";
 import { breakdownCharges, breakdownLines } from "./model";
 
@@ -33,7 +33,6 @@ type Props = {
   fold?: Fold;
 };
 
-const tabular = { fontVariant: ["tabular-nums" as const] };
 // The share row sits this far under the last line above it when open.
 const rowGap = 10;
 // From the share amount's baseline box to the pay buttons.

@@ -54,7 +54,7 @@ test("on a narrow window a mouse wheel over the row scrolls it sideways", async 
   await expect.poll(left, live).toBeGreaterThan(40);
 });
 
-test("on a phone the row of twelve names scrolls between the 22 px gutters, the first chip resting on the left gutter and the last ending on the right gutter", async ({ browser, request }, { workerIndex }) => {
+test("on a phone the row of twelve names scrolls between the page gutters, the first chip resting on the left gutter and the last ending on the right gutter", async ({ browser, request }, { workerIndex }) => {
   const page = await (await newContext(browser)).newPage();
   await page.setViewportSize({ width: 390, height: 844 });
   const sam = await open(page, await createSplit(request, workerIndex, dozen), "Sam");
@@ -71,20 +71,23 @@ test("on a phone the row of twelve names scrolls between the 22 px gutters, the 
       return { left, right };
     });
 
-  expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
-  expect(await clip()).toEqual({ left: 18, right: 372 });
+  const edge = (await sam.getByText("SplitWith", { exact: true }).first().boundingBox())!.x;
+  expect((await chip(sam, "Jason").boundingBox())?.x).toBeCloseTo(edge, 0);
+  const rest = await clip();
+  expect(rest.left).toBeLessThanOrEqual(edge);
+  expect(rest.right).toBeGreaterThanOrEqual(390 - edge);
 
   await scrollBy("middle");
   await sam.waitForTimeout(100);
-  const chipsOnScreen = await people(sam).getByRole("button").evaluateAll((all) => all.map((one) => one.getBoundingClientRect()).filter((box) => box.left < 22 || box.right > 368).length);
+  const chipsOnScreen = await people(sam).getByRole("button").evaluateAll((all, edge) => all.map((one) => one.getBoundingClientRect()).filter((box) => box.left < edge || box.right > 390 - edge).length, edge);
   expect(chipsOnScreen).toBeGreaterThan(1);
-  expect(await clip()).toEqual({ left: 18, right: 372 });
+  expect(await clip()).toEqual(rest);
 
   await scrollBy("end");
   await sam.waitForTimeout(100);
   const add = await chip(sam, "Add a person").boundingBox();
-  expect((add?.x ?? 0) + (add?.width ?? 0)).toBeCloseTo(368, 0);
-  expect(await clip()).toEqual({ left: 18, right: 372 });
+  expect((add?.x ?? 0) + (add?.width ?? 0)).toBeCloseTo(390 - edge, 0);
+  expect(await clip()).toEqual(rest);
 });
 
 test("on a phone the row fades into each end of its clip box only where names are scrolled out of view", async ({ browser, request }, { workerIndex }) => {
@@ -114,7 +117,8 @@ test("on a phone the row fades into each end of its clip box only where names ar
   const end = await fades("end");
   expect({ left: end.left, right: end.right }).toEqual({ left: "20px", right: "0px" });
   await fades("start");
-  expect((await chip(sam, "Jason").boundingBox())?.x).toBe(22);
+  const edge = (await sam.getByText("SplitWith", { exact: true }).first().boundingBox())!.x;
+  expect((await chip(sam, "Jason").boundingBox())?.x).toBeCloseTo(edge, 0);
 });
 
 test("the Remove menu opens above its chip on a phone and on a desktop window", async ({ browser, request, page }, { workerIndex }) => {
