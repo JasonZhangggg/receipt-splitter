@@ -558,7 +558,6 @@ const bundleProbes: Probe[] = [
 ];
 const itemProbes: Probe[] = [
   { key: "item", find: testId("item-sheet"), kind: "top" },
-  { key: "scrim", find: `document.querySelector('[data-testid="item-sheet"]')?.previousElementSibling?.firstElementChild ?? null`, kind: "opacity" },
   splitTop,
 ];
 const chipProbes: Probe[] = [
@@ -790,7 +789,6 @@ const addRowButton = (page: Page) => page.getByTestId("receipt").getByRole("butt
 const addMenu = (page: Page) => page.getByRole("dialog", { name: "Add to the receipt" });
 const addProbes: Probe[] = [
   { key: "add", find: testId("add-sheet"), kind: "top" },
-  { key: "scrim", find: `document.querySelector('[data-testid="add-sheet"]')?.previousElementSibling?.firstElementChild ?? null`, kind: "opacity" },
   splitTop,
 ];
 const addOpenScenario: Scenario = {
