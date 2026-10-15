@@ -12,6 +12,7 @@ export const splitCopy = {
   question: "Which one are you?",
   picked: "Picked",
   pickedName: (name: string) => `${name}, picked on another phone`,
+  pickedOnAnotherPhone: (name: string) => `${name} was picked on another phone`,
   pickedElsewhere: "Picked on another phone.",
   thatsMe: "That's me",
   cancel: "Cancel",

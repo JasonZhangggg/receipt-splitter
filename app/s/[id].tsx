@@ -12,6 +12,7 @@ import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, s
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
 import { actedByKey } from "../../src/ui/components/acted-by-key";
+import { Toast } from "../../src/ui/components/toast";
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { Swap } from "../../src/ui/components/swap";
@@ -32,6 +33,7 @@ import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { AddMenu, addMenuWidth, type AddChoice } from "../../src/ui/split-view/add-menu";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
+import { holdOf, takenName } from "../../src/ui/split-view/name-hold";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
@@ -122,6 +124,14 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
   const held = split.picks.find((pick) => pick.participantId === memory.me);
   const me = memory.me && held?.device === device ? memory.me : null;
+  const nameHold = useMemo(() => holdOf(split, memory.me, device), [split, memory.me, device]);
+  const lastHold = useRef(nameHold);
+  const [taken, setTaken] = useState<ParticipantId | null>(null);
+  useEffect(() => {
+    const lost = takenName(lastHold.current, nameHold);
+    lastHold.current = nameHold;
+    if (lost) setTaken(lost);
+  }, [nameHold]);
   const [phase, setPhase] = useState<Phase>(me ? "regular" : "pick");
   const [chosen, setChosen] = useState<ParticipantId | null>(null);
   const [pickProblem, setPickProblem] = useState<string | null>(null);
@@ -164,6 +174,12 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         setChosen(null);
       }, checkFor + crossFadeFor),
     );
+  };
+
+  const takeBack = () => {
+    if (!taken) return;
+    setTaken(null);
+    void choose(taken, true);
   };
 
   const addPerson = async (typed: string): Promise<{ readonly id: ParticipantId } | { readonly refused: string }> => {
@@ -535,6 +551,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         </Popover>
       ) : null}
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
+      <Toast message={taken ? say.pickedOnAnotherPhone(people.find(({ id }) => id === taken)?.name ?? "") : null} onHide={() => setTaken(null)} action={{ label: say.thatsMe, onPress: takeBack }} lift={wide ? 0 : sheetHeight} />
     </View>
   );
 }
