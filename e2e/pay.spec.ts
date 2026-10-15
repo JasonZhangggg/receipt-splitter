@@ -70,6 +70,31 @@ test("a guest's footer shows Your share and the Pay Jason pill, and the pay butt
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Venmo" })).toBeVisible(live);
 });
 
+test("a payer's Pay Jason pill is there but disabled until something is claimed, and the Host has none", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  await pick(sam, "Sam");
+  const pill = sam.getByTestId("footer").getByRole("button", { name: "Pay Jason" });
+  await expect(pill).toHaveAttribute("aria-disabled", "true", live);
+  await expect(sam.getByTestId("owe")).toHaveText("$0.00");
+
+  await circle(sam, "Pho", "Sam").click();
+  await expect(sam.getByTestId("owe")).toHaveText("$14.20", live);
+  await expect(pill).not.toHaveAttribute("aria-disabled", "true", live);
+
+  const samAgain = await sam.context().newPage();
+  await samAgain.goto(link);
+  await expect(samAgain.getByTestId("owe")).toHaveText("$14.20", live);
+  await expect(samAgain.getByTestId("footer").getByRole("button", { name: "Pay Jason" })).not.toHaveAttribute("aria-disabled", "true");
+  await circle(samAgain, "Pho", "Sam").click();
+  await expect(sam.getByTestId("owe")).toHaveText("$0.00", live);
+  await expect(pill).toHaveAttribute("aria-disabled", "true", live);
+
+  const jason = await open(browser, link);
+  await pick(jason, "Jason");
+  await expect(jason.getByTestId("footer").getByRole("button", { name: /^Pay / })).toHaveCount(0);
+});
+
 test("the Pay sheet lists the viewer's Items and Adjustment parts and its total equals the footer share", async ({ browser, request }, { workerIndex }) => {
   const taxed = { ...menu, adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 400 }, { id: "tip", kind: "tip", name: "Tip", amount: 600 }], subtotal: 4420, total: 5420 };
   const sam = await open(browser, await createSplit(request, workerIndex, [venmo], taxed));
