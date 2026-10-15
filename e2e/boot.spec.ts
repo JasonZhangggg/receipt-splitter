@@ -13,11 +13,12 @@ type Probe = {
   mountedAt: number | null;
   geistAt: number | null;
   geistAtReveal: boolean | null;
+  loadAt: number | null;
 };
 
 /** Records, frame by frame, how opaque the loader got, when the app and Geist were ready, and when the page was revealed. */
 function watchBoot() {
-  const probe: Probe = { loaderPeak: 0, shownAt: null, leaveAt: null, goneAt: null, mountedAt: null, geistAt: null, geistAtReveal: null };
+  const probe: Probe = { loaderPeak: 0, shownAt: null, leaveAt: null, goneAt: null, mountedAt: null, geistAt: null, geistAtReveal: null, loadAt: null };
   Object.assign(window, { probe });
   // In CI, WebKit's fonts.check() said Geist was in before it had loaded, so this reads the faces themselves.
   const geist = () => {
@@ -25,11 +26,18 @@ function watchBoot() {
     return faces.length === 2 && faces.every((face) => face.status === "loaded");
   };
   document.addEventListener("splitwith:mounted", () => (probe.mountedAt ??= performance.now()));
-  document.fonts.addEventListener("loadingdone", () => {
+  const seeGeist = () => {
     if (probe.geistAt === null && geist()) probe.geistAt = performance.now();
-  });
+  };
+  document.fonts.addEventListener("loadingdone", seeGeist);
+  let waiting = false;
   new MutationObserver(() => {
     const phase = document.documentElement.getAttribute("data-boot");
+    if (phase === "wait" && !waiting) {
+      waiting = true;
+      // The same wait the loader makes once Geist is declared, so a failure can tell a late promise from a late font.
+      Promise.all([document.fonts.load('400 16px "Geist"'), document.fonts.load('500 16px "Geist"')]).then(() => (probe.loadAt = performance.now()));
+    }
     if (phase !== "wait" && probe.geistAtReveal === null) probe.geistAtReveal = geist();
     if (phase === "leave" && probe.leaveAt === null) probe.leaveAt = performance.now();
     if (phase === null && probe.goneAt === null) probe.goneAt = performance.now();
@@ -39,6 +47,7 @@ function watchBoot() {
     const opacity = loader ? Number(getComputedStyle(loader).opacity) : 0;
     if (opacity > 0 && probe.shownAt === null) probe.shownAt = performance.now();
     probe.loaderPeak = Math.max(probe.loaderPeak, opacity);
+    seeGeist();
     if (probe.goneAt === null) requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
@@ -83,9 +92,17 @@ test("while Geist is slow the receipt loader shows, then lifts once the font is 
   // The loader has been up far longer than its 300 ms hold, so it lifts as soon as the last of the app and Geist is ready.
   // The fonts' loadingdone event can land a moment after the promise the loader waits on.
   const ready = Math.max(seen.mountedAt!, seen.geistAt!);
-  expect(seen.leaveAt! - ready).toBeGreaterThan(-20);
+  const fonts = await page.evaluate(() =>
+    performance
+      .getEntriesByType("resource")
+      .filter((entry) => entry.name.includes("/fonts/geist-"))
+      .map((entry) => [entry.name.split("/").pop(), Math.round(entry.startTime), Math.round((entry as PerformanceResourceTiming).responseEnd)]),
+  );
+  const timeline = JSON.stringify({ ...seen, fonts });
+  expect(seen.geistAt, timeline).not.toBeNull();
+  expect(seen.leaveAt! - ready, timeline).toBeGreaterThan(-20);
   // Linux WebKit in CI drops frames for 150 to 330 ms (rule 45), so only Chromium holds the tight bound that caught the stalled hold clock.
-  expect(seen.leaveAt! - ready).toBeLessThan(browserName === "webkit" ? 400 : 80);
+  expect(seen.leaveAt! - ready, timeline).toBeLessThan(browserName === "webkit" ? 400 : 80);
 });
 
 test("the Split page gets the same loader while Geist is slow", async ({ page }) => {
