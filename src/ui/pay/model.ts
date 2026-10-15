@@ -90,3 +90,14 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments">, s
   const summary = owing === 0 ? null : `${paid} of ${owing} paid${viewer === host.id ? " you" : ""}`;
   return { rows, paid, owing, summary };
 }
+
+/** The viewer's own row first and everyone else after it in chip order, as the Payments list reads. */
+export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], viewer: ParticipantId | null): Row[] {
+  const mine = rows.filter(({ id }) => id === viewer);
+  return [...mine, ...rows.filter(({ id }) => id !== viewer)];
+}
+
+/** The row the Payments ring shows: the person tapped, or the viewer's own row, or the first. Someone removed mid-sheet falls back the same way. */
+export function pickedRow<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], picked: ParticipantId | null, viewer: ParticipantId | null): Row {
+  return rows.find(({ id }) => id === picked) ?? rows.find(({ id }) => id === viewer) ?? rows[0];
+}

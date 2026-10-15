@@ -6,16 +6,16 @@ import type { ParticipantId, Split } from "../../core/split";
 import { computeShares } from "../../core/shares";
 import { money } from "../../draft";
 import { PressTarget } from "../components/button";
-import { Icon, type IconName } from "../components/icon";
+import { Icon } from "../components/icon";
 import { useLayoutHeight } from "../components/viewport";
-import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
+import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import type { Colors } from "../colors";
 import { layout, motion, type, useColors } from "../theme";
-import { usePersonInks } from "../person-inks";
 import { slices, ring } from "./donut-model";
 import { DonutRing } from "./donut-ring";
-import { paymentStatus, type PaymentRow } from "./model";
+import { paymentStatus, pickedRow, viewerFirst, type PaymentRow } from "./model";
+import { firstName } from "./pay-sheet";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void; /** In a bottom sheet: the ring stays put and only the people scroll, out to the sheet's edge. */ sheet?: boolean };
@@ -26,12 +26,11 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const reduce = useReducedMotion();
   const shares = computeShares(split);
   const { rows, summary } = paymentStatus(split, shares, me);
-  const inkOf = usePersonInks(split.participants.map(({ id }) => id));
   const insets = useSafeAreaInsets();
   const room = useLayoutHeight() - insets.top - 38 - sheetChrome - insets.bottom;
   const [fixed, setFixed] = useState(0);
-  const [picked, setPicked] = useState<ParticipantId | null>(null);
-  const pickedRow = rows.find(({ id }) => id === picked) ?? null;
+  const [tapped, setTapped] = useState<ParticipantId | null>(null);
+  const picked = pickedRow(rows, tapped, me);
   const edge = sheet ? layout.gutter + insets.right : rowEdge;
   const total = split.receipt.total;
   const unclaimed = shares.unclaimed.total;
@@ -43,73 +42,63 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   return (
     <View style={styles.sheet}>
       <View style={styles.sheet} onLayout={(event) => setFixed(event.nativeEvent.layout.height)}>
-      <SheetHeader title={say.payments} onClose={onClose} />
-      {summary ? (
-        <Text testID="payments-summary" style={[type.body, { color: c.muted }]}>
-          {summary}
-        </Text>
-      ) : null}
-      {total > 0 ? (
-        <View role="img" aria-label={label} style={styles.ring}>
-          <DonutRing slices={slices(shares)} paint={(id) => inkOf(id).mark} track={c.hairline} picked={pickedRow?.id ?? null} />
-          {pickedRow ? (
-            <PressTarget name={say.ring.showTotal} outsideScroll onPress={() => setPicked(null)} style={() => [styles.center, styles.centerHit, !reduce && centerIn]}>
-              {() => <Part name={pickedRow.id === me ? say.ring.yourPart : say.ring.partOf(pickedRow.name)} amount={money(pickedRow.share)} />}
-            </PressTarget>
-          ) : (
+        <SheetHeader title={say.payments} onClose={onClose} />
+        {rows.length > 0 ? (
+          <Text style={[type.body, { color: c.muted }]}>
+            {say.ring.everyonePays(firstName(rows[0].name))}
+            {summary ? " " : null}
+            <Text testID="payments-summary">{summary}</Text>
+            {unclaimed > 0 ? say.ring.unclaimed(money(unclaimed)) : null}
+          </Text>
+        ) : null}
+        {total > 0 ? (
+          <View role="img" aria-label={label} style={styles.ring}>
+            <DonutRing slices={slices(shares)} paint={(id) => (id === picked.id ? c.ink : c.dot)} track={c.hairline} />
             <View aria-hidden style={[styles.center, !reduce && centerIn]}>
-              <Text style={[type.hero, styles.tabular, { color: c.ink }]}>{money(total)}</Text>
-              {unclaimed > 0 ? (
-                <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
-                  {money(unclaimed)}
-                </Text>
-              ) : null}
+              <Text style={[type.hero, styles.tabular, { color: c.ink }]}>{money(picked.share)}</Text>
               <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
-                {unclaimed > 0 ? say.ring.unclaimed : say.ring.claimed}
+                {picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))}
+              </Text>
+              <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
+                {say.ring.of(money(total))}
               </Text>
             </View>
-          )}
-        </View>
-      ) : null}
+          </View>
+        ) : null}
       </View>
       <ScrollView
         role="list"
         aria-label={say.payments}
         {...(sheet ? { dataSet: { sheetScroll: "" } } : {})}
-        style={[styles.list, { marginRight: -edge }, contain, sheet && { maxHeight: Math.max(minList, room - fixed - layout.pairGap) }]}
-        contentContainerStyle={[styles.listContent, { paddingRight: edge - rowPad }]}
+        style={[{ marginRight: -edge }, contain, sheet && { maxHeight: Math.max(minList, room - fixed - layout.pairGap) }]}
+        contentContainerStyle={{ paddingRight: edge }}
       >
-        {rows.map(({ id, name, share, state, words }) => {
-          const on = id === picked;
+        {viewerFirst(rows, me).map(({ id, name, share, state, words }) => {
+          const on = id === picked.id;
           return (
             <View key={id} role="listitem" {...{ dataSet: { state } }}>
-              <PressTarget
-                name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share)}`}
-                toggled={on}
-                outsideScroll={!sheet}
-                onPress={() => setPicked(on ? null : id)}
-                style={(pressed) => pressStyle(pressed, reduce)}
-              >
-                {() => (
-                  <View style={[styles.row, rowFade, on && { backgroundColor: c.sheetIn }]}>
-                    <View style={styles.body}>
-                      <View style={styles.who}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, marginRight: 3, backgroundColor: inkOf(id).mark }} />
-                        <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
-                          {name}
-                        </Text>
-                        {id === me ? <Icon name="person" size={13} color={c.ink} /> : null}
-                        {marks[state] ? (
-                          <View style={marks[state] === "exclaim" && styles.narrow}>
-                            <Icon name={marks[state]} size={markSize} color={stateInk(c, state)} />
-                          </View>
-                        ) : null}
+              <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share)}`} toggled={on} outsideScroll={!sheet} onPress={() => setTapped(id)} style={() => null}>
+                {(pressed) => {
+                  const ink = on || pressed ? c.ink : c.muted;
+                  return (
+                    <View style={[styles.row, { borderTopColor: c.hairline }]}>
+                      <View style={styles.body}>
+                        <View style={styles.who}>
+                          <View style={[styles.dot, { backgroundColor: on ? c.ink : c.dot }, !reduce && fade]} />
+                          <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }, !reduce && fade]}>
+                            {name}
+                          </Text>
+                          {id === me ? <Icon name="person" size={13} color={ink} /> : null}
+                        </View>
+                        <View style={styles.sub}>
+                          {state === "settled" ? <Icon name="check" size={13} color={c.good} /> : null}
+                          <Text style={[type.caption, { color: stateInk(c, state) }]}>{state === "settled" ? say.paid : words}</Text>
+                        </View>
                       </View>
-                      <Text style={[type.caption, { color: stateInk(c, state) }]}>{words}</Text>
+                      <Text style={[type.body, styles.amount, { color: ink }, !reduce && fade]}>{money(share)}</Text>
                     </View>
-                    <Text style={[type.body, styles.amount, { color: c.ink }]}>{money(share)}</Text>
-                  </View>
-                )}
+                  );
+                }}
               </PressTarget>
             </View>
           );
@@ -119,39 +108,23 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   );
 }
 
-function Part({ name, amount }: { name: string; amount: string }) {
-  const c = useColors();
-  return (
-    <>
-      <Text numberOfLines={1} style={[type.hero, styles.tabular, { color: c.ink }]}>
-        {amount}
-      </Text>
-      <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
-        {name}
-      </Text>
-    </>
-  );
-}
-
 // The sheet's grab handle and bottom padding, which the content has to leave room for.
 const sheetChrome = 29 + 30;
-const rowPad = 12;
 const rowEdge = 20;
 const minList = 112;
 const contain = webStyle({ overscrollBehavior: "contain" });
-const rowFade = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: motion.easeOut });
-/** The center arrives with the ring, and again whenever it swaps between the total and a person's part. */
+const fade = webStyle({ transitionProperty: "color, background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: motion.easeOut });
+/** The total arrives after the first arcs have started drawing, once, and does not replay when another person is picked. */
 const centerIn = webAnimation({
-  animationKeyframes: [{ from: { opacity: 0, transform: "scale(0.94)" }, to: { opacity: 1, transform: "none" } }],
-  animationDuration: "220ms",
+  animationKeyframes: [{ from: { opacity: 0, transform: "translateY(4px)" }, to: { opacity: 1, transform: "none" } }],
+  animationDuration: "280ms",
+  animationDelay: "260ms",
   animationTimingFunction: motion.easeOut,
   animationFillMode: "both",
 });
 
-const markSize = 14;
+/** Green marks "Paid" in this sheet only. A share that moved after the payment is a problem, so red. */
 const stateInk = (c: Colors, state: PaymentRow["state"]) => (state === "settled" ? c.good : state === "short" || state === "over" ? c.warn : c.muted);
-/** The glyph after the name: a check once paid in full, an x while unpaid, "!" when they paid and the share has moved. The Host and a $0 share get none. */
-const marks: Record<PaymentRow["state"], IconName | null> = { settled: "check", unpaid: "x", short: "exclaim", over: "exclaim", nothing: null, host: null };
 
 const styles = StyleSheet.create({
   tabular: { fontVariant: ["tabular-nums"] },
@@ -159,14 +132,11 @@ const styles = StyleSheet.create({
   ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 8 },
   center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
-  centerHit: { top: 28, right: 28, bottom: 28, left: 28, borderRadius: 80, paddingHorizontal: 0 },
-  list: { marginLeft: -rowPad },
-  listContent: { gap: 4 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingVertical: 6, paddingHorizontal: rowPad, borderRadius: 16 },
+  row: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, minHeight: 56, paddingVertical: 10, borderTopWidth: 1 },
   body: { flex: 1, minWidth: 0, gap: 2 },
-  who: { flexDirection: "row", alignItems: "center", gap: 5 },
+  who: { flexDirection: "row", alignItems: "center", gap: 10 },
+  dot: { width: 12, height: 12, borderRadius: 6 },
   name: { flexShrink: 1 },
-  // The "!" is a thin stroke in a square glyph box, so it would sit farther from the name than the check does.
-  narrow: { marginHorizontal: -3 },
+  sub: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 22 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });

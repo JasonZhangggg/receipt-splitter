@@ -380,7 +380,7 @@ test("the pill's visible label is only the app mark and the method, with the ful
 
 const paymentsList = (page: Page) => page.getByRole("list", { name: "Payments" });
 const paymentRow = (page: Page, name: string) => paymentsList(page).getByRole("listitem").filter({ hasText: name });
-/** The one glyph after the name besides the viewer's person icon: check, x or exclaim, or none. */
+/** The glyphs in a row besides the viewer's person icon: only a green check once paid in full. */
 const markOf = async (page: Page, name: string) => paymentRow(page, name).locator('[data-icon]:not([data-icon="person"])').evaluateAll((all) => all.map((one) => one.getAttribute("data-icon")));
 
 test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, then still owed when his share grows, with chips that never carry a mark", async ({ browser, request }, { workerIndex }) => {
@@ -395,15 +395,17 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
 
   await fromMore(priya, "Payments");
   await expect(priya.getByTestId("payments-summary")).toHaveText("0 of 2 paid", live);
+  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Jason/, /^Sam/]);
+  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible();
   await expect(paymentRow(priya, "Sam")).toHaveText("SamNot paid$8.00");
   await expect(paymentRow(priya, "Jason")).toHaveText(/^JasonGets paid\$/);
   await expect(paymentRow(priya, "Priya")).toHaveText("PriyaNot paid$8.00");
-  expect([await markOf(priya, "Sam"), await markOf(priya, "Jason"), await markOf(priya, "Priya")]).toEqual([["x"], [], ["x"]]);
+  expect([await markOf(priya, "Sam"), await markOf(priya, "Jason"), await markOf(priya, "Priya")]).toEqual([[], [], []]);
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
 
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00$8.00", live);
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid$8.00", live);
   await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "settled");
   expect(await markOf(priya, "Sam")).toEqual(["check"]);
@@ -412,7 +414,7 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00 · $14.20 still owed$22.20", live);
   await expect(priya.getByTestId("payments-summary")).toHaveText("0 of 2 paid");
   await circle(sam, "Pho", "Sam").click();
-  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00$8.00", live);
+  await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid$8.00", live);
 
   await priya.getByRole("button", { name: "Close", exact: true }).click();
   await expect(paymentsList(priya)).toHaveCount(0, live);
@@ -420,7 +422,7 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await fromMore(priya, "Payments");
   await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00 · $8.00 still owed$16.00", live);
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "short");
-  expect(await markOf(priya, "Sam")).toEqual(["exclaim"]);
+  expect(await markOf(priya, "Sam")).toEqual([]);
 });
 
 test("the People sheet rows show no check or exclamation mark and keep their plain names, however the payments stand", async ({ browser, request }, { workerIndex }) => {
@@ -458,13 +460,13 @@ test("Payments lists Sam as paid too much once Priya checks Tea too, and the per
   await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $16.00 · $8.00 too much$8.00", live);
   await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "over");
-  expect(await markOf(priya, "Sam")).toEqual(["exclaim"]);
-  await expect(paymentRow(priya, "Priya").locator("[data-icon]")).toHaveCount(2);
+  expect(await markOf(priya, "Sam")).toEqual([]);
+  await expect(paymentRow(priya, "Priya").locator("[data-icon]")).toHaveCount(1);
   await expect(priya.getByRole("dialog", { name: "Payments" }).locator('[data-icon="person"]')).toHaveCount(1);
   await expect(sam.getByTestId("owe")).toBeVisible(live);
 });
 
-test("tapping a person in Payments picks them: the arc thickens, the ring's center shows their part, and tapping the center returns to the total", async ({ browser, request }, { workerIndex }) => {
+test("Payments opens on your own part, a tap on a person turns their arc black and shows their part, and the rest of the ring stays gray", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -476,23 +478,26 @@ test("tapping a person in Payments picks them: the arc thickens, the ring's cent
 
   await fromMore(priya, "Payments");
   const dialog = priya.getByRole("dialog", { name: "Payments" });
-  const thick = dialog.locator("svg circle[data-picked]");
   const samRow = paymentsList(priya).getByRole("button", { name: /^Sam, / });
+  const priyaRow = paymentsList(priya).getByRole("button", { name: /^Priya, you, / });
+  const ink = "rgb(23, 23, 23)";
+  const arcInks = () => dialog.locator("svg g circle").evaluateAll((all) => all.map((one) => getComputedStyle(one).stroke));
+  const inkedArcs = async () => (await arcInks()).flatMap((stroke, index) => (stroke === ink ? [index] : []));
+  await expect(priyaRow).toHaveAttribute("aria-pressed", "true");
   await expect(samRow).toHaveAttribute("aria-pressed", "false");
-  await expect(thick).toHaveCount(0);
+  await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/^of \$[\d.,]+$/)).toBeVisible();
+  await expect.poll(async () => (await inkedArcs()).length).toBe(1);
+  const [own] = await inkedArcs();
 
   await samRow.click();
   await expect(samRow).toHaveAttribute("aria-pressed", "true");
-  await expect(thick).toHaveCount(1);
+  await expect(priyaRow).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByText("Sam's part", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("$8.00", { exact: true }).first()).toBeVisible();
-
-  await paymentsList(priya).getByRole("button", { name: /^Priya, you, / }).click();
-  await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
-  await expect(samRow).toHaveAttribute("aria-pressed", "false");
-
-  await dialog.getByRole("button", { name: "Show the total" }).click();
-  await expect(thick).toHaveCount(0);
   await expect(dialog.getByText("Your part", { exact: true })).toHaveCount(0);
-  await expect(dialog.getByText("unclaimed")).toBeVisible();
+  // One snapshot per poll, and the black arc must be a different one than before the tap: the 200 ms recolor still shows the old black arc for its first frames.
+  await expect.poll(async () => {
+    const inked = await inkedArcs();
+    return inked.length === 1 && inked[0] !== own;
+  }).toBe(true);
 });

@@ -64,34 +64,37 @@ describe("slices", () => {
 });
 
 describe("arcs", () => {
-  const length = 2 * Math.PI * 99.5;
+  const length = 2 * Math.PI * 80;
+  const two = [
+    { id: ann, cents: 5000, start: 0, fraction: 0.5 },
+    { id: bob, cents: 5000, start: 0.5, fraction: 0.5 },
+  ];
 
-  test("trim each arc by the gap and the stroke so round-capped neighbors leave 5 px of track, and start it half the trim in", () => {
-    const [first, second] = arcs([
-      { id: ann, cents: 5000, start: 0, fraction: 0.5 },
-      { id: bob, cents: 5000, start: 0.5, fraction: 0.5 },
-    ]);
-    expect(first.dash).toBe(`${0.5 * length - 14} ${length}`);
-    expect(first.offset).toBe(-7);
-    expect(second.offset).toBe(-(0.5 * length + 7));
+  test("trim each arc by the gap and the stroke so round-capped neighbors leave 4 px of track, and start it half the trim in", () => {
+    const [first, second] = arcs(two);
+    expect(first.dash).toBe(`${0.5 * length - 12} ${length}`);
+    expect(first.offset).toBe(-6);
+    expect(second.offset).toBe(-(0.5 * length + 6));
   });
 
   test("leave a lone arc untrimmed", () => {
-    expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toEqual([{ id: "ann", width: 9, dash: `${length} ${length}`, offset: -0 }]);
+    expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toEqual([{ id: "ann", dash: `${length} ${length}`, offset: -0, delay: 0 }]);
   });
 
-  test("draw the picked arc thicker and still leave 5 px of track at each end", () => {
-    const [first, second] = arcs(
-      [
-        { id: ann, cents: 5000, start: 0, fraction: 0.5 },
-        { id: bob, cents: 5000, start: 0.5, fraction: 0.5 },
-      ],
-      ann,
-    );
-    expect([first.width, second.width]).toEqual([14, 9]);
-    expect(first.dash).toBe(`${0.5 * length - 19} ${length}`);
-    expect(first.offset).toBe(-9.5);
-    expect(second.dash).toBe(`${0.5 * length - 14} ${length}`);
+  test("start each arc when the clockwise sweep reaches it", () => {
+    const three = [
+      { id: ann, cents: 1, start: 0, fraction: 0.3 },
+      { id: bob, cents: 1, start: 0.3, fraction: 0.3 },
+      { id: cy, cents: 1, start: 0.6, fraction: 0.4 },
+    ];
+    expect(arcs(three).map(({ delay }) => delay)).toEqual([0, 126, 252]);
+  });
+
+  test("a crowd of equal arcs still starts at least 30 ms apart and the last within 420 ms", () => {
+    const crowd = Array.from({ length: 12 }, (_, at) => ({ id: participantId(`p${at}`), cents: 1, start: at / 12, fraction: 1 / 12 }));
+    const delays = arcs(crowd).map(({ delay }) => delay);
+    expect(delays.at(-1)).toBe(385);
+    expect(Math.min(...delays.slice(1).map((delay, at) => delay - delays[at]))).toBeGreaterThanOrEqual(30);
   });
 
   test("shrink a sliver to a dot rather than a negative length", () => {
@@ -104,23 +107,11 @@ describe("arcs", () => {
 });
 
 describe("ringMarkup", () => {
-  test("draws the track first, then one round-capped circle per arc", () => {
+  test("draws the track first, then one round-capped circle per arc in the color paint gives it", () => {
     const markup = ringMarkup([{ id: ann, cents: 100, start: 0, fraction: 1 }], () => "#123456", "#abcdef");
     expect(markup.match(/<circle/g)).toHaveLength(2);
     expect(markup.indexOf('stroke="#abcdef"')).toBeLessThan(markup.indexOf('stroke="#123456"'));
     expect(markup).toContain('stroke-linecap="round"');
-  });
-
-  test("thickens the picked arc and dims the rest", () => {
-    const two = [
-      { id: ann, cents: 100, start: 0, fraction: 0.5 },
-      { id: bob, cents: 100, start: 0.5, fraction: 0.5 },
-    ];
-    const markup = ringMarkup(two, (id) => (id === ann ? "#111111" : "#222222"), "#abcdef", ann);
-    const circle = (color: string) => markup.match(new RegExp(`<circle[^>]*stroke="${color}"[^>]*/>`))![0];
-    const width = (color: string) => Number(circle(color).match(/stroke-width="([\d.]+)"/)![1]);
-    expect(width("#111111")).toBeGreaterThan(width("#222222"));
-    expect(circle("#111111")).not.toContain("opacity=");
-    expect(circle("#222222")).toContain("opacity=");
+    expect(markup).not.toContain("opacity");
   });
 });
