@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { frames, runs, sample } from "./motion";
-import { dropFile, dropZone, openExample, pasteFile, photo } from "./files";
+import { addNames, dropFile, dropZone, openExample, pasteFile, photo } from "./files";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -12,7 +12,7 @@ const action = (page: Page) => page.getByRole("button", { name: "Create split li
 
 async function choose(page: Page, file: string) {
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^(Add|Drop a) receipt/ }).click();
+  await dropZone(page).click();
   await (await chooser).setFiles(file);
 }
 
@@ -40,12 +40,7 @@ const items1040 = [
   "Perrier Sparkling Water 3.50",
 ];
 
-async function addName(page: Page, name: string) {
-  const first = await page.getByRole("button", { name: "Add name" }).count();
-  await page.getByRole("button", { name: first ? "Add name" : "Add a name" }).click();
-  await page.getByRole("textbox", { name: first ? "Your name" : "Name", exact: true }).fill(name);
-  await page.keyboard.press("Enter");
-}
+const addName = (page: Page, name: string) => addNames(page, name);
 
 async function blockedBy(page: Page) {
   const button = action(page);
@@ -62,7 +57,7 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
   await choose(page, "e2e/fixtures/topgolf-synthetic.png");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["$207.29", "9 items"]);
+  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$207.29", "9 items", "Replace"]);
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
 
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
@@ -101,12 +96,12 @@ test.describe("reading SRD receipt 1040", () => {
   test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and Create split link with no name says so and opens the name field", async ({ page }) => {
     await page.goto("/");
     await choose(page, receipt1040);
-    await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
     await expect(card(page)).toBeVisible(scanTimeout);
 
-    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["$28.04", "5 items"]);
+    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$28.04", "5 items", "Replace"]);
     await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
-    expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Add your name." });
+    expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Add your name first." });
     await action(page).click();
     await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
     await expect(page).toHaveURL(/\/$/);
@@ -125,7 +120,7 @@ test("a read with a price over the limit creates the link, and the Split page fi
   await choose(page, "e2e/fixtures/example-price-over-limit.png");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["$28.04", "5 items"]);
+  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$28.04", "5 items", "Replace"]);
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
@@ -149,7 +144,7 @@ test("a read with no Items keeps Create split link off with its reason, and home
   await choose(page, "e2e/fixtures/blank.png");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["$0.00", "0 items"]);
+  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$0.00", "0 items", "Replace"]);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
@@ -168,7 +163,7 @@ test("a scan that fails the Total check shows the card, a quiet note, and still 
   await choose(page, "e2e/fixtures/srd-1040-no-sprite.jpg");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["$28.04", "4 items"]);
+  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$28.04", "4 items", "Replace"]);
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
@@ -222,13 +217,6 @@ test.describe("the photo viewer", () => {
     await view(page);
     await expect(viewer(page).getByRole("img", { name: "srd-1040-no-sprite.jpg" })).toBeVisible();
   });
-
-  test("the Example has no photo, so its card has nothing to open", async ({ page }) => {
-    await page.goto("/");
-    await openExample(page);
-    await expect(card(page)).toContainText("$28.04");
-    await expect(page.getByRole("button", { name: "View receipt photo" })).toHaveCount(0);
-  });
 });
 
 test.describe("at 1280 px", () => {
@@ -237,7 +225,7 @@ test.describe("at 1280 px", () => {
 
   test("an image dropped on the page and an image pasted both read, a PDF gets one refusal line, and a drop on the read state changes nothing", async ({ page }) => {
     await page.goto("/");
-    const zone = page.getByRole("button", { name: /^Drop a receipt/ });
+    const zone = dropZone(page);
 
     await expect(dropZone(page)).toBeVisible();
     await dropFile(page, { name: "menu.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") });
@@ -274,49 +262,27 @@ async function holdTheDownload(page: Page) {
 test.describe("the reading state", () => {
   test.setTimeout(120_000);
 
-  test("darkens the slip's lines one at a time and stops when the Items show", async ({ page }) => {
+  test("names the stage under the title and ends when the Items show", async ({ page }) => {
     const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
-    const lines = page.getByTestId("reading-line");
-    await expect(lines).toHaveCount(7);
-    const darkAt = await lines.evaluateAll((all) =>
-      all.map((line) => {
-        const effect = line.getAnimations()[0].effect as KeyframeEffect;
-        return effect.getKeyframes().find((frame) => Number(frame.opacity) === 1)!.computedOffset;
-      }),
-    );
-    expect(darkAt.every((at, i) => i === 0 || at > darkAt[i - 1])).toBe(true);
-    const darkFrom = await lines.evaluateAll((all) => {
-      const animations = all.map((line) => line.getAnimations()[0]);
-      animations.forEach((animation) => animation.pause());
-      const cycle = Number(animations[0].effect!.getComputedTiming().duration);
-      const first: (number | null)[] = all.map(() => null);
-      for (let time = 0; time <= cycle; time += 5) {
-        animations.forEach((animation) => (animation.currentTime = time));
-        all.forEach((line, i) => {
-          if (first[i] === null && Number(getComputedStyle(line).opacity) > 0.9) first[i] = time;
-        });
-      }
-      return first;
-    });
-    const order = darkFrom.map((at, line) => ({ at: at ?? Infinity, line })).sort((a, b) => a.at - b.at).map(({ line }) => line);
-    expect(order).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
+    await expect(page.getByTestId("reading-stage")).toHaveText("Finding the text");
+    await expect(page.getByTestId("reading-bar")).toBeVisible();
 
     release();
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
-    await expect(lines).toHaveCount(0);
+    await expect(page.getByTestId("reading-bar")).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   });
 
-  test("under reduced motion holds the lines still and runs no animation", async ({ page }) => {
+  test("under reduced motion runs no animation while it reads", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
-    await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
     await frames(page, 3);
-    expect(await page.getByTestId("reading-line").count()).toBe(0);
     expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
     release();
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
@@ -335,7 +301,7 @@ test("a reload keeps only the handle, and once the model is cached a reload and 
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole("button", { name: /^Add receipt/ })).toBeVisible();
+  await expect(dropZone(page)).toBeVisible();
   await expect(card(page)).toHaveCount(0);
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
@@ -360,8 +326,8 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
 
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
-  const people = page.getByRole("group", { name: "People at the table" });
-  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Add name"]);
+  const people = page.getByRole("region", { name: "Who’s at the table" });
+  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Who’s at the table", "Add your name"]);
   expect(await page.getByRole("combobox", { name: "Payment app" }).evaluateAll((pickers) => pickers.map((picker) => (picker as HTMLSelectElement).value))).toEqual([
     "cashApp",
     "venmo",
@@ -371,69 +337,12 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
 });
 
-test.describe("the sheet", () => {
-  const grab = (page: Page) => page.locator("[data-sheet-grab]");
-  const sheetTop = (page: Page) => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(el.getBoundingClientRect().top));
-
-  async function drag(page: Page, by: number, { steps = 12, stepMs = 16 } = {}) {
-    const box = (await grab(page).boundingBox())!;
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
-    const cdp = await page.context().newCDPSession(page);
-    const start = Date.now() / 1000;
-    const at = (step: number) => start + (step * stepMs) / 1000;
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }], timestamp: at(0) });
-    for (let step = 1; step <= steps; step++) {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (by * step) / steps }], timestamp: at(step) });
-    }
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [], timestamp: at(steps) });
-  }
-
-  test("a slow short drag on the grab handle springs back to rest", async ({ page }) => {
-    await page.goto("/");
-    const open = await sheetTop(page);
-    await drag(page, 25, { steps: 10, stepMs: 50 });
-    await expect.poll(() => sheetTop(page)).toBe(open);
-  });
-
-  test("a touch while the sheet settles catches it where it is, and a release sends it back to rest", async ({ page }) => {
-    await page.goto("/");
-    await expect(grab(page)).toBeVisible();
-    const open = await sheetTop(page);
-    const offset = () => page.locator("[data-sheet-surface]").evaluate((el) => Math.round(new DOMMatrix(getComputedStyle(el).transform).f));
-    const touch = async (type: "touchStart" | "touchMove" | "touchEnd", dy = 0) => {
-      const box = (await grab(page).boundingBox())!;
-      const point = { x: 4, y: box.y + box.height / 2 + dy };
-      await cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [point] });
-    };
-    const cdp = await page.context().newCDPSession(page);
-    await touch("touchStart");
-    await touch("touchMove", 70);
-    await touch("touchEnd");
-    const released = await offset();
-    await expect.poll(offset, { intervals: [16] }).not.toBe(released);
-    await touch("touchStart");
-    const caught = await offset();
-    await frames(page, 12);
-    const held = await offset();
-    await touch("touchEnd");
-
-    expect(caught).toBeGreaterThan(0);
-    expect(held).toBe(caught);
-    await expect.poll(() => sheetTop(page)).toBe(open);
-  });
-
-  test("a tall sheet scrolls its own content and keeps the action on screen", async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto("/");
-    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Another way to get paid" }).click();
-    for (const name of ["Jason", "Sam", "Priya", "Lee", "Ana", "Jo", "Kai"]) await addName(page, name);
-    const scrolls = await page.locator("[data-sheet-surface]").evaluate((sheet) =>
-      [...sheet.querySelectorAll("div")].some((el) => getComputedStyle(el).overflowY === "auto" && el.scrollHeight > el.clientHeight),
-    );
-    expect(scrolls).toBe(true);
-    await expect(action(page)).toBeInViewport();
-  });
+test("with three more ways to get paid and seven names, Create split link stays on screen", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/");
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Add another way to get paid" }).click();
+  for (const name of ["Jason", "Sam", "Priya", "Lee", "Ana", "Jo", "Kai"]) await addName(page, name);
+  await expect(action(page)).toBeInViewport();
 });
 
 test("an EXIF-rotated phone photo reads upright", async ({ page }) => {
@@ -460,7 +369,7 @@ test.describe("reading through the server", () => {
     total: 3015,
     check: { passed: true, gaps: { subtotal: 0, total: 0 } },
   };
-  const onDevice = ["$207.29", "9 items"];
+  const onDevice = ["Receipt", "$207.29", "9 items", "Replace"];
 
   test.beforeEach(async ({ page }) => {
     const rate = Number(process.env.CPU_THROTTLE ?? 1);
@@ -479,7 +388,7 @@ test.describe("reading through the server", () => {
     await choose(page, "e2e/fixtures/topgolf-synthetic.png");
     await expect(card(page)).toBeVisible(scanTimeout);
 
-    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["$30.15", "4 items"]);
+    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$30.15", "4 items", "Replace"]);
     expect(body!.photo).toMatch(/^data:image\/jpeg;base64,/);
     expect(body!.ocrLines.some((line) => /Gameplay/.test(line))).toBe(true);
 
@@ -523,7 +432,7 @@ test.describe("reading through the server", () => {
     await choose(page, "e2e/fixtures/topgolf-synthetic.png");
     await expect.poll(() => askedAt, scanTimeout).toBeGreaterThan(0);
 
-    await expect(page.getByRole("status", { name: "Reading receipt" })).toBeVisible();
+    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
     await expect(card(page)).toBeVisible({ timeout: 30_000 });
     expect(Date.now() - askedAt).toBeGreaterThan(14_000);
     expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(onDevice);
@@ -547,9 +456,9 @@ test.describe("reading through the server", () => {
     const stage = page.getByTestId("reading-stage");
     await expect(stage).toHaveText("Finding the text");
     releaseOcr();
-    await expect(stage).toHaveText("Matching items to prices", scanTimeout);
+    await expect(stage).toHaveText("Matching prices", scanTimeout);
     await expect.poll(() => askedAt).toBeGreaterThan(0);
-    await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
+    await expect(stage).toHaveText("Almost done", { timeout: 10_000 });
     expect(Date.now() - askedAt).toBeGreaterThan(3_000);
     answer();
     await expect(card(page)).toBeVisible(scanTimeout);
@@ -558,7 +467,7 @@ test.describe("reading through the server", () => {
 
     const seen = await lines();
     expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
-    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Finding the text", "Matching items to prices", "Taking a few more seconds", ""]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Finding the text", "Matching prices", "Almost done", ""]);
   });
 
   test("a large photo uploads at most 1 MB, at most 2048 px on its long edge", async ({ page }) => {

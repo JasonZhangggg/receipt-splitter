@@ -49,8 +49,13 @@ export function useKeyboardRoom(scroller: RefObject<ScrollView | null>): number 
       settle = window.setTimeout(reveal, settleMs);
     };
     reveal();
+    // A name added while the keyboard is up can push the focused field down a line.
+    const content = (scroller.current?.getScrollableNode() as HTMLElement | undefined)?.firstElementChild;
+    const grown = new ResizeObserver(reveal);
+    if (content) grown.observe(content);
     document.addEventListener("focusin", onFocus);
     return () => {
+      grown.disconnect();
       clearTimeout(settle);
       document.removeEventListener("focusin", onFocus);
     };

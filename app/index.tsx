@@ -166,7 +166,7 @@ export default function Home() {
               {copy.wordmark}
             </Text>
             <View style={styles.headerEnd}>
-              {stored.length > 0 ? <TextLink label={copy.recentSplits} expanded={recent !== null && !recent.closing} onPress={(from) => setRecent({ from, closing: false })} /> : null}
+              {stored.length > 0 ? <TextLink label={copy.recentSplits} popup="dialog" expanded={recent !== null && !recent.closing} onPress={(from) => setRecent({ from, closing: false })} /> : null}
               <ThemeToggle />
             </View>
           </View>

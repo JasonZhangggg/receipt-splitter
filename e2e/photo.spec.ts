@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, test, type APIRequestContext, type Browser, type Page, type Request } from "@playwright/test";
 
+import { addNames } from "./files";
 import { fromMenu, fromMore, moreButton, moreMenu } from "./header";
 import { mountHarness } from "./harness";
 
@@ -66,9 +67,7 @@ async function scanAndCreate(page: Page) {
 
 async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
-  await page.getByRole("button", { name: "Add name" }).click();
-  await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
-  await page.keyboard.press("Enter");
+  await addNames(page, "Jason");
   await page.getByRole("button", { name: "Create split link" }).click();
   await expect(page.getByText("Link ready.")).toBeVisible(live);
 }
