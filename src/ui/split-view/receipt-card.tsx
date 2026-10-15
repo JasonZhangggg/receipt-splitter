@@ -152,7 +152,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         </KeptRows>
         <TextLink plus name={say.add} label={say.add} popup="dialog" expanded={showing === "add"} onPress={onAdd} />
       </View>
-      <View style={[styles.total, { borderTopColor: c.hairline, borderBottomColor: c.hairline }]}>
+      <View style={[styles.total, { borderTopColor: c.hairline }]}>
         <Text style={[type.body, { color: c.ink }]}>{say.total}</Text>
         <Text testID="total" style={[type.body, tabular, { color: c.ink }]}>
           {money(total)}
@@ -502,6 +502,6 @@ const styles = StyleSheet.create({
   tapRow: { minHeight: dotTap, marginVertical: (chargeRow - dotTap) / 2 },
   chargeText: { fontFamily: type.body.fontFamily, fontSize: 15, lineHeight: 24, letterSpacing: -0.1 },
   rowLabel: { flexShrink: 1 },
-  total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 12, paddingBottom: 12, paddingLeft: nameStart, borderTopWidth: 1, borderBottomWidth: 1 },
+  total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 12, paddingLeft: nameStart, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: nameStart, marginTop: 10 },
 });
