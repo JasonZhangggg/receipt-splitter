@@ -154,3 +154,9 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 
 ## From PR #98 (2026-10-11), open (review PASS+NOTES)
 - Dark-mode self badge (#F2F2F3) is only about 1.2:1 from the lighter M1 dark fills. Operator to confirm in dark screenshots of a 3-claimer row.
+
+## From the B2-1 Emil design review (2026-10-14)
+
+- `colors.ts` sets `warn` and `danger` to the same red. Keep one token, `warn`, and point `payments-sheet.tsx` and `breakdown.tsx` at it. Fixer: B2-6 owner.
+- Dark `lift` and `cardLift` keep 0.4 and 0.35 black shadows that halo the home receipt drawing. Drop them when home loses its fills. Fixer: B2-9 owner.
+- A second theme flip within 600 ms restarts the reveal from a snapped page. Reverse the running animation or ignore taps until it ends. Fixer: B2-4 owner, when the toggle moves to the header.
