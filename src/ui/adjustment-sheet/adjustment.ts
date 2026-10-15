@@ -12,7 +12,7 @@ export type TypedAdjustment = {
   readonly amount: string;
 };
 
-export type AdjustmentProblem = "name" | "amount" | "overLimit" | "tooManyAdjustments" | "negativeTotal" | "tooLarge" | "failed";
+export type AdjustmentProblem = "name" | "amount" | "overLimit" | "tooManyAdjustments" | "negativeTotal" | "tooLarge" | "failed" | "offline";
 
 export type AdjustmentAnswer = { readonly ok: true; readonly op: Operation } | { readonly ok: false; readonly problem: AdjustmentProblem };
 
@@ -89,6 +89,8 @@ export function adjustmentProblem(reason: WireRejection["reason"] | "disconnecte
       return reason;
     case "amountOutOfRange":
       return "overLimit";
+    case "disconnected":
+      return "offline";
     default:
       return "failed";
   }

@@ -9,7 +9,8 @@ import type { Locator, Page } from "@playwright/test";
  * `painted` is a height read by a ResizeObserver, which reports after every rAF callback and layout, just before paint.
  * A rAF sampler runs before later rAF callbacks in the same frame, so it misses a size one of them sets and a later task undoes.
  */
-export type ProbeKind = "top" | "left" | "height" | "opacity" | "scale" | "angle" | "painted";
+/** `luma` is the mean of the red, green and blue of the element's background, 0 to 255: a color that fades shows in-between values, one that switches does not. */
+export type ProbeKind = "top" | "left" | "height" | "opacity" | "scale" | "angle" | "painted" | "luma";
 /** `find` is a JS expression evaluated in the page each frame; it returns the element or null. */
 export type Probe = { key: string; find: string; kind: ProbeKind };
 /** `t` is the frame's vsync stamp, which can precede an action the callback then sees; `at` is when the callback ran. Traces saved before `at` existed lack it. */
@@ -101,6 +102,10 @@ const sampler = (probes: Probe[]) => {
     if (kind === "height") return el.getBoundingClientRect().height;
     if (kind === "opacity") return opacity(el);
     if (kind === "scale") return scale(el);
+    if (kind === "luma") {
+      const [red, green, blue] = (getComputedStyle(el).backgroundColor.match(/[\d.]+/g) ?? []).map(Number);
+      return (red + green + blue) / 3;
+    }
     const m = matrix(el);
     return m ? (Math.atan2(m.b, m.a) * 180) / Math.PI : 0;
   };
@@ -520,11 +525,10 @@ async function sheetBody(page: Page): Promise<Point> {
 /** Matches the live element first, then the copy of it that fades out when the sheet's content changes. */
 const testId = (id: string) => `document.querySelector('[data-testid="${id}"], [data-left-testid="${id}"]')`;
 const label = (name: string) => `document.querySelector('[aria-label="${name}"]')`;
-const heading = (name: string) => `[...document.querySelectorAll('[role="heading"]')].find((el) => el.textContent === "${name}") ?? null`;
 
 const splitTop: Probe = { key: "sheet", find: testId("split-sheet"), kind: "top" };
-const breakdownFade: Probe = { key: "breakdown", find: testId("breakdown"), kind: "opacity" };
-const payProbes: Probe[] = [{ key: "pay", find: testId("breakdown"), kind: "top" }];
+const sheetDim: Probe = { key: "dim", find: testId("sheet-dim"), kind: "opacity" };
+const payProbes: Probe[] = [{ key: "pay", find: testId("breakdown"), kind: "top" }, sheetDim];
 const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-controls]')`;
 const bundleProbes: Probe[] = [
   { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
@@ -535,14 +539,9 @@ const bundleProbes: Probe[] = [
 ];
 const itemProbes: Probe[] = [
   { key: "item", find: testId("item-sheet"), kind: "top" },
+  sheetDim,
   splitTop,
 ];
-const chipProbes: Probe[] = [
-  { key: "chipOpacity", find: `${label("Jason, you")}?.parentElement ?? null`, kind: "opacity" },
-  { key: "chipScale", find: `${label("Jason, you")}?.parentElement ?? null`, kind: "scale" },
-  { key: "addOpacity", find: `${label("Add a person")}?.parentElement ?? null`, kind: "opacity" },
-];
-
 const openBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-controls]"));
 const openItem = (page: Page) => tap(page.getByRole("button", { name: /^Open Rice/ }));
 
@@ -569,15 +568,21 @@ export async function itemShared(page: Page) {
   await still(page.getByTestId("item-sheet"));
 }
 
+async function peopleOpen(page: Page, people = table) {
+  await picked(page, people);
+  await tap(page.getByRole("button", { name: "People", exact: true }));
+  await still(page.getByTestId("people-sheet"));
+}
+
 async function addingName(page: Page) {
-  await picked(page, fitsOneRow);
-  await tap(sheet(page).getByRole("button", { name: "Add a person" }));
+  await peopleOpen(page, fitsOneRow);
+  await tap(page.getByTestId("people-sheet").getByRole("button", { name: "Add a person" }));
   await page.waitForTimeout(500);
 }
 
 async function priceFocused(page: Page) {
   await itemOpen(page);
-  await tap(page.getByTestId("item-sheet").locator('input[aria-label="Price"]'));
+  await tap(page.getByTestId("item-sheet").locator('input[aria-label="Description"]'));
   await page.waitForTimeout(500);
 }
 
@@ -660,8 +665,9 @@ const photoProbes: Probe[] = [
 ];
 
 const segmentThumb = `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"]')?.firstElementChild ?? null`;
-const nameField = `document.querySelector('[data-testid="split-sheet"] input[aria-label="Name"]')`;
-const priceField = `document.querySelector('[data-testid="item-sheet"] input[aria-label="Price"]')`;
+const nameField = `document.querySelector('[data-testid="people-sheet"] input[aria-label="Name"]')`;
+const peopleTop: Probe = { key: "people", find: testId("people-sheet"), kind: "top" };
+const priceField = `document.querySelector('[data-testid="item-sheet"] input[aria-label="Description"]')`;
 
 const slow = (scenario: Scenario, latencyMs: number): Scenario => ({
   ...scenario,
@@ -750,30 +756,23 @@ const splitRows: Scenario = {
 
 const addSheet = (page: Page) => page.getByTestId("add-sheet");
 const addRowButton = (page: Page) => page.getByTestId("receipt").getByRole("button", { name: "Add item, tax, tip or discount", exact: true });
-const addMenu = (page: Page) => page.getByRole("dialog", { name: "Add to the receipt" });
 const addProbes: Probe[] = [
   { key: "add", find: testId("add-sheet"), kind: "top" },
   splitTop,
 ];
 const addOpenScenario: Scenario = {
   id: "add-open",
-  name: "Add item: the sheet opens from the Add row after the menu",
-  setup: async (page) => {
-    await picked(page);
-    await tap(addRowButton(page));
-    await still(addMenu(page));
-  },
-  act: (page) => tap(addMenu(page).getByRole("button", { name: "Item", exact: true })),
+  name: "Add item: the sheet opens from the Add row",
+  setup: picked,
+  act: (page) => tap(addRowButton(page)),
   probes: addProbes,
 };
 
 async function addFilled(page: Page) {
   await picked(page);
   await tap(addRowButton(page));
-  await tap(addMenu(page).getByRole("button", { name: "Item", exact: true }));
-  await addSheet(page).getByRole("textbox", { name: "Item name", exact: true }).fill("Tea");
+  await addSheet(page).getByRole("textbox", { name: "Name", exact: true }).fill("Tea");
   await addSheet(page).getByRole("textbox", { name: "Price", exact: true }).fill("3.00");
-  await tap(addSheet(page).getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Jason", exact: true }));
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await still(addSheet(page));
 }
@@ -861,15 +860,64 @@ const photoOpen: Scenario = {
   probes: photoProbes,
 };
 
+const themeToggle = (page: Page) => page.getByRole("button", { name: "Switch to dark mode" });
+const chosenDot = `document.querySelector('[data-testid="checked"]')`;
+
+/** Jason checks Rice, so a filled dot is on the page. A color still fading when the circle reveals the new theme would show an old-theme color (rule 18). */
+async function themeReady(page: Page) {
+  await picked(page);
+  await tap(page.getByRole("button", { name: "Rice, check for Jason" }));
+  await page.locator('[data-testid="checked"]').waitFor();
+  await page.waitForTimeout(600);
+}
+
+const themeFlip: Scenario = {
+  id: "theme-flip",
+  name: "Theme flip: a claimed dot changes color in one step under the circle",
+  instant: true,
+  setup: themeReady,
+  act: (page) => tap(themeToggle(page)),
+  probes: [
+    { key: "dot", find: chosenDot, kind: "luma" },
+  ],
+};
+
+type Held = typeof window & { __mountHeld?: boolean; __release?: () => void };
+
+/** The app mounts behind the loader, but the page is not told until the scenario lets go, so the leave is measured apart from the bundle's own long frames. */
+async function loaderUp(page: Page) {
+  await page.addInitScript(() => {
+    const win = window as Held;
+    const dispatch = EventTarget.prototype.dispatchEvent;
+    let held: Event | null = null;
+    win.__release = () => {
+      win.__release = undefined;
+      if (held) dispatch.call(document, held);
+    };
+    EventTarget.prototype.dispatchEvent = function (event: Event) {
+      if (event.type !== "splitwith:mounted" || !win.__release) return dispatch.call(this, event);
+      held = event;
+      win.__mountHeld = true;
+      return true;
+    };
+  });
+  await page.goto("/", { waitUntil: "commit" });
+  await page.waitForFunction(() => (window as Held).__mountHeld === true && Number(getComputedStyle(document.getElementById("rs-boot")!).opacity) > 0.99, undefined, { timeout: 7000 });
+}
+
+const loaderLeave: Scenario = {
+  id: "loader-leave",
+  name: "Loader: fades out as the page fades in",
+  setup: loaderUp,
+  act: (page) => page.evaluate(() => (window as Held).__release?.()),
+  probes: [
+    { key: "loader", find: `document.getElementById("rs-boot")`, kind: "opacity" },
+    { key: "page", find: `document.getElementById("root")`, kind: "opacity" },
+  ],
+};
+
 const sheetAndHome: Scenario[] = [
   pickHandoff,
-  {
-    id: "chip-entrance",
-    name: "Split page: chips enter after the pick",
-    setup: openSplit,
-    act: (page) => tap(pickJason(page)),
-    probes: chipProbes,
-  },
   {
     id: "pick-flick",
     name: "Split sheet: a flick on the pick sheet closes it",
@@ -898,7 +946,7 @@ const sheetAndHome: Scenario[] = [
   itemOpenScenario,
   {
     id: "item-close",
-    name: "Item sheet closes on the scrim",
+    name: "Item sheet closes on a tap on the page above it",
     setup: itemOpen,
     act: (page) => tapAt(page, { x: 30, y: 16 }),
     probes: itemProbes,
@@ -923,9 +971,9 @@ const sheetAndHome: Scenario[] = [
     id: "keyboard-name-up",
     name: "Split sheet: the page pans up in one step when the name field takes focus",
     instant: true,
-    setup: withKeyboard((page) => picked(page, fitsOneRow)),
-    act: (page) => tap(sheet(page).getByRole("button", { name: "Add a person" })),
-    probes: [splitTop, { key: "field", find: nameField, kind: "top" }],
+    setup: withKeyboard((page) => peopleOpen(page, fitsOneRow)),
+    act: (page) => tap(page.getByTestId("people-sheet").getByRole("button", { name: "Add a person" })),
+    probes: [peopleTop, { key: "field", find: nameField, kind: "top" }],
   },
   {
     id: "keyboard-name-down",
@@ -933,14 +981,14 @@ const sheetAndHome: Scenario[] = [
     instant: true,
     setup: withKeyboard(addingName),
     act: blur,
-    probes: [splitTop],
+    probes: [peopleTop],
   },
   {
     id: "keyboard-price-up",
-    name: "Item sheet: the page pans up in one step when the price field takes focus",
+    name: "Item sheet: the page pans up in one step when the Description field takes focus",
     instant: true,
     setup: withKeyboard(itemOpen),
-    act: (page) => tap(page.getByTestId("item-sheet").locator('input[aria-label="Price"]')),
+    act: (page) => tap(page.getByTestId("item-sheet").locator('input[aria-label="Description"]')),
     probes: [{ key: "item", find: testId("item-sheet"), kind: "top" }, { key: "field", find: priceField, kind: "top" }, splitTop],
   },
   {
@@ -965,12 +1013,15 @@ const sheetAndHome: Scenario[] = [
     act: (page) => tap(page.getByRole("button", { name: "Close photo" })),
     probes: photoProbes,
   },
+  themeFlip,
+  reduced(themeFlip),
+  loaderLeave,
   { ...reduced(pickHandoff), probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }] },
   reduced(openTap),
   { ...reduced(collapseTap), probes: [{ key: "sheetFade", find: testId("breakdown"), kind: "opacity" }] },
   reduced(bundleExpand),
   reduced(bundleCollapse),
-  reduced(itemOpenScenario),
+  { ...reduced(itemOpenScenario), probes: [{ key: "itemFade", find: testId("item-sheet"), kind: "opacity" }] },
   reduced(splitRows),
   reduced(addRowScenario),
   reduced(chargeDelete),
@@ -1003,18 +1054,15 @@ export const frames = (page: Page, count: number) =>
 
 export const animationsDone = (page: Page) => page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
 
-const anyWidth = new Set(["name-add", "photo-open", "photo-close", "reduced-photo-open"]);
+const anyWidth = new Set(["name-add", "photo-open", "photo-close", "reduced-photo-open", "loader-leave"]);
 
-const pane = (page: Page) => page.getByRole("complementary");
-const itemPopover = `document.querySelector('[role="dialog"][aria-label="Edit item"]')`;
+const claimPopover = `document.querySelector('[role="dialog"][aria-label="Check Rice for Sam?"]')`;
 const popoverProbes: Probe[] = [
-  { key: "popover", find: itemPopover, kind: "opacity" },
-  { key: "popoverScale", find: itemPopover, kind: "scale" },
+  { key: "popover", find: claimPopover, kind: "opacity" },
+  { key: "popoverScale", find: claimPopover, kind: "scale" },
 ];
-// Both breakdowns carry the same test id during the swap, so each is found by its total's label.
-const breakdownSaying = (words: string) =>
-  `[...document.querySelectorAll('[data-testid="breakdown"], [data-left-testid="breakdown"]')].find((el) => el.textContent.includes("${words}")) ?? null`;
-const riceLine = (page: Page) => page.getByRole("button", { name: /^Open Rice/ });
+/** Rice's dot while the list is viewed as Sam. Tapping it asks before it checks Rice for him. */
+const samRiceDot = (page: Page) => page.getByRole("button", { name: "Rice, check for Sam" });
 
 async function deskSplit(page: Page) {
   creates += 1;
@@ -1024,21 +1072,29 @@ async function deskSplit(page: Page) {
   });
   if (response.status() !== 201) throw new Error(`creating a Split answered ${response.status()}`);
   await page.goto(`/s/${(await response.json()).id}`);
-  await pane(page).getByRole("heading", { name: "Which one are you?" }).waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "Which one are you?" }).waitFor({ timeout: 15_000 });
   await page.waitForTimeout(300);
 }
 
 async function deskPicked(page: Page) {
   await deskSplit(page);
-  await pane(page).getByRole("button", { name: "Jason", exact: true }).click();
-  await pane(page).getByTestId("breakdown").waitFor();
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
+  await page.getByTestId("split-sheet").waitFor({ state: "detached" });
+  await page.waitForTimeout(600);
+}
+
+async function viewingSam(page: Page) {
+  await deskPicked(page);
+  await page.getByRole("button", { name: "People", exact: true }).click();
+  await page.getByRole("dialog", { name: "People" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await page.getByRole("dialog", { name: "People" }).waitFor({ state: "detached" });
   await page.waitForTimeout(600);
 }
 
 async function deskPopover(page: Page) {
-  await deskPicked(page);
-  await riceLine(page).click();
-  await page.getByRole("dialog", { name: "Edit item" }).waitFor();
+  await viewingSam(page);
+  await samRiceDot(page).click();
+  await page.getByRole("dialog", { name: "Check Rice for Sam?" }).waitFor();
   await page.waitForTimeout(400);
 }
 
@@ -1049,20 +1105,12 @@ async function deskBundleOpen(page: Page) {
   await page.waitForTimeout(700);
 }
 
-const deskHandoff: Scenario = {
-  id: "desk-pane-handoff",
-  name: "Desktop pane: the pick content fades through to Your share",
-  layout: "desktop",
-  setup: deskSplit,
-  act: (page) => pane(page).getByRole("button", { name: "Jason", exact: true }).click(),
-  probes: [{ key: "question", find: heading("Which one are you?"), kind: "opacity" }, breakdownFade],
-};
 const deskPopoverOpen: Scenario = {
   id: "desk-popover-open",
-  name: "Desktop: a line's popover scales in from its corner",
+  name: "Desktop: the claim popover scales in from its dot",
   layout: "desktop",
-  setup: deskPicked,
-  act: (page) => riceLine(page).click(),
+  setup: viewingSam,
+  act: (page) => samRiceDot(page).click(),
   probes: popoverProbes,
 };
 const deskBundleExpand: Scenario = { ...bundleExpand, id: "desk-bundle-expand", name: "Desktop: Bundle expands, chevron turns", layout: "desktop", setup: deskPicked };
@@ -1070,11 +1118,10 @@ const deskBundleCollapse: Scenario = { ...bundleCollapse, id: "desk-bundle-colla
 
 export const scenarios: Scenario[] = [
   ...sheetAndHome.map((scenario) => (anyWidth.has(scenario.id) ? scenario : { ...scenario, layout: "phone" as const })),
-  deskHandoff,
   deskPopoverOpen,
   {
     id: "desk-popover-close",
-    name: "Desktop: a click outside fades the popover out",
+    name: "Desktop: a click outside fades the claim popover out",
     layout: "desktop",
     setup: deskPopover,
     act: (page) => page.mouse.click(20, 880),
@@ -1082,30 +1129,18 @@ export const scenarios: Scenario[] = [
   },
   {
     id: "desk-popover-key",
-    name: "Desktop: Enter on a line shows its popover at once",
+    name: "Desktop: Enter on a dot shows the claim popover at once",
     layout: "desktop",
     instant: true,
     setup: async (page) => {
-      await deskPicked(page);
-      await riceLine(page).focus();
+      await viewingSam(page);
+      await samRiceDot(page).focus();
     },
     act: (page) => page.keyboard.press("Enter"),
     probes: popoverProbes,
   },
-  {
-    id: "desk-chip-swap",
-    name: "Desktop pane: another person's chip fades their breakdown through",
-    layout: "desktop",
-    setup: deskPicked,
-    act: (page) => pane(page).getByRole("button", { name: "Sam", exact: true }).click(),
-    probes: [
-      { key: "mine", find: breakdownSaying("Your share"), kind: "opacity" },
-      { key: "theirs", find: breakdownSaying("Sam's share"), kind: "opacity" },
-    ],
-  },
   deskBundleExpand,
   deskBundleCollapse,
-  { ...reduced(deskHandoff), layout: "desktop" },
   { ...reduced(deskPopoverOpen), layout: "desktop" },
   { ...reduced(deskBundleExpand), layout: "desktop" },
   { ...reduced(deskBundleCollapse), layout: "desktop" },

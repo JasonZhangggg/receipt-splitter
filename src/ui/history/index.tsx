@@ -6,7 +6,8 @@ import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { TextLink } from "../components/text-link";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
-import { splitCopy as say } from "../split-copy";
+import type { Answer } from "../../live/client";
+import { failedCopy, splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { historyOf, whenText, type Entry } from "./describe";
 import { SheetHeader } from "../split-view/sheet-header";
@@ -14,8 +15,8 @@ import { SheetHeader } from "../split-view/sheet-header";
 type Props = {
   split: Split;
   me: ParticipantId | null;
-  onRevert: (revision: number) => Promise<boolean>;
-  onRestore: () => Promise<boolean>;
+  onRevert: (revision: number) => Promise<Answer>;
+  onRestore: () => Promise<Answer>;
   onClose: () => void;
 };
 
@@ -29,7 +30,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   const [now, setNow] = useState(() => Date.now());
   const [asking, setAsking] = useState<Target | null>(null);
   const [pending, setPending] = useState<Target | null>(null);
-  const [failed, setFailed] = useState<Target | null>(null);
+  const [failed, setFailed] = useState<{ readonly target: Target; readonly words: string } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
@@ -39,12 +40,12 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   // Another phone may have reverted the same change first. Then the Revert is already done, so there is nothing to confirm and nothing to complain about.
   const stale = (target: Target) => target !== "restore" && (entries.find(({ revision }) => revision === target)?.reverted ?? true);
 
-  const run = async (target: Target, action: () => Promise<boolean>) => {
+  const run = async (target: Target, action: () => Promise<Answer>) => {
     setPending(target);
-    const done = await action();
+    const answer = await action();
     setPending(null);
     setAsking(null);
-    setFailed(done ? null : target);
+    setFailed(answer.ok ? null : { target, words: failedCopy(answer, say.revertFailed) });
   };
   const revert = (entry: Entry) => {
     if (entry.sentAs !== null && entry.sentAs === me) {
@@ -58,7 +59,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   return (
     <View style={styles.sheet}>
       <SheetHeader title={say.history} onClose={onClose} />
-      {failed !== null && !stale(failed) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{say.revertFailed}</Text> : null}
+      {failed !== null && !stale(failed.target) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{failed.words}</Text> : null}
       <Text style={[type.body, { color: c.muted }]}>{say.historyKept}</Text>
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (
@@ -88,6 +89,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
               ) : null
             }
             asking={asking === entry.revision}
+            busy={pending === entry.revision}
             canAct={entry.revertible}
             label={say.revert}
             name={`${say.revert} ${entry.lead || entry.after}`}
@@ -112,6 +114,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
             ) : null
           }
           asking={asking === "restore"}
+          busy={pending === "restore"}
           canAct={split.original !== undefined}
           label={say.restore}
           name={say.restoreName}
@@ -132,6 +135,8 @@ type RowProps = {
   /** Given the arrow's swing, which an accepted confirm plays. */
   confirm: (swing: () => void) => ReactNode;
   asking: boolean;
+  /** The action is on its way to the Split. */
+  busy: boolean;
   canAct: boolean;
   label: string;
   name: string;
@@ -139,7 +144,7 @@ type RowProps = {
   onAct: () => boolean;
 };
 
-function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct }: RowProps) {
+function Row({ meta, reverted, what, confirm, asking, busy, canAct, label, name, onAct }: RowProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   // A Revert applies the moment it is accepted. Only its link stays a beat, so the undo arrow finishes its swing before "Reverted" takes the place.
@@ -156,8 +161,9 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
   const swing = () => {
     if (!reduce) setSwinging(true);
   };
+  const locked = busy || swinging;
   const act = () => {
-    if (onAct()) swing();
+    if (!locked && onAct()) swing();
   };
   const link = canAct && (swinging || (!asking && !reverted));
   return (
@@ -167,7 +173,7 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
         <Text style={[type.caption, { color: c.muted }]}>{meta.filter(Boolean).join(" · ")}</Text>
         {swinging ? null : confirm(swing)}
       </View>
-      {link ? <Act label={label} name={name} onPress={act} /> : null}
+      {link ? <Act label={label} name={name} locked={locked} onPress={act} /> : null}
       {reverted && !swinging ? <Reverted fresh={settled} /> : null}
     </View>
   );
@@ -177,10 +183,10 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
 const underline = { textDecorationLine: "underline", textDecorationThickness: "1px", textUnderlineOffset: "3px" } as TextStyle;
 
 /** An underlined link with the undo arrow before it. The arrow swings on a press, or on a hover with a mouse. */
-function Act({ label, name, onPress }: { label: string; name: string; onPress: () => void }) {
+function Act({ label, name, locked, onPress }: { label: string; name: string; locked: boolean; onPress: () => void }) {
   const c = useColors();
   return (
-    <PressTarget name={name} outsideScroll onPress={onPress} style={() => styles.act}>
+    <PressTarget name={name} outsideScroll disabled={locked} onPress={onPress} style={() => styles.act}>
       {(pressed) => {
         const ink = pressed ? c.ink : c.muted;
         return (

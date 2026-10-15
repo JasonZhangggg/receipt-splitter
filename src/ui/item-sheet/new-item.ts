@@ -11,7 +11,7 @@ export type NewItem = {
   readonly quantity: string;
 };
 
-export type NewItemProblem = "name" | "price" | "quantity" | "overLimit" | "tooManyItems" | "tooLarge" | "failed";
+export type NewItemProblem = "name" | "price" | "quantity" | "overLimit" | "tooManyItems" | "tooLarge" | "failed" | "offline";
 
 export type NewItemAnswer = { readonly ok: true; readonly op: Operation } | { readonly ok: false; readonly problem: NewItemProblem };
 
@@ -48,6 +48,7 @@ function readQuantity(typed: string): number | null {
 }
 
 export function problemFor(reason: WireRejection["reason"] | "disconnected"): NewItemProblem {
+  if (reason === "disconnected") return "offline";
   return reason === "tooManyItems" || reason === "tooLarge" ? reason : reason === "amountOutOfRange" ? "overLimit" : "failed";
 }
 

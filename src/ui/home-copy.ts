@@ -29,6 +29,7 @@ export const copy = {
     slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
+  scanOffline: "No connection, so the receipt couldn't be read. Try again once you're back online.",
   paymentApp: "Payment app",
   addApp: "Another way to get paid",
   addAppName: "Add another way to get paid",
@@ -51,6 +52,7 @@ export const createCopy = {
   busy: "Too many links from here. Try again in a minute.",
   daily: (opensAt: string, tomorrow: boolean) => `Too many new splits today. Try again ${tomorrow ? "tomorrow " : ""}after ${opensAt}.`,
   network: "Couldn't reach the server. Try again.",
+  offline: "Check your connection and try again.",
   handle: "Check how to pay you.",
   other: "Couldn't create the link. Try again.",
 };
@@ -107,7 +109,9 @@ export const joinCopy = {
   newSplit: "Split a receipt",
   /** The Split page's wordmark opens a fresh home; its name starts with the visible wordmark (WCAG 2.5.3). */
   wordmarkHome: "SplitWith, split a receipt",
-  expired: { title: "This split has expired", hint: "A split lasts 60 days after its last change." },
+  /** The server ends a Split that never existed and one that aged out the same way, so one wording covers both. */
+  missing: { title: "We can't find this split", hint: "It may have expired, or the link may be incomplete." },
+  noPage: "This page doesn't exist",
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
 
