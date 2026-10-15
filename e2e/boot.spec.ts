@@ -19,7 +19,11 @@ type Probe = {
 function watchBoot() {
   const probe: Probe = { loaderPeak: 0, shownAt: null, leaveAt: null, goneAt: null, mountedAt: null, geistAt: null, geistAtReveal: null };
   Object.assign(window, { probe });
-  const geist = () => document.fonts.check('400 16px "Geist"') && document.fonts.check('500 16px "Geist"');
+  // In CI, WebKit's fonts.check() said Geist was in before it had loaded, so this reads the faces themselves.
+  const geist = () => {
+    const faces = [...document.fonts].filter((face) => face.family.replace(/"/g, "") === "Geist");
+    return faces.length === 2 && faces.every((face) => face.status === "loaded");
+  };
   document.addEventListener("splitwith:mounted", () => (probe.mountedAt ??= performance.now()));
   document.fonts.addEventListener("loadingdone", () => {
     if (probe.geistAt === null && geist()) probe.geistAt = performance.now();
@@ -64,8 +68,8 @@ test("while Geist is slow the receipt loader shows, then lifts once the font is 
   await expect(loader(page)).toHaveCSS("opacity", "1");
   await expect(page.locator("#root")).toHaveAttribute("aria-busy", "true");
   await expect(page.locator("#root")).toHaveAttribute("inert", "");
-  expect(await rootOpacity(page)).toBe("0");
-  expect(await page.evaluate(() => document.fonts.check('400 16px "Geist"'))).toBe(false);
+  expect(await rootOpacity(page)).toBe("0.001");
+  expect(await page.evaluate(() => [...document.fonts].some((face) => face.family.replace(/"/g, "") === "Geist" && face.status === "loaded"))).toBe(false);
   await expect(loader(page)).toHaveCount(0, { timeout: 5_000 });
   await expect(page.getByRole("button", { name: "Create link" })).toBeVisible();
   await expect.poll(() => rootOpacity(page)).toBe("1");
@@ -151,7 +155,7 @@ test("when the app never starts the page shows and takes input at 8 s, and a mou
   await page.route("**/_expo/static/js/**", (route) => route.abort());
   await page.goto("/");
   await expect(loader(page)).toHaveCSS("opacity", "1");
-  expect(await rootOpacity(page)).toBe("0");
+  expect(await rootOpacity(page)).toBe("0.001");
   await expect.poll(() => rootOpacity(page), { timeout: 12_000 }).toBe("1");
   await expect(loader(page)).toHaveCSS("opacity", "0");
   await expect(page.locator("#root")).not.toHaveAttribute("inert", { timeout: 1_000 });

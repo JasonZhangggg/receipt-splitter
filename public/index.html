@@ -90,7 +90,8 @@
       :root[data-theme="dark"] #rs-boot { color: #EDEDED; }
       [data-boot="leave"] #rs-boot { animation: rs-boot-out 200ms cubic-bezier(.23,1,.32,1) forwards; }
       #root { transition: opacity 260ms cubic-bezier(.23,1,.32,1); }
-      [data-boot="wait"] #root { opacity: 0; animation: rs-boot-in 260ms cubic-bezier(.23,1,.32,1) 8s forwards; }
+      /* 0.001 rather than 0, which looks the same: Chrome reports no first contentful paint for a page that fades up from 0, and the OCR prefetch waits for that paint. */
+      [data-boot="wait"] #root { opacity: 0.001; animation: rs-boot-in 260ms cubic-bezier(.23,1,.32,1) 8s forwards; }
       /* Each line is its own copy of the receipt's SVG, clipped to the line's length and slid through it, since a transform keeps animating while the bundle holds the main thread and a stroke-dashoffset does not. --x and --w are in viewBox units. */
       #rs-boot .paper { --u: calc(72px / 61); position: relative; width: 52px; height: 72px; animation: rs-boot-feed 2.4s cubic-bezier(.65,0,.35,1) 300ms infinite; }
       #rs-boot svg { display: block; }
