@@ -65,7 +65,7 @@ async function samAndPriya(browser: Browser, link: string, inBundle = false): Pr
   if (inBundle) for (const page of [sam, priya]) await page.getByRole("button", { name: /^Beer Bucket, / }).click();
   await sam.getByRole("button", { name: "Rice, check for Sam" }).click();
   await priya.getByRole("button", { name: "Pitcher, check for Priya" }).click();
-  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, had by Priya$/ })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, Priya$/ })).toBeVisible(live);
   return [sam, priya];
 }
 
@@ -287,7 +287,7 @@ test("a Bundle discount takes a new amount off and keeps its Items", async ({ br
 
   for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$15.00", live);
   await expect(sam.getByRole("button", { name: "Open Bucket deal, -$5.00" })).toBeVisible(live);
-  await expect(sam.getByRole("button", { name: /^Open Rice, \$8\.00, had by Sam$/ })).toBeVisible();
+  await expect(sam.getByRole("button", { name: /^Open Rice, \$8\.00, You, \$8\.00 yours$/ })).toBeVisible();
   await expect(sam.getByTestId("owe")).toHaveText("$6.00", live);
 });
 

@@ -49,7 +49,6 @@ export const splitCopy = {
   confirmForAction: (name: string, had: boolean) => `${had ? "Uncheck" : "Check"} for ${name}`,
   open: (item: string) => `Open ${item}`,
   hadBy: (names: string) => `had by ${names}`,
-  unclaimedLine: "nobody had it",
   subtotal: "Subtotal",
   total: "Total",
   unclaimedTotal: (lines: number) => (lines === 0 ? "Unclaimed" : `Unclaimed · ${lines} ${lines === 1 ? "item" : "items"}`),

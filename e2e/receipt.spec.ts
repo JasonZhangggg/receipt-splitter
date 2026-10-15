@@ -129,7 +129,7 @@ test("the Guinness line is one 3x row at 21.87, and its circle claims the whole 
   await guinnessCircle(page, "Sam").click();
 
   await expect(guinnessCircle(page, "Sam")).toHaveAttribute("aria-pressed", "true", live);
-  await expect(page.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, had by Sam" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, You, $21.87 yours" })).toHaveCount(1);
   await firstBucket(page).click();
   await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 1 claimed, collapsed");
   await expect(firstBucket(page).getByText("1 claimed", { exact: true })).toBeVisible();
@@ -205,9 +205,9 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
 
   await expect(sheet).toHaveCount(0, live);
   await expect(cans(sam)).toHaveCount(3);
-  await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Sam" })).toHaveCount(3);
+  await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, You, $7.29 yours" })).toHaveCount(3);
   await expect(guinness(sam)).toHaveCount(0);
-  await expect(priya.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Sam" })).toHaveCount(3, live);
+  await expect(priya.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, Sam" })).toHaveCount(3, live);
   await expect(priya.locator(`[id="${await firstBucket(priya).getAttribute("aria-controls")}"]`).getByText("3x", { exact: true })).toHaveCount(0);
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 6 items, 10% off, had by Sam, 3 claimed, expanded");
 
@@ -215,7 +215,7 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
   await priya.getByRole("button", { name: "Revert Split Guinness Draught 14.9oz Can into 3" }).click();
   await priya.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
   await expect(priya.getByText("Reverted")).toBeVisible(live);
-  await expect(sam.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, had by Sam" })).toHaveCount(1, live);
+  await expect(sam.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, You, $21.87 yours" })).toHaveCount(1, live);
   await expect(cans(sam)).toHaveCount(0);
 });
 
@@ -373,11 +373,11 @@ for (const rafDelay of [0, 200]) {
 
     await sheet.getByRole("button", { name: "Split into 3" }).click();
     await guinnessCircle(priya, "Priya").click();
-    await expect(sam.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, had by Priya" })).toHaveCount(1, live);
+    await expect(sam.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, Priya" })).toHaveCount(1, live);
     release();
 
     await expect(sheet).toHaveCount(0, live);
-    await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, had by Priya" })).toHaveCount(3, live);
+    await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, Priya" })).toHaveCount(3, live);
     expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
   });
 

@@ -70,7 +70,7 @@ test("two browsers pick, check lines, and see each other's claims and Shares, an
 
   await circle(sam, "Rice", "Sam").click();
   await expect(circle(sam, "Rice", "Sam")).toHaveAttribute("aria-pressed", "true", live);
-  await expect(priya.getByRole("button", { name: /^Open Rice, \$8\.00, had by Sam$/ })).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: /^Open Rice, \$8\.00, Sam$/ })).toBeVisible(live);
   await circle(priya, "Tostones", "Priya").click();
   await circle(sam, "Tostones", "Sam").click();
 
@@ -134,7 +134,7 @@ test("Tostones split 2:1 by shares and the 2x Pitchers line claimed whole reach 
   await expect(jason.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" })).toHaveAttribute("aria-pressed", "true", live);
   await jason.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
   await expect(owe(sam)).toHaveText("$24.33", live);
-  await expect(sam.getByRole("button", { name: "Open 2x Pitchers, $24.00, had by Sam" })).toHaveCount(1, live);
+  await expect(sam.getByRole("button", { name: "Open 2x Pitchers, $24.00, You, $24.00 yours" })).toHaveCount(1, live);
 });
 
 test("a price change shows the mismatch everywhere, and a revert from another browser asks first and puts the price back", async ({ browser, request }, { workerIndex }) => {

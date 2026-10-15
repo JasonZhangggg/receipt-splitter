@@ -409,7 +409,6 @@ function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle,
   const [title, detail] = nameParts(item);
   const count = quantityText(item);
   const label = count ? `${count} ${item.name}` : item.name;
-  const had = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
   const { who, split } = lineView(item, viewing, portions);
   return (
     <View role="listitem" testID={`line-${item.id}`} style={[styles.line, { borderTopColor: c.hairline }, inBundle && { marginLeft: nameStart }]}>
@@ -421,7 +420,7 @@ function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle,
       >
         {(pressed) => <ClaimDot on={mine} pressed={pressed} />}
       </PressTarget>
-      <PressTarget name={`${say.open(label)}, $${price}, ${had}`} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
+      <PressTarget name={[say.open(label), `$${price}`, who, split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
         {() => (
           <>
             <View style={styles.name}>
