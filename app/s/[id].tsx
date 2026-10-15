@@ -72,7 +72,7 @@ export default function SplitScreen() {
 
 function Gone({ reason }: { reason: GoneReason }) {
   const c = useColors();
-  const words = reason === "notFound" ? joinCopy.expired : joinCopy.unreadable;
+  const words = reason === "notFound" ? joinCopy.missing : joinCopy.unreadable;
   return (
     <View style={styles.gone}>
       <Text role="heading" aria-level={1} style={[type.hero, { color: c.ink }]}>
@@ -80,7 +80,7 @@ function Gone({ reason }: { reason: GoneReason }) {
       </Text>
       <Text style={[type.body, { color: c.muted }]}>{words.hint}</Text>
       <View style={styles.goneAction}>
-        <Button kind="soft" label={joinCopy.newSplit} onPress={() => router.replace("/")} />
+        <Button label={joinCopy.newSplit} onPress={() => router.replace("/")} />
       </View>
     </View>
   );
