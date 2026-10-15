@@ -86,7 +86,7 @@ test("on the home page the toast sits above the footer", async ({ page }) => {
   await dropFile(page, { name: "menu.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") });
   const toast = page.getByText("That file is not a photo.");
   await expect(toast).toBeVisible();
-  const pillTop = (await page.getByRole("button", { name: "Create split link" }).boundingBox())!.y;
+  const pillTop = (await page.getByRole("button", { name: "Create link" }).boundingBox())!.y;
   await expect.poll(async () => {
     const box = (await toast.boundingBox())!;
     return box.y + box.height <= pillTop;

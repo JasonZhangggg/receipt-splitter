@@ -2,42 +2,49 @@ import type { HandleProblem } from "../core/operations";
 import type { PaymentService } from "../core/split";
 import type { Blocker, Ready } from "../draft";
 import type { Scheme } from "./appearance";
-import type { ReadingStage } from "./receipt-input/reading";
+import type { ReadingStage } from "./home-sentence/receipt-words";
 
 export const copy = {
   wordmark: "SplitWith",
-  intro: "Snap the receipt. Friends tap what they had and pay you back.",
-  hero: { title: "Add the receipt", file: "or choose a file", drop: "Drop or paste a photo here" },
-  reading: "Reading the receipt",
+  sentence: {
+    paidTheBill: "I paid the bill.",
+    iPaid: "I paid",
+    friendsPay: "Friends tap what they had and pay me back on",
+    at: "at",
+    or: "or",
+    iAm: "I\u2019m",
+    hereWith: "here with",
+    and: "and",
+    addFriends: "add friends",
+    addMore: "add more",
+    yourName: "your name",
+    name: "name",
+  },
+  addReceipt: "Add the receipt",
+  tryAnotherPhoto: "Try another photo",
   readingStage: {
+    start: "Reading the receipt",
     text: "Finding the text",
     server: "Matching prices",
     slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
-  pastedPhoto: "Pasted photo",
-  receipt: "Receipt",
-  payHeading: "How friends pay you",
   paymentApp: "Payment app",
-  addApp: "Add another way to get paid",
-  peopleHeading: "Who\u2019s at the table",
+  addApp: "Another way to get paid",
+  addAppName: "Add another way to get paid",
   you: "you",
-  addYourName: "Add your name",
-  addName: "Add name",
+  addFriendsName: "Add friends",
   yourName: "Your name",
   newName: "Name",
-  action: "Create split link",
+  action: "Create link",
   creating: "Creating link",
-  replace: "Replace",
-  replaceReceipt: "Replace receipt",
-  viewPhoto: "View receipt photo",
+  change: "Change",
+  changeReceipt: "Change receipt",
   closePhoto: "Close photo",
   removeName: (name: string) => `Remove ${name}`,
   removeApp: (app: string) => `Remove ${app}`,
-  recentSplits: "Recent splits",
   mode: { light: "Light mode", dark: "Dark mode" } satisfies Record<Scheme, string>,
   themeToggle: { light: "Switch to light mode", dark: "Switch to dark mode" } satisfies Record<Scheme, string>,
-
 };
 
 export const createCopy = {
@@ -123,7 +130,9 @@ export const historyCopy = {
     const day = `${months[date.getMonth()]} ${date.getDate()}`;
     return date.getFullYear() === new Date(now).getFullYear() ? day : `${day}, ${date.getFullYear()}`;
   },
-  row: (names: string, when: string, total: string) => `${names}, ${when}, ${total}`,
+  people: (count: number) => `${count} ${count === 1 ? "person" : "people"}`,
+  meta: (when: string, people: string) => `${when} \u00b7 ${people}`,
+  row: (names: string, when: string, people: string, total: string) => `${names}, ${when}, ${people}, ${total}`,
 };
 
 export const paymentApps: Record<PaymentService, { name: string; glyph: string; hint: string }> = {
@@ -134,6 +143,17 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
 };
 
 export const fallbackSamples = {
-  400: [copy.intro, copy.hero.file, copy.hero.drop, copy.addApp, copy.addYourName, "Add a receipt first."],
-  500: [copy.wordmark, copy.hero.title, copy.payHeading, copy.peopleHeading, copy.action],
+  400: [
+    copy.sentence.paidTheBill,
+    copy.addReceipt,
+    copy.sentence.friendsPay,
+    paymentApps.venmo.name,
+    copy.sentence.at,
+    copy.sentence.iAm,
+    copy.sentence.hereWith,
+    copy.sentence.addFriends,
+    copy.addApp,
+    "Add a receipt first.",
+  ],
+  500: [copy.wordmark, copy.action],
 };

@@ -160,3 +160,7 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From the B2 merges (2026-10-15)
 
 - Two reviewers' local e2e runners were killed from outside partway through on 2026-10-15. Agents kill only processes they started, by PID (rule 51), and run e2e on their own `PORT` because playwright.config.ts defaults to 8787. Fixer: every owner brief.
+
+## From the home sentence review (2026-10-15)
+
+- The motion scenarios in `e2e/motion.ts` (run by `.claude/skills/verify-receipt-splitter/motion.mjs`) include ones the home rewrite left stale. `chip-entrance` probes the Split page's "Jason, you" chip, and rule 85 removed chips. `keyboard-name-up`, `keyboard-name-down` and `reduced-item-open` (the generated reduced twin of `item-open`) were named by the reviewer as targeting UI that is gone or moved, and were not rerun in this round. Only `name-add` was rewritten for the sentence. Run `motion.mjs --only <id>` for each, repoint or delete every scenario that cannot find its target, and grep `e2e/motion.ts` for removed test ids and labels. Fixer: the next UI owner who touches `e2e/motion.ts`.

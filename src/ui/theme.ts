@@ -52,12 +52,15 @@ const sans = "'Geist', 'Geist Fallback', system-ui, -apple-system, sans-serif";
 installDocument();
 paintAppearance(picked);
 
-// Four sizes, two weights (400 and 500). Hero is the share amount; title heads a sheet or the Total; body is every row, chip and button; caption is every line of supporting text.
+// Five sizes, two weights (400 and 500). Say is home's sentence; hero is the share amount; title heads a sheet or the Total; body is every row, chip and button; caption is every line of supporting text.
 export const type = StyleSheet.create({
   hero: { fontFamily: sans, fontWeight: "500", fontSize: 24, lineHeight: 30, letterSpacing: -0.48 },
   title: { fontFamily: sans, fontWeight: "500", fontSize: 16, lineHeight: 24, letterSpacing: -0.1 },
   body: { fontFamily: sans, fontWeight: "400", fontSize: 16, lineHeight: 24, letterSpacing: -0.1 },
   caption: { fontFamily: sans, fontWeight: "400", fontSize: 14, lineHeight: 20, letterSpacing: -0.08 },
+  // Home's one sentence, and a blank typed into it at the same size.
+  say: { fontFamily: sans, fontWeight: "400", fontSize: 20, lineHeight: 35, letterSpacing: -0.3 },
+  sayInput: { fontFamily: sans, fontWeight: "400", fontSize: 20, lineHeight: 25, letterSpacing: -0.3 },
   // A text field stays at 16 px so iOS Safari does not zoom the page on focus.
   input: { fontFamily: sans, fontWeight: "400", fontSize: 16, lineHeight: 23, letterSpacing: -0.1 },
   // A person's initial inside a dot; the dot sets its own size.
@@ -85,8 +88,6 @@ export const motion = {
   reducedFade: 160,
   rowsIn: 200,
   rowsOut: 150,
-  readingBar: 240,
-  stageIn: 200,
   photoIn: 240,
   photoOut: 180,
   controlIn: 200,

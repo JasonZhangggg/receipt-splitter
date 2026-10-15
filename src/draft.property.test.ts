@@ -49,7 +49,7 @@ test("every read either reader makes that Create split link would send, the core
     while (ready[reader] < 3000) {
       const receipt = read();
       if (!receipt) continue;
-      const draft = reduceDraft({ ...emptyDraft, handles: [{ service: "venmo", handle: "test-debug" }], names: ["Me"] }, { type: "read", file: { name: "r", thumbnail: null }, receipt });
+      const draft = reduceDraft({ ...emptyDraft, handles: [{ service: "venmo", handle: "test-debug" }], names: ["Me"] }, { type: "read", file: {}, receipt });
       const found = readiness(draft);
       if (found.kind !== "ready") continue;
       ready[reader] += 1;

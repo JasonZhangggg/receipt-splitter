@@ -13,6 +13,8 @@ const fade = webStyle({ transitionProperty: "opacity", transitionDuration: `${mo
 type Props = {
   /** What stops Create, or a note about the receipt, or null. */
   reason: string | null;
+  /** The reason is announced when it changes. Off while a read runs, because the sentence's step words are the live region then. */
+  live: boolean;
   /** The reason is a problem (red) and not just what is still to do. */
   problem: boolean;
   /** Create is gray. A tap on it still acts, by taking the person to what is missing. */
@@ -23,8 +25,8 @@ type Props = {
   width: number;
 };
 
-/** The reason line and the Create pill, fixed below the scrolling page. */
-export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, width }: Props) {
+/** The reason line at the left and the Create link pill at the right, fixed below the scrolling page, as on the Split page. */
+export function HomeFooter({ reason, live, problem, blocked, busy, onPress, onHeight, width }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -32,10 +34,10 @@ export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, 
   return (
     <View
       onLayout={({ nativeEvent }: LayoutChangeEvent) => onHeight(nativeEvent.layout.height)}
-      style={[styles.footer, { paddingBottom: Math.max(24, insets.bottom + 8), paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}
+      style={[styles.footer, { borderTopColor: c.hairline, paddingBottom: Math.max(24, insets.bottom + 8), paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}
     >
-      <View style={[styles.column, { maxWidth: width, borderTopColor: c.hairline }]}>
-        <Text id={reasonId} role="status" {...{ dataSet: { problem: String(problem) } }} style={[type.caption, { color: problem ? c.warn : c.muted }, reason ? styles.reason : null]}>
+      <View style={[styles.column, { maxWidth: width }]}>
+        <Text id={reasonId} role="status" aria-live={live ? "polite" : "off"} {...{ dataSet: { problem: String(problem) } }} style={[type.caption, styles.reason, { color: problem ? c.warn : c.muted }]}>
           {reason}
         </Text>
         <PressTarget
@@ -48,9 +50,9 @@ export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, 
           style={(pressed) => pressStyle(pressed, reduce, pressFeel.pill)}
         >
           {() => (
-            <View style={[styles.pill, fade, { backgroundColor: c.action, opacity: blocked ? 0.35 : busy ? 0.6 : 1 }]}>
+            <View style={[styles.pill, fade, { backgroundColor: c.action, opacity: blocked ? 0.28 : busy ? 0.6 : 1 }]}>
               <Text style={[type.title, { color: c.onAction }]}>{busy ? copy.creating : copy.action}</Text>
-              {busy ? null : <Icon name="arrow" size={14} color={c.onAction} />}
+              {busy ? null : <Icon name="arrow" size={16} color={c.onAction} />}
             </View>
           )}
         </PressTarget>
@@ -60,8 +62,8 @@ export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, 
 }
 
 const styles = StyleSheet.create({
-  footer: { alignItems: "center" },
-  column: { width: "100%", borderTopWidth: 1, paddingTop: 14 },
-  reason: { marginBottom: 12 },
-  pill: { height: 44, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  footer: { alignItems: "center", borderTopWidth: 1, paddingTop: 14 },
+  column: { width: "100%", flexDirection: "row", alignItems: "center", gap: 16 },
+  reason: { flex: 1, minWidth: 0 },
+  pill: { height: 48, paddingHorizontal: 22, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });

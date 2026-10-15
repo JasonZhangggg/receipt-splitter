@@ -21,8 +21,6 @@ export const iconCss = `
   .ai-pie[data-play] .slice { animation: ai-pop 640ms cubic-bezier(.4, 0, .2, 1); }
   .ai-arrow[data-play] .head { animation: ai-nudge 400ms ${inOut}; }
   .ai-arrow[data-play] .line { transform-origin: right; animation: ai-shrink 400ms ${inOut}; }
-  .ai-cam[data-play] { animation: ai-press 300ms ${inOut}; }
-  .ai-cam[data-play] .lens { animation: ai-lens 300ms ${inOut}; }
   .ai-sun[data-play] .ray { animation: ai-ray 300ms ${out} var(--d) both; }
   .ai-moon[data-play] path { animation: ai-wiggle 640ms ${inOut} 120ms; }
   .ai-check[data-appear] path { animation: ai-tick 400ms ${out} both; }
@@ -40,8 +38,6 @@ export const iconCss = `
 @keyframes ai-pop { 35% { transform: translate(1.6px, -1.6px); } 60% { transform: translate(1.1px, -1.1px); } }
 @keyframes ai-nudge { 50% { transform: translateX(-3px); } }
 @keyframes ai-shrink { 50% { transform: scaleX(.8); } }
-@keyframes ai-press { 50% { transform: scale(.95); } }
-@keyframes ai-lens { 50% { transform: scale(1.1); opacity: .6; } }
 @keyframes ai-pulse { 50% { transform: scale(1.1); opacity: .4; } }
 @keyframes ai-ray { from { opacity: 0; } }
 @keyframes ai-wiggle { 20% { transform: rotate(-10deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-5deg); } 80% { transform: rotate(5deg); } }

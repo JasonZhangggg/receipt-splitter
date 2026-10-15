@@ -23,7 +23,7 @@ async function readyHome(page: Page, names: string[] = []) {
 }
 
 async function createLink(page: Page): Promise<string> {
-  await page.getByRole("button", { name: "Create split link" }).click();
+  await page.getByRole("button", { name: "Create link" }).click();
   await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
   return page.url();
 }
@@ -39,7 +39,7 @@ const rows = (page: Page) => page.getByRole("dialog", { name: "Which one are you
 
 test("a name already in the draft is refused with a note, and editing it clears the note", async ({ page }) => {
   await readyHome(page, ["Sam"]);
-  const people = page.getByRole("region", { name: "Who’s at the table" });
+  const people = page.getByTestId("sentence");
 
   await addNames(page, "sam ");
   await expect(page.getByRole("alert")).toHaveText("That name is already here.");
@@ -51,9 +51,9 @@ test("a name already in the draft is refused with a note, and editing it clears 
   await expect(people.getByText("Sami", { exact: true })).toHaveCount(1);
 });
 
-test("a name that draws nothing adds no chip and no note, and removing the chip a note is about clears the note", async ({ page }) => {
+test("a name that draws nothing adds no name and no note, and removing the name a note is about clears the note", async ({ page }) => {
   await readyHome(page, ["Sam"]);
-  const people = page.getByRole("region", { name: "Who’s at the table" });
+  const people = page.getByTestId("sentence");
   const add = (name: string) => addNames(page, name);
 
   await add("\u200B");
@@ -67,7 +67,7 @@ test("a name that draws nothing adds no chip and no note, and removing the chip 
   await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(1);
 });
 
-test("Create split link takes the Host to the tall pick sheet, and a second browser sees the Host's name as picked", async ({ page, browser }) => {
+test("Create link takes the Host to the tall pick sheet, and a second browser sees the Host's name as picked", async ({ page, browser }) => {
   await readyHome(page, ["Sam", "Priya"]);
   const link = await createLink(page);
 
@@ -116,7 +116,7 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   await page.goBack();
   await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
-  const people = page.getByRole("region", { name: "Who’s at the table" });
+  const people = page.getByTestId("sentence");
   await expect(people.getByText("Jason", { exact: true })).toHaveCount(0);
   await expect(people.getByText("Lee", { exact: true })).toHaveCount(0);
   await page.goto("/");
@@ -140,7 +140,7 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
-  await expect(page.getByRole("region", { name: "Who’s at the table" }).getByText("Jason", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("sentence").getByText("Jason", { exact: true })).toHaveCount(0);
 
   await page.goto(link);
   await expect(page.getByTestId("owe")).toBeVisible(linkTimeout);
@@ -149,7 +149,7 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
 
 test("a reload of home clears the receipt and the names, and the kept Venmo handle creates the next link", async ({ page }) => {
   await readyHome(page, ["Sam"]);
-  const people = page.getByRole("region", { name: "Who’s at the table" });
+  const people = page.getByTestId("sentence");
   await expect(page.getByTestId("receipt")).toBeVisible();
   await expect(people.getByText("Sam", { exact: true })).toBeVisible();
 
@@ -210,20 +210,20 @@ test("a receipt replaced while the link is being created stays on home and finis
     await held;
     await route.fallback();
   });
-  await page.getByRole("button", { name: "Create split link" }).click();
+  await page.getByRole("button", { name: "Create link" }).click();
   await expect(page.getByRole("button", { name: "Creating link" })).toBeVisible();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: "Replace receipt" }).click();
+  await page.getByRole("button", { name: "Change receipt" }).click();
   await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
   release();
 
   await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
   await page.goBack();
-  await expect(page.getByText("5 items")).toBeVisible(linkTimeout);
+  await expect(page.getByTestId("receipt")).toContainText("$28.04", linkTimeout);
   await expect(page.getByText("Reading the receipt")).toHaveCount(0);
 });
 
-test("a refused create shows one reason and enables Create split link again", async ({ page }) => {
+test("a refused create shows one reason and enables Create link again", async ({ page }) => {
   await readyHome(page);
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
@@ -231,7 +231,7 @@ test("a refused create shows one reason and enables Create split link again", as
     await held;
     await route.fallback({ postData: JSON.stringify({ ...route.request().postDataJSON(), note: "" }) });
   });
-  const action = page.getByRole("button", { name: /Create split link|Creating link/ });
+  const action = page.getByRole("button", { name: /^(Create link|Creating link)$/ });
 
   await action.click();
   await expect(action).toHaveText("Creating link");
@@ -239,7 +239,7 @@ test("a refused create shows one reason and enables Create split link again", as
   release();
 
   await expect(page.getByText("Couldn't create the link. Try again.")).toBeVisible(linkTimeout);
-  await expect(action).toHaveText("Create split link");
+  await expect(action).toHaveText("Create link");
   await expect(action).not.toHaveAttribute("aria-disabled", "true");
   await page.unroute("**/api/splits");
   await action.click();
