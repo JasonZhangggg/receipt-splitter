@@ -58,7 +58,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(watchBoot);
 });
 
-test("while Geist is slow the receipt loader shows, then lifts once the font is in and the page fades up", async ({ page }) => {
+test("while Geist is slow the receipt loader shows, then lifts once the font is in and the page fades up", async ({ page, browserName }) => {
   await delayFonts(page, 1500);
   await open(page, "/");
   await expect(loader(page)).toHaveCSS("opacity", "1");
@@ -80,7 +80,8 @@ test("while Geist is slow the receipt loader shows, then lifts once the font is 
   // The fonts' loadingdone event can land a moment after the promise the loader waits on.
   const ready = Math.max(seen.mountedAt!, seen.geistAt!);
   expect(seen.leaveAt! - ready).toBeGreaterThan(-20);
-  expect(seen.leaveAt! - ready).toBeLessThan(80);
+  // Linux WebKit in CI drops frames for 150 to 330 ms (rule 45), so only Chromium holds the tight bound that caught the stalled hold clock.
+  expect(seen.leaveAt! - ready).toBeLessThan(browserName === "webkit" ? 400 : 80);
 });
 
 test("the Split page gets the same loader while Geist is slow", async ({ page }) => {
