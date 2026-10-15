@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
-import type { PaymentService } from "../core/split";
+import { cents, price } from "../core/money";
+import { itemId, type PaymentService, type Receipt } from "../core/split";
 import { emptyDraft, readiness, reduceDraft, type Draft, type DraftAction } from "../draft";
 import { blockerText, historyCopy } from "./home-copy";
 
@@ -21,9 +22,13 @@ describe("a recent split's row", () => {
   });
 });
 
+const file = { name: "receipt.jpg", thumbnail: null };
+const lunch: Receipt = { items: [{ id: itemId("i1"), name: "Lunch", price: price(1000) }], adjustments: [], subtotal: cents(1000), total: cents(1000) };
+const readLunch: DraftAction = { type: "read", file, receipt: lunch };
+
 describe("why Create split link is off", () => {
   const why = (service: PaymentService, handle: string) => {
-    const actions: DraftAction[] = [{ type: "example" }, { type: "addName", name: "Jason" }, { type: "setService", index: 0, service }, { type: "setHandle", index: 0, handle }];
+    const actions: DraftAction[] = [readLunch, { type: "addName", name: "Jason" }, { type: "setService", index: 0, service }, { type: "setHandle", index: 0, handle }];
     return blockerText(readiness(actions.reduce<Draft>(reduceDraft, emptyDraft)));
   };
 
@@ -59,6 +64,6 @@ describe("why Create split link is off", () => {
   });
 
   test("asks for the Host's name once the handles are right, with no handle at all", () => {
-    expect(blockerText(readiness(reduceDraft(emptyDraft, { type: "example" })))).toBe("Add your name.");
+    expect(blockerText(readiness(reduceDraft(emptyDraft, readLunch)))).toBe("Add your name first.");
   });
 });

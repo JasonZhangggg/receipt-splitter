@@ -5,34 +5,29 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents } from "../src/core/money";
 import { recentSplits, rememberSplit } from "../src/device";
-import { mismatchNote, loadDraft, newName, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
+import { loadDraft, mismatchNote, newName, readiness, reduceDraft, saveDraft, splitRequest, type Blocker, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
-import { Button, PressTarget, type Press } from "../src/ui/components/button";
-import { MenuRows, menuWidth } from "../src/ui/components/menu";
-import { Popover } from "../src/ui/components/popover";
-import { focusInPlace } from "../src/ui/components/keyboard-lift";
-import { NameChips, type NameField } from "../src/ui/components/name-chips";
+import { type Press } from "../src/ui/components/button";
+import { NameList, type NameField } from "../src/ui/components/name-list";
 import { PaymentRows } from "../src/ui/components/payment-row";
-import { Sheet } from "../src/ui/components/sheet";
-import { useLayoutHeight } from "../src/ui/components/viewport";
-import { Slip } from "../src/ui/components/slip";
+import { TextLink } from "../src/ui/components/text-link";
+import { ThemeToggle } from "../src/ui/components/theme-toggle";
 import { Toast } from "../src/ui/components/toast";
 import { blockerText, copy, joinCopy } from "../src/ui/home-copy";
-import { useAppearanceFlip } from "../src/ui/use-appearance-flip";
 import { webStyle } from "../src/ui/motion";
 import { PhotoViewer, type Photo } from "../src/ui/photo-viewer";
 import { RecentSplits } from "../src/ui/recent-splits";
+import { HomeFooter } from "../src/ui/receipt-input/home-footer";
 import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
+import { focusInPlace, useKeyboardRoom } from "../src/ui/receipt-input/keyboard-room";
 import { isPhoto, photoUri, pickPhoto, receiptCopyOf, releasePhotoUri, thumbnailOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
-import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
 import { Reading, type ReadingStage } from "../src/ui/receipt-input/reading";
-import { breakpoints, layout, motion, type, useColors } from "../src/ui/theme";
-
-
-const ringChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
+import { ReceiptSummary } from "../src/ui/receipt-input/receipt-summary";
+import { TakePhoto } from "../src/ui/receipt-input/take-photo";
+import { breakpoints, layout, type, useColors } from "../src/ui/theme";
 
 // Back remounts home without a reload, so the Draft lives as long as the page; a reload keeps only the handles.
 let pageDraft: Draft | null = null;
@@ -47,21 +42,25 @@ export default function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const height = useLayoutHeight();
   const [draft, apply] = useReducer(reduceDraft, undefined, () => pageDraft ?? loadDraft());
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<ReadingStage>("text");
   const [notice, setNotice] = useState<string | null>(null);
-  const [sheetHeight, setSheetHeight] = useState(0);
+  const [footerHeight, setFooterHeight] = useState(0);
   const [creating, setCreating] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [tried, setTried] = useState<Blocker["kind"] | null>(null);
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [viewing, setViewing] = useState(false);
+  const [recent, setRecent] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
   const scanning = useRef(0);
+  const scroller = useRef<ScrollView>(null);
+  const photoBlock = useRef<View>(null);
   const handleInputs = useRef<(TextInput | null)[]>([]);
   const nameField = useRef<NameField>(null);
+  const room = useKeyboardRoom(scroller);
   useEffect(prefetchModel, []);
   useEffect(() => {
     pageDraft = draft;
@@ -99,49 +98,21 @@ export default function Home() {
   }, [dispatch]);
   const dragging = usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);
-  const shareApp = async () => {
-    const url = window.location.origin;
-    if (typeof navigator.share === "function") await navigator.share({ title: copy.wordmark, url }).catch(() => {});
-    else await navigator.clipboard?.writeText(url).catch(() => {});
-  };
-  const example = () => {
-    scanning.current++;
-    pageCopy = null;
-    setPhoto(null);
-    dispatch({ type: "example" });
-  };
   useEffect(() => (photo ? () => releasePhotoUri(photo.uri) : undefined), [photo]);
 
   const wide = width >= breakpoints.columnFrom;
-  // The header menu and the list it opens. Choosing a row removes the menu at once; the list or the new scheme takes over, and focus goes back to the menu button.
-  const appearance = useAppearanceFlip();
-  const [menu, setMenu] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
-  const [recent, setRecent] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
-  const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
-  const menuGone = () => {
-    if (menu?.from.trigger.isConnected) menu.from.trigger.focus({ preventScroll: true });
-    setMenu(null);
-  };
-  const fromMenu = (then: (from: Press) => void) => (row: Press) => {
-    if (!menu) return;
-    menu.from.trigger.focus({ preventScroll: true });
-    setMenu(null);
-    then({ trigger: menu.from.trigger, keyboard: row.keyboard });
-  };
   const closeRecent = () => setRecent((open) => open && { ...open, closing: true });
   const recentGone = () => {
     if (recent?.from.trigger.isConnected) recent.from.trigger.focus({ preventScroll: true });
     setRecent(null);
   };
-  const roomy = width >= breakpoints.roomyFrom;
-  const hero = wide ? copy.hero.desktop : copy.hero.phone;
-  const gutter = wide ? 40 : layout.gutter;
-  const sides = { paddingLeft: gutter + insets.left, paddingRight: gutter + insets.right };
+  const sides = { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right };
+  const columnWidth = width >= breakpoints.roomyFrom ? 480 : 440;
   const { scan } = draft;
   const ready = readiness(draft);
-  // Before a read the hero is what is missing, so Create is off and says nothing.
-  const blocked = scan.status === "read" && ready.kind !== "ready";
-  const reason = blocked ? blockerText(ready) : null;
+  const blocked = ready.kind !== "ready";
+  const reason = failure ?? (blocked ? blockerText(ready) : mismatchNote(draft));
+  const problem = failure !== null || (blocked && (tried === ready.kind || ready.kind === "badHandle"));
 
   const create = async (split: Ready) => {
     const request = splitRequest(split, newParticipantId);
@@ -162,166 +133,88 @@ export default function Home() {
     router.push(`/s/${created.id}`);
   };
 
+  // A tap on the gray pill takes the person to what stops it: the bad handle, the name field, or the photo block.
   const press = () => {
+    if (ready.kind === "ready") return void create(ready);
+    if (scan.status === "reading") return;
+    setTried(ready.kind);
     switch (ready.kind) {
-      case "ready":
-        return void create(ready);
       case "badHandle":
         return focusInPlace(handleInputs.current[ready.index] ?? null);
       case "noName":
         return nameField.current?.open();
       case "note":
-        return scan.status === "read" ? choose() : undefined;
+        if (scan.status === "read") return choose();
+        return focusInPlace((photoBlock.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>("[data-pressable]") ?? null);
     }
   };
 
-  const people = draft.names;
   const addName = (typed: string): string | null => {
-    const named = newName(typed, people);
+    const named = newName(typed, draft.names);
     if (!named.ok) return named.reason === "nameTaken" ? joinCopy.nameTaken : null;
     dispatch({ type: "addName", name: typed });
     return null;
   };
   const removeName = (name: string) => dispatch({ type: "removeName", name });
-  const compact = !wide && height - insets.top - insets.bottom < shortScreen;
-  const columnWidth = roomy ? 480 : 440;
-  const view = photo ? () => setViewing(true) : undefined;
-  const zoneHeight = roomy ? 380 : 336;
-
-  const action = (
-    <Button
-      label={creating ? copy.creating : copy.action}
-      onPress={press}
-      outsideScroll={!wide}
-      busy={creating}
-      disabled={scan.status !== "read"}
-      blocked={blocked}
-      reason={failure ?? reason ?? undefined}
-      note={mismatchNote(draft) ?? undefined}
-    />
-  );
-  const details = (
-    <>
-      <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} outsideScroll={!wide} />
-      <NameChips ref={nameField} names={people} onAdd={addName} onRemove={removeName} outsideScroll={!wide} />
-    </>
-  );
-
-  const receipt =
-    scan.status === "empty" ? (
-      <PressTarget
-        onPress={choose}
-        style={() => [
-          styles.hero,
-          wide ? [styles.zone, ringChange, { minHeight: zoneHeight, backgroundColor: c.paper, borderColor: dragging ? c.ink : c.dash }] : [sides, styles.fills],
-        ]}
-      >
-        {(pressed) => (
-          <View style={[styles.drop, !wide && [styles.dashed, styles.dropFills, compact && styles.dropCompact, { borderColor: dragging ? c.ink : c.dash }]]}>
-            <Slip icon={wide ? "upload" : "camera"} pressed={pressed} compact={compact || (wide && !roomy)} />
-            <Text style={[type.hero, styles.heroTitle, { color: c.ink }]}>{hero.title}</Text>
-            {hero.hint ? <Text style={[type.body, { color: c.muted }]}>{hero.hint}</Text> : null}
-            <Text style={[type.caption, { color: c.muted }]}>{copy.formats}</Text>
-          </View>
-        )}
-      </PressTarget>
-    ) : scan.status === "reading" ? (
-      <View style={[styles.hero, wide ? [styles.zone, styles.reading, { minHeight: zoneHeight }] : sides]}>
-        <Reading progress={progress} title={copy.reading} stage={stage} line={copy.readingStage[stage]} />
-      </View>
-    ) : (
-      <View style={[!wide && [styles.hero, sides], styles.stack]}>
-        <View style={[styles.cardColumn, !wide && styles.ticketColumn]}>
-          <ReceiptSummary
-            items={scan.receipt?.items.length ?? 0}
-            total={scan.receipt?.total ?? cents(0)}
-            thumbnail={scan.file.thumbnail}
-            onView={view}
-            onReplace={choose}
-            stacked={!wide}
-          />
-        </View>
-      </View>
-    );
 
   return (
     <View style={[styles.screen, still, { backgroundColor: c.field }]}>
-      <ScrollView style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: wide ? 0 : sheetHeight }]}>
-        <View style={[styles.header, sides, { paddingTop: (wide ? 20 : 4) + insets.top, minHeight: (wide ? wideHeader : layout.header) + insets.top }]}>
-          <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
-            {copy.wordmark}
-          </Text>
-          <View style={styles.headerButtons}>
-            {scan.status === "empty" && width >= breakpoints.exampleFrom ? <Button kind="link" icon="receipt" label={copy.example} onPress={example} /> : null}
-            <View style={[styles.edge, styles.headerEnd]}>
-              <Button kind="icon" icon="share" name={copy.shareApp} onPress={() => void shareApp()} />
-              <Button kind="icon" icon="menu" name={copy.menu} popup="dialog" expanded={menu !== null && !menu.closing} onPress={(from) => setMenu({ from, closing: false })} />
+      <ScrollView ref={scroller} style={styles.screen} contentContainerStyle={[styles.page, sides, { paddingTop: 20 + insets.top, paddingBottom: 32 + room }]}>
+        <View style={[styles.column, { maxWidth: columnWidth }]}>
+          <View style={styles.header}>
+            <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
+              {copy.wordmark}
+            </Text>
+            <View style={styles.headerEnd}>
+              {stored.length > 0 ? <TextLink label={copy.recentSplits} expanded={recent !== null && !recent.closing} onPress={(from) => setRecent({ from, closing: false })} /> : null}
+              <ThemeToggle />
             </View>
+          </View>
+          <Text style={[type.body, styles.intro, { color: c.muted }]}>{copy.intro}</Text>
+
+          <View role="region" aria-label={copy.receipt} ref={photoBlock} style={styles.receipt}>
+            {scan.status === "empty" ? (
+              <TakePhoto onChoose={choose} over={dragging} wide={wide} />
+            ) : scan.status === "reading" ? (
+              <Reading progress={progress} title={copy.reading} stage={stage} line={copy.readingStage[stage]} />
+            ) : (
+              <ReceiptSummary
+                items={scan.receipt?.items.length ?? 0}
+                total={scan.receipt?.total ?? cents(0)}
+                thumbnail={scan.file.thumbnail}
+                onView={photo ? () => setViewing(true) : undefined}
+                onReplace={choose}
+              />
+            )}
+          </View>
+
+          <View style={styles.block}>
+            <PaymentRows handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />
+          </View>
+          <View style={styles.block}>
+            <NameList ref={nameField} names={draft.names} onAdd={addName} onRemove={removeName} />
           </View>
         </View>
-        {wide ? (
-          <View style={[styles.center, sides, { paddingBottom: wideHeader }]}>
-            <View style={[styles.column, { maxWidth: columnWidth }]}>
-              {receipt}
-              {details}
-              <View style={styles.wideAction}>{action}</View>
-            </View>
-          </View>
-        ) : (
-          receipt
-        )}
       </ScrollView>
 
-      {wide ? null : (
-        <Sheet onHeight={setSheetHeight} action={action}>
-          {details}
-        </Sheet>
-      )}
-      {menu ? (
-        <Popover anchor={menu.from.trigger} label={copy.menu} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={menuWidth}>
-          <MenuRows
-            rows={[
-              ...(stored.length > 0 ? [{ icon: "history" as const, label: copy.history, onPress: fromMenu((from) => setRecent({ from, closing: false })) }] : []),
-              { icon: appearance.next === "dark" ? ("moon" as const) : ("sun" as const), label: copy.mode[appearance.next], onPress: (row: Press) => fromMenu(() => appearance.flip(row.trigger))(row) },
-            ]}
-          />
-        </Popover>
-      ) : null}
+      <HomeFooter reason={reason} problem={problem} blocked={blocked} busy={creating} onPress={press} onHeight={setFooterHeight} width={columnWidth} />
       {recent ? <RecentSplits splits={stored} now={now} wide={wide} from={recent.from} closing={recent.closing} onClose={closeRecent} onGone={recentGone} /> : null}
       {viewing && photo ? <PhotoViewer photo={photo} onExited={() => setViewing(false)} onReplace={choose} /> : null}
-      <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 0 : sheetHeight} />
+      <Toast message={notice} onHide={() => setNotice(null)} lift={footerHeight} />
     </View>
   );
 }
 
-// With no room past the page, iOS cannot scroll the page to reveal a field, so only the panel moves for the keyboard.
+// With no room past the page, iOS cannot scroll the window to reveal a field, so useKeyboardRoom scrolls the page's own scroller.
 const still = webStyle({ overflow: "clip" });
-
-const wideHeader = 76;
-
-const shortScreen = 762;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  page: { flexGrow: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerButtons: { flexDirection: "row", alignItems: "center", gap: 6 },
-  edge: { marginRight: -12 },
-  headerEnd: { flexDirection: "row", alignItems: "center" },
-  // The upload headline keeps the old 29 px leading, so the box still clears the sheet at 375 by 667.
-  heroTitle: { lineHeight: 29 },
-  hero: { flexGrow: 1, alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
-  zone: { flexGrow: 0, paddingVertical: 32, paddingHorizontal: 40, borderRadius: 26, borderWidth: 1.5, borderStyle: "dashed" },
-  reading: { borderColor: "transparent" },
-  drop: { alignItems: "center", gap: 6 },
-  dashed: { alignSelf: "stretch", paddingVertical: 28, paddingHorizontal: 16, borderRadius: 28, borderWidth: 2, borderStyle: "dashed" },
-  dropCompact: { paddingVertical: 6 },
-  fills: { paddingTop: 44, paddingBottom: 48 },
-  dropFills: { flexGrow: 1, justifyContent: "center" },
-  stack: { alignSelf: "stretch" },
-  cardColumn: { alignSelf: "center", width: "100%", maxWidth: 480, gap: layout.blockGap },
-  ticketColumn: { maxWidth: 440 },
-  center: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
-  column: { width: "100%", gap: layout.blockGap },
-  wideAction: { paddingTop: layout.blockGap },
+  page: { flexGrow: 1, alignItems: "center" },
+  column: { width: "100%" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
+  headerEnd: { flexDirection: "row", alignItems: "center", gap: 6 },
+  intro: { marginTop: 8 },
+  receipt: { marginTop: 32 },
+  block: { marginTop: 32 },
 });

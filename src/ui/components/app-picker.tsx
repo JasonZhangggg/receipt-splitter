@@ -8,19 +8,17 @@ import { Icon } from "./icon";
 
 export type AppPickerProps = { service: PaymentService; choices: readonly PaymentService[]; onPick: (service: PaymentService) => void };
 
+/** Native: a tap steps to the next app that is still free. */
 export function AppPicker({ service, choices, onPick }: AppPickerProps) {
   const c = useColors();
   const app = paymentApps[service];
   const next = choices[(choices.indexOf(service) + 1) % choices.length];
   return (
-    <PressTarget name={`${copy.paymentApp}, ${app.name}`} onPress={() => onPick(next)} style={() => [styles.picker, { borderRightColor: c.hairline }]}>
+    <PressTarget name={`${copy.paymentApp}, ${app.name}`} onPress={() => onPick(next)} style={() => [styles.picker, { borderBottomColor: c.hairline }]}>
       {() => (
         <View style={styles.face}>
-          <View style={[styles.glyph, { backgroundColor: c.ink }]}>
-            <Text style={[type.glyph, { color: c.paper }]}>{app.glyph}</Text>
-          </View>
-          <Text style={[type.body, { color: c.ink }]}>{app.name}</Text>
-          <Icon name="chevron" size={16} color={c.muted} />
+          <Text style={[type.input, { color: c.ink }]}>{app.name}</Text>
+          <Icon name="chevron" size={12} color={c.muted} />
         </View>
       )}
     </PressTarget>
@@ -28,7 +26,6 @@ export function AppPicker({ service, choices, onPick }: AppPickerProps) {
 }
 
 const styles = StyleSheet.create({
-  picker: { justifyContent: "center", paddingLeft: 17, paddingRight: 10, borderRightWidth: 1 },
+  picker: { justifyContent: "center", paddingVertical: 4, borderBottomWidth: 1 },
   face: { flexDirection: "row", alignItems: "center", gap: 8 },
-  glyph: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
 });
