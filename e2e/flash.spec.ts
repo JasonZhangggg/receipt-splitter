@@ -1,4 +1,4 @@
-import { addLatency, blur, drag, fitsOneRow, itemShared, picked, runs, sample, simulateKeyboard, tap } from "./motion";
+import { addLatency, blur, fitsOneRow, itemShared, picked, runs, sample, simulateKeyboard, still, tap } from "./motion";
 import { expect, test, type Locator, type Page } from "./without-ocr";
 
 test.setTimeout(90_000);
@@ -16,6 +16,14 @@ async function openBundle(page: Page) {
     const region = document.querySelector('[data-testid^="bundle-"]')!.lastElementChild as HTMLElement;
     return region.style.height === "" && region.style.opacity === "" && region.getAnimations().length === 0;
   });
+}
+
+async function openPeople(page: Page) {
+  await tap(page.getByRole("button", { name: "People", exact: true }));
+  const sheet = page.getByTestId("people-sheet");
+  await sheet.waitFor();
+  await still(sheet);
+  return sheet;
 }
 
 const inView = (field: Locator) =>
@@ -205,12 +213,13 @@ test("under reduced motion, a closing Bundle's rows never return to full opacity
 });
 
 // iOS pans the page to reveal the focused field, so a sheet that also moved for the keyboard would move twice.
-test("the bar stays where it lies in the page while the keyboard opens and closes", async ({ page }) => {
+test("the People sheet stays where it lies in the page while the keyboard opens and closes", async ({ page }) => {
   await simulateKeyboard(page, keyboard);
   await picked(page, fitsOneRow);
-  const resting = Math.round((await page.getByTestId("split-sheet").boundingBox())!.y);
-  const tops = await sample<number>(page, `Math.round(document.querySelector('[data-testid="split-sheet"]').getBoundingClientRect().top)`);
-  await tap(page.getByTestId("split-sheet").getByRole("button", { name: "Add a person" }));
+  const people = await openPeople(page);
+  const resting = Math.round((await people.boundingBox())!.y);
+  const tops = await sample<number>(page, `Math.round(document.querySelector('[data-testid="people-sheet"]').getBoundingClientRect().top)`);
+  await tap(people.getByRole("button", { name: "Add a person" }));
   await page.waitForTimeout(800);
   expect(await page.evaluate(() => visualViewport!.offsetTop)).toBeGreaterThan(0);
   await blur(page);
@@ -246,46 +255,20 @@ test("with the keyboard up, the item sheet's price and name fields stay in view,
   expect(await inView(item.locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
 });
 
-test("with the keyboard up, the name field added from the bar's plus stays in view, uncovered", async ({ page }) => {
+test("with the keyboard up, the name field added from the People sheet's plus stays in view, uncovered", async ({ page }) => {
   await simulateKeyboard(page, keyboard);
   await picked(page);
-  await tap(page.getByTestId("split-sheet").getByRole("button", { name: "Add a person" }));
+  const people = await openPeople(page);
+  await tap(people.getByRole("button", { name: "Add a person" }));
   await page.waitForTimeout(600);
-  expect(await inView(page.getByTestId("split-sheet").locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
+  expect(await inView(people.locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
 });
 
-test("swiping the bar open and flicking it shut moves one share amount into place, never two and never none, and the chips never dim", async ({ page }) => {
+test("the People sheet's name field has room around it for its focus ring inside every clipping box", async ({ page }) => {
   await picked(page);
-  const sheet = page.getByTestId("split-sheet");
-  const grab = async () => {
-    const box = (await sheet.boundingBox())!;
-    return { x: box.x + box.width / 2, y: box.y + 14 };
-  };
-  const frames = await sample<{ chip: number; amounts: number }>(
-    page,
-    `(() => {
-      const opacity = (el) => { let value = el ? 1 : 0; for (let node = el; node; node = node.parentElement) value *= Number(getComputedStyle(node).opacity); return value; };
-      const shown = (ids) => ids.flatMap((id) => [...document.querySelectorAll('[data-testid="split-sheet"] [data-testid="' + id + '"], [data-testid="split-sheet"] [data-left-testid="' + id + '"]')]).filter((el) => opacity(el) > 0.01).length;
-      const chip = document.querySelector('[data-testid="split-sheet"] [aria-label="Jason, you"]');
-      return { chip: Math.round(opacity(chip) * 100) / 100, amounts: shown(["owe", "share"]) };
-    })()`,
-  );
-  await drag(page, await grab(), -200, 150);
-  await page.getByTestId("breakdown").waitFor();
-  await page.waitForTimeout(700);
-  await drag(page, await grab(), 220, 100);
-  await page.getByTestId("owe").waitFor();
-  await page.waitForTimeout(700);
-  const seen = await frames();
-  expect(seen.length).toBeGreaterThan(4);
-  expect(seen.filter(({ amounts }) => amounts !== 1)).toEqual([]);
-  expect(seen.filter(({ chip }) => chip < 1)).toEqual([]);
-});
-
-test("the bar's name field has room around it for its focus ring inside every clipping box", async ({ page }) => {
-  await picked(page);
-  await tap(page.getByTestId("split-sheet").getByRole("button", { name: "Add a person" }));
-  const field = page.getByTestId("split-sheet").locator('input[aria-label="Name"]');
+  const people = await openPeople(page);
+  await tap(people.getByRole("button", { name: "Add a person" }));
+  const field = people.locator('input[aria-label="Name"]');
   await field.waitFor();
   await page.waitForTimeout(400);
   const clipped = await field.evaluate((el) => {

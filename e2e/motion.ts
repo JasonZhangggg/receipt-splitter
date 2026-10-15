@@ -482,7 +482,7 @@ export async function picked(page: Page, people = table, receipt: object = dinne
   await openSplit(page, people, receipt);
   await tap(pickJason(page));
   await page.getByTestId("owe").waitFor();
-  await still(sheet(page));
+  await sheet(page).waitFor({ state: "detached" });
   await page.waitForTimeout(300);
 }
 
