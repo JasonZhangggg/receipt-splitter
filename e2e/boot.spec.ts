@@ -1,14 +1,29 @@
+import { readFileSync } from "node:fs";
+
+import { faces } from "../src/ui/fonts.generated";
 import { expect, test, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
 
-type Probe = { loaderPeak: number; shownAt: number | null; leaveAt: number | null; goneAt: number | null; geistAtReveal: boolean | null };
+type Probe = {
+  loaderPeak: number;
+  shownAt: number | null;
+  leaveAt: number | null;
+  goneAt: number | null;
+  mountedAt: number | null;
+  geistAt: number | null;
+  geistAtReveal: boolean | null;
+};
 
-/** Records, frame by frame, how opaque the loader got and when the page was revealed. */
+/** Records, frame by frame, how opaque the loader got, when the app and Geist were ready, and when the page was revealed. */
 function watchBoot() {
-  const probe: Probe = { loaderPeak: 0, shownAt: null, leaveAt: null, goneAt: null, geistAtReveal: null };
+  const probe: Probe = { loaderPeak: 0, shownAt: null, leaveAt: null, goneAt: null, mountedAt: null, geistAt: null, geistAtReveal: null };
   Object.assign(window, { probe });
   const geist = () => document.fonts.check('400 16px "Geist"') && document.fonts.check('500 16px "Geist"');
+  document.addEventListener("splitwith:mounted", () => (probe.mountedAt ??= performance.now()));
+  document.fonts.addEventListener("loadingdone", () => {
+    if (probe.geistAt === null && geist()) probe.geistAt = performance.now();
+  });
   new MutationObserver(() => {
     const phase = document.documentElement.getAttribute("data-boot");
     if (phase !== "wait" && probe.geistAtReveal === null) probe.geistAtReveal = geist();
@@ -48,17 +63,24 @@ test("while Geist is slow the receipt loader shows, then lifts once the font is 
   await open(page, "/");
   await expect(loader(page)).toHaveCSS("opacity", "1");
   await expect(page.locator("#root")).toHaveAttribute("aria-busy", "true");
+  await expect(page.locator("#root")).toHaveAttribute("inert", "");
   expect(await rootOpacity(page)).toBe("0");
   expect(await page.evaluate(() => document.fonts.check('400 16px "Geist"'))).toBe(false);
   await expect(loader(page)).toHaveCount(0, { timeout: 5_000 });
   await expect(page.getByRole("button", { name: "Create link" })).toBeVisible();
   await expect.poll(() => rootOpacity(page)).toBe("1");
   await expect(page.locator("#root")).not.toHaveAttribute("aria-busy");
+  await expect(page.locator("#root")).not.toHaveAttribute("inert");
   const seen = await probe(page);
   expect(seen.loaderPeak).toBe(1);
   expect(seen.geistAtReveal).toBe(true);
-  expect(seen.leaveAt! - seen.shownAt!).toBeGreaterThanOrEqual(400);
+  expect(seen.leaveAt! - seen.shownAt!).toBeGreaterThanOrEqual(300);
   expect(seen.goneAt! - seen.leaveAt!).toBeGreaterThanOrEqual(190);
+  // The loader has been up far longer than its 300 ms hold, so it lifts as soon as the last of the app and Geist is ready.
+  // The fonts' loadingdone event can land a moment after the promise the loader waits on.
+  const ready = Math.max(seen.mountedAt!, seen.geistAt!);
+  expect(seen.leaveAt! - ready).toBeGreaterThan(-20);
+  expect(seen.leaveAt! - ready).toBeLessThan(80);
 });
 
 test("the Split page gets the same loader while Geist is slow", async ({ page }) => {
@@ -70,9 +92,13 @@ test("the Split page gets the same loader while Geist is slow", async ({ page })
   expect((await probe(page)).geistAtReveal).toBe(true);
 });
 
-test("a load that is ready within 150 ms never shows the loader", async ({ page }) => {
-  // How fast the real bundle mounts depends on the machine, so this stands in for it: the app is held back and its mounted signal comes as soon as the HTML is parsed.
+test("a load that is ready within 300 ms never shows the loader", async ({ page }) => {
+  // How fast the real bundle mounts depends on the machine, so this stands in for it: the app is held back, its mounted signal comes as soon as the HTML is parsed, and the fonts come from memory.
   await page.route("**/_expo/static/js/**", (route) => route.abort());
+  for (const url of Object.values(faces)) {
+    const body = readFileSync(`public${url}`);
+    await page.route(`**${url}`, (route) => route.fulfill({ body, contentType: "font/woff2" }));
+  }
   await page.addInitScript(() => {
     document.addEventListener("readystatechange", () => {
       if (document.readyState === "interactive") document.dispatchEvent(new Event("splitwith:mounted"));
@@ -81,8 +107,22 @@ test("a load that is ready within 150 ms never shows the loader", async ({ page 
   await page.goto("/");
   await expect(loader(page)).toHaveCount(0, { timeout: 1_000 });
   await expect.poll(() => rootOpacity(page)).toBe("1");
+  await expect(page.locator("#root")).not.toHaveAttribute("inert");
   const seen = await probe(page);
   expect([seen.loaderPeak, seen.shownAt, seen.leaveAt, seen.geistAtReveal]).toEqual([0, null, null, true]);
+});
+
+test("without JavaScript nothing is hidden and the loader never shows", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  await page.goto("/");
+  const state = await page.evaluate(() => ({
+    loader: getComputedStyle(document.getElementById("rs-boot")!).display,
+    root: getComputedStyle(document.getElementById("root")!).opacity,
+    attributes: ["inert", "aria-busy"].filter((name) => document.getElementById("root")!.hasAttribute(name)),
+  }));
+  await context.close();
+  expect(state).toEqual({ loader: "none", root: "1", attributes: [] });
 });
 
 test("when the font request fails the page shows in the fallback face without waiting", async ({ page }) => {
@@ -105,7 +145,7 @@ test("when the font request hangs the page shows in the fallback face at about 3
   expect(seen.leaveAt).toBeLessThan(4_000);
 });
 
-test("when the app never starts the page still shows at 8 s", async ({ page }) => {
+test("when the app never starts the page shows and takes input at 8 s, and a mount after that changes nothing on screen", async ({ page }) => {
   test.slow();
   await page.route("**/_expo/static/js/**", (route) => route.abort());
   await page.goto("/");
@@ -113,6 +153,20 @@ test("when the app never starts the page still shows at 8 s", async ({ page }) =
   expect(await rootOpacity(page)).toBe("0");
   await expect.poll(() => rootOpacity(page), { timeout: 12_000 }).toBe("1");
   await expect(loader(page)).toHaveCSS("opacity", "0");
+  await expect(page.locator("#root")).not.toHaveAttribute("inert", { timeout: 1_000 });
+  const late = await page.evaluate(async () => {
+    const seen = { rootLow: 1, loaderHigh: 0 };
+    document.dispatchEvent(new Event("splitwith:mounted"));
+    const end = performance.now() + 600;
+    while (performance.now() < end) {
+      await new Promise(requestAnimationFrame);
+      const loader = document.getElementById("rs-boot");
+      seen.rootLow = Math.min(seen.rootLow, Number(getComputedStyle(document.getElementById("root")!).opacity));
+      seen.loaderHigh = Math.max(seen.loaderHigh, loader ? Number(getComputedStyle(loader).opacity) : 0);
+    }
+    return seen;
+  });
+  expect(late).toEqual({ rootLow: 1, loaderHigh: 0 });
 });
 
 test("with reduced motion the loader's lines stand drawn and the receipt stays still", async ({ page }) => {
