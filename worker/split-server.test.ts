@@ -112,7 +112,7 @@ describe("picks, edits, and Undo between clients", () => {
 
     b.client.send(op("b2", { type: "pick", by: "bob", participantId: "bob", device: "phone-b", takeOver: true }));
     b.client.send(
-      op("b3", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 600 }], subtotalDelta: -200, totalDelta: -200 }),
+      op("b3", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 600 }] }),
     );
     await stateFrom(a.client);
     const seenByA = await stateFrom(a.client);
@@ -162,7 +162,7 @@ describe("a flood of recorded changes", () => {
     const victim = await open(id);
     const vandal = await open(id);
     victim.client.send(
-      op("v1", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 1 }], subtotalDelta: -799, totalDelta: -799 }),
+      op("v1", { type: "editReceipt", by: null, items: [{ type: "edit", itemId: "fries", price: 1 }] }),
     );
     await victim.client.next();
     await vandal.client.next();
