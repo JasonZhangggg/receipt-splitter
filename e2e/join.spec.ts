@@ -400,6 +400,5 @@ test("a phone that loses its name to another phone is told once and can take it 
   await expect(first.getByRole("button", sam)).toBeVisible();
   await expect(told(first)).toHaveCount(0);
   await expect(told(second)).toHaveCount(1);
-  await second.getByRole("button", { name: /^Open / }).first().click();
-  await expect(question(second)).toBeVisible();
+  await expect(second.getByText("Pick your name to check off what you had.")).toBeVisible();
 });
