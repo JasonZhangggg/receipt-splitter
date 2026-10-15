@@ -303,7 +303,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay sheet closes when this phone loses its name.
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || (overlay?.kind === "pay" && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
-  useEscape(overlay !== null && !closing, closeOverlay);
+  // Escape closes the person menu over the People sheet first, and the sheet on the next press.
+  useEscape(overlay !== null && !closing && (menu === null || menu.closing), closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);

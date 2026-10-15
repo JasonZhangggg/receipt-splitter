@@ -74,7 +74,6 @@ test("the line under a share reads nothing unpaid, Paid, too much, still owed, a
 
   await circle(priya, "Tea", "Priya").click();
   await circle(priya, "Pho", "Priya").click();
-  await sam.getByTestId("breakdown").getByRole("button", { name: /^Your share/ }).click();
   await circle(sam, "Pho", "Sam").click();
   await expect(note(sam)).toHaveText("Paid $30.00 · $14.20 still owed", live);
   await expect(note(jason)).toHaveText("0 of 1 paid you", live);

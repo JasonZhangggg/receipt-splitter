@@ -256,11 +256,15 @@ test("Priya's open confirm to check Rice for Sam closes when Jason removes Sam, 
   await circle(priya, "Rice", "Sam").click();
   await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
 
-  await jason.getByRole("button", { name: "Sam", exact: true }).click({ button: "right" });
+  await jason.getByRole("button", { name: "People", exact: true }).click();
+  await jason.getByRole("group", { name: "People" }).getByRole("button", { name: "Sam", exact: true }).click({ button: "right" });
   await jason.getByRole("dialog", { name: "Options for Sam" }).getByRole("button", { name: "Remove Sam" }).click();
 
   await expect(asks(priya, "Check Rice for Sam?")).toHaveCount(0, live);
-  await expect(priya.getByRole("button", { name: "Sam", exact: true })).toHaveCount(0);
+  await priya.getByRole("button", { name: "People", exact: true }).click();
+  await expect(priya.getByRole("group", { name: "People" }).getByRole("button", { name: "Priya, you", exact: true })).toBeVisible(live);
+  await expect(priya.getByRole("group", { name: "People" }).getByRole("button", { name: "Sam", exact: true })).toHaveCount(0);
+  await priya.keyboard.press("Escape");
   await expect(circle(priya, "Rice", "Priya")).toHaveAttribute("aria-pressed", "false");
 });
 

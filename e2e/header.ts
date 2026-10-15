@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /** The header's menu button, on Home and on the Split page. On the Split page it holds Payments, the receipt photo and History; on Home, History (once there are stored Splits) and the light/dark change. */
 export const menuButton = (page: Page) => page.getByRole("button", { name: "Menu", exact: true });
@@ -18,4 +18,12 @@ export async function fromMore(page: Page, row: "Payments" | "History" | "Receip
 export async function viewAs(page: Page, name: string) {
   await page.getByRole("button", { name: "People", exact: true }).click();
   await page.getByRole("group", { name: "People" }).getByRole("button", { name, exact: true }).click();
+}
+
+/** Opens the People sheet and reads the phone's own name off its "you" chip, then closes it. */
+export async function youAre(page: Page, name: string) {
+  await page.getByRole("button", { name: "People", exact: true }).click();
+  await expect(page.getByRole("group", { name: "People" }).getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "People" })).toHaveCount(0);
 }

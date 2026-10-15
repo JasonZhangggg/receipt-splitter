@@ -245,7 +245,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`/s/${id}`);
     await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
-    if (width < 1024) await page.getByRole("button", { name: "Close, just look" }).click();
+    await page.getByRole("button", { name: "Close, just look" }).click();
     const history = page.getByRole("dialog", { name: "History" });
     const shown = page.getByRole("img", { name: "Receipt" });
 

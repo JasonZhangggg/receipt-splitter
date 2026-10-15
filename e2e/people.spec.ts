@@ -62,10 +62,19 @@ async function open(from: Browser | Page, link: string, name: string): Promise<P
   await page.goto(link);
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
   await expect(owe(page)).toBeVisible(live);
+  return page;
+}
+
+/** Opens the People sheet; a hold that starts while the sheet is still rising lands on the chip it covers, so it settles first. */
+async function showPeople(page: Page, name: string) {
   await page.getByRole("button", { name: "People", exact: true }).click();
   await expect(chip(page, `${name}, you`)).toBeVisible(live);
   await page.waitForTimeout(600);
-  return page;
+}
+
+async function hidePeople(page: Page) {
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "People" })).toHaveCount(0, live);
 }
 
 const people = (page: Page) => page.getByRole("group", { name: "People" });
@@ -94,6 +103,7 @@ async function touch(target: Locator, { holdMs = 0, dx = 0 }: { holdMs?: number;
 
 test("a long-press on a chip opens Remove without selecting, a tap still selects, and the Host's chip offers nothing", async ({ page, request }, { workerIndex }) => {
   const sam = await open(page, await createSplit(request, workerIndex), "Sam");
+  await showPeople(sam, "Sam");
 
   await touch(chip(sam, "Priya"), { holdMs: 800 });
   await expect(menu(sam, "Priya").getByRole("button", { name: "Remove Priya" })).toBeVisible(live);
@@ -105,6 +115,7 @@ test("a long-press on a chip opens Remove without selecting, a tap still selects
   await expect(menu(sam, "Priya")).toHaveCount(0, live);
   await chip(sam, "Priya").click();
   await expect(sam.getByRole("button", { name: /Priya's breakdown$/ })).toBeVisible(live);
+  await showPeople(sam, "Sam");
 
   await touch(chip(sam, "Jason"), { holdMs: 800 });
   await sam.waitForTimeout(300);
@@ -119,20 +130,28 @@ test("removing a person who checked an Item gives the other claimer the whole It
   await priya.getByRole("button", { name: "Rice, check for Priya" }).click();
   await expect(owe(sam)).toHaveText("$4.00", live);
 
+  await showPeople(sam, "Sam");
   await chip(sam, "Priya").click({ button: "right" });
   await expect(menu(sam, "Priya").getByText("Removing Priya unchecks 1 item.")).toBeVisible(live);
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
   await expect(chip(sam, "Priya")).toHaveCount(0, live);
+  await hidePeople(sam);
   await expect(owe(sam)).toHaveText("$8.00", live);
   await expect(priya.getByText("Pick your name to check off what you had.")).toBeVisible(live);
-  await expect(chip(priya, "Priya")).toHaveCount(0, live);
+  await priya.getByRole("button", { name: "People", exact: true }).click({ timeout: 3000 });
+  await expect(chip(priya, "Sam")).toBeVisible(live);
+  await expect(chip(priya, "Priya")).toHaveCount(0);
+  await hidePeople(priya);
 
   await fromMore(sam, "History");
   await expect(sam.getByText("Removed Priya from the split")).toBeVisible(live);
   await sam.getByRole("button", { name: /^Revert Removed Priya/ }).click();
-  await expect(chip(sam, "Priya")).toBeVisible(live);
   await expect(owe(sam)).toHaveText("$4.00", live);
+  await sam.keyboard.press("Escape");
+  await expect(sam.getByRole("dialog", { name: "History" })).toHaveCount(0, live);
+  await showPeople(sam, "Sam");
+  await expect(chip(sam, "Priya")).toBeVisible(live);
 });
 
 test("Payments open on a phone closes when another phone removes its person", async ({ browser, request }, { workerIndex }) => {
@@ -142,6 +161,7 @@ test("Payments open on a phone closes when another phone removes its person", as
   await fromMore(priya, "Payments");
   await expect(priya.getByRole("list", { name: "Payments" })).toBeVisible(live);
 
+  await showPeople(sam, "Sam");
   await chip(sam, "Priya").click({ button: "right" });
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
@@ -154,6 +174,8 @@ test("a menu open for someone another phone removes closes, and the next long-pr
   const sam = await open(browser, link, "Sam");
   const jason = await open(browser, link, "Jason");
 
+  await showPeople(sam, "Sam");
+  await showPeople(jason, "Jason");
   await chip(sam, "Priya").click({ button: "right" });
   await expect(menu(sam, "Priya")).toBeVisible(live);
   await chip(jason, "Priya").click({ button: "right" });
@@ -179,7 +201,8 @@ test("a removal the server refuses says so under the chips, and the person stays
   });
   await sam.goto(link);
   await sam.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(chip(sam, "Sam, you")).toBeVisible(live);
+  await expect(owe(sam)).toBeVisible(live);
+  await showPeople(sam, "Sam");
 
   await chip(sam, "Priya").click({ button: "right" });
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
