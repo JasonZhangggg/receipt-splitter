@@ -147,7 +147,6 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - "Show the total" button sits inside the ring's role="img", so screen readers may hide it. Move it beside the img. Row re-tap still deselects. Fixer: next UI owner.
 - Home Share falls back silently: it copies with no feedback, and does nothing without navigator.clipboard (same pattern as app/s/[id].tsx). Fixer: next UI owner.
 - Native donut-ring.tsx uses an SVG data URI in RN Image, which won't draw on iOS/Android. Latent while web-only.
-- Mask id "ring-sweep" is a fixed global id; use useId() if two rings ever mount.
 - The selected chip ring's gap uses c.sheet; check the desktop layout, where chips may sit on paper.
 
 ## From PR #98 (2026-10-11), open (review PASS+NOTES)

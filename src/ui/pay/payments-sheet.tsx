@@ -114,7 +114,7 @@ const fade = webStyle({ transitionProperty: "color, background-color", transitio
 /** The total arrives after the first arcs have started drawing, once, and does not replay when another person is picked. */
 const centerIn = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "translateY(4px)" }, to: { opacity: 1, transform: "none" } }],
-  animationDuration: "420ms",
+  animationDuration: "280ms",
   animationDelay: "260ms",
   animationTimingFunction: motion.easeOut,
   animationFillMode: "both",
