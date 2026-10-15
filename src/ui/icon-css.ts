@@ -2,7 +2,7 @@ const spring = "cubic-bezier(.34, 1.56, .64, 1)";
 const out = "cubic-bezier(.23, 1, .32, 1)";
 const inOut = "cubic-bezier(.77, 0, .175, 1)";
 
-/** Motions of docs/design/b2/split.dc.html. icon.web.tsx sets data-play for a replay. Tick and warning play on mount, but only after the first press or key sets data-icons-live, so a Split that loads with ticks drawn does not animate them all at once. */
+/** Motions of docs/design/b2/split.dc.html. icon.web.tsx sets data-play for a replay. Tick and warning play on mount when icon.web.tsx marks them data-appear, which it does only for icons mounted after the first press or key, so ticks already on screen never animate. */
 export const iconCss = `
 .ai { overflow: visible; }
 .ai * { transform-box: fill-box; transform-origin: center; }
@@ -11,8 +11,8 @@ export const iconCss = `
   .ai-x[data-play] path, .ai-minus[data-play] path { animation: ai-draw 300ms ${out} both; }
   .ai-x[data-play] path + path { animation-delay: 110ms; }
   .ai-plus[data-play] { animation: ai-spin 460ms ${spring}; }
-  .ai-trash[data-play] .lid { transform-origin: 90% 100%; animation: ai-lid 360ms ${spring} forwards; }
-  .ai-trash[data-play] .body { animation: ai-sink 360ms ${spring} forwards; }
+  .ai-trash[data-play] .lid { transform-origin: 90% 100%; animation: ai-lid 360ms ${spring}; }
+  .ai-trash[data-play] .body { animation: ai-sink 360ms ${spring}; }
   .ai-undo[data-play] { animation: ai-rewind 560ms ${spring}; }
   .ai-undo[data-play] .head { transform-origin: left center; animation: ai-stretch 450ms ${inOut}; }
   .ai-tray[data-play] .arrow { animation: ai-lift 500ms ${inOut}; }
@@ -24,14 +24,14 @@ export const iconCss = `
   .ai-cam[data-play] .lens { animation: ai-lens 300ms ${inOut}; }
   .ai-sun[data-play] .ray { animation: ai-ray 300ms ${out} var(--d) both; }
   .ai-moon[data-play] path { animation: ai-wiggle 640ms ${inOut} 120ms; }
-  html[data-icons-live] .ai-check path { animation: ai-tick 400ms ${out} both; }
-  html[data-icons-live] .ai-alert .mark { animation: ai-pulse 800ms ${inOut} 2; }
+  .ai-check[data-appear] path { animation: ai-tick 400ms ${out} both; }
+  .ai-alert[data-appear] .mark { animation: ai-pulse 800ms ${inOut} 2; }
 }
 @keyframes ai-draw { from { stroke-dashoffset: 1; opacity: 0; } 30% { opacity: 1; } to { stroke-dashoffset: 0; opacity: 1; } }
 @keyframes ai-tick { from { stroke-dashoffset: 1; opacity: 0; transform: scale(.5); } 25% { opacity: 1; } to { stroke-dashoffset: 0; opacity: 1; transform: none; } }
 @keyframes ai-spin { from { transform: none; } to { transform: rotate(180deg); } }
-@keyframes ai-lid { to { transform: translateY(-1.5px) rotate(14deg); } }
-@keyframes ai-sink { to { transform: translateY(1px); } }
+@keyframes ai-lid { 45% { transform: translateY(-1.5px) rotate(14deg); } }
+@keyframes ai-sink { 45% { transform: translateY(1px); } }
 @keyframes ai-rewind { 45% { transform: rotate(-55deg); } }
 @keyframes ai-stretch { 50% { transform: translateX(-1.5px) scaleX(1.15); } }
 @keyframes ai-lift { 40% { transform: translateY(-2px); } }

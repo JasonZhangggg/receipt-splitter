@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { glyph, type IconName } from "./icon-glyphs";
 
@@ -22,18 +22,21 @@ export function replayGate(now: () => number) {
   };
 }
 
+const appears = new Set(["check", "alert"]);
+
 function useReplay(motion: string | undefined) {
   const ref = useRef<SVGSVGElement>(null);
+  useLayoutEffect(() => {
+    if (motion && appears.has(motion) && document.documentElement.hasAttribute("data-icons-live")) ref.current?.setAttribute("data-appear", "");
+  }, [motion]);
   useEffect(() => {
     const icon = ref.current;
-    const host = icon?.closest<HTMLElement>("[data-pressable], button, a");
-    if (!icon || !host || !motion) return;
+    if (!icon || !motion) return;
+    const host = icon.closest<HTMLElement>("[data-pressable], button, a");
+    if (!host) return;
     const allow = replayGate(() => performance.now());
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const onPointer = (event: PointerEvent) => {
-      const type = event.type as "pointerdown" | "pointerover";
-      if (host.getAttribute("aria-disabled") === "true" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      if (type === "pointerover" && (event.pointerType !== "mouse" || host.contains(event.relatedTarget as Node | null))) return;
+    const play = (type: "pointerdown" | "pointerover") => {
       if (type === "pointerover" && icon.hasAttribute("data-play")) return;
       if (!allow(type)) return;
       icon.removeAttribute("data-play");
@@ -42,12 +45,25 @@ function useReplay(motion: string | undefined) {
       clearTimeout(timer);
       timer = setTimeout(() => icon.removeAttribute("data-play"), playFor);
     };
+    const off = () => host.getAttribute("aria-disabled") === "true" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const onPointer = (event: PointerEvent) => {
+      if (off()) return;
+      const type = event.type as "pointerdown" | "pointerover";
+      if (type === "pointerover" && (event.pointerType !== "mouse" || host.contains(event.relatedTarget as Node | null))) return;
+      play(type);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target !== host || event.repeat || (event.key !== "Enter" && event.key !== " ") || off()) return;
+      play("pointerdown");
+    };
     host.addEventListener("pointerdown", onPointer);
     host.addEventListener("pointerover", onPointer);
+    host.addEventListener("keydown", onKey);
     return () => {
       clearTimeout(timer);
       host.removeEventListener("pointerdown", onPointer);
       host.removeEventListener("pointerover", onPointer);
+      host.removeEventListener("keydown", onKey);
     };
   }, [motion]);
   return ref;
