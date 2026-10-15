@@ -3,11 +3,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
-import { pressFeel, pressStyle, useReducedMotion } from "../motion";
+import { pressFeel, pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, tabular, type, useColors } from "../theme";
+import { layout, motion, tabular, type, useColors } from "../theme";
 
-export type FooterPill = { readonly kind: "pay"; readonly host: string } | { readonly kind: "paid" } | { readonly kind: "ask" };
+const fade = webStyle({ transitionProperty: "opacity", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
+
+export type FooterPill = { readonly kind: "pay"; readonly host: string; /** False while the payer has claimed nothing: the pill shows gray. */ readonly ready: boolean } | { readonly kind: "paid" } | { readonly kind: "ask" };
 
 type Props = {
   label: string;
@@ -68,10 +70,11 @@ function Pill({ pill, onPress }: { pill: FooterPill; onPress: (press: Press) => 
   const paid = pill.kind === "paid";
   const text = pill.kind === "pay" ? say.payHost(pill.host) : pill.kind === "ask" ? say.question : say.paidMark;
   const ink = paid ? c.ink : c.onAction;
+  const idle = pill.kind === "pay" && !pill.ready;
   return (
-    <PressTarget name={paid ? say.paid : text} outsideScroll onPress={onPress} style={(pressed) => [styles.pillHit, pressStyle(pressed, reduce, pressFeel.pill)]}>
+    <PressTarget name={paid ? say.paid : text} outsideScroll softDisabled={idle} onPress={onPress} style={(pressed) => [styles.pillHit, pressStyle(pressed, reduce, pressFeel.pill)]}>
       {() => (
-        <View style={[styles.pill, paid ? { boxShadow: `inset 0 0 0 1px ${c.hairline}` } : { backgroundColor: c.action }]}>
+        <View style={[styles.pill, !paid && !reduce && fade, paid ? { boxShadow: `inset 0 0 0 1px ${c.hairline}` } : { backgroundColor: c.action, opacity: idle ? 0.28 : 1 }]}>
           <Text numberOfLines={1} style={[type.body, styles.pillText, { color: ink }]}>
             {text}
           </Text>
@@ -88,7 +91,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 },
   label: { flexShrink: 1, minWidth: 0 },
   aside: { flexShrink: 0, maxWidth: "100%", textAlign: "right" },
-  bottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 2 },
+  bottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8 },
   ask: { flex: 1, minWidth: 0 },
   share: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: "center" },
   amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 32, lineHeight: 44, letterSpacing: -0.96 },

@@ -18,7 +18,8 @@ export function payFacts(split: Split, person: Participant, viewer: ParticipantI
   const isHost = person.id === host.id;
   const share = shareBreakdown(split, person.id).share;
   const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
-  return { host, mine, isHost, share, state, hasBar: mine && !isHost && state.kind !== "nothing" };
+  const payer = mine && !isHost;
+  return { host, mine, isHost, share, state, payer, hasBar: payer && state.kind !== "nothing" };
 }
 
 /** The viewed person's Items with their part of each, their part of each Adjustment and their total. It reads the live Split, so another phone's edit lands here as it happens. */
