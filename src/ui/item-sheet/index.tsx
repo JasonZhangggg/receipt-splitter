@@ -144,9 +144,11 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     [guardRef],
   );
 
+  // A price saves when the field is left, not while it is typed: each saved price moves the Total from the Split it meets, so "1" on the way to "10.00" would count.
+  const typingPrice = useRef(false);
   useEffect(() => {
     if (Object.keys(pending).length === 0) return;
-    const timer = setTimeout(() => flushRef.current(), saveAfter);
+    const timer = setTimeout(() => typingPrice.current || flushRef.current(), saveAfter);
     return () => clearTimeout(timer);
   }, [pending]);
   useEffect(() => () => flushRef.current(), []);
@@ -274,6 +276,13 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
             onChangeText={(text) => {
               const amount = typedAmount("price", text);
               if (amount !== null) edit({ price: toPrice(amount) });
+            }}
+            onFocus={() => {
+              typingPrice.current = true;
+            }}
+            onBlur={() => {
+              typingPrice.current = false;
+              flush();
             }}
             enterKeyHint="done"
             selectTextOnFocus

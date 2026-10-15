@@ -341,6 +341,7 @@ test("a price edit moves the Total by the difference on every phone, and on a sh
   await short.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
   const price = short.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" });
   await price.click();
+  await expect.poll(() => price.evaluate((input: HTMLInputElement) => input.value.slice(input.selectionStart!, input.selectionEnd!))).toBe("8.00");
   await short.keyboard.type("1");
   await short.waitForTimeout(1200);
   await short.keyboard.type("0.00");

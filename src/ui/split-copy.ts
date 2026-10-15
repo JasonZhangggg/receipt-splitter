@@ -130,6 +130,13 @@ export const splitCopy = {
   },
   kinds: { tax: "Tax", tip: "Tip", serviceCharge: "Fee", discount: "Discount" },
   kind: "What to add",
+  shortfall: (amount: string) => `The receipt is ${amount} short.`,
+  useAmount: (amount: string) => `Use ${amount}`,
+  sharedCharges: {
+    tax: "Tax stays at the receipt's amount and is shared across the new item too.",
+    tip: "Tip stays at the receipt's amount and is shared across the new item too.",
+    both: "Tax and tip stay at the receipt's amounts and are shared across the new item too.",
+  },
   addHints: { item: "Nobody has it yet. Tap its dot, or open it to pick who had it.", charge: "Split by what each person had.", discount: "Comes off by what each person had." },
   charge: "Charge",
   discount: "Discount",

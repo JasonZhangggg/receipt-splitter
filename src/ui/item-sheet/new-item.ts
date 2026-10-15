@@ -1,4 +1,4 @@
-import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
+import { MAX_CENTS, cents, price as toPrice, type Cents } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type Operation, type WireRejection } from "../../core/operations";
 import type { ItemId, ParticipantId, Split } from "../../core/split";
 import { parseAmount } from "../../draft";
@@ -37,4 +37,15 @@ export function newItem(split: Split, typed: NewItem, id: ItemId, by: Participan
 
 export function problemFor(reason: WireRejection["reason"] | "disconnected"): NewItemProblem {
   return reason === "tooManyItems" || reason === "tooLarge" ? reason : reason === "amountOutOfRange" ? "overLimit" : "failed";
+}
+
+/** How far the Items are under the printed Subtotal, which is a line the reading missed and the amount an added Item fills first, or null. */
+export function shortfall({ receipt }: Split): Cents | null {
+  const missing = receipt.subtotal - receipt.items.reduce((sum, { price }) => sum + price, 0);
+  return missing > 0 ? cents(missing) : null;
+}
+
+/** The printed tax and tip a new Item shares in, since they keep their amounts. */
+export function sharedCharges({ receipt }: Split): readonly ("tax" | "tip")[] {
+  return (["tax", "tip"] as const).filter((kind) => receipt.adjustments.some((row) => row.kind === kind && row.amount !== 0));
 }
