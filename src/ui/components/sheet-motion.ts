@@ -19,7 +19,7 @@ export function releaseIntent(travel: number, velocity: number, visible: number)
 
 /** A pull down past this many px below the rest snap, after the release's momentum, closes a snapping sheet. */
 export const closeDistance = 110;
-const snapAt = 40;
+export const snapAt = 40;
 /** The share of the screen a sheet fills at its tall snap. */
 export const tallShare = 0.94;
 /** A sheet leaves in about this long. */

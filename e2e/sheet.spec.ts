@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { snapAt } from "../src/ui/components/sheet-motion";
 
 test.setTimeout(90_000);
 
@@ -655,7 +656,7 @@ test("a long pull down from tall lands at rest and does not close the sheet", as
   await drag(page, await grabOf(item), -160, 200, 150);
   await settled(item);
   const tallTop = (await item.boundingBox())!.y;
-  expect(tallTop).toBeLessThan(rest - 100);
+  expect(tallTop).toBeLessThan(rest - snapAt);
 
   await drag(page, await grabOf(item), Math.round((rest - tallTop) * 0.9), 250, 150);
   await settled(item);
