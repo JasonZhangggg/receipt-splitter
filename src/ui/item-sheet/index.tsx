@@ -423,7 +423,7 @@ function StatusLine({ item, typed, nameOf, onFill }: StatusProps) {
   const off = amounts !== null && amounts.by !== "exact";
   const words =
     people === 0
-      ? say.nobodyYet
+      ? say.nobodyHasThis
       : amounts === null
         ? say.peopleLine(people, money(item.price))
         : amounts.by === "exact"
