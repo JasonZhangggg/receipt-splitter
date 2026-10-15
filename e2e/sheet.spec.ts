@@ -17,38 +17,7 @@ const dinner = {
   total: 3550,
 };
 
-const longDinner = {
-  items: Array.from({ length: 20 }, (_, i) => ({ id: `dish${i}`, name: `Dish ${i + 1}`, price: 300 + i * 85 })),
-  adjustments: [],
-  subtotal: 22150,
-  total: 22150,
-};
-
-// The Topgolf receipt's shape: nine lines, two bucket discounts, tax and tip.
-const topgolf = {
-  items: [
-    { id: "gameplay", name: "Gameplay", price: 8775 },
-    { id: "ultra1", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
-    { id: "guinness1", name: "Guinness Draught 14.9oz Can", price: 2187, quantity: 3 },
-    { id: "pineapple1", name: "High Noon Pineapple 12oz Can", price: 849 },
-    { id: "watermelon1", name: "High Noon Watermelon 12oz Can", price: 849 },
-    { id: "ultra2", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
-    { id: "guinness2", name: "Guinness Draught 14.9oz Can", price: 1458, quantity: 2 },
-    { id: "pineapple2", name: "High Noon Pineapple 12oz Can", price: 849 },
-    { id: "watermelon2", name: "High Noon Watermelon 12oz Can", price: 1698, quantity: 2 },
-  ],
-  adjustments: [
-    { id: "bucket1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["ultra1", "guinness1", "pineapple1", "watermelon1"] } },
-    { id: "bucket2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: { name: "Beer Bucket", items: ["ultra2", "guinness2", "pineapple2", "watermelon2"] } },
-    { id: "tax", kind: "tax", name: "Tax", amount: 494 },
-    { id: "tip", kind: "tip", name: "Tip", amount: 3226 },
-  ],
-  subtotal: 17923,
-  total: 20729,
-};
-
 const venmo = { service: "venmo", handle: "jason-z" };
-const cashApp = { service: "cashApp", handle: "jasonz" };
 
 let creates = 0;
 
@@ -119,36 +88,8 @@ async function center(target: Locator): Promise<Point> {
 
 async function pickJason(page: Page) {
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
-  await settled(page.getByTestId("split-sheet"));
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 }
-
-async function framesDuring(page: Page, act: () => Promise<void>) {
-  await page.evaluate(() => {
-    const frames: { top: number; asking: boolean; shown: number }[] = [];
-    Object.assign(window, { sheetFrames: frames });
-    const sample = () => {
-      const sheet = document.querySelector('[data-testid="split-sheet"]')!;
-      const owe = sheet.querySelector('[data-testid="owe"], [data-testid="breakdown"]');
-      let shown = owe ? 1 : 0;
-      for (let el = owe; el && el !== sheet; el = el.parentElement) shown *= Number(getComputedStyle(el).opacity);
-      frames.push({ top: Math.round(sheet.getBoundingClientRect().top), asking: [...sheet.querySelectorAll('[role="heading"]')].some((h) => h.textContent === "Which one are you?"), shown });
-      if (frames.filter((frame) => !frame.asking).length < 60 && frames.length < 3000) requestAnimationFrame(sample);
-    };
-    requestAnimationFrame(sample);
-  });
-  await act();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { sheetFrames: { asking: boolean }[] }).sheetFrames.filter((frame) => !frame.asking).length), live).toBe(60);
-  return page.evaluate(() => (window as unknown as { sheetFrames: { top: number; asking: boolean; shown: number }[] }).sheetFrames);
-}
-
-test("after a pick, the share line shows on every frame the sheet lowers, never hidden behind a fade-in pause", async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
-  const frames = await framesDuring(page, () => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click());
-  const lowering = frames.filter((frame) => !frame.asking);
-  expect(lowering.length).toBeGreaterThan(0);
-  expect(lowering.filter((frame) => frame.shown < 0.5).length).toBeLessThanOrEqual(3);
-});
 
 test("a flick down on the pick sheet's rows closes it, and a drag that starts on a name does not pick it", async ({ browser, request, browserName }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
@@ -161,100 +102,6 @@ test("a flick down on the pick sheet's rows closes it, and a drag that starts on
   await drag(page, await center(jason), 260, 120);
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toHaveCount(0, live);
   await expect(page.getByText("Pick your name to check off what you had.")).toBeVisible(live);
-});
-
-test("a drag that stops and holds before letting go reads as still, so a sheet held at 40% springs back instead of closing", async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
-  const sheet = page.getByTestId("split-sheet");
-  const rest = (await sheet.boundingBox())!.y;
-  const visible = page.viewportSize()!.height - rest;
-  const dy = Math.round(visible * 0.4);
-  await drag(page, { x: (await center(sheet)).x, y: rest + 14 }, dy, dy, 200);
-  await settled(sheet);
-  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible();
-  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
-});
-
-test("a swipe up on the share bar opens your breakdown, a swipe down closes it, and a tap on the share row opens it", async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
-  await pickJason(page);
-  const sheet = page.getByTestId("split-sheet");
-  const grab = async () => ({ x: (await center(sheet)).x, y: (await sheet.boundingBox())!.y + 14 });
-
-  await drag(page, await grab(), -180, 150);
-  await expect(page.getByTestId("breakdown")).toBeVisible(live);
-  await settled(sheet);
-
-  await drag(page, await grab(), 200, 150);
-  await expect(page.getByTestId("breakdown")).toHaveCount(0, live);
-  await expect(page.getByTestId("owe")).toBeVisible();
-  await settled(sheet);
-
-  await page.getByTestId("owe").click();
-  await expect(page.getByTestId("breakdown")).toBeVisible(live);
-});
-
-test("a tap on another person's chip swaps whose share the folded bar shows and leaves the sheet folded", async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
-  await pickJason(page);
-  const sheet = page.getByTestId("split-sheet");
-  await expect(page.getByRole("button", { name: /^Your share \$0\.00, Show what you owe$/ })).toBeVisible(live);
-
-  await page.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Sam's share $0.00, Show Sam's breakdown" })).toBeVisible(live);
-  await expect(sheet.getByText("Sam's share", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("owe")).toHaveText("$0.00");
-  await expect(page.getByTestId("breakdown")).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Jason, you", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^Your share \$0\.00, Show what you owe$/ })).toBeVisible(live);
-  await expect(page.getByTestId("breakdown")).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Sam", exact: true }).click();
-  await page.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(page.getByRole("button", { name: /, Hide Sam's breakdown$/ })).toBeVisible(live);
-});
-
-test("a breakdown with no Items says so and is as tall as one with an Item, so it folds as far", async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
-  await pickJason(page);
-  await page.getByTestId("owe").click();
-  const items = page.getByTestId("breakdown-items");
-  await expect(items.getByText("Check off what you had.")).toBeVisible(live);
-  await settled(page.getByTestId("split-sheet"));
-  const empty = (await items.boundingBox())!.height;
-
-  await page.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(items.getByText("Nothing checked for Sam.")).toBeVisible(live);
-
-  await page.getByRole("button", { name: "Jason, you", exact: true }).click();
-  await page.getByRole("button", { name: /, check for Jason$/ }).first().click();
-  await expect(items.getByText("Check off what you had.")).toHaveCount(0, live);
-  await settled(page.getByTestId("split-sheet"));
-  expect(Math.round((await items.boundingBox())!.height)).toBe(Math.round(empty));
-});
-
-test("a finger that catches the sheet mid-glide moves it from where it is, with no jump", { tag: "@frame-timing" }, async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
-  await pickJason(page);
-  const sheet = page.getByTestId("split-sheet");
-  const rest = (await sheet.boundingBox())!.y;
-  await page.getByTestId("owe").click();
-  await page.waitForTimeout(90);
-  const caught = await page.evaluate(() => {
-    const element = document.querySelector('[data-testid="split-sheet"]')!;
-    const before = element.getBoundingClientRect().top;
-    const x = innerWidth / 2;
-    const y = before + 14;
-    const fire = (type: string, at: number) =>
-      element.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 9, pointerType: "touch", isPrimary: true, clientX: x, clientY: at }));
-    Element.prototype.setPointerCapture = () => {};
-    fire("pointerdown", y);
-    fire("pointermove", y + 12);
-    return { before, after: element.getBoundingClientRect().top };
-  });
-  expect(caught.before).toBeLessThan(rest - 5);
-  expect(Math.abs(caught.after - caught.before)).toBeLessThan(16);
 });
 
 // A touch landed 90 ms into a 300 ms glide; a loaded runner can let the glide finish first.
@@ -285,173 +132,6 @@ test("a still touch on the Item sheet mid-glide holds it where it is, and lettin
   expect(touch.atTouch - rest).toBeGreaterThan(20);
   expect(Math.max(...touch.held) - Math.min(...touch.held)).toBeLessThanOrEqual(2);
   expect(Math.abs(touch.held[0] - touch.atTouch)).toBeLessThanOrEqual(2);
-});
-
-test("scrolled to the end, the receipt's totals stop just above the folded sheet, after the breakdown opens and closes, another person is shown, and the screen gets shorter", async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName, longDinner), browserName);
-  await pickJason(page);
-  for (let dish = 1; dish <= 12; dish += 1) await page.getByRole("button", { name: `Dish ${dish}, check for Jason` }).click();
-  await expect(page.getByTestId("owe")).toHaveText("$92.10", live);
-  const sheet = page.getByTestId("split-sheet");
-  await settled(sheet);
-  const gapAtEnd = () =>
-    page.evaluate(() => {
-      const card = document.querySelector<HTMLElement>('[data-testid="receipt"]')!;
-      let scroller = card.parentElement!;
-      while (scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement!;
-      scroller.scrollTop = scroller.scrollHeight;
-      return new Promise<number>((resolve) =>
-        requestAnimationFrame(() => resolve(document.querySelector('[data-testid="split-sheet"]')!.getBoundingClientRect().top - card.getBoundingClientRect().bottom)),
-      );
-    });
-
-  const before = await gapAtEnd();
-  expect(before).toBeCloseTo(16, 0);
-
-  await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
-  await expect(page.getByTestId("breakdown")).toBeVisible(live);
-  await settled(sheet);
-  await page.getByRole("button", { name: /^Your share .*, Hide what you owe$/ }).click();
-  await expect(page.getByTestId("breakdown")).toHaveCount(0, live);
-  await settled(sheet);
-  expect(await gapAtEnd()).toBeCloseTo(16, 0);
-
-  await page.getByRole("button", { name: "Sam", exact: true }).click();
-  await page.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(page.getByRole("button", { name: /, Hide Sam's breakdown$/ })).toBeVisible(live);
-  await page.getByRole("button", { name: /, Hide Sam's breakdown$/ }).click();
-  await expect(page.getByTestId("breakdown")).toHaveCount(0, live);
-  await settled(sheet);
-  expect(await gapAtEnd()).toBeCloseTo(16, 0);
-
-  await page.setViewportSize({ width: page.viewportSize()!.width, height: 640 });
-  await settled(sheet);
-  expect(await gapAtEnd()).toBeCloseTo(16, 0);
-});
-
-async function openLongBreakdown(page: Page) {
-  await pickJason(page);
-  for (let dish = 1; dish <= 16; dish += 1) await page.getByRole("button", { name: `Dish ${dish}, check for Jason` }).click();
-  await expect(page.getByTestId("owe")).toHaveText("$150.00", live);
-  await settled(page.getByTestId("split-sheet"));
-  await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
-  await expect(page.getByTestId("breakdown")).toBeVisible(live);
-  await settled(page.getByTestId("split-sheet"));
-}
-
-test("a drag that stretches the open breakdown above its rest keeps the sheet under its bottom edge, never the page", async ({ browser, request, browserName }, { workerIndex }) => {
-  const page = await open(browser, await createSplit(request, workerIndex, browserName, longDinner), browserName);
-  await openLongBreakdown(page);
-  const sheet = page.getByTestId("split-sheet");
-  const rest = (await sheet.boundingBox())!.y;
-  const stretched = await page.evaluate(async (rest) => {
-    const surface = document.querySelector('[data-testid="split-sheet"]')!;
-    const grab = surface.querySelector("[data-sheet-grab]")!;
-    const x = innerWidth / 2;
-    const fire = (type: string, y: number) =>
-      grab.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: x, clientY: y }));
-    const from = rest + 14;
-    fire("pointerdown", from);
-    for (let dy = 10; dy <= 200; dy += 10) fire("pointermove", from - dy);
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const lift = rest - surface.getBoundingClientRect().top;
-    const atBottom = document.elementFromPoint(x, innerHeight - 2);
-    fire("pointerup", from - 200);
-    return { lift, coveredBySheet: surface.contains(atBottom) };
-  }, rest);
-  expect(stretched.lift).toBeGreaterThan(20);
-  expect(stretched.coveredBySheet).toBe(true);
-  await settled(sheet);
-  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
-});
-
-test("the first swipe on the open breakdown's Item list scrolls the list, and the sheet and the page hold still", async ({ browser, request, browserName }, { workerIndex }) => {
-  test.skip(browserName !== "chromium", "only Chromium's CDP touches drive native scrolling");
-  const page = await open(browser, await createSplit(request, workerIndex, browserName, longDinner), browserName);
-  await openLongBreakdown(page);
-  const sheet = page.getByTestId("split-sheet");
-  const rest = (await sheet.boundingBox())!.y;
-  const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
-  await expect(list).toHaveCount(1);
-  const pageTop = () => page.evaluate(() => document.querySelector('[data-testid="receipt"]')!.getBoundingClientRect().top);
-  const before = await pageTop();
-  await drag(page, await center(list), -120, 200);
-  await expect.poll(() => list.evaluate((element) => element.scrollTop), live).toBeGreaterThan(40);
-  await settled(sheet);
-  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
-  expect(await pageTop()).toBe(before);
-});
-
-// Three Item rows (46 px each) is the least that still reads as a list rather than a peephole.
-const roomyList = 3 * 46;
-
-const zelle = { service: "zelle", handle: "jason@example.com" };
-const paypal = { service: "paypal", handle: "jasonzhang" };
-
-for (const { count, handles } of [
-  { count: "one", handles: [venmo] },
-  { count: "two", handles: [venmo, cashApp] },
-  { count: "three", handles: [venmo, cashApp, zelle] },
-  { count: "four", handles: [venmo, cashApp, paypal, zelle] },
-]) {
-  test(`with ${count} ways to pay on a 667 pt phone, the breakdown's Items, discounts, tax and tip scroll in one region at least three rows tall`, async ({ browser, request, browserName }, { workerIndex }) => {
-    test.skip(browserName !== "chromium", "only Chromium's CDP touches drive native scrolling");
-    const page = await open(browser, await createSplit(request, workerIndex, browserName, topgolf, handles), browserName);
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
-    await settled(page.getByTestId("split-sheet"));
-    const shut = page.getByRole("button", { name: /^Beer Bucket, .*collapsed$/ });
-    while (await shut.count()) await shut.first().click();
-    for (const name of ["Gameplay", "Guinness Draught 14.9oz Can", "Michelob Ultra 16oz Aluminum Bottle"]) {
-      for (const line of await page.getByRole("button", { name: `${name}, check for Sam` }).all()) await line.click();
-    }
-    for (const name of ["High Noon Pineapple 12oz Can", "High Noon Watermelon 12oz Can"]) await page.getByRole("button", { name: `${name}, check for Sam` }).first().click();
-    await expect(page.getByTestId("owe")).not.toHaveText("$0.00", live);
-    await settled(page.getByTestId("split-sheet"));
-    await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
-    await expect(page.getByTestId("breakdown")).toBeVisible(live);
-    await settled(page.getByTestId("split-sheet"));
-
-    const breakdown = page.getByTestId("breakdown");
-    await expect(breakdown.getByRole("link", { name: /^Pay Jason \$[\d.]+ on Venmo$/ })).toBeVisible();
-    await expect(breakdown.getByRole("combobox", { name: "Pay with" }).locator("option")).toHaveCount(handles.length > 1 ? handles.length : 0);
-    const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
-    await expect(list).toHaveCount(1);
-    expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(roomyList);
-    for (const row of ["Beer Bucket Discount (10%)", "Tax", "Tip"]) await expect(list.getByText(row, { exact: true }).first()).toBeAttached();
-
-    const shown = () =>
-      list.getByText("Tip", { exact: true }).evaluate((label) => {
-        const scroller = label.closest("[data-sheet-scroll]")!.getBoundingClientRect();
-        const row = label.getBoundingClientRect();
-        return row.top >= scroller.top && row.bottom <= scroller.bottom;
-      });
-    expect(await shown()).toBe(false);
-    for (let swipe = 0; swipe < 6 && !(await shown()); swipe += 1) await drag(page, await center(list), -150, 200);
-    expect(await shown()).toBe(true);
-  });
-}
-
-test("a long Host name on a 548 pt phone ellipsizes inside its chip instead of wrapping the people row, so the breakdown's list keeps its height", async ({ browser, request, browserName }, { workerIndex }) => {
-  test.skip(browserName !== "chromium", "only Chromium's CDP touches drive native scrolling");
-  const page = await open(browser, await createSplit(request, workerIndex, browserName, topgolf, [venmo, cashApp, paypal, zelle], "Alexandra Papadopoulos"), browserName);
-  await page.setViewportSize({ width: 375, height: 548 });
-  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
-  await settled(page.getByTestId("split-sheet"));
-  // Enough Items that the breakdown's list scrolls, so its height is the room the sheet leaves it.
-  const shut = page.getByRole("button", { name: /^Beer Bucket, .*collapsed$/ });
-  while (await shut.count()) await shut.first().click();
-  for (const name of ["Gameplay", "Guinness Draught 14.9oz Can", "Michelob Ultra 16oz Aluminum Bottle"]) {
-    for (const line of await page.getByRole("button", { name: `${name}, check for Sam` }).all()) await line.click();
-  }
-  await expect(page.getByTestId("owe")).not.toHaveText("$0.00", live);
-  await settled(page.getByTestId("split-sheet"));
-  await page.getByRole("button", { name: /^Your share .*, Show what you owe$/ }).click();
-  await expect(page.getByTestId("breakdown")).toBeVisible(live);
-  await settled(page.getByTestId("split-sheet"));
-  const list = page.locator('[data-testid="breakdown-items"] [data-sheet-scroll]');
-  await expect(list).toHaveCount(1);
-  expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(138);
 });
 
 test("a price typed at the end or in the middle of the Item sheet's price field is what the field and the row show, and text that is not a price holds the sheet open on its problem", async ({ browser, request, browserName }, { workerIndex }) => {
@@ -585,11 +265,11 @@ test("with a long name, Give the rest and the status share one line inside the I
   const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 8775 }], adjustments: [], subtotal: 8775, total: 8775 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt, [venmo], host), browserName);
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: host, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${host}, you`, exact: true })).toBeVisible(live);
-  await settled(page.getByTestId("split-sheet"));
+  await expect(page.getByTestId("owe")).toBeVisible(live);
   const sheet = page.getByRole("dialog", { name: "Item" });
   const who = sheet.getByRole("group", { name: "Who had it" });
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  await settled(sheet);
   for (const name of [host, "Sam"]) {
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);

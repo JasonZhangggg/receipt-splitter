@@ -430,7 +430,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 - [ ] Header with the wordmark as the Home button (Appendix B), the theme toggle and the share icon. The menu button goes.
 - [ ] The intro line ("Sam paid $135.83. Tap the dot next to what you had. Tap a line to edit it or split it another way.") and the Receipt, People, Payments and History links that open their existing sheets.
 - [ ] A fixed footer with "Your share" (or "Priya's share"), the amount, the Items count line, and a "Pay Sam" pill.
-- [ ] The pill opens the Pay sheet (decision 25, `docs/design/b2/screens/split-17-pay.png` to `split-21-pay-dark.png`). It lists the viewed person's Items with their part, their part of each Adjustment, and their total, in regular weight, then today's pay pill from `PayBlock` unchanged in behavior (app mark and name, the chevron switcher, Zelle copy, the handles line) and "I already paid". The pill and "I already paid" sit in a bar fixed to the bottom of the sheet. Marking paid closes the sheet, turns the footer pill into a green "✓ Paid", and shows an undo bar. The Pay sheet replaces the folding breakdown and keeps every behavior of `Breakdown` and `PayBlock`.
+- [ ] The pill opens the Pay sheet (decision 25, `docs/design/b2/screens/split-17-pay.png` to `split-21-pay-dark.png`). It lists the viewed person's Items with their part, their part of each Adjustment, and their total, in regular weight, then today's pay pill from `PayBlock` unchanged in behavior (app mark and name, the chevron switcher, Zelle copy, the handles line) and "I already paid". The pill and "I already paid" sit in a bar fixed to the bottom of the sheet. Marking paid closes the sheet, turns the footer pill into a neutral outlined "✓ Paid" in the normal text color (operator, 2026-10-15; green stays in the Payments sheet), and shows an undo bar. The Pay sheet replaces the folding breakdown and keeps every behavior of `Breakdown` and `PayBlock`.
 - [ ] Desktop renders the same single column, centered (Appendix B).
 
 **You see.**
@@ -863,7 +863,7 @@ Emil design rules for every B2 PR, from the B2-1 design review (PASS+NOTES).
 6. The tall snap animates `transform`, never `height`. Drag writes `transform` on the sheet itself.
 7. The Payments ring arcs stagger 30 to 80 ms and never block input.
 8. Readable text is `fg` or `muted`. `faint` is only for placeholders, disabled items and decoration.
-9. Red only for a problem, green only for "Paid".
+9. Red only for a problem, green only for "Paid" in the Payments sheet. The footer pill is neutral (operator, 2026-10-15).
 10. Every amount uses `tabular-nums`, split lines included.
 
 

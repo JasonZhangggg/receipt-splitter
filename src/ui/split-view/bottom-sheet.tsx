@@ -2,84 +2,38 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Reac
 import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { glide, glideFor, leaveMs, reducedFade, releaseIntent, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
-import { Swap } from "../components/swap";
+import { glide, glideFor, leaveFor, leaveMs, reducedFade, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, motion, useColors } from "../theme";
 
 const tapSlop = 10;
 const grabHeight = 29;
+const barGap = 16;
 // The scroller clips, so its content keeps this much room on the top and sides for a focused field's ring.
 const ringRoom = 4;
 const contain = webStyle({ overscrollBehavior: "contain" });
 const holdsGesture = webStyle({ touchAction: "none" });
-// A folding sheet's content sizes itself to fit, so the scroller never scrolls and lets a list inside reach out to the sheet's edge.
-const unclipped = webStyle({ overflowX: "visible", overflowY: "visible" });
-
-type FoldListener = (progress: number, ms: number, span: number) => void;
-
-/** Where a folding sheet is between folded (0) and open (1), and how far it travels between them (`span`, px). Its content listens here to move with it, over the same `ms` (0 while the sheet follows a finger). */
-export class FoldTrack {
-  progress = 0;
-  span = 0;
-  private listener: FoldListener | null = null;
-
-  move(progress: number, ms: number, span: number) {
-    this.progress = progress;
-    this.span = span;
-    this.listener?.(progress, ms, span);
-  }
-
-  listen(listener: FoldListener) {
-    this.listener = listener;
-    return () => {
-      if (this.listener === listener) this.listener = null;
-    };
-  }
-}
-
-export function useFoldTrack(): FoldTrack {
-  return useState(() => new FoldTrack())[0];
-}
-
-/** Folded, the sheet shows its header and the first `peek` px of its content. A drag moves it between folded and open. */
-type Fold = { open: boolean; peek: number; track: FoldTrack };
 
 type Props = {
   children: ReactNode;
   /** Lays a transparent hit area over the page that closes the sheet on a tap. The page behind is never dimmed. */
   tapAway?: boolean;
-  /** A swipe down, or a tap away. */
+  /** A swipe down, or a tap away. Called once the sheet has left. */
   onDown?: () => void;
   /** Asked before a swipe down or a tap away takes the sheet away; true settles it back, as for content holding an edit that cannot save. */
   holds?: () => boolean;
-  /** A swipe up. */
-  onUp?: () => void;
-  /** The owner swaps the content on onDown, so the sheet glides to the new height instead of out of view. */
-  stays?: boolean;
   minHeight?: number;
-  /** A sheet that is part of the page appears in place on load. Others rise from the bottom. */
-  rises?: boolean;
-  /** Sinks out of view, as when another sheet covers it, and rises back when false. */
-  lowered?: boolean;
   closing?: boolean;
-  /** The height the page should leave clear under its content. A folding sheet reports its folded height, since open it covers the page, which holds still. */
-  onHeight?: (height: number) => void;
-  /** Names what the sheet shows. When it changes, the old content fades out, then the new content fades in, so the two never show together. */
-  view?: string;
-  /** Stays in place above the content when `view` changes. */
-  header?: ReactNode;
-  /** Makes the sheet fold. Its content then fits itself to the sheet: only a list marked `data-sheet-scroll` scrolls. onUp opens it and onDown folds it. */
-  fold?: Fold;
+  /** A bar fixed to the bottom of the sheet, under the scrolling content: the Pay sheet's pay button. */
+  bar?: ReactNode;
   label: string;
   testID?: string;
 };
 
-/** `resume` is where a sheet caught mid-glide was headed, so a touch that never drags lets it finish. */
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
-export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, stays = false, closing = false, onHeight, view, header, fold, minHeight = 0, rises = true, lowered = false, label, testID }: Props) {
+export function BottomSheet({ children, tapAway = false, onDown, holds, closing = false, minHeight = 0, bar, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduce = useReducedMotion();
@@ -87,38 +41,25 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
   const screen = useLayoutHeight();
   const tallest = Math.min(Math.round(screen * tallShare), screen - insets.top - 8);
   const [content, setContent] = useState(0);
-  const [headerHeight, setHeaderHeight] = useState(0);
   const [tall, setTall] = useState(false);
-  const snaps = !fold && !stays;
-  const natural = content + grabHeight + 30 + insets.bottom;
+  const [barHeight, setBarHeight] = useState(0);
+  const natural = content + grabHeight + (bar ? barHeight + barGap : 30 + insets.bottom);
   const visible = content === 0 ? 0 : Math.min(Math.max(natural, minHeight), tallest);
   const scrolls = natural > tallest;
   const rest = tallest - visible;
-  const folded = fold ? Math.min(headerHeight + fold.peek + grabHeight + 30 + insets.bottom, visible) : visible;
-  const foldRest = tallest - folded;
-  const home = fold && !fold.open ? foldRest : snaps && tall ? 0 : rest;
+  const home = tall ? 0 : rest;
   const surface = useRef<View>(null);
   const body = useRef<View>(null);
-  const top = useRef<View>(null);
   const offset = useRef<number | null>(null);
   const drag = useRef<Drag | null>(null);
   const leaving = useRef(false);
-  const handoff = useRef(0);
-  const placed = useRef(false);
   const left = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const gestures = onDown !== undefined || onUp !== undefined;
+  const gestures = onDown !== undefined;
 
   const element = () => surface.current as unknown as HTMLElement | null;
 
-  const progressAt = (at: number) => {
-    if (!fold) return 1;
-    if (lowered || foldRest <= rest) return fold.open ? 1 : 0;
-    return Math.max(0, Math.min(1, (foldRest - at) / (foldRest - rest)));
-  };
-
   const place = (to: number, ms: number, easing = glide.easing) => {
     offset.current = to;
-    fold?.track.move(progressAt(to), ms, foldRest - rest);
     const sheet = element();
     if (sheet) {
       sheet.style.transition = ms > 0 ? `transform ${ms}ms ${easing}` : "none";
@@ -136,7 +77,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
     const from = offset.current ?? tallest;
     const ms = glideFor(to - from, Math.sign(to - from) * velocity);
     if (to >= tallest) {
-      const out = Math.min(leaveMs, ms);
+      const out = velocity > 0 ? Math.min(leaveMs, ms) : leaveFor(to - from);
       place(to, out, motion.easeOut);
       if (done) left.current = setTimeout(done, out);
       return;
@@ -146,11 +87,6 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
   };
 
   const leave = (velocity: number) => {
-    if (stays) {
-      handoff.current = velocity;
-      settle(home, velocity);
-      return onDown?.();
-    }
     if (leaving.current) return;
     if (holds?.()) return settle(home, velocity);
     leaving.current = true;
@@ -160,22 +96,16 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
   const follow = useEffectEvent(() => {
     if (offset.current === null) place(tallest, 0);
     if (visible === 0 || drag.current?.moved || leaving.current) return;
-    const to = lowered ? tallest : home;
-    const firstPlacement = !placed.current;
-    placed.current = true;
-    if (!rises && firstPlacement) return place(to, 0);
-    if (offset.current === to) return;
-    settle(to, handoff.current);
-    handoff.current = 0;
+    if (offset.current === home) return;
+    settle(home, 0);
   });
-  useLayoutEffect(() => follow(), [visible, tallest, lowered, home]);
+  useLayoutEffect(() => follow(), [visible, tallest, home]);
 
   const close = useEffectEvent(() => leave(0));
   useEffect(() => {
     if (closing) close();
   }, [closing]);
 
-  useEffect(() => onHeight?.(folded), [folded, onHeight]);
   useEffect(() => () => clearTimeout(left.current), []);
 
   const live = () => {
@@ -214,15 +144,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
     }
     current.samples = [...current.samples.slice(-4), { y: clientY, t: event.timeStamp }];
     const at = current.from + (clientY - current.startY);
-    // Past the rest it started from, a folding sheet resists. A drag that reaches the other rest stops there, so a flick that overshoots never springs back against its own direction.
-    if (fold) {
-      const above = fold.open ? rest + rubberband(at - rest, visible) : rest;
-      const below = fold.open ? foldRest : foldRest + rubberband(at - foldRest, folded);
-      return place(at < rest ? above : at > foldRest ? below : at, 0);
-    }
-    if (snaps) return place(at < 0 ? rubberband(at, visible) : at > home && !onDown ? home + rubberband(at - home, visible) : at, 0);
-    const below = at - rest;
-    place(rest + (below > 0 && onDown ? below : rubberband(below, visible)), 0);
+    place(at < 0 ? rubberband(at, visible) : at > home && !onDown ? home + rubberband(at - home, visible) : at, 0);
   };
 
   const onPointerUp = (event: PointerEvent) => {
@@ -234,24 +156,11 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
       return;
     }
     const velocity = releaseVelocity(current.samples, event.timeStamp);
-    if (fold) {
-      const at = offset.current ?? home;
-      const opens = fold.open ? releaseIntent(at - rest, velocity, foldRest - rest) !== "down" : releaseIntent(at - foldRest, velocity, folded) === "up";
-      settle(opens ? rest : foldRest, velocity);
-      if (opens !== fold.open) (opens ? onUp : onDown)?.();
-      return;
-    }
-    if (snaps) {
-      const snap = snapFor((offset.current ?? home) - rest, velocity, tall, rest);
-      if (snap === "close" && onDown) return leave(velocity);
-      const next = snap === "tall" || (snap === "stay" && tall);
-      settle(next ? 0 : rest, velocity);
-      return setTall(next);
-    }
-    const intent = releaseIntent((offset.current ?? rest) - rest, velocity, visible);
-    if (intent === "down" && onDown) return leave(velocity);
-    settle(rest, velocity);
-    if (intent === "up" && onUp) onUp();
+    const snap = snapFor((offset.current ?? home) - rest, velocity, tall, rest);
+    if (snap === "close" && onDown) return leave(velocity);
+    const next = snap === "tall" || (snap === "stay" && tall);
+    settle(next ? 0 : rest, velocity);
+    setTall(next);
   };
 
   const onPointerCancel = (event: PointerEvent) => {
@@ -263,8 +172,6 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
   const measure = () => {
     const box = body.current as unknown as HTMLElement | null;
     if (box) setContent(Math.ceil(box.getBoundingClientRect().height));
-    const above = top.current as unknown as HTMLElement | null;
-    if (above) setHeaderHeight(Math.ceil(above.getBoundingClientRect().height));
   };
   useLayoutEffect(measure);
 
@@ -292,18 +199,23 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
             <View style={[styles.grab, { backgroundColor: c.hairline }]} />
           </View>
           <ScrollView
-            style={[{ maxHeight: tallest - grabHeight + ringRoom }, contain, fits, fold && unclipped]}
-            contentContainerStyle={[{ paddingTop: ringRoom, paddingBottom: 30 + insets.bottom }, fits, fold && { maxHeight: tallest - grabHeight + ringRoom }]}
+            style={[{ maxHeight: tallest - grabHeight + ringRoom - barHeight }, contain, fits]}
+            contentContainerStyle={[{ paddingTop: ringRoom, paddingBottom: bar ? barGap : 30 + insets.bottom }, fits]}
           >
             <View style={[styles.inset, styles.shrink, { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
               <View ref={body} onLayout={measure} {...{ dataSet: { sheetBody: "" } }} style={styles.shrink}>
-                <View ref={top}>{header}</View>
-                <Swap view={view} style={styles.shrink}>
-                  {children}
-                </Swap>
+                {children}
               </View>
             </View>
           </ScrollView>
+          {bar ? (
+            <View
+              onLayout={(event) => setBarHeight(Math.ceil(event.nativeEvent.layout.height))}
+              style={[styles.bar, { borderTopColor: c.hairline, backgroundColor: c.sheet, paddingBottom: 22 + insets.bottom }]}
+            >
+              <View style={[styles.inset, { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>{bar}</View>
+            </View>
+          ) : null}
         </View>
       </View>
     </>
@@ -321,4 +233,5 @@ const styles = StyleSheet.create({
   grabArea: { alignSelf: "stretch", height: grabHeight - ringRoom, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },
   shrink: { flexShrink: 1 },
+  bar: { borderTopWidth: 1, paddingTop: 12 },
 });

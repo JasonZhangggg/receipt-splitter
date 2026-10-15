@@ -476,55 +476,39 @@ async function openSplit(page: Page, people = table, receipt: object = dinner) {
 
 const sheet = (page: Page) => page.getByTestId("split-sheet");
 const pickJason = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true });
-const meChip = (page: Page) => page.getByRole("button", { name: "Jason, you", exact: true });
 
 export async function picked(page: Page, people = table, receipt: object = dinner) {
   await openSplit(page, people, receipt);
   await tap(pickJason(page));
   await page.getByTestId("owe").waitFor();
-  await still(sheet(page));
+  await sheet(page).waitFor({ state: "detached" });
   await page.waitForTimeout(300);
 }
 
-async function expand(page: Page) {
-  await tap(page.getByTestId("owe"));
-  await page.getByTestId("breakdown").waitFor();
-  await still(sheet(page));
+/** Sam picks his name and checks Rice, so the footer shows his share and the Pay Jason pill. */
+async function payReady(page: Page) {
+  await openSplit(page);
+  await tap(page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }));
+  await page.getByTestId("owe").waitFor();
+  await sheet(page).waitFor({ state: "detached" });
+  await tap(page.getByRole("button", { name: "Rice, check for Sam" }));
+  await page.locator('[aria-label="Rice, check for Sam"][aria-pressed="true"]').waitFor();
+  await payPill(page).waitFor();
+  await page.waitForTimeout(300);
 }
 
-async function expanded(page: Page) {
-  await picked(page);
-  await expand(page);
+const paySheet = (page: Page) => page.getByTestId("breakdown");
+const payPill = (page: Page) => page.getByTestId("footer").getByRole("button", { name: "Pay Jason" });
+
+async function payOpen(page: Page) {
+  await payReady(page);
+  await tap(payPill(page));
+  await paySheet(page).waitFor();
+  await still(paySheet(page));
 }
 
-async function hadRice(page: Page) {
-  await picked(page);
-  await tap(page.getByRole("button", { name: "Rice, check for Jason" }));
-  await page.locator('[aria-label="Rice, check for Jason"][aria-pressed="true"]').waitFor();
-  await expand(page);
-}
-
-const twoPlates = { items: [{ id: "rice", name: "Rice", price: 800 }, { id: "tostones", name: "Tostones", price: 100 }], adjustments: [], subtotal: 900, total: 900 };
-
-/** Jason has no Items and Sam had every one, so Jason's breakdown is as short as it gets. */
-async function othersHadAll(page: Page) {
-  await picked(page, table, twoPlates);
-  await tap(page.getByRole("button", { name: "Sam", exact: true }));
-  for (const item of ["Rice", "Tostones"]) {
-    await tap(page.getByRole("button", { name: `${item}, check for Sam` }));
-    // Only the first check for someone else asks.
-    if (item === "Rice") await tap(page.getByRole("dialog", { name: "Check Rice for Sam?" }).getByRole("button", { name: "Check for Sam" }));
-    await page.locator(`[aria-label="${item}, check for Sam"][aria-pressed="true"]`).waitFor();
-  }
-  await page.getByTestId("unclaimed").filter({ hasText: "$0.00" }).waitFor();
-  await tap(meChip(page));
-  await tap(page.getByRole("button", { name: "Your share $0.00, Show what you owe" }));
-  await page.getByRole("button", { name: "Your share $0.00, Hide what you owe" }).waitFor();
-  await still(sheet(page));
-}
-
-async function grab(page: Page): Promise<Point> {
-  const box = (await sheet(page).boundingBox())!;
+async function grab(page: Page, target = sheet(page)): Promise<Point> {
+  const box = (await target.boundingBox())!;
   return { x: box.x + box.width / 2, y: box.y + 14 };
 }
 
@@ -539,15 +523,8 @@ const label = (name: string) => `document.querySelector('[aria-label="${name}"]'
 const heading = (name: string) => `[...document.querySelectorAll('[role="heading"]')].find((el) => el.textContent === "${name}") ?? null`;
 
 const splitTop: Probe = { key: "sheet", find: testId("split-sheet"), kind: "top" };
-const oweFade: Probe = { key: "owe", find: testId("owe"), kind: "opacity" };
 const breakdownFade: Probe = { key: "breakdown", find: testId("breakdown"), kind: "opacity" };
-/** The phone's share sheet: the share amount is one element that moves into place while the list and the arrow follow the sheet. */
-const shareSheet: Probe[] = [
-  splitTop,
-  { key: "items", find: testId("breakdown-items"), kind: "opacity" },
-  { key: "amount", find: `document.querySelector('[data-testid="split-sheet"] [data-testid="owe"], [data-testid="split-sheet"] [data-testid="share"]')`, kind: "top" },
-  { key: "arrow", find: testId("share-arrow"), kind: "angle" },
-];
+const payProbes: Probe[] = [{ key: "pay", find: testId("breakdown"), kind: "top" }];
 const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-controls]')`;
 const bundleProbes: Probe[] = [
   { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
@@ -710,21 +687,21 @@ const pickHandoff: Scenario = {
   name: "Split sheet: pick hands off to the bar",
   setup: openSplit,
   act: (page) => tap(pickJason(page)),
-  probes: [splitTop, oweFade, { key: "question", find: heading("Which one are you?"), kind: "opacity" }],
+  probes: [splitTop, { key: "owe", find: testId("owe"), kind: "top" }],
 };
 const openTap: Scenario = {
   id: "open-tap",
-  name: "Split sheet: breakdown opens by tap",
-  setup: picked,
-  act: (page) => tap(page.getByTestId("owe")),
-  probes: shareSheet,
+  name: "Pay sheet: opens from the footer pill",
+  setup: payReady,
+  act: (page) => tap(payPill(page)),
+  probes: payProbes,
 };
 const collapseTap: Scenario = {
   id: "collapse-tap",
-  name: "Split sheet: breakdown collapses by tap",
-  setup: expanded,
-  act: (page) => tap(meChip(page)),
-  probes: shareSheet,
+  name: "Pay sheet: closes by tap away",
+  setup: payOpen,
+  act: async (page) => tapAt(page, { x: (page.viewportSize()?.width ?? 390) / 2, y: 60 }),
+  probes: payProbes,
 };
 const bundleExpand: Scenario = {
   id: "bundle-expand",
@@ -898,44 +875,23 @@ const sheetAndHome: Scenario[] = [
     name: "Split sheet: a flick on the pick sheet closes it",
     setup: openSplit,
     act: async (page) => drag(page, await sheetBody(page), 260, 120),
-    probes: [splitTop, { key: "question", find: heading("Which one are you?"), kind: "opacity" }],
+    probes: [splitTop],
   },
   openTap,
   collapseTap,
   {
-    id: "open-swipe",
-    name: "Split sheet: breakdown opens by swipe up",
-    setup: picked,
-    act: async (page) => drag(page, await grab(page), -200, 150),
-    probes: shareSheet,
-  },
-  {
     id: "collapse-drag",
-    name: "Split sheet: breakdown collapses by slow drag",
-    setup: expanded,
-    act: async (page) => drag(page, await grab(page), 260, 500),
-    probes: shareSheet,
+    name: "Pay sheet: closes by slow drag",
+    setup: payOpen,
+    act: async (page) => drag(page, await grab(page, paySheet(page)), 260, 500),
+    probes: payProbes,
   },
   {
     id: "collapse-flick",
-    name: "Split sheet: an empty breakdown collapses by flick while Items are unclaimed",
-    setup: expanded,
-    act: async (page) => drag(page, await sheetBody(page), 200, 100),
-    probes: shareSheet,
-  },
-  {
-    id: "collapse-flick-mine",
-    name: "Split sheet: breakdown collapses by flick",
-    setup: hadRice,
-    act: async (page) => drag(page, await sheetBody(page), 200, 100),
-    probes: shareSheet,
-  },
-  {
-    id: "collapse-flick-others-had-all",
-    name: "Split sheet: an empty breakdown collapses by flick after the others had every Item",
-    setup: othersHadAll,
-    act: async (page) => drag(page, await sheetBody(page), 200, 100),
-    probes: shareSheet,
+    name: "Pay sheet: closes by flick",
+    setup: payOpen,
+    act: async (page) => drag(page, await grab(page, paySheet(page)), 200, 100),
+    probes: payProbes,
   },
   bundleExpand,
   bundleCollapse,
@@ -1009,9 +965,9 @@ const sheetAndHome: Scenario[] = [
     act: (page) => tap(page.getByRole("button", { name: "Close photo" })),
     probes: photoProbes,
   },
-  reduced(pickHandoff),
+  { ...reduced(pickHandoff), probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }] },
   reduced(openTap),
-  reduced(collapseTap),
+  { ...reduced(collapseTap), probes: [{ key: "sheetFade", find: testId("breakdown"), kind: "opacity" }] },
   reduced(bundleExpand),
   reduced(bundleCollapse),
   reduced(itemOpenScenario),
@@ -1022,14 +978,15 @@ const sheetAndHome: Scenario[] = [
   reduced(photoOpen),
   {
     id: "reduced-collapse-drag",
-    name: "Reduced motion: a sheet dragged down and let go stays opaque while its content cross-fades",
+    name: "Reduced motion: the Pay sheet dragged down and let go leaves at once",
     reduce: true,
+    instant: true,
     setup: async (page) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
-      await expanded(page);
+      await payOpen(page);
     },
-    act: async (page) => drag(page, await grab(page), 120, 400),
-    probes: [{ key: "sheetFade", find: testId("split-sheet"), kind: "opacity" }, { key: "items", find: testId("breakdown-items"), kind: "opacity" }],
+    act: async (page) => drag(page, await grab(page, paySheet(page)), 200, 400),
+    probes: [{ key: "sheetFade", find: testId("breakdown"), kind: "opacity" }],
   },
 ];
 

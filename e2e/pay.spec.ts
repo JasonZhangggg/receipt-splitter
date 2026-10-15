@@ -1,5 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
-import { fromMore } from "./header";
+import { fromMore, viewAs } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -49,27 +49,88 @@ async function open(browser: Browser, link: string): Promise<Page> {
 
 async function pick(page: Page, name: string) {
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
 const circle = (page: Page, item: string, name: string) => page.getByRole("button", { name: `${item}, check for ${name}` });
 const owe = (page: Page) => page.getByTestId("owe");
 const breakdown = (page: Page) => page.getByTestId("breakdown");
-const note = (page: Page) => page.getByTestId("split-sheet").getByTestId("share-note");
+const note = (page: Page) => page.getByTestId("footer").getByTestId("share-note");
 
-test("a guest's collapsed bar shows Your share and no pay button, and the pay button waits in the breakdown it pulls up", async ({ browser, request }, { workerIndex }) => {
+test("a guest's footer shows Your share and the Pay Jason pill, and the pay button waits in the Pay sheet it opens", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, [venmo]));
   await pick(sam, "Sam");
   await circle(sam, "Pho", "Sam").click();
-  const sheet = sam.getByTestId("split-sheet");
-  const bar = sheet.getByRole("button", { name: "Your share $14.20, Show what you owe" });
-  await expect(bar).toBeVisible(live);
-  await expect(sheet.getByRole("link")).toHaveCount(0);
-  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
+  const footer = sam.getByTestId("footer");
+  await expect(footer.getByRole("button", { name: "Your share $14.20, Show what you owe" })).toBeVisible(live);
+  await expect(footer.getByRole("link")).toHaveCount(0);
+  await expect(footer.getByText("1 of 3 items · incl. tax & tip")).toBeVisible();
 
-  await bar.click();
+  await footer.getByRole("button", { name: "Pay Jason" }).click();
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Venmo" })).toBeVisible(live);
-  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
+});
+
+test("the Pay sheet lists the viewer's Items and Adjustment parts and its total equals the footer share", async ({ browser, request }, { workerIndex }) => {
+  const taxed = { ...menu, adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 400 }, { id: "tip", kind: "tip", name: "Tip", amount: 600 }], subtotal: 4420, total: 5420 };
+  const sam = await open(browser, await createSplit(request, workerIndex, [venmo], taxed));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await circle(sam, "Tea", "Sam").click();
+  await expect(owe(sam)).toHaveText("$37.03", live);
+  await owe(sam).click();
+  const sheet = breakdown(sam);
+  await expect(sheet.getByText("Pho", { exact: true })).toBeVisible(live);
+  await expect(sheet.getByText("Tea", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("Wings")).toHaveCount(0);
+  await expect(sheet.getByText("Tax", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("Tip", { exact: true })).toBeVisible();
+  await expect(sheet.getByTestId("share")).toHaveText("$37.03");
+  await expect(sheet.getByText("$14.20", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("$16.00", { exact: true })).toBeVisible();
+});
+
+test("I already paid marks the viewer paid and Undo reverts it", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, [venmo]));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toBeVisible(live);
+  await expect(sam.getByTestId("breakdown")).toHaveCount(0, live);
+  const footer = sam.getByTestId("footer");
+  await expect(footer.getByRole("button", { name: "Paid" })).toHaveText("✓ Paid");
+
+  await sam.getByRole("button", { name: "Undo" }).click();
+  await expect(footer.getByRole("button", { name: "Pay Jason" })).toBeVisible(live);
+  await footer.getByRole("button", { name: "Pay Jason" }).click();
+  await expect(breakdown(sam).getByRole("button", { name: "I already paid" })).toBeVisible(live);
+});
+
+test("Undo after I paid the rest returns to the earlier payment instead of clearing it", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await circle(sam, "Pho", "Sam").click();
+  await expect(owe(sam)).toHaveText("$14.20", live);
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
+  await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toHaveCount(0, { timeout: 10_000 });
+
+  await priya.getByRole("button", { name: /^Open Tea/ }).click();
+  await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
+  await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
+
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I paid the rest" }).click();
+  await expect(sam.getByRole("status").getByText("Marked $30.20 as paid")).toBeVisible(live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
+
+  await sam.getByRole("button", { name: "Undo" }).click();
+  await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
 });
 
 test("with no way to pay the Host, Sam's breakdown links no pay app and still lets him mark his $14.20 paid", async ({ browser, request }, { workerIndex }) => {
@@ -83,7 +144,9 @@ test("with no way to pay the Host, Sam's breakdown links no pay app and still le
   await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
   await expect(breakdown(sam).getByTestId("zelle")).toHaveCount(0);
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(breakdown(sam).getByRole("button", { name: "I haven't paid" })).toBeVisible(live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toBeVisible(live);
+  await sam.getByTestId("footer").getByRole("button", { name: "Paid" }).click();
+  await expect(breakdown(sam).getByRole("button", { name: "Mark as not paid" })).toBeVisible(live);
   await expect(sam).toHaveURL(/\/s\//);
 });
 
@@ -178,13 +241,13 @@ test("Sam's one pay pill switches among Jason's four apps, links each at his $14
 test("Priya's breakdown, before anyone pays, has no paid line under her share and no buttons", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, everyApp));
   await pick(sam, "Sam");
-  await sam.getByRole("button", { name: "Priya", exact: true }).click();
+  await viewAs(sam, "Priya");
   await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
-  await expect(breakdown(sam).getByRole("button", { name: "Priya's share $0.00, Hide Priya's breakdown" })).toBeVisible(live);
+  await expect(breakdown(sam).getByRole("heading", { name: "Priya's share" })).toBeVisible(live);
   await expect(note(sam)).toHaveCount(0);
   await expect(breakdown(sam).getByRole("link")).toHaveCount(0);
   await expect(breakdown(sam).getByRole("combobox")).toHaveCount(0);
-  await expect(breakdown(sam).getByRole("button")).toHaveAccessibleName("Priya's share $0.00, Hide Priya's breakdown");
+  await expect(breakdown(sam).getByRole("button")).toHaveAccessibleName("Close");
 });
 
 test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, and both browsers say he paid $8.00 too much", async ({ browser, request }, { workerIndex }) => {
@@ -200,8 +263,10 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
 
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(breakdown(sam).getByRole("button", { name: "I haven't paid" })).toBeVisible(live);
-  await expect(note(sam)).toHaveText("Paid $22.00", live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toBeVisible(live);
+  await sam.getByTestId("footer").getByRole("button", { name: "Paid" }).click();
+  await expect(breakdown(sam).getByRole("button", { name: "Mark as not paid" })).toBeVisible(live);
+  await expect(note(sam)).toHaveCount(0);
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
   await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
@@ -209,10 +274,10 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
 
   await expect(note(sam)).toHaveText("Paid $22.00 · $8.00 too much", live);
   await expect(breakdown(sam).getByTestId("share")).toHaveText("$14.00");
-  await expect(breakdown(sam).getByText("Your share")).toBeVisible();
+  await expect(breakdown(sam).getByRole("heading", { name: "Pay Jason" })).toBeVisible();
 
   await expect(priya.getByTestId("item-sheet")).toHaveCount(0, live);
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(priya, "Sam");
   await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
   await expect(note(priya)).toHaveText("Paid $22.00 · $8.00 too much", live);
 });
@@ -241,7 +306,7 @@ test("a name picked by a page that sent the browser's raw device id stays this p
   expect([raw.length, frame.includes(raw), JSON.parse(frame).split.picks.length]).toEqual([16, false, 1]);
 
   await sam.reload();
-  await expect(sam.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+  await expect(sam.getByTestId("owe")).toBeVisible(live);
   await expect(sam.getByRole("heading", { name: "Which one are you?" })).toHaveCount(0);
 });
 
@@ -277,9 +342,9 @@ test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays 
   );
   expect(answer).toEqual({ type: "rejected", ref: "forged", rejection: { reason: "payerOnly" } });
 
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(priya, "Sam");
   await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(breakdown(priya).getByRole("button", { name: /^Sam's share \$14\.20, Hide/ })).toBeVisible(live);
+  await expect(breakdown(priya).getByTestId("share")).toHaveText("$14.20", live);
   await expect(note(priya)).toHaveCount(0);
   await sam.reload();
   await expect(owe(sam)).toHaveText("$14.20", live);
@@ -367,11 +432,10 @@ test("the people chips show no check or exclamation mark and keep their plain na
   await circle(sam, "Tea", "Sam").click();
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(breakdown(sam).getByRole("button", { name: "I haven't paid" })).toBeVisible(live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toBeVisible(live);
   await circle(priya, "Tea", "Priya").click();
-  await expect(priya.getByRole("button", { name: "Sam", exact: true })).toBeVisible(live);
-  await expect(sam.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
   for (const page of [sam, priya]) {
+    await page.getByRole("button", { name: "People", exact: true }).click();
     const chips = page.getByRole("group", { name: "People" });
     await expect(chips.locator('[data-icon="check"]')).toHaveCount(0);
     await expect(chips.locator('[data-icon="exclaim"]')).toHaveCount(0);
@@ -397,7 +461,7 @@ test("Payments lists Sam as paid too much once Priya checks Tea too, and the per
   expect(await markOf(priya, "Sam")).toEqual(["exclaim"]);
   await expect(paymentRow(priya, "Priya").locator("[data-icon]")).toHaveCount(2);
   await expect(priya.getByRole("dialog", { name: "Payments" }).locator('[data-icon="person"]')).toHaveCount(1);
-  await expect(sam.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+  await expect(sam.getByTestId("owe")).toBeVisible(live);
 });
 
 test("tapping a person in Payments picks them: the arc thickens, the ring's center shows their part, and tapping the center returns to the total", async ({ browser, request }, { workerIndex }) => {

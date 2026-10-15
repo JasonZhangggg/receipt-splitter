@@ -7,12 +7,13 @@ import { payLink } from "../../core/pay-links";
 import type { PaymentHandle, PaymentService, SplitId } from "../../core/split";
 import { rememberSplit, splitOnDevice } from "../../device";
 import { money } from "../../draft";
-import { Button, Mark, PressTarget } from "../components/button";
+import { Mark, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { paymentApps } from "../home-copy";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { type, useColors } from "../theme";
+import { tabular, type, useColors } from "../theme";
+import { TextLink } from "../components/text-link";
 import { switcherWidth } from "./switcher";
 import { MethodPicker } from "./method-picker";
 import type { PayState } from "./model";
@@ -24,19 +25,20 @@ const note = "Receipt split";
 const target = Platform.OS === "web" ? "web" : "app";
 
 export function PayBlock({ split, host, handles, state, onPaid }: Props) {
+  const c = useColors();
   if (state.kind === "nothing") return null;
   const due = state.kind === "unpaid" ? state.owe : state.kind === "short" ? state.rest : null;
+  const paid = state.kind === "settled" || state.kind === "over" ? state.paid : null;
   return (
     <View style={styles.box}>
       {due === null || handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={due} />}
-      <View style={styles.center}>
-        <Button
-          kind="link"
-          label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.undoPaid}
-          onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")}
-          outsideScroll
-        />
-      </View>
+      {paid === null ? null : (
+        <View style={[styles.paid, { borderColor: c.hairline }]}>
+          <Icon name="check" size={16} color={c.good} />
+          <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
+        </View>
+      )}
+      <TextLink center label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.markNotPaid} onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")} outsideScroll />
     </View>
   );
 }
@@ -125,5 +127,5 @@ const styles = StyleSheet.create({
   switcher: { width: switcherWidth, height: 54, alignItems: "center", justifyContent: "center" },
   hairline: { position: "absolute", left: 0, width: 1, height: 24, opacity: 0.3 },
   handles: { textAlign: "center", marginHorizontal: 4 },
-  center: { alignItems: "center" },
+  paid: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 52, borderRadius: 26, borderWidth: 1 },
 });

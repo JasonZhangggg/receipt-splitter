@@ -136,7 +136,6 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - The first-load size is about 400.3 KB of the 410 KB budget.
 
 ## From PR #85 (2026-10-08), open
-- A second tap on the theme toggle during the 200 ms crossfade is dropped, so a quick double tap flips once. Accepted for now. Fixer: next UI owner, only if the operator notices it.
 - Toggle feel and the status-bar colour have not been checked on a real iPhone (mobile-native section 11). Real-notch landscape insets have not been exercised.
 
 ## From the clarity round (2026-10-09), open
@@ -163,9 +162,10 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From the B2-3 review (2026-10-15)
 
 - The pick sheet at 390 x 667 sits 40 px from the top and clips the bottom of the header glyphs (38 px before B2-3). Fixer: B2-7 owner, which rebuilds that sheet as the People sheet.
-- A tap-away closes the Split overlay without setting `closing`, so for about 5 frames neither the overlay nor the lowered share sheet shows. Fixer: B2-4 owner, which replaces the share sheet.
 
 ## From the B2 merges (2026-10-15)
 
 - e2e/sheet.spec.ts:582 "with a long name, Give the rest and the status share one line inside the Item sheet" failed once in #107's CI (7.35 px off center against 4 px), then passed on re-run and 3 of 3 locally. Fixer: B2-6 owner, which rebuilds the Item sheet; make the check robust or remove the pixel tolerance.
 - Two reviewers' local e2e runners were killed from outside partway through on 2026-10-15. Agents kill only processes they started, by PID (rule 51), and run e2e on their own `PORT` because playwright.config.ts defaults to 8787. Fixer: every owner brief.
+- The Split page's sheets do not move focus into themselves when they open (B2-4 review, 2026-10-15), so a keyboard user tabs on behind the sheet. This is shared B2-3 chrome in `bottom-sheet.tsx`. Fixer: B2-7 owner.
+- The footer's items count line truncates beside a long label such as a long Host or person name, since label and count share one row (B2-4 review, 2026-10-15). Fixer: B2-5 owner.

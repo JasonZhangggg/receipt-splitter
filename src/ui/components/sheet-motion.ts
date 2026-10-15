@@ -25,6 +25,11 @@ export const tallShare = 0.94;
 /** A sheet leaves in about this long. */
 export const leaveMs = 300;
 
+/** On easeOut the first frame covers about 0.23 of the distance at 300 ms, so a tall sheet leaves slower to keep that frame under e2e/motion.ts's 140 px step. */
+export function leaveFor(distance: number): number {
+  return Math.round(Math.max(leaveMs, Math.abs(distance) * 0.55));
+}
+
 export type Snap = "close" | "tall" | "rest" | "stay";
 
 /** Where a released snapping sheet goes, from how far it is below the rest snap (px, negative above it), its speed (px/s, down is positive), whether it started tall and how far tall sits above rest. Like a detent, a pull down from tall lands at rest; only a pull past `closeDistance` below rest closes. */

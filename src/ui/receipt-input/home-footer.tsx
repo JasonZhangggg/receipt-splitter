@@ -5,10 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { copy } from "../home-copy";
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { pressFeel, pressStyle, useReducedMotion, webStyle } from "../motion";
 import { layout, motion, type, useColors } from "../theme";
 
-const pillPress = { scale: 0.97, pressIn: 160 };
 const fade = webStyle({ transitionProperty: "opacity", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
 type Props = {
@@ -46,7 +45,7 @@ export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, 
           disabled={busy}
           outsideScroll
           onPress={onPress}
-          style={(pressed) => pressStyle(pressed, reduce, pillPress)}
+          style={(pressed) => pressStyle(pressed, reduce, pressFeel.pill)}
         >
           {() => (
             <View style={[styles.pill, fade, { backgroundColor: c.action, opacity: blocked ? 0.35 : busy ? 0.6 : 1 }]}>

@@ -59,7 +59,7 @@ async function open(browser: Browser, link: string): Promise<Page> {
 
 async function pick(page: Page, name: string) {
   await pickSheet(page).getByRole("button", { name, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
 const firstBucket = (page: Page) => page.getByRole("button", { name: /^Beer Bucket, / }).first();
@@ -510,7 +510,7 @@ test("the pick sheet takes no taps while it leaves, so its Copy cannot fire afte
   await pickSheet(page).getByRole("button", { name: "Jason", exact: true }).click();
   await expect(copy.click({ trial: true, timeout: 1_000 })).rejects.toThrow(/pointer events/);
   release();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 });
 
 const secondBundleTops = (page: Page) =>

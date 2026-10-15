@@ -1,4 +1,5 @@
 import { addNames, openExample } from "./files";
+import { viewAs, youAre } from "./header";
 import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -73,7 +74,7 @@ test("Create split link takes the Host to the tall pick sheet, and a second brow
   expect(link).toMatch(/^http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{24}$/);
   await expect(rows(page)).toHaveText(["JJason", "SSam", "PPriya"]);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await expect(page.getByTestId("owe")).toBeVisible();
 
   const sam = await open(browser, link);
   await expect(sam.getByText("Jason invited you to split $28.04")).toBeVisible();
@@ -84,19 +85,17 @@ test("after the Host picks on a link not yet shared, the bar shows Your share wi
   await readyHome(page, ["Sam"]);
   await createLink(page);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await expect(page.getByTestId("owe")).toBeVisible();
 
-  const sheet = page.getByTestId("split-sheet");
-  await expect(sheet.getByRole("button", { name: "Your share $0.00, Show what you owe" })).toBeVisible();
-  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
-  await expect(sheet.getByRole("button", { name: "Copy" })).toHaveCount(0);
+  const footer = page.getByTestId("footer");
+  await expect(footer.getByRole("button", { name: "Your share $0.00, Show what you owe" })).toBeVisible();
+  await expect(page.getByTestId("split-link")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy" })).toHaveCount(0);
 
-  const samChip = page.getByRole("button", { name: "Sam", exact: true });
-  await expect(samChip).toHaveCount(1);
-  await samChip.click();
-  await sheet.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(sheet.getByTestId("breakdown").getByText("Sam's share")).toBeVisible();
-  await expect(sheet.getByTestId("split-link")).toHaveCount(0);
+  await viewAs(page, "Sam");
+  await footer.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
+  await expect(page.getByTestId("breakdown").getByText("Sam's share")).toBeVisible();
+  await expect(page.getByTestId("split-link")).toHaveCount(0);
 });
 
 test("a browser not on the list adds itself, the Host's home opens fresh with only the Venmo handle kept, and a reload remembers the pick", async ({ page, browser }) => {
@@ -112,7 +111,7 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   await lee.getByRole("button", { name: "Not here? Add yourself" }).click();
   await lee.getByRole("textbox", { name: "Your name" }).fill("Lee");
   await lee.getByRole("button", { name: "Join as Lee" }).click();
-  await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
+  await expect(lee.getByTestId("owe")).toBeVisible();
 
   await page.goBack();
   await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
@@ -125,7 +124,7 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
 
   await lee.reload();
-  await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
+  await expect(lee.getByTestId("owe")).toBeVisible();
   await expect(question(lee)).toHaveCount(0);
 
   expect(loaded.filter((path) => path.startsWith("/models/") || path.startsWith("/ort/"))).toEqual([]);
@@ -135,7 +134,7 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
   await readyHome(page);
   const link = await createLink(page);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await expect(page.getByTestId("owe")).toBeVisible();
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
@@ -144,7 +143,7 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
   await expect(page.getByRole("region", { name: "Who’s at the table" }).getByText("Jason", { exact: true })).toHaveCount(0);
 
   await page.goto(link);
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(linkTimeout);
+  await expect(page.getByTestId("owe")).toBeVisible(linkTimeout);
   await expect(question(page)).toHaveCount(0);
 });
 
@@ -347,36 +346,35 @@ test("when the browser refuses to save, a pick holds for the session and tapping
   });
   await page.goto(link);
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await expect(page.getByTestId("owe")).toBeVisible();
   await expect(question(page)).toHaveCount(0);
 
   await page.getByRole("button", { name: "Sprite, check for Jason" }).click();
   await expect(page.getByRole("button", { name: /^Open Sprite, \$2\.50, had by Jason$/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await youAre(page, "Jason");
   await expect(question(page)).toHaveCount(0);
 });
 
 test("a phone that loses its name to another phone is told once and can take it back", async ({ page, browser }) => {
   await readyHome(page, ["Sam", "Priya"]);
   const link = await createLink(page);
-  const bar = (phone: Page) => phone.getByRole("status");
+  const bar = (phone: Page) => phone.getByRole("status").filter({ hasText: "picked on another phone" });
   const told = (phone: Page) => phone.getByText("was picked on another phone");
-  const sam = { name: "Sam, you", exact: true };
 
   const priya = await open(browser, link);
   await priya.getByRole("button", { name: "Priya", exact: true }).click();
-  await expect(priya.getByRole("button", { name: "Priya, you", exact: true })).toBeVisible();
+  await youAre(priya, "Priya");
   await expect(told(priya)).toHaveCount(0);
 
   const first = await open(browser, link);
   await first.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(first.getByRole("button", sam)).toBeVisible();
+  await youAre(first, "Sam");
   await expect(told(first)).toHaveCount(0);
 
   const second = await open(browser, link);
   await second.getByRole("button", { name: "Sam, picked on another phone" }).click();
   await second.getByRole("button", { name: "That's me" }).click();
-  await expect(second.getByRole("button", sam)).toBeVisible();
+  await youAre(second, "Sam");
 
   await expect(told(first)).toHaveCount(1);
   await expect(bar(first)).toContainText("Sam was picked on another phone");
@@ -384,7 +382,7 @@ test("a phone that loses its name to another phone is told once and can take it 
   await expect(told(priya)).toHaveCount(0);
 
   await bar(first).getByRole("button", { name: "That's me" }).click();
-  await expect(first.getByRole("button", sam)).toBeVisible();
+  await youAre(first, "Sam");
   await expect(told(first)).toHaveCount(0);
   await expect(told(second)).toHaveCount(1);
   await expect(second.getByText("Pick your name to check off what you had.")).toBeVisible();

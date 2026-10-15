@@ -1,7 +1,7 @@
 import { openAdd } from "./add-menu";
 import { simulateKeyboard } from "./motion";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
-import { fromMore } from "./header";
+import { fromMore, viewAs } from "./header";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -52,7 +52,7 @@ async function open(browser: Browser, link: string, before: (page: Page) => void
 
 async function pick(page: Page, name: string) {
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
 const sheet = (page: Page) => page.getByRole("dialog", { name: "New item" });
@@ -69,9 +69,9 @@ async function addFries(page: Page, who: string[]) {
 }
 
 async function shareOf(page: Page, name: string): Promise<string> {
-  await page.getByRole("button", { name: new RegExp(`^${name}(, you)?$`) }).click();
+  await viewAs(page, name);
   const share = (await page.getByTestId("owe").textContent({ timeout: live.timeout })) ?? "";
-  await page.getByRole("button", { name: new RegExp(`^${name}(, you)?$`) }).click();
+  await viewAs(page, name);
   return share;
 }
 

@@ -33,7 +33,7 @@ const shot = (page, name) => page.screenshot({ path: `${out}/${name}.png` });
 const owe = (page) => page.getByTestId("owe").innerText();
 const pickName = async (page, name) => {
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
-  await page.getByRole("button", { name: `${name}, you`, exact: true }).waitFor();
+  await page.getByTestId("owe").waitFor();
 };
 
 const receipt = {
@@ -79,7 +79,7 @@ report.animatedDuringCollapse = await host.evaluate(() =>
       : animation.effect.getKeyframes().flatMap((frame) => Object.keys(frame).filter((key) => !["offset", "computedOffset", "easing", "composite"].includes(key))),
   ),
 );
-await host.getByRole("button", { name: "Jason, you", exact: true }).waitFor();
+await host.getByTestId("owe").waitFor();
 await host.waitForTimeout(700);
 await shot(host, "E-settled");
 
@@ -154,26 +154,24 @@ const restoredAt = Date.now();
 await priya.getByText("Items are $0.25 over the subtotal.").waitFor({ timeout: 30_000 });
 report.reconnect = { downMs: restoredAt - droppedAt, attemptsWhileDown: connects.filter((c) => c.blocked).length, caughtUpMs: Date.now() - restoredAt, staleWhileDown };
 
-await sam.getByRole("button", { name: "Priya", exact: true }).click();
 await priya.getByTestId("owe").click();
 await priya.getByRole("button", { name: "I already paid" }).click();
-await priya.getByTestId("share-note").getByText("Paid ").waitFor();
+await priya.getByTestId("footer").getByRole("button", { name: "Paid" }).waitFor();
 await shot(priya, "G2-paid");
-await sam.getByRole("button", { name: "Menu", exact: true }).click();
-await sam.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "Payments", exact: true }).click();
+await sam.getByRole("button", { name: "Payments", exact: true }).click();
 await sam.getByRole("list", { name: "Payments" }).locator('[data-state="settled"]', { hasText: "Priya" }).waitFor();
 check("Payments shows Priya as paid", true);
 await sam.waitForTimeout(400);
 await shot(sam, "H-someone");
 await sam.keyboard.press("Escape");
 await sam.getByRole("dialog", { name: "Payments" }).waitFor({ state: "detached" });
-await sam.getByRole("button", { name: "Priya", exact: true }).click();
-await sam.getByTestId("owe").click();
+await sam.getByRole("button", { name: "People", exact: true }).click();
+await sam.getByRole("group", { name: "People" }).getByRole("button", { name: "Priya", exact: true }).click();
+await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
 await sam.waitForTimeout(500);
 await shot(sam, "G-yours");
 
-await host.getByRole("button", { name: "Menu", exact: true }).click();
-await host.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "History", exact: true }).click();
+await host.getByRole("button", { name: "History", exact: true }).click();
 await host.waitForTimeout(600);
 await shot(host, "I3-history");
 await host.getByRole("button", { name: "Revert Sprite" }).click();
@@ -190,7 +188,7 @@ await host.getByRole("dialog", { name: "History" }).getByRole("button", { name: 
 await sam.getByText("Items are $0.25 over the subtotal.").waitFor({ state: "detached" });
 
 await sam.reload();
-await sam.getByRole("button", { name: "Sam, you", exact: true }).waitFor();
+await sam.getByTestId("owe").waitFor();
 report.afterReload = { samOwes: await owe(sam) };
 
 const lee = await open(link);

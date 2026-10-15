@@ -4,7 +4,7 @@ import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
 import { splitCopy } from "../split-copy";
-import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, claimedItems } from "./model";
+import { breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -42,14 +42,13 @@ test("nameParts shows an Item's detail under its whole name instead of splitting
   expect(nameParts({ name: "Guinness Draught 14.9oz Can", detail: "$2.00 off" })).toEqual(["Guinness Draught 14.9oz Can", "$2.00 off"]);
 });
 
-test("shareLabel reads part of a line's price as ½ of 1.00, never as units of a quantity, and all of an Item as nothing", () => {
-  expect([shareLabel([1, 3], "21.87"), shareLabel([1, 4], "24.00"), shareLabel([1, 2], "1.00"), shareLabel([2, 7], "7.00"), shareLabel([1, 1], "1.00")]).toEqual([
-    "⅓ of 21.87",
-    "¼ of 24.00",
-    "½ of 1.00",
-    "2/7 of 7.00",
-    null,
-  ]);
+test("payNote says how a shared Item is split, in the words the Pay sheet shows, and nothing for an Item one person had", () => {
+  expect([
+    payNote(item({ by: "even", units: [[ann, bob, cat]] }), ann),
+    payNote(item({ by: "shares", units: [[[ann, 2], [bob, 1], [cat, 3]]] }), ann),
+    payNote(item({ by: "amount", units: [[[ann, cents(75)], [bob, cents(25)]]] }), ann),
+    payNote(item({ by: "even", units: [[ann]] }), ann),
+  ]).toEqual(["Split 3 ways", "2 of 6 shares", "By amount", null]);
 });
 
 describe("linesNear", () => {
@@ -219,9 +218,9 @@ describe("receiptRows at Topgolf", () => {
   test("lists the Guinness line Ann and Bob had in Ann's breakdown as one 3x line at half its price, with no 1 of 3", () => {
     const receipt = topgolf([ann, bob]);
     const split = { receipt, participants: [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }] as const, payments: [] };
-    expect(breakdownLines(shareBreakdown(split, ann))).toEqual([
+    expect(breakdownLines(shareBreakdown(split, ann), receipt.items, ann)).toEqual([
       { id: "ultra1", quantity: null, name: "Michelob Ultra 16oz Aluminum Bottle", part: null, portion: 629 },
-      { id: "guinness1", quantity: "3x", name: "Guinness Draught 14.9oz Can", part: "½ of 21.87", portion: 1094 },
+      { id: "guinness1", quantity: "3x", name: "Guinness Draught 14.9oz Can", part: "Split 2 ways", portion: 1094 },
       { id: "pineapple1", quantity: null, name: "High Noon Pineapple 12oz Can", part: null, portion: 849 },
     ]);
   });
@@ -265,13 +264,4 @@ describe("receiptRows at Topgolf", () => {
     const buckets = receiptRows(receipt).rows.flatMap((row) => (row.kind === "bundle" ? [claimedItems(row.bundle, itemIds)] : []));
     expect([buckets, splitCopy.unclaimedTotal(itemIds.length)]).toEqual([[3, 0], "Unclaimed · 6 items"]);
   });
-});
-
-test("barFor asks for a name until someone picks, then shows the selected person's share collapsed and their breakdown expanded", () => {
-  expect(barFor(null, false, null)).toEqual({ kind: "ask" });
-  expect(barFor(null, true, bob)).toEqual({ kind: "ask" });
-  expect(barFor(ann, false, bob)).toEqual({ kind: "share", me: ann, person: bob });
-  expect(barFor(ann, false, null)).toEqual({ kind: "share", me: ann, person: ann });
-  expect(barFor(ann, true, bob)).toEqual({ kind: "breakdown", me: ann, person: bob });
-  expect(barFor(ann, true, null)).toEqual({ kind: "breakdown", me: ann, person: ann });
 });

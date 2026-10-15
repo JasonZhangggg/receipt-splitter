@@ -77,6 +77,7 @@ export const motion = {
   themeReveal: 600,
   pressIn: 100,
   slipPressIn: 120,
+  pillPressIn: 160,
   pressOut: 200,
   actionColor: 180,
   toastIn: 240,
