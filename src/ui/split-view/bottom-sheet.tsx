@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Reac
 import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { glide, glideFor, leaveMs, reducedFade, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
+import { glide, glideFor, leaveFor, leaveMs, reducedFade, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, motion, useColors } from "../theme";
@@ -77,7 +77,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
     const from = offset.current ?? tallest;
     const ms = glideFor(to - from, Math.sign(to - from) * velocity);
     if (to >= tallest) {
-      const out = Math.min(leaveMs, ms);
+      const out = velocity > 0 ? Math.min(leaveMs, ms) : leaveFor(to - from);
       place(to, out, motion.easeOut);
       if (done) left.current = setTimeout(done, out);
       return;

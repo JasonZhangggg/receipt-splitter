@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { animateSpring, glideFor, project, releaseIntent, releaseVelocity, rubberband, snapFor } from "./sheet-motion";
+import { animateSpring, glideFor, leaveFor, project, releaseIntent, releaseVelocity, rubberband, snapFor } from "./sheet-motion";
 
 test("project carries a release velocity forward the way a scroll decelerates", () => {
   expect(project(1000)).toBeCloseTo(499, 0);
@@ -91,6 +91,10 @@ describe("glideFor", () => {
       away: 300,
     });
   });
+});
+
+test("leaveFor keeps the 300 ms exit for a short sheet and stretches a tall one", () => {
+  expect([leaveFor(400), leaveFor(545), leaveFor(668)]).toEqual([300, 300, 367]);
 });
 
 describe("releaseVelocity", () => {
