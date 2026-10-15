@@ -398,6 +398,83 @@ test.describe("reading through the server", () => {
     expect(await shown(page)).toBe(onDevice);
   });
 
+  test("a model download held back for 5 s sends the photo with no OCR lines, and the server's receipt shows", async ({ page }) => {
+    test.setTimeout(90_000);
+    const releaseOcr = await holdTheDownload(page);
+    let sent: { photo: string; ocrLines: string[] } | null = null;
+    let askedAt = 0;
+    await page.route("**/api/scan", (route) => {
+      askedAt = Date.now();
+      sent = route.request().postDataJSON();
+      return route.fulfill({ json: reply });
+    });
+    await page.goto("/");
+    const pickedAt = Date.now();
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+
+    await expect(page.getByTestId("reading-stage")).toHaveText("Reading the receipt");
+    await expect(card(page)).toBeVisible({ timeout: 15_000 });
+    expect(askedAt - pickedAt).toBeGreaterThan(4_500);
+    expect(askedAt - pickedAt).toBeLessThan(8_000);
+    expect(sent!.ocrLines).toEqual([]);
+    expect(sent!.photo).toMatch(/^data:image\/jpeg;base64,/);
+    expect(await shown(page)).toBe("I paid $30.15. Change.");
+    releaseOcr();
+  });
+
+  test("a model download that fails sends the photo with no OCR lines at once", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.route("**/models/**", (route) => route.abort());
+    await page.route("**/ort/**", (route) => route.abort());
+    let sent: { ocrLines: string[] } | null = null;
+    let askedAt = 0;
+    await page.route("**/api/scan", (route) => {
+      askedAt = Date.now();
+      sent = route.request().postDataJSON();
+      return route.fulfill({ json: reply });
+    });
+    await page.goto("/");
+    const pickedAt = Date.now();
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+
+    await expect(card(page)).toBeVisible({ timeout: 15_000 });
+    expect(askedAt - pickedAt).toBeLessThan(4_000);
+    expect(sent!.ocrLines).toEqual([]);
+    expect(await shown(page)).toBe("I paid $30.15. Change.");
+  });
+
+  test("with the model unavailable and the photo-only read refused, home ends as it does with no reading", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.route("**/models/**", (route) => route.abort());
+    await page.route("**/ort/**", (route) => route.abort());
+    let asked = 0;
+    await page.route("**/api/scan", (route) => {
+      asked++;
+      return route.fulfill({ status: 502, json: { refused: "unreadable" } });
+    });
+    await page.goto("/");
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+
+    await expect(card(page)).toBeVisible({ timeout: 30_000 });
+    expect(asked).toBe(1);
+    expect(await shown(page)).toBe("I paid the bill. Try another photo.");
+  });
+
+  test("a model that is ready in time still sends the OCR lines", async ({ page }) => {
+    test.setTimeout(150_000);
+    let sent: { ocrLines: string[] } | null = null;
+    await page.route("**/api/scan", (route) => {
+      sent = route.request().postDataJSON();
+      return route.fulfill({ json: reply });
+    });
+    await page.goto("/");
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+    await expect(card(page)).toBeVisible(scanTimeout);
+
+    expect(sent!.ocrLines.length).toBeGreaterThan(5);
+    expect(sent!.ocrLines.some((line) => /Gameplay/.test(line))).toBe(true);
+  });
+
   test("the step word names each real stage in turn, one word per frame, and leaves when the total shows", async ({ page }) => {
     test.setTimeout(120_000);
     const releaseOcr = await holdTheDownload(page);
@@ -428,6 +505,39 @@ test.describe("reading through the server", () => {
     const seen = await lines();
     expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
     expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Finding the text", "Matching prices", "Taking a few more seconds", ""]);
+  });
+
+  test("on the photo route the step word never goes back to Finding the text when the download lands late", async ({ page }) => {
+    test.setTimeout(120_000);
+    const releaseOcr = await holdTheDownload(page);
+    let answer = () => {};
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    let sent: { ocrLines: string[] } | null = null;
+    await page.route("**/api/scan", async (route) => {
+      sent = route.request().postDataJSON();
+      await answered;
+      await route.fulfill({ json: reply });
+    });
+    await page.goto("/");
+    const lines = await sample<string[]>(page, `[...document.querySelectorAll('[data-testid="reading-stage"]')].map((line) => line.textContent)`);
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+
+    const stage = page.getByTestId("reading-stage");
+    await expect(stage).toHaveText("Matching prices", { timeout: 10_000 });
+    expect(sent!.ocrLines).toEqual([]);
+    releaseOcr();
+    await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
+    // Long enough for the released download to build the engine and start looking for text, which reports the step Finding the text names.
+    await page.waitForTimeout(4_000);
+    answer();
+    await expect(card(page)).toBeVisible(scanTimeout);
+    await expect(stage).toHaveCount(0);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    const seen = await lines();
+    expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Matching prices", "Taking a few more seconds", ""]);
+    expect(await shown(page)).toBe("I paid $30.15. Change.");
   });
 
   test("a large photo uploads at most 1 MB, at most 2048 px on its long edge", async ({ page }) => {

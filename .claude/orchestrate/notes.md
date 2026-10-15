@@ -164,3 +164,7 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From the home sentence review (2026-10-15)
 
 - The motion scenarios in `e2e/motion.ts` (run by `.claude/skills/verify-receipt-splitter/motion.mjs`) include ones the home rewrite left stale. `chip-entrance` probes the Split page's "Jason, you" chip, and rule 85 removed chips. `keyboard-name-up`, `keyboard-name-down` and `reduced-item-open` (the generated reduced twin of `item-open`) were named by the reviewer as targeting UI that is gone or moved, and were not rerun in this round. Only `name-add` was rewritten for the sentence. Run `motion.mjs --only <id>` for each, repoint or delete every scenario that cannot find its target, and grep `e2e/motion.ts` for removed test ids and labels. Fixer: the next UI owner who touches `e2e/motion.ts`.
+
+## From the photo-only scan route (PR #122, 2026-10-15)
+
+- When the OCR model files are not in within 5 s of the pick, home sends the photo with `ocrLines: []`, and the reader gets the full uncropped frame with no OCR text. An uncropped frame is a known misread cause (`receipt-extraction-eval.md`, the crop findings). Nobody has measured how often this route reads wrong. Run the rule 56 eval on the Mac with `ocrLines: []` and compare it with the OCR route. Fixer: the operator's Mac eval.

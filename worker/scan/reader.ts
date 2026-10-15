@@ -2,7 +2,7 @@ import type { NonEmpty } from "../../src/core/split";
 import { arithmeticBreakdown } from "./breakdown";
 import { ACCEPTED_GAP, checkReading, pennyProblems, type Check } from "./check";
 import { applyEdits, readLines, replyLines, toReply, type Reading, type ScanReply } from "./format";
-import { PASS1_PROMPT, ocrText, pass2Prompt } from "./prompt";
+import { ocrText, pass1Prompt, pass2Prompt } from "./prompt";
 
 export const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -188,7 +188,8 @@ export async function readReceipt(input: ScanInput, config: ReaderConfig): Promi
     return made.log.outcome === "ok" ? made.text : null;
   };
 
-  const pass1Messages = messagesJson([{ type: "text", text: PASS1_PROMPT }, { type: "text", text: ocrText(input.ocrLines) }, image]);
+  const ocr = ocrText(input.ocrLines);
+  const pass1Messages = messagesJson([{ type: "text", text: pass1Prompt(ocr !== null) }, ...(ocr === null ? [] : [{ type: "text" as const, text: ocr }]), image]);
   const pass1LeftMs = () => config.pass1ByMs - (Date.now() - started);
   let text = await call("flex", config.flex, config.flex.hosts, pass1Messages, Math.min(config.flex.deadlineMs, pass1LeftMs()));
   let pass1: ScanPath["pass1"] = text === null ? "failed" : "flex";

@@ -126,6 +126,17 @@ describe("readReceipt pass 1", () => {
     ]);
   });
 
+  it("with no OCR lines sends the prompt that says none is available, then the photo, with no empty OCR message", async () => {
+    const sent = stubOpenRouter(() => completion(PASSING));
+    await readReceipt({ ...INPUT, ocrLines: [] }, CONFIG);
+    const [prompt, photo, ...rest] = sent[0].body.messages[0].content;
+    expect([prompt.text?.split("\n")[0], photo, rest]).toEqual([
+      "Read this receipt photo. No OCR text is available, so read every character from the photo.",
+      { type: "image_url", image_url: { url: SMALL_JPEG } },
+      [],
+    ]);
+  });
+
   it("abandons a flex call with no complete reply at its deadline and asks Vertex at the default resolution", async () => {
     const sent = stubOpenRouter(hang, () => completion(PASSING, "Google"));
     const started = Date.now();
