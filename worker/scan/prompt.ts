@@ -16,8 +16,11 @@ t|Tax|290`;
 
 const BUNDLE_RULE = `- Bundle: when items are printed under a header with no price or $0.00 and followed by a discount that covers only those items, write b|<header>, then that group's items and its discount with > in front (>i|..., >d|...). The header is not an item. + lines under a bundle item need no >.`;
 
-/** Pass 1's prompt. */
-export const PASS1_PROMPT = `Read this receipt photo. The OCR text of the same receipt is below as a hint; it is usually right about characters but can misread faint digits, so trust the photo when they disagree.
+const OCR_HINT = "The OCR text of the same receipt is below as a hint; it is usually right about characters but can misread faint digits, so trust the photo when they disagree.";
+const NO_OCR_HINT = "No OCR text is available, so read every character from the photo.";
+
+/** Pass 1's prompt, for a request that carries OCR text or none. */
+export const pass1Prompt = (hasOcr: boolean) => `Read this receipt photo. ${hasOcr ? OCR_HINT : NO_OCR_HINT}
 
 Answer in this exact plain-text format, nothing else:
 SUB|<printed subtotal in cents, or - if none>[|pre]
@@ -48,7 +51,8 @@ ${BUNDLE_RULE}
 - Do not skip any priced product line.
 `;
 
-export const ocrText = (lines: readonly string[]) => `OCR text:\n${lines.join("\n")}`;
+/** The OCR text message, or null when the device sent no lines. */
+export const ocrText = (lines: readonly string[]) => (lines.length === 0 ? null : `OCR text:\n${lines.join("\n")}`);
 
 /** Pass 2's prompt. It asks for edits against pass 1's numbered lines, never a rewrite. */
 export function pass2Prompt(problems: readonly string[], lines: readonly string[]): string {

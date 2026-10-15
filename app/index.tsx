@@ -9,6 +9,7 @@ import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client
 import { prefetchModel, recognize } from "../src/ocr";
 import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
+import { chooseRoute } from "../src/scan/route";
 import { TextLink } from "../src/ui/components/text-link";
 import { ThemeToggle } from "../src/ui/components/theme-toggle";
 import { Toast } from "../src/ui/components/toast";
@@ -71,15 +72,27 @@ export default function Home() {
     setStage("start");
     dispatch({ type: "reading", file });
     globalThis.performance?.mark?.("scan-picked");
-    const boxes = await recognize(photo, (fraction) => scan === scanning.current && fraction >= ENGINE_READY && setStage("text")).catch(() => null);
+    let waiting = true;
+    let engineReady = () => {};
+    const ready = new Promise<void>((resolve) => (engineReady = resolve));
+    const ocr = recognize(photo, (fraction) => {
+      if (fraction < ENGINE_READY) return;
+      engineReady();
+      if (waiting && scan === scanning.current) setStage("text");
+    }).catch(() => null);
+    const route = await chooseRoute(ready, ocr);
+    waiting = false;
+    // The photo route sends no OCR text. The OCR run stays in flight for the fallback, and the model download goes on for the next scan.
+    const sent = route === "photo" ? [] : await ocr;
     globalThis.performance?.mark?.("copy-start");
-    const copying = receiptCopyOf(photo, boxes ?? []).catch(() => null);
+    const copying = receiptCopyOf(photo, sent ?? []).catch(() => null);
     void copying.then(() => globalThis.performance?.mark?.("copy-done"));
     if (scan === scanning.current) pageCopy = { file, copy: copying };
-    if (boxes && scan === scanning.current) setStage("server");
-    const slow = boxes ? setTimeout(() => scan === scanning.current && setStage("slow"), SLOW_SERVER_MS) : undefined;
-    const onServer = boxes && (await readOnServer(photo, boxes));
+    if (sent && scan === scanning.current) setStage("server");
+    const slow = sent ? setTimeout(() => scan === scanning.current && setStage("slow"), SLOW_SERVER_MS) : undefined;
+    const onServer = sent && (await readOnServer(photo, sent));
     clearTimeout(slow);
+    const boxes = route === "photo" && !onServer ? await ocr : sent;
     const onDevice = boxes && !onServer ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
     if (scan === scanning.current) dispatch({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
