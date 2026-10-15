@@ -164,3 +164,8 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 
 - The pick sheet at 390 x 667 sits 40 px from the top and clips the bottom of the header glyphs (38 px before B2-3). Fixer: B2-7 owner, which rebuilds that sheet as the People sheet.
 - A tap-away closes the Split overlay without setting `closing`, so for about 5 frames neither the overlay nor the lowered share sheet shows. Fixer: B2-4 owner, which replaces the share sheet.
+
+## From the B2 merges (2026-10-15)
+
+- e2e/sheet.spec.ts:582 "with a long name, Give the rest and the status share one line inside the Item sheet" failed once in #107's CI (7.35 px off center against 4 px), then passed on re-run and 3 of 3 locally. Fixer: B2-6 owner, which rebuilds the Item sheet; make the check robust or remove the pixel tolerance.
+- Two reviewers' local e2e runners were killed from outside partway through on 2026-10-15. Agents kill only processes they started, by PID (rule 51), and run e2e on their own `PORT` because playwright.config.ts defaults to 8787. Fixer: every owner brief.
