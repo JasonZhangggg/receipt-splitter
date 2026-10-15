@@ -160,6 +160,3 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From the B2 merges (2026-10-15)
 
 - Two reviewers' local e2e runners were killed from outside partway through on 2026-10-15. Agents kill only processes they started, by PID (rule 51), and run e2e on their own `PORT` because playwright.config.ts defaults to 8787. Fixer: every owner brief.
-- The Edit item sheet shows a person's even-split part from lineAmounts (Sam $4.66) while the Pay sheet and the list show what they owe ($4.67) (B2-5 review). Fixer: the follow-up PR after B2-8 that also fixes the Total after add and delete.
-- Add no longer sets a quantity above 1 for a new Item by hand, and the edit operation has no quantity field (B2-6 review). Fixer: operator decision pending.
-- Adding an Item does not raise the Total and a delete does not lower it, which rule 70 says it should; the same on main before B2. Fixer: a follow-up PR after B2-8 that adds subtotalDelta/totalFollows to the item add and delete operations.

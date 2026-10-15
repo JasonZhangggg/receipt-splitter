@@ -18,10 +18,11 @@ const hundred: Row[] = Array.from({ length: 100 }, (_, at) => ({ id: `i${at}`, n
 
 let creates = 0;
 
-/** The printed Subtotal counts `missing` cents more than `items`, as when the reading missed a line. */
-async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, missing = 0, adjustments: Bundle[] = []): Promise<string> {
+type Charge = { id: string; kind: "tax" | "tip"; name: string; amount: number };
+
+async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, adjustments: (Bundle | Charge)[] = [], printed?: number): Promise<string> {
   creates += 1;
-  const subtotal = items.reduce((sum, { price }) => sum + price, missing);
+  const subtotal = printed ?? items.reduce((sum, { price }) => sum + price, 0);
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.54.${100 + workerIndex}.${creates}` },
     data: {
@@ -74,19 +75,21 @@ async function shareOf(page: Page, name: string): Promise<string> {
   return share;
 }
 
-test("an Item added on one phone shows on another with nobody having it, and the Shares follow a claim on it", async ({ browser, request }, { workerIndex }) => {
-  const link = await createSplit(request, workerIndex, rice, 650);
+test("an Item added on one phone shows on another with nobody having it, raises the Total by its price, and the Shares follow a claim on it", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-  const totalNote = sam.getByRole("status").filter({ hasText: "$6.50" });
-  await expect(totalNote).toBeVisible();
+  await expect(sam.getByTestId("total")).toHaveText("$8.00");
 
   await addFries(sam);
   await expect(sam.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
   await expect(priya.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
-  await expect(totalNote).toHaveCount(0);
+  for (const page of [sam, priya]) {
+    await expect(page.getByTestId("total")).toHaveText("$14.50", live);
+    await expect(page.getByRole("status").filter({ hasText: /short of|over the/ })).toHaveCount(0);
+  }
 
   await sam.getByRole("button", { name: "Fries, check for Sam" }).click();
   await priya.getByRole("button", { name: "Fries, check for Priya" }).click();
@@ -97,7 +100,7 @@ test("an Item added on one phone shows on another with nobody having it, and the
 });
 
 test("people who check a new Item against id order (Priya, then Sam) still split it between them", async ({ browser, request }, { workerIndex }) => {
-  const sam = await open(browser, await createSplit(request, workerIndex, rice, 650));
+  const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
 
   await addFries(sam);
@@ -147,7 +150,7 @@ test("a Split at 100 Items says it is full and sends nothing", async ({ browser,
   expect(sent.filter((frame) => frame.includes('"add"'))).toEqual([]);
 });
 
-test("Add item with no name focuses the name and says so, and Return walks name and price, then adds", async ({ browser, request }, { workerIndex }) => {
+test("Add item with no name focuses the name and says so, and Return walks name, price and How many, then adds", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
   await openAdd(sam, "Item");
@@ -160,6 +163,8 @@ test("Add item with no name focuses the name and says so, and Return walks name 
   await sam.keyboard.press("Enter");
   await expect(field(sam, "Price")).toBeFocused();
   await sam.keyboard.type("6.50");
+  await sam.keyboard.press("Enter");
+  await expect(field(sam, "How many")).toBeFocused();
   await sam.keyboard.press("Enter");
 
   await expect(sheet(sam)).toHaveCount(0, live);
@@ -236,7 +241,7 @@ async function slowFramesOpen(browser: Browser, link: string, rafDelay: number):
 
 for (const rafDelay of [0, 200]) {
   test(`the added row's first painted frame is at height 0, and it opens at full height, with frames ${rafDelay} ms late @frame-timing`, async ({ browser, request }, { workerIndex }) => {
-    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex, bucketRows, 0, bucket), rafDelay);
+    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex, bucketRows, bucket), rafDelay);
     await pick(sam, "Sam");
     await openAdd(sam, "Item");
     await field(sam, "Name").fill("Fries");
@@ -271,3 +276,156 @@ for (const rafDelay of [0, 200]) {
     expect(seen.every(({ height }, at) => at === 0 || height >= seen[at - 1].height)).toBe(true);
   });
 }
+
+// The reading missed a $6.50 line: Rice is $8.00 and the printed Subtotal and Total are $14.50.
+const missedLine = (request: APIRequestContext, workerIndex: number) => createSplit(request, workerIndex, rice, [], 1450);
+const shortNote = (page: Page) => page.getByRole("status").filter({ hasText: /short of|over the/ });
+
+test("on a receipt short of its Subtotal, the Add sheet offers the missing amount, a tap fills it, and adding it leaves the Total as printed", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await missedLine(request, workerIndex));
+  await pick(sam, "Sam");
+  await expect(shortNote(sam)).toHaveText("Items are $6.50 short of the subtotal.");
+
+  await openAdd(sam, "Item");
+  await expect(sheet(sam).getByText("The receipt is $6.50 short.")).toBeVisible();
+  await expect(field(sam, "Price")).toHaveValue("");
+  await sheet(sam).getByRole("button", { name: "Use $6.50", exact: true }).click();
+  await expect(field(sam, "Price")).toHaveValue("6.50");
+  await sheet(sam).getByRole("group", { name: "What to add" }).getByRole("button", { name: "Tax", exact: true }).click();
+  await expect(sheet(sam).getByRole("button", { name: "Use $6.50", exact: true })).toHaveCount(0);
+  await sheet(sam).getByRole("group", { name: "What to add" }).getByRole("button", { name: "Item", exact: true }).click();
+  await field(sam, "Name").fill("Fries");
+  await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
+
+  await expect(fries(sam)).toBeVisible(live);
+  await expect(sam.getByTestId("total")).toHaveText("$14.50");
+  await expect(shortNote(sam)).toHaveCount(0);
+});
+
+test("the tax and tip note shows only for an Item, and only on a receipt with tax or tip", async ({ browser, request }, { workerIndex }) => {
+  const note = (page: Page) => sheet(page).getByText(/stays? at the receipt's amounts?/);
+  const charges: Charge[] = [
+    { id: "tax", kind: "tax", name: "Tax", amount: 70 },
+    { id: "tip", kind: "tip", name: "Tip", amount: 160 },
+  ];
+  const taxed = await open(browser, await createSplit(request, workerIndex, rice, charges));
+  const plain = await open(browser, await createSplit(request, workerIndex));
+  await pick(taxed, "Sam");
+  await pick(plain, "Sam");
+
+  await openAdd(taxed, "Item");
+  await expect(sheet(taxed).getByText("Split by each person who had it.", { exact: true })).toBeVisible();
+  await expect(note(taxed)).toHaveText("Tax and tip stay at the receipt's amounts and are shared across the new item too.");
+  for (const kind of ["Tax", "Tip", "Discount"] as const) {
+    await sheet(taxed).getByRole("group", { name: "What to add" }).getByRole("button", { name: kind, exact: true }).click();
+    await expect(note(taxed)).toHaveCount(0);
+  }
+  await openAdd(plain, "Item");
+  await expect(note(plain)).toHaveCount(0);
+  await expect(sheet(plain).getByText(/short\.$/)).toHaveCount(0);
+});
+
+test("a price edit moves the Total by the difference on every phone, and typed slowly on a short receipt it moves it by the same full difference", async ({ browser, request }, { workerIndex }) => {
+  const even = await createSplit(request, workerIndex);
+  const sam = await open(browser, even);
+  const priya = await open(browser, even);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await sam.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" }).fill("10.00");
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
+  for (const page of [sam, priya]) {
+    await expect(page.getByTestId("total")).toHaveText("$10.00", live);
+    await expect(shortNote(page)).toHaveCount(0);
+  }
+
+  const short = await open(browser, await missedLine(request, workerIndex));
+  await pick(short, "Sam");
+  await short.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+  const price = short.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" });
+  await price.click();
+  await expect.poll(() => price.evaluate((input: HTMLInputElement) => input.value.slice(input.selectionStart!, input.selectionEnd!))).toBe("8.00");
+  await short.keyboard.type("1");
+  await expect(short.getByRole("button", { name: /^Open Rice, \$1\.00/ })).toHaveCount(1, live);
+  await short.keyboard.type("0.00");
+  await short.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
+  await expect(short.getByRole("button", { name: /^Open Rice, \$10\.00/ })).toBeVisible(live);
+  await expect(short.getByTestId("total")).toHaveText("$16.50");
+  await expect(shortNote(short)).toHaveText("Items are $6.50 short of the subtotal.");
+});
+
+test("a price typed in Edit item reaches another phone while the field is still focused, and stays after the typer leaves", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await sam.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+  const price = sam.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" });
+  await price.fill("13.00");
+
+  await expect(priya.getByRole("button", { name: /^Open Rice, \$13\.00/ })).toBeVisible({ timeout: 1500 });
+  await expect(priya.getByTestId("total")).toHaveText("$13.00");
+  await expect(price).toBeFocused();
+
+  await sam.goto("about:blank");
+  await priya.reload();
+  await expect(priya.getByRole("button", { name: /^Open Rice, \$13\.00/ })).toBeVisible(live);
+  await expect(priya.getByTestId("total")).toHaveText("$13.00");
+});
+
+for (const wait of [0, 1000]) {
+  test(`closing Edit item ${wait} ms after typing with the price still focused sends the name and price edits once`, async ({ browser, request }, { workerIndex }) => {
+    const sent: string[] = [];
+    const sam = await open(browser, await createSplit(request, workerIndex), (page) =>
+      page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => typeof payload === "string" && sent.push(payload))),
+    );
+    await pick(sam, "Sam");
+    await sam.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+    const dialog = sam.getByRole("dialog", { name: "Edit item" });
+    await dialog.getByRole("textbox", { name: "Item name" }).fill("Brown rice");
+    await dialog.getByRole("textbox", { name: "Price" }).fill("13.00");
+    await sam.waitForTimeout(wait);
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(sam.getByRole("button", { name: /^Open Brown rice, \$13\.00/ })).toBeVisible(live);
+    await sam.waitForTimeout(1000);
+
+    const edits = sent.filter((frame) => frame.includes('"editReceipt"'));
+    expect(edits.filter((frame) => frame.includes('"price":1300'))).toHaveLength(1);
+    expect(edits.filter((frame) => frame.includes('"name":"Brown rice"'))).toHaveLength(1);
+    await expect(sam.getByTestId("total")).toHaveText("$13.00");
+  });
+}
+
+test("How many 3 adds a 3x line, raises the Total by the line's price, and Edit item can split it into 3", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex));
+  await pick(sam, "Sam");
+  await openAdd(sam, "Item");
+  await field(sam, "Name").fill("Guinness");
+  await field(sam, "Price").fill("21.87");
+  await field(sam, "How many").fill("3");
+  await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(sheet(sam)).toHaveCount(0, live);
+
+  await expect(sam.getByRole("button", { name: /^Open 3x Guinness, \$21\.87, / })).toBeVisible(live);
+  await expect(sam.getByTestId("total")).toHaveText("$29.87");
+  await sam.getByRole("button", { name: /^Open 3x Guinness/ }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Split into 3" }).click();
+  await expect(sam.getByRole("button", { name: /^Open Guinness, \$7\.29, / })).toHaveCount(3, live);
+  await expect(sam.getByTestId("total")).toHaveText("$29.87");
+});
+
+test("How many shows only for an Item, and one that is not 1 to 20 says so and adds nothing", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex));
+  await pick(sam, "Sam");
+  await openAdd(sam, "Tax");
+  await expect(field(sam, "How many")).toHaveCount(0);
+  await sheet(sam).getByRole("group", { name: "What to add" }).getByRole("button", { name: "Item", exact: true }).click();
+  await field(sam, "Name").fill("Guinness");
+  await field(sam, "Price").fill("21.87");
+  await field(sam, "How many").fill("25");
+  await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(sheet(sam).getByRole("status")).toHaveText("Use a whole number from 1 to 20.");
+  await expect(field(sam, "How many")).toBeFocused();
+  await expect(sam.getByRole("button", { name: /^Open .*Guinness/ })).toHaveCount(0);
+});

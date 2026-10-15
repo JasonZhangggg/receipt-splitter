@@ -1,7 +1,7 @@
 import { claimersOf, type Operation } from "../../core/operations";
-import type { ShareBreakdown } from "../../core/shares";
+import { shareBreakdown, type ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
-import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type Participant, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
+import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type Participant, type ParticipantId, type Receipt, type Split, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
 import { gapNote, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
@@ -177,6 +177,18 @@ export function breakdownCharges(receipt: Receipt<SplitItem>, breakdown: ShareBr
 export function totalNote(receipt: Receipt<SplitItem>): string | null {
   const check = runTotalCheck(receipt);
   return check.ok ? null : gapNote(check);
+}
+
+/**
+ * Each claimer's part of `item` as the list and the Pay sheet charge it, from their Share breakdown with `item` in place of its row, so an unsaved edit reads right.
+ * By amount, the parts are the typed cents.
+ */
+export function itemParts(split: Pick<Split, "receipt" | "participants" | "payments">, item: SplitItem): { readonly participantId: ParticipantId; readonly cents: number }[] {
+  const parts = lineAmounts(item);
+  if (item.split.by === "amount") return parts;
+  const [first, ...rest] = split.receipt.items.map((row) => (row.id === item.id ? item : row));
+  const shown = { ...split, receipt: { ...split.receipt, items: [first, ...rest] as const } };
+  return parts.map(({ participantId, cents }) => ({ participantId, cents: shareBreakdown(shown, participantId).items.find(({ id }) => id === item.id)?.portion ?? cents }));
 }
 
 export function lineAmounts({ price, split }: SplitItem): { readonly participantId: ParticipantId; readonly cents: number }[] {

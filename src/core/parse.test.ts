@@ -1005,6 +1005,7 @@ describe("Bundles in a stored Split", () => {
       ["adjustment", "edit"],
       ["item", "removed"],
       ["adjustment", "removed"],
+      ["totals", "added"],
     ]);
     expect(parseSplit(stored(deleted.split))).toEqual({ ok: true, split: deleted.split });
   });

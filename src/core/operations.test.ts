@@ -95,13 +95,11 @@ function shareOf(split: Split, who: string) {
   return computeShares(split).shares.find((share) => share.participantId === who);
 }
 
-function priceEdit(by: ParticipantId, id: typeof fries, from: number, to: number): Operation {
+function priceEdit(by: ParticipantId, id: typeof fries, _from: number, to: number): Operation {
   return {
     by,
     type: "editReceipt",
     items: [{ type: "edit", itemId: id, price: price(to) }],
-    subtotalDelta: cents(to - from),
-    totalDelta: cents(to - from),
   };
 }
 
@@ -489,8 +487,6 @@ describe("Payments", () => {
         { type: "edit", itemId: fries, price: price(600) },
         { type: "edit", itemId: pasta, price: price(1650) },
       ],
-      subtotalDelta: cents(50),
-      totalDelta: cents(50),
     });
 
     expect(computeShares(edited).shares).toEqual([
@@ -579,11 +575,11 @@ describe("Payment handles", () => {
 });
 
 describe("editing the Receipt", () => {
-  test("a price edit that leaves the Items off the printed subtotal lands, and the subtotal and total stay as printed", () => {
+  test("a price edit on a receipt that adds up moves the subtotal and total by the difference", () => {
     const split = apply(withBobAndCat(), { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: fries, price: price(600) }] });
 
     expect(split.receipt.items.map(({ price }) => price)).toEqual([1400, 600, 3000]);
-    expect([split.receipt.subtotal, split.receipt.total]).toEqual([5200, 5200]);
+    expect([split.receipt.subtotal, split.receipt.total]).toEqual([5000, 5000]);
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
 
@@ -640,7 +636,7 @@ describe("editing the Receipt", () => {
       { by: bob, type: "claim", itemId: fries, participantId: bob },
       { by: cat, type: "claim", itemId: fries, participantId: cat },
     );
-    const deleted = apply(claimed, { by: ann, type: "editReceipt", items: [{ type: "delete", itemId: fries }], subtotalDelta: cents(-800), totalDelta: cents(-800) });
+    const deleted = apply(claimed, { by: ann, type: "editReceipt", items: [{ type: "delete", itemId: fries }] });
     const deleteRevision = deleted.revision;
     const edited = apply(
       deleted,
@@ -1020,7 +1016,7 @@ describe("quantity lines", () => {
     const pricier = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), price: price(800) }] });
     const lessForJason = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), values: [{ participantId: jason, value: cents(0) }] }] });
 
-    expect(shares(pricier)).toEqual([1094, 985]);
+    expect(shares(pricier)).toEqual([1098, 988]);
     expect(reasonFor(pricier, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
     expect(reasonFor(lessForJason, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
   });
@@ -1118,10 +1114,10 @@ describe("undo", () => {
     };
     const start = apply(created(charged), { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } }, { by: ann, type: "addParticipant", participant: { id: cat, name: "Cat" } });
     const edits: Record<string, Omit<Extract<Operation, { type: "editReceipt" }>, "by" | "type">> = {
-      price: { items: [{ type: "edit", itemId: fries, price: price(600) }], subtotalDelta: cents(-200), totalDelta: cents(-200) },
+      price: { items: [{ type: "edit", itemId: fries, price: price(600) }] },
       rename: { items: [{ type: "edit", itemId: fries, name: "Chips" }] },
-      addItem: { items: [{ type: "add", item: { id: itemId("salad"), name: "Salad", price: price(900) }, index: 1 }], subtotalDelta: cents(900), totalDelta: cents(900) },
-      deleteItem: { items: [{ type: "delete", itemId: pasta }], subtotalDelta: cents(-1400), totalDelta: cents(-1400) },
+      addItem: { items: [{ type: "add", item: { id: itemId("salad"), name: "Salad", price: price(900) }, index: 1 }] },
+      deleteItem: { items: [{ type: "delete", itemId: pasta }] },
       tip: { adjustments: [{ type: "edit", adjustmentId: tip, amount: cents(1500) }], totalDelta: cents(460) },
       deleteTax: { adjustments: [{ type: "delete", adjustmentId: tax }], totalDelta: cents(-520) },
       addDiscount: { adjustments: [{ type: "add", adjustment: { id: adjustmentId("promo"), kind: "discount", name: "Promo", amount: cents(-300) }, index: 2 }], totalDelta: cents(-300) },
@@ -1129,7 +1125,6 @@ describe("undo", () => {
       priceAndTip: {
         items: [{ type: "edit", itemId: pitcher, price: price(2800) }],
         adjustments: [{ type: "edit", adjustmentId: tip, amount: cents(1240) }],
-        subtotalDelta: cents(-200),
       },
     };
 
@@ -1337,8 +1332,6 @@ describe("restoring the original Receipt", () => {
       by: null,
       type: "editReceipt",
       items: rows.map(({ id }) => ({ type: "delete", itemId: id })),
-      subtotalDelta: cents(-100 * rows.length),
-      totalDelta: cents(-100 * rows.length),
     });
     const emptied = apply(split, deleted(rest.slice(0, 22)), deleted(rest.slice(22)));
     const restored = apply(emptied, { by: null, type: "restoreReceipt" });
@@ -2172,10 +2165,7 @@ describe("random operations", () => {
 describe("Bundles", () => {
   const claimed = () => topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
   const bundleItems = (split: Split) => split.receipt.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? [[row.id, ...row.bundle.items]] : []));
-  const deleteItem = (id: string): Operation => {
-    const amount = topgolf().receipt.items.find((row) => row.id === id)?.price ?? 0;
-    return { by: jason, type: "editReceipt", items: [{ type: "delete", itemId: itemId(id) }], subtotalDelta: cents(-amount), totalDelta: cents(-amount) };
-  };
+  const deleteItem = (id: string): Operation => ({ by: jason, type: "editReceipt", items: [{ type: "delete", itemId: itemId(id) }] });
 
   test("deleting a Bundle's Item drops it from the Bundle in the same Change, and one Revert brings both back", () => {
     const start = claimed();
@@ -2353,16 +2343,15 @@ describe("adding an Item with who had it", () => {
     items: [{ type: "add", item: { id: tea, name: "Tea", price: price(300) }, index, who }],
   });
 
-  // The printed Subtotal already counts the Tea the reading missed, as on most adds.
-  const missingTea = () =>
+  const withTeaTakers = () =>
     apply(
-      created({ ...dinner, subtotal: cents(5500), total: cents(5500) }),
+      created(),
       { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } },
       { by: ann, type: "addParticipant", participant: { id: cat, name: "Cat" } },
     );
 
   test("lands claimed evenly by the people named, so their Shares hold it to the cent", () => {
-    const split = apply(missingTea(), addTea([ann, bob]));
+    const split = apply(withTeaTakers(), addTea([ann, bob]));
 
     expect(split.receipt.items.at(-1)).toEqual({ id: tea, name: "Tea", price: 300, split: { by: "even", units: [[ann, bob]] } });
     expect(shareOf(split, "ann")?.share).toBe(150);
@@ -2371,7 +2360,7 @@ describe("adding an Item with who had it", () => {
   });
 
   test("takes who in any order, as people were tapped, and stores the claim the same as in id order", () => {
-    const split = apply(missingTea(), addTea([cat, ann]));
+    const split = apply(withTeaTakers(), addTea([cat, ann]));
 
     expect(split.receipt.items.at(-1)).toEqual({ id: tea, name: "Tea", price: 300, split: { by: "even", units: [[ann, cat]] } });
     expect(shareOf(split, "ann")?.share).toBe(150);
@@ -2380,7 +2369,7 @@ describe("adding an Item with who had it", () => {
   });
 
   test("is one History change, and its Revert takes the row and its claims off", () => {
-    const before = missingTea();
+    const before = withTeaTakers();
     const split = apply(before, addTea([cat]));
     const reverted = apply(split, { by: ann, type: "undo", revision: split.recentChanges.at(-1)!.revision });
 
@@ -2490,5 +2479,261 @@ describe("an Adjustment edit with the Total following", () => {
 
     expect(parseOperation({ ...wire, totalFollows: true })).toEqual({ ok: true, op: { ...wire, totalFollows: true } });
     expect(parseOperation({ ...wire, totalFollows: false })).toEqual({ ok: false, rejection: { reason: "malformed", path: "totalFollows" } });
+  });
+});
+
+describe("an added or deleted Item moving the Subtotal and Total (preferences 70)", () => {
+  const tea = itemId("tea");
+  const tax = adjustmentId("tax");
+  const tip = adjustmentId("tip");
+  const totals = ({ receipt }: Split) => [receipt.subtotal, receipt.total];
+  const addTea = (by: ParticipantId, cost = 300, index = 3): Operation => ({
+    by,
+    type: "editReceipt",
+    items: [{ type: "add", item: { id: tea, name: "Tea", price: price(cost) }, index }],
+  });
+  const remove = (by: ParticipantId, id: typeof fries): Operation => ({ by, type: "editReceipt", items: [{ type: "delete", itemId: id }] });
+  const lastChange = (split: Split) => split.recentChanges.at(-1)!;
+  const undoTo = (split: Split, revision: number) => apply(split, { by: ann, type: "undo", revision });
+  // Printed tax and tip on $52.00, with Bob having the Pasta.
+  const taxed = () =>
+    apply(
+      created({
+        ...dinner,
+        adjustments: [
+          { id: tax, kind: "tax", name: "Tax", amount: cents(462) },
+          { id: tip, kind: "tip", name: "Tip", amount: cents(936) },
+        ],
+        total: cents(6598),
+      }),
+      { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } },
+      { by: bob, type: "claim", itemId: pasta, participantId: bob },
+    );
+
+  test("an add raises the Subtotal and the Total by the Item's price, in the same History change", () => {
+    const split = apply(withBobAndCat(), addTea(bob));
+
+    expect(totals(split)).toEqual([5500, 5500]);
+    expect(lastChange(split).writes).toEqual([
+      { kind: "item", id: tea, added: { index: 3, name: "Tea", price: 300, split: { by: "even", units: [[]] } } },
+      { kind: "totals", subtotalDelta: 300, totalDelta: 300 },
+    ]);
+    expect(runTotalCheck(split.receipt)).toEqual({ ok: true });
+  });
+
+  test("a delete lowers the Subtotal and the Total by the Item's price", () => {
+    const split = apply(withBobAndCat(), remove(bob, fries));
+
+    expect(totals(split)).toEqual([4400, 4400]);
+    expect(lastChange(split).writes.at(-1)).toEqual({ kind: "totals", subtotalDelta: -800, totalDelta: -800 });
+    expect(runTotalCheck(split.receipt)).toEqual({ ok: true });
+  });
+
+  test("a delete takes off the price the Split holds, after another phone changed it", () => {
+    const split = apply(withBobAndCat(), priceEdit(cat, fries, 800, 950), remove(bob, fries));
+
+    expect(totals(split)).toEqual([4400, 4400]);
+  });
+
+  test("an add and a delete keep the printed tax and tip, and the Shares add up to the new Total", () => {
+    const added = apply(taxed(), addTea(ann, 1000));
+    const deleted = apply(taxed(), remove(ann, fries));
+    const sharesSum = (split: Split) => {
+      const { shares, unclaimed } = computeShares(split);
+      return shares.reduce((sum: number, { share }) => sum + share, unclaimed.total);
+    };
+
+    expect(totals(added)).toEqual([6200, 7598]);
+    expect(totals(deleted)).toEqual([4400, 5798]);
+    expect(added.receipt.adjustments.map(({ amount }) => amount)).toEqual([462, 936]);
+    expect(deleted.receipt.adjustments.map(({ amount }) => amount)).toEqual([462, 936]);
+    expect([sharesSum(added), sharesSum(deleted)]).toEqual([7598, 5798]);
+    expect([shareOf(taxed(), "bob")?.share, shareOf(added, "bob")?.share, shareOf(deleted, "bob")?.share]).toEqual([1776, 1716, 1845]);
+  });
+
+  test("a delete that empties a Bundle also takes its discount off the Total", () => {
+    const bundled = created({
+      ...dinner,
+      adjustments: [{ id: adjustmentId("deal"), kind: "bundleDiscount", name: "Fries deal", amount: cents(-200), bundle: { name: "Snacks", items: [fries] } }],
+      total: cents(5000),
+    });
+    const split = apply(bundled, remove(ann, fries));
+
+    expect(split.receipt.adjustments).toEqual([]);
+    expect(totals(split)).toEqual([4400, 4400]);
+    expect(runTotalCheck(split.receipt)).toEqual({ ok: true });
+  });
+
+  test("an Item at $0.00 records no totals write", () => {
+    const split = apply(withBobAndCat(), addTea(bob, 0));
+
+    expect(totals(split)).toEqual([5200, 5200]);
+    expect(lastChange(split).writes.map(({ kind }) => kind)).toEqual(["item"]);
+  });
+
+  test("Undo of an add or a delete puts the Subtotal and Total back exactly", () => {
+    const before = withBobAndCat();
+    const added = apply(before, addTea(bob));
+    const deleted = apply(before, remove(bob, fries));
+
+    expect(undoTo(added, added.revision).receipt).toEqual(before.receipt);
+    expect(undoTo(deleted, deleted.revision).receipt).toEqual(before.receipt);
+  });
+
+  test("Undo after another phone's edit keeps that edit and takes back only the add's or delete's own amount", () => {
+    const tipped = apply(taxed(), { by: bob, type: "addParticipant", participant: { id: cat, name: "Cat" } });
+    const tipEdit: Operation = { by: cat, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tip, amount: cents(1100) }], totalFollows: true };
+
+    const added = apply(tipped, addTea(ann));
+    expect(totals(undoTo(apply(added, tipEdit), added.revision))).toEqual([5200, 6762]);
+
+    const deleted = apply(tipped, remove(ann, fries));
+    expect(totals(undoTo(apply(deleted, addTea(cat, 300, 2)), deleted.revision))).toEqual([5500, 6898]);
+  });
+
+  test("refuses a delete that would take the Total under $0.00", () => {
+    const coupon = created({ ...dinner, adjustments: [{ id: adjustmentId("promo"), kind: "discount", name: "Promo", amount: cents(-4500) }], total: cents(700) });
+
+    expect(reasonFor(coupon, remove(ann, pitcher))).toBe("negativeTotal");
+  });
+});
+
+describe("a missed line: an added Item fills the Items' shortfall under the printed Subtotal before the Total moves", () => {
+  const tea = itemId("tea");
+  const totals = ({ receipt }: Split) => [receipt.subtotal, receipt.total];
+  const gap = ({ receipt }: Split) => runTotalCheck(receipt);
+  const addTea = (by: ParticipantId, cost: number): Operation => ({ by, type: "editReceipt", items: [{ type: "add", item: { id: tea, name: "Tea", price: price(cost) }, index: 3 }] });
+  const remove = (by: ParticipantId, id: typeof fries): Operation => ({ by, type: "editReceipt", items: [{ type: "delete", itemId: id }] });
+  const undoTo = (split: Split, revision: number) => apply(split, { by: ann, type: "undo", revision });
+  // The reading missed a $6.50 line: the Items are $52.00 and the printed Subtotal and Total $58.50.
+  const short = () => apply(created({ ...dinner, subtotal: cents(5850), total: cents(5850) }), { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } }, { by: ann, type: "addParticipant", participant: { id: cat, name: "Cat" } });
+  // The reading doubled a $3.00 line into the Items: they are $52.00 against a printed $49.00.
+  const over = () => created({ ...dinner, subtotal: cents(4900), total: cents(4900) });
+
+  test("an add no larger than the shortfall fills it and leaves the Subtotal and Total as printed", () => {
+    const split = apply(short(), addTea(bob, 300));
+
+    expect(totals(split)).toEqual([5850, 5850]);
+    expect(gap(split)).toMatchObject({ ok: false, subtotalGap: 350 });
+    expect(split.recentChanges.at(-1)!.writes.map(({ kind }) => kind)).toEqual(["item"]);
+  });
+
+  test("an add of exactly the shortfall makes the receipt add up", () => {
+    expect(gap(apply(short(), addTea(bob, 650)))).toEqual({ ok: true });
+    expect(totals(apply(short(), addTea(bob, 650)))).toEqual([5850, 5850]);
+  });
+
+  test("an add past the shortfall fills it and raises the Subtotal and Total by only the part above it", () => {
+    const split = apply(short(), addTea(bob, 1000));
+
+    expect(totals(split)).toEqual([6200, 6200]);
+    expect(gap(split)).toEqual({ ok: true });
+    expect(split.recentChanges.at(-1)!.writes.at(-1)).toEqual({ kind: "totals", subtotalDelta: 350, totalDelta: 350 });
+  });
+
+  test("an add to a receipt whose Items are over its Subtotal raises both by the full price", () => {
+    expect(totals(apply(over(), addTea(ann, 300)))).toEqual([5200, 5200]);
+  });
+
+  test("a delete on a short receipt lowers the Subtotal and Total by the full price and keeps the shortfall", () => {
+    const split = apply(short(), remove(bob, fries));
+
+    expect(totals(split)).toEqual([5050, 5050]);
+    expect(gap(split)).toMatchObject({ ok: false, subtotalGap: 650 });
+  });
+
+  test("a delete on a receipt whose Items are over its Subtotal lowers the Subtotal and Total by the full price", () => {
+    const split = apply(over(), remove(ann, fries));
+
+    expect(totals(split)).toEqual([4100, 4100]);
+    expect(gap(split)).toMatchObject({ ok: false, subtotalGap: -300 });
+  });
+
+  test("a delete then a re-add of the same Item on a receipt that adds up returns the Subtotal and Total", () => {
+    const deleted = apply(withBobAndCat(), remove(bob, fries));
+    const readded = apply(deleted, { by: bob, type: "editReceipt", items: [{ type: "add", item: { id: itemId("fries2"), name: "Fries", price: price(800) }, index: 1 }] });
+
+    expect([totals(deleted), totals(readded)]).toEqual([[4400, 4400], [5200, 5200]]);
+  });
+
+  test("Undo after each kind of add or delete puts the Subtotal and Total back exactly", () => {
+    const cases: [string, Split, Operation][] = [
+      ["fill", short(), addTea(bob, 300)],
+      ["partial fill", short(), addTea(bob, 1000)],
+      ["no shortfall", withBobAndCat(), addTea(bob, 300)],
+      ["delete on short", short(), remove(bob, fries)],
+      ["delete on over", over(), remove(ann, fries)],
+    ];
+
+    expect(cases.map(([name, before, op]) => {
+      const after = apply(before, op);
+      return [name, totals(undoTo(after, after.revision)), undoTo(after, after.revision).receipt.items.length];
+    })).toEqual(cases.map(([name, before]) => [name, totals(before), before.receipt.items.length]));
+  });
+
+  test("a price edit up or down on a receipt that adds up moves the Subtotal and Total by the difference", () => {
+    expect(totals(apply(withBobAndCat(), priceEdit(bob, fries, 800, 950)))).toEqual([5350, 5350]);
+    expect(totals(apply(withBobAndCat(), priceEdit(bob, fries, 800, 600)))).toEqual([5000, 5000]);
+  });
+
+  test("a price raised on a short receipt raises the Subtotal and Total by the full difference and keeps the shortfall", () => {
+    const split = apply(short(), priceEdit(bob, fries, 800, 1000));
+
+    expect([totals(split), gap(split)]).toEqual([[6050, 6050], expect.objectContaining({ subtotalGap: 650 })]);
+  });
+
+  test("a price lowered on a receipt whose Items are over moves the Subtotal and Total by the full difference", () => {
+    expect(totals(apply(over(), priceEdit(ann, fries, 800, 600)))).toEqual([4700, 4700]);
+  });
+
+  test("a price taken down and back up lands on the Total it started at, with or without a shortfall", () => {
+    const roundTrip = (before: Split) => {
+      const down = apply(before, priceEdit(bob, fries, 800, 700));
+      return [totals(before), totals(down), totals(apply(down, priceEdit(bob, fries, 700, 800)))];
+    };
+
+    expect(roundTrip(withBobAndCat())).toEqual([[5200, 5200], [5100, 5100], [5200, 5200]]);
+    expect(roundTrip(short())).toEqual([[5850, 5850], [5750, 5750], [5850, 5850]]);
+  });
+
+  test("a price typed in steps lands where the same price typed at once does", () => {
+    const steps = apply(short(), priceEdit(bob, fries, 800, 100), priceEdit(bob, fries, 100, 1000));
+
+    expect(totals(steps)).toEqual(totals(apply(short(), priceEdit(bob, fries, 800, 1000))));
+  });
+
+  test("Undo of a price edit puts the Subtotal and Total back exactly, with or without a shortfall", () => {
+    const cases: [Split, Operation][] = [
+      [withBobAndCat(), priceEdit(bob, fries, 800, 950)],
+      [withBobAndCat(), priceEdit(bob, fries, 800, 600)],
+      [short(), priceEdit(bob, fries, 800, 1000)],
+      [short(), priceEdit(bob, fries, 800, 1600)],
+      [short(), priceEdit(bob, fries, 800, 600)],
+    ];
+
+    expect(cases.map(([before, op]) => undoTo(apply(before, op), before.revision + 1).receipt)).toEqual(cases.map(([before]) => before.receipt));
+  });
+
+  test("Undo after another phone's edit takes back only the change's own totals move and keeps the other edit", () => {
+    const added = apply(short(), addTea(bob, 1000));
+    const thenPasta = apply(added, priceEdit(cat, pasta, 1400, 1500));
+    const undoneAdd = undoTo(thenPasta, added.revision);
+
+    expect(totals(thenPasta)).toEqual([6300, 6300]);
+    expect(undoneAdd.receipt.items.map(({ price }) => price)).toEqual([1500, 800, 3000]);
+    expect(totals(undoneAdd)).toEqual([5950, 5950]);
+    expect(gap(undoneAdd)).toMatchObject({ ok: false, subtotalGap: 650 });
+
+    const priced = apply(withBobAndCat(), priceEdit(bob, fries, 800, 600));
+    const undonePrice = undoTo(apply(priced, addTea(cat, 300)), priced.revision);
+
+    expect(undonePrice.receipt.items.map(({ price }) => price)).toEqual([1400, 800, 3000, 300]);
+    expect([totals(undonePrice), gap(undonePrice)]).toEqual([[5500, 5500], { ok: true }]);
+  });
+
+  test("still refuses a price edit that would take the Total under $0.00", () => {
+    const coupon = created({ ...dinner, adjustments: [{ id: adjustmentId("promo"), kind: "discount", name: "Promo", amount: cents(-4500) }], total: cents(700) });
+
+    expect(reasonFor(coupon, priceEdit(ann, pitcher, 3000, 2000))).toBe("negativeTotal");
   });
 });

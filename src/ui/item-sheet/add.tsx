@@ -4,14 +4,16 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { MAX_CENTS } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
 import { RECEIPT_LEVEL_KINDS, adjustmentId, itemId, randomId, type ParticipantId, type ReceiptLevelKind, type Split } from "../../core/split";
+import { money, plainAmount } from "../../draft";
 import type { Answer } from "../../live/client";
 import { adjustmentProblem, newAdjustment, takesOff, tidyAmount, type AdjustmentProblem } from "../adjustment-sheet/adjustment";
 import { Button } from "../components/button";
+import { TextLink } from "../components/text-link";
 import { LabeledField, MoneyField, Options } from "../components/sheet-fields";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
 import { SheetHeader } from "../split-view/sheet-header";
-import { newItem, problemFor, type NewItemProblem } from "./new-item";
+import { newItem, problemFor, sharedCharges, shortfall, type NewItemProblem } from "./new-item";
 
 type Props = {
   split: Split;
@@ -38,6 +40,7 @@ export function AddSheet({ split, me, send, onClose }: Props) {
   const [kind, setKind] = useState<Kind>("item");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const splitRef = useRef(split);
@@ -46,17 +49,19 @@ export function AddSheet({ split, me, send, onClose }: Props) {
   });
   const nameField = useRef<TextInput>(null);
   const amountField = useRef<TextInput>(null);
+  const quantityField = useRef<TextInput>(null);
   const isItem = kind === "item";
   const has = (on: Split) => (isItem ? on.receipt.items.some(({ id }) => id === ids.item) : on.receipt.adjustments.some(({ id }) => id === ids.adjustment));
 
   const add = async () => {
     if (sending) return;
     if (has(split)) return onClose();
-    const answer = isItem ? newItem(split, { name, price: amount }, ids.item, me) : newAdjustment(split, { kind, name, amount }, ids.adjustment, me);
+    const answer = isItem ? newItem(split, { name, price: amount, quantity }, ids.item, me) : newAdjustment(split, { kind, name, amount }, ids.adjustment, me);
     if (!answer.ok) {
       setProblem(problemText(answer.problem, isItem));
       if (answer.problem === "name") nameField.current?.focus();
       if (answer.problem === "price" || answer.problem === "amount" || answer.problem === "overLimit") amountField.current?.focus();
+      if (answer.problem === "quantity") quantityField.current?.focus();
       return;
     }
     setSending(true);
@@ -66,6 +71,8 @@ export function AddSheet({ split, me, send, onClose }: Props) {
     setProblem(problemText(isItem ? problemFor(sent.rejection.reason) : adjustmentProblem(sent.rejection.reason), isItem));
   };
 
+  const missing = isItem ? shortfall(split) : null;
+  const charges = isItem ? sharedCharges(split) : [];
   const word = labels[kind];
   const off = !isItem && takesOff(kind);
   return (
@@ -108,12 +115,45 @@ export function AddSheet({ split, me, send, onClose }: Props) {
             setProblem(null);
           }}
           onBlur={() => setAmount(tidyAmount)}
-          enterKeyHint="done"
-          submitBehavior="blurAndSubmit"
-          onSubmitEditing={() => void add()}
+          enterKeyHint={isItem ? "next" : "done"}
+          submitBehavior={isItem ? "submit" : "blurAndSubmit"}
+          onSubmitEditing={() => (isItem ? quantityField.current?.focus() : void add())}
         />
+        {isItem ? (
+          <MoneyField
+            ref={quantityField}
+            label={say.howMany}
+            unit=""
+            width={80}
+            inputMode="numeric"
+            placeholder="1"
+            maxLength={2}
+            value={quantity}
+            onChangeText={(next) => {
+              setQuantity(next);
+              setProblem(null);
+            }}
+            enterKeyHint="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={() => void add()}
+          />
+        ) : null}
       </View>
+      {missing !== null ? (
+        <View style={styles.offer}>
+          <Text style={[type.caption, { color: c.muted }]}>{say.shortfall(money(missing))}</Text>
+          <TextLink
+            label={say.useAmount(money(missing))}
+            outsideScroll
+            onPress={() => {
+              setAmount(plainAmount(missing));
+              setProblem(null);
+            }}
+          />
+        </View>
+      ) : null}
       <Text style={[type.caption, styles.hint, { color: c.muted }]}>{say.addHints[kind === "discount" ? "discount" : isItem ? "item" : "charge"]}</Text>
+      {charges.length > 0 ? <Text style={[type.caption, styles.hint, { color: c.muted }]}>{say.sharedCharges[charges.length === 2 ? "both" : charges[0]]}</Text> : null}
       <View style={styles.action}>
         <Text role="status" style={[type.caption, styles.problem, { color: c.warn }]}>
           {problem ?? ""}
@@ -130,6 +170,7 @@ const styles = StyleSheet.create({
   sheet: { gap: 14 },
   pair: { flexDirection: "row", alignItems: "flex-end", gap: 20, marginTop: 4 },
   hint: { marginTop: -4 },
+  offer: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 8, marginVertical: -12 },
   action: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   problem: { flex: 1, minHeight: type.caption.lineHeight },
   pill: { flexShrink: 0 },

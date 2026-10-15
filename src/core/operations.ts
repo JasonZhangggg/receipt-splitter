@@ -189,12 +189,17 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const { items, adjustments, subtotalDelta, totalDelta, totalFollows } = op;
       if (!items?.length && !adjustments?.length && subtotalDelta === undefined && totalDelta === undefined) return reject("emptyEdit");
       if (totalFollows && totalDelta !== undefined) return reject("conflict");
+      let lines: Lines = { subtotal: 0, total: 0 };
       return commit(split, [
-        ...(items ?? []).map((patch): MakeWrites => (current) => itemWrites(current, patch)),
+        ...(items ?? []).map((patch): MakeWrites => (current) => {
+          const writes = itemWrites(current, patch);
+          if (typeof writes !== "string") lines = linesMoved(lines, current.receipt, writes);
+          return writes;
+        }),
         ...(adjustments ?? []).map((patch): MakeWrites => (current) => adjustmentWrites(current, patch)),
         ({ receipt }) => {
-          const subtotal = subtotalDelta ?? cents(0);
-          const total = totalFollows ? cents(receipt.subtotal + subtotal + adjustmentsSum(receipt) - receipt.total) : (totalDelta ?? cents(0));
+          const subtotal = cents((subtotalDelta ?? 0) + lines.subtotal);
+          const total = totalFollows ? cents(receipt.subtotal + subtotal + adjustmentsSum(receipt) - receipt.total) : cents((totalDelta ?? 0) + lines.total);
           return subtotal === 0 && total === 0 ? [] : [{ kind: "totals", subtotalDelta: subtotal, totalDelta: total }];
         },
       ]);
@@ -615,6 +620,30 @@ function leaveBundle(split: Split, itemId: ItemId): readonly Write[] {
     if (first === undefined) return [ADJUSTMENT_ROWS.remove(row, index)];
     return [{ kind: "adjustment", id: row.id, edit: { bundle: [row.bundle, { ...row.bundle, items: [first, ...rest] }] } }];
   });
+}
+
+type Lines = { readonly subtotal: number; readonly total: number };
+
+/**
+ * How far an Item patch's own writes move the Subtotal and Total (preferences 70).
+ * An added Item first fills any shortfall of the Items under the printed Subtotal (a line the reading missed), and only the rest raises the Subtotal and Total.
+ * A delete or a price edit moves both by the full amount, so a price typed in steps lands where it would in one step.
+ * A delete that drops a Bundle discount also takes that amount off the Total. Printed tax, tip and fees keep their amounts.
+ */
+function linesMoved(lines: Lines, receipt: Receipt, writes: readonly Write[]): Lines {
+  let added = 0;
+  let moved = 0;
+  let dropped = 0;
+  for (const write of writes) {
+    if (write.kind === "adjustment" && "removed" in write) dropped += write.removed.amount;
+    if (write.kind !== "item") continue;
+    if ("added" in write) added += write.added.price;
+    else if ("removed" in write) moved -= write.removed.price;
+    else if (write.edit.price) moved += write.edit.price[1] - write.edit.price[0];
+  }
+  const shortfall = Math.max(0, receipt.subtotal + lines.subtotal - receipt.items.reduce((sum, { price }) => sum + price, 0));
+  const subtotal = Math.max(0, added - shortfall) + moved;
+  return { subtotal: lines.subtotal + subtotal, total: lines.total + subtotal - dropped };
 }
 
 function adjustmentsSum({ adjustments }: Receipt): number {

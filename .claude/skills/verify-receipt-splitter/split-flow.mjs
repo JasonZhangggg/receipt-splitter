@@ -145,13 +145,13 @@ const droppedAt = Date.now();
 await sam.getByRole("button", { name: /^Open Sprite/ }).click();
 await sam.getByRole("textbox", { name: "Price" }).fill("2.75");
 await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
-await host.getByText("Items are $0.25 over the subtotal.").waitFor();
-await shot(host, "I3a-mismatch");
+await host.getByTestId("total").filter({ hasText: "$28.29" }).waitFor();
+await shot(host, "I3a-price-total");
 await host.waitForTimeout(Math.max(0, 10_000 - (Date.now() - droppedAt)));
-const staleWhileDown = await priya.getByText("Items are $0.25 over the subtotal.").count();
+const staleWhileDown = await priya.getByTestId("total").filter({ hasText: "$28.29" }).count();
 blocked = false;
 const restoredAt = Date.now();
-await priya.getByText("Items are $0.25 over the subtotal.").waitFor({ timeout: 30_000 });
+await priya.getByTestId("total").filter({ hasText: "$28.29" }).waitFor({ timeout: 30_000 });
 report.reconnect = { downMs: restoredAt - droppedAt, attemptsWhileDown: connects.filter((c) => c.blocked).length, caughtUpMs: Date.now() - restoredAt, staleWhileDown };
 
 await priya.getByTestId("owe").click();
@@ -185,7 +185,7 @@ await host.waitForTimeout(300);
 await shot(host, "I3c-restore");
 await host.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
 await host.getByRole("dialog", { name: "History" }).getByRole("button", { name: "Close" }).click();
-await sam.getByText("Items are $0.25 over the subtotal.").waitFor({ state: "detached" });
+await sam.getByTestId("total").filter({ hasText: "$28.04" }).waitFor();
 
 await sam.reload();
 await sam.getByTestId("owe").waitFor();

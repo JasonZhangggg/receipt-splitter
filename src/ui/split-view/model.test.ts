@@ -4,7 +4,7 @@ import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
 import { splitCopy } from "../split-copy";
-import { breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems } from "./model";
+import { breakdownCharges, breakdownLines, bundleNote, circleTap, itemParts, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -140,6 +140,46 @@ test("lineAmounts divides the line's cents by largest remainder, and shows typed
     { participantId: "cat", cents: 333 },
   ]);
   expect(lineAmounts(item({ by: "amount", units: [[[ann, cents(75)]]] }))).toEqual([{ participantId: "ann", cents: 75 }]);
+});
+
+describe("itemParts", () => {
+  const people = [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }, { id: cat, name: "Cat" }] as const;
+  const splitOf = (it: SplitItem, others: readonly SplitItem[] = []) => {
+    const items = [it, ...others] as const;
+    const sum = items.reduce((total, { price }) => total + price, 0);
+    return { receipt: { items, adjustments: [], subtotal: cents(sum), total: cents(sum) }, participants: people, payments: [] };
+  };
+
+  test("$14.00 even across three people gives the viewer sorted last the $4.67 the list and Pay sheet show", () => {
+    const tostones = item({ by: "even", units: [[ann, bob, cat]] }, 1400);
+    const split = splitOf(tostones);
+
+    expect(itemParts(split, tostones)).toEqual([
+      { participantId: "ann", cents: 467 },
+      { participantId: "bob", cents: 466 },
+      { participantId: "cat", cents: 467 },
+    ]);
+    expect(itemParts(split, tostones).find(({ participantId }) => participantId === cat)?.cents).toBe(shareBreakdown(split, cat).items[0].portion);
+  });
+
+  test("reads a shown Item that differs from the Split's row, such as an unsaved switch to by shares", () => {
+    const even = item({ by: "even", units: [[ann, bob]] }, 900);
+    const shares = item({ by: "shares", units: [[[ann, 2], [bob, 1]]] }, 900);
+
+    expect(itemParts(splitOf(even), shares)).toEqual([
+      { participantId: "ann", cents: 600 },
+      { participantId: "bob", cents: 300 },
+    ]);
+  });
+
+  test("keeps the typed cents by amount", () => {
+    const typed = item({ by: "amount", units: [[[ann, cents(250)], [bob, cents(0)]]] }, 900);
+
+    expect(itemParts(splitOf(typed), typed)).toEqual([
+      { participantId: "ann", cents: 250 },
+      { participantId: "bob", cents: 0 },
+    ]);
+  });
 });
 
 describe("receiptRows at Topgolf", () => {
