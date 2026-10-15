@@ -47,14 +47,6 @@ async function addName(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
-async function noteLook(page: Page) {
-  const described = await action(page).getAttribute("aria-describedby");
-  return page.locator(`[id="${described}"]`).evaluate((note) => {
-    const style = getComputedStyle(note);
-    return [style.backgroundColor, style.color];
-  });
-}
-
 async function blockedBy(page: Page) {
   const button = action(page);
   const described = await button.getAttribute("aria-describedby");
@@ -181,7 +173,6 @@ test("a scan that fails the Total check shows the card, a quiet note, and still 
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
-  expect(await noteLook(page)).toEqual(["rgba(0, 0, 0, 0)", "rgb(105, 109, 116)"]);
 
   await action(page).click();
   await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });

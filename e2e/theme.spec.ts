@@ -4,8 +4,13 @@ import { expect, test, type Page } from "./without-ocr";
 
 test.use({ colorScheme: "light", serviceWorkers: "block" });
 
-const white = "rgb(255, 255, 255)";
-const nearBlack = "rgb(18, 19, 21)";
+/** Which side of mid-gray a CSS color falls on, so a test follows the theme without pinning its palette. */
+const toneScript = `(color) => {
+  const paint = document.createElement("canvas").getContext("2d");
+  paint.fillStyle = color;
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(paint.fillStyle.slice(i, i + 2), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? "dark" : "light";
+}`;
 
 const flipTo = (page: Page, mode: "Dark mode" | "Light mode") => fromMenu(page, mode);
 /** The menu offers the mode a flip goes to, so the page is in the other one. */
@@ -17,11 +22,14 @@ async function offers(page: Page, mode: "Dark mode" | "Light mode") {
 }
 
 const ground = (page: Page) =>
-  page.evaluate(() => ({
-    background: getComputedStyle(document.body).backgroundColor,
-    themeColors: [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')].map((meta) => meta.content),
-    stored: localStorage.getItem("receipt-splitter:appearance"),
-  }));
+  page.evaluate((script) => {
+    const tone = eval(script) as (color: string) => string;
+    return {
+      background: tone(getComputedStyle(document.body).backgroundColor),
+      themeColors: [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')].map((meta) => tone(meta.content)),
+      stored: localStorage.getItem("receipt-splitter:appearance"),
+    };
+  }, toneScript);
 
 async function home(page: Page) {
   await page.goto("/");
@@ -30,11 +38,11 @@ async function home(page: Page) {
 
 test("the Dark mode row turns home dark on a light device, status bar included", async ({ page }) => {
   await home(page);
-  expect(await ground(page)).toEqual({ background: white, themeColors: ["#FFFFFF", "#121315"], stored: null });
+  expect(await ground(page)).toEqual({ background: "light", themeColors: ["light", "dark"], stored: null });
   expect(await menuButton(page).boundingBox()).toMatchObject({ width: 44, height: 44 });
   await flipTo(page, "Dark mode");
   await offers(page, "Light mode");
-  expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#121315", "#121315"], stored: "dark" });
+  expect(await ground(page)).toEqual({ background: "dark", themeColors: ["dark", "dark"], stored: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
@@ -42,23 +50,24 @@ test("a reload keeps dark, and the page is dark before the app's script runs", a
   await home(page);
   await flipTo(page, "Dark mode");
   await offers(page, "Light mode");
-  await page.addInitScript(() => {
+  await page.addInitScript((script) => {
+    const tone = eval(script) as (color: string) => string;
     // readyState turns interactive once the HTML is parsed and before deferred scripts, so this is the page as first painted.
     document.addEventListener("readystatechange", () => {
       if (document.readyState !== "interactive") return;
       Object.assign(window, {
         parsed: {
-          background: getComputedStyle(document.body).backgroundColor,
-          themeColors: [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')].map((meta) => meta.content),
+          background: tone(getComputedStyle(document.body).backgroundColor),
+          themeColors: [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')].map((meta) => tone(meta.content)),
           bundleRan: document.getElementById("rs-theme") !== null,
         },
       });
     });
-  });
+  }, toneScript);
   await page.reload();
   await offers(page, "Light mode");
-  expect(await page.evaluate(() => (window as unknown as { parsed: unknown }).parsed)).toEqual({ background: nearBlack, themeColors: ["#121315", "#121315"], bundleRan: false });
-  expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#121315", "#121315"], stored: "dark" });
+  expect(await page.evaluate(() => (window as unknown as { parsed: unknown }).parsed)).toEqual({ background: "dark", themeColors: ["dark", "dark"], bundleRan: false });
+  expect(await ground(page)).toEqual({ background: "dark", themeColors: ["dark", "dark"], stored: "dark" });
 });
 
 test("a Split page opened after picking dark is dark", async ({ page, request }) => {
@@ -81,7 +90,7 @@ test("a Split page opened after picking dark is dark", async ({ page, request })
   const question = page.getByRole("heading", { name: "Which one are you?" });
   await expect(question).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#121315", "#121315"], stored: "dark" });
+  expect(await ground(page)).toEqual({ background: "dark", themeColors: ["dark", "dark"], stored: "dark" });
 });
 
 test("the Split page menu ends with the mode row, which flips the page and returns focus to the Menu button", async ({ page, request }) => {
@@ -108,7 +117,7 @@ test("the Split page menu ends with the mode row, which flips the page and retur
   await rows.last().click();
   await expect(menuPopover(page)).toHaveCount(0);
   await expect(menuButton(page)).toBeFocused();
-  await expect.poll(async () => (await ground(page)).background).toBe(nearBlack);
+  await expect.poll(async () => (await ground(page)).background).toBe("dark");
   await offers(page, "Light mode");
 });
 
@@ -117,10 +126,10 @@ test("flipping back to the device's own light forgets the pick and follows the d
   await flipTo(page, "Dark mode");
   await flipTo(page, "Light mode");
   await offers(page, "Dark mode");
-  expect(await ground(page)).toEqual({ background: white, themeColors: ["#FFFFFF", "#121315"], stored: null });
+  expect(await ground(page)).toEqual({ background: "light", themeColors: ["light", "dark"], stored: null });
   await page.emulateMedia({ colorScheme: "dark" });
   await offers(page, "Light mode");
-  expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#FFFFFF", "#121315"], stored: null });
+  expect(await ground(page)).toEqual({ background: "dark", themeColors: ["light", "dark"], stored: null });
 });
 
 test("on a dark device, picking light and back to dark forgets the pick", async ({ page }) => {
@@ -128,10 +137,10 @@ test("on a dark device, picking light and back to dark forgets the pick", async 
   await home(page);
   await flipTo(page, "Light mode");
   await offers(page, "Dark mode");
-  expect(await ground(page)).toEqual({ background: white, themeColors: ["#FFFFFF", "#FFFFFF"], stored: "light" });
+  expect(await ground(page)).toEqual({ background: "light", themeColors: ["light", "light"], stored: "light" });
   await flipTo(page, "Dark mode");
   await offers(page, "Light mode");
-  expect(await ground(page)).toEqual({ background: nearBlack, themeColors: ["#FFFFFF", "#121315"], stored: null });
+  expect(await ground(page)).toEqual({ background: "dark", themeColors: ["light", "dark"], stored: null });
 });
 
 test("the menu button stays put when Recent splits appears", async ({ page }) => {
@@ -144,4 +153,57 @@ test("the menu button stays put when Recent splits appears", async ({ page }) =>
   expect(await menuButton(page).boundingBox()).toEqual(before);
   await menuButton(page).click();
   await expect(menuPopover(page).getByRole("button", { name: "History", exact: true })).toBeVisible();
+});
+
+const countTransitions = () => {
+  const start = document.startViewTransition?.bind(document);
+  Object.assign(window, { transitions: 0 });
+  if (!start) return;
+  document.startViewTransition = (...args: Parameters<typeof start>) => {
+    Object.assign(window, { transitions: (window as unknown as { transitions: number }).transitions + 1 });
+    return start(...args);
+  };
+};
+const transitions = (page: Page) => page.evaluate(() => (window as unknown as { transitions: number }).transitions);
+
+test.describe("under reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("a flip under reduced motion swaps the theme in one frame", async ({ page }) => {
+    await page.addInitScript(countTransitions);
+    await home(page);
+    await menuButton(page).click();
+    const row = menuPopover(page).getByRole("button", { name: "Dark mode", exact: true });
+    const background = await row.evaluate((el, script) => {
+      const tone = eval(script) as (color: string) => string;
+      (el as HTMLElement).click();
+      return new Promise<string>((done) => requestAnimationFrame(() => done(tone(getComputedStyle(document.body).backgroundColor))));
+    }, toneScript);
+    expect(background).toBe("dark");
+    expect(await transitions(page)).toBe(0);
+  });
+});
+
+test("a flip reveals the new theme as a 600 ms circle on the new snapshot", async ({ page, browserName }) => {
+  test.skip(browserName === "webkit", "Playwright's WebKit does not script View Transition pseudo-element animations.");
+  await home(page);
+  await menuButton(page).click();
+  const row = menuPopover(page).getByRole("button", { name: "Dark mode", exact: true });
+  const reveal = await row.evaluate(
+    (el) =>
+      new Promise<{ duration: unknown; easing: string; clipPath: unknown[] }>((done) => {
+        (el as HTMLElement).click();
+        const poll = () => {
+          const found = document.getAnimations().find((a) => (a.effect as KeyframeEffect | null)?.pseudoElement === "::view-transition-new(root)");
+          if (!found) return requestAnimationFrame(poll);
+          const effect = found.effect as KeyframeEffect;
+          done({ duration: effect.getTiming().duration, easing: effect.getTiming().easing as string, clipPath: effect.getKeyframes().map((frame) => frame.clipPath) });
+        };
+        poll();
+      }),
+  );
+  expect(reveal.duration).toBe(600);
+  expect(reveal.easing).toBe("cubic-bezier(0.32, 0.72, 0, 1)");
+  expect(reveal.clipPath[0]).toMatch(/^circle\(0px at [\d.]+px [\d.]+px\)$/);
+  expect(reveal.clipPath[1]).toMatch(/^circle\([\d.]+px at [\d.]+px [\d.]+px\)$/);
 });

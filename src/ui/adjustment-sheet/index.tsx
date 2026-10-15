@@ -11,7 +11,7 @@ import { fieldGroup } from "../document";
 import { Segments } from "../item-sheet";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, type, useColors } from "../theme";
+import { layout, tabular, type, useColors } from "../theme";
 import { adjustmentEdit, adjustmentProblem, deleteAdjustment, newAdjustment, switchKind, takesOff, tidyAmount, typedFrom, type AdjustmentProblem, type TypedAdjustment } from "./adjustment";
 
 type Send = (op: Operation) => Promise<Answer>;
@@ -19,7 +19,6 @@ type Send = (op: Operation) => Promise<Answer>;
 export type CloseGuard = () => boolean;
 
 const saveAfter = 600;
-const tabular = { fontVariant: ["tabular-nums" as const] };
 const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
 const problemText = (problem: AdjustmentProblem) => (problem === "overLimit" ? say.adjustmentProblem.overLimit(maxAmount) : say.adjustmentProblem[problem]);

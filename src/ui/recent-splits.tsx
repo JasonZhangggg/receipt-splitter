@@ -9,7 +9,7 @@ import { useLayoutHeight } from "./components/viewport";
 import { historyCopy as say } from "./home-copy";
 import { useReducedMotion, webStyle } from "./motion";
 import { BottomSheet } from "./split-view/bottom-sheet";
-import { motion, type, useColors } from "./theme";
+import { motion, tabular, type, useColors } from "./theme";
 
 type Props = { splits: readonly RecentSplit[]; now: number; wide: boolean; from: Press; closing: boolean; onClose: () => void; onGone: () => void };
 
@@ -93,7 +93,6 @@ function Popover({ anchor, closing, onClose, onGone, children }: { anchor: Ancho
   );
 }
 
-const tabular = { fontVariant: ["tabular-nums" as const] };
 /** A row in a scrolling list fills only once a touch holds, so a scroll that starts on it does not flash. */
 const web = { dataSet: { pressable: "" }, delayPressIn: scrollViewTouchDelay };
 const fillIn = webStyle({ transitionProperty: "background-color", transitionDuration: "0ms" });

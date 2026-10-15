@@ -14,6 +14,7 @@ Every animation on the site runs without long frames, jumps, pops or reversals, 
 - `motion-photo` covers the photo viewer opening and closing. It runs in a harness page that mounts `PhotoViewer`, because the route needs a real OCR scan to show a photo.
 - `motion-split-type` covers the Item sheet's split type changing once through its save, also with a 300 ms socket round trip (`slow-split-type`).
 - `motion-keyboard` covers the Split sheet and the Item sheet when a simulated iPhone keyboard opens and closes. The app does not move either sheet for the keyboard. iOS pans the page to reveal the field, so each sheet's on-screen top moves in one step.
+- `motion-theme` covers the light/dark flip. The new theme is a `clip-path` circle on `::view-transition-new(root)` that grows from the center of the control pressed (today a row of the header menu) to the farthest corner of the viewport over 600 ms with `cubic-bezier(.32,.72,0,1)`. The old page stays under it, so no frame shows a half-themed page. Under reduced motion, or without the View Transitions API, the theme swaps in one frame. `e2e/theme.spec.ts` checks the circle's timing and the one-frame swap. The scenario is not in `motion.mjs`; for frames, slow the page's animations in Chromium with CDP `Animation.setPlaybackRate` at 0.1, flip the theme with a mouse press, and screenshot every 450 ms.
 - `motion-reduced` covers the same changes under `prefers-reduced-motion: reduce`.
 
 ## How to get to it (user POV)
@@ -21,6 +22,7 @@ Every animation on the site runs without long frames, jumps, pops or reversals, 
 - The Split page `/s/<id>`: pick yourself, tap or swipe the bar, tap a Bundle header, tap an Item, tap the scrim.
 - The home page `/`: tap **Add name**, type a name and press Enter. Drag the panel from beside the payment row and let go.
 - The receipt card on `/`: tap the thumbnail to open the photo.
+- Any page: open the header menu and tap **Dark mode** or **Light mode**.
 
 ## Driving it with verify.mjs
 

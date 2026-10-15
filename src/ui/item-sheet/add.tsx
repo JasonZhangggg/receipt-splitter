@@ -10,7 +10,7 @@ import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { fieldGroup } from "../document";
-import { layout, type, useColors } from "../theme";
+import { layout, tabular, type, useColors } from "../theme";
 import { Stepper } from "./index";
 import { newItem, problemFor, type NewItem, type NewItemProblem } from "./new-item";
 
@@ -21,7 +21,6 @@ type Props = {
   onClose: () => void;
 };
 
-const tabular = { fontVariant: ["tabular-nums" as const] };
 const empty: NewItem = { name: "", detail: "", price: "", quantity: 1, who: [] };
 
 /** A new Item as a form: nothing reaches the Split until Add item, so other phones never see it half typed. */
