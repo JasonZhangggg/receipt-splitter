@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import type { Appearance, Scheme } from "./appearance";
 import { colors } from "./colors";
 import { fallbackMetrics, faces } from "./fonts.generated";
+import { iconCss } from "./icon-css";
 
 const weights = [400, 500] as const;
 const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans", "Roboto", "Roboto-Regular"];
@@ -40,7 +41,7 @@ a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
 }
 [data-app-picker]:has(select:focus-visible) [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
 [data-app-picker]:has(select:focus-visible) [data-press-face][data-round] { border-radius: 20px; outline-color: var(--on-action); outline-offset: -2px; }
-`;
+${iconCss}`;
 }
 
 export function installDocument() {
@@ -53,6 +54,9 @@ export function installDocument() {
   style.id = "rs-theme";
   style.textContent = css(colors);
   document.head.appendChild(style);
+
+  const live = () => document.documentElement.setAttribute("data-icons-live", "");
+  for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, live, { capture: true, once: true });
 
   const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
   if (viewport && !viewport.content.includes("viewport-fit")) viewport.content += ", viewport-fit=cover";
