@@ -109,7 +109,7 @@ export const joinCopy = {
   wordmarkHome: "SplitWith, split a receipt",
   /** The server ends a Split that never existed and one that aged out the same way, so one wording covers both. */
   missing: { title: "We can't find this split", hint: "It may have expired, or the link may be incomplete." },
-  noPage: "This page doesn't exist.",
+  noPage: "This page doesn't exist",
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
 
