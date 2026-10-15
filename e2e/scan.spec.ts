@@ -98,7 +98,7 @@ test.describe("reading SRD receipt 1040", () => {
   test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and Create link with no name says so and opens the name field", async ({ page }) => {
     await page.goto("/");
     await choose(page, receipt1040);
-    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
+    await expect(page.getByTestId("reading")).toBeVisible();
     await expect(card(page)).toBeVisible(scanTimeout);
 
     expect(await shown(page)).toBe("I paid $28.04. Change.");
@@ -147,7 +147,7 @@ test("a read with no Items keeps Create link off with its reason, and home offer
   await choose(page, "e2e/fixtures/blank.png");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect(await shown(page)).toBe("I paid $0.00. Change.");
+  expect(await shown(page)).toBe("I paid the bill. Try another photo.");
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
@@ -190,7 +190,7 @@ test.describe("at 1280 px", () => {
     await expect(zone).toBeVisible();
 
     await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
-    await expect(card(page)).toContainText("$0.00", scanTimeout);
+    await expect(card(page)).toHaveText("I paid the bill. Try another photo.", scanTimeout);
 
     await page.evaluate(() => localStorage.clear());
     await page.reload();
@@ -223,8 +223,10 @@ test.describe("the reading state", () => {
     const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
-    await expect(page.getByRole("status", { name: "Reading the receipt" })).toHaveText("I paid the bill. Reading the receipt.");
+    await expect(page.getByTestId("reading")).toHaveText("I paid the bill. Reading the receipt.");
     await expect(page.getByRole("button", { name: "Add the receipt" })).toHaveCount(0);
+    await expect(page.getByTestId("reading"), "focus follows the button that left").toBeFocused();
+    await expect(page.locator("[data-problem]"), "the footer stays quiet while the step word speaks").toHaveAttribute("aria-live", "off");
     await expect(page.getByRole("progressbar")).toHaveCount(0);
     const sweeping = await page.getByTestId("reading-stage").evaluate((word) => word.getAnimations().map((animation) => (animation as CSSAnimation).animationName));
     expect(sweeping).toEqual(["rs-sweep"]);
@@ -235,14 +237,14 @@ test.describe("the reading state", () => {
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   });
 
-  test("under reduced motion runs no animation while it reads", async ({ page }) => {
+  test("under reduced motion only a short opacity fade runs while it reads, with no sweep", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
-    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
-    await frames(page, 3);
-    expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+    await expect(page.getByTestId("reading")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+    await expect(page.getByTestId("reading-stage")).toHaveText("Reading the receipt");
     release();
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
   });
@@ -390,7 +392,7 @@ test.describe("reading through the server", () => {
     await choose(page, "e2e/fixtures/topgolf-synthetic.png");
     await expect.poll(() => askedAt, scanTimeout).toBeGreaterThan(0);
 
-    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
+    await expect(page.getByTestId("reading")).toBeVisible();
     await expect(card(page)).toBeVisible({ timeout: 30_000 });
     expect(Date.now() - askedAt).toBeGreaterThan(14_000);
     expect(await shown(page)).toBe(onDevice);

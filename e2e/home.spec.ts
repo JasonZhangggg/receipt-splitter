@@ -431,7 +431,7 @@ test("the fonts load as same-origin WOFF2 files with an immutable cache header w
 const fontWidths = [320, phone.width, 1280];
 
 for (const width of fontWidths) {
-  test(`the fallback faces keep every text line and its glyph box where Geist puts them at ${width} px`, async ({ browser }) => {
+  test(`the fallback faces keep every text line outside the sentence, and the sentence's box, where Geist puts them at ${width} px`, async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width, height: phone.height }, reducedMotion: "reduce" });
     const page = await context.newPage();
     await page.goto("/");
@@ -439,8 +439,12 @@ for (const width of fontWidths) {
     const layout = () =>
       page.evaluate(() => ({
         faces: [...document.fonts].filter((f) => f.family.replaceAll('"', "") === "Geist").length,
+        sentence: (() => {
+          const { top, height, width } = document.querySelector('[data-testid="sentence"]')!.getBoundingClientRect();
+          return [top, height, width].map(Math.round);
+        })(),
         lines: [...document.querySelectorAll("#root *")]
-          .filter((el) => el.childElementCount === 0 && el.textContent?.trim() && el.localName !== "option")
+          .filter((el) => el.childElementCount === 0 && el.textContent?.trim() && el.localName !== "option" && !el.closest('[data-testid="sentence"]'))
           .map((el) => {
             const range = document.createRange();
             range.selectNodeContents(el);
@@ -461,6 +465,7 @@ for (const width of fontWidths) {
     await context.close();
     expect([web.faces, fallback.faces]).toEqual([2, 0]);
     expect(fallback.lines).toEqual(web.lines);
+    expect(fallback.sentence).toEqual(web.sentence);
   });
 }
 

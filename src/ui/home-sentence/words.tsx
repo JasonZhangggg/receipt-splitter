@@ -57,10 +57,11 @@ const underlineMark = { dataSet: { underline: "" } };
 const sized = webStyle({ fieldSizing: "content", maxWidth: "100%" } as never);
 const colorChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 
-/** A blank in the sentence: a field as wide as its placeholder or its text, with a gray rule under it that turns ink on focus. */
+/** A blank in the sentence: a field as wide as its placeholder or its text, with a gray rule under it that turns ink on focus. Without field-sizing (iOS Safari before 26.2 does not have it), css.ts sizes it from `--chars`. */
 export function Blank({ style, onFocus, onBlur, ref, ...rest }: TextInputProps & { ref?: Ref<TextInput> }) {
   const c = useColors();
   const [focused, setFocused] = useState(false);
+  const chars = webStyle({ "--chars": Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1) } as never);
   return (
     <TextInput
       ref={ref}
@@ -74,7 +75,7 @@ export function Blank({ style, onFocus, onBlur, ref, ...rest }: TextInputProps &
         setFocused(false);
         onBlur?.(event);
       }}
-      style={[type.sayInput, styles.blank, sized, colorChange, { color: c.ink, borderBottomColor: focused ? c.ink : c.dot }, style]}
+      style={[type.sayInput, styles.blank, sized, chars, colorChange, { color: c.ink, borderBottomColor: focused ? c.ink : c.dot }, style]}
       {...rest}
     />
   );

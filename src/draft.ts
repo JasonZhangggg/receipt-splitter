@@ -3,7 +3,8 @@ import { canonicalName, handleProblem, isName, MAX_ADJUSTMENTS, MAX_ITEMS, MAX_P
 import { adjustmentId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 
-export type ReceiptFile = { readonly name: string };
+/** One picked photo. Nothing reads it but its identity, which keys the cleaned copy to the scan it came from. */
+export type ReceiptFile = object;
 
 /** A read holds the Receipt Create split link sends, or null when it found no Item, since a Split holds at least one. */
 type Scan =

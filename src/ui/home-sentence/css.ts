@@ -16,9 +16,11 @@ span[data-shimmer] {
   color: transparent;
   animation: rs-sweep 1.8s linear infinite;
 }
+@keyframes rs-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rs-sweep { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@supports not (field-sizing: content) { input[data-underline] { width: calc(var(--chars) * 1ch + 4px); } }
 [data-app-word]:has(select:focus-visible) { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 2px; }
 @media (prefers-reduced-motion: reduce) {
-  [data-step-in] { animation: none; }
+  [data-step-in] { animation: rs-fade 150ms ease; }
   span[data-shimmer] { animation: none; background: none; color: var(--ink); }
 }`;

@@ -38,10 +38,6 @@ export const glyphs = {
   pie: { svg: pie, motion: "pie" },
   split: { svg: pie, motion: "pie" },
   history: { svg: undo, weight: 1.7, motion: "undo" },
-  camera: {
-    svg: '<path d="M6.83 6.18a2.31 2.31 0 0 1-1.64 1.05c-.38.05-.76.11-1.13.18-1.05.17-1.8 1.1-1.8 2.17V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.57c0-1.07-.75-1.99-1.8-2.17-.37-.06-.75-.12-1.14-.17a2.31 2.31 0 0 1-1.64-1.06l-.82-1.31a2.19 2.19 0 0 0-1.74-1.04 48.8 48.8 0 0 0-5.23 0 2.19 2.19 0 0 0-1.74 1.04l-.82 1.32Z"/><path class="lens" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.01v.01h-.01v-.01Z"/>',
-    motion: "cam",
-  },
   sun: {
     svg: `<circle cx="12" cy="12" r="3.75"/>${rays.map((d, i) => `<path class="ray" style="--d:${i * 50}ms" d="${d}"/>`).join("")}`,
     motion: "sun",

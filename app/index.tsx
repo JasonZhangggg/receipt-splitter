@@ -3,7 +3,6 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { cents } from "../src/core/money";
 import { recentSplits, rememberSplit } from "../src/device";
 import { loadDraft, mismatchNote, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
@@ -68,7 +67,7 @@ export default function Home() {
   const read = useCallback(async (photo: File) => {
     if (!isPhoto(photo)) return setNotice(copy.notPhoto);
     const scan = ++scanning.current;
-    const file: ReceiptFile = { name: photo.name || copy.pastedPhoto };
+    const file: ReceiptFile = {};
     setStage("start");
     dispatch({ type: "reading", file });
     globalThis.performance?.mark?.("scan-picked");
@@ -91,7 +90,7 @@ export default function Home() {
   const sides = { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right };
   const columnWidth = width >= breakpoints.roomyFrom ? 480 : 440;
   const { scan } = draft;
-  const receipt: ReceiptState = scan.status === "empty" ? { kind: "empty" } : scan.status === "reading" ? { kind: "reading", stage } : { kind: "read", total: scan.receipt?.total ?? cents(0) };
+  const receipt: ReceiptState = scan.status === "empty" ? { kind: "empty" } : scan.status === "reading" ? { kind: "reading", stage } : { kind: "read", total: scan.receipt?.total ?? null };
   const ready = readiness(draft);
   const blocked = ready.kind !== "ready";
   const reason = failure ?? (blocked ? blockerText(ready) : mismatchNote(draft));
@@ -161,7 +160,7 @@ export default function Home() {
         </View>
       </ScrollView>
 
-      <HomeFooter reason={reason} problem={problem} blocked={blocked} busy={creating} onPress={press} onHeight={setFooterHeight} width={columnWidth} />
+      <HomeFooter reason={reason} live={scan.status !== "reading"} problem={problem} blocked={blocked} busy={creating} onPress={press} onHeight={setFooterHeight} width={columnWidth} />
       <Toast message={notice} onHide={() => setNotice(null)} lift={footerHeight} />
     </View>
   );

@@ -13,6 +13,8 @@ const fade = webStyle({ transitionProperty: "opacity", transitionDuration: `${mo
 type Props = {
   /** What stops Create, or a note about the receipt, or null. */
   reason: string | null;
+  /** The reason is announced when it changes. Off while a read runs, because the sentence's step words are the live region then. */
+  live: boolean;
   /** The reason is a problem (red) and not just what is still to do. */
   problem: boolean;
   /** Create is gray. A tap on it still acts, by taking the person to what is missing. */
@@ -24,7 +26,7 @@ type Props = {
 };
 
 /** The reason line at the left and the Create link pill at the right, fixed below the scrolling page, as on the Split page. */
-export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, width }: Props) {
+export function HomeFooter({ reason, live, problem, blocked, busy, onPress, onHeight, width }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -35,7 +37,7 @@ export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, 
       style={[styles.footer, { borderTopColor: c.hairline, paddingBottom: Math.max(24, insets.bottom + 8), paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}
     >
       <View style={[styles.column, { maxWidth: width }]}>
-        <Text id={reasonId} role="status" {...{ dataSet: { problem: String(problem) } }} style={[type.caption, styles.reason, { color: problem ? c.warn : c.muted }]}>
+        <Text id={reasonId} role="status" aria-live={live ? "polite" : "off"} {...{ dataSet: { problem: String(problem) } }} style={[type.caption, styles.reason, { color: problem ? c.warn : c.muted }]}>
           {reason}
         </Text>
         <PressTarget

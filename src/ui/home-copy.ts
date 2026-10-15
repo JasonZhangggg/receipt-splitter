@@ -21,7 +21,7 @@ export const copy = {
     name: "name",
   },
   addReceipt: "Add the receipt",
-  reading: "Reading the receipt",
+  tryAnotherPhoto: "Try another photo",
   readingStage: {
     start: "Reading the receipt",
     text: "Finding the text",
@@ -29,7 +29,6 @@ export const copy = {
     slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
-  pastedPhoto: "Pasted photo",
   paymentApp: "Payment app",
   addApp: "Another way to get paid",
   addAppName: "Add another way to get paid",

@@ -258,9 +258,9 @@ describe("a reload of home", () => {
 
 describe("the Draft", () => {
   test("replacing the Receipt keeps the Payment handles and the names", () => {
-    const draft = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "reading", file: { name: "IMG_4128.jpg" } });
+    const draft = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "reading", file: {} });
     expect(draft).toEqual({
-      scan: { status: "reading", file: { name: "IMG_4128.jpg" } },
+      scan: { status: "reading", file: {} },
       handles: [{ service: "venmo", handle: "@jason-z" }],
       names: ["Jason", "Sam"],
     });
