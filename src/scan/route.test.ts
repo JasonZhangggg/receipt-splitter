@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { chooseRoute } from "./route";
+import { chooseRoute, within } from "./route";
 
 const never = new Promise<never>(() => {});
 
@@ -34,5 +34,23 @@ describe("chooseRoute", () => {
     await vi.advanceTimersByTimeAsync(0);
     fail();
     expect(await route).toBe("ocr");
+  });
+});
+
+describe("within", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("gives the value when it settles in time", async () => {
+    expect(await within(Promise.resolve("boxes"), 15_000)).toBe("boxes");
+  });
+
+  it("gives null once the time runs out, and not before", async () => {
+    let got: string | null | undefined;
+    void within<string>(never, 15_000).then((value) => (got = value));
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(got).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(got).toBeNull();
   });
 });

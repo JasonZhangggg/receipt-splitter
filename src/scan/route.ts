@@ -21,3 +21,13 @@ export function chooseRoute(ready: Promise<void>, ocr: Promise<TextBox[] | null>
     void ocr.then((boxes) => settle(boxes ? "ocr" : "photo"));
   });
 }
+
+/** How long home waits for the device's OCR after the server read failed, so a stalled model download cannot hold the reading words forever. */
+export const FALLBACK_WAIT_MS = 15_000;
+
+/** The value, or null when it has not settled within `ms`. */
+export function within<T>(value: Promise<T | null>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => (timer = setTimeout(resolve, ms, null)));
+  return Promise.race([value, late]).finally(() => clearTimeout(timer));
+}
