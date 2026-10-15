@@ -139,5 +139,5 @@ const { phone, desktop } = copy.hero;
 
 export const fallbackSamples = {
   400: [copy.example, desktop.hint, copy.formats, paymentApps.venmo.name, copy.addYourName, copy.action, copy.optional],
-  600: [copy.wordmark, paymentApps.venmo.glyph, phone.title, desktop.title],
+  500: [copy.wordmark, paymentApps.venmo.glyph, phone.title, desktop.title],
 };

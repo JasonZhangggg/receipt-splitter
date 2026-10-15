@@ -4,9 +4,7 @@ import type { Appearance, Scheme } from "./appearance";
 import { colors } from "./colors";
 import { fallbackMetrics, faces } from "./fonts.generated";
 
-const weights = [400, 600] as const;
-/** A flip of the appearance crossfades the whole page instead of jumping from one brightness to the other. */
-const appearanceFade = 200;
+const weights = [400, 500] as const;
 const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans", "Roboto", "Roboto-Regular"];
 
 /** Marks a rounded group of text fields, which draws the focus ring for the field inside it. */
@@ -15,18 +13,19 @@ export const fieldGroup = { dataSet: { field: "" } };
 function css({ light, dark }: typeof colors) {
   const webFaces = weights.map(
     (weight) =>
-      `@font-face { font-family: "Plus Jakarta Sans"; font-weight: ${weight}; font-display: swap; src: url("${faces[weight]}") format("woff2"); }`,
+      `@font-face { font-family: "Geist"; font-weight: ${weight}; font-display: swap; src: url("${faces[weight]}") format("woff2"); }`,
   );
   const local = fallbackSources.map((name) => `local("${name}")`).join(", ");
   const fallbackFaces = weights.map(
-    (weight) => `@font-face { font-family: "Plus Jakarta Sans Fallback"; font-weight: ${weight}; src: ${local}; ${fallbackMetrics[weight]} }`,
+    (weight) => `@font-face { font-family: "Geist Fallback"; font-weight: ${weight}; src: ${local}; ${fallbackMetrics[weight]} }`,
   );
   return `${[...webFaces, ...fallbackFaces].join("\n")}
 :root { --focus: ${light.focus}; --on-action: ${light.onAction}; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --focus: ${dark.focus}; --on-action: ${dark.onAction}; } }
 :root[data-theme="dark"] { --focus: ${dark.focus}; --on-action: ${dark.onAction}; }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: ${appearanceFade}ms; animation-timing-function: ease; }
-html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+/* A theme flip is a clip-path circle on the new snapshot (use-appearance-flip.ts), so the default cross-fade of the root goes. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-synthesis: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
 html, body { overscroll-behavior: none; }
 body { text-wrap: pretty; }
 [data-pressable] { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }

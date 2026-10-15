@@ -1,3 +1,5 @@
+Copyright (c) 2023 Vercel, in collaboration with basement.studio (Geist, https://github.com/vercel/geist-font)
+
 Copyright 2020 The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans) PlusJakartaSans-Italic[wght].ttf: Copyright 2020 The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.

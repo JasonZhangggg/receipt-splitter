@@ -282,7 +282,7 @@ export default function Home() {
           <MenuRows
             rows={[
               ...(stored.length > 0 ? [{ icon: "history" as const, label: copy.history, onPress: fromMenu((from) => setRecent({ from, closing: false })) }] : []),
-              { icon: appearance.next === "dark" ? ("moon" as const) : ("sun" as const), label: copy.mode[appearance.next], onPress: fromMenu(appearance.flip) },
+              { icon: appearance.next === "dark" ? ("moon" as const) : ("sun" as const), label: copy.mode[appearance.next], onPress: (row: Press) => fromMenu(() => appearance.flip(row.trigger))(row) },
             ]}
           />
         </Popover>

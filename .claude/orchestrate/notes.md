@@ -150,8 +150,6 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - Native donut-ring.tsx uses an SVG data URI in RN Image, which won't draw on iOS/Android. Latent while web-only.
 - Mask id "ring-sweep" is a fixed global id; use useId() if two rings ever mount.
 - The selected chip ring's gap uses c.sheet; check the desktop layout, where chips may sit on paper.
-- e2e/pay.spec.ts pins stroke-width 14 (rule 43). Switch to a data attribute on the picked arc.
 
 ## From PR #98 (2026-10-11), open (review PASS+NOTES)
 - Dark-mode self badge (#F2F2F3) is only about 1.2:1 from the lighter M1 dark fills. Operator to confirm in dark screenshots of a 3-claimer row.
-- colors.test.ts:114 pins hex literals; compare against people[0].dark instead (rule 43). Fixer: next UI owner.

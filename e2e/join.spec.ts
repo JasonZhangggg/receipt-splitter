@@ -349,3 +349,22 @@ test("a Split whose socket closes with 4500 says it can't be opened, and stops r
   await page.clock.runFor(60_000);
   expect(await sockets()).toBe(1);
 });
+
+test("when the browser refuses to save, a pick holds for the session and tapping an Item does not ask again", async ({ page }) => {
+  await readyHome(page);
+  const link = await createLink(page);
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException("blocked", "QuotaExceededError");
+    };
+  });
+  await page.goto(link);
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await expect(question(page)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Sprite, check for Jason" }).click();
+  await expect(page.getByRole("button", { name: /^Open Sprite, \$2\.50, had by Jason$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await expect(question(page)).toHaveCount(0);
+});

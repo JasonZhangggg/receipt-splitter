@@ -10,7 +10,7 @@ import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { fieldGroup } from "../document";
-import { layout, motion, type, useColors } from "../theme";
+import { layout, motion, tabular, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
 import { bundleNote, lineAmounts, nameParts, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
@@ -33,7 +33,6 @@ type Props = {
 type AmountField = "price" | ParticipantId;
 
 const saveAfter = 600;
-const tabular = { fontVariant: ["tabular-nums" as const] };
 const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
 function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {

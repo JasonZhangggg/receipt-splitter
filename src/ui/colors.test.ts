@@ -111,7 +111,7 @@ describe("personInks", () => {
     const ids = ["jason", "sam", "priya", "dee", "eli", "fay"];
     expect(inksOf(ids)).toEqual(inksOf(ids));
     expect([...personInks("dark", ids).values()]).toEqual([people[2].dark, people[1].dark, people[4].dark, people[0].dark, people[5].dark, people[3].dark]);
-    expect(hueOf("#BBC1CA", "dark")).toEqual({ fill: "#BBC1CA", mark: "#8899B1" });
+    expect(hueOf(people[0].light.fill, "dark")).toEqual(people[0].dark);
   });
 
   test("someone who leaves recolors nobody unless they held a hue a later person had collided with", () => {
