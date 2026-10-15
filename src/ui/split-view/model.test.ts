@@ -4,7 +4,7 @@ import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
 import { splitCopy } from "../split-copy";
-import { barFor, breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, claimedItems } from "./model";
+import { breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, receiptRows, shareLabel, splitIds, totalNote, claimedItems } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -265,13 +265,4 @@ describe("receiptRows at Topgolf", () => {
     const buckets = receiptRows(receipt).rows.flatMap((row) => (row.kind === "bundle" ? [claimedItems(row.bundle, itemIds)] : []));
     expect([buckets, splitCopy.unclaimedTotal(itemIds.length)]).toEqual([[3, 0], "Unclaimed · 6 items"]);
   });
-});
-
-test("barFor asks for a name until someone picks, then shows the selected person's share collapsed and their breakdown expanded", () => {
-  expect(barFor(null, false, null)).toEqual({ kind: "ask" });
-  expect(barFor(null, true, bob)).toEqual({ kind: "ask" });
-  expect(barFor(ann, false, bob)).toEqual({ kind: "share", me: ann, person: bob });
-  expect(barFor(ann, false, null)).toEqual({ kind: "share", me: ann, person: ann });
-  expect(barFor(ann, true, bob)).toEqual({ kind: "breakdown", me: ann, person: bob });
-  expect(barFor(ann, true, null)).toEqual({ kind: "breakdown", me: ann, person: ann });
 });

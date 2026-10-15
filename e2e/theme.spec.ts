@@ -17,14 +17,6 @@ const toggle = (page: Page, mode: "Dark mode" | "Light mode") => page.getByRole(
 const flipTo = (page: Page, mode: "Dark mode" | "Light mode") => toggle(page, mode).click();
 const offers = (page: Page, mode: "Dark mode" | "Light mode") => expect(toggle(page, mode)).toBeVisible();
 
-/** The Split page's menu offers the mode a flip goes to. */
-async function offersInMenu(page: Page, mode: "Dark mode" | "Light mode") {
-  await menuButton(page).click();
-  await expect(menuPopover(page).getByRole("button", { name: mode, exact: true })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(menuPopover(page)).toHaveCount(0);
-}
-
 const ground = (page: Page) =>
   page.evaluate((script) => {
     const tone = eval(script) as (color: string) => string;
@@ -95,34 +87,6 @@ test("a Split page opened after picking dark is dark", async ({ page, request })
   await expect(question).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(await ground(page)).toEqual({ background: "dark", themeColors: ["dark", "dark"], stored: "dark" });
-});
-
-test("the Split page menu ends with the mode row, which flips the page and returns focus to the Menu button", async ({ page, request }) => {
-  const created = await request.post("/api/splits", {
-    headers: { "cf-connecting-ip": `198.51.${randomInt(200, 256)}.${randomInt(1, 255)}` },
-    data: {
-      split: {
-        receipt: { items: [{ id: "rice", name: "Rice", price: 800 }], adjustments: [], subtotal: 800, total: 800 },
-        participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }],
-        paymentHandles: [{ service: "venmo", handle: "jason-z" }],
-      },
-    },
-  });
-  expect(created.status()).toBe(201);
-  const { id } = await created.json();
-  await page.goto(`/s/${id}`);
-  const pick = page.getByRole("dialog", { name: "Which one are you?" });
-  await expect(pick).toBeVisible({ timeout: 15_000 });
-  await pick.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible();
-  await menuButton(page).click();
-  const rows = menuPopover(page).getByRole("button");
-  await expect(rows.last()).toHaveAccessibleName("Dark mode");
-  await rows.last().click();
-  await expect(menuPopover(page)).toHaveCount(0);
-  await expect(menuButton(page)).toBeFocused();
-  await expect.poll(async () => (await ground(page)).background).toBe("dark");
-  await offersInMenu(page, "Light mode");
 });
 
 test("flipping back to the device's own light forgets the pick and follows the device again", async ({ page }) => {

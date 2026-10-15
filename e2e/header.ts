@@ -9,6 +9,13 @@ export async function fromMenu(page: Page, row: "Payments" | "History" | "Receip
   await menuPopover(page).getByRole("button", { name: row, exact: true }).click();
 }
 
-export const moreButton = menuButton;
-export const moreMenu = menuPopover;
-export const fromMore = fromMenu;
+/** The Split page's underlined links and its theme toggle, which replaced the header menu. */
+export async function fromMore(page: Page, row: "Payments" | "History" | "Receipt photo" | "People" | "Dark mode" | "Light mode") {
+  await page.getByRole("button", { name: row === "Receipt photo" ? "Receipt" : row === "Dark mode" ? "Switch to dark mode" : row === "Light mode" ? "Switch to light mode" : row, exact: true }).click();
+}
+
+/** The Split page's People sheet: pick whose side the list shows. */
+export async function viewAs(page: Page, name: string) {
+  await page.getByRole("button", { name: "People", exact: true }).click();
+  await page.getByRole("group", { name: "People" }).getByRole("button", { name, exact: true }).click();
+}

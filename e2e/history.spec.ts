@@ -64,7 +64,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   const link = page.url();
   const total = `$${((await sent).postDataJSON().split.receipt.total / 100).toFixed(2)}`;
   await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible();
+  await expect(page.getByTestId("owe").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
@@ -73,7 +73,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, ${total}`);
   await rows(page).first().click();
   await expect(page).toHaveURL(link);
-  await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("owe").first()).toBeVisible({ timeout: 30_000 });
 });
 
 test("the Recent splits link sits in the header beside the theme toggle and lists every stored Split newest first, past five", async ({ page }) => {

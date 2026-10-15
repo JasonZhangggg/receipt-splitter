@@ -136,7 +136,6 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - The first-load size is about 400.3 KB of the 410 KB budget.
 
 ## From PR #85 (2026-10-08), open
-- A second tap on the theme toggle during the 200 ms crossfade is dropped, so a quick double tap flips once. Accepted for now. Fixer: next UI owner, only if the operator notices it.
 - Toggle feel and the status-bar colour have not been checked on a real iPhone (mobile-native section 11). Real-notch landscape insets have not been exercised.
 
 ## From the clarity round (2026-10-09), open
@@ -163,7 +162,6 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From the B2-3 review (2026-10-15)
 
 - The pick sheet at 390 x 667 sits 40 px from the top and clips the bottom of the header glyphs (38 px before B2-3). Fixer: B2-7 owner, which rebuilds that sheet as the People sheet.
-- A tap-away closes the Split overlay without setting `closing`, so for about 5 frames neither the overlay nor the lowered share sheet shows. Fixer: B2-4 owner, which replaces the share sheet.
 
 ## From the B2 merges (2026-10-15)
 

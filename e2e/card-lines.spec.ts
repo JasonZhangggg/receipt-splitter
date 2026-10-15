@@ -45,7 +45,7 @@ async function pick(page: Page, link: string, name: string): Promise<Page> {
   await page.goto(link);
   const asked = page.getByRole("dialog", { name: "Which one are you?" }).or(page.getByRole("complementary"));
   await asked.getByRole("button", { name, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
   return page;
 }
 

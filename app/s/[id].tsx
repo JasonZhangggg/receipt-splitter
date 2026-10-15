@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cents } from "../../src/core/money";
 import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
-import { computeShares } from "../../src/core/shares";
+import { computeShares, shareBreakdown } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ReceiptLevelKind, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
@@ -15,7 +15,6 @@ import { actedByKey } from "../../src/ui/components/acted-by-key";
 import { Toast } from "../../src/ui/components/toast";
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
-import { Swap } from "../../src/ui/components/swap";
 import { AddAdjustmentSheet, AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
 import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
@@ -25,10 +24,8 @@ import { ItemSheet } from "../../src/ui/item-sheet";
 import { AddItemSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
-import { Breakdown, foldedRow } from "../../src/ui/split-view/breakdown";
-import { menuWidth as headerMenuWidth } from "../../src/ui/components/menu";
-import { HeaderMenu, SplitHeader } from "../../src/ui/split-view/header";
-import { barFor, circleTap, linesNear } from "../../src/ui/split-view/model";
+import { SplitHeader } from "../../src/ui/split-view/header";
+import { circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
 import { AddMenu, addMenuWidth, type AddChoice } from "../../src/ui/split-view/add-menu";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
@@ -37,7 +34,13 @@ import { holdOf, takenName } from "../../src/ui/split-view/name-hold";
 import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
-import { BottomSheet, useFoldTrack } from "../../src/ui/split-view/bottom-sheet";
+import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
+import { SplitFooter } from "../../src/ui/split-view/footer";
+import { SplitIntro } from "../../src/ui/split-view/intro";
+import { SheetHeader } from "../../src/ui/split-view/sheet-header";
+import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-sheet";
+import { PayBlock } from "../../src/ui/pay/pay-block";
+import { shareStatus, statusWords } from "../../src/ui/pay/model";
 import { webStyle } from "../../src/ui/motion";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
@@ -92,30 +95,28 @@ type OverlayKind =
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
   | { readonly kind: "addAdjustment"; readonly adjustmentKind: ReceiptLevelKind }
   | { readonly kind: "history" }
+  | { readonly kind: "people" }
+  | { readonly kind: "pay" }
   | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
-/** What is open over the page and the press that opened it: the popover hangs from its trigger, and focus goes back there. */
+/** What is open over the page and the press that opened it: focus goes back there. */
 type Overlay = OverlayKind & { readonly from: Press };
-/** The right pane shows the pick content until this device has picked, then that person's share. */
-type PaneView = "pick" | "share";
 type Send = ReturnType<typeof useLiveSplit>["send"];
 
 /** An Adjustment's sheet is named for its saved kind; its heading follows a kind switch at once. */
-const overlayLabel = (overlay: OverlayKind, split: Split) =>
+const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
   overlay.kind === "adjustment"
     ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
       ? say.discount
       : say.charge
-    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history, payments: say.payments }[overlay.kind];
+    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
-const crossFadeFor = 200;
 
 function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: Split; photo: boolean; send: Send }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
   const wide = useLayoutWidth() >= breakpoints.pairFrom;
-  const paneRef = useRef<View>(null);
   const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
   const remember = (change: SplitChange) => {
@@ -137,11 +138,10 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const [pickProblem, setPickProblem] = useState<string | null>(null);
   const [payProblem, setPayProblem] = useState<string | null>(null);
   const [selected, setSelected] = useState<ParticipantId | null>(me);
-  const [expanded, setExpanded] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [closing, setClosing] = useState(false);
-  const [sheetHeight, setSheetHeight] = useState(0);
-  const foldTrack = useFoldTrack();
+  const [footerHeight, setFooterHeight] = useState(0);
+  const [paidToast, setPaidToast] = useState<string | null>(null);
   const [viewing, setViewing] = useState(false);
   const photoUrl = `/api/splits/${splitId}/photo`;
   useEffect(() => {
@@ -167,13 +167,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     }
     remember({ me: participantId });
     setSelected(participantId);
-    timers.current.push(
-      setTimeout(() => setPhase("collapsing"), checkFor),
-      setTimeout(() => {
-        setPhase("regular");
-        setChosen(null);
-      }, checkFor + crossFadeFor),
-    );
+    timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
   };
 
   const takeBack = () => {
@@ -209,7 +203,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     if (item && me) for (const op of circleTap(item, person)) await act({ ...op, by: me });
   };
   const onCircle = async (item: SplitItem, from: Press) => {
-    if (wide && !me) return (paneRef.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>("[role='list'] [data-pressable]")?.focus();
     if (!me || !selectedPerson) return setPhase("pick");
     if (selectedPerson.id !== me && trusted !== selectedPerson.id) {
       return setConfirming({ itemId: item.id, name: item.name, person: selectedPerson, had: claimersOf(item.split).includes(selectedPerson.id), from, closing: false });
@@ -228,26 +221,18 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     setConfirming(null);
   };
 
-  const collapse = () => {
-    setExpanded(false);
-    setSelected(me);
-  };
-
-  const onChip = (participantId: ParticipantId) => {
-    if (participantId === selected && (expanded || participantId !== me)) return collapse();
-    setSelected(participantId);
-  };
-
   const share = async () => {
     const url = splitUrl(splitId);
     if (typeof navigator.share === "function") await navigator.share({ url }).catch(() => {});
     else await navigator.clipboard?.writeText(url).catch(() => {});
   };
 
+  const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
   const markPaid = async (payer: ParticipantId, paid: boolean) => {
     setPayProblem(null);
     const answer = await send(paid ? { by: payer, type: "recordPayment", participantId: payer, device, amount: myShare } : { by: payer, type: "clearPayment", participantId: payer, device });
     if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : say.saveFailed);
+    return answer.ok;
   };
 
   // The menu keeps the person it opened for, so it can finish leaving after they are gone.
@@ -282,22 +267,12 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     setPeopleProblem(null);
     setMenu((open) => (open && !open.closing ? open : { person, from, closing: false }));
   };
-  // The header's More menu. Choosing a row removes the menu at once, so it never fades over what the row opens. That sheet or popover hangs from the More button and gives focus back to it.
-  const [more, setMore] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
-  const closeMore = () => setMore((open) => open && { ...open, closing: true });
-  const moreGone = () => {
-    if (more && (wide || more.from.keyboard || actedByKey()) && more.from.trigger.isConnected) more.from.trigger.focus({ preventScroll: true });
-    setMore(null);
-  };
-  const fromMore = (then: (from: Press) => void) => (row: Press) => {
-    if (!more) return;
-    more.from.trigger.focus({ preventScroll: true });
-    setMore(null);
-    then({ trigger: more.from.trigger, keyboard: row.keyboard });
-  };
   const peopleNote = peopleProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
-  const open = (kind: OverlayKind, from: Press) => setOverlay({ ...kind, from });
+  const open = (kind: OverlayKind, from: Press) => {
+    setPayProblem(null);
+    setOverlay({ ...kind, from });
+  };
   const closeAddMenu = () => setAddMenu((was) => was && { ...was, closing: true });
   const chooseAdd = (choice: AddChoice) => setAddMenu((was) => was && { ...was, closing: true, choice });
   const addMenuGone = () => {
@@ -325,16 +300,20 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           : null;
     trigger?.focus({ preventScroll: true });
   };
-  // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own.
-  const viewerGone = overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me;
+  // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay sheet closes when this phone loses its name.
+  const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || (overlay?.kind === "pay" && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
-  useEscape(overlay !== null && !closing && !wide, closeOverlay);
+  useEscape(overlay !== null && !closing, closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);
   const lookOnly = () => {
     asking.current = actedByKey();
+    setPhase("collapsing");
+  };
+  const pickLeft = () => {
     setPhase("regular");
+    setChosen(null);
   };
   useEffect(() => {
     if (phase !== "regular" || !asking.current) return;
@@ -342,22 +321,15 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     document.querySelector<HTMLElement>(`[data-pressable][aria-label="${say.question}"]`)?.focus({ preventScroll: true });
   }, [phase]);
 
-  const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
-  const chips = (
-    <View style={styles.chips}>
-      <PeopleChips
-        people={people}
-        me={me}
-        selected={me ? (selectedPerson?.id ?? null) : null}
-        entering={phase === "collapsing"}
-        onSelect={(participantId) => (me ? onChip(participantId) : setPhase("pick"))}
-        onAdd={(typed) => void addPerson(typed)}
-        onHold={hold}
-        wrap={wide}
-      />
-      {peopleNote}
-    </View>
-  );
+  const [host] = people;
+  const viewed = me && selectedPerson ? payFacts(split, selectedPerson, me) : null;
+  const viewedTitle = me && selectedPerson && viewed ? payTitle(split, selectedPerson, me) : say.payments;
+  const onPaid = async (paid: boolean) => {
+    if (!me) return;
+    if (!(await markPaid(me, paid)) || !paid) return;
+    setPaidToast(say.markedPaid(money(myShare)));
+    closeOverlay();
+  };
   const pickContent = (
     <>
       <PickSheet
@@ -366,42 +338,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         chosen={chosen}
         onPick={(pid, takeOver) => void choose(pid, takeOver)}
         onAdd={addYourself}
-        onClose={wide ? undefined : lookOnly}
+        onClose={lookOnly}
         url={splitUrl(splitId)}
       />
       {pickProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
     </>
-  );
-  const paneView: PaneView = me && phase !== "pick" ? "share" : "pick";
-  const pane = (
-    <View ref={paneRef} role="complementary" aria-label={say.people} style={[styles.pane, sticky, { maxHeight: pageHeight - insets.top - layout.header - pairTop - paneInset, backgroundColor: c.sheet, boxShadow: c.panelShadow }]}>
-      <Swap view={paneView} style={styles.shrink}>
-        {paneView === "share" && me && selectedPerson ? (
-          <View style={[styles.paneContent, styles.shrink]}>
-            <View style={styles.chips}>
-              <PeopleChips
-                people={people}
-                        me={me}
-                        selected={selectedPerson.id}
-                onSelect={(participantId) => setSelected(participantId === selectedPerson.id ? me : participantId)}
-                onAdd={(typed) => void addPerson(typed)}
-                onHold={hold}
-                wrap={wide}
-              />
-              {peopleNote}
-            </View>
-            <Swap view={selectedPerson.id} style={styles.shrink}>
-              <Breakdown split={split} shares={shares} person={selectedPerson} viewer={me} onPaid={(paid) => void markPaid(me, paid)} edge={paneEdge} />
-              {payProblem && selectedPerson.id === me ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
-            </Swap>
-          </View>
-        ) : (
-          <ScrollView style={contain} contentContainerStyle={styles.paneContent}>
-            {pickContent}
-          </ScrollView>
-        )}
-      </Swap>
-    </View>
   );
   const overlayContent = overlay ? (
     overlay.kind === "item" ? (
@@ -419,42 +360,39 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     ) : overlay.kind === "adjustment" ? (
       <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
-      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet={!wide} />
+      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
     ) : overlay.kind === "addAdjustment" ? (
       <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} kind={overlay.adjustmentKind} />
+    ) : overlay.kind === "people" ? (
+      <View style={styles.people}>
+        <SheetHeader title={say.people} onClose={closeOverlay} />
+        <PeopleChips
+          people={people}
+          me={me}
+          selected={me ? (selectedPerson?.id ?? null) : null}
+          onSelect={(participantId) => {
+            if (me) setSelected(participantId === selectedPerson?.id ? me : participantId);
+            else setPhase("pick");
+            closeOverlay();
+          }}
+          onAdd={(typed) => void addPerson(typed)}
+          onHold={hold}
+
+        />
+        {peopleNote}
+      </View>
+    ) : overlay.kind === "pay" ? (
+      selectedPerson ? (
+        <>
+          <PayBody split={split} person={selectedPerson} viewer={me} onClose={closeOverlay} />
+          {payProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
+        </>
+      ) : null
     ) : (
       <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
   ) : null;
-
-  const bar = barFor(me, expanded, selectedPerson?.id ?? null);
-  const shown = bar.kind === "ask" ? undefined : people.find(({ id }) => id === bar.person);
-  const folds = bar.kind !== "ask" && phase !== "pick";
-  // Open, Your share covers the receipt and only its Item list scrolls. A swipe that lands while the sheet still glides, or a fling still coasting, would otherwise move the receipt behind it.
-  const pageHolds = folds && expanded;
-  const regular = (
-    <View style={[styles.regular, styles.shrink]}>
-      {bar.kind === "ask" ? (
-        <>
-          <Text style={[type.body, styles.prompt, { color: c.muted }]}>{say.browse}</Text>
-          <Button label={say.question} name={say.question} onPress={() => setPhase("pick")} outsideScroll />
-        </>
-      ) : shown ? (
-        <>
-          <Breakdown
-            split={split}
-            shares={shares}
-            person={shown}
-            viewer={bar.me}
-            onPaid={(paid) => void markPaid(bar.me, paid)}
-            edge={layout.gutter}
-            fold={{ open: expanded, track: foldTrack, onToggle: expanded ? collapse : () => setExpanded(true) }}
-          />
-          {payProblem && shown.id === bar.me ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
-        </>
-      ) : null}
-    </View>
-  );
+  const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} onPaid={(paid) => void onPaid(paid)} /> : undefined;
 
   const showingNow = closing ? null : overlay;
   const receipt = (
@@ -478,55 +416,55 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       }
     />
   );
-  const header = <SplitHeader onMore={(from) => setMore({ from, closing: false })} moreOpen={more !== null && !more.closing} onShare={() => void share()} />;
+  const footer = (() => {
+    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} line="" pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} />;
+    const mine = selectedPerson.id === me;
+    const pill = !viewed.hasBar ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name) } as const);
+    const claimed = shareBreakdown(split, selectedPerson.id).items.length;
+    const status = shareStatus(shares, split.payments, selectedPerson.id, me);
+    const words = statusWords(status);
+    const ink = status.kind === "settled" ? c.good : status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
+    return (
+      <SplitFooter
+        label={mine ? say.yourShare : say.shareOf(selectedPerson.name)}
+        amount={money(viewed.share)}
+        whose={mine ? null : selectedPerson.name}
+        line={say.itemsLine(claimed, split.receipt.items.length)}
+        note={words ? { text: words, ink } : null}
+        pill={pill}
+        onOpen={(from) => open({ kind: "pay" }, from)}
+        onHeight={setFooterHeight}
+      />
+    );
+  })();
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView
         style={styles.page}
-        scrollEnabled={!pageHolds}
-        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: wide ? 48 : sheetHeight + 16, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: footerHeight + 16, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
       >
-        {wide ? (
-          <View style={styles.wrap}>
-            {header}
-            <View style={styles.pair}>
-              <View style={styles.receiptColumn}>{receipt}</View>
-              {pane}
-            </View>
-          </View>
-        ) : (
-          <View style={styles.column}>
-            {header}
-            <View style={styles.doc}>{receipt}</View>
-          </View>
-        )}
+        <View style={styles.column}>
+          <SplitHeader onShare={() => void share()} />
+          <SplitIntro
+            host={host.name}
+            total={money(split.receipt.total)}
+            onReceipt={photo ? () => setViewing(true) : undefined}
+            onPeople={(from) => open({ kind: "people" }, from)}
+            onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+            onHistory={(from) => open({ kind: "history" }, from)}
+          />
+          <View style={styles.doc}>{receipt}</View>
+        </View>
       </ScrollView>
-      {wide ? null : (
-        <BottomSheet
-          tapAway={phase === "pick"}
-          label={phase === "pick" ? say.question : say.people}
-          minHeight={phase === "pick" ? pageHeight - tallPickTop : 0}
-          rises={false}
-          lowered={overlay !== null && !closing}
-          onHeight={setSheetHeight}
-          onDown={phase === "pick" ? () => setPhase("regular") : folds ? collapse : undefined}
-          onUp={folds ? () => setExpanded(true) : undefined}
-          stays
-          fold={folds ? { open: expanded, peek: foldedRow, track: foldTrack } : undefined}
-          view={phase === "pick" ? "pick" : folds ? "share" : bar.kind}
-          header={phase === "pick" ? null : chips}
-          testID="split-sheet"
-        >
-          {phase === "pick" ? pickContent : regular}
+      {phase === "pick" ? null : footer}
+      {phase === "regular" ? null : (
+        <BottomSheet tapAway label={say.question} minHeight={pageHeight - tallPickTop} closing={phase === "collapsing"} onDown={pickLeft} testID="split-sheet">
+          {pickContent}
         </BottomSheet>
       )}
-      {overlay && wide ? (
-        <Popover anchor={overlay.from.trigger} label={overlayLabel(overlay, split)} instant={overlay.from.keyboard} closing={closing} onClose={closeOverlay} onGone={overlayGone}>
-          {overlayContent}
-        </Popover>
-      ) : overlay ? (
-        <BottomSheet tapAway label={overlayLabel(overlay, split)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} testID={`${overlay.kind}-sheet`}>
+      {overlay ? (
+        <BottomSheet tapAway label={overlayLabel(overlay, split, viewedTitle)} onDown={overlayGone} holds={() => closeGuard.current?.() ?? false} closing={closing} bar={payBar} testID={overlay.kind === "pay" ? "breakdown" : `${overlay.kind}-sheet`}>
           {overlayContent}
         </BottomSheet>
       ) : null}
@@ -540,18 +478,14 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
         </Popover>
       ) : null}
-      {more ? (
-        <Popover anchor={more.from.trigger} label={say.menu} instant={more.from.keyboard} closing={more.closing} onClose={closeMore} onGone={moreGone} width={headerMenuWidth}>
-          <HeaderMenu onPayments={fromMore((from) => open({ kind: "payments", viewer: me }, from))} onPhoto={photo ? fromMore(() => setViewing(true)) : undefined} onHistory={fromMore((from) => open({ kind: "history" }, from))} onAppearance={fromMore(() => {})} />
-        </Popover>
-      ) : null}
       {confirming ? (
         <Popover anchor={confirming.from.trigger} label={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} instant={confirming.from.keyboard} closing={confirming.closing} onClose={closeConfirming} onGone={confirmingGone} width={claimConfirmWidth} align="start">
           <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(confirming.person.name, confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
         </Popover>
       ) : null}
+      <Toast message={paidToast} onHide={() => setPaidToast(null)} action={{ label: say.undo, onPress: () => { if (me) void markPaid(me, false); setPaidToast(null); } }} lift={footerHeight + 8} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
-      <Toast message={taken ? say.pickedOnAnotherPhone(people.find(({ id }) => id === taken)?.name ?? "") : null} onHide={() => setTaken(null)} action={{ label: say.thatsMe, onPress: takeBack }} lift={wide ? 0 : sheetHeight} />
+      <Toast message={taken ? say.pickedOnAnotherPhone(people.find(({ id }) => id === taken)?.name ?? "") : null} onHide={() => setTaken(null)} action={{ label: say.thatsMe, onPress: takeBack }} lift={footerHeight + 8} />
     </View>
   );
 }
@@ -567,13 +501,6 @@ function intro(split: Split, creating: boolean) {
   const total = money(split.receipt.total);
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
-
-const paneInset = 16;
-const pairTop = 6;
-const paneEdge = 20;
-// The pane holds still while the receipt scrolls, so Your share stays in view. It is no taller than the page under the header, so its total shows before any scroll.
-const sticky = webStyle({ position: "sticky", top: `${paneInset}px` });
-const contain = webStyle({ overscrollBehavior: "contain" });
 
 /** After Split or Delete item the line is gone; focus goes to the nearest line still on screen, or to the header of the collapsed Bundle that hides it. */
 function nearestLine(split: Split, lines: readonly ItemId[], gone: ItemId): HTMLElement | null {
@@ -592,19 +519,10 @@ const styles = StyleSheet.create({
   screen: { flex: 1, overflow: "hidden", ...webStyle({ overflow: "clip" }) },
   page: { flex: 1 },
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
-  // Receipt 624, gap 40 and pane 400, from round 3's desktop frames. The receipt gives up width first.
-  wrap: { alignSelf: "center", width: "100%", maxWidth: 1064 },
-  pair: { flexDirection: "row", alignItems: "flex-start", gap: 40, paddingTop: pairTop },
-  receiptColumn: { flex: 1, minWidth: 0 },
-  pane: { width: 400, borderRadius: 24, overflow: "hidden" },
-  paneContent: { padding: paneEdge },
-  shrink: { flexShrink: 1 },
   doc: { paddingTop: 6 },
   opening: { paddingTop: 24 },
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
-  regular: { gap: layout.blockGap },
-  chips: { marginBottom: layout.blockGap },
-  prompt: { marginHorizontal: 2 },
+  people: { gap: layout.blockGap },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

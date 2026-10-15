@@ -53,7 +53,7 @@ async function open(browser: Browser, link: string, viewport = phone): Promise<P
 
 async function pick(page: Page, name: string) {
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
 /** Sam had the Rice and Priya the Pitcher, each picked on their own phone. */
@@ -311,9 +311,9 @@ test("Revert from the other phone asks first and puts the tax and the Total back
 
 test("a tax turned into a discount on desktop opens in a popover, takes the name Discount and flips the line's sign", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex), { width: 1440, height: 900 });
-  const pane = page.getByRole("complementary");
-  await pane.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(pane.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+  const pane = page.getByTestId("footer");
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(pane.getByTestId("owe")).toBeVisible(live);
 
   await page.getByRole("button", { name: "Open Tax, $1.00" }).click();
   await dialog(page, "Charge").getByRole("group", { name: "Kind" }).getByRole("button", { name: "Discount" }).click();

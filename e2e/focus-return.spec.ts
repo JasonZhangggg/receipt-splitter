@@ -1,6 +1,6 @@
 import { addRow, type AddChoice } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
-import { fromMore, moreButton } from "./header";
+import { fromMore } from "./header";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -45,7 +45,7 @@ async function samsPhone(browser: Browser, link: string): Promise<Page> {
   const pick = page.getByRole("dialog", { name: "Which one are you?" });
   await expect(pick).toBeVisible(live);
   await pick.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
   return page;
 }
 
@@ -73,7 +73,7 @@ for (const how of ["Enter", "Space", "assistive click"] as const) {
       [sam.getByRole("button", { name: "Open Coupon, -$1.00" }), "Discount", () => sam.getByRole("button", { name: "Open Coupon, -$1.00" }).click()],
       [addRow(sam), "New item", () => menu("Item")],
       [addRow(sam), "Add tax, tip or discount", () => menu("Tip")],
-      [moreButton(sam), "History", () => fromMore(sam, "History")],
+      [sam.getByRole("button", { name: "History", exact: true }), "History", () => fromMore(sam, "History")],
     ];
     for (const [opener, title, open] of openers) {
       await open();
@@ -134,12 +134,3 @@ test("a swipe down closes the Item sheet without moving focus or scrolling the p
   expect(await sam.evaluate(() => [scrollY, ...[...document.querySelectorAll("*")].filter((el) => el.scrollTop > 0).map((el) => el.scrollTop)])).toEqual(before);
 });
 
-test("Your share opened and folded from the keyboard keeps focus on its toggle", async ({ browser, request }, { workerIndex }) => {
-  const sam = await samsPhone(browser, await createSplit(request, workerIndex));
-  const toggle = sam.getByTestId("split-sheet").getByRole("button", { expanded: false });
-  await toggle.focus();
-  await sam.keyboard.press("Enter");
-  await expect(sam.getByTestId("split-sheet").getByRole("button", { expanded: true })).toBeFocused();
-  await sam.keyboard.press("Enter");
-  await expect(toggle).toBeFocused();
-});

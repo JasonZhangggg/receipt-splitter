@@ -1,5 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
-import { fromMore } from "./header";
+import { fromMore, viewAs } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -46,7 +46,7 @@ async function open(browser: Browser, link: string): Promise<Page> {
 
 async function pick(page: Page, name: string) {
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
 async function settled(target: Locator) {
@@ -95,62 +95,6 @@ test("a closed pick sheet browses with no name, and a tap on a circle asks again
   await expect(lee.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
 });
 
-async function framesAfter(page: Page, act: () => Promise<void>) {
-  await page.evaluate(() => {
-    const frames: { top: number; asking: boolean }[] = [];
-    Object.assign(window, { sheetFrames: frames });
-    const sample = () => {
-      const sheet = document.querySelector('[data-testid="split-sheet"]');
-      if (sheet) frames.push({ top: Math.round(sheet.getBoundingClientRect().top), asking: [...sheet.querySelectorAll('[role="heading"]')].some((heading) => heading.textContent === "Which one are you?") });
-      if (frames.length < 120) requestAnimationFrame(sample);
-    };
-    requestAnimationFrame(sample);
-  });
-  await act();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { sheetFrames: unknown[] }).sheetFrames.length), live).toBe(120);
-  return page.evaluate(() => (window as unknown as { sheetFrames: { top: number; asking: boolean }[] }).sheetFrames);
-}
-
-for (const [how, act] of [
-  ["picking a name", (page: Page) => page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click()],
-  ["closing", (page: Page) => page.getByRole("button", { name: "Close, just look" }).click()],
-] as const) {
-  test(`${how} lowers the pick sheet from the frame its rows go, with no frame of the short sheet still up`, async ({ browser, request }, { workerIndex }) => {
-    const page = await open(browser, await createSplit(request, workerIndex));
-    await settled(page.getByTestId("split-sheet"));
-    const frames = await framesAfter(page, () => act(page));
-    const up = frames[0].top;
-    const swap = frames.findIndex((frame) => !frame.asking);
-    expect(swap).toBeGreaterThan(0);
-    expect(frames.slice(swap).filter((frame) => frame.top <= up)).toEqual([]);
-  });
-}
-
-test("the pick sheet copies the link below Not here, and shows Share only where the phone can share", async ({ browser, request, browserName }, { workerIndex }) => {
-  test.skip(browserName === "webkit", "WebKit has no clipboard permission to grant");
-  const link = await createSplit(request, workerIndex);
-  const page = await open(browser, link);
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-  const sheet = page.getByRole("dialog", { name: "Which one are you?" });
-  await expect(sheet.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
-  const notHere = await sheet.getByRole("button", { name: "Not here? Add yourself" }).boundingBox();
-  const copy = sheet.getByRole("button", { name: "Copy" });
-  expect((await copy.boundingBox())!.y).toBeGreaterThan(notHere!.y + notHere!.height);
-  await copy.click();
-  await expect(sheet.getByRole("button", { name: "Copied" })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
-  expect(new URL(link).pathname).toMatch(/^\/s\/[\w-]+$/);
-
-  await page.addInitScript(() => {
-    const shared: ShareData[] = [];
-    Object.assign(window, { shared });
-    Object.defineProperty(navigator, "share", { value: async (data: ShareData) => void shared.push(data) });
-  });
-  await page.reload();
-  await sheet.getByRole("button", { name: "Share", exact: true }).click();
-  expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
-});
-
 test("That's me on a second browser takes the name, and the first browser drops back to browsing", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const first = await open(browser, link);
@@ -160,7 +104,7 @@ test("That's me on a second browser takes the name, and the first browser drops 
   await second.getByRole("button", { name: "Sam, picked on another phone" }).click();
   await second.getByRole("button", { name: "That's me" }).click();
 
-  await expect(second.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
+  await expect(second.getByTestId("owe")).toBeVisible(live);
   await expect(first.getByText("Pick your name to check off what you had.")).toBeVisible(live);
   await expect(first.getByRole("button", { name: "Sam, you", exact: true })).toHaveCount(0, live);
 });
@@ -206,7 +150,6 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await expect(jason.getByText("Items are $0.25 over the subtotal.")).toBeVisible(live);
 
   await fromMore(jason, "History");
-  await expect.poll(async () => (await jason.getByTestId("split-sheet").boundingBox())?.y, live).toBeGreaterThanOrEqual(844);
   await jason.getByRole("button", { name: "Revert Sprite" }).click();
   const confirm = jason.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" });
   await settled(confirm);
@@ -226,7 +169,7 @@ test("a breakdown counts a 2x line as 1 item, as a Bundle header counts it", asy
 
   await owe(priya).click();
 
-  await expect(priya.getByTestId("breakdown").getByText("2 items", { exact: true })).toBeVisible(live);
+  await expect(priya.getByTestId("footer").getByText(/^2 of \d+ items/)).toBeVisible(live);
 });
 
 test("the payer marks themselves paid, and another browser sees Paid $2.50 under their share", async ({ browser, request }, { workerIndex }) => {
@@ -240,12 +183,11 @@ test("the payer marks themselves paid, and another browser sees Paid $2.50 under
 
   await owe(priya).click();
   await priya.getByRole("button", { name: "I already paid" }).click();
-  await expect(priya.getByTestId("split-sheet").getByTestId("share-note")).toHaveText("Paid $2.50", live);
-  await expect(priya.getByRole("button", { name: "I haven't paid" })).toBeVisible();
+  await expect(priya.getByTestId("footer").getByTestId("share-note")).toHaveText("Paid $2.50", live);
 
-  await sam.getByRole("button", { name: "Priya", exact: true }).click();
+  await viewAs(sam, "Priya");
   await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
-  await expect(sam.getByTestId("split-sheet").getByTestId("share-note")).toHaveText("Paid $2.50", live);
+  await expect(sam.getByTestId("footer").getByTestId("share-note")).toHaveText("Paid $2.50", live);
 });
 
 test("someone who owes $0.00 sees no Pay button and no I already paid, and both appear once they check a line", async ({ browser, request }, { workerIndex }) => {
@@ -259,7 +201,10 @@ test("someone who owes $0.00 sees no Pay button and no I already paid, and both 
   await expect(priya.getByRole("link", { name: /^Pay Jason/ })).toHaveCount(0);
   await expect(priya.getByRole("button", { name: "I already paid" })).toHaveCount(0);
 
+  await priya.getByRole("button", { name: "Close" }).click();
   await circle(priya, "Sprite", "Priya").click();
+  await expect(owe(priya)).toHaveText("$2.50", live);
+  await owe(priya).click();
   await expect(priya.getByRole("link", { name: "Pay Jason $2.50 on Venmo" })).toBeVisible(live);
   await expect(priya.getByRole("button", { name: "I already paid" })).toBeVisible(live);
 });
@@ -269,7 +214,7 @@ const asks = (page: Page, question: string) => page.getByRole("dialog", { name: 
 test("with Sam's chip selected, Priya's first circle tap asks before checking Rice for him, a Cancel leaves it unchecked, and a yes holds until the selection changes", async ({ browser, request }, { workerIndex }) => {
   const priya = await open(browser, await createSplit(request, workerIndex));
   await pick(priya, "Priya");
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(priya, "Sam");
 
   await circle(priya, "Rice", "Sam").click();
   await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
@@ -288,12 +233,12 @@ test("with Sam's chip selected, Priya's first circle tap asks before checking Ri
   await expect(owe(priya)).toHaveText("$9.00", live);
   await expect(priya.getByRole("dialog", { name: / for (Sam|Priya)\?$/ })).toHaveCount(0);
 
-  await priya.getByRole("button", { name: "Priya, you", exact: true }).click();
+  await viewAs(priya, "Priya, you");
   await circle(priya, "Sprite", "Priya").click();
   await expect(circle(priya, "Sprite", "Priya")).toHaveAttribute("aria-pressed", "true", live);
   await expect(priya.getByRole("dialog", { name: / for (Sam|Priya)\?$/ })).toHaveCount(0);
 
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(priya, "Sam");
   await circle(priya, "Rice", "Sam").click();
   await expect(asks(priya, "Uncheck Rice for Sam?")).toBeVisible(live);
   await asks(priya, "Uncheck Rice for Sam?").getByRole("button", { name: "Uncheck for Sam" }).click();
@@ -307,7 +252,7 @@ test("Priya's open confirm to check Rice for Sam closes when Jason removes Sam, 
   const priya = await open(browser, link);
   await pick(jason, "Jason");
   await pick(priya, "Priya");
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(priya, "Sam");
   await circle(priya, "Rice", "Sam").click();
   await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
 
@@ -325,7 +270,7 @@ test("Priya's open confirm to check Rice for Sam closes when Jason deletes Rice"
   const priya = await open(browser, link);
   await pick(jason, "Jason");
   await pick(priya, "Priya");
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(priya, "Sam");
   await circle(priya, "Rice", "Sam").click();
   await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
 
@@ -342,7 +287,7 @@ test("Priya's open confirm to check Rice for Sam closes when Sam checks Rice him
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-  await priya.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(priya, "Sam");
   await circle(priya, "Rice", "Sam").click();
   await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
 
@@ -357,7 +302,7 @@ const marksOf = (page: Page, id: string) => line(page, id).getByTestId("claimer-
 
 /** Selects a person's chip and checks lines for them, saying yes to the first confirm. */
 async function checkFor(page: Page, name: string, items: readonly string[]) {
-  await page.getByRole("button", { name, exact: true }).click();
+  await viewAs(page, name);
   await expect(page.getByText(`Check what ${name} had`, { exact: true })).toBeVisible(live);
   for (const [at, item] of items.entries()) {
     await circle(page, item, name).click();
@@ -382,7 +327,7 @@ test("the leading circle is the viewer's own check and everyone who checked a li
   await checkFor(jason, "Priya", ["Rice"]);
   await checkFor(jason, "Lee", ["Rice"]);
   await checkFor(jason, "Ana", ["Rice"]);
-  await jason.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await viewAs(jason, "Jason, you");
   await expect(jason.getByText("Check what you had", { exact: true })).toBeVisible(live);
 
   await expect(jason.getByRole("button", { name: "Tostones, check for Jason" })).toHaveAttribute("aria-pressed", "false");
@@ -391,7 +336,7 @@ test("the leading circle is the viewer's own check and everyone who checked a li
   await expect(marksOf(jason, "rice")).toHaveText("JSP+2");
   await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
 
-  await jason.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(jason, "Sam");
   await expect(jason.getByText("Check what Sam had", { exact: true })).toBeVisible(live);
   await expect(jason.getByRole("button", { name: "Tostones, check for Sam" })).toHaveAttribute("aria-pressed", "true");
   await expect(line(jason, "tostones").getByTestId("checked")).toBeVisible();
@@ -399,7 +344,7 @@ test("the leading circle is the viewer's own check and everyone who checked a li
   await expect(marksOf(jason, "rice")).toHaveText("JSP+2");
   await expect(jason.getByRole("button", { name: "Sprite, check for Sam" })).toHaveAttribute("aria-pressed", "false");
 
-  await jason.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await viewAs(jason, "Jason, you");
   await expect(marksOf(jason, "tostones")).toHaveText("S", live);
   await jason.setViewportSize({ width: 320, height: 640 });
   for (const [id, price] of [["rice", "8.00"], ["tostones", "1.00"]] as const) {

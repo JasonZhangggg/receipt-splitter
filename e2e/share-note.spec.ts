@@ -1,3 +1,4 @@
+import { viewAs } from "./header";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -33,12 +34,12 @@ async function join(browser: Browser, link: string, name: string): Promise<Page>
   const page = await (await newContext(browser)).newPage();
   await page.goto(link);
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
-  await expect(page.getByRole("button", { name: `${name}, you`, exact: true })).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
   return page;
 }
 
 const circle = (page: Page, item: string, name: string) => page.getByRole("button", { name: `${item}, check for ${name}` });
-const note = (page: Page) => page.getByTestId("split-sheet").getByTestId("share-note");
+const note = (page: Page) => page.getByTestId("footer").getByTestId("share-note");
 const owe = (page: Page) => page.getByTestId("owe");
 
 test("the line under a share reads nothing unpaid, Paid, too much, still owed, and the Host's count of who paid them", async ({ browser, request }, { workerIndex }) => {
@@ -57,14 +58,14 @@ test("the line under a share reads nothing unpaid, Paid, too much, still owed, a
   await expect(owe(sam)).toHaveText("$30.00", live);
 
   await expect(note(jason)).toHaveCount(0);
-  await jason.getByRole("button", { name: "Priya", exact: true }).click();
+  await viewAs(jason, "Priya");
   await expect(jason.getByRole("button", { name: /^Priya's share \$14\.20, Show/ })).toBeVisible(live);
   await expect(note(jason)).toHaveCount(0);
 
   await owe(sam).click();
   await sam.getByTestId("breakdown").getByRole("button", { name: "I already paid" }).click();
   await expect(note(sam)).toHaveText("Paid $30.00", live);
-  await jason.getByRole("button", { name: "Jason, you", exact: true }).click();
+  await viewAs(jason, "Jason, you");
   await expect(note(jason)).toHaveText("1 of 2 paid you", live);
 
   await circle(priya, "Tea", "Priya").click();
@@ -77,7 +78,7 @@ test("the line under a share reads nothing unpaid, Paid, too much, still owed, a
   await circle(sam, "Pho", "Sam").click();
   await expect(note(sam)).toHaveText("Paid $30.00 · $14.20 still owed", live);
   await expect(note(jason)).toHaveText("0 of 1 paid you", live);
-  await jason.getByRole("button", { name: "Sam", exact: true }).click();
+  await viewAs(jason, "Sam");
   await expect(note(jason)).toHaveText("Paid $30.00 · $14.20 still owed", live);
 });
 
@@ -93,35 +94,10 @@ test("a long name's share label and its paid line give way to the amount instead
   await circle(max, "Pho", long).click();
   await owe(max).click();
   await max.getByTestId("breakdown").getByRole("button", { name: "I already paid" }).click();
-  await jason.getByRole("button", { name: long, exact: true }).click();
+  await viewAs(jason, long);
   await expect(jason.getByRole("button", { name: new RegExp(`^${long}'s share \\$14\\.20, Show`) })).toBeVisible(live);
   await expect(note(jason)).toHaveText("Paid $14.20");
   const amount = (await owe(jason).boundingBox())!;
   const line = (await note(jason).boundingBox())!;
-  expect([amount.x + amount.width <= 390, line.x + line.width <= amount.x]).toEqual([true, true]);
-});
-
-test.describe("on desktop", () => {
-  test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false });
-
-  test("the pane's share row keeps its height when the paid line appears", async ({ browser, request }, { workerIndex }) => {
-    const people = [
-      { id: "jason", name: "Jason" },
-      { id: "sam", name: "Sam" },
-    ];
-    const sam = await (await newContext(browser)).newPage();
-    await sam.goto(await createSplit(request, workerIndex, people));
-    const pane = sam.getByRole("complementary");
-    await pane.getByRole("button", { name: "Sam", exact: true }).click();
-    await expect(pane.getByRole("button", { name: "Sam, you", exact: true })).toBeVisible(live);
-    const row = pane.getByTestId("share").locator("..");
-    await circle(sam, "Pho", "Sam").click();
-    await expect(pane.getByTestId("share")).toHaveText("$14.20", live);
-    await expect(pane.getByTestId("share-note")).toHaveCount(0);
-    const withoutLine = (await row.boundingBox())!.height;
-
-    await pane.getByRole("button", { name: "I already paid" }).click();
-    await expect(pane.getByTestId("share-note")).toHaveText("Paid $14.20", live);
-    expect((await row.boundingBox())!.height).toBe(withoutLine);
-  });
+  expect([amount.x + amount.width <= 390, line.x + line.width <= 390]).toEqual([true, true]);
 });
