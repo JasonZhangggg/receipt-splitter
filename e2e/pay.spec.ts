@@ -482,17 +482,22 @@ test("Payments opens on your own part, a tap on a person turns their arc black a
   const priyaRow = paymentsList(priya).getByRole("button", { name: /^Priya, you, / });
   const ink = "rgb(23, 23, 23)";
   const arcInks = () => dialog.locator("svg g circle").evaluateAll((all) => all.map((one) => getComputedStyle(one).stroke));
+  const inkedArcs = async () => (await arcInks()).flatMap((stroke, index) => (stroke === ink ? [index] : []));
   await expect(priyaRow).toHaveAttribute("aria-pressed", "true");
   await expect(samRow).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/^of \$[\d.,]+$/)).toBeVisible();
-  await expect.poll(async () => (await arcInks()).filter((stroke) => stroke === ink).length).toBe(1);
+  await expect.poll(async () => (await inkedArcs()).length).toBe(1);
+  const [own] = await inkedArcs();
 
   await samRow.click();
   await expect(samRow).toHaveAttribute("aria-pressed", "true");
   await expect(priyaRow).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByText("Sam's part", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Your part", { exact: true })).toHaveCount(0);
-  await expect.poll(async () => (await arcInks()).filter((stroke) => stroke === ink).length).toBe(1);
-  expect((await arcInks()).filter((stroke) => stroke !== ink)).toHaveLength((await arcInks()).length - 1);
+  // One snapshot per poll, and the black arc must be a different one than before the tap: the 200 ms recolor still shows the old black arc for its first frames.
+  await expect.poll(async () => {
+    const inked = await inkedArcs();
+    return inked.length === 1 && inked[0] !== own;
+  }).toBe(true);
 });
