@@ -1,3 +1,4 @@
+import { still } from "./motion";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
@@ -120,6 +121,8 @@ test("with one Item left the trash is disabled, a tap says why, and nothing is s
   await sam.getByRole("button", { name: /^Open Rice/ }).click();
   const trash = sheet(sam).getByRole("button", { name: "Delete item" });
   await expect(trash).toHaveAttribute("aria-disabled", "true");
+  await still(trash);
+  await expect(trash).toBeInViewport();
 
   await trash.click({ force: true });
   await expect(sam.getByText("A split needs at least one item.")).toBeVisible();
