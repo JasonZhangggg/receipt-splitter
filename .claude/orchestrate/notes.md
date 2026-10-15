@@ -159,3 +159,8 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - `colors.ts` sets `warn` and `danger` to the same red. Keep one token, `warn`, and point `payments-sheet.tsx` and `breakdown.tsx` at it. Fixer: B2-6 owner.
 - Dark `lift` and `cardLift` keep 0.4 and 0.35 black shadows that halo the home receipt drawing. Drop them when home loses its fills. Fixer: B2-9 owner.
 - A second theme flip within 600 ms restarts the reveal from a snapped page. Reverse the running animation or ignore taps until it ends. Fixer: B2-4 owner, when the toggle moves to the header.
+
+## From the B2-3 review (2026-10-15)
+
+- The pick sheet at 390 x 667 sits 40 px from the top and clips the bottom of the header glyphs (38 px before B2-3). Fixer: B2-7 owner, which rebuilds that sheet as the People sheet.
+- A tap-away closes the Split overlay without setting `closing`, so for about 5 frames neither the overlay nor the lowered share sheet shows. Fixer: B2-4 owner, which replaces the share sheet.
