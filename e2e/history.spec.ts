@@ -38,19 +38,15 @@ async function seed(page: Page, splits: Stored[]) {
   await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
 }
 
-const icon = (page: Page) => page.getByRole("button", { name: "Recent splits", exact: true });
-/** Opens the list from the header's Recent splits link. */
-const openList = (page: Page) => icon(page).click();
-const list = (page: Page) => page.getByRole("dialog", { name: "Recent splits" });
+const list = (page: Page) => page.getByRole("region", { name: "Recent splits" });
 const rows = (page: Page) => list(page).getByRole("link");
-const action = (page: Page) => page.getByRole("button", { name: "Create split link" });
+const action = (page: Page) => page.getByRole("button", { name: "Create link" });
 const labels = (page: Page) => rows(page).evaluateAll((links) => links.map((link) => link.getAttribute("aria-label")));
-const focusedName = (page: Page) => page.evaluate(() => document.activeElement?.textContent ?? null);
 
-test("a fresh home has no Recent splits link", async ({ page }) => {
+test("a fresh home has no Recent splits", async ({ page }) => {
   await page.goto("/");
   await expect(action(page)).toBeVisible();
-  await expect(icon(page)).toHaveCount(0);
+  await expect(list(page)).toHaveCount(0);
   await expect(page.getByText("Recent splits")).toHaveCount(0);
 });
 
@@ -69,85 +65,39 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await openList(page);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, ${total}`);
+  await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, 2 people, ${total}`);
   await rows(page).first().click();
   await expect(page).toHaveURL(link);
   await expect(page.getByRole("button", { name: /^Your share \$/ })).toBeVisible({ timeout: 30_000 });
 });
 
-test("the Recent splits link sits in the header beside the theme toggle and lists every stored Split newest first, past five", async ({ page }) => {
+test("Recent splits sits under the sentence, with no header link, and lists every stored Split newest first, past five", async ({ page }) => {
   await seed(page, [ana, jason, priya, kim, omar, lin, max]);
-  const [link, toggle] = [(await icon(page).boundingBox())!, (await page.getByRole("button", { name: "Switch to dark mode" }).boundingBox())!];
-  expect(link.x + link.width).toBeLessThanOrEqual(toggle.x);
-  expect(Math.abs(link.y + link.height / 2 - (toggle.y + toggle.height / 2))).toBeLessThanOrEqual(2);
-
-  await openList(page);
+  await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toHaveCount(0);
+  const [words, listed] = [(await page.getByTestId("sentence").boundingBox())!, (await list(page).boundingBox())!];
+  expect(listed.y).toBeGreaterThan(words.y + words.height);
   await expect(list(page).getByRole("heading", { name: "Recent splits" })).toBeVisible();
   expect(await labels(page)).toEqual([
-    "Jason and Sam, Today, $42.10",
-    "Priya and Jo, Yesterday, $128.75",
-    "Ana, Ben, and 2 more, Oct 1, $9.90",
-    "Kim and Lee, Sep 29, $31.00",
-    "Omar, Sep 28, $5.60",
-    "Lin, Sep 20, $14.00",
-    "Max and Ivy, Sep 10, $77.00",
+    "Jason and Sam, Today, 2 people, $42.10",
+    "Priya and Jo, Yesterday, 2 people, $128.75",
+    "Ana, Ben, and 2 more, Oct 1, 4 people, $9.90",
+    "Kim and Lee, Sep 29, 2 people, $31.00",
+    "Omar, Sep 28, 1 person, $5.60",
+    "Lin, Sep 20, 1 person, $14.00",
+    "Max and Ivy, Sep 10, 2 people, $77.00",
   ]);
   expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual(
     [jason, priya, ana, kim, omar, lin, max].map(({ id }) => `/s/${id}`),
   );
+  expect((await rows(page).nth(2).innerText()).split("\n").filter(Boolean)).toEqual(["Ana, Ben, and 2 more", "Oct 1 · 4 people", "$9.90"]);
 });
 
-test("the phone sheet closes on a scrim tap and on Escape, and focus returns to the link", async ({ page }) => {
-  await seed(page, [ana, jason]);
-  await openList(page);
-  await expect(rows(page)).toHaveCount(2);
-  await page.mouse.click(phone.width / 2, 40);
-  await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
-
-  await openList(page);
-  await expect(rows(page)).toHaveCount(2);
-  await page.keyboard.press("Escape");
-  await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
-});
-
-test("the Recent splits link announces a dialog popup and its expanded state follows the list", async ({ page }) => {
-  await seed(page, [ana, jason]);
-  const state = () => icon(page).evaluate((el) => [el.getAttribute("aria-haspopup"), el.getAttribute("aria-expanded")]);
-  expect(await state()).toEqual(["dialog", "false"]);
-  await icon(page).click();
-  await expect(list(page)).toBeVisible();
-  expect(await state()).toEqual(["dialog", "true"]);
-  await page.keyboard.press("Escape");
-  await expect(list(page)).toHaveCount(0);
-  expect(await state()).toEqual(["dialog", "false"]);
-});
-
-test("at 1440 px the list is a popover under the link that closes on an outside click and on Escape, with focus back on the link", async ({ page }) => {
+test("at 1440 px Recent splits shares the sentence's column, and a click opens the Split", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await seed(page, [ana, jason, priya, kim, omar, lin]);
-  const button = (await icon(page).boundingBox())!;
-  await openList(page);
-  await expect(rows(page)).toHaveCount(6);
-  const popover = (await list(page).boundingBox())!;
-  expect(popover.y).toBeGreaterThanOrEqual(button.y + button.height);
-  expect(Math.abs(popover.x + popover.width - (button.x + button.width))).toBeLessThanOrEqual(16);
-  expect(popover.width).toBeLessThan(480);
-
-  await page.mouse.click(200, 600);
-  await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
-
-  await openList(page);
-  await expect(rows(page)).toHaveCount(6);
-  await page.keyboard.press("Escape");
-  await expect(list(page)).toHaveCount(0);
-  expect(await focusedName(page)).toBe("Recent splits");
-
-  await openList(page);
+  await seed(page, [ana, jason, priya]);
+  const [words, listed] = [(await page.getByTestId("sentence").boundingBox())!, (await list(page).boundingBox())!];
+  expect([Math.round(listed.x), Math.round(listed.width)]).toEqual([Math.round(words.x), Math.round(words.width)]);
   await rows(page).nth(1).click();
   await expect(page).toHaveURL(new RegExp(`/s/${priya.id}$`));
 });
@@ -157,20 +107,17 @@ test("a Split this browser last opened 61 days ago is not listed, and one opened
     { ...jason, added: now - 90 * DAY, seen: now - 61 * DAY },
     { ...priya, added: now - 90 * DAY, seen: now - 59 * DAY },
   ]);
-  await openList(page);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 });
 
-test("an entry whose link says the split has expired is gone back on home, and the icon hides with the last one", async ({ page }) => {
+test("an entry whose link says the split has expired is gone back on home, and the list hides with the last one", async ({ page }) => {
   await seed(page, [jason, priya]);
-  await openList(page);
   await rows(page).first().click();
   await expect(page).toHaveURL(new RegExp(`/s/${jason.id}$`));
   await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(page).toHaveURL(/\/$/);
-  await openList(page);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 
@@ -178,7 +125,7 @@ test("an entry whose link says the split has expired is gone back on home, and t
   await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(action(page)).toBeVisible();
-  await expect(icon(page)).toHaveCount(0);
+  await expect(list(page)).toHaveCount(0);
 });
 
 const blockStorage = (page: Page) =>
@@ -229,7 +176,7 @@ const aboveKeyboard = (field: Locator) =>
 test("with stored Splits and the iPhone keyboard up, the focused handle field stays above the keyboard", async ({ page }) => {
   await simulateKeyboard(page, iphoneKeyboard);
   await seed(page, [ana, jason, priya]);
-  await expect(icon(page)).toBeVisible();
+  await expect(list(page)).toBeVisible();
   const handle = page.getByRole("textbox", { name: "Venmo handle" });
   await handle.tap();
   await expect(handle).toBeFocused();

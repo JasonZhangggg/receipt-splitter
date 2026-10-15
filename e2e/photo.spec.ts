@@ -68,7 +68,7 @@ async function scanAndCreate(page: Page) {
 async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await addNames(page, "Jason");
-  await page.getByRole("button", { name: "Create split link" }).click();
+  await page.getByRole("button", { name: "Create link" }).click();
   await expect(page.getByText("Link ready.")).toBeVisible(live);
 }
 
@@ -142,8 +142,7 @@ test.describe("on Chromium", () => {
     page.on("request", (request) => isPut(request) && puts.push(request));
 
     await scan(page);
-    await page.getByRole("button", { name: "Recent splits", exact: true }).click();
-    await page.getByRole("dialog", { name: "Recent splits" }).getByRole("link").first().click();
+    await page.getByRole("region", { name: "Recent splits" }).getByRole("link").first().click();
     await expect(page).toHaveURL(new RegExp(`/s/${earlier.id}$`));
     await page.goBack();
     await expect(page.getByTestId("receipt")).toBeVisible();

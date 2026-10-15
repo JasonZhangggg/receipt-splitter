@@ -22,7 +22,7 @@ describe("a recent split's row", () => {
   });
 });
 
-const file = { name: "receipt.jpg", thumbnail: null };
+const file = { name: "receipt.jpg" };
 const lunch: Receipt = { items: [{ id: itemId("i1"), name: "Lunch", price: price(1000) }], adjustments: [], subtotal: cents(1000), total: cents(1000) };
 const readLunch: DraftAction = { type: "read", file, receipt: lunch };
 

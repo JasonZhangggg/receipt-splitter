@@ -8,7 +8,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 const receipt1040 = "bench/data/srd-1040.jpg";
 const scanTimeout = { timeout: 60_000 };
 
-const action = (page: Page) => page.getByRole("button", { name: "Create split link" });
+const action = (page: Page) => page.getByRole("button", { name: "Create link" });
 
 async function choose(page: Page, file: string) {
   const chooser = page.waitForEvent("filechooser");
@@ -17,10 +17,12 @@ async function choose(page: Page, file: string) {
 }
 
 const card = (page: Page) => page.getByTestId("receipt");
+/** The read clause of home's sentence as it reads, on one line. */
+const shown = async (page: Page) => (await card(page).innerText()).replace(/\s+/g, " ").replace(/ ([.,])/g, "$1").trim();
 
 type SentReceipt = { items: { name: string; price: number }[]; adjustments: { name: string; amount: number }[] };
 
-/** What Create split link sends, caught before it reaches the Worker so no Split is made. */
+/** What Create link sends, caught before it reaches the Worker so no Split is made. */
 async function sentReceipt(page: Page): Promise<SentReceipt> {
   await page.route("**/api/splits", (route) => route.abort());
   const sent = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/api/splits"));
@@ -57,7 +59,7 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
   await choose(page, "e2e/fixtures/topgolf-synthetic.png");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$207.29", "9 items", "Replace"]);
+  expect(await shown(page)).toBe("I paid $207.29. Change.");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
 
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
@@ -93,13 +95,13 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
 test.describe("reading SRD receipt 1040", () => {
   test.setTimeout(120_000);
 
-  test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and Create split link with no name says so and opens the name field", async ({ page }) => {
+  test("chosen through the picker, it reads five Items, Tip $0.00, Total $28.04, and Create link with no name says so and opens the name field", async ({ page }) => {
     await page.goto("/");
     await choose(page, receipt1040);
     await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
     await expect(card(page)).toBeVisible(scanTimeout);
 
-    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$28.04", "5 items", "Replace"]);
+    expect(await shown(page)).toBe("I paid $28.04. Change.");
     await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
     expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Add your name first." });
     await action(page).click();
@@ -120,7 +122,7 @@ test("a read with a price over the limit creates the link, and a price typed int
   await choose(page, "e2e/fixtures/example-price-over-limit.png");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$28.04", "5 items", "Replace"]);
+  expect(await shown(page)).toBe("I paid $28.04. Change.");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
@@ -139,13 +141,13 @@ test("a read with a price over the limit creates the link, and a price typed int
   await expect(page.getByText("Items are $3.50 short of the subtotal.")).toBeVisible();
 });
 
-test("a read with no Items keeps Create split link off with its reason, and home offers no editor", async ({ page }) => {
+test("a read with no Items keeps Create link off with its reason, and home offers no editor", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("/");
   await choose(page, "e2e/fixtures/blank.png");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$0.00", "0 items", "Replace"]);
+  expect(await shown(page)).toBe("I paid $0.00. Change.");
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
@@ -164,7 +166,7 @@ test("a scan that fails the Total check shows the card, a quiet note, and still 
   await choose(page, "e2e/fixtures/srd-1040-no-sprite.jpg");
   await expect(card(page)).toBeVisible(scanTimeout);
 
-  expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$28.04", "4 items", "Replace"]);
+  expect(await shown(page)).toBe("I paid $28.04. Change.");
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
@@ -172,52 +174,6 @@ test("a scan that fails the Total check shows the card, a quiet note, and still 
 
   await action(page).click();
   await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
-});
-
-test.describe("the photo viewer", () => {
-  test.setTimeout(120_000);
-  const viewer = (page: Page) => page.getByRole("dialog");
-  const view = (page: Page) => page.getByRole("button", { name: "View receipt photo" }).click();
-
-  test("at 390 px the thumbnail opens the photo full screen, and its close button and Escape close it", async ({ page }) => {
-    await page.goto("/");
-    await choose(page, receipt1040);
-    await expect(card(page)).toBeVisible(scanTimeout);
-
-    await view(page);
-    await expect(viewer(page).getByRole("img", { name: "srd-1040.jpg" })).toBeVisible();
-    await expect(viewer(page).getByText("srd-1040.jpg")).toBeVisible();
-    await viewer(page).getByRole("button", { name: "Close photo" }).click();
-    await expect(viewer(page)).toHaveCount(0);
-
-    await view(page);
-    await expect(viewer(page).getByRole("button", { name: "Close photo" })).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(viewer(page)).toHaveCount(0);
-  });
-
-  test("at 1280 px a click on the scrim and Escape close the photo, and the camera on the card replaces it", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 820 });
-    await page.goto("/");
-    await choose(page, receipt1040);
-    await expect(card(page)).toBeVisible(scanTimeout);
-
-    await view(page);
-    await expect(viewer(page).getByRole("img", { name: "srd-1040.jpg" })).toBeVisible();
-    await page.mouse.click(20, 400);
-    await expect(viewer(page)).toHaveCount(0);
-    await view(page);
-    await expect(viewer(page).getByRole("button", { name: "Close photo" })).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(viewer(page)).toHaveCount(0);
-
-    const chooser = page.waitForEvent("filechooser");
-    await card(page).getByRole("button", { name: "Replace receipt" }).click();
-    await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
-    await expect(card(page)).toContainText("4 items", scanTimeout);
-    await view(page);
-    await expect(viewer(page).getByRole("img", { name: "srd-1040-no-sprite.jpg" })).toBeVisible();
-  });
 });
 
 test.describe("at 1280 px", () => {
@@ -234,18 +190,18 @@ test.describe("at 1280 px", () => {
     await expect(zone).toBeVisible();
 
     await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
-    await expect(page.getByText("0 items")).toBeVisible(scanTimeout);
+    await expect(card(page)).toContainText("$0.00", scanTimeout);
 
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     await expect(dropZone(page)).toBeVisible();
     await dropFile(page, photo(receipt1040));
-    await expect(card(page)).toContainText("5 items", scanTimeout);
+    await expect(card(page)).toContainText("$28.04", scanTimeout);
 
     await dropFile(page, photo("e2e/fixtures/blank.png", "image/png"));
     await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
     await frames(page, 3);
-    await expect(card(page)).toContainText("5 items");
+    await expect(card(page)).toContainText("$28.04");
     expect(new URL(page.url()).pathname).toBe("/");
   });
 });
@@ -263,17 +219,19 @@ async function holdTheDownload(page: Page) {
 test.describe("the reading state", () => {
   test.setTimeout(120_000);
 
-  test("names the stage under the title and ends when the Items show", async ({ page }) => {
+  test("puts the step word in place of Add the receipt, with no progress bar, and stops moving once the total shows", async ({ page }) => {
     const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
-    await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
-    await expect(page.getByTestId("reading-stage")).toHaveText("Finding the text");
-    await expect(page.getByTestId("reading-bar")).toBeVisible();
+    await expect(page.getByRole("status", { name: "Reading the receipt" })).toHaveText("I paid the bill. Reading the receipt.");
+    await expect(page.getByRole("button", { name: "Add the receipt" })).toHaveCount(0);
+    await expect(page.getByRole("progressbar")).toHaveCount(0);
+    const sweeping = await page.getByTestId("reading-stage").evaluate((word) => word.getAnimations().map((animation) => (animation as CSSAnimation).animationName));
+    expect(sweeping).toEqual(["rs-sweep"]);
 
     release();
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
-    await expect(page.getByTestId("reading-bar")).toHaveCount(0);
+    await expect(page.getByTestId("reading-stage")).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   });
 
@@ -308,8 +266,7 @@ test("a reload keeps only the handle, and once the model is cached a reload and 
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
 
   await choose(page, "e2e/fixtures/srd-1040-no-sprite.jpg");
-  await expect(card(page)).toContainText("4 items", scanTimeout);
-  await expect(card(page)).toContainText("$28.04");
+  await expect(card(page)).toContainText("$28.04", scanTimeout);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
 });
 
@@ -318,7 +275,7 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
   await openExample(page);
   await page.getByRole("combobox", { name: "Payment app" }).selectOption("cashApp");
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveAttribute("placeholder", "$cashtag");
-  await page.getByRole("button", { name: "Another way to get paid" }).click();
+  await page.getByRole("button", { name: "Add another way to get paid" }).click();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
   for (const name of ["Jason", "Sam", "Priya"]) await addName(page, name);
   await page.getByRole("button", { name: "Remove Sam" }).click();
@@ -327,8 +284,8 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
 
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
-  const people = page.getByRole("region", { name: "Who’s at the table" });
-  expect((await people.innerText()).split("\n").filter(Boolean)).toEqual(["Who’s at the table", "Add your name"]);
+  await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toHaveValue("");
+  await expect(page.getByRole("group")).toHaveCount(0);
   expect(await page.getByRole("combobox", { name: "Payment app" }).evaluateAll((pickers) => pickers.map((picker) => (picker as HTMLSelectElement).value))).toEqual([
     "cashApp",
     "venmo",
@@ -338,7 +295,7 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
 });
 
-test("with three more ways to get paid and seven names, Create split link stays on screen", async ({ page }) => {
+test("with three more ways to get paid and seven names, Create link stays on screen", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Add another way to get paid" }).click();
@@ -370,7 +327,7 @@ test.describe("reading through the server", () => {
     total: 3015,
     check: { passed: true, gaps: { subtotal: 0, total: 0 } },
   };
-  const onDevice = ["Receipt", "$207.29", "9 items", "Replace"];
+  const onDevice = "I paid $207.29. Change.";
 
   test.beforeEach(async ({ page }) => {
     const rate = Number(process.env.CPU_THROTTLE ?? 1);
@@ -389,7 +346,7 @@ test.describe("reading through the server", () => {
     await choose(page, "e2e/fixtures/topgolf-synthetic.png");
     await expect(card(page)).toBeVisible(scanTimeout);
 
-    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(["Receipt", "$30.15", "4 items", "Replace"]);
+    expect(await shown(page)).toBe("I paid $30.15. Change.");
     expect(body!.photo).toMatch(/^data:image\/jpeg;base64,/);
     expect(body!.ocrLines.some((line) => /Gameplay/.test(line))).toBe(true);
 
@@ -419,7 +376,7 @@ test.describe("reading through the server", () => {
       await expect(card(page)).toBeVisible(scanTimeout);
 
       expect(asked).toBe(true);
-      expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(onDevice);
+      expect(await shown(page)).toBe(onDevice);
     });
   }
 
@@ -436,10 +393,10 @@ test.describe("reading through the server", () => {
     await expect(page.getByRole("status", { name: "Reading the receipt" })).toBeVisible();
     await expect(card(page)).toBeVisible({ timeout: 30_000 });
     expect(Date.now() - askedAt).toBeGreaterThan(14_000);
-    expect((await card(page).innerText()).split("\n").filter(Boolean)).toEqual(onDevice);
+    expect(await shown(page)).toBe(onDevice);
   });
 
-  test("the line under the reading bar names each stage in turn, one line per frame, and leaves with the bar", async ({ page }) => {
+  test("the step word names each real stage in turn, one word per frame, and leaves when the total shows", async ({ page }) => {
     test.setTimeout(120_000);
     const releaseOcr = await holdTheDownload(page);
     let answer = () => {};
@@ -455,7 +412,7 @@ test.describe("reading through the server", () => {
     await choose(page, "e2e/fixtures/topgolf-synthetic.png");
 
     const stage = page.getByTestId("reading-stage");
-    await expect(stage).toHaveText("Finding the text");
+    await expect(stage).toHaveText("Reading the receipt");
     releaseOcr();
     await expect(stage).toHaveText("Matching prices", scanTimeout);
     await expect.poll(() => askedAt).toBeGreaterThan(0);
@@ -468,7 +425,7 @@ test.describe("reading through the server", () => {
 
     const seen = await lines();
     expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
-    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Finding the text", "Matching prices", "Taking a few more seconds", ""]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Finding the text", "Matching prices", "Taking a few more seconds", ""]);
   });
 
   test("a large photo uploads at most 1 MB, at most 2048 px on its long edge", async ({ page }) => {

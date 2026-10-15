@@ -67,10 +67,10 @@ export async function openExample(page: Page) {
   await expect(page.getByTestId("receipt")).toBeVisible();
 }
 
-/** Types each name into the table's inline field, opening it first when it is closed. Enter keeps the field open for the next. */
+/** Types each name into the sentence's name blank, opening it first when it is closed. Enter keeps the field open for the next. */
 export async function addNames(page: Page, ...names: string[]) {
   const field = page.getByRole("textbox", { name: /^(Your name|Name)$/ });
-  if (!(await field.isVisible())) await page.getByRole("button", { name: /^Add (your )?name$/ }).click();
+  if (!(await field.isVisible())) await page.getByRole("button", { name: "Add friends" }).click();
   for (const name of names) {
     await field.fill(name);
     await field.press("Enter");

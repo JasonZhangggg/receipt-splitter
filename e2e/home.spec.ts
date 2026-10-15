@@ -31,46 +31,45 @@ async function settle(page: Page) {
 }
 
 const appPicker = (page: Page) => page.getByRole("combobox", { name: "Payment app" });
-const action = (page: Page) => page.getByRole("button", { name: "Create split link" });
-const people = (page: Page) => page.getByRole("region", { name: "Who’s at the table" });
-const addName = (page: Page) => people(page).getByRole("button", { name: /^Add (your )?name$/ });
+const action = (page: Page) => page.getByRole("button", { name: "Create link" });
+const sentence = (page: Page) => page.getByTestId("sentence");
+const yourName = (page: Page) => page.getByRole("textbox", { name: "Your name", exact: true });
 const venmo = (page: Page) => page.getByRole("textbox", { name: "Venmo handle" });
-const removers = (page: Page) => people(page).getByRole("button", { name: /^Remove / });
+const removers = (page: Page) => sentence(page).getByRole("button", { name: /^Remove / });
+/** The sentence as it reads on screen, one line, with the invisible app selects left out. */
+async function said(page: Page) {
+  await page.locator("#root select").evaluateAll((pickers) => pickers.forEach((picker) => ((picker as HTMLElement).style.display = "none")));
+  return (await sentence(page).innerText()).replace(/\u2060/g, "").replace(/\s+/g, " ").replace(/ ([.,])/g, "$1").trim();
+}
 
-test("the empty home at 390 px shows the take-photo block, the two lists and a gray Create, and only those words", async ({ page }) => {
+test("the empty home at 390 px is one sentence with its blanks, the add link and a gray Create link, and only those words", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await expect(appPicker(page)).toHaveValue("venmo");
-  await page.locator("#root select").evaluateAll((pickers) => pickers.forEach((picker) => ((picker as HTMLElement).style.display = "none")));
-  expect((await page.locator("#root").innerText()).split("\n").filter(Boolean)).toEqual([
-    "SplitWith",
-    "Snap the receipt. Friends tap what they had and pay you back.",
-    "Add the receipt",
-    "or choose a file",
-    "How friends pay you",
-    "Add another way to get paid",
-    "Who’s at the table",
-    "Add your name",
-    "Add a receipt first.",
-    "Create split link",
-  ]);
+  expect(await said(page)).toBe("I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at. I’m, here with add friends.");
+  const words = await sentence(page).innerText();
+  expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Another way to get paid", "Add a receipt first.", "Create link"]);
   await expect(venmo(page)).toHaveAttribute("placeholder", "@username");
+  await expect(yourName(page)).toHaveAttribute("placeholder", "your name");
   await expect(action(page)).toHaveAccessibleDescription("Add a receipt first.");
+  await expect(page.getByRole("button", { name: "Add the receipt" })).toHaveCount(1);
 });
 
-test("the header has the theme toggle and no menu, share or Example, and Recent splits only once there are stored splits", async ({ page }) => {
+test("the header has only the wordmark and the theme toggle, and Recent splits shows under the sentence only once there are stored splits", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await expect(page.getByRole("button", { name: "Switch to dark mode" })).toBeVisible();
   for (const name of ["Menu", "Share SplitWith", "Example", "Recent splits"]) await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Recent splits" })).toHaveCount(0);
   await page.evaluate(() =>
     localStorage.setItem("receipt-splitter:split:AnaBenCy00000000000001", JSON.stringify({ recent: { names: ["Ana", "Ben"], total: 990, added: Date.now(), seen: Date.now() } })),
   );
   await page.reload();
   await settle(page);
-  await page.getByRole("button", { name: "Recent splits", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Recent splits" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /^Ana and Ben/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toHaveCount(0);
+  const list = page.getByRole("region", { name: "Recent splits" });
+  expect((await list.innerText()).split("\n").filter(Boolean)).toEqual(["Recent splits", "Ana and Ben", "Today · 2 people", "$9.90"]);
+  await expect(list.getByRole("link", { name: "Ana and Ben, Today, 2 people, $9.90" })).toHaveAttribute("href", "/s/AnaBenCy00000000000001");
 });
 
 test("Add the receipt takes keyboard focus with a visible ring at 390 px", async ({ page }) => {
@@ -81,7 +80,7 @@ test("Add the receipt takes keyboard focus with a visible ring at 390 px", async
   expect(await focusRing(button)).toEqual(["solid", "2px"]);
 });
 
-test("the take-photo block takes keyboard focus with a visible ring at 1280 px", async ({ browser }) => {
+test("Add the receipt takes keyboard focus with a visible ring at 1280 px", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   await page.goto("/");
@@ -95,13 +94,11 @@ test("the take-photo block takes keyboard focus with a visible ring at 1280 px",
 const venmoRule = "Venmo usernames need at least 5 characters. This one has 4.";
 
 async function addHost(page: Page, name: string) {
-  await addName(page).click();
-  const field = page.getByRole("textbox", { name: "Your name", exact: true });
-  await field.fill(name);
-  await field.press("Enter");
+  await yourName(page).fill(name);
+  await yourName(page).press("Enter");
 }
 
-test("with no way to pay, Create split link shows no note and creates the Split", async ({ page }) => {
+test("with no way to pay, Create link shows no note and creates the Split", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await openExample(page);
@@ -111,7 +108,7 @@ test("with no way to pay, Create split link shows no note and creates the Split"
   await expect(page).toHaveURL(/\/s\/[A-Za-z0-9_-]{24}$/);
 });
 
-test("with no name, Create split link names what is missing before a tap, and a tap opens the name field without creating", async ({ page }) => {
+test("with no name, Create link names what is missing before a tap, and a tap opens the name field without creating", async ({ page }) => {
   const creates: string[] = [];
   page.on("request", (request) => request.url().includes("/api/splits") && creates.push(request.url()));
   await page.goto("/");
@@ -120,7 +117,7 @@ test("with no name, Create split link names what is missing before a tap, and a 
   await expect(action(page)).toHaveAccessibleDescription("Add your name first.");
   await expect(page.getByText("Add your name first.")).toBeVisible();
   await action(page).click();
-  await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
+  await expect(yourName(page)).toBeFocused();
   await expect(page).toHaveURL(/\/$/);
   expect(creates).toEqual([]);
 });
@@ -180,7 +177,7 @@ test("a tap on the gray Create focuses the blocking field", async ({ page }) => 
 
   await venmo(page).fill("jason-z");
   await action(page).click();
-  await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
+  await expect(yourName(page)).toBeFocused();
 });
 
 const iphoneKeyboard = 336;
@@ -208,8 +205,8 @@ test.describe("with the iPhone keyboard up", () => {
     await keyboardUp(page);
     await expect.poll(() => aboveKeyboard(venmo(page))).toBe(true);
 
-    await addName(page).tap();
-    const name = page.getByRole("textbox", { name: "Your name", exact: true });
+    await yourName(page).tap();
+    const name = yourName(page);
     await expect(name).toBeFocused();
     await expect.poll(() => aboveKeyboard(name)).toBe(true);
   });
@@ -219,7 +216,7 @@ test.describe("with the iPhone keyboard up", () => {
     const rest = await scrolled();
     await venmo(page).tap();
     await keyboardUp(page);
-    await addName(page).tap();
+    await yourName(page).tap();
     await page.locator("h1").tap();
     await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height);
     await expect.poll(scrolled).toEqual(rest);
@@ -234,7 +231,7 @@ test.describe("with the iPhone keyboard up and twelve names", () => {
       await page.goto("/");
       await settle(page);
 
-      await addName(page).tap();
+      await yourName(page).tap();
       for (let i = 1; i <= 12; i++) {
         await page.keyboard.type(`Guest ${i}`);
         await page.keyboard.press("Enter");
@@ -246,6 +243,36 @@ test.describe("with the iPhone keyboard up and twelve names", () => {
       await expect.poll(() => aboveKeyboard(field)).toBe(true);
     });
   }
+});
+
+test("at 320 px a 40-letter name and twelve more stay inside the column, and the page never scrolls sideways", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto("/");
+  await settle(page);
+  await yourName(page).fill("A".repeat(40));
+  await yourName(page).press("Enter");
+  for (let i = 1; i <= 12; i++) {
+    await page.keyboard.type(`Guest ${i}`);
+    await page.keyboard.press("Enter");
+  }
+  await expect(removers(page)).toHaveCount(13);
+  const words = (await sentence(page).boundingBox())!;
+  const longName = await sentence(page).getByRole("group", { name: `${"A".repeat(40)}, you` }).evaluate((group) => {
+    const text = document.createRange();
+    text.selectNodeContents(group.firstElementChild!);
+    return [...new Set([...text.getClientRects()].map((line) => `${Math.round(line.top)} ${Math.round(line.right)}`))].map((line) => Number(line.split(" ")[1]));
+  });
+  expect(longName.length).toBeGreaterThan(1);
+  for (const right of longName) expect(right).toBeLessThanOrEqual(Math.round(words.x + words.width));
+  const besideItsName = await removers(page).evaluateAll((buttons) =>
+    buttons.map((button) => {
+      const name = button.previousElementSibling!.getBoundingClientRect();
+      const x = button.getBoundingClientRect();
+      return x.top + x.height / 2 >= name.top && x.top + x.height / 2 <= name.bottom && x.left >= name.left;
+    }),
+  );
+  expect(besideItsName).toEqual(Array(13).fill(true));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
 test("the Create pill clears the bottom safe-area inset, and the header and pill clear a landscape notch", async ({ page }) => {
@@ -279,25 +306,24 @@ const centerOf = async (target: Locator) => {
 };
 
 for (const width of [1024, 1440]) {
-  test(`at ${width} px the receipt block, the payment row, the names and Create split link share one centered column`, async ({ page }) => {
+  test(`at ${width} px the sentence and the footer share one centered column, with Create link at its right edge`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await settle(page);
-    const receipt = await centerOf(page.getByRole("region", { name: "Receipt" }));
-    const pay = await centerOf(page.getByRole("region", { name: "How friends pay you" }));
-    const names = await centerOf(people(page));
-    const create = await centerOf(action(page));
-    expect(receipt.x).toBe(width / 2);
-    for (const other of [pay, names, create]) expect([other.left, other.width]).toEqual([receipt.left, receipt.width]);
-    await expect(page.getByText("Drop or paste a photo here")).toBeVisible();
+    const words = await centerOf(sentence(page));
+    const reason = await centerOf(page.locator("[role=status][data-problem]"));
+    const create = (await action(page).boundingBox())!;
+    expect(words.x).toBe(width / 2);
+    expect(reason.left).toBe(words.left);
+    expect(Math.round(create.x + create.width)).toBe(words.left + words.width);
   });
 }
 
-test("Enter adds a name and keeps the field open", async ({ page }) => {
+test("Enter adds a name and keeps the field open, moving it from after I’m to after here with", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  await addName(page).click();
-  await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Add friends" }).click();
+  await expect(yourName(page)).toBeFocused();
 
   for (const name of ["Sam", "Priya"]) {
     await page.keyboard.type(name);
@@ -308,21 +334,29 @@ test("Enter adds a name and keeps the field open", async ({ page }) => {
   const next = page.getByRole("textbox", { name: "Name", exact: true });
   await expect(next).toBeFocused();
   await expect(next).toHaveValue("");
+  await expect(yourName(page)).toHaveCount(0);
+  await page.locator("h1").click();
+  await expect.poll(() => said(page)).toContain("I’m Sam, here with Priya and add more.");
+  await page.getByRole("button", { name: "Add friends" }).click();
+  await page.keyboard.type("Priya");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("alert")).toHaveText("That name is already here.");
+  await expect(removers(page)).toHaveCount(2);
 });
 
 test("the Host is the first name, named \"<name>, you\", and a name leaves with its remove button", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  await addName(page).click();
+  await yourName(page).click();
   for (const name of ["Jason", "Sam"]) {
     await page.keyboard.type(name);
     await page.keyboard.press("Enter");
   }
-  await expect(people(page).getByRole("group")).toHaveCount(2);
-  await expect(people(page).getByRole("group", { name: "Jason, you" })).toBeVisible();
-  await expect(people(page).getByRole("group", { name: "Sam", exact: true })).toBeVisible();
-  await people(page).getByRole("button", { name: "Remove Sam" }).click();
-  await expect(people(page).getByRole("group")).toHaveCount(1);
+  await expect(sentence(page).getByRole("group")).toHaveCount(2);
+  await expect(sentence(page).getByRole("group", { name: "Jason, you" })).toBeVisible();
+  await expect(sentence(page).getByRole("group", { name: "Sam", exact: true })).toBeVisible();
+  await sentence(page).getByRole("button", { name: "Remove Sam" }).click();
+  await expect(sentence(page).getByRole("group")).toHaveCount(1);
 });
 
 test("the handle placeholder fits its field at 320 px", async ({ page }) => {
@@ -333,6 +367,7 @@ test("the handle placeholder fits its field at 320 px", async ({ page }) => {
     const style = getComputedStyle(input);
     const ctx = document.createElement("canvas").getContext("2d")!;
     ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    ctx.letterSpacing = style.letterSpacing;
     const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
     return { placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room };
   });
@@ -351,7 +386,7 @@ test("each icon draws a glyph, hidden from assistive tech, at 390 px", async ({ 
     })),
   );
   const icon = (name: string) => ({ icon: name, hidden: "true", drawn: true });
-  expect(icons).toEqual([icon("sun"), icon("moon"), icon("camera"), icon("chevron"), icon("plus"), icon("plus"), icon("arrow")]);
+  expect(icons).toEqual([icon("sun"), icon("moon"), icon("plus"), icon("arrow")]);
 });
 
 test("the payment app picker is a native select that lists the four apps with Venmo first", async ({ page }) => {
@@ -368,6 +403,7 @@ test("a second way to get paid takes the next free app, and its remove button ta
   await settle(page);
   await page.getByRole("button", { name: "Add another way to get paid" }).click();
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toBeVisible();
+  expect(await said(page)).toContain("pay me back on Venmo at or Cash App at.");
   await page.getByRole("button", { name: "Remove Cash App" }).click();
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveCount(0);
 });
@@ -524,17 +560,11 @@ const componentHarness = `
   import { View } from "react-native";
   import { SafeAreaProvider } from "react-native-safe-area-context";
   import { Button } from "./src/ui/components/button";
-  import { ReceiptSummary } from "./src/ui/receipt-input/receipt-summary";
-  const thumbnail = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='52'><rect width='40' height='52' fill='%23c8a'/></svg>";
   window.presses = 0;
-  window.views = 0;
-  window.replaces = 0;
   createRoot(document.getElementById("root")).render(
     <SafeAreaProvider>
       <View style={{ width: 350, padding: 20, gap: 16 }}>
         <Button label="Create split link" onPress={() => window.presses++} reason="Items are $0.50 short." />
-        <ReceiptSummary items={5} total={2804} thumbnail={thumbnail} onView={() => window.views++} onReplace={() => window.replaces++} />
-        <ReceiptSummary items={1} total={1599} thumbnail={null} onReplace={() => {}} />
       </View>
     </SafeAreaProvider>,
   );
@@ -563,17 +593,3 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect(await page.evaluate(() => (window as unknown as { presses: number }).presses)).toBe(1);
   });
 }
-
-test("the receipt card leads with its title and the total, then the item count and Replace, and opens the photo only when there is one", async ({ page }) => {
-  await mountHarness(page, componentHarness);
-  const cards = page.getByTestId("receipt");
-  await expect(cards).toHaveCount(2);
-  expect(await cards.evaluateAll((els) => els.map((el) => (el as HTMLElement).innerText.split("\n").filter(Boolean)))).toEqual([
-    ["Receipt", "$28.04", "5 items", "Replace"],
-    ["Receipt", "$15.99", "1 item", "Replace"],
-  ]);
-  await expect(page.getByRole("button", { name: "View receipt photo" })).toHaveCount(1);
-  await page.getByRole("button", { name: "View receipt photo" }).click();
-  await page.getByRole("button", { name: "Replace receipt" }).first().click();
-  expect(await page.evaluate(() => [(window as unknown as { views: number }).views, (window as unknown as { replaces: number }).replaces])).toEqual([1, 1]);
-});

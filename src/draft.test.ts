@@ -29,7 +29,7 @@ const receipt1040: Receipt = {
   total: cents(2804),
 };
 
-const file = { name: "IMG_4127.jpg", thumbnail: null };
+const file = { name: "IMG_4127.jpg" };
 
 const run = (draft: Draft, ...actions: DraftAction[]) => actions.reduce(reduceDraft, draft);
 
@@ -208,7 +208,7 @@ describe("a reload of home", () => {
     expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] });
   });
 
-  test("overwrites the previous build's Receipt and thumbnail on the first save", () => {
+  test("overwrites the previous build's Receipt on the first save", () => {
     const storage = new MemoryStorage();
     storage.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: withVenmo(read1040()) }));
     saveDraft(loadDraft(storage), storage);
@@ -258,9 +258,9 @@ describe("a reload of home", () => {
 
 describe("the Draft", () => {
   test("replacing the Receipt keeps the Payment handles and the names", () => {
-    const draft = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } });
+    const draft = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "reading", file: { name: "IMG_4128.jpg" } });
     expect(draft).toEqual({
-      scan: { status: "reading", file: { name: "IMG_4128.jpg", thumbnail: null } },
+      scan: { status: "reading", file: { name: "IMG_4128.jpg" } },
       handles: [{ service: "venmo", handle: "@jason-z" }],
       names: ["Jason", "Sam"],
     });

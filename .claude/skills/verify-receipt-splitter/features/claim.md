@@ -17,7 +17,7 @@ The Split page `/s/<id>` shows the Receipt as a card and a bottom sheet. A devic
 
 ## How to get to it (user POV)
 
-- Open a Split link, or tap **Create split link** on `/`, which opens the Split page for the Host.
+- Open a Split link, or tap **Create link** on `/`, which opens the Split page for the Host.
 - Tap a name on the tall sheet, or **Not here? Add yourself**, or the ✕.
 - Tap a line's circle, or the rest of the line.
 - Tap a chip, or "Your share".

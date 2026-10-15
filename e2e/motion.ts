@@ -592,10 +592,10 @@ const withKeyboard =
 
 async function homeTyping(page: Page) {
   await page.goto("/");
-  const people = page.getByRole("region", { name: "Who’s at the table" });
-  await people.waitFor();
+  const yourName = page.getByRole("textbox", { name: "Your name", exact: true });
+  await yourName.waitFor();
   await page.waitForTimeout(800);
-  await tap(people.getByRole("button", { name: "Add your name" }));
+  await tap(yourName);
   await page.keyboard.type("Jason");
   await page.keyboard.press("Enter");
   await page.keyboard.type("Samantha");
@@ -905,12 +905,12 @@ const sheetAndHome: Scenario[] = [
   },
   {
     id: "name-add",
-    name: "Home: a name chip is added",
+    name: "Home: a name is added to the sentence",
     instant: true,
     setup: homeTyping,
     act: (page) => page.keyboard.press("Enter"),
     probes: [
-      { key: "names", find: label("Who’s at the table"), kind: "height" },
+      { key: "names", find: `document.querySelector('[data-testid="sentence"]')`, kind: "height" },
       { key: "chip", find: label("Remove Samantha"), kind: "top" },
       { key: "chipFade", find: label("Remove Samantha"), kind: "opacity" },
       { key: "field", find: `document.querySelector('input[aria-label="Name"]')`, kind: "top" },

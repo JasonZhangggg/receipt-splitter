@@ -28,7 +28,7 @@ const ground = (page: Page) =>
 
 async function home(page: Page) {
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Create split link" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create link" })).toBeVisible();
 }
 
 test("the Dark mode row turns home dark on a light device, status bar included", async ({ page }) => {
@@ -110,7 +110,7 @@ test("on a dark device, picking light and back to dark forgets the pick", async 
   expect(await ground(page)).toEqual({ background: "dark", themeColors: ["light", "dark"], stored: null });
 });
 
-test("the theme toggle stays put when the Recent splits link appears", async ({ page }) => {
+test("the theme toggle stays put when Recent splits appears", async ({ page }) => {
   await home(page);
   const before = await toggle(page, "Dark mode").boundingBox();
   await page.evaluate(() =>
@@ -118,7 +118,7 @@ test("the theme toggle stays put when the Recent splits link appears", async ({ 
   );
   await page.reload();
   expect(await toggle(page, "Dark mode").boundingBox()).toEqual(before);
-  await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Recent splits" })).toBeVisible();
 });
 
 const countTransitions = () => {

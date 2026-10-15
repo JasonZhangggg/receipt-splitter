@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import type { Appearance, Scheme } from "./appearance";
 import { colors } from "./colors";
 import { fallbackMetrics, faces } from "./fonts.generated";
+import { sentenceCss } from "./home-sentence/css";
 import { iconCss } from "./icon-css";
 
 const weights = [400, 500] as const;
@@ -21,9 +22,9 @@ function css({ light, dark }: typeof colors) {
     (weight) => `@font-face { font-family: "Geist Fallback"; font-weight: ${weight}; src: ${local}; ${fallbackMetrics[weight]} }`,
   );
   return `${[...webFaces, ...fallbackFaces].join("\n")}
-:root { --focus: ${light.focus}; --on-action: ${light.onAction}; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --focus: ${dark.focus}; --on-action: ${dark.onAction}; } }
-:root[data-theme="dark"] { --focus: ${dark.focus}; --on-action: ${dark.onAction}; }
+:root { --focus: ${light.focus}; --on-action: ${light.onAction}; --ink: ${light.ink}; --shimmer: ${light.shimmer}; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --focus: ${dark.focus}; --on-action: ${dark.onAction}; --ink: ${dark.ink}; --shimmer: ${dark.shimmer}; } }
+:root[data-theme="dark"] { --focus: ${dark.focus}; --on-action: ${dark.onAction}; --ink: ${dark.ink}; --shimmer: ${dark.shimmer}; }
 /* A theme flip is a clip-path circle on the new snapshot (use-appearance-flip.ts), so the default cross-fade of the root goes. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-synthesis: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
@@ -40,7 +41,8 @@ a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
   :is(input, textarea):focus-visible:not([data-field] *), [data-field]:has(:is(input, textarea):focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
 }
 :is(input, textarea)[data-underline]:focus-visible { outline: none; }
-${iconCss}`;
+${iconCss}
+${sentenceCss}`;
 }
 
 export function installDocument() {

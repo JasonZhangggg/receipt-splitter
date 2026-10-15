@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import { drawCropped } from "../../scan/client";
 import { receiptJpeg } from "./jpeg";
@@ -29,26 +29,12 @@ if (typeof document !== "undefined") {
 }
 
 export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile, accepting) => {
-  const [over, setOver] = useState(false);
   const deliver = useEffectEvent(onFile);
   useEffect(() => {
     if (!accepting) return;
-    let depth = 0;
-    const enter = (event: DragEvent) => {
-      if (!carriesFiles(event)) return;
-      event.preventDefault();
-      depth++;
-      setOver(true);
-    };
-    const leave = () => {
-      depth = Math.max(0, depth - 1);
-      if (depth === 0) setOver(false);
-    };
     const drop = (event: DragEvent) => {
       if (!carriesFiles(event)) return;
       event.preventDefault();
-      depth = 0;
-      setOver(false);
       const [file] = event.dataTransfer?.files ?? [];
       if (file) deliver(file);
     };
@@ -58,36 +44,13 @@ export const usePhotoDrop: typeof Photo.usePhotoDrop = (onFile, accepting) => {
       event.preventDefault();
       deliver(file);
     };
-    document.addEventListener("dragenter", enter);
-    document.addEventListener("dragleave", leave);
     document.addEventListener("drop", drop);
     document.addEventListener("paste", paste);
     return () => {
-      document.removeEventListener("dragenter", enter);
-      document.removeEventListener("dragleave", leave);
       document.removeEventListener("drop", drop);
       document.removeEventListener("paste", paste);
     };
   }, [accepting]);
-  return accepting && over;
-};
-
-const thumb = { width: 232, height: 296 };
-
-export const thumbnailOf: typeof Photo.thumbnailOf = async (file) => {
-  const image = await createImageBitmap(file, { imageOrientation: "from-image" });
-  try {
-    const scale = Math.max(thumb.width / image.width, thumb.height / image.height);
-    const canvas = Object.assign(document.createElement("canvas"), thumb);
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-    const width = image.width * scale;
-    const height = image.height * scale;
-    context.drawImage(image, (thumb.width - width) / 2, (thumb.height - height) / 2, width, height);
-    return canvas.toDataURL("image/jpeg", 0.7);
-  } finally {
-    image.close();
-  }
 };
 
 // A busy photo that still misses 150 KB at the lowest quality gets a smaller long edge.
@@ -108,7 +71,3 @@ export const receiptCopyOf: typeof Photo.receiptCopyOf = async (photo, boxes) =>
   }
   return null;
 };
-
-export const photoUri: typeof Photo.photoUri = (file) => URL.createObjectURL(file);
-
-export const releasePhotoUri: typeof Photo.releasePhotoUri = (uri) => URL.revokeObjectURL(uri);

@@ -14,7 +14,6 @@ export type Photo = { readonly uri: string; readonly name: string };
 type Props = {
   photo: Photo;
   onExited: () => void;
-  onReplace?: () => void;
 };
 
 type Phase = "entering" | "shown" | "leaving";
@@ -40,7 +39,7 @@ export function ReceiptSheet({ uri, onOpen, onClose }: { uri: string; onOpen: ()
   );
 }
 
-export function PhotoViewer({ photo, onExited, onReplace }: Props) {
+export function PhotoViewer({ photo, onExited }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -60,10 +59,6 @@ export function PhotoViewer({ photo, onExited, onReplace }: Props) {
   }, [phase, reduce]);
 
   const close = () => setPhase("leaving");
-  const replace = onReplace && (() => {
-    onReplace();
-    close();
-  });
   const shown = phase === "shown";
   const fade = webStyle({
     transitionProperty: reduce ? "opacity" : "opacity, transform",
@@ -95,7 +90,7 @@ export function PhotoViewer({ photo, onExited, onReplace }: Props) {
               <Text numberOfLines={1} style={[type.body, styles.name]}>
                 {photo.name}
               </Text>
-              {replace ? <Button kind="onPhoto" icon="camera" name={copy.replace} onPress={replace} outsideScroll /> : <View style={styles.noButton} />}
+              <View style={styles.noButton} />
             </View>
             <Image source={{ uri: photo.uri }} resizeMode="contain" accessibilityLabel={photo.name} style={styles.phonePhoto} />
           </View>

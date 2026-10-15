@@ -43,6 +43,14 @@ The operator made these calls while iterating. They win over older design docs a
 21. "How friends pay you": an app select and a handle field with no visible labels, and "+ Add another way to get paid".
 22. "Who's at the table": one list of names, the first tagged "you", with an inline "+ Add your name" field. Enter adds the name and keeps the field open.
 23. A footer with a reason line (red while blocked, for example "Add a receipt first.") and a "Create split link" black pill, gray while blocked.
+26. Home is one sentence with recent splits below. Reading shows shimmering step words in the sentence, with no progress bar (operator, 2026-10-15). This wins over 18 to 23 where they conflict. The spec is `home-sentence/C3Recent.dc.html` (the empty home) and `home-sentence/R1Words.dc.html` (reading and ready).
+    - The sentence is one 20 px muted paragraph: "I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at @username. I'm your name, here with add friends." Actions have an ink underline and blanks a gray one. There is no intro line, no take-photo block and no section headings.
+    - "Add the receipt" opens the same file chooser as before. Drop and paste still read a photo on desktop.
+    - While reading, the step word takes the place of "Add the receipt" and follows the real stages: "Reading the receipt", "Finding the text", "Matching prices", then "Taking a few more seconds". Each word fades in with a 2 px blur over 320 ms ease-out, with no slide. A text gradient sweeps across it every 1.8 s. Reduced motion swaps plain text.
+    - Once read, the clause is "I paid $X. Change." Change opens the chooser again.
+    - Each added way to pay is an inline "or <app> at <handle>" clause. Names follow "here with", and the first name is the Host.
+    - Recent splits lists this device's stored Splits under the sentence. Each row shows who, the day, how many people and the total. The section and the header link are gone when there are none.
+    - The footer matches the Split page: the reason line at the left, and a "Create link" pill at the right that is gray while blocked.
 
 ### Native sheets
 

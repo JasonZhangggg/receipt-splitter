@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reading, the words change with each step</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.h{font-family:'Geist',system-ui,sans-serif;font-size:16px;line-height:1.6;letter-spacing:-0.006em;-webkit-font-smoothing:antialiased;background:#fcfcfc;color:#171717}
+.lnk{all:unset;cursor:pointer;color:#737373;text-decoration:underline;text-decoration-color:#d0d0d0;text-underline-offset:4px;text-decoration-thickness:1px}
+.say{font-size:20px;line-height:1.75;letter-spacing:-0.015em;color:#737373}
+.act{all:unset;cursor:pointer;color:#171717;border-bottom:1.5px solid #171717;line-height:1.25}
+.blank{all:unset;cursor:text;display:inline-block;border-bottom:1.5px solid #d0d0d0;color:#171717;line-height:1.25;padding:0 2px;font-size:inherit}
+.blank::placeholder{color:#a3a3a3}
+.row{all:unset;cursor:pointer;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #ebebeb}
+.shimmer{background:linear-gradient(90deg,#171717 0%,#171717 30%,#c8c8c8 50%,#171717 70%,#171717 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sweep 1.8s linear infinite}
+@keyframes sweep{from{background-position:100% 0}to{background-position:-150% 0}}
+.swap{display:inline-block;animation:swap 320ms cubic-bezier(.23,1,.32,1)}
+@keyframes swap{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+@media (prefers-reduced-motion: reduce){.shimmer{animation:none;color:#171717;background:none}.swap{animation:none}}
+a{color:#737373}a:hover{color:#171717}
+</style>
+</helmet>
+<div class="h" style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden">
+  <div style="flex: 1; padding: 52px 24px 0; display: flex; flex-direction: column; min-height: 0">
+    <header style="display: flex; align-items: center; justify-content: space-between">
+      <span style="font-size: 17px; font-weight: 500">SplitWith</span>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#171717" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.75"></circle><path d="M12 3v2.25M18.36 5.64l-1.59 1.59M21 12h-2.25M18.36 18.36l-1.59-1.59M12 18.75V21M7.23 16.77l-1.59 1.59M5.25 12H3M7.23 7.23 5.64 5.64"></path></svg>
+    </header>
+
+    <div class="say" style="margin-top: 40px">
+      <sc-if value="{{reading}}" hint-placeholder-val="{{ true }}"><span role="status">I paid the bill. <sc-if value="{{s0}}" hint-placeholder-val="{{ true }}"><span class="swap"><span class="shimmer">Reading the receipt</span></span></sc-if><sc-if value="{{s1}}" hint-placeholder-val="{{ false }}"><span class="swap"><span class="shimmer">Finding the text</span></span></sc-if><sc-if value="{{s2}}" hint-placeholder-val="{{ false }}"><span class="swap"><span class="shimmer">Matching prices</span></span></sc-if><sc-if value="{{s3}}" hint-placeholder-val="{{ false }}"><span class="swap"><span class="shimmer">Almost done</span></span></sc-if>.</span></sc-if>
+      <sc-if value="{{ready}}" hint-placeholder-val="{{ false }}"><span class="swap">I paid <span style="color: #171717">$135.83 at Casa Lupa</span>. <button class="act" style="color: #737373; border-bottom-color: #d0d0d0">Change</button>.</span></sc-if>
+      Friends tap what they had and pay me back on
+      <button class="act">Venmo</button>
+      at <input class="blank" placeholder="@username" style="width: 6.25em">.
+      I&#39;m <input class="blank" placeholder="your name" style="width: 5.4em">,
+      here with
+      <button class="act" style="color: #737373; border-bottom-color: #d0d0d0">add friends</button>.
+    </div>
+    <button class="lnk" style="margin-top: 12px; align-self: flex-start; font-size: 14px">+ Another way to get paid</button>
+
+    <div style="margin-top: 44px; display: flex; justify-content: space-between; color: #737373; font-size: 14px; padding-bottom: 10px; border-bottom: 1px solid #ebebeb"><span>Recent splits</span><span>Last 30 days</span></div>
+    <sc-for list="{{recent}}" as="r" hint-placeholder-count="3">
+      <button class="row">
+        <span style="flex: 1; min-width: 0"><span style="display: block">{{r.name}}</span><span style="display: block; color: #737373; font-size: 14px">{{r.meta}}</span></span>
+        <span style="text-align: right; font-variant-numeric: tabular-nums"><span style="display: block">{{r.total}}</span><span style="display: block; color: #737373; font-size: 14px">{{r.paid}}</span></span>
+      </button>
+    </sc-for>
+  </div>
+
+  <footer style="border-top: 1px solid #ebebeb; padding: 14px 24px 34px; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+    <span style="color: #737373; font-size: 14px">{{reason}}</span>
+    <button disabled style="all: unset; height: 48px; padding: 0 22px; border-radius: 24px; background: #171717; color: #fcfcfc; opacity: .28; display: flex; align-items: center; gap: 8px; font-weight: 500">Create link
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 4.5 21 12l-7.5 7.5M21 12H3"></path></svg>
+    </button>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { step: 0 }; }
+  componentDidMount() { this.timer = setInterval(() => this.setState((s) => ({ step: (s.step + 1) % 6 })), 1400); }
+  componentWillUnmount() { clearInterval(this.timer); }
+  renderVals() {
+    const words = ['Reading the receipt', 'Finding the text', 'Matching prices', 'Almost done'];
+    const step = this.state.step;
+    const reading = step < 4;
+    return {
+      reading,
+      ready: !reading,
+      s0: step === 0, s1: step === 1, s2: step === 2, s3: step === 3,
+      reason: reading ? 'One moment.' : 'Add your name.',
+      recent: [
+        { name: 'Casa Lupa', meta: 'Sat, Oct 11 · 4 people', total: '$135.83', paid: '2 of 3 paid' },
+        { name: 'Topgolf', meta: 'Sun, Oct 5 · 6 people', total: '$212.40', paid: 'All paid' },
+        { name: 'Pho Saigon', meta: 'Wed, Oct 1 · 3 people', total: '$54.20', paid: '1 of 2 paid' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

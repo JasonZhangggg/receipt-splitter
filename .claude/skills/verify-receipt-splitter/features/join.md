@@ -1,6 +1,6 @@
 # Join
 
-The Host types their own name first among the names on the home sheet, then creates a Split with **Create split link**. The site posts the draft to `POST /api/splits`, and opens the Split page at `/s/<id>` with the tall sheet "Link ready." and "Which one are you?". The tall sheet shows the link with **Copy** and **Share**, or **Copy** alone where the browser has no `navigator.share`. The Host picks their name like everyone else, and the footer then shows **Your share** with an up-arrow and no link; the header's **Share link** button shares it. Creating clears the draft's Receipt, photo and names, so `/` opens empty with only the Payment handles kept. The wordmark on the Split page, **Split a receipt**, opens `/`, and the Split stays saved on the device. Anyone who opens the link gets the same tall sheet with "<Host> invited you to split $<total>". [Claim](./claim.md) covers the pick sheet and the page after it. An unknown or malformed id shows "This split has expired", and a stored Split the server cannot read shows "This split can't be opened".
+The Host types their own name first among the names on the home sheet, then creates a Split with **Create link**. The site posts the draft to `POST /api/splits`, and opens the Split page at `/s/<id>` with the tall sheet "Link ready." and "Which one are you?". The tall sheet shows the link with **Copy** and **Share**, or **Copy** alone where the browser has no `navigator.share`. The Host picks their name like everyone else, and the footer then shows **Your share** with an up-arrow and no link; the header's **Share link** button shares it. Creating clears the draft's Receipt, photo and names, so `/` opens empty with only the Payment handles kept. The wordmark on the Split page, **Split a receipt**, opens `/`, and the Split stays saved on the device. Anyone who opens the link gets the same tall sheet with "<Host> invited you to split $<total>". [Claim](./claim.md) covers the pick sheet and the page after it. An unknown or malformed id shows "This split has expired", and a stored Split the server cannot read shows "This split can't be opened".
 
 ## Sub-features
 
@@ -18,7 +18,7 @@ The Host types their own name first among the names on the home sheet, then crea
 
 ## How to get to it (user POV)
 
-- On `/`, read a Receipt, type a Venmo handle, type your name and any others, and tap **Create split link**.
+- On `/`, read a Receipt, type a Venmo handle, type your name and any others, and tap **Create link**.
 - Pick your name, then tap **Share** or **Copy** in the sheet.
 - Open the copied link in another browser, as a Participant does from a group chat.
 - Open `/s/<id>` with an id that was never created.
@@ -32,7 +32,7 @@ Preconditions:
 
 A single `drive` cannot tap through the sheet, so these flows run as Playwright specs or as a short Playwright script against the lane's port. `e2e/join.spec.ts` is the reference for every step below. To run it on its own port, use `PORT=<port> npx playwright test e2e/join.spec.ts`, which builds and starts its own `wrangler dev`. Do not point it at a port where `launch` already serves.
 
-- **Create and join (`join-create`, `join-which-one`).** In a Pixel 7 context on `http://localhost:8811/`, choose a photo with the file chooser (`e2e/fixtures/srd-1040-no-sprite.jpg`), fill the textbox named `Venmo handle`, tap the button `Add your name`, fill the textbox `Your name` with the Host's name and press Enter, type each more name into the field that stays open (the textbox `Name`) with Enter, then tap **Create split link**. Within a few seconds the page moves to `/s/<id>` and shows "Link ready." over "Which one are you?", whose list items read each name with its initial. Open the same URL in a second context. Its invite line reads "<Host> invited you to split $<total>". Save both pages as `<out>/join-end-to-end.png`.
+- **Create and join (`join-create`, `join-which-one`).** In a Pixel 7 context on `http://localhost:8811/`, choose a photo with the file chooser (`e2e/fixtures/srd-1040-no-sprite.jpg`), fill the textbox named `Venmo handle`, fill the textbox `Your name` with the Host's name and press Enter, type each more name into the field that stays open (the textbox `Name`) with Enter, then tap **Create link**. Within a few seconds the page moves to `/s/<id>` and shows "Link ready." over "Which one are you?", whose list items read each name with its initial. Open the same URL in a second context. Its invite line reads "<Host> invited you to split $<total>". Save both pages as `<out>/join-end-to-end.png`.
 - **Same name (`join-which-one`).** Tap a name in one browser, then open the link in another. That name's row reads **Picked**.
 - **Someone else (`join-someone-else`).** Tap **Not here? Add yourself**, fill `Your name`, and tap **Join as <name>**. Tap `People` to see `This phone is <name>.`. Back on `/`, the Host's home is empty except for the Venmo handle.
 - **Reload (`join-remember`).** Reload the browser that picked. It skips the tall sheet and shows `<name>, you`.
@@ -43,7 +43,7 @@ A single `drive` cannot tap through the sheet, so these flows run as Playwright 
 - **Expired (`join-expired`).** Run `verify.mjs drive --port 8811 --path /s/abc --expect-heading "This split has expired" --shot <out>/join-expired.png`. A well-formed id that was never created, such as `/s/q7Xv0Lr9_aZ-3mKpAbCdEf`, shows the same page. To see the unreadable page, close the socket with code 4500 through `page.routeWebSocket`.
 - **Takeover notice (`join-takeover`).** Browser A picks Sam. Browser B taps **Sam, picked on another phone** and **That's me**. A shows a bar `Sam was picked on another phone` with **That's me**, once, and it leaves after 4 seconds or when A taps **That's me**, which takes Sam back and gives B the same bar. No bar shows on a browser that picked a name for the first time, on a browser whose name was removed, or on a third browser holding a different name.
 - **No OCR on the link (`join-no-ocr`).** Record every request of the second browser context. None has a path under `/models/` or `/ort/`.
-- **Create under isolation (`join-isolated`).** `/` is served with COOP and COEP, so `self.crossOriginIsolated` is `true` there, and **Create split link** still reaches `/s/<id>`. No request leaves the host while the Split is created.
+- **Create under isolation (`join-isolated`).** `/` is served with COOP and COEP, so `self.crossOriginIsolated` is `true` there, and **Create link** still reaches `/s/<id>`. No request leaves the host while the Split is created.
 
 ## Gotchas
 
