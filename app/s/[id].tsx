@@ -7,7 +7,7 @@ import { cents, type Cents } from "../../src/core/money";
 import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares, shareBreakdown } from "../../src/core/shares";
-import { isRoutableSplitId, type AdjustmentId, type Participant, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
+import { isRoutableSplitId, type AdjustmentId, type Participant, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
@@ -151,6 +151,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const selfPerson = people.find((person) => person.id === me);
   const creating = memory.creatorSecret !== undefined;
   const act = (op: Operation) => send(op).then((answer) => answer.ok);
+
+  const closeGuard = useRef<CloseGuard | null>(null);
+  const closeOverlay = () => {
+    if (!closeGuard.current?.()) setClosing(true);
+  };
 
   const choose = async (participantId: ParticipantId, takeOver: boolean) => {
     setPickProblem(null);
@@ -297,10 +302,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       },
       over: "footer",
     });
-  const closeGuard = useRef<CloseGuard | null>(null);
-  const closeOverlay = () => {
-    if (!closeGuard.current?.()) setClosing(true);
-  };
   const overlayGone = () => {
     setOverlay(null);
     setClosing(false);
