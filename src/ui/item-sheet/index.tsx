@@ -16,6 +16,7 @@ import { bundleNote, lineAmounts, nameParts, splitIds } from "../split-view/mode
 import type { CloseGuard } from "../adjustment-sheet";
 import { amountStatus, type AmountStatus } from "./amount-status";
 import { readAmount } from "./new-item";
+import { SheetHeader } from "../split-view/sheet-header";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
 
@@ -231,18 +232,7 @@ export function ItemSheet({ split: current, itemId, me, send, onAddPerson, onClo
 
   return (
     <View style={styles.sheet} pointerEvents={leavingFrom ? "none" : "auto"}>
-      <View style={styles.topline}>
-        <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
-          {say.item}
-        </Text>
-        <PressTarget name={say.close} outsideScroll keepsFocus onPress={close} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
-          {() => (
-            <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
-              <Icon name="x" size={16} color={c.ink} />
-            </View>
-          )}
-        </PressTarget>
-      </View>
+      <SheetHeader title={say.item} onClose={close} keepsFocus />
       <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
         <TextInput
           aria-label={say.itemName}
@@ -581,10 +571,6 @@ const msLeft = (node: View | null) =>
 
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
-  topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { marginTop: 2 },
-  closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   field: { minHeight: layout.field, paddingHorizontal: 16, borderRadius: layout.fieldRadius },
   group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
   groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },

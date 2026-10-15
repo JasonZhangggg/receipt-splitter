@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { snapAt } from "../src/ui/components/sheet-motion";
 
 test.setTimeout(90_000);
 
@@ -604,4 +605,61 @@ test("with a long name, Give the rest and the status share one line inside the I
   expect(Math.abs(said!.y + said!.height / 2 - (box!.y + box!.height / 2))).toBeLessThan(4);
   await expect(status).toHaveText("$62.75 left to assign");
   expect(await status.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+});
+
+async function openRice(page: Page) {
+  await pickJason(page);
+  await page.getByRole("button", { name: /^Open Rice, / }).click();
+  const item = page.getByTestId("item-sheet");
+  await expect(item).toBeVisible(live);
+  await settled(item);
+  return item;
+}
+
+const grabOf = async (sheet: Locator) => ({ x: (await center(sheet)).x, y: (await sheet.boundingBox())!.y + 14 });
+
+test("a pull up snaps to tall, and a short pull down returns the sheet to rest", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  const item = await openRice(page);
+  const viewport = page.viewportSize()!;
+  const rest = (await item.boundingBox())!.y;
+  expect(viewport.height - rest).toBeLessThan(viewport.height * 0.9);
+
+  await drag(page, await grabOf(item), -160, 200, 150);
+  await settled(item);
+  expect(viewport.height - (await item.boundingBox())!.y).toBeGreaterThan(viewport.height * 0.9);
+  await expect(item).toBeVisible();
+
+  await drag(page, await grabOf(item), 70, 200, 150);
+  await settled(item);
+  expect(Math.abs((await item.boundingBox())!.y - rest)).toBeLessThan(2);
+});
+
+test("a pull past 110 px closes the sheet, and a pull of 80 px does not", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  const item = await openRice(page);
+  const rest = (await item.boundingBox())!.y;
+
+  await drag(page, await grabOf(item), 80, 200, 150);
+  await settled(item);
+  expect(Math.abs((await item.boundingBox())!.y - rest)).toBeLessThan(2);
+
+  await drag(page, await grabOf(item), 140, 200, 150);
+  await expect(item).toHaveCount(0, live);
+});
+
+test("a long pull down from tall lands at rest and does not close the sheet", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  const item = await openRice(page);
+  const rest = (await item.boundingBox())!.y;
+
+  await drag(page, await grabOf(item), -160, 200, 150);
+  await settled(item);
+  const tallTop = (await item.boundingBox())!.y;
+  expect(tallTop).toBeLessThan(rest - snapAt);
+
+  await drag(page, await grabOf(item), Math.round((rest - tallTop) * 0.9), 250, 150);
+  await settled(item);
+  await expect(item).toBeVisible();
+  expect(Math.abs((await item.boundingBox())!.y - rest)).toBeLessThan(2);
 });

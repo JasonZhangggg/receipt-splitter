@@ -3,12 +3,12 @@ import { StyleSheet, Text, View } from "react-native";
 
 import type { ParticipantId, Split } from "../../core/split";
 import { Button, PressTarget } from "../components/button";
-import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
 import { Dot } from "../split-view/dot";
 import { historyOf, whenText, type Entry } from "./describe";
+import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = {
   split: Split;
@@ -22,7 +22,6 @@ type Asking = { readonly revision: number | "restore"; readonly name: string | n
 
 export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props) {
   const c = useColors();
-  const reduce = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
   const [asking, setAsking] = useState<Asking | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -44,18 +43,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
 
   return (
     <View style={styles.sheet}>
-      <View style={styles.topline}>
-        <Text role="heading" aria-level={2} style={[type.title, styles.title, { color: c.ink }]}>
-          {say.history}
-        </Text>
-        <PressTarget name={say.close} outsideScroll onPress={onClose} style={(pressed) => [styles.closeHit, pressStyle(pressed, reduce)]}>
-          {() => (
-            <View style={[styles.close, { backgroundColor: c.sheetIn }]}>
-              <Icon name="x" size={16} color={c.ink} />
-            </View>
-          )}
-        </PressTarget>
-      </View>
+      <SheetHeader title={say.history} onClose={onClose} />
       {problem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{problem}</Text> : null}
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (
@@ -149,10 +137,6 @@ const dim = webStyle({ transitionProperty: "opacity", transitionDuration: "150ms
 
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
-  topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  title: { marginTop: 2 },
-  closeHit: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, paddingVertical: 8, borderBottomWidth: 1 },
   lead: { alignSelf: "flex-start", paddingTop: 4 },
