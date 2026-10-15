@@ -131,8 +131,8 @@ test("a read with a price over the limit creates the link, and the Split page fi
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
   await expect(page.getByText("Items are $3.50 short of the subtotal.")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /^Open Perrier Sparkling Water, \$0\.00/ }).click();
-  await page.getByRole("dialog", { name: "Item" }).getByRole("textbox", { name: "Price" }).fill("3.50");
-  await page.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await page.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" }).fill("3.50");
+  await page.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
 
   await expect(page.getByRole("button", { name: /^Open Perrier Sparkling Water, \$3\.50/ })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Items are $3.50 short of the subtotal.")).toHaveCount(0);

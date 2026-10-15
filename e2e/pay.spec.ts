@@ -121,7 +121,7 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
   await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
-  await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await priya.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
   await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
 
   await owe(sam).click();
@@ -270,7 +270,7 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
   await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
-  await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await priya.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
 
   await expect(note(sam)).toHaveText("Paid $22.00 · $8.00 too much", live);
   await expect(breakdown(sam).getByTestId("share")).toHaveText("$14.00");

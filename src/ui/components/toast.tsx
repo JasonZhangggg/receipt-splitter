@@ -3,7 +3,8 @@ import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useReducedMotion } from "../motion";
-import { easing, motion, space, type, useColors } from "../theme";
+import { easing, layout, motion, type, useColors } from "../theme";
+import { underline } from "./text-link";
 import { hideAfter } from "./hide-timer";
 
 const visibleFor = 4000;
@@ -23,7 +24,13 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   const insets = useSafeAreaInsets();
   const [progress] = useState(() => new Animated.Value(0));
   const [shown, setShown] = useState(message);
-  if (message && message !== shown) setShown(message);
+  // While the bar fades out its Undo stays, so the bar does not change shape on the way out.
+  const [shownAction, setShownAction] = useState(action);
+  if (message && message !== shown) {
+    setShown(message);
+    setShownAction(action);
+  }
+  const showing = message ? action : shownAction;
   const hide = useEffectEvent(onHide);
 
   useEffect(() => {
@@ -43,16 +50,17 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
     if (message) return hideAfter(visibleFor, () => hide());
   }, [message]);
 
-  const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+  const scale = reduce ? 1 : progress.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] });
 
   return (
-    <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: space.l + (lift || insets.bottom) }]}>
+    <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: 16 + (lift || insets.bottom) }]}>
       {shown ? (
-        <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }] }]}>
+        <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }, { scale }] }]}>
           <Text style={[type.caption, styles.message, { color: c.field }]}>{shown}</Text>
-          {action ? (
-            <Pressable role="button" onPress={action.onPress} style={styles.action}>
-              <Text style={[type.caption, styles.actionLabel, { color: c.field }]}>{action.label}</Text>
+          {showing ? (
+            <Pressable role="button" onPress={showing.onPress} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+              <Text style={[type.caption, underline, { color: c.field, textDecorationColor: c.field }]}>{showing.label}</Text>
             </Pressable>
           ) : null}
         </Animated.View>
@@ -62,25 +70,21 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
 }
 
 const styles = StyleSheet.create({
-  anchor: { position: "absolute", left: space.l, right: space.l, alignItems: "center" },
+  anchor: { position: "absolute", left: layout.gutter, right: layout.gutter, alignItems: "center" },
   toast: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space.l,
+    justifyContent: "space-between",
+    gap: 12,
+    width: "100%",
     maxWidth: 480,
     minHeight: 48,
-    paddingHorizontal: space.l,
-    paddingVertical: space.m,
-    borderRadius: 14,
+    paddingLeft: 20,
+    paddingRight: 6,
+    paddingVertical: 4,
+    borderRadius: 24,
   },
   message: { flexShrink: 1 },
-  action: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: space.m,
-    margin: -space.m,
-  },
-  actionLabel: { textDecorationLine: "underline" },
+  pressed: { opacity: 0.6 },
+  action: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
 });

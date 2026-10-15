@@ -28,8 +28,8 @@ export function PersonMenu({ split, person, onRemove }: { split: Split; person: 
       <PressTarget name={say.removePerson(person.name)} outsideScroll onPress={onRemove} style={(pressed) => [pressStyle(pressed, reduce), styles.press]}>
         {(pressed) => (
           <View style={[styles.row, pressed && { backgroundColor: c.sheetIn }]}>
-            <Icon name="trash" size={18} color={c.danger} />
-            <Text numberOfLines={1} style={[type.body, styles.label, { color: c.danger }]}>
+            <Icon name="trash" size={18} color={c.warn} />
+            <Text numberOfLines={1} style={[type.body, styles.label, { color: c.warn }]}>
               {say.removePerson(person.name)}
             </Text>
           </View>

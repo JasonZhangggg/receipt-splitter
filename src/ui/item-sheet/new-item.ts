@@ -6,10 +6,7 @@ import { parseAmount } from "../../draft";
 /** The add sheet's fields as typed. */
 export type NewItem = {
   readonly name: string;
-  readonly detail: string;
   readonly price: string;
-  readonly quantity: number;
-  readonly who: readonly ParticipantId[];
 };
 
 export type NewItemProblem = "name" | "price" | "overLimit" | "tooManyItems" | "tooLarge" | "failed";
@@ -26,17 +23,13 @@ export function readAmount(typed: string): Cents | "price" | "overLimit" {
   return cents === null || cents > MAX_CENTS ? "overLimit" : cents;
 }
 
-/** The add to send for what was typed, at the end of the receipt and outside every Bundle, or the one problem to show. */
+/** The add to send for what was typed, at the end of the receipt and outside every Bundle, with nobody having it yet, or the one problem to show. */
 export function newItem(split: Split, typed: NewItem, id: ItemId, by: ParticipantId | null): NewItemAnswer {
   const name = typed.name.trim();
   if (!isName(name, MAX_ROW_NAME_LENGTH)) return { ok: false, problem: "name" };
   const cents = readAmount(typed.price);
   if (typeof cents === "string") return { ok: false, problem: cents };
-  const detail = typed.detail.trim();
-  const item = { id, name, price: toPrice(cents), ...(typed.quantity > 1 && { quantity: typed.quantity }), ...(detail && { detail }) };
-  // Someone may leave the Split while the sheet is open; their chip goes, so their claim goes too.
-  const who = typed.who.filter((id) => split.participants.some((person) => person.id === id));
-  const op: Operation = { by, type: "editReceipt", items: [{ type: "add", item, index: split.receipt.items.length, who }] };
+  const op: Operation = { by, type: "editReceipt", items: [{ type: "add", item: { id, name, price: toPrice(cents) }, index: split.receipt.items.length, who: [] }] };
   const preview = applyOperation(split, op, { creator: false });
   if (preview.ok) return { ok: true, op };
   return { ok: false, problem: problemFor(preview.rejection.reason) };

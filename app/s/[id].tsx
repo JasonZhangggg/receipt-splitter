@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -7,7 +7,7 @@ import { cents, type Cents } from "../../src/core/money";
 import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares, shareBreakdown } from "../../src/core/shares";
-import { isRoutableSplitId, type AdjustmentId, type Participant, type ReceiptLevelKind, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
+import { isRoutableSplitId, type AdjustmentId, type Participant, type DeviceId, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
@@ -15,19 +15,18 @@ import { actedByKey } from "../../src/ui/components/acted-by-key";
 import { Toast } from "../../src/ui/components/toast";
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
-import { AddAdjustmentSheet, AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
+import { AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
 import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
 import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
-import { AddItemSheet } from "../../src/ui/item-sheet/add";
+import { AddSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { SplitHeader } from "../../src/ui/split-view/header";
 import { circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleChips } from "../../src/ui/split-view/people-chips";
-import { AddMenu, addMenuWidth, type AddChoice } from "../../src/ui/split-view/add-menu";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
 import { holdOf, takenName } from "../../src/ui/split-view/name-hold";
@@ -93,7 +92,6 @@ type OverlayKind =
   | { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] }
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
-  | { readonly kind: "addAdjustment"; readonly adjustmentKind: ReceiptLevelKind }
   | { readonly kind: "history" }
   | { readonly kind: "people" }
   | { readonly kind: "pay" }
@@ -101,6 +99,8 @@ type OverlayKind =
 /** What is open over the page and the press that opened it: focus goes back there. */
 type Overlay = OverlayKind & { readonly from: Press };
 type Send = ReturnType<typeof useLiveSplit>["send"];
+/** The one bar at the bottom of the page: an Undo for the last delete or payment, or a line to read. Over the sheet when the sheet stays open. */
+type Bar = { readonly message: string; readonly action?: { readonly label: string; readonly onPress: () => void }; readonly over: "footer" | "sheet" };
 
 /** An Adjustment's sheet is named for its saved kind; its heading follows a kind switch at once. */
 const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
@@ -108,7 +108,7 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
       ? say.discount
       : say.charge
-    : { item: say.item, add: say.newItem, addAdjustment: say.addAdjustment, history: say.history, payments: say.payments, people: say.people, pay: title }[overlay.kind];
+    : { item: say.editItem, add: say.addMenu, history: say.history, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
 
@@ -127,12 +127,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const me = memory.me && held?.device === device ? memory.me : null;
   const nameHold = useMemo(() => holdOf(split, memory.me, device), [split, memory.me, device]);
   const lastHold = useRef(nameHold);
-  const [taken, setTaken] = useState<ParticipantId | null>(null);
-  useEffect(() => {
-    const lost = takenName(lastHold.current, nameHold);
-    lastHold.current = nameHold;
-    if (lost) setTaken(lost);
-  }, [nameHold]);
   const [phase, setPhase] = useState<Phase>(me ? "regular" : "pick");
   const [chosen, setChosen] = useState<ParticipantId | null>(null);
   const [pickProblem, setPickProblem] = useState<string | null>(null);
@@ -141,7 +135,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
-  const [paidToast, setPaidToast] = useState<{ readonly message: string; readonly before: Cents | null } | null>(null);
+  const [bar, setBar] = useState<Bar | null>(null);
   const [viewing, setViewing] = useState(false);
   const photoUrl = `/api/splits/${splitId}/photo`;
   useEffect(() => {
@@ -170,11 +164,24 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
   };
 
-  const takeBack = () => {
-    if (!taken) return;
-    setTaken(null);
-    void choose(taken, true);
-  };
+  const nameTaken = useEffectEvent((lost: ParticipantId) =>
+    setBar({
+      message: say.pickedOnAnotherPhone(people.find(({ id }) => id === lost)?.name ?? ""),
+      action: {
+        label: say.thatsMe,
+        onPress: () => {
+          setBar(null);
+          void choose(lost, true);
+        },
+      },
+      over: "footer",
+    }),
+  );
+  useEffect(() => {
+    const lost = takenName(lastHold.current, nameHold);
+    lastHold.current = nameHold;
+    if (lost) nameTaken(lost);
+  }, [nameHold]);
 
   const addPerson = async (typed: string): Promise<{ readonly id: ParticipantId } | { readonly refused: string }> => {
     const named = newName(typed, people.map(({ name }) => name));
@@ -236,7 +243,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
 
   // The menu keeps the person it opened for, so it can finish leaving after they are gone.
-  const [addMenu, setAddMenu] = useState<{ readonly from: Press; readonly closing: boolean; readonly choice: AddChoice | null } | null>(null);
   const [menu, setMenu] = useState<{ readonly person: Participant; readonly from: Press; readonly closing: boolean } | null>(null);
   const [peopleProblem, setPeopleProblem] = useState<string | null>(null);
   const present = (id: ParticipantId) => people.some((person) => person.id === id);
@@ -273,16 +279,19 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     setPayProblem(null);
     setOverlay({ ...kind, from });
   };
-  const closeAddMenu = () => setAddMenu((was) => was && { ...was, closing: true });
-  const chooseAdd = (choice: AddChoice) => setAddMenu((was) => was && { ...was, closing: true, choice });
-  const addMenuGone = () => {
-    if (!addMenu) return;
-    setAddMenu(null);
-    const { choice, from } = addMenu;
-    if (choice === "item") return open({ kind: "add" }, from);
-    if (choice) return open({ kind: "addAdjustment", adjustmentKind: choice }, from);
-    if (wide || from.keyboard || actedByKey()) from.trigger.focus({ preventScroll: true });
-  };
+  const deleted = ({ name, revision }: { readonly name: string; readonly revision: number }) =>
+    setBar({
+      message: say.deleted(name),
+      action: {
+        label: say.undo,
+        onPress: async () => {
+          setBar(null);
+          const answer = await send({ by: me, type: "undo", revision });
+          if (!answer.ok && answer.rejection.reason !== "alreadyUndone") setBar({ message: say.undoFailed, over: "footer" });
+        },
+      },
+      over: "footer",
+    });
   const closeGuard = useRef<CloseGuard | null>(null);
   const closeOverlay = () => {
     if (!closeGuard.current?.()) setClosing(true);
@@ -329,7 +338,17 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     if (!me) return;
     const before = split.payments.find(({ participantId }) => participantId === me)?.amount ?? null;
     if (!(await markPaid(me, paid ? myShare : null)) || !paid) return;
-    setPaidToast({ message: say.markedPaid(money(myShare)), before });
+    setBar({
+      message: say.markedPaid(money(myShare)),
+      action: {
+        label: say.undo,
+        onPress: () => {
+          if (me) void markPaid(me, before);
+          setBar(null);
+        },
+      },
+      over: "footer",
+    });
     closeOverlay();
   };
   const pickContent = (
@@ -352,19 +371,18 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         split={split}
         itemId={overlay.itemId}
         me={me}
-        send={act}
-        onAddPerson={(typed) => void addPerson(typed).then((added) => "id" in added && act({ by: me, type: "claim", itemId: overlay.itemId, participantId: added.id }))}
+        send={send}
         onClose={closeOverlay}
+        onNote={(message) => setBar({ message, over: "sheet" })}
+        onDeleted={deleted}
         guardRef={closeGuard}
       />
     ) : overlay.kind === "add" ? (
-      <AddItemSheet split={split} me={me} send={send} onClose={closeOverlay} />
+      <AddSheet split={split} me={me} send={send} onClose={closeOverlay} />
     ) : overlay.kind === "adjustment" ? (
-      <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
+      <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} onDeleted={deleted} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
       <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
-    ) : overlay.kind === "addAdjustment" ? (
-      <AddAdjustmentSheet split={split} me={me} send={send} onClose={closeOverlay} kind={overlay.adjustmentKind} />
     ) : overlay.kind === "people" ? (
       <View style={styles.people}>
         <SheetHeader title={say.people} onClose={closeOverlay} />
@@ -405,14 +423,14 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       me={me}
       onCircle={(item, from) => void onCircle(item, from)}
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
-      onAdd={(from) => setAddMenu({ from, closing: false, choice: null })}
+      onAdd={(from) => open({ kind: "add" }, from)}
       onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
       showing={
         showingNow?.kind === "item"
           ? showingNow.itemId
           : showingNow?.kind === "adjustment"
             ? showingNow.adjustmentId
-            : showingNow?.kind === "add" || showingNow?.kind === "addAdjustment" || (addMenu && !addMenu.closing)
+            : showingNow?.kind === "add"
               ? "add"
               : null
       }
@@ -471,11 +489,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           {overlayContent}
         </BottomSheet>
       ) : null}
-      {addMenu ? (
-        <Popover anchor={addMenu.from.trigger} label={say.addMenu} instant={addMenu.from.keyboard} closing={addMenu.closing} onClose={closeAddMenu} onGone={addMenuGone} width={addMenuWidth} align="start">
-          <AddMenu onChoose={chooseAdd} />
-        </Popover>
-      ) : null}
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
@@ -486,9 +499,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(confirming.person.name, confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
         </Popover>
       ) : null}
-      <Toast message={paidToast?.message ?? null} onHide={() => setPaidToast(null)} action={{ label: say.undo, onPress: () => { if (me && paidToast) void markPaid(me, paidToast.before); setPaidToast(null); } }} lift={footerHeight + 8} />
+      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={bar?.over === "sheet" ? 12 : footerHeight + 8} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
-      <Toast message={taken ? say.pickedOnAnotherPhone(people.find(({ id }) => id === taken)?.name ?? "") : null} onHide={() => setTaken(null)} action={{ label: say.thatsMe, onPress: takeBack }} lift={footerHeight + 8} />
     </View>
   );
 }

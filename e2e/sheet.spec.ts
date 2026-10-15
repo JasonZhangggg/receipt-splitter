@@ -138,7 +138,7 @@ test("a price typed at the end or in the middle of the Item sheet's price field 
   const receipt = { items: [{ id: "wings", name: "Wings", price: 1200 }], adjustments: [], subtotal: 1200, total: 1200 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
   await pickJason(page);
-  const sheet = page.getByRole("dialog", { name: "Item" });
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
   const price = sheet.getByRole("textbox", { name: "Price" });
   const caretAt = (at: number) => price.evaluate((input: HTMLInputElement, at) => input.setSelectionRange(at, at), at);
   const selected = () => price.evaluate((input: HTMLInputElement) => input.value.slice(input.selectionStart!, input.selectionEnd!));
@@ -185,7 +185,7 @@ test("text that is not an amount in a By amount field holds the Item sheet open 
   const receipt = { items: [{ id: "wings", name: "Wings", price: 1200 }], adjustments: [], subtotal: 1200, total: 1200 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
   await pickJason(page);
-  const sheet = page.getByRole("dialog", { name: "Item" });
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
   const who = sheet.getByRole("group", { name: "Who had it" });
 
   await page.getByRole("button", { name: /^Open Wings, / }).click();
@@ -193,7 +193,7 @@ test("text that is not an amount in a By amount field holds the Item sheet open 
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "Split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
   const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
   await expect(sams).toHaveValue("", live);
   await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("8");
@@ -217,14 +217,14 @@ test("By amount says what is left to assign as amounts are typed, and Give the r
   const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 8775 }], adjustments: [], subtotal: 8775, total: 8775 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
   await pickJason(page);
-  const sheet = page.getByRole("dialog", { name: "Item" });
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
   const who = sheet.getByRole("group", { name: "Who had it" });
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
   for (const name of ["Jason", "Sam"]) {
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "Split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
   const status = sheet.getByTestId("amount-status");
   const jasons = sheet.getByRole("textbox", { name: "Jason's amount" });
   const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
@@ -266,7 +266,7 @@ test("with a long name, Give the rest and the status share one line inside the I
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt, [venmo], host), browserName);
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: host, exact: true }).click();
   await expect(page.getByTestId("owe")).toBeVisible(live);
-  const sheet = page.getByRole("dialog", { name: "Item" });
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
   const who = sheet.getByRole("group", { name: "Who had it" });
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
   await settled(sheet);
@@ -274,15 +274,26 @@ test("with a long name, Give the rest and the status share one line inside the I
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "Split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
   await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
   const give = sheet.getByRole("button", { name: `Give ${host} the rest, $62.75` });
   const status = sheet.getByTestId("amount-status");
   await expect(give).toBeVisible();
-  const [box, said, rows] = await Promise.all([give.boundingBox(), status.boundingBox(), sheet.getByRole("group", { name: "Split" }).boundingBox()]);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(rows!.x + rows!.width + 1);
-  expect(said!.x + said!.width).toBeLessThanOrEqual(box!.x);
-  expect(Math.abs(said!.y + said!.height / 2 - (box!.y + box!.height / 2))).toBeLessThan(4);
+  // One synchronous read of every box, so a sheet still settling cannot shift one box between two measurements.
+  const lineUp = () =>
+    sheet.evaluate((root, label) => {
+      const box = (selector: string) => root.querySelector(selector)!.getBoundingClientRect();
+      const button = box(`[aria-label="${label}"]`);
+      const said = box('[data-testid="amount-status"]');
+      return {
+        insideSheet: button.right <= root.getBoundingClientRect().right + 1,
+        beforeButton: said.right <= button.left,
+        centerGap: Math.abs(said.top + said.height / 2 - (button.top + button.height / 2)),
+      };
+    }, `Give ${host} the rest, $62.75`);
+  await expect.poll(async () => (await lineUp()).insideSheet).toBe(true);
+  await expect.poll(async () => (await lineUp()).beforeButton).toBe(true);
+  await expect.poll(async () => (await lineUp()).centerGap, live).toBeLessThan(4);
   await expect(status).toHaveText("$62.75 left to assign");
   expect(await status.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 });

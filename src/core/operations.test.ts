@@ -627,6 +627,41 @@ describe("editing the Receipt", () => {
     expect(restored.receipt.items[1]).toEqual({ id: "fries", name: "Fries", price: 800, split: { by: "even", units: [["bob", "cat"]] } });
   });
 
+  test("undo of a delete restores the Item at its index after another device's edit", () => {
+    const claimed = apply(
+      withBobAndCat(),
+      { by: bob, type: "claim", itemId: fries, participantId: bob },
+      { by: cat, type: "claim", itemId: fries, participantId: cat },
+    );
+    const deleted = apply(claimed, { by: ann, type: "editReceipt", items: [{ type: "delete", itemId: fries }], subtotalDelta: cents(-800), totalDelta: cents(-800) });
+    const deleteRevision = deleted.revision;
+    const edited = apply(
+      deleted,
+      { by: cat, type: "editReceipt", items: [{ type: "edit", itemId: pitcher, price: price(2600) }], subtotalDelta: cents(100), totalDelta: cents(100) },
+      { by: bob, type: "claim", itemId: pasta, participantId: bob },
+    );
+
+    const restored = apply(edited, { by: ann, type: "undo", revision: deleteRevision });
+
+    expect(restored.receipt.items.map(({ id }) => id)).toEqual(["pasta", "fries", "pitcher"]);
+    expect(restored.receipt.items[1]).toEqual(claimed.receipt.items[1]);
+    expect(restored.receipt.items[2]).toEqual(edited.receipt.items[1]);
+    expect(restored.receipt.items[0]).toEqual(edited.receipt.items[0]);
+    expect(restored.receipt.subtotal - edited.receipt.subtotal).toBe(800);
+    expect(restored.receipt.total - edited.receipt.total).toBe(800);
+    expect(reasonFor(restored, { by: ann, type: "undo", revision: deleteRevision })).toBe("alreadyUndone");
+  });
+
+  test("undo of a delete puts the Item back at its index when another device added an Item at the end since", () => {
+    const deleted = apply(withBobAndCat(), { by: ann, type: "editReceipt", items: [{ type: "delete", itemId: fries }] });
+    const added = apply(deleted, { by: cat, type: "editReceipt", items: [{ type: "add", item: { id: itemId("tea"), name: "Tea", price: price(300) }, index: 2, who: [cat] }] });
+
+    const restored = apply(added, { by: ann, type: "undo", revision: deleted.revision });
+
+    expect(restored.receipt.items.map(({ id }) => id)).toEqual(["pasta", "fries", "pitcher", "tea"]);
+    expect(restored.receipt.items[3]).toEqual(added.receipt.items[2]);
+  });
+
   test("a detail edit lands as a receipt change, and undoing it restores the Item without one", () => {
     const split = withBobAndCat();
     const detailed = apply(split, { by: bob, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "Large, $2.00 off" }] });

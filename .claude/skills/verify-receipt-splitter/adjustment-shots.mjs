@@ -97,8 +97,8 @@ for (const width of [390, 1440]) {
     await close(discount);
 
     await addRow.click();
-    await page.getByRole("dialog", { name: "Add to the receipt" }).getByRole("button", { name: "Tip", exact: true }).click();
-    const add = page.getByRole("dialog", { name: "Add tax, tip or discount" });
+    const add = page.getByRole("dialog", { name: "Add to the receipt" });
+    await add.getByRole("button", { name: "Tip", exact: true }).click();
     await add.waitFor();
     await settle();
     await shot("add-sheet");

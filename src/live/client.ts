@@ -13,7 +13,8 @@ export type Live =
   | { readonly status: "live"; readonly split: Split; readonly photo: boolean }
   | { readonly status: "gone"; readonly reason: GoneReason };
 
-export type Answer = { readonly ok: true } | { readonly ok: false; readonly rejection: WireRejection | { readonly reason: "disconnected" } };
+/** `revision` is the Split's revision once the Operation is in, which is the one an undo of it names. */
+export type Answer = { readonly ok: true; readonly revision: number } | { readonly ok: false; readonly rejection: WireRejection | { readonly reason: "disconnected" } };
 
 type Send = (op: Operation, creatorSecret?: string) => Promise<Answer>;
 
@@ -54,9 +55,9 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
       switch (message.type) {
         case "state":
           setLive({ status: "live", split: message.split, photo: message.photo });
-          return settle(message.ref, { ok: true });
+          return settle(message.ref, { ok: true, revision: message.split.revision });
         case "unchanged":
-          return settle(message.ref, { ok: true });
+          return settle(message.ref, { ok: true, revision: message.revision });
         case "rejected":
           return settle(message.ref, { ok: false, rejection: message.rejection });
         case "unavailable":

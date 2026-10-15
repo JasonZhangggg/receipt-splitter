@@ -63,8 +63,7 @@ for (const width of [390, 1440]) {
     await addRow.scrollIntoViewIfNeeded();
     await shot("receipt");
     await addRow.click();
-    await page.getByRole("dialog", { name: "Add to the receipt" }).getByRole("button", { name: "Item", exact: true }).click();
-    const sheet = page.getByRole("dialog", { name: "New item" });
+    const sheet = page.getByRole("dialog", { name: "Add to the receipt" });
     await sheet.waitFor();
     await page.waitForTimeout(600);
     await shot("sheet");
@@ -72,13 +71,12 @@ for (const width of [390, 1440]) {
     await sheet.getByText("Add a name.").waitFor();
     await page.waitForTimeout(300);
     await shot("problem");
-    await sheet.getByRole("textbox", { name: "Item name", exact: true }).fill("Fries");
+    await sheet.getByRole("textbox", { name: "Name", exact: true }).fill("Fries");
     await sheet.getByRole("textbox", { name: "Price", exact: true }).fill("6.50");
-    await sheet.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam", exact: true }).click();
     await shot("filled");
     await sheet.getByRole("button", { name: "Add item", exact: true }).click();
     await sheet.waitFor({ state: "detached" });
-    await page.getByRole("button", { name: "Open Fries, $6.50, had by Sam" }).waitFor();
+    await page.getByRole("button", { name: "Open Fries, $6.50, nobody had it" }).waitFor();
     await page.waitForTimeout(600);
     await shot("added");
     await context.close();

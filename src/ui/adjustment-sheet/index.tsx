@@ -1,18 +1,15 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { MAX_CENTS } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
-import { RECEIPT_LEVEL_KINDS, adjustmentId, randomId, type Adjustment, type AdjustmentId, type ParticipantId, type ReceiptLevelKind, type Split } from "../../core/split";
+import { RECEIPT_LEVEL_KINDS, type AdjustmentId, type ParticipantId, type Split } from "../../core/split";
 import type { Answer } from "../../live/client";
-import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { fieldGroup } from "../document";
-import { Segments } from "../item-sheet";
-import { pressStyle, useReducedMotion } from "../motion";
+import { IconAction, LabeledField, MoneyField, Options } from "../components/sheet-fields";
 import { splitCopy as say } from "../split-copy";
-import { layout, tabular, type, useColors } from "../theme";
-import { adjustmentEdit, adjustmentProblem, deleteAdjustment, newAdjustment, switchKind, takesOff, tidyAmount, typedFrom, type AdjustmentProblem, type TypedAdjustment } from "./adjustment";
+import { type, useColors } from "../theme";
+import { adjustmentEdit, adjustmentProblem, deleteAdjustment, switchKind, takesOff, tidyAmount, typedFrom, type AdjustmentProblem, type TypedAdjustment } from "./adjustment";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type Send = (op: Operation) => Promise<Answer>;
@@ -24,11 +21,20 @@ const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
 const problemText = (problem: AdjustmentProblem) => (problem === "overLimit" ? say.adjustmentProblem.overLimit(maxAmount) : say.adjustmentProblem[problem]);
 
-type EditProps = { split: Split; adjustmentId: AdjustmentId; me: ParticipantId | null; send: Send; onClose: () => void; guardRef: RefObject<CloseGuard | null> };
+type Props = {
+  split: Split;
+  adjustmentId: AdjustmentId;
+  me: ParticipantId | null;
+  send: Send;
+  onClose: () => void;
+  /** The line is gone; `revision` is the one an Undo names. */
+  onDeleted: (deleted: { readonly name: string; readonly revision: number }) => void;
+  guardRef: RefObject<CloseGuard | null>;
+};
 
 /** A tax, tip, fee or discount, saved as it is typed like an Item's sheet. A Bundle discount keeps its kind and its Items. */
-export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, guardRef }: EditProps) {
-  const reduce = useReducedMotion();
+export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, onDeleted, guardRef }: Props) {
+  const c = useColors();
   const live = split.receipt.adjustments.find((row) => row.id === id);
   // Another phone's delete takes the row away; the sheet closes on the row as it was.
   const [row, setRow] = useState(live);
@@ -101,201 +107,74 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, gu
     setLeaving(true);
     flushRef.current = () => {};
     const sent = await send(deleteAdjustment(me, id));
+    if (sent.ok) onDeleted({ name: row.name, revision: sent.revision });
     if (sent.ok || !splitRef.current.receipt.adjustments.some((adjustment) => adjustment.id === id)) return onClose();
     setLeaving(false);
     setProblem(adjustmentProblem(sent.rejection.reason));
   };
   const off = takesOff(shown.kind);
+  const bundle = row.kind === "bundleDiscount" ? row.bundle : null;
+  const kind = shown.kind;
+  const onChange = (next: Partial<TypedAdjustment> & { kind?: (typeof RECEIPT_LEVEL_KINDS)[number] }) => setTyped({ ...typed, ...next });
   return (
     <View style={styles.sheet} pointerEvents={leaving ? "none" : "auto"}>
-      <SheetHeader title={off ? say.discount : say.charge} onClose={close} keepsFocus />
-      <AdjustmentFields
-        split={split}
-        row={row}
-        typed={shown}
-        onChange={(next) => setTyped({ ...typed, ...next })}
-        onTidy={() => setTyped((was) => (was.amount === undefined || tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }))}
-        nameField={nameField}
-        amountField={amountField}
-        onNameDone={() => amountField.current?.focus()}
-        onAmountDone={flush}
+      <SheetHeader
+        title={off ? say.discount : say.charge}
+        onClose={close}
+        keepsFocus
+        action={<IconAction label={off ? say.deleteDiscount : say.deleteCharge} icon="trash" size={15} pressedInk="warn" onPress={() => void remove()} />}
       />
-      <ProblemLine problem={problem} />
-      <PressTarget name={off ? say.deleteDiscount : say.deleteCharge} outsideScroll onPress={() => void remove()} style={(pressed) => pressStyle(pressed, reduce)}>
-        {() => <DeleteFace label={off ? say.deleteDiscount : say.deleteCharge} />}
-      </PressTarget>
-    </View>
-  );
-}
-
-type AddProps = { split: Split; me: ParticipantId | null; send: Send; onClose: () => void; /** The kind the form opens on; without one, the first of tax and tip the receipt lacks. */ kind?: ReceiptLevelKind };
-
-/** A missing tax, tip, fee or discount as a form: nothing reaches the Split until Add, so other phones never see it half typed. */
-export function AddAdjustmentSheet({ split, me, send, onClose, kind }: AddProps) {
-  // Minted once, so a retry after a lost answer cannot add the line twice.
-  const [id] = useState(() => adjustmentId(randomId(12)));
-  const [typed, setTyped] = useState<TypedAdjustment & { readonly kind: ReceiptLevelKind }>(() => ({ kind: kind ?? missingKind(split.receipt.adjustments), name: "", amount: "" }));
-  const [problem, setProblem] = useState<AdjustmentProblem | null>(null);
-  const [sending, setSending] = useState(false);
-  const splitRef = useRef(split);
-  useLayoutEffect(() => {
-    splitRef.current = split;
-  });
-  const amountField = useRef<TextInput>(null);
-  const has = (on: Split) => on.receipt.adjustments.some((row) => row.id === id);
-
-  const add = async () => {
-    if (sending) return;
-    if (has(split)) return onClose();
-    const answer = newAdjustment(split, typed, id, me);
-    if (!answer.ok) {
-      setProblem(answer.problem);
-      if (answer.problem === "amount" || answer.problem === "overLimit") amountField.current?.focus();
-      return;
-    }
-    setSending(true);
-    const sent = await send(answer.op);
-    if (sent.ok || has(splitRef.current)) return onClose();
-    setSending(false);
-    setProblem(adjustmentProblem(sent.rejection.reason));
-  };
-
-  const word = say.kinds[typed.kind];
-  return (
-    <View style={styles.sheet} pointerEvents={sending ? "none" : "auto"}>
-      <SheetHeader title={takesOff(typed.kind) ? say.newDiscount : say.newCharge} onClose={onClose} />
-      <AdjustmentFields
-        split={split}
-        typed={typed}
-        onChange={(next) => {
-          setTyped({ ...typed, ...next, kind: next.kind ?? typed.kind });
-          setProblem(null);
-        }}
-        onTidy={() => setTyped((was) => (tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }))}
-        amountField={amountField}
-        onNameDone={() => amountField.current?.focus()}
-        onAmountDone={() => void add()}
-      />
-      <View style={styles.action}>
-        <Button label={say.addKind(word)} busy={sending} outsideScroll onPress={() => void add()} />
-      </View>
-      {/* Always laid out one line tall, so a problem appearing does not resize the sheet. */}
-      <ProblemLine problem={problem} reserve />
-    </View>
-  );
-}
-
-/** The first of tax and tip the receipt lacks, since a reading most often misses one of those; a discount otherwise. */
-function missingKind(rows: readonly Adjustment[]): ReceiptLevelKind {
-  return (["tax", "tip"] as const).find((kind) => !rows.some((row) => row.kind === kind)) ?? "discount";
-}
-
-type FieldsProps = {
-  split: Split;
-  row?: Adjustment;
-  typed: TypedAdjustment;
-  onChange: (next: Partial<TypedAdjustment> & { kind?: ReceiptLevelKind }) => void;
-  /** Writes a readable amount the way a saved one shows, "4" as "4.00", once the field is left. */
-  onTidy: () => void;
-  nameField?: RefObject<TextInput | null>;
-  amountField: RefObject<TextInput | null>;
-  onNameDone: () => void;
-  onAmountDone: () => void;
-};
-
-function AdjustmentFields({ split, row, typed, onChange, onTidy, nameField, amountField, onNameDone, onAmountDone }: FieldsProps) {
-  const c = useColors();
-  const bundle = row?.kind === "bundleDiscount" ? row.bundle : null;
-  const kind = typed.kind;
-  const adding = row === undefined;
-  return (
-    <>
-      {kind === "bundleDiscount" ? null : <Segments options={RECEIPT_LEVEL_KINDS} labels={say.kinds} name={say.kind} value={kind} onChange={(next) => onChange(switchKind(typed, next))} />}
-      <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
-        <TextInput
+      {kind === "bundleDiscount" ? null : <Options options={RECEIPT_LEVEL_KINDS} labels={say.kinds} name={say.kind} value={kind} onChange={(next) => onChange(switchKind(shown, next))} />}
+      <View style={styles.pair}>
+        <LabeledField
           ref={nameField}
-          aria-label={say.adjustmentName}
+          label={say.adjustmentName}
           placeholder={kind === "bundleDiscount" ? say.adjustmentName : say.kinds[kind]}
-          placeholderTextColor={c.muted}
-          value={typed.name}
+          value={shown.name}
           maxLength={MAX_ROW_NAME_LENGTH}
           autoCapitalize="words"
           onChangeText={(name) => onChange({ name })}
           enterKeyHint="next"
           submitBehavior="submit"
-          onSubmitEditing={onNameDone}
-          style={[type.input, styles.field, { color: c.ink }]}
+          onSubmitEditing={() => amountField.current?.focus()}
         />
-        <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
-        <View style={styles.row}>
-          <Text style={[type.caption, styles.rowLabel, { color: c.muted }]}>{takesOff(kind) ? say.amountOff : say.amount}</Text>
-          <Text style={[type.input, { color: c.ink }]}>{takesOff(kind) ? "-$" : "$"}</Text>
-          <TextInput
-            ref={amountField}
-            aria-label={takesOff(kind) ? say.amountOff : say.amount}
-            placeholder={say.pricePlaceholder}
-            placeholderTextColor={c.muted}
-            inputMode="decimal"
-            value={typed.amount}
-            onChangeText={(amount) => onChange({ amount })}
-            enterKeyHint="done"
-            submitBehavior="blurAndSubmit"
-            onSubmitEditing={() => {
-              onTidy();
-              onAmountDone();
-            }}
-            onBlur={onTidy}
-            selectTextOnFocus={!adding}
-            style={[type.input, tabular, styles.amountInput, { color: c.ink }]}
-          />
-        </View>
+        <MoneyField
+          ref={amountField}
+          label={off ? say.amountOff : say.amount}
+          unit={off ? "-$" : "$"}
+          placeholder={say.pricePlaceholder}
+          value={shown.amount}
+          onChangeText={(amount) => onChange({ amount })}
+          enterKeyHint="done"
+          submitBehavior="blurAndSubmit"
+          onSubmitEditing={() => {
+            setTyped((was) => (was.amount === undefined || tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }));
+            flush();
+          }}
+          onBlur={() => setTyped((was) => (was.amount === undefined || tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }))}
+          selectTextOnFocus
+        />
       </View>
-      {bundle ? <Note>{say.bundleDiscountNote(bundle.name, split.receipt.items.filter((item) => bundle.items.includes(item.id)).reduce((units, { quantity = 1 }) => units + quantity, 0))}</Note> : null}
-    </>
-  );
-}
-
-function Note({ children }: { children: ReactNode }) {
-  const c = useColors();
-  return (
-    <View style={styles.note}>
-      <Icon name="bag" size={15} color={c.muted} />
-      <Text style={[type.caption, styles.noteText, { color: c.muted }]}>{children}</Text>
-    </View>
-  );
-}
-
-function ProblemLine({ problem, reserve = false }: { problem: AdjustmentProblem | null; reserve?: boolean }) {
-  const c = useColors();
-  if (!problem && !reserve) return null;
-  return (
-    <Text role="status" style={[type.caption, styles.problem, reserve && { minHeight: type.caption.lineHeight }, { color: c.muted }]}>
-      {problem ? problemText(problem) : ""}
-    </Text>
-  );
-}
-
-function DeleteFace({ label }: { label: string }) {
-  const c = useColors();
-  return (
-    <View style={[styles.wide, { backgroundColor: c.sheetIn }]}>
-      <Icon name="trash" size={18} color={c.danger} />
-      <Text style={[type.body, { color: c.danger }]}>{label}</Text>
+      {bundle ? (
+        <View style={styles.note}>
+          <Icon name="bag" size={15} color={c.muted} />
+          <Text style={[type.caption, styles.noteText, { color: c.muted }]}>
+            {say.bundleDiscountNote(bundle.name, split.receipt.items.filter((item) => bundle.items.includes(item.id)).reduce((units, { quantity = 1 }) => units + quantity, 0))}
+          </Text>
+        </View>
+      ) : null}
+      {problem ? (
+        <Text role="status" style={[type.caption, { color: c.warn }]}>
+          {problemText(problem)}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: { gap: layout.blockGap },
-  group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
-  groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
-  field: { minHeight: layout.field, paddingHorizontal: 16 },
-  row: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingLeft: 16, paddingRight: 6 },
-  rowLabel: { marginRight: "auto" },
-  amountInput: { width: 96, textAlign: "right", minHeight: 44, paddingRight: 10 },
-  note: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 2 },
+  sheet: { gap: 14 },
+  pair: { flexDirection: "row", alignItems: "flex-end", gap: 20, marginTop: 4 },
+  note: { flexDirection: "row", alignItems: "center", gap: 8 },
   noteText: { flexShrink: 1 },
-  action: { marginTop: 4 },
-  problem: { alignSelf: "center", marginTop: -4 },
-  wide: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: layout.field, borderRadius: layout.fieldRadius, marginTop: 4 },
 });
