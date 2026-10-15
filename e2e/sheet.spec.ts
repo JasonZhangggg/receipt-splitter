@@ -266,10 +266,10 @@ test("with a long name, Give the rest and the status share one line inside the I
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt, [venmo], host), browserName);
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: host, exact: true }).click();
   await expect(page.getByTestId("owe")).toBeVisible(live);
-  await settled(page.getByTestId("split-sheet"));
   const sheet = page.getByRole("dialog", { name: "Item" });
   const who = sheet.getByRole("group", { name: "Who had it" });
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  await settled(sheet);
   for (const name of [host, "Sam"]) {
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);

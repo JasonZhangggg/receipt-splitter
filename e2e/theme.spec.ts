@@ -1,5 +1,4 @@
 import { randomInt } from "node:crypto";
-import { menuButton, menuPopover } from "./header";
 import { expect, test, type Page } from "./without-ocr";
 
 test.use({ colorScheme: "light", serviceWorkers: "block" });
