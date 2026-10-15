@@ -295,7 +295,7 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
   await expect(page.getByRole("button", { name: /^Open Gameplay, / })).toHaveAccessibleName("Open Gameplay, $87.75, You, Sam, $43.88 yours");
   await fromMore(page, "History");
   const history = page.getByRole("list", { name: "History" }).getByRole("listitem");
-  await expect(history).toHaveText(["Created the splitas JasonRestore"]);
+  await expect(history).toHaveText(["Created the splitby JasonRestore"]);
   await page.getByRole("dialog", { name: "History" }).getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
@@ -309,7 +309,7 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
 
   await expect(page.getByTestId("owe")).toHaveText("$62.75", live);
   await fromMore(page, "History");
-  await expect(history.first()).toHaveText("Gameplay split evenly → by amountas Jason · Just nowRevert", live);
+  await expect(history.first()).toHaveText("Gameplay split evenly → by amountby Jason · Just nowRevert", live);
 });
 
 test("a By amount edit held back while another phone takes Sam off the Item drops Sam's amount and saves once Jason's own add up", async ({ browser, request, browserName }, { workerIndex }) => {

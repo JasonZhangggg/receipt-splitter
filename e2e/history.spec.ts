@@ -336,7 +336,7 @@ test("Revert on your own change locks from the first tap, so a second tap during
   await sam.goto(link);
   await sam.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
   await expect(sam.getByTestId("owe")).toBeVisible(live);
-  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await editAmount(sam, "Open Tax, $1.00", "Edit tax", "Amount", "3.00");
   await expect(sam.getByTestId("total")).toHaveText("$21.00", live);
 
   await fromMore(sam, "History");

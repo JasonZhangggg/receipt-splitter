@@ -122,6 +122,8 @@ test("Edit item takes Escape from a focused field, and its Price and By amount f
   await expect(sams).toBeFocused();
   await sheet.getByText("Priya", { exact: true }).last().click({ force: true });
   await expect(sheet.getByRole("textbox", { name: "Priya's amount" })).toBeFocused();
+  // A By amount that doesn't add up holds the sheet open, so go back to Evenly before closing.
+  await sheet.getByRole("button", { name: "Evenly", exact: true }).click();
 
   await price.focus();
   await page.keyboard.press("Escape");
