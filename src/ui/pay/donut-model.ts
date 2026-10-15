@@ -20,10 +20,10 @@ export function slices({ shares, unclaimed }: Pick<Shares, "shares" | "unclaimed
     });
 }
 
-export const ring = { size: 200, thickness: 8, gap: 4 } as const;
+export const ring = { size: 168, thickness: 8, gap: 4 } as const;
 
-/** One arc's draw-in: the arcs start 60 ms apart, squeezed so the last one starts within 300 ms. */
-const stagger = (count: number) => Math.min(60, 300 / count);
+/** The draw-in is one clockwise sweep. An arc starts when the sweep reaches its start, so the last one begins within this many ms and equal arcs of a dozen people still begin 30 ms apart or more. */
+const sweepFor = 420;
 
 export type Arc = { id: ParticipantId; dash: string; offset: number; delay: number };
 
@@ -35,11 +35,11 @@ export function arcs(all: readonly Slice[]): Arc[] {
   const radius = (ring.size - ring.thickness) / 2;
   const length = 2 * Math.PI * radius;
   const trim = all.length > 1 ? ring.gap + ring.thickness : 0;
-  return all.map(({ id, start, fraction }, index) => ({
+  return all.map(({ id, start, fraction }) => ({
     id,
     dash: `${Math.max(0, fraction * length - trim)} ${length}`,
     offset: -(start * length + trim / 2),
-    delay: index * stagger(all.length),
+    delay: Math.round(start * sweepFor),
   }));
 }
 

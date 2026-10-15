@@ -64,7 +64,7 @@ describe("slices", () => {
 });
 
 describe("arcs", () => {
-  const length = 2 * Math.PI * 96;
+  const length = 2 * Math.PI * 80;
   const two = [
     { id: ann, cents: 5000, start: 0, fraction: 0.5 },
     { id: bob, cents: 5000, start: 0.5, fraction: 0.5 },
@@ -81,18 +81,20 @@ describe("arcs", () => {
     expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toEqual([{ id: "ann", dash: `${length} ${length}`, offset: -0, delay: 0 }]);
   });
 
-  test("draw one arc after another, 60 ms apart", () => {
+  test("start each arc when the clockwise sweep reaches it", () => {
     const three = [
       { id: ann, cents: 1, start: 0, fraction: 0.3 },
       { id: bob, cents: 1, start: 0.3, fraction: 0.3 },
       { id: cy, cents: 1, start: 0.6, fraction: 0.4 },
     ];
-    expect(arcs(three).map(({ delay }) => delay)).toEqual([0, 60, 120]);
+    expect(arcs(three).map(({ delay }) => delay)).toEqual([0, 126, 252]);
   });
 
-  test("squeeze the stagger so a crowd of arcs still finishes starting within 300 ms", () => {
+  test("a crowd of equal arcs still starts at least 30 ms apart and the last within 420 ms", () => {
     const crowd = Array.from({ length: 12 }, (_, at) => ({ id: participantId(`p${at}`), cents: 1, start: at / 12, fraction: 1 / 12 }));
-    expect(arcs(crowd).map(({ delay }) => delay).at(-1)).toBe(275);
+    const delays = arcs(crowd).map(({ delay }) => delay);
+    expect(delays.at(-1)).toBe(385);
+    expect(Math.min(...delays.slice(1).map((delay, at) => delay - delays[at]))).toBeGreaterThanOrEqual(30);
   });
 
   test("shrink a sliver to a dot rather than a negative length", () => {
