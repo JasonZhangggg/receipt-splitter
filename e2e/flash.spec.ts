@@ -329,23 +329,22 @@ test("Back from a Split page paints home settled from its first frame: the hero,
       localStorage.setItem(`receipt-splitter:split:${split}`, JSON.stringify({ recent: { names: ["Jason", "Sam"], total: 2000, added: now - i * 60_000, seen: now - i * 60_000 } }));
   }, id);
   await page.reload();
-  await tap(page.getByRole("button", { name: "Menu", exact: true }));
-  await tap(page.getByRole("dialog", { name: "Menu" }).getByRole("button", { name: "History", exact: true }));
+  await tap(page.getByRole("button", { name: "Recent splits", exact: true }));
   await tap(page.getByRole("dialog", { name: "Recent splits" }).getByRole("link").first());
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 30_000 });
 
   const layouts = await sample<string | null>(
     page,
     `(() => {
-      const hero = document.evaluate("//*[text()='Add receipt']", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      const hero = document.evaluate("//*[text()='Add the receipt']", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
       if (!hero || hero.getClientRects().length === 0) return null;
-      const icon = document.querySelector('[role="button"][aria-label="Menu"]');
+      const icon = document.querySelector('[role="button"][aria-label^="Switch to"]');
       const top = (el) => (el ? Math.round(el.getBoundingClientRect().top) : null);
-      return JSON.stringify({ hero: top(hero), icon: top(icon), dialog: document.querySelector('[role="dialog"][aria-label="Recent splits"]') !== null, panel: top(document.querySelector("[data-sheet-surface]")) });
+      return JSON.stringify({ hero: top(hero), icon: top(icon), dialog: document.querySelector('[role="dialog"][aria-label="Recent splits"]') !== null });
     })()`,
   );
   await page.goBack();
-  await expect(page.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toBeVisible();
   await page.waitForTimeout(1500);
   expect(runs((await layouts()).filter((layout) => layout !== null))).toHaveLength(1);
 });

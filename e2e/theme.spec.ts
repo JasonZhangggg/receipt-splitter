@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { fromMenu, menuButton, menuPopover } from "./header";
+import { menuButton, menuPopover } from "./header";
 import { expect, test, type Page } from "./without-ocr";
 
 test.use({ colorScheme: "light", serviceWorkers: "block" });
@@ -12,9 +12,13 @@ const toneScript = `(color) => {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? "dark" : "light";
 }`;
 
-const flipTo = (page: Page, mode: "Dark mode" | "Light mode") => fromMenu(page, mode);
-/** The menu offers the mode a flip goes to, so the page is in the other one. */
-async function offers(page: Page, mode: "Dark mode" | "Light mode") {
+/** Home's sun/moon button is named for the mode a press goes to, so the page is in the other one. */
+const toggle = (page: Page, mode: "Dark mode" | "Light mode") => page.getByRole("button", { name: `Switch to ${mode.toLowerCase()}`, exact: true });
+const flipTo = (page: Page, mode: "Dark mode" | "Light mode") => toggle(page, mode).click();
+const offers = (page: Page, mode: "Dark mode" | "Light mode") => expect(toggle(page, mode)).toBeVisible();
+
+/** The Split page's menu offers the mode a flip goes to. */
+async function offersInMenu(page: Page, mode: "Dark mode" | "Light mode") {
   await menuButton(page).click();
   await expect(menuPopover(page).getByRole("button", { name: mode, exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -39,7 +43,7 @@ async function home(page: Page) {
 test("the Dark mode row turns home dark on a light device, status bar included", async ({ page }) => {
   await home(page);
   expect(await ground(page)).toEqual({ background: "light", themeColors: ["light", "dark"], stored: null });
-  expect(await menuButton(page).boundingBox()).toMatchObject({ width: 44, height: 44 });
+  expect(await toggle(page, "Dark mode").boundingBox()).toMatchObject({ width: 44, height: 44 });
   await flipTo(page, "Dark mode");
   await offers(page, "Light mode");
   expect(await ground(page)).toEqual({ background: "dark", themeColors: ["dark", "dark"], stored: "dark" });
@@ -118,7 +122,7 @@ test("the Split page menu ends with the mode row, which flips the page and retur
   await expect(menuPopover(page)).toHaveCount(0);
   await expect(menuButton(page)).toBeFocused();
   await expect.poll(async () => (await ground(page)).background).toBe("dark");
-  await offers(page, "Light mode");
+  await offersInMenu(page, "Light mode");
 });
 
 test("flipping back to the device's own light forgets the pick and follows the device again", async ({ page }) => {
@@ -143,16 +147,15 @@ test("on a dark device, picking light and back to dark forgets the pick", async 
   expect(await ground(page)).toEqual({ background: "dark", themeColors: ["light", "dark"], stored: null });
 });
 
-test("the menu button stays put when Recent splits appears", async ({ page }) => {
+test("the theme toggle stays put when the Recent splits link appears", async ({ page }) => {
   await home(page);
-  const before = await menuButton(page).boundingBox();
+  const before = await toggle(page, "Dark mode").boundingBox();
   await page.evaluate(() =>
     localStorage.setItem("receipt-splitter:split:AnaBenCy00000000000001", JSON.stringify({ recent: { names: ["Ana", "Ben"], total: 990, added: Date.now(), seen: Date.now() } })),
   );
   await page.reload();
-  expect(await menuButton(page).boundingBox()).toEqual(before);
-  await menuButton(page).click();
-  await expect(menuPopover(page).getByRole("button", { name: "History", exact: true })).toBeVisible();
+  expect(await toggle(page, "Dark mode").boundingBox()).toEqual(before);
+  await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toBeVisible();
 });
 
 const countTransitions = () => {
@@ -172,8 +175,7 @@ test.describe("under reduced motion", () => {
   test("a flip under reduced motion swaps the theme in one frame", async ({ page }) => {
     await page.addInitScript(countTransitions);
     await home(page);
-    await menuButton(page).click();
-    const row = menuPopover(page).getByRole("button", { name: "Dark mode", exact: true });
+    const row = toggle(page, "Dark mode");
     const background = await row.evaluate((el, script) => {
       const tone = eval(script) as (color: string) => string;
       (el as HTMLElement).click();
@@ -187,8 +189,11 @@ test.describe("under reduced motion", () => {
 test("a flip reveals the new theme as a 600 ms circle on the new snapshot", async ({ page, browserName }) => {
   test.skip(browserName === "webkit", "Playwright's WebKit does not script View Transition pseudo-element animations.");
   await home(page);
-  await menuButton(page).click();
-  const row = menuPopover(page).getByRole("button", { name: "Dark mode", exact: true });
+  const row = toggle(page, "Dark mode");
+  const center = await row.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return [Math.round(box.left + box.width / 2), Math.round(box.top + box.height / 2)];
+  });
   const reveal = await row.evaluate(
     (el) =>
       new Promise<{ duration: unknown; easing: string; clipPath: unknown[] }>((done) => {
@@ -204,6 +209,7 @@ test("a flip reveals the new theme as a 600 ms circle on the new snapshot", asyn
   );
   expect(reveal.duration).toBe(600);
   expect(reveal.easing).toBe("cubic-bezier(0.32, 0.72, 0, 1)");
-  expect(reveal.clipPath[0]).toMatch(/^circle\(0px at [\d.]+px [\d.]+px\)$/);
+  const [, x, y] = /^circle\(0px at ([\d.]+)px ([\d.]+)px\)$/.exec(String(reveal.clipPath[0]))!;
+  expect(Math.max(Math.abs(Number(x) - center[0]), Math.abs(Number(y) - center[1]))).toBeLessThanOrEqual(1);
   expect(reveal.clipPath[1]).toMatch(/^circle\([\d.]+px at [\d.]+px [\d.]+px\)$/);
 });

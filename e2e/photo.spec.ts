@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { expect, test, type APIRequestContext, type Browser, type Page, type Request } from "@playwright/test";
 
-import { fromMenu, fromMore, moreButton, moreMenu } from "./header";
+import { addNames } from "./files";
+import { fromMore, moreButton, moreMenu } from "./header";
 import { mountHarness } from "./harness";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -54,7 +55,7 @@ const putPhoto = (request: APIRequestContext, id: string, creatorSecret: string,
 async function scan(page: Page) {
   await page.goto("/");
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^(Add|Drop a) receipt/ }).click();
+  await page.getByRole("button", { name: "Add the receipt" }).click();
   await (await chooser).setFiles("e2e/fixtures/topgolf-synthetic.png");
   await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
 }
@@ -66,9 +67,7 @@ async function scanAndCreate(page: Page) {
 
 async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
-  await page.getByRole("button", { name: "Add name" }).click();
-  await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
-  await page.keyboard.press("Enter");
+  await addNames(page, "Jason");
   await page.getByRole("button", { name: "Create split link" }).click();
   await expect(page.getByText("Link ready.")).toBeVisible(live);
 }
@@ -126,7 +125,7 @@ test.describe("on Chromium", () => {
     await guest.context().close();
 
     await page.getByRole("button", { name: "Split a receipt" }).click();
-    await expect(page.getByRole("button", { name: /^(Add|Drop a) receipt/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Share link" })).toHaveCount(0);
   });
 
@@ -139,7 +138,7 @@ test.describe("on Chromium", () => {
     page.on("request", (request) => isPut(request) && puts.push(request));
 
     await scan(page);
-    await fromMenu(page, "History");
+    await page.getByRole("button", { name: "Recent splits", exact: true }).click();
     await page.getByRole("dialog", { name: "Recent splits" }).getByRole("link").first().click();
     await expect(page).toHaveURL(new RegExp(`/s/${earlier.id}$`));
     await page.goBack();

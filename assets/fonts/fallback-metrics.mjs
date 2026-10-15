@@ -35,6 +35,8 @@ function hashedFace(weight) {
   return file;
 }
 
+// The shipped fallback must be no wider than Geist on any runner. Other machines' Arial or Liberation Sans
+// measure up to about 0.02% wider than this one, so size-adjust keeps a 0.1% margin.
 const faces = [400, 500].map((weight) => ({
   file: hashedFace(weight),
   weight,
@@ -68,7 +70,7 @@ for (const face of faces) {
       };
       const web = await measure(`web-${weight}`, data);
       const fallback = await measure(`fallback-${weight}`, `local("${local}")`);
-      const sizeAdjust = Math.floor(Math.min(...web.widths.map((width, i) => width / fallback.widths[i])) * 10000) / 10000;
+      const sizeAdjust = Math.floor(0.999 * Math.min(...web.widths.map((width, i) => width / fallback.widths[i])) * 10000) / 10000;
       const descriptors = {
         sizeAdjust: `${(sizeAdjust * 100).toFixed(2)}%`,
         ascentOverride: `${((web.ascent / sizeAdjust) * 100).toFixed(2)}%`,

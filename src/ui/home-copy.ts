@@ -6,40 +6,38 @@ import type { ReadingStage } from "./receipt-input/reading";
 
 export const copy = {
   wordmark: "SplitWith",
-  shareApp: "Share SplitWith",
-  example: "Example",
-  hero: {
-    phone: { title: "Add receipt", hint: null },
-    desktop: { title: "Drop a receipt", hint: "Choose a photo, or paste one" },
-  },
-  reading: "Reading receipt",
+  intro: "Snap the receipt. Friends tap what they had and pay you back.",
+  hero: { title: "Add the receipt", file: "or choose a file", drop: "Drop or paste a photo here" },
+  reading: "Reading the receipt",
   readingStage: {
     text: "Finding the text",
-    server: "Matching items to prices",
+    server: "Matching prices",
     slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
   pastedPhoto: "Pasted photo",
-  formats: "JPEG, PNG, or WebP",
+  receipt: "Receipt",
+  payHeading: "How friends pay you",
   paymentApp: "Payment app",
-  addApp: "Another way to get paid",
-  optional: "*optional",
-  people: "People at the table",
+  addApp: "Add another way to get paid",
+  peopleHeading: "Who\u2019s at the table",
   you: "you",
-  addName: { label: "Add", name: "Add a name" },
-  addYourName: "Add name",
+  addYourName: "Add your name",
+  addName: "Add name",
   yourName: "Your name",
+  newName: "Name",
   action: "Create split link",
   creating: "Creating link",
-  replace: "Replace receipt",
+  replace: "Replace",
+  replaceReceipt: "Replace receipt",
   viewPhoto: "View receipt photo",
   closePhoto: "Close photo",
   removeName: (name: string) => `Remove ${name}`,
-  newName: "Name",
   removeApp: (app: string) => `Remove ${app}`,
-  menu: "Menu",
+  recentSplits: "Recent splits",
   mode: { light: "Light mode", dark: "Dark mode" } satisfies Record<Scheme, string>,
-  history: "History",
+  themeToggle: { light: "Switch to light mode", dark: "Switch to dark mode" } satisfies Record<Scheme, string>,
+
 };
 
 export const createCopy = {
@@ -81,7 +79,7 @@ export function blockerText(found: Blocker | Ready): string | null {
     case "note":
       return found.note;
     case "noName":
-      return "Add your name.";
+      return "Add your name first.";
     case "badHandle":
       return handleReason(found.service, found.problem);
   }
@@ -135,9 +133,7 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
   zelle: { name: "Zelle", glyph: "Z", hint: "Email or phone" },
 };
 
-const { phone, desktop } = copy.hero;
-
 export const fallbackSamples = {
-  400: [copy.example, desktop.hint, copy.formats, paymentApps.venmo.name, copy.addYourName, copy.action, copy.optional],
-  500: [copy.wordmark, paymentApps.venmo.glyph, phone.title, desktop.title],
+  400: [copy.intro, copy.hero.file, copy.hero.drop, copy.addApp, copy.addYourName, "Add a receipt first."],
+  500: [copy.wordmark, copy.hero.title, copy.payHeading, copy.peopleHeading, copy.action],
 };

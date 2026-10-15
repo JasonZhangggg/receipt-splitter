@@ -1,4 +1,4 @@
-import { openExample } from "./files";
+import { addNames, openExample } from "./files";
 import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -18,11 +18,7 @@ async function readyHome(page: Page, names: string[] = []) {
   await page.goto("/");
   await openExample(page);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
-  for (const [index, name] of ["Jason", ...names].entries()) {
-    await page.getByRole("button", { name: index === 0 ? "Add name" : "Add a name" }).click();
-    await page.getByRole("textbox", { name: index === 0 ? "Your name" : "Name", exact: true }).fill(name);
-    await page.keyboard.press("Enter");
-  }
+  await addNames(page, "Jason", ...names);
 }
 
 async function createLink(page: Page): Promise<string> {
@@ -42,15 +38,12 @@ const rows = (page: Page) => page.getByRole("dialog", { name: "Which one are you
 
 test("a name already in the draft is refused with a note, and editing it clears the note", async ({ page }) => {
   await readyHome(page, ["Sam"]);
-  const people = page.getByRole("group", { name: "People at the table" });
+  const people = page.getByRole("region", { name: "Who’s at the table" });
 
-  await page.getByRole("button", { name: "Add a name" }).click();
-  await page.getByRole("textbox", { name: "Name", exact: true }).fill("sam ");
-  await page.keyboard.press("Enter");
+  await addNames(page, "sam ");
   await expect(page.getByRole("alert")).toHaveText("That name is already here.");
   await expect(people.getByText("Sam", { exact: true })).toHaveCount(1);
 
-  await page.getByRole("button", { name: "Add a name" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Sami");
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.keyboard.press("Enter");
@@ -59,12 +52,8 @@ test("a name already in the draft is refused with a note, and editing it clears 
 
 test("a name that draws nothing adds no chip and no note, and removing the chip a note is about clears the note", async ({ page }) => {
   await readyHome(page, ["Sam"]);
-  const people = page.getByRole("group", { name: "People at the table" });
-  const add = async (name: string) => {
-    await page.getByRole("button", { name: "Add a name" }).click();
-    await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
-    await page.keyboard.press("Enter");
-  };
+  const people = page.getByRole("region", { name: "Who’s at the table" });
+  const add = (name: string) => addNames(page, name);
 
   await add("\u200B");
   await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(2);
@@ -126,13 +115,13 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   await expect(lee.getByRole("button", { name: "Lee, you", exact: true })).toBeVisible();
 
   await page.goBack();
-  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
-  const people = page.getByRole("group", { name: "People at the table" });
+  const people = page.getByRole("region", { name: "Who’s at the table" });
   await expect(people.getByText("Jason", { exact: true })).toHaveCount(0);
   await expect(people.getByText("Lee", { exact: true })).toHaveCount(0);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
 
   await lee.reload();
@@ -150,9 +139,9 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
-  await expect(page.getByRole("group", { name: "People at the table" }).getByText("Jason", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Who’s at the table" }).getByText("Jason", { exact: true })).toHaveCount(0);
 
   await page.goto(link);
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toBeVisible(linkTimeout);
@@ -161,21 +150,19 @@ test("the wordmark on the Split page opens a fresh home that keeps the Venmo han
 
 test("a reload of home clears the receipt and the names, and the kept Venmo handle creates the next link", async ({ page }) => {
   await readyHome(page, ["Sam"]);
-  const people = page.getByRole("group", { name: "People at the table" });
+  const people = page.getByRole("region", { name: "Who’s at the table" });
   await expect(page.getByTestId("receipt")).toBeVisible();
   await expect(people.getByText("Sam", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "Add receipt" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("jason-z");
   await expect(page.getByTestId("receipt")).toHaveCount(0);
   await expect(people.getByText("Jason", { exact: true })).toHaveCount(0);
   await expect(people.getByText("Sam", { exact: true })).toHaveCount(0);
 
   await openExample(page);
-  await page.getByRole("button", { name: "Add name" }).click();
-  await page.getByRole("textbox", { name: "Your name", exact: true }).fill("Jason");
-  await page.keyboard.press("Enter");
+  await addNames(page, "Jason");
   const sent = page.waitForRequest((request) => request.method() === "POST" && new URL(request.url()).pathname === "/api/splits");
   await createLink(page);
   expect((await sent).postDataJSON().split.paymentHandles).toEqual([{ service: "venmo", handle: "jason-z" }]);
@@ -233,8 +220,8 @@ test("a receipt replaced while the link is being created stays on home and finis
 
   await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
   await page.goBack();
-  await expect(page.getByText("0 items")).toBeVisible(linkTimeout);
-  await expect(page.getByText("Reading receipt")).toHaveCount(0);
+  await expect(page.getByText("5 items")).toBeVisible(linkTimeout);
+  await expect(page.getByText("Reading the receipt")).toHaveCount(0);
 });
 
 test("a refused create shows one reason and enables Create split link again", async ({ page }) => {

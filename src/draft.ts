@@ -1,6 +1,6 @@
 import { cents, MAX_CENTS, price, type Cents } from "./core/money";
 import { canonicalName, handleProblem, isName, MAX_ADJUSTMENTS, MAX_ITEMS, MAX_PARTICIPANT_NAME_LENGTH, MAX_ROW_NAME_LENGTH, nameKey, type HandleProblem, type NewSplit, type RejectionReason } from "./core/operations";
-import { adjustmentId, itemId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
+import { adjustmentId, PAYMENT_SERVICES, type Adjustment, type Item, type NonEmpty, type ParticipantId, type PaymentHandle, type PaymentService, type Receipt } from "./core/split";
 import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 
 export type ReceiptFile = { readonly name: string; readonly thumbnail: string | null };
@@ -18,7 +18,6 @@ export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[
 export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
   | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true }
-  | { readonly type: "example" }
   | { readonly type: "created" }
   | { readonly type: "setService"; readonly index: number; readonly service: PaymentService }
   | { readonly type: "setHandle"; readonly index: number; readonly handle: string }
@@ -60,8 +59,6 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
       return { ...draft, scan: { status: "reading", file: action.file } };
     case "read":
       return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.totalUnread && { totalUnread: true as const }) } };
-    case "example":
-      return { ...draft, scan: { status: "read", file: { name: "Example receipt", thumbnail: null }, receipt: sendable(example1040) } };
     case "created":
       return { ...emptyDraft, handles: draft.handles };
     case "setService":
@@ -140,22 +137,6 @@ function sendable(read: Receipt): Receipt | null {
   return { items, adjustments: withTip, subtotal, total };
 }
 
-const example1040: Receipt = {
-  items: [
-    { id: itemId("i1"), name: "Chicken Fried Rice And Egg", price: price(799) },
-    { id: itemId("i2"), name: "California Tropic And Miso", price: price(799) },
-    { id: itemId("i3"), name: "Add Two Tostones", price: price(100) },
-    { id: itemId("i4"), name: "Sprite", price: price(250) },
-    { id: itemId("i5"), name: "Perrier Sparkling Water", price: price(350) },
-  ],
-  adjustments: [
-    { id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(161) },
-    { id: adjustmentId("a2"), kind: "serviceCharge", name: "Service fees on tables", amount: cents(345) },
-  ],
-  subtotal: cents(2298),
-  total: cents(2804),
-};
-
 export const filledHandles = (handles: readonly HandleRow[]): PaymentHandle[] =>
   handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
 
@@ -205,7 +186,7 @@ export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonl
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
 export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
-  if (scan.status === "empty") return note("Add a receipt.");
+  if (scan.status === "empty") return note("Add a receipt first.");
   if (scan.status === "reading") return note("Reading the receipt.");
   if (!scan.receipt) return note("Couldn't read any items. Try another photo.");
   const { items, adjustments } = scan.receipt;

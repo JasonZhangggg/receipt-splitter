@@ -67,7 +67,7 @@ describe("readiness", () => {
       noName: reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
       ready: reasonOf(ready),
     }).toEqual({
-      noReceipt: "Add a receipt.",
+      noReceipt: "Add a receipt first.",
       reading: "Reading the receipt.",
       noName: { kind: "noName" },
       ready: null,
@@ -197,8 +197,9 @@ describe("a reload of home", () => {
   test("lets a kept handle create the link once a Receipt and a name are back", () => {
     const storage = new MemoryStorage();
     saveDraft(withVenmo(read1040()), storage);
-    const again = run(loadDraft(storage), { type: "example" }, { type: "addName", name: "Jason" });
-    expect(readiness(again)).toMatchObject({ kind: "ready", paymentHandles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
+    const again = read1040(loadDraft(storage));
+    const named = run(again, { type: "addName", name: "Jason" });
+    expect(readiness(named)).toMatchObject({ kind: "ready", paymentHandles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
   });
 
   test("keeps only the handles of a full Draft the previous build saved", () => {
@@ -488,23 +489,6 @@ describe("a read the Split would refuse as it is", () => {
   test("calls a Bundle read with no name by its place among the Bundles", () => {
     const sent = sentOf(server(["i|Fries|500", "b|Wings", ">i|Wings|900", ">d|Wing deal|100", "b|", ">i|Soda|300", ">i|Pie|200", ">d|Combo off|100", "tot|1400"])!);
     expect(sent.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? [row.bundle.name] : []))).toEqual(["Wings", "Bundle 2"]);
-  });
-});
-
-describe("the Example", () => {
-  test("is SRD receipt 1040 as its checked label reads, and keeps the Host's handles", () => {
-    const draft = run(withVenmo(emptyDraft), { type: "example" });
-    expect(draft.handles).toEqual([{ service: "venmo", handle: "@jason-z" }]);
-    expect(draft.scan.status === "read" && draft.scan.file).toEqual({ name: "Example receipt", thumbnail: null });
-    expect(itemsOf(draft).map(({ name, price }) => `${name} ${price}`)).toEqual([
-      "Chicken Fried Rice And Egg 799",
-      "California Tropic And Miso 799",
-      "Add Two Tostones 100",
-      "Sprite 250",
-      "Perrier Sparkling Water 350",
-    ]);
-    expect(draft.scan.status === "read" && [draft.scan.receipt?.subtotal, draft.scan.receipt?.total]).toEqual([2298, 2804]);
-    expect(reasonOf(draft)).toBeNull();
   });
 });
 

@@ -39,8 +39,7 @@ a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
 @media (any-pointer: fine) {
   :is(input, textarea):focus-visible:not([data-field] *), [data-field]:has(:is(input, textarea):focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
 }
-[data-app-picker]:has(select:focus-visible) [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
-[data-app-picker]:has(select:focus-visible) [data-press-face][data-round] { border-radius: 20px; outline-color: var(--on-action); outline-offset: -2px; }
+:is(input, textarea)[data-underline]:focus-visible { outline: none; }
 ${iconCss}`;
 }
 

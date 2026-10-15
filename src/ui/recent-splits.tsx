@@ -19,7 +19,7 @@ const popoverWidth = 360;
 const popoverGap = 6;
 const popoverOut = 150;
 
-/** The list of stored Splits, opened from the header menu's History row. It hangs from the menu button, and the page gives focus back to that button when it is gone. */
+/** The list of stored Splits, opened from the header's "Recent splits" link. It hangs from the link, and the page gives focus back to it when the list is gone. */
 export function RecentSplits({ splits, now, wide, from, closing, onClose, onGone }: Props) {
   const [anchor] = useState<Anchor>(() => {
     const box = from.trigger.getBoundingClientRect();
@@ -83,7 +83,7 @@ function Popover({ anchor, closing, onClose, onGone, children }: { anchor: Ancho
         ref={surface}
         role="dialog"
         aria-label={say.title}
-        style={[styles.popover, origin, { top: anchor.top, right: anchor.right, maxHeight, backgroundColor: c.sheet, boxShadow: c.cardLift, borderColor: c.hairline }]}
+        style={[styles.popover, origin, { top: anchor.top, right: anchor.right, maxHeight, backgroundColor: c.sheet, boxShadow: c.popShadow, borderColor: c.hairline }]}
       >
         <ScrollView style={contain} contentContainerStyle={styles.popoverContent}>
           {children}
