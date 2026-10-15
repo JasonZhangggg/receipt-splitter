@@ -47,6 +47,22 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   return { ...pending, ...next, values: reshaped ? (next.values ?? []) : values };
 }
 
+/** The part of an edit that sets how the price divides. It is sent only once the amounts add up to the price. */
+function divide({ by, values, price, ...rest }: ItemEdit): { readonly sendable: ItemEdit; readonly held: ItemEdit } {
+  return { sendable: rest, held: { ...(by !== undefined && { by }), ...(values !== undefined && { values }), ...(price !== undefined && { price }) } };
+}
+
+/** What each By amount field holds as typed: the edit's last value for the person, else the Item's. */
+function typedAmounts(parts: readonly (readonly [ParticipantId, number])[], edit: ItemEdit): { participantId: ParticipantId; cents: number }[] {
+  return parts.map(([participantId, cents]) => ({ participantId, cents: edit.values?.findLast((value) => value.participantId === participantId)?.value ?? cents }));
+}
+
+function holdsBack(seen: Split, itemId: ItemId, edit: ItemEdit, last: ParticipantId | null): boolean {
+  const row = seen.receipt.items.find(({ id }) => id === itemId);
+  if (!row || row.split.by !== "amount" || row.split.units[0].length === 0 || Object.keys(divide(edit).held).length === 0) return false;
+  return amountStatus(row.price, typedAmounts(row.split.units[0], edit), last).by !== "exact";
+}
+
 function showsAsBefore(item: SplitItem, edit: ItemEdit): boolean {
   const { name, detail, values = [], ...rest } = edit;
   if (values.length > 0 || Object.keys(rest).length > 0) return false;
@@ -93,13 +109,19 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
 
   const patch = (edit: ItemEdit): Operation => ({ by: me, type: "editReceipt", items: [{ type: "edit", itemId, ...edit }] });
   const live = split.receipt.items.find(({ id }) => id === itemId);
-  const unconfirmed = leavingFrom ? {} : [...sent, pending].reduce(merge, {});
+  // An amount typed for someone who is no longer on the Item, such as after another device unclaims them, goes with them.
+  const claimers = live ? claimersOf(live.split) : [];
+  const merged = [...sent, pending].reduce(merge, {});
+  const unconfirmed: ItemEdit = leavingFrom ? {} : merged.values ? { ...merged, values: merged.values.filter(({ participantId }) => claimers.includes(participantId)) } : merged;
   const tried = live && Object.keys(unconfirmed).length > 0 ? applyOperation(split, patch(unconfirmed), { creator: false }) : null;
   const refusal = tried && !tried.ok ? tried.rejection.reason : null;
   // Amounts over the price save nothing, but the sheet still shows the rest of the edit, such as the switch to By amount, while the fields keep what was typed.
   const preview = refusal === "amountOverPrice" ? applyOperation(split, patch({ ...unconfirmed, values: [] }), { creator: false }) : tried;
   const seen = preview?.ok ? preview.split : split;
   const item: SplitItem | undefined = seen.receipt.items.find(({ id }) => id === itemId);
+  const lastTyped = unconfirmed.values?.at(-1)?.participantId ?? null;
+  // A By amount split that does not add up to the price is never stored: the previous split and its shares stay, and nothing reaches the server or History, until it adds up.
+  const holding = holdsBack(seen, itemId, unconfirmed, lastTyped);
 
   if (last !== current) {
     setLast(current);
@@ -112,15 +134,15 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   }
 
   const flush = () => {
-    if (Object.keys(pending).length === 0 || refusal || leavingFrom) return;
+    const { sendable: sending, held: keeping } = holding ? divide(pending) : { sendable: pending, held: {} };
+    if (Object.keys(sending).length === 0 || (refusal && !holding) || leavingFrom) return;
     const withSent = live && sent.length > 0 ? applyOperation(split, patch(sent.reduce(merge, {})), { creator: false }) : null;
     const base = withSent?.ok ? withSent.split.receipt.items.find(({ id }) => id === itemId) : live;
-    if (base && showsAsBefore(base, pending)) {
-      setPending({});
+    if (base && showsAsBefore(base, sending)) {
+      setPending(keeping);
       return;
     }
-    const sending = pending;
-    setPending({});
+    setPending(keeping);
     setSent((was) => [...was, sending]);
     void send(patch(sending)).then(({ ok }) => {
       setSent((was) => was.filter((edit) => edit !== sending));
@@ -229,7 +251,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   };
   const note = bundleNote(seen.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
-  const typed = lineAmounts(item).map(({ participantId, cents }) => ({ participantId, cents: unconfirmed.values?.findLast((value) => value.participantId === participantId)?.value ?? cents }));
+  const typed = typedAmounts(lineAmounts(item).map(({ participantId, cents }) => [participantId, cents] as const), unconfirmed);
   const fill = (participantId: ParticipantId, cents: number) => {
     forget((field) => field === participantId);
     edit({ values: [{ participantId, value: cents }] });
@@ -244,7 +266,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   const body = (shownItem: SplitItem, shownParts: Typed, as: Typed, editable: boolean) => (
     <>
       <SplitRows key={editable ? fields : undefined} item={shownItem} parts={shownParts} nameOf={nameOf} edit={editable ? edit : noEdit} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} />
-      <StatusLine item={shownItem} typed={as} nameOf={nameOf} onFill={editable ? fill : undefined} />
+      <StatusLine item={shownItem} typed={as} last={editable ? lastTyped : null} unsaved={editable && holding} nameOf={nameOf} onFill={editable ? fill : undefined} />
     </>
   );
 
@@ -423,13 +445,13 @@ function amountProblem(field: AmountField, problem: "price" | "overLimit"): stri
   return problem === "price" ? say.adjustmentProblem.amount : say.adjustmentProblem.overLimit(maxAmount);
 }
 
-type StatusProps = { item: SplitItem; typed: Typed; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void };
+type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; unsaved: boolean; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void };
 
 /** Where the split stands: a tick when it adds up, a warning with the gap when a By amount split does not. */
-function StatusLine({ item, typed, nameOf, onFill }: StatusProps) {
+function StatusLine({ item, typed, last, unsaved, nameOf, onFill }: StatusProps) {
   const c = useColors();
   const people = lineAmounts(item).length;
-  const amounts = item.split.by === "amount" && people > 0 ? amountStatus(item.price, typed) : null;
+  const amounts = item.split.by === "amount" && people > 0 ? amountStatus(item.price, typed, last) : null;
   const off = amounts !== null && amounts.by !== "exact";
   const words =
     people === 0
@@ -441,7 +463,7 @@ function StatusLine({ item, typed, nameOf, onFill }: StatusProps) {
           : amounts.by === "over"
             ? say.overThePrice(money(amounts.over))
             : say.leftToAssign(money(amounts.left));
-  const to = amounts?.by === "left" ? amounts.fillsInto : null;
+  const fillWith = amounts !== null && amounts.by !== "exact" ? amounts.fill : null;
   return (
     <View style={styles.status}>
       <View style={styles.statusWords}>
@@ -449,9 +471,9 @@ function StatusLine({ item, typed, nameOf, onFill }: StatusProps) {
         <Text testID={amounts ? "amount-status" : undefined} numberOfLines={1} style={[type.caption, tabular, styles.statusText, { color: off ? c.warn : c.muted }]}>
           {words}
         </Text>
-        {amounts?.by === "over" ? <Text style={[type.caption, { color: c.warn }]}>{say.notSaved}</Text> : null}
+        {unsaved ? <Text style={[type.caption, { color: c.warn }]}>{say.notSaved}</Text> : null}
       </View>
-      {amounts?.by === "left" && to !== null && onFill ? <TextLink label={say.giveTheRest(nameOf(to))} name={say.giveTheRestName(nameOf(to), money(amounts.left))} outsideScroll onPress={() => onFill(to, amounts.left)} /> : null}
+      {fillWith && onFill ? <TextLink label={say.giveTheRest(nameOf(fillWith.participantId))} name={say.giveTheRestName(nameOf(fillWith.participantId), money(fillWith.cents))} outsideScroll onPress={() => onFill(fillWith.participantId, fillWith.cents)} /> : null}
     </View>
   );
 }

@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { fromMore } from "./header";
 import { snapAt } from "../src/ui/components/sheet-motion";
 
 test.setTimeout(90_000);
@@ -258,6 +259,84 @@ test("By amount says what is left to assign as amounts are typed, and Give the r
   await expect(sheet.getByTestId("amount-status")).toHaveText("All $87.75 assigned", live);
   await expect(sheet.getByRole("textbox", { name: "Jason's amount" })).toHaveValue("62.75");
   await expect(sheet.getByRole("textbox", { name: "Sam's amount" })).toHaveValue("25.00");
+});
+
+test("By amount that is blank or over the price saves nothing: the Item stays Evenly, the footer and History do not change, and Give the rest is offered when over", async ({ browser, request, browserName }, { workerIndex }) => {
+  const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 8775 }], adjustments: [], subtotal: 8775, total: 8775 };
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
+  await pickJason(page);
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
+  const who = sheet.getByRole("group", { name: "Who had it" });
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  for (const name of ["Jason", "Sam"]) {
+    await who.getByRole("button", { name, exact: true }).click();
+    await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
+  }
+  await expect(page.getByTestId("owe")).toHaveText("$43.88", live);
+  const status = sheet.getByTestId("amount-status");
+
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await expect(status).toHaveText("$87.75 left to assign", live);
+  await expect(sheet.getByText("Not saved")).toBeVisible();
+  await page.waitForTimeout(1200);
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
+  await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("70");
+  await expect(status).toHaveText("$7.25 over the price");
+  await expect(sheet.getByText("Not saved")).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Give Jason the rest, $62.75" })).toBeVisible();
+  await page.waitForTimeout(1200);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await expect(page.getByTestId("owe")).toHaveText("$43.88");
+  await expect(page.getByRole("button", { name: /^Open Gameplay, / })).toHaveAccessibleName("Open Gameplay, $87.75, You, Sam, $43.88 yours");
+  await fromMore(page, "History");
+  const history = page.getByRole("list", { name: "History" }).getByRole("listitem");
+  await expect(history).toHaveText(["Created the splitas JasonRestore"]);
+  await page.getByRole("dialog", { name: "History" }).getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
+  await sheet.getByRole("button", { name: "Give Jason the rest, $62.75" }).click();
+  await expect(status).toHaveText("All $87.75 assigned");
+  await expect(sheet.getByText("Not saved")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await expect(page.getByTestId("owe")).toHaveText("$62.75", live);
+  await fromMore(page, "History");
+  await expect(history.first()).toHaveText("Gameplay split evenly → by amountas Jason · Just nowRevert", live);
+});
+
+test("a By amount edit held back while another phone takes Sam off the Item drops Sam's amount and saves once Jason's own add up", async ({ browser, request, browserName }, { workerIndex }) => {
+  const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 8775 }], adjustments: [], subtotal: 8775, total: 8775 };
+  const link = await createSplit(request, workerIndex, browserName, receipt);
+  const page = await open(browser, link, browserName);
+  await pickJason(page);
+  const other = await open(browser, link, browserName);
+  await other.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(other.getByTestId("owe")).toBeVisible(live);
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
+  const who = sheet.getByRole("group", { name: "Who had it" });
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  for (const name of ["Jason", "Sam"]) {
+    await who.getByRole("button", { name, exact: true }).click();
+    await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
+  }
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$62.75 left to assign");
+
+  await other.getByRole("button", { name: "Gameplay, check for Sam" }).click();
+  await expect(sheet.getByRole("textbox", { name: "Sam's amount" })).toHaveCount(0, live);
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$87.75 left to assign");
+  await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("87.75");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("All $87.75 assigned");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByTestId("owe")).toHaveText("$87.75", live);
+  await expect(other.getByTestId("owe")).toHaveText("$0.00", live);
 });
 
 test("with a long name, Give the rest wraps under the status instead of truncating, inside the Item sheet", async ({ browser, request, browserName }, { workerIndex }) => {
