@@ -16,7 +16,7 @@ The operator made these calls while iterating. They win over older design docs a
 2. Color carries state only. Red marks a problem (a split over or under its price, the reason Create is blocked) and the trash icon while pressed. Green marks "Paid" in the Payments sheet only. The footer's "✓ Paid" pill is neutral (operator, 2026-10-15). The trash icon is gray at rest.
 3. Icons come from heroicons-animated (MIT), outline, about 1.6 to 1.9 stroke. Each plays a short motion on tap on the phone and on hover with a mouse. A press right after a hover lets the hover's motion finish. Status icons (the tick, the warning) play when they appear. Reduced motion turns every icon motion off.
 4. The theme toggle is a sun/moon button. The icons swap with a rotate and scale, and the new theme spreads from the button as a circle (View Transitions API, with a color wipe as the fallback, instant under reduced motion).
-5. Sheets slide up from the bottom and can be dragged: pull up for a tall sheet (94% of the screen), pull down past about 110 px to close. Rounded top corners, a gray hairline border, and no dimming of the page behind.
+5. Sheets slide up from the bottom and can be dragged: pull up for a tall sheet (94% of the screen), pull down past about 110 px to close. Rounded top corners, a gray hairline border, and a light dim over the whole page behind, header and footer included (operator, 2026-10-15; rule 92). The dim fades in with the sheet, follows a drag, and is gone when the sheet has left. A tap on it closes the sheet.
 6. In the app, an action applies the moment it is tapped. A button that leaves the screen finishes its icon motion as it exits. The mock's 0.4 to 0.56 s wait before delete and revert is a mock shortcut, not the spec.
 
 ### Split page

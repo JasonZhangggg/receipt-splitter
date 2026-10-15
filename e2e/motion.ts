@@ -524,7 +524,8 @@ const heading = (name: string) => `[...document.querySelectorAll('[role="heading
 
 const splitTop: Probe = { key: "sheet", find: testId("split-sheet"), kind: "top" };
 const breakdownFade: Probe = { key: "breakdown", find: testId("breakdown"), kind: "opacity" };
-const payProbes: Probe[] = [{ key: "pay", find: testId("breakdown"), kind: "top" }];
+const sheetDim: Probe = { key: "dim", find: testId("sheet-dim"), kind: "opacity" };
+const payProbes: Probe[] = [{ key: "pay", find: testId("breakdown"), kind: "top" }, sheetDim];
 const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-controls]')`;
 const bundleProbes: Probe[] = [
   { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
@@ -535,6 +536,7 @@ const bundleProbes: Probe[] = [
 ];
 const itemProbes: Probe[] = [
   { key: "item", find: testId("item-sheet"), kind: "top" },
+  sheetDim,
   splitTop,
 ];
 const chipProbes: Probe[] = [
