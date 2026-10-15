@@ -74,6 +74,12 @@ async function create(page: Page) {
 
 const isPut = (request: Request) => request.method() === "PUT" && request.url().endsWith("/photo");
 const photoRow = (page: Page) => page.getByRole("button", { name: "Receipt", exact: true });
+const receiptSheet = (page: Page) => page.getByRole("dialog", { name: "Receipt", exact: true });
+/** The Receipt link opens a sheet with the photo; a tap on the photo opens the full-screen viewer. */
+async function viewPhoto(page: Page) {
+  await photoRow(page).click();
+  await receiptSheet(page).getByRole("button", { name: "Open the receipt photo" }).click();
+}
 const historyLink = (page: Page) => page.getByRole("button", { name: "History", exact: true });
 
 /** Closes the pick sheet so the underlined links show, the Receipt link among them while the Split has a photo. */
@@ -113,7 +119,7 @@ test.describe("on Chromium", () => {
     expect({ underCap: body.length <= 150 * KB, metadata: metadata(body) }).toEqual({ underCap: true, metadata: [] });
 
     const guest = await openAsGuest(browser, page.url());
-    await fromMore(guest, "Receipt photo");
+    await viewPhoto(guest);
     const shown = guest.getByRole("img", { name: "Receipt" });
     await expect(shown).toBeVisible();
     const served = await guest.request.get(new URL(page.url()).pathname.replace(/^\/s\//, "/api/splits/") + "/photo");
@@ -256,11 +262,17 @@ for (const width of [390, 1440]) {
     await expect(historyLink(page), "History hands focus back").toBeFocused();
 
     await fromMore(page, "Receipt photo");
+    await expect(receiptSheet(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(receiptSheet(page)).toHaveCount(0, live);
+    await expect(photoRow(page), "the Receipt sheet hands focus back").toBeFocused();
+
+    await viewPhoto(page);
     await expect(shown).toBeVisible();
     await expect(page.getByRole("button", { name: "Close photo" }), "the viewer holds focus before Escape").toBeFocused();
     await page.keyboard.press("Escape");
     await expect(shown).toHaveCount(0, live);
-    await expect(photoRow(page), "the photo hands focus back").toBeFocused();
+    await expect(receiptSheet(page), "Escape closes the viewer and leaves the sheet under it").toBeVisible();
 
   });
 }

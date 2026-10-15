@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { payState, paymentStatus, shareStatus, statusWords } from "./model";
+import { payState, paymentStatus, pickedRow, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -128,5 +128,18 @@ describe("paymentStatus", () => {
       return paymentStatus(split, computeShares(split), jason).rows[1].words;
     };
     expect([wordsFor({ by: "even", units: [[sam]] }), wordsFor({ by: "even", units: [[sam, priya]] })]).toEqual(["Paid $12.00", "Paid $12.00 · $6.00 too much"]);
+  });
+});
+
+describe("pickedRow", () => {
+  const rows = ["jason", "sam", "priya"].map((id) => ({ id: participantId(id), name: id })) as unknown as Parameters<typeof pickedRow>[0];
+  const [jason, sam, priya] = rows.map(({ id }) => id);
+
+  test("shows the person tapped, else the viewer's own row, else the first row", () => {
+    expect([pickedRow(rows, sam, priya), pickedRow(rows, null, priya), pickedRow(rows, null, null)].map((row) => row.id)).toEqual([sam, priya, jason]);
+  });
+
+  test("falls back to the viewer when the person tapped was removed from the Split", () => {
+    expect(pickedRow(rows.filter(({ id }) => id !== sam), sam, priya).id).toBe(priya);
   });
 });

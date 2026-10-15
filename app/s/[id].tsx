@@ -22,7 +22,7 @@ import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
 import { AddSheet } from "../../src/ui/item-sheet/add";
-import { PhotoViewer } from "../../src/ui/photo-viewer";
+import { PhotoViewer, ReceiptSheet } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { SplitHeader } from "../../src/ui/split-view/header";
 import { circleTap, linesNear } from "../../src/ui/split-view/model";
@@ -92,6 +92,7 @@ type OverlayKind =
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
   | { readonly kind: "history" }
+  | { readonly kind: "receipt" }
   | { readonly kind: "people" }
   | { readonly kind: "pay" }
   | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
@@ -107,7 +108,7 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
       ? say.discount
       : say.charge
-    : { item: say.editItem, add: say.addMenu, history: say.history, payments: say.payments, people: say.people, pay: title }[overlay.kind];
+    : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
 
@@ -316,10 +317,10 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     trigger?.focus({ preventScroll: true });
   };
   // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay and People sheets close when this phone loses its name.
-  const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
+  const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null)) || (overlay?.kind === "receipt" && !photo);
   if (viewerGone && !closing) setClosing(true);
   // Escape closes the person menu over the People sheet first, and the sheet on the next press.
-  useEscape(overlay !== null && !closing && (menu === null || menu.closing), closeOverlay);
+  useEscape(overlay !== null && !closing && !viewing && (menu === null || menu.closing), closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);
@@ -416,6 +417,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           {payProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
         </>
       ) : null
+    ) : overlay.kind === "receipt" ? (
+      <ReceiptSheet uri={photoUrl} onOpen={() => setViewing(true)} onClose={closeOverlay} />
     ) : (
       <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
@@ -478,7 +481,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           <SplitIntro
             host={host.name}
             total={money(split.receipt.total)}
-            onReceipt={photo ? () => setViewing(true) : undefined}
+            onReceipt={photo ? (from) => open({ kind: "receipt" }, from) : undefined}
             onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
             onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
             onHistory={(from) => open({ kind: "history" }, from)}

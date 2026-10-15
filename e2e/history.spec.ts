@@ -1,6 +1,7 @@
 import { addNames, openExample } from "./files";
 import { simulateKeyboard } from "./motion";
-import { expect, test, type Locator, type Page } from "./without-ocr";
+import { fromMore } from "./header";
+import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone, serviceWorkers: "block", timezoneId: "America/Los_Angeles" });
@@ -235,4 +236,103 @@ test("with stored Splits and the iPhone keyboard up, the focused handle field st
   await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height - iphoneKeyboard);
   await expect.poll(() => aboveKeyboard(handle)).toBe(true);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+const live = { timeout: 15_000 };
+let splits = 0;
+
+async function createSplit(request: APIRequestContext, workerIndex: number): Promise<string> {
+  splits += 1;
+  const response = await request.post("/api/splits", {
+    headers: { "cf-connecting-ip": `198.56.${100 + workerIndex}.${splits}` },
+    data: {
+      split: {
+        receipt: {
+          items: [{ id: "rice", name: "Rice", price: 800 }, { id: "pitcher", name: "Pitcher", price: 1200 }],
+          adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 100 }, { id: "coupon", kind: "discount", name: "Coupon", amount: -200 }],
+          subtotal: 2000,
+          total: 1900,
+        },
+        participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }, { id: "priya", name: "Priya" }],
+        paymentHandles: [{ service: "venmo", handle: "jason-z" }],
+      },
+    },
+  });
+  expect(response.status()).toBe(201);
+  return new URL(`/s/${(await response.json()).id}`, response.url()).href;
+}
+
+async function joinAs(browser: Browser, link: string, name: string): Promise<Page> {
+  const page = await (await newContext(browser)).newPage();
+  await page.setViewportSize(phone);
+  await page.goto(link);
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
+  await expect(page.getByTestId("owe")).toBeVisible(live);
+  return page;
+}
+
+const sheet = (page: Page, name: string) => page.getByRole("dialog", { name });
+const editAmount = async (page: Page, row: string, sheetName: string, field: string, amount: string) => {
+  await page.getByRole("button", { name: row }).click();
+  await sheet(page, sheetName).getByRole("textbox", { name: field, exact: true }).fill(amount);
+  await sheet(page, sheetName).getByRole("button", { name: "Close", exact: true }).click();
+  await expect(sheet(page, sheetName)).toHaveCount(0, live);
+};
+
+test("Revert of another person's change asks first, then applies and settles the row to Reverted", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await joinAs(browser, link, "Sam");
+  const priya = await joinAs(browser, link, "Priya");
+  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
+
+  await fromMore(priya, "History");
+  await priya.getByRole("button", { name: "Revert Tax" }).click();
+  const ask = priya.getByRole("alertdialog", { name: "Revert Sam's change?" });
+  await expect(ask).toBeVisible();
+  await expect(priya.getByTestId("total"), "nothing changes until the answer").toHaveText("$21.00");
+  await ask.getByRole("button", { name: "Revert" }).click();
+  await expect(priya.getByText("Reverted")).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: "Revert Tax" })).toHaveCount(0, live);
+  for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$19.00", live);
+});
+
+test("another phone reverts the same change first: the open question goes away, nothing is said, and the revert applies once", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await joinAs(browser, link, "Sam");
+  const priya = await joinAs(browser, link, "Priya");
+  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
+
+  await fromMore(priya, "History");
+  await priya.getByRole("button", { name: "Revert Tax" }).click();
+  const ask = priya.getByRole("alertdialog", { name: "Revert Sam's change?" });
+  await expect(ask).toBeVisible();
+
+  await fromMore(sam, "History");
+  await sam.getByRole("button", { name: "Revert Tax" }).click();
+  await expect(sam.getByText("Reverted")).toBeVisible(live);
+
+  await expect(ask).toHaveCount(0, live);
+  await expect(priya.getByText("Reverted")).toBeVisible(live);
+  await expect(priya.getByText("Couldn't revert that")).toHaveCount(0);
+  for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$19.00", live);
+});
+
+test("a Revert leaves a later edit of someone else standing", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await joinAs(browser, link, "Sam");
+  const priya = await joinAs(browser, link, "Priya");
+  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
+  await editAmount(priya, "Open Coupon, -$2.00", "Discount", "Amount off", "5");
+  await expect(sam.getByTestId("total")).toHaveText("$18.00", live);
+
+  await fromMore(sam, "History");
+  await sam.getByRole("button", { name: "Revert Tax" }).click();
+  await expect(sam.getByText("Reverted")).toBeVisible(live);
+  for (const page of [sam, priya]) {
+    await expect(page.getByTestId("total")).toHaveText("$16.00", live);
+    await expect(page.getByRole("button", { name: "Open Coupon, -$5.00" })).toBeVisible();
+  }
 });

@@ -3,6 +3,8 @@ export const splitCopy = {
   payments: "Payments",
   receipt: "Receipt",
   receiptPhoto: "Receipt",
+  receiptKept: "Kept for 14 days after the split was made.",
+  openPhoto: "Open the receipt photo",
   shareLink: "Share link",
   close: "Close",
   closePick: "Close, just look",
@@ -77,11 +79,10 @@ export const splitCopy = {
   copyValueFailed: "Couldn't copy that. Select it and copy it by hand.",
   payerOnly: "Only the phone that picked your name can mark you paid.",
   ring: {
-    claimed: "All claimed",
-    unclaimed: "unclaimed",
     yourPart: "Your part",
     partOf: (name: string) => `${name}'s part`,
-    showTotal: "Show the total",
+    of: (total: string) => `of ${total}`,
+    unclaimed: (amount: string) => ` · ${amount} unclaimed`,
     label: (total: string, each: readonly string[], unclaimed: string | null) => `Receipt total ${total}. ${[...each, ...(unclaimed ? [`${unclaimed} unclaimed`] : [])].join(", ")}.`,
   },
   status: {
