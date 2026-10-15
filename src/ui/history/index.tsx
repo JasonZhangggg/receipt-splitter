@@ -88,6 +88,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
               ) : null
             }
             asking={asking === entry.revision}
+            busy={pending === entry.revision}
             canAct={entry.revertible}
             label={say.revert}
             name={`${say.revert} ${entry.lead || entry.after}`}
@@ -112,6 +113,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
             ) : null
           }
           asking={asking === "restore"}
+          busy={pending === "restore"}
           canAct={split.original !== undefined}
           label={say.restore}
           name={say.restoreName}
@@ -132,6 +134,8 @@ type RowProps = {
   /** Given the arrow's swing, which an accepted confirm plays. */
   confirm: (swing: () => void) => ReactNode;
   asking: boolean;
+  /** The action is on its way to the Split. */
+  busy: boolean;
   canAct: boolean;
   label: string;
   name: string;
@@ -139,7 +143,7 @@ type RowProps = {
   onAct: () => boolean;
 };
 
-function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct }: RowProps) {
+function Row({ meta, reverted, what, confirm, asking, busy, canAct, label, name, onAct }: RowProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   // A Revert applies the moment it is accepted. Only its link stays a beat, so the undo arrow finishes its swing before "Reverted" takes the place.
@@ -156,8 +160,9 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
   const swing = () => {
     if (!reduce) setSwinging(true);
   };
+  const locked = busy || swinging;
   const act = () => {
-    if (onAct()) swing();
+    if (!locked && onAct()) swing();
   };
   const link = canAct && (swinging || (!asking && !reverted));
   return (
@@ -167,7 +172,7 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
         <Text style={[type.caption, { color: c.muted }]}>{meta.filter(Boolean).join(" · ")}</Text>
         {swinging ? null : confirm(swing)}
       </View>
-      {link ? <Act label={label} name={name} onPress={act} /> : null}
+      {link ? <Act label={label} name={name} locked={locked} onPress={act} /> : null}
       {reverted && !swinging ? <Reverted fresh={settled} /> : null}
     </View>
   );
@@ -177,10 +182,10 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
 const underline = { textDecorationLine: "underline", textDecorationThickness: "1px", textUnderlineOffset: "3px" } as TextStyle;
 
 /** An underlined link with the undo arrow before it. The arrow swings on a press, or on a hover with a mouse. */
-function Act({ label, name, onPress }: { label: string; name: string; onPress: () => void }) {
+function Act({ label, name, locked, onPress }: { label: string; name: string; locked: boolean; onPress: () => void }) {
   const c = useColors();
   return (
-    <PressTarget name={name} outsideScroll onPress={onPress} style={() => styles.act}>
+    <PressTarget name={name} outsideScroll disabled={locked} onPress={onPress} style={() => styles.act}>
       {(pressed) => {
         const ink = pressed ? c.ink : c.muted;
         return (

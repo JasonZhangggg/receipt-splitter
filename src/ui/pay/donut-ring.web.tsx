@@ -9,6 +9,8 @@ const middle = ring.size / 2;
 const radius = (ring.size - ring.thickness) / 2;
 const length = 2 * Math.PI * radius;
 const drawFor = 620;
+/** The Payments sheet takes about 300 ms to arrive; the arcs wait for it so the ring draws on a sheet that has landed. */
+const sheetArrives = 200;
 const recolorFor = 200;
 
 // Each arc grows from nothing to the length its style gives it, so a claim landing mid-draw retargets the end of the sweep instead of restarting it.
@@ -38,7 +40,7 @@ export function DonutRing({ slices, paint, track }: Props) {
               stroke: paint(id),
               strokeDasharray: dash,
               strokeDashoffset: offset,
-              ...(reduce ? {} : { transition: `stroke ${recolorFor}ms ${motion.easeOut}`, animation: `ring-draw ${drawFor}ms ${motion.easeOut} ${delay}ms both` }),
+              ...(reduce ? {} : { transition: `stroke ${recolorFor}ms ${motion.easeOut}`, animation: `ring-draw ${drawFor}ms ${motion.easeOut} ${sheetArrives + delay}ms both` }),
             }}
           />
         ))}

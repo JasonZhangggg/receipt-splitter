@@ -42,6 +42,7 @@ import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-she
 import { PayBlock } from "../../src/ui/pay/pay-block";
 import { shareStatus, statusWords } from "../../src/ui/pay/model";
 import { webStyle } from "../../src/ui/motion";
+import { PinnedTop, useScrolledPast } from "../../src/ui/pinned-top";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
@@ -74,7 +75,7 @@ export default function SplitScreen() {
 
 function Gone({ reason }: { reason: GoneReason }) {
   const c = useColors();
-  const words = reason === "notFound" ? joinCopy.expired : joinCopy.unreadable;
+  const words = reason === "notFound" ? joinCopy.missing : joinCopy.unreadable;
   return (
     <View style={styles.gone}>
       <Text role="heading" aria-level={1} style={[type.hero, { color: c.ink }]}>
@@ -82,7 +83,7 @@ function Gone({ reason }: { reason: GoneReason }) {
       </Text>
       <Text style={[type.body, { color: c.muted }]}>{words.hint}</Text>
       <View style={styles.goneAction}>
-        <Button kind="soft" label={joinCopy.newSplit} onPress={() => router.replace("/")} />
+        <Button label={joinCopy.newSplit} onPress={() => router.replace("/")} />
       </View>
     </View>
   );
@@ -118,6 +119,8 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
+  const sides = { left: layout.gutter + insets.left, right: layout.gutter + insets.right };
+  const { scrolled, onScroll } = useScrolledPast();
   const wide = useLayoutWidth() >= breakpoints.pairFrom;
   const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
@@ -472,7 +475,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
     const ask = { text: "", ink: c.muted, paidState: false };
     if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} aside={ask} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} />;
     const mine = selectedPerson.id === me;
-    const pill = !viewed.hasBar ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name) } as const);
+    const pill = !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name), ready: viewed.hasBar } as const);
     const claimed = shareBreakdown(split, selectedPerson.id).items.length;
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
     // A settled share the pill already marks keeps the items count; every other paid state reads in words.
@@ -493,22 +496,25 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
-      <ScrollView
-        style={styles.page}
-        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: footerHeight + 16, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
-      >
-        <View style={styles.column}>
-          <SplitHeader onShare={() => void share()} />
-          <SplitIntro
-            host={host.name}
-            total={money(split.receipt.total)}
-            onReceipt={photo ? (from) => open({ kind: "receipt" }, from) : undefined}
-            onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
-            onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-            onHistory={(from) => open({ kind: "history" }, from)}
-          />
-          {me && selectedPerson && selectedPerson.id !== me ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
-          <View style={styles.doc}>{receipt}</View>
+      <ScrollView style={styles.page} contentContainerStyle={{ paddingBottom: footerHeight + 16 }} onScroll={onScroll} scrollEventThrottle={16}>
+        <PinnedTop pinned scrolled={scrolled} top={insets.top} left={sides.left} right={sides.right}>
+          <View style={styles.column}>
+            <SplitHeader onShare={() => void share()} />
+          </View>
+        </PinnedTop>
+        <View style={{ paddingLeft: sides.left, paddingRight: sides.right }}>
+          <View style={styles.column}>
+            <SplitIntro
+              host={host.name}
+              total={money(split.receipt.total)}
+              onReceipt={photo ? (from) => open({ kind: "receipt" }, from) : undefined}
+              onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
+              onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+              onHistory={(from) => open({ kind: "history" }, from)}
+            />
+            {me && selectedPerson && selectedPerson.id !== me ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
+            <View style={styles.doc}>{receipt}</View>
+          </View>
         </View>
       </ScrollView>
       {phase === "pick" ? null : footer}

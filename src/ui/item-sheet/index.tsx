@@ -3,7 +3,7 @@ import { Keyboard, Platform, StyleSheet, Text, View } from "react-native";
 
 import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
-import { SPLIT_MODES, type ItemId, type ParticipantId, type Split, type SplitItem } from "../../core/split";
+import { SPLIT_MODES, type SplitMode, type ItemId, type ParticipantId, type Split, type SplitItem } from "../../core/split";
 import { money, plainAmount } from "../../draft";
 import type { Answer } from "../../live/client";
 import { Icon } from "../components/icon";
@@ -47,6 +47,40 @@ function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   return { ...pending, ...next, values: reshaped ? (next.values ?? []) : values };
 }
 
+/**
+ * The part of an edit that sets how the price divides, with the price when it is typed alongside. It is sent only once the amounts add up to the price.
+ * A price edit on its own is sent as it always was.
+ */
+function divide({ by, values, price, ...rest }: ItemEdit): { readonly sendable: ItemEdit; readonly held: ItemEdit } {
+  const resplit = by !== undefined || (values?.length ?? 0) > 0;
+  const priced = price === undefined ? {} : { price };
+  return {
+    sendable: resplit ? rest : { ...rest, ...priced },
+    held: { ...(by !== undefined && { by }), ...(resplit && values !== undefined && { values }), ...(resplit && priced) },
+  };
+}
+
+/** What each By amount field holds as typed: the edit's last value for the person, else the Item's. */
+function typedAmounts(parts: readonly (readonly [ParticipantId, number])[], edit: ItemEdit): { participantId: ParticipantId; cents: number }[] {
+  return parts.map(([participantId, cents]) => ({ participantId, cents: edit.values?.findLast((value) => value.participantId === participantId)?.value ?? cents }));
+}
+
+function holdsBack(seen: Split, itemId: ItemId, live: SplitItem | undefined, edit: ItemEdit, last: ParticipantId | null): boolean {
+  const row = seen.receipt.items.find(({ id }) => id === itemId);
+  if (!row || row.split.by !== "amount" || row.split.units[0].length === 0 || Object.keys(divide(edit).held).length === 0) return false;
+  const typed = typedAmounts(row.split.units[0], edit);
+  // Amounts typed back to what is stored, such as a remainder left by a price raise, change nothing, so there is nothing to hold.
+  const stored = live?.split.by === "amount" ? live.split.units[0] : null;
+  if (edit.by !== "even" && edit.by !== "shares" && stored?.length === typed.length && typed.every(({ participantId, cents }, at) => stored[at]?.[0] === participantId && stored[at]?.[1] === cents)) return false;
+  return amountStatus(row.price, typed, last).by !== "exact";
+}
+
+function repriced(split: Split, itemId: ItemId, price: SplitItem["price"]): Split {
+  const [first, ...rest] = split.receipt.items;
+  const at = (row: SplitItem): SplitItem => (row.id === itemId ? { ...row, price } : row);
+  return { ...split, receipt: { ...split.receipt, items: [at(first), ...rest.map(at)] } };
+}
+
 function showsAsBefore(item: SplitItem, edit: ItemEdit): boolean {
   const { name, detail, values = [], ...rest } = edit;
   if (values.length > 0 || Object.keys(rest).length > 0) return false;
@@ -73,6 +107,8 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   // Text in an amount field that does not read as an amount saves nothing, so closing holds the sheet open on its problem instead of dropping it.
   const [unread, setUnread] = useState<ReadonlyMap<AmountField, "price" | "overLimit">>(new Map());
   const [held, setHeld] = useState(false);
+  // The mode the typed amounts and shares are for, so they are dropped, not applied, once another device has changed it.
+  const [typedFor, setTypedFor] = useState<SplitMode | null>(null);
   // A filled field remounts on its new amount, since the amount fields are uncontrolled.
   const [refills, setRefills] = useState<ReadonlyMap<ParticipantId, number>>(new Map());
   const flushRef = useRef<() => void>(() => {});
@@ -93,13 +129,24 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
 
   const patch = (edit: ItemEdit): Operation => ({ by: me, type: "editReceipt", items: [{ type: "edit", itemId, ...edit }] });
   const live = split.receipt.items.find(({ id }) => id === itemId);
-  const unconfirmed = leavingFrom ? {} : [...sent, pending].reduce(merge, {});
+  // What was typed for someone who is no longer on the Item, or for a mode another device has since changed, is dropped rather than sent.
+  const claimers = live ? claimersOf(live.split) : [];
+  const sentSoFar = sent.reduce(merge, {});
+  const mine: ItemEdit = (pending.values?.length ?? 0) > 0 ? { ...pending, values: typedFor === (pending.by ?? sentSoFar.by ?? live?.split.by) ? pending.values!.filter(({ participantId }) => claimers.includes(participantId)) : [] } : pending;
+  const unconfirmed: ItemEdit = leavingFrom ? {} : [...sent, mine].reduce(merge, {});
   const tried = live && Object.keys(unconfirmed).length > 0 ? applyOperation(split, patch(unconfirmed), { creator: false }) : null;
   const refusal = tried && !tried.ok ? tried.rejection.reason : null;
   // Amounts over the price save nothing, but the sheet still shows the rest of the edit, such as the switch to By amount, while the fields keep what was typed.
   const preview = refusal === "amountOverPrice" ? applyOperation(split, patch({ ...unconfirmed, values: [] }), { creator: false }) : tried;
-  const seen = preview?.ok ? preview.split : split;
+  // A price lowered under the amounts cannot be applied even with the amounts dropped, so the sheet shows the Item at the price typed, over, until the amounts are fixed.
+  const lowered = refusal === "amountOverPrice" && !preview?.ok && unconfirmed.price !== undefined ? repriced(split, itemId, unconfirmed.price) : null;
+  const seen = preview?.ok ? preview.split : (lowered ?? split);
   const item: SplitItem | undefined = seen.receipt.items.find(({ id }) => id === itemId);
+  const lastTyped = unconfirmed.values?.at(-1)?.participantId ?? null;
+  // A By amount split that does not add up to the price is never stored: the previous split and its shares stay, and nothing reaches the server or History, until it adds up.
+  const holding = holdsBack(seen, itemId, live, unconfirmed, lastTyped);
+  // Amounts that went over the price because the price was lowered are not saved either.
+  const unsaved = holding || refusal === "amountOverPrice";
 
   if (last !== current) {
     setLast(current);
@@ -112,26 +159,28 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   }
 
   const flush = () => {
-    if (Object.keys(pending).length === 0 || refusal || leavingFrom) return;
+    const { sendable: sending, held: keeping } = holding ? divide(mine) : { sendable: mine, held: {} };
+    if (Object.keys(sending).length === 0 || (refusal && !holding) || leavingFrom) return;
     const withSent = live && sent.length > 0 ? applyOperation(split, patch(sent.reduce(merge, {})), { creator: false }) : null;
     const base = withSent?.ok ? withSent.split.receipt.items.find(({ id }) => id === itemId) : live;
-    if (base && showsAsBefore(base, pending)) {
-      setPending({});
+    if (base && showsAsBefore(base, sending)) {
+      setPending(keeping);
       return;
     }
-    const sending = pending;
-    setPending({});
+    setPending(keeping);
     setSent((was) => [...was, sending]);
     void send(patch(sending)).then((answer) => {
       setSent((was) => was.filter((edit) => edit !== sending));
       // An edit that timed out may have been applied; the Split the server then sent already shows it, so there is nothing to complain about.
       const again = answer.ok ? null : applyOperation(currentRef.current, patch(sending), { creator: false });
       const landed = again?.ok === true && JSON.stringify(again.split.receipt) === JSON.stringify(currentRef.current.receipt);
-      setProblem(answer.ok || landed ? null : failedCopy(answer, say.saveFailed));
+      const failed = !answer.ok && !landed;
+      setProblem(failed ? failedCopy(answer, say.saveFailed) : null);
+      if (failed) setFields((was) => was + 1);
     });
   };
   const holds = () => {
-    if (leavingFrom || unread.size === 0) return false;
+    if (leavingFrom || (unread.size === 0 && !unsaved)) return false;
     setHeld(true);
     return true;
   };
@@ -151,7 +200,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     if (Object.keys(pending).length === 0) return;
     const timer = setTimeout(() => flushRef.current(), saveAfter);
     return () => clearTimeout(timer);
-  }, [pending]);
+  }, [pending, live]);
   useEffect(() => () => flushRef.current(), []);
   const closeTaken = useEffectEvent(onClose);
   useEffect(() => {
@@ -185,7 +234,10 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     forget((field) => field !== "price");
   }
   if (!item) return null;
-  const edit = (next: ItemEdit) => setPending((was) => merge(was, next));
+  const edit = (next: ItemEdit) => {
+    if (next.values && next.values.length > 0) setTypedFor(next.by ?? item.split.by);
+    setPending((was) => merge(was, next));
+  };
   const typedAmount = (field: AmountField, text: string): Cents | null => {
     const amount = readAmount(text);
     if (typeof amount === "number") {
@@ -232,7 +284,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   };
   const note = bundleNote(seen.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
-  const typed = lineAmounts(item).map(({ participantId, cents }) => ({ participantId, cents: unconfirmed.values?.findLast((value) => value.participantId === participantId)?.value ?? cents }));
+  const typed = typedAmounts(lineAmounts(item).map(({ participantId, cents }) => [participantId, cents] as const), unconfirmed);
   const fill = (participantId: ParticipantId, cents: number) => {
     forget((field) => field === participantId);
     edit({ values: [{ participantId, value: cents }] });
@@ -247,7 +299,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   const body = (shownItem: SplitItem, shownParts: Typed, as: Typed, editable: boolean) => (
     <>
       <SplitRows key={editable ? fields : undefined} item={shownItem} parts={shownParts} nameOf={nameOf} edit={editable ? edit : noEdit} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} />
-      <StatusLine item={shownItem} typed={as} nameOf={nameOf} onFill={editable ? fill : undefined} />
+      <StatusLine item={shownItem} typed={as} last={editable ? lastTyped : null} unsaved={editable && unsaved} nameOf={nameOf} onFill={editable ? fill : undefined} />
     </>
   );
 
@@ -426,13 +478,13 @@ function amountProblem(field: AmountField, problem: "price" | "overLimit"): stri
   return problem === "price" ? say.adjustmentProblem.amount : say.adjustmentProblem.overLimit(maxAmount);
 }
 
-type StatusProps = { item: SplitItem; typed: Typed; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void };
+type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; unsaved: boolean; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void };
 
 /** Where the split stands: a tick when it adds up, a warning with the gap when a By amount split does not. */
-function StatusLine({ item, typed, nameOf, onFill }: StatusProps) {
+function StatusLine({ item, typed, last, unsaved, nameOf, onFill }: StatusProps) {
   const c = useColors();
   const people = lineAmounts(item).length;
-  const amounts = item.split.by === "amount" && people > 0 ? amountStatus(item.price, typed) : null;
+  const amounts = item.split.by === "amount" && people > 0 ? amountStatus(item.price, typed, last) : null;
   const off = amounts !== null && amounts.by !== "exact";
   const words =
     people === 0
@@ -444,7 +496,7 @@ function StatusLine({ item, typed, nameOf, onFill }: StatusProps) {
           : amounts.by === "over"
             ? say.overThePrice(money(amounts.over))
             : say.leftToAssign(money(amounts.left));
-  const to = amounts?.by === "left" ? amounts.fillsInto : null;
+  const fillWith = amounts !== null && amounts.by !== "exact" ? amounts.fill : null;
   return (
     <View style={styles.status}>
       <View style={styles.statusWords}>
@@ -452,9 +504,9 @@ function StatusLine({ item, typed, nameOf, onFill }: StatusProps) {
         <Text testID={amounts ? "amount-status" : undefined} numberOfLines={1} style={[type.caption, tabular, styles.statusText, { color: off ? c.warn : c.muted }]}>
           {words}
         </Text>
-        {amounts?.by === "over" ? <Text style={[type.caption, { color: c.warn }]}>{say.notSaved}</Text> : null}
+        {unsaved ? <Text style={[type.caption, { color: c.warn }]}>{say.notSaved}</Text> : null}
       </View>
-      {amounts?.by === "left" && to !== null && onFill ? <TextLink label={say.giveTheRest(nameOf(to))} name={say.giveTheRestName(nameOf(to), money(amounts.left))} outsideScroll onPress={() => onFill(to, amounts.left)} /> : null}
+      {fillWith && onFill ? <TextLink label={say.giveTheRest(nameOf(fillWith.participantId))} name={say.giveTheRestName(nameOf(fillWith.participantId), money(fillWith.cents))} outsideScroll onPress={() => onFill(fillWith.participantId, fillWith.cents)} /> : null}
     </View>
   );
 }

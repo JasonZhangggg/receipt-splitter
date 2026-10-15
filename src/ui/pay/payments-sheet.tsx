@@ -114,11 +114,11 @@ const rowEdge = 20;
 const minList = 112;
 const contain = webStyle({ overscrollBehavior: "contain" });
 const fade = webStyle({ transitionProperty: "color, background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: motion.easeOut });
-/** The total arrives after the first arcs have started drawing, once, and does not replay when another person is picked. */
+/** The total arrives after the first arcs have started drawing (they start 200 ms in, once the sheet has arrived), once, and does not replay when another person is picked. */
 const centerIn = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "translateY(4px)" }, to: { opacity: 1, transform: "none" } }],
   animationDuration: "280ms",
-  animationDelay: "260ms",
+  animationDelay: "460ms",
   animationTimingFunction: motion.easeOut,
   animationFillMode: "both",
 });
