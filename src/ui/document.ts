@@ -24,6 +24,8 @@ function css({ light, dark }: typeof colors) {
 :root[data-theme="dark"] { --focus: ${dark.focus}; --on-action: ${dark.onAction}; --ink: ${dark.ink}; --shimmer: ${dark.shimmer}; }
 /* A theme flip is a clip-path circle on the new snapshot (use-appearance-flip.ts), so the default cross-fade of the root goes. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+/* No color may be mid-fade when the circle reveals the new theme (rule 18). The toggle's icons keep their own turn. */
+[data-theme-flip] *:not([data-theme-icon]) { transition: none !important; }
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-synthesis: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
 html, body { overscroll-behavior: none; }
 body { text-wrap: pretty; }

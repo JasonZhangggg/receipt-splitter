@@ -88,7 +88,8 @@
       [data-boot] #rs-boot { position: fixed; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; pointer-events: none; color: #171717; opacity: 0; animation: rs-boot-in 200ms cubic-bezier(.23,1,.32,1) 300ms forwards, rs-boot-out 200ms cubic-bezier(.23,1,.32,1) 8s forwards; }
       @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #rs-boot { color: #EDEDED; } }
       :root[data-theme="dark"] #rs-boot { color: #EDEDED; }
-      [data-boot="leave"] #rs-boot { animation: rs-boot-out 200ms cubic-bezier(.23,1,.32,1) forwards; }
+      /* Its own keyframes name: reusing rs-boot-out from the 8 s fallback above would update that animation, which started at load and has long finished. */
+      [data-boot="leave"] #rs-boot { animation: rs-boot-leave 200ms cubic-bezier(.23,1,.32,1) forwards; }
       #root { transition: opacity 260ms cubic-bezier(.23,1,.32,1); }
       /* 0.001 rather than 0, which looks the same: Chrome reports no first contentful paint for a page that fades up from 0, and the OCR prefetch waits for that paint. */
       [data-boot="wait"] #root { opacity: 0.001; animation: rs-boot-in 260ms cubic-bezier(.23,1,.32,1) 8s forwards; }
@@ -103,8 +104,9 @@
       #rs-boot i:nth-of-type(4) svg { animation-delay: 720ms; stroke-width: 2.25; }
       @keyframes rs-boot-in { from { opacity: 0; } to { opacity: 1; } }
       @keyframes rs-boot-out { from { opacity: 1; } to { opacity: 0; } }
+      @keyframes rs-boot-leave { from { opacity: 1; } to { opacity: 0; } }
       @keyframes rs-boot-draw { 0% { transform: translateX(calc(var(--w) * var(--u) * -1 - 1px)); } 22%, 78% { transform: none; } 92%, 100% { transform: translateX(calc(var(--w) * var(--u) + 1px)); } }
-      @keyframes rs-boot-feed { 0% { transform: translateY(-3px); } 30%, 100% { transform: none; } }
+      @keyframes rs-boot-feed { 0%, 100% { transform: translateY(-3px); } 30%, 85% { transform: none; } }
       @media (prefers-reduced-motion: reduce) {
         #rs-boot .paper, #rs-boot i svg { animation: none; transform: none; }
       }

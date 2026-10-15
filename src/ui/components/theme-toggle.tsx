@@ -7,6 +7,7 @@ import { useAppearanceFlip } from "../use-appearance-flip";
 import { PressTarget } from "./button";
 import { Icon } from "./icon";
 
+const iconMark = { dataSet: { themeIcon: "" } };
 const iconPress = { scale: 0.9, pressIn: 140 };
 
 const swap = (reduce: boolean) =>
@@ -28,10 +29,10 @@ export function ThemeToggle() {
     <PressTarget name={copy.themeToggle[next]} onPress={(press) => flip(press.trigger)} style={(pressed) => [styles.target, pressStyle(pressed, reduce, iconPress)]}>
       {() => (
         <View style={styles.face}>
-          <View style={[styles.icon, swap(reduce), dark ? { opacity: 0, ...away } : { opacity: 1 }]}>
+          <View {...iconMark} style={[styles.icon, swap(reduce), dark ? { opacity: 0, ...away } : { opacity: 1 }]}>
             <Icon name="sun" size={19} color={c.muted} />
           </View>
-          <View style={[styles.icon, swap(reduce), dark ? { opacity: 1 } : { opacity: 0, ...awayBack }]}>
+          <View {...iconMark} style={[styles.icon, swap(reduce), dark ? { opacity: 1 } : { opacity: 0, ...awayBack }]}>
             <Icon name="moon" size={18} color={c.muted} />
           </View>
         </View>

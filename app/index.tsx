@@ -17,6 +17,7 @@ import { blockerText, copy } from "../src/ui/home-copy";
 import { PayWords, roomForAnotherApp } from "../src/ui/home-sentence/pay-words";
 import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-words";
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
+import { stagePacer } from "../src/ui/home-sentence/stage-pacer";
 import { webStyle } from "../src/ui/motion";
 import { RecentSplits } from "../src/ui/recent-splits";
 import { HomeFooter } from "../src/ui/receipt-input/home-footer";
@@ -27,6 +28,14 @@ import { breakpoints, layout, type, useColors } from "../src/ui/theme";
 
 // Back remounts home without a reload, so the Draft lives as long as the page; a reload keeps only the handles.
 let pageDraft: Draft | null = null;
+/** A read can outlive the Home that started it (Create link moves to the Split page). The scan count and the Home on screen live here, so a late result lands in the Home showing, or in the saved draft for the next one. */
+const scanning = { current: 0 };
+let onScreen: ((action: DraftAction) => void) | null = null;
+const land = (action: DraftAction) => {
+  if (onScreen) return onScreen(action);
+  pageDraft = reduceDraft(pageDraft ?? loadDraft(), action);
+  saveDraft(pageDraft);
+};
 /** The cleaned copy of the scanned photo that Create sends, kept beside the Draft and keyed to the scan's file. */
 let pageCopy: { file: ReceiptFile; copy: Promise<ReceiptJpeg | null> } | null = null;
 /** The OCR worker reports this share once its engine is loaded and it starts looking for text (ENGINE_READY in public/ocr-worker.mjs). */
@@ -50,7 +59,7 @@ export default function Home() {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
-  const scanning = useRef(0);
+  const pacer = useRef({ cancel() {} });
   const scroller = useRef<ScrollView>(null);
   const sentence = useRef<Text>(null);
   const handleInputs = useRef<(TextInput | null)[]>([]);
@@ -66,12 +75,22 @@ export default function Home() {
     setFailure(null);
     apply(action);
   }, []);
+  useEffect(() => {
+    onScreen = dispatch;
+    return () => {
+      if (onScreen === dispatch) onScreen = null;
+    };
+  }, [dispatch]);
 
   const read = useCallback(async (photo: File) => {
     if (!isPhoto(photo)) return setNotice(copy.notPhoto);
     const scan = ++scanning.current;
     const file: ReceiptFile = {};
-    setStage("start");
+    pacer.current.cancel();
+    // Each step word stays up long enough to read, so a fast read does not flash them.
+    const stages = stagePacer<ReadingStage>((next) => scan === scanning.current && setStage(next));
+    pacer.current = stages;
+    stages.push("start");
     dispatch({ type: "reading", file });
     globalThis.performance?.mark?.("scan-picked");
     let waiting = true;
@@ -79,7 +98,7 @@ export default function Home() {
     const ready = new Promise<void>((resolve) => (downloaded = resolve));
     const ocr = recognize(photo, (fraction) => {
       if (fraction >= DOWNLOADED) downloaded();
-      if (fraction >= ENGINE_READY && waiting && scan === scanning.current) setStage("text");
+      if (fraction >= ENGINE_READY && waiting && scan === scanning.current) stages.push("text");
     }).catch(() => null);
     // The wait covers the download, so a slow phone building a cached engine still sends OCR text.
     const route = await chooseRoute(ready, ocr);
@@ -91,14 +110,15 @@ export default function Home() {
     void copying.then(() => globalThis.performance?.mark?.("copy-done"));
     if (scan !== scanning.current) return;
     pageCopy = { file, copy: copying };
-    setStage("server");
-    const slow = setTimeout(() => scan === scanning.current && setStage("slow"), SLOW_SERVER_MS);
+    stages.push("server");
+    const slow = setTimeout(() => scan === scanning.current && stages.push("slow"), SLOW_SERVER_MS);
     const onServer = await readOnServer(photo, sent);
     clearTimeout(slow);
     const boxes = onServer ? null : await within(ocr, FALLBACK_WAIT_MS);
     const onDevice = boxes ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
-    if (scan === scanning.current) dispatch({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+    await stages.settle();
+    if (scan === scanning.current) land({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
   }, [dispatch]);
   usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);
