@@ -14,7 +14,8 @@ import type { Colors } from "../colors";
 import { layout, motion, type, useColors } from "../theme";
 import { slices, ring } from "./donut-model";
 import { DonutRing } from "./donut-ring";
-import { paymentStatus, pickedRow, type PaymentRow } from "./model";
+import { paymentStatus, pickedRow, viewerFirst, type PaymentRow } from "./model";
+import { firstName } from "./pay-sheet";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void; /** In a bottom sheet: the ring stays put and only the people scroll, out to the sheet's edge. */ sheet?: boolean };
@@ -42,8 +43,10 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
     <View style={styles.sheet}>
       <View style={styles.sheet} onLayout={(event) => setFixed(event.nativeEvent.layout.height)}>
         <SheetHeader title={say.payments} onClose={onClose} />
-        {summary ? (
+        {rows.length > 0 ? (
           <Text style={[type.body, { color: c.muted }]}>
+            {say.ring.everyonePays(firstName(rows[0].name))}
+            {summary ? " " : null}
             <Text testID="payments-summary">{summary}</Text>
             {unclaimed > 0 ? say.ring.unclaimed(money(unclaimed)) : null}
           </Text>
@@ -54,7 +57,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
             <View aria-hidden style={[styles.center, !reduce && centerIn]}>
               <Text style={[type.hero, styles.tabular, { color: c.ink }]}>{money(picked.share)}</Text>
               <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
-                {picked.id === me ? say.ring.yourPart : say.ring.partOf(picked.name)}
+                {picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))}
               </Text>
               <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
                 {say.ring.of(money(total))}
@@ -70,7 +73,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         style={[{ marginRight: -edge }, contain, sheet && { maxHeight: Math.max(minList, room - fixed - layout.pairGap) }]}
         contentContainerStyle={{ paddingRight: edge }}
       >
-        {rows.map(({ id, name, share, state, words }) => {
+        {viewerFirst(rows, me).map(({ id, name, share, state, words }) => {
           const on = id === picked.id;
           return (
             <View key={id} role="listitem" {...{ dataSet: { state } }}>
@@ -131,9 +134,9 @@ const styles = StyleSheet.create({
   sheet: { gap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, minHeight: 56, paddingVertical: 10, borderTopWidth: 1 },
   body: { flex: 1, minWidth: 0, gap: 2 },
-  who: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  who: { flexDirection: "row", alignItems: "center", gap: 10 },
+  dot: { width: 12, height: 12, borderRadius: 6 },
   name: { flexShrink: 1 },
-  sub: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 16 },
+  sub: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 22 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });
