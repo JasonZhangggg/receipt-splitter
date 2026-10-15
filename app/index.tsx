@@ -98,7 +98,11 @@ export default function Home() {
     const boxes = onServer ? null : await within(ocr, FALLBACK_WAIT_MS);
     const onDevice = boxes ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
-    if (scan === scanning.current) dispatch({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+    const receipt = onServer || (onDevice?.receipt ?? null);
+    if (scan === scanning.current) {
+      dispatch({ type: "read", file, receipt, ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+      if (receipt === null && globalThis.navigator?.onLine === false) setNotice(copy.scanOffline);
+    }
   }, [dispatch]);
   usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);

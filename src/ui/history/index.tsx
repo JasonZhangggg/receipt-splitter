@@ -13,6 +13,8 @@ import { SheetHeader } from "../split-view/sheet-header";
 type Props = {
   split: Split;
   me: ParticipantId | null;
+  /** The page has lost its connection, so a failed Revert says that instead of blaming the change. */
+  offline: boolean;
   onRevert: (revision: number) => Promise<boolean>;
   onRestore: () => Promise<boolean>;
   onClose: () => void;
@@ -23,7 +25,7 @@ type Target = number | "restore";
 /** How long the undo arrow's swing runs (icon-css.ts), which the link stays on screen to finish after a tap. */
 const swingFor = 560;
 
-export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props) {
+export function HistorySheet({ split, me, offline, onRevert, onRestore, onClose }: Props) {
   const c = useColors();
   const [now, setNow] = useState(() => Date.now());
   const [asking, setAsking] = useState<Target | null>(null);
@@ -57,7 +59,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   return (
     <View style={styles.sheet}>
       <SheetHeader title={say.history} onClose={onClose} />
-      {failed !== null && !stale(failed) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{say.revertFailed}</Text> : null}
+      {failed !== null && !stale(failed) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{offline ? say.connection.failed : say.revertFailed}</Text> : null}
       <Text style={[type.body, { color: c.muted }]}>{say.historyKept}</Text>
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (

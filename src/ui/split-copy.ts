@@ -1,4 +1,11 @@
+import type { Answer } from "../live/client";
+
 export const splitCopy = {
+  connection: {
+    offline: "Offline. Reconnecting\u2026",
+    slow: "Slow network. Saving\u2026",
+    failed: "Couldn't save that. Check your connection and try again.",
+  },
   history: "History",
   historyKept: "Every change to this split. Revert one to undo it.",
   payments: "Payments",
@@ -128,6 +135,7 @@ export const splitCopy = {
     tooManyItems: "A split holds at most 100 items.",
     tooLarge: "This split is full. Delete an item to add one.",
     failed: "Couldn't save that. Check it and try again.",
+    offline: "Couldn't save that. Check your connection and try again.",
   },
   kinds: { tax: "Tax", tip: "Tip", serviceCharge: "Fee", discount: "Discount" },
   kind: "What to add",
@@ -158,6 +166,7 @@ export const splitCopy = {
     negativeTotal: "That takes the total under $0.00.",
     tooLarge: "This split is full. Delete an item to add one.",
     failed: "Couldn't save that. Check it and try again.",
+    offline: "Couldn't save that. Check your connection and try again.",
   },
   item: "Item",
   itemName: "Item name",
@@ -210,3 +219,6 @@ export const splitCopy = {
   copied: "Copied",
   copyFailed: "Couldn't copy the link.",
 };
+
+/** The words for a failed save: the connection message when the answer never came, else the caller's own. The one place that maps `disconnected` to copy on the Split page. */
+export const failedCopy = (answer: Answer, fallback: string): string => (!answer.ok && answer.rejection.reason === "disconnected" ? splitCopy.connection.failed : fallback);

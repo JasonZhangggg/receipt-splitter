@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CreateSplitRefusal, CreateSplitRequest, CreateSplitResponse, Operation, ServerMessage, WireRejection } from "../core/operations";
 import { isRoutableSplitId, participantId, randomId, type ParticipantId, type Split, type SplitId } from "../core/split";
 import { createCopy } from "../ui/home-copy";
+import { answerByMs, connectionOf, slowAfterMs, type Connection } from "./connection";
 import type { ReceiptJpeg } from "../ui/receipt-input/jpeg";
 
 export type GoneReason = "notFound" | "unreadable";
@@ -28,11 +29,41 @@ export function splitUrl(id: SplitId): string {
 
 const endings: Record<number, GoneReason> = { 4404: "notFound", 4500: "unreadable" };
 
-export function useLiveSplit(id: string | null): { live: Live; send: Send } {
+/** One action waiting for the server. `slowTimer` marks it stalled; `deadline` settles it as failed so no send waits forever. */
+type Waiting = { readonly resolve: (answer: Answer) => void; readonly slowTimer: ReturnType<typeof setTimeout>; readonly deadline: ReturnType<typeof setTimeout>; stalled: boolean };
+
+const disconnected: Answer = { ok: false, rejection: { reason: "disconnected" } };
+const browserIsOnline = () => globalThis.navigator?.onLine !== false;
+
+export function useLiveSplit(id: string | null): { live: Live; send: Send; connection: Connection } {
   const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(null);
   const socket = useRef<PartySocket | null>(null);
-  const pending = useRef(new Map<string, (answer: Answer) => void>());
+  const pending = useRef(new Map<string, Waiting>());
   const nextRef = useRef(0);
+  const [socketOpen, setSocketOpen] = useState(false);
+  const [browserOnline, setBrowserOnline] = useState(browserIsOnline);
+  const [stalled, setStalled] = useState(0);
+
+  const settle = useCallback((ref: string | null, answer: Answer) => {
+    if (ref === null) return;
+    const entry = pending.current.get(ref);
+    if (!entry) return;
+    pending.current.delete(ref);
+    clearTimeout(entry.slowTimer);
+    clearTimeout(entry.deadline);
+    if (entry.stalled) setStalled((count) => count - 1);
+    entry.resolve(answer);
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setBrowserOnline(browserIsOnline());
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
 
   useEffect(() => {
     if (id === null || !isRoutableSplitId(id)) return;
@@ -45,11 +76,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
       room: id,
     });
     socket.current = ws;
-    const settle = (ref: string | null, answer: Answer) => {
-      if (ref === null) return;
-      waiting.get(ref)?.(answer);
-      waiting.delete(ref);
-    };
+    ws.addEventListener("open", () => setSocketOpen(true));
     ws.addEventListener("message", ({ data }: MessageEvent<string>) => {
       const message: ServerMessage = JSON.parse(data);
       switch (message.type) {
@@ -66,7 +93,8 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
       }
     });
     ws.addEventListener("close", ({ code }: CloseEvent) => {
-      for (const ref of [...waiting.keys()]) settle(ref, { ok: false, rejection: { reason: "disconnected" } });
+      setSocketOpen(false);
+      for (const ref of [...waiting.keys()]) settle(ref, disconnected);
       const reason = endings[code];
       if (reason === undefined) return;
       ws.close();
@@ -75,22 +103,33 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send } {
     return () => {
       ws.close();
       socket.current = null;
+      setSocketOpen(false);
     };
-  }, [id]);
+  }, [id, settle]);
 
   const send = useCallback<Send>((op, creatorSecret) => {
     const ws = socket.current;
-    if (!ws) return Promise.resolve({ ok: false, rejection: { reason: "disconnected" } });
+    // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since. Refuse it now instead.
+    if (!ws || ws.readyState !== ws.OPEN || !browserIsOnline()) return Promise.resolve(disconnected);
     const ref = `r${nextRef.current++}`;
     return new Promise((resolve) => {
-      pending.current.set(ref, resolve);
+      const entry: Waiting = {
+        resolve,
+        stalled: false,
+        slowTimer: setTimeout(() => {
+          entry.stalled = true;
+          setStalled((count) => count + 1);
+        }, slowAfterMs),
+        deadline: setTimeout(() => settle(ref, disconnected), answerByMs),
+      };
+      pending.current.set(ref, entry);
       ws.send(JSON.stringify(creatorSecret === undefined ? { ref, op } : { ref, op, creatorSecret }));
     });
-  }, []);
+  }, [settle]);
 
   const live: Live =
     id !== null && !isRoutableSplitId(id) ? { status: "gone", reason: "notFound" } : seen !== null && seen.id === id ? seen.live : { status: "connecting" };
-  return { live, send };
+  return { live, send, connection: connectionOf({ socketOpen, browserOnline, stalled }) };
 }
 
 export type Created = { readonly ok: true; readonly id: SplitId; readonly creatorSecret: string } | { readonly ok: false; readonly reason: string };
@@ -100,7 +139,7 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
   try {
     response = await fetch("/api/splits", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
   } catch {
-    return { ok: false, reason: createCopy.network };
+    return { ok: false, reason: createCopy.offline };
   }
   if (response.status === 201) {
     const { id, creatorSecret }: CreateSplitResponse = await response.json();

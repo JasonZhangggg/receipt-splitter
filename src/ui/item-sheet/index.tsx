@@ -10,7 +10,7 @@ import { Icon } from "../components/icon";
 import { IconAction, LabeledField, MoneyField, Options, PersonToggle } from "../components/sheet-fields";
 import { TextLink } from "../components/text-link";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
-import { splitCopy as say } from "../split-copy";
+import { failedCopy, splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
 import { bundleNote, itemParts, lineAmounts, nameParts, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
@@ -122,9 +122,9 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     const sending = pending;
     setPending({});
     setSent((was) => [...was, sending]);
-    void send(patch(sending)).then(({ ok }) => {
+    void send(patch(sending)).then((answer) => {
       setSent((was) => was.filter((edit) => edit !== sending));
-      setProblem(ok ? null : say.saveFailed);
+      setProblem(answer.ok ? null : failedCopy(answer, say.saveFailed));
     });
   };
   const holds = () => {
@@ -217,7 +217,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
       setLeavingFrom(null);
       setFields((was) => was + 1);
       forget(() => true);
-      setProblem(say.saveFailed);
+      setProblem(failedCopy(answer, say.saveFailed));
     });
   };
   const onlyItem = split.receipt.items.length < 2;

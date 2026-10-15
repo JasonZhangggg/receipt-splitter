@@ -59,3 +59,13 @@ The operator made these calls while iterating. They win over older design docs a
 ### Native sheets
 
 24. Keep the custom JS sheet on the web. Revisit `@expo/ui` BottomSheet for the native apps when they are prioritized.
+
+### Connection
+
+28. A bad connection is said out loud, never silently (operator, 2026-10-15). The Split page tracks one `Connection`: `online`, `slow` (the socket is open but an action has waited 3 s) or `offline` (the socket is closed or the browser reports no network).
+    - Offline for more than 1.5 s shows "Offline. Reconnecting…" in a small hairline capsule in the header's free middle, between the wordmark and the icons. It stays muted, not red: red marks something the person can fix (decision 2), and a dropped connection is not one. It fades in over 240 ms and out over 180 ms (a 0.97 scale with it, fade only under reduced motion) and clears when the socket reopens. There is no "Back online" line.
+    - A slow action shows "Slow network. Saving…" in the same place as soon as it passes 3 s, and clears when the answer arrives.
+    - The line sits in the header so it never covers the footer's pay pill or a sheet's fields, and a tall sheet stops below the header.
+    - An action made while offline is refused at once and never queued. A replay after a reconnect could land on a Split another phone changed meanwhile. A tap on a claim dot shows the bar "Couldn't save that. Check your connection and try again." and the dot stays as the server has it. A sheet shows the same words where it shows other save problems.
+    - An action that gets no answer in 10 s settles as failed with the same words, so no tap waits forever. A late answer is dropped, and the Split page still updates from the state the server sends.
+    - Home's Create link says "Check your connection and try again." when the request never reaches the server, and a scan that read nothing while the browser is offline says "No connection, so the receipt couldn't be read. Check it and try again."

@@ -23,7 +23,9 @@ import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
 import { AddSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer, ReceiptSheet } from "../../src/ui/photo-viewer";
-import { splitCopy as say } from "../../src/ui/split-copy";
+import { failedCopy, splitCopy as say } from "../../src/ui/split-copy";
+import { ConnectionNotice } from "../../src/ui/split-view/connection-notice";
+import type { Connection } from "../../src/live/connection";
 import { SplitHeader } from "../../src/ui/split-view/header";
 import { circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
@@ -47,13 +49,13 @@ export default function SplitScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const splitId = isRoutableSplitId(id) ? id : null;
-  const { live, send } = useLiveSplit(id);
+  const { live, send, connection } = useLiveSplit(id);
   const expired = live.status === "gone" && live.reason === "notFound";
   useEffect(() => {
     if (expired && splitId) forgetSplit(splitId);
   }, [expired, splitId]);
 
-  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} photo={live.photo} send={send} />;
+  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} photo={live.photo} send={send} connection={connection} />;
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
@@ -112,7 +114,7 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
 const checkFor = 80;
 const tallPickTop = 170;
 
-function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: Split; photo: boolean; send: Send }) {
+function SplitPage({ splitId, split, photo, send, connection }: { splitId: SplitId; split: Split; photo: boolean; send: Send; connection: Connection }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
@@ -163,9 +165,10 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const choose = async (participantId: ParticipantId, takeOver: boolean) => {
     setPickProblem(null);
     setChosen(participantId);
-    if (!(await act({ by: participantId, type: "pick", participantId, device, takeOver }))) {
+    const picked = await send({ by: participantId, type: "pick", participantId, device, takeOver });
+    if (!picked.ok) {
       setChosen(null);
-      return setPickProblem(say.pickFailed);
+      return setPickProblem(failedCopy(picked, say.pickFailed));
     }
     remember({ me: participantId });
     setSelected(participantId);
@@ -200,7 +203,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     const named = newName(typed, people.map(({ name }) => name));
     if (!named.ok) return { refused: named.reason === "nameTaken" ? say.nameTaken : say.nameNeeded };
     const participant = { id: newParticipantId(), name: named.name };
-    return (await act({ by: me, type: "addParticipant", participant })) ? { id: participant.id } : { refused: say.nameRefused };
+    const added = await send({ by: me, type: "addParticipant", participant });
+    return added.ok ? { id: participant.id } : { refused: failedCopy(added, say.nameRefused) };
   };
 
   const addYourself = async (typed: string) => {
@@ -220,7 +224,13 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const [confirming, setConfirming] = useState<{ readonly itemId: ItemId; readonly name: string; readonly person: Participant; readonly had: boolean; readonly from: Press; readonly closing: boolean } | null>(null);
   const claim = async (itemId: ItemId, person: ParticipantId) => {
     const item = split.receipt.items.find(({ id }) => id === itemId);
-    if (item && me) for (const op of circleTap(item, person)) await act({ ...op, by: me });
+    if (!item || !me) return;
+    for (const op of circleTap(item, person)) {
+      const answer = await send({ ...op, by: me });
+      if (answer.ok) continue;
+      if (answer.rejection.reason === "disconnected") setBar({ message: say.connection.failed, over: "footer" });
+      return;
+    }
   };
   const onCircle = async (item: SplitItem, from: Press) => {
     if (!me || !selectedPerson) return setPhase("pick");
@@ -251,7 +261,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const markPaid = async (payer: ParticipantId, amount: Cents | null) => {
     setPayProblem(null);
     const answer = await send(amount !== null ? { by: payer, type: "recordPayment", participantId: payer, device, amount } : { by: payer, type: "clearPayment", participantId: payer, device });
-    if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : say.saveFailed);
+    if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : failedCopy(answer, say.saveFailed));
     return answer.ok;
   };
 
@@ -278,7 +288,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
   const remove = async (person: Participant) => {
     closeMenu();
-    if (!(await act({ by: me, type: "removeParticipant", participantId: person.id }))) setPeopleProblem(say.saveFailed);
+    const removed = await send({ by: me, type: "removeParticipant", participantId: person.id });
+    if (!removed.ok) setPeopleProblem(failedCopy(removed, say.saveFailed));
   };
   const hold = (participantId: ParticipantId, from: Press) => {
     const person = people.find(({ id }) => id === participantId);
@@ -300,7 +311,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
         onPress: async () => {
           setBar(null);
           const answer = await send({ by: me, type: "undo", revision });
-          if (!answer.ok && answer.rejection.reason !== "alreadyUndone") setBar({ message: say.undoFailed, over: "footer" });
+          if (!answer.ok && answer.rejection.reason !== "alreadyUndone") setBar({ message: failedCopy(answer, say.undoFailed), over: "footer" });
         },
       },
       over: "footer",
@@ -422,7 +433,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     ) : overlay.kind === "receipt" ? (
       <ReceiptSheet uri={photoUrl} onOpen={() => setViewing(true)} onClose={closeOverlay} />
     ) : (
-      <HistorySheet split={split} me={me} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
+      <HistorySheet split={split} me={me} offline={connection === "offline"} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
   ) : null;
   const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} onPaid={(paid) => void onPaid(paid)} /> : undefined;
@@ -513,6 +524,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(confirming.person.name, confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
         </Popover>
       ) : null}
+      <ConnectionNotice connection={connection} />
       <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={bar?.over === "sheet" && overlay && !closing ? 12 : footerHeight + 8} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
     </View>
