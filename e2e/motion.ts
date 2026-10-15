@@ -527,7 +527,8 @@ const testId = (id: string) => `document.querySelector('[data-testid="${id}"], [
 const label = (name: string) => `document.querySelector('[aria-label="${name}"]')`;
 
 const splitTop: Probe = { key: "sheet", find: testId("split-sheet"), kind: "top" };
-const payProbes: Probe[] = [{ key: "pay", find: testId("breakdown"), kind: "top" }];
+const sheetDim: Probe = { key: "dim", find: testId("sheet-dim"), kind: "opacity" };
+const payProbes: Probe[] = [{ key: "pay", find: testId("breakdown"), kind: "top" }, sheetDim];
 const bundleHeader = `document.querySelector('[data-testid^="bundle-"] [aria-controls]')`;
 const bundleProbes: Probe[] = [
   { key: "region", find: `document.querySelector('[data-testid^="bundle-"]').lastElementChild`, kind: "height" },
@@ -538,6 +539,7 @@ const bundleProbes: Probe[] = [
 ];
 const itemProbes: Probe[] = [
   { key: "item", find: testId("item-sheet"), kind: "top" },
+  sheetDim,
   splitTop,
 ];
 const openBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-controls]"));

@@ -375,7 +375,7 @@ Each live lane runs in its own worktree at the PR head, with its own app instanc
 
 **You see.**
 
-- [ ] Every overlay (Item, Add, Adjustment, Payments, History) slides up undimmed with a grab handle, drags tall, and drags closed.
+- [ ] Every overlay (Item, Add, Adjustment, Payments, History) slides up with a grab handle over a light dim of the page, drags tall, and drags closed.
 
 **Seams.**
 
