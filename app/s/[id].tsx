@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { cents } from "../../src/core/money";
+import { cents, type Cents } from "../../src/core/money";
 import { claimersOf, type Operation } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares, shareBreakdown } from "../../src/core/shares";
@@ -141,7 +141,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
-  const [paidToast, setPaidToast] = useState<string | null>(null);
+  const [paidToast, setPaidToast] = useState<{ readonly message: string; readonly before: Cents | null } | null>(null);
   const [viewing, setViewing] = useState(false);
   const photoUrl = `/api/splits/${splitId}/photo`;
   useEffect(() => {
@@ -228,9 +228,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   };
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
-  const markPaid = async (payer: ParticipantId, paid: boolean) => {
+  const markPaid = async (payer: ParticipantId, amount: Cents | null) => {
     setPayProblem(null);
-    const answer = await send(paid ? { by: payer, type: "recordPayment", participantId: payer, device, amount: myShare } : { by: payer, type: "clearPayment", participantId: payer, device });
+    const answer = await send(amount !== null ? { by: payer, type: "recordPayment", participantId: payer, device, amount } : { by: payer, type: "clearPayment", participantId: payer, device });
     if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : say.saveFailed);
     return answer.ok;
   };
@@ -327,8 +327,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const viewedTitle = me && selectedPerson && viewed ? payTitle(split, selectedPerson, me) : say.payments;
   const onPaid = async (paid: boolean) => {
     if (!me) return;
-    if (!(await markPaid(me, paid)) || !paid) return;
-    setPaidToast(say.markedPaid(money(myShare)));
+    const before = split.payments.find(({ participantId }) => participantId === me)?.amount ?? null;
+    if (!(await markPaid(me, paid ? myShare : null)) || !paid) return;
+    setPaidToast({ message: say.markedPaid(money(myShare)), before });
     closeOverlay();
   };
   const pickContent = (
@@ -484,7 +485,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(confirming.person.name, confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
         </Popover>
       ) : null}
-      <Toast message={paidToast} onHide={() => setPaidToast(null)} action={{ label: say.undo, onPress: () => { if (me) void markPaid(me, false); setPaidToast(null); } }} lift={footerHeight + 8} />
+      <Toast message={paidToast?.message ?? null} onHide={() => setPaidToast(null)} action={{ label: say.undo, onPress: () => { if (me && paidToast) void markPaid(me, paidToast.before); setPaidToast(null); } }} lift={footerHeight + 8} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
       <Toast message={taken ? say.pickedOnAnotherPhone(people.find(({ id }) => id === taken)?.name ?? "") : null} onHide={() => setTaken(null)} action={{ label: say.thatsMe, onPress: takeBack }} lift={footerHeight + 8} />
     </View>

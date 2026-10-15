@@ -104,6 +104,33 @@ test("I already paid marks the viewer paid and Undo reverts it", async ({ browse
   await expect(breakdown(sam).getByRole("button", { name: "I already paid" })).toBeVisible(live);
 });
 
+test("Undo after I paid the rest returns to the earlier payment instead of clearing it", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await circle(sam, "Pho", "Sam").click();
+  await expect(owe(sam)).toHaveText("$14.20", live);
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(note(sam)).toHaveText("Paid $14.20", live);
+  await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toHaveCount(0, { timeout: 10_000 });
+
+  await priya.getByRole("button", { name: /^Open Tea/ }).click();
+  await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
+  await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
+
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I paid the rest" }).click();
+  await expect(sam.getByRole("status").getByText("Marked $30.20 as paid")).toBeVisible(live);
+  await expect(note(sam)).toHaveText("Paid $30.20", live);
+
+  await sam.getByRole("button", { name: "Undo" }).click();
+  await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
+});
+
 test("with no way to pay the Host, Sam's breakdown links no pay app and still lets him mark his $14.20 paid", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, []));
   await pick(sam, "Sam");
