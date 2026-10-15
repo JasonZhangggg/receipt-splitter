@@ -125,4 +125,10 @@ test("with one Item left the trash is disabled, a tap says why, and nothing is s
   await expect(sam.getByText("A split needs at least one item.")).toBeVisible();
   await expect(sheet(sam)).toBeVisible();
   expect(sent.filter((frame) => frame.includes('"delete"'))).toEqual([]);
+
+  await sheet(sam).getByRole("button", { name: "Close" }).click();
+  await expect(sheet(sam)).toHaveCount(0, live);
+  const note = await sam.getByText("A split needs at least one item.").boundingBox();
+  const footer = await sam.getByTestId("footer").boundingBox();
+  expect((note?.y ?? 0) + (note?.height ?? 0)).toBeLessThanOrEqual(footer?.y ?? 0);
 });

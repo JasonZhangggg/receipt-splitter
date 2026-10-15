@@ -499,7 +499,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(confirming.person.name, confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
         </Popover>
       ) : null}
-      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={bar?.over === "sheet" ? 12 : footerHeight + 8} />
+      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={bar?.over === "sheet" && overlay && !closing ? 12 : footerHeight + 8} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
     </View>
   );
