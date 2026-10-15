@@ -137,6 +137,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const [footerHeight, setFooterHeight] = useState(0);
   const [bar, setBar] = useState<Bar | null>(null);
   const [viewing, setViewing] = useState(false);
+  // The viewer needs the photo. If it goes away mid-view the flag drops with it, so it cannot come back when a photo does and Escape keeps closing sheets.
+  if (viewing && !photo) setViewing(false);
   const photoUrl = `/api/splits/${splitId}/photo`;
   useEffect(() => {
     if (photo) Image.prefetch(photoUrl).catch(() => {});

@@ -74,7 +74,7 @@ async function create(page: Page) {
 
 const isPut = (request: Request) => request.method() === "PUT" && request.url().endsWith("/photo");
 const photoRow = (page: Page) => page.getByRole("button", { name: "Receipt", exact: true });
-const receiptSheet = (page: Page) => page.getByRole("dialog", { name: "Receipt", exact: true });
+const receiptSheet = (page: Page) => page.getByRole("dialog", { name: "Receipt photo", exact: true });
 /** The Receipt link opens a sheet with the photo; a tap on the photo opens the full-screen viewer. */
 async function viewPhoto(page: Page) {
   await photoRow(page).click();
@@ -120,7 +120,7 @@ test.describe("on Chromium", () => {
 
     const guest = await openAsGuest(browser, page.url());
     await viewPhoto(guest);
-    const shown = guest.getByRole("img", { name: "Receipt" });
+    const shown = guest.getByRole("img", { name: "Receipt photo" });
     await expect(shown).toBeVisible();
     const served = await guest.request.get(new URL(page.url()).pathname.replace(/^\/s\//, "/api/splits/") + "/photo");
     expect(Buffer.compare(await served.body(), Buffer.from(body))).toBe(0);
@@ -199,6 +199,44 @@ test.describe("on Chromium", () => {
     await expect(historyLink(guest)).toBeVisible();
     await context.close();
   });
+
+  test("when the photo goes away while the viewer is open the viewer closes, stays closed if a photo comes back, and Escape still closes a sheet", async ({ browser, request, browserName }, testInfo) => {
+    const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
+    expect((await putPhoto(request, id, creatorSecret, new Uint8Array(readFileSync("e2e/fixtures/srd-1040-no-sprite.jpg")))).status()).toBe(204);
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const guest = await context.newPage();
+    const states: Record<string, unknown>[] = [];
+    const clients: { send: (message: string) => void }[] = [];
+    await guest.routeWebSocket(/\/parties\//, (client) => {
+      const server = client.connectToServer();
+      client.onMessage((message) => server.send(message));
+      server.onMessage((message) => {
+        const frame = JSON.parse(String(message));
+        if (frame.type === "state") states.push(frame);
+        client.send(message);
+      });
+      clients.push(client);
+    });
+    await guest.goto(`/s/${id}`);
+    await expect(guest.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+    await openMore(guest);
+    await viewPhoto(guest);
+    await expect(guest.getByRole("button", { name: "Close photo" })).toBeVisible();
+
+    const frame = states.at(-1)!;
+    clients.at(-1)!.send(JSON.stringify({ ...frame, ref: null, photo: false }));
+    await expect(guest.getByRole("button", { name: "Close photo" })).toHaveCount(0, live);
+    await expect(receiptSheet(guest)).toHaveCount(0, live);
+    clients.at(-1)!.send(JSON.stringify({ ...frame, ref: null, photo: true }));
+    await expect(photoRow(guest)).toBeVisible(live);
+    await expect(guest.getByRole("button", { name: "Close photo" })).toHaveCount(0);
+
+    await historyLink(guest).click();
+    await expect(guest.getByRole("dialog", { name: "History" })).toBeVisible();
+    await guest.keyboard.press("Escape");
+    await expect(guest.getByRole("dialog", { name: "History" })).toHaveCount(0, live);
+    await context.close();
+  });
 });
 
 test("the canvas JPEG of a 12 MP photo and of an EXIF-rotated one fits 150 KB, carries no metadata, reads upright, and the Worker stores it", async ({ page, request, browserName }, testInfo) => {
@@ -253,7 +291,7 @@ for (const width of [390, 1440]) {
     await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
     await page.getByRole("button", { name: "Close, just look" }).click();
     const history = page.getByRole("dialog", { name: "History" });
-    const shown = page.getByRole("img", { name: "Receipt" });
+    const shown = page.getByRole("img", { name: "Receipt photo" });
 
     await fromMore(page, "History");
     await expect(history).toBeVisible();
