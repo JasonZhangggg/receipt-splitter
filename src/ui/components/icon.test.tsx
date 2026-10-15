@@ -86,4 +86,19 @@ describe("Icon on the web", () => {
     await mount("check");
     expect(svg().hasAttribute("data-appear")).toBe(true);
   });
+
+  it("a re-render with the same name and a new color keeps the drawn shapes, so a running tick does not restart", async () => {
+    document.documentElement.setAttribute("data-icons-live", "");
+    const render = (color: string) =>
+      act(async () => {
+        root.render(createElement("button", { type: "button" }, createElement(Icon, { name: "check", size: 14, color })));
+      });
+    await render("#111");
+    const path = svg().querySelector("path");
+    expect(path).not.toBeNull();
+
+    await render("#222");
+    expect(svg().querySelector("path")).toBe(path);
+    expect(svg().hasAttribute("data-appear")).toBe(true);
+  });
 });

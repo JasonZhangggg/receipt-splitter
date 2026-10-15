@@ -353,3 +353,39 @@ test("a long pull down from tall lands at rest and does not close the sheet", as
   await expect(item).toBeVisible();
   expect(Math.abs((await item.boundingBox())!.y - rest)).toBeLessThan(2);
 });
+
+test("the Edit item status tick draws once when it appears, not again as the text or the amounts change, and the warning pulses once per time it appears", async ({ browser, request, browserName }, { workerIndex }) => {
+  const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 8775 }], adjustments: [], subtotal: 8775, total: 8775 };
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
+  await pickJason(page);
+  const started = await page.evaluateHandle(() => {
+    const seen: string[] = [];
+    document.addEventListener("animationstart", (event) => seen.push(event.animationName), true);
+    return seen;
+  });
+  const count = async (name: string) => (await started.jsonValue()).filter((one) => one === name).length;
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
+  const who = sheet.getByRole("group", { name: "Who had it" });
+  await page.getByRole("button", { name: /^Open Gameplay, / }).click();
+  await expect(sheet.locator('[data-icon="exclaim"]')).toHaveCount(1, live);
+  await expect.poll(() => count("ai-pulse")).toBe(1);
+
+  await who.getByRole("button", { name: "Jason", exact: true }).click();
+  await expect(sheet.locator('[data-icon="check"]')).toHaveCount(1, live);
+  await expect.poll(() => count("ai-tick")).toBe(1);
+  await who.getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(sheet.getByText("2 people · $87.75")).toBeVisible();
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$87.75 left to assign", live);
+  await sheet.getByRole("textbox", { name: "Jason's amount" }).pressSequentially("30", { delay: 120 });
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$57.75 left to assign");
+  await page.waitForTimeout(1200);
+  expect(await count("ai-tick")).toBe(1);
+  expect(await count("ai-pulse")).toBe(2);
+
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).pressSequentially("57.75", { delay: 120 });
+  await expect(sheet.getByTestId("amount-status")).toHaveText("All $87.75 assigned");
+  await page.waitForTimeout(1200);
+  expect(await count("ai-tick")).toBe(2);
+  expect(await count("ai-pulse")).toBe(2);
+});
