@@ -27,18 +27,18 @@ const { fallbackSamples } = await import("../../src/ui/home-copy.ts");
 const fontDir = new URL("../../public/fonts/", import.meta.url);
 
 function hashedFace(weight) {
-  const [found, ...extra] = readdirSync(fontDir).filter((name) => name.startsWith(`plus-jakarta-sans-${weight}`) && name.endsWith(".woff2"));
-  if (!found || extra.length > 0) throw new Error(`expected one plus-jakarta-sans-${weight}*.woff2 in public/fonts`);
+  const [found, ...extra] = readdirSync(fontDir).filter((name) => name.startsWith(`geist-${weight}`) && name.endsWith(".woff2"));
+  if (!found || extra.length > 0) throw new Error(`expected one geist-${weight}*.woff2 in public/fonts`);
   const hash = createHash("sha256").update(readFileSync(new URL(found, fontDir))).digest("hex").slice(0, 10);
-  const file = `plus-jakarta-sans-${weight}-${hash}.woff2`;
+  const file = `geist-${weight}-${hash}.woff2`;
   if (file !== found) renameSync(new URL(found, fontDir), new URL(file, fontDir));
   return file;
 }
 
-const faces = [400, 600].map((weight) => ({
+const faces = [400, 500].map((weight) => ({
   file: hashedFace(weight),
   weight,
-  local: "Arial",
+  local: process.env.FALLBACK_LOCAL ?? "Arial",
   sample: fallbackSamples[weight],
 }));
 

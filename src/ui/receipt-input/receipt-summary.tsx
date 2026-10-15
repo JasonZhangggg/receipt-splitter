@@ -6,7 +6,7 @@ import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { copy } from "../home-copy";
 import { pressStyle, useReducedMotion } from "../motion";
-import { layout, type, useColors } from "../theme";
+import { layout, tabular, type, useColors } from "../theme";
 
 type Props = {
   items: number;
@@ -17,7 +17,6 @@ type Props = {
   stacked?: boolean;
 };
 
-const tabular = { fontVariant: ["tabular-nums" as const] };
 
 export function ReceiptSummary({ items, total, thumbnail, onView, onReplace, stacked = false }: Props) {
   const c = useColors();

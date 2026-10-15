@@ -9,7 +9,7 @@ import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, motion, type, useColors } from "../theme";
+import { layout, motion, tabular, type, useColors } from "../theme";
 import { usePersonInks } from "../person-inks";
 import { Dot } from "./dot";
 import { claimersOfItem, keepInPlace, lineTag, nameParts, quantityText, receiptRows, totalNote, claimedItems, type BundleRow, type Kept } from "./model";
@@ -27,7 +27,6 @@ type Props = {
   showing: ItemId | AdjustmentId | "add" | null;
 };
 
-const tabular = { fontVariant: ["tabular-nums" as const] };
 const dotSize = 16;
 const markSize = 18;
 const tapSize = 44;
@@ -551,7 +550,7 @@ const styles = StyleSheet.create({
   // A 44 px tap target that still sits on the 34 px row pitch; the overlap goes to the later row.
   tapRow: { minHeight: tapSize, marginVertical: (layout.adjustmentRow - tapSize) / 2 },
   rowLabel: { flexShrink: 1 },
-  strong: { fontWeight: "600" },
+  strong: { fontWeight: "500" },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
 });

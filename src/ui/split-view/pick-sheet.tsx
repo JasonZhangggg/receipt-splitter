@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   invite: { flex: 1, marginTop: 2, marginLeft: 2 },
-  strong: { fontWeight: "600" },
+  strong: { fontWeight: "500" },
   close: { marginTop: -10, marginRight: -12 },
   ask: { marginHorizontal: 2, marginBottom: 4 },
   rows: { gap: layout.pairGap },
