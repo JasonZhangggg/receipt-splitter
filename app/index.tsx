@@ -28,6 +28,14 @@ import { breakpoints, layout, type, useColors } from "../src/ui/theme";
 
 // Back remounts home without a reload, so the Draft lives as long as the page; a reload keeps only the handles.
 let pageDraft: Draft | null = null;
+/** A read can outlive the Home that started it (Create link moves to the Split page). The scan count and the Home on screen live here, so a late result lands in the Home showing, or in the saved draft for the next one. */
+const scanning = { current: 0 };
+let onScreen: ((action: DraftAction) => void) | null = null;
+const land = (action: DraftAction) => {
+  if (onScreen) return onScreen(action);
+  pageDraft = reduceDraft(pageDraft ?? loadDraft(), action);
+  saveDraft(pageDraft);
+};
 /** The cleaned copy of the scanned photo that Create sends, kept beside the Draft and keyed to the scan's file. */
 let pageCopy: { file: ReceiptFile; copy: Promise<ReceiptJpeg | null> } | null = null;
 /** The OCR worker reports this share once its engine is loaded and it starts looking for text (ENGINE_READY in public/ocr-worker.mjs). */
@@ -51,7 +59,6 @@ export default function Home() {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
-  const scanning = useRef(0);
   const pacer = useRef({ cancel() {} });
   const scroller = useRef<ScrollView>(null);
   const sentence = useRef<Text>(null);
@@ -68,6 +75,12 @@ export default function Home() {
     setFailure(null);
     apply(action);
   }, []);
+  useEffect(() => {
+    onScreen = dispatch;
+    return () => {
+      if (onScreen === dispatch) onScreen = null;
+    };
+  }, [dispatch]);
 
   const read = useCallback(async (photo: File) => {
     if (!isPhoto(photo)) return setNotice(copy.notPhoto);
@@ -105,7 +118,7 @@ export default function Home() {
     const onDevice = boxes ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
     await stages.settle();
-    if (scan === scanning.current) dispatch({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+    if (scan === scanning.current) land({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
   }, [dispatch]);
   usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);
