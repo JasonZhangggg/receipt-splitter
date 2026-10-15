@@ -5,7 +5,8 @@ import type { ParticipantId, Split } from "../../core/split";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
-import { splitCopy as say } from "../split-copy";
+import type { Answer } from "../../live/client";
+import { failedCopy, splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { historyOf, whenText, type Entry } from "./describe";
 import { SheetHeader } from "../split-view/sheet-header";
@@ -13,8 +14,8 @@ import { SheetHeader } from "../split-view/sheet-header";
 type Props = {
   split: Split;
   me: ParticipantId | null;
-  onRevert: (revision: number) => Promise<boolean>;
-  onRestore: () => Promise<boolean>;
+  onRevert: (revision: number) => Promise<Answer>;
+  onRestore: () => Promise<Answer>;
   onClose: () => void;
 };
 
@@ -28,7 +29,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   const [now, setNow] = useState(() => Date.now());
   const [asking, setAsking] = useState<Target | null>(null);
   const [pending, setPending] = useState<Target | null>(null);
-  const [failed, setFailed] = useState<Target | null>(null);
+  const [failed, setFailed] = useState<{ readonly target: Target; readonly words: string } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
@@ -38,12 +39,12 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   // Another phone may have reverted the same change first. Then the Revert is already done, so there is nothing to confirm and nothing to complain about.
   const stale = (target: Target) => target !== "restore" && (entries.find(({ revision }) => revision === target)?.reverted ?? true);
 
-  const run = async (target: Target, action: () => Promise<boolean>) => {
+  const run = async (target: Target, action: () => Promise<Answer>) => {
     setPending(target);
-    const done = await action();
+    const answer = await action();
     setPending(null);
     setAsking(null);
-    setFailed(done ? null : target);
+    setFailed(answer.ok ? null : { target, words: failedCopy(answer, say.revertFailed) });
   };
   const revert = (entry: Entry) => {
     if (entry.sentAs !== null && entry.sentAs === me) {
@@ -57,7 +58,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   return (
     <View style={styles.sheet}>
       <SheetHeader title={say.history} onClose={onClose} />
-      {failed !== null && !stale(failed) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{say.revertFailed}</Text> : null}
+      {failed !== null && !stale(failed.target) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{failed.words}</Text> : null}
       <Text style={[type.body, { color: c.muted }]}>{say.historyKept}</Text>
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (

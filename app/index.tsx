@@ -123,7 +123,11 @@ export default function Home() {
     const onDevice = boxes ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
     await stages.settle();
-    if (scan === scanning.current) land({ type: "read", file, receipt: onServer || (onDevice?.receipt ?? null), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+    const receipt = onServer || (onDevice?.receipt ?? null);
+    if (scan === scanning.current) {
+      land({ type: "read", file, receipt, ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+      if (receipt === null && globalThis.navigator?.onLine === false) setNotice(copy.scanOffline);
+    }
   }, [dispatch]);
   usePhotoDrop(read, draft.scan.status === "empty");
   const choose = () => pickPhoto(read);

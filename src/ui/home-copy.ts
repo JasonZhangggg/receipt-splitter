@@ -29,6 +29,7 @@ export const copy = {
     slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
+  scanOffline: "No connection, so the receipt couldn't be read. Try again once you're back online.",
   paymentApp: "Payment app",
   addApp: "Another way to get paid",
   addAppName: "Add another way to get paid",
@@ -51,6 +52,7 @@ export const createCopy = {
   busy: "Too many links from here. Try again in a minute.",
   daily: (opensAt: string, tomorrow: boolean) => `Too many new splits today. Try again ${tomorrow ? "tomorrow " : ""}after ${opensAt}.`,
   network: "Couldn't reach the server. Try again.",
+  offline: "Check your connection and try again.",
   handle: "Check how to pay you.",
   other: "Couldn't create the link. Try again.",
 };
