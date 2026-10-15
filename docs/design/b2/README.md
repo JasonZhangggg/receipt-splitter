@@ -52,6 +52,10 @@ The operator made these calls while iterating. They win over older design docs a
     - Recent splits lists this device's stored Splits under the sentence. Each row shows who, the day, how many people and the total. The section and the header link are gone when there are none.
     - The footer matches the Split page: the reason line at the left, and a "Create link" pill at the right that is gray while blocked.
 
+### First load
+
+27. Loading screen, L1 "a receipt fills in" (operator, 2026-10-15). The spec is `loading/L1Receipt.dc.html`. While the bundle and Geist arrive, a 52 x 72 receipt outline with a torn bottom sits centered on the page, and three item lines and a thicker total line draw in, staggered 0, 120, 240 and 420 ms, on a 2.4 s loop with `cubic-bezier(.65,0,.35,1)`. They wipe out at the end of each loop, and the receipt nudges down 3 px as each loop starts. It appears only after 300 ms, stays at least 300 ms once shown, and lifts when the first screen has mounted and Geist has loaded, or at 3 s in the fallback face. The page under it takes no taps, focus or screen-reader reads until then (`inert` and `aria-busy`). It fades out over 200 ms while the page fades in over 260 ms with `cubic-bezier(.23,1,.32,1)`. Under reduced motion the lines stand drawn and the receipt stays still. It is static HTML and CSS in `public/index.html` on every route. Each line slides through a clip rather than drawing with `stroke-dashoffset`, so it keeps moving while the bundle holds the main thread.
+
 ### Native sheets
 
 24. Keep the custom JS sheet on the web. Revisit `@expo/ui` BottomSheet for the native apps when they are prioritized.

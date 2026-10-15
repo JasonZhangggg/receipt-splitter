@@ -99,6 +99,8 @@ test("Close, just look pressed from the keyboard gives focus to Which one are yo
   await page.goto(await createSplit(request, workerIndex));
   const pick = page.getByRole("dialog", { name: "Which one are you?" });
   await expect(pick).toBeVisible(live);
+  // focus() does not wait the way a click does, and the page takes no input until the first-load loader lifts.
+  await expect(page.locator("#root")).not.toHaveAttribute("inert", live);
   await pick.getByRole("button", { name: "Close, just look", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "Which one are you?", exact: true })).toBeFocused(live);

@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 
 import type { Appearance, Scheme } from "./appearance";
 import { colors } from "./colors";
-import { fallbackMetrics, faces } from "./fonts.generated";
+import { fallbackMetrics } from "./fonts.generated";
 import { sentenceCss } from "./home-sentence/css";
 import { iconCss } from "./icon-css";
 
@@ -12,16 +12,13 @@ const fallbackSources = ["Arial", "ArialMT", "Liberation Sans", "LiberationSans"
 /** Marks a rounded group of text fields, which draws the focus ring for the field inside it. */
 export const fieldGroup = { dataSet: { field: "" } };
 
+/** The Geist faces and their preloads are in public/index.html, so the font downloads beside the bundle. */
 function css({ light, dark }: typeof colors) {
-  const webFaces = weights.map(
-    (weight) =>
-      `@font-face { font-family: "Geist"; font-weight: ${weight}; font-display: swap; src: url("${faces[weight]}") format("woff2"); }`,
-  );
   const local = fallbackSources.map((name) => `local("${name}")`).join(", ");
   const fallbackFaces = weights.map(
     (weight) => `@font-face { font-family: "Geist Fallback"; font-weight: ${weight}; src: ${local}; ${fallbackMetrics[weight]} }`,
   );
-  return `${[...webFaces, ...fallbackFaces].join("\n")}
+  return `${fallbackFaces.join("\n")}
 :root { --focus: ${light.focus}; --on-action: ${light.onAction}; --ink: ${light.ink}; --shimmer: ${light.shimmer}; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --focus: ${dark.focus}; --on-action: ${dark.onAction}; --ink: ${dark.ink}; --shimmer: ${dark.shimmer}; } }
 :root[data-theme="dark"] { --focus: ${dark.focus}; --on-action: ${dark.onAction}; --ink: ${dark.ink}; --shimmer: ${dark.shimmer}; }
@@ -47,10 +44,6 @@ ${sentenceCss}`;
 
 export function installDocument() {
   if (Platform.OS !== "web" || document.getElementById("rs-theme")) return;
-  for (const href of Object.values(faces)) {
-    const preload = Object.assign(document.createElement("link"), { rel: "preload", as: "font", type: "font/woff2", href, crossOrigin: "anonymous" });
-    document.head.appendChild(preload);
-  }
   const style = document.createElement("style");
   style.id = "rs-theme";
   style.textContent = css(colors);
@@ -73,4 +66,9 @@ export function paintAppearance(picked: Appearance) {
     const own: Scheme = meta.media.includes("dark") ? "dark" : "light";
     meta.content = colors[picked ?? own].field;
   }
+}
+
+/** Tells the loader in public/index.html that the first screen is on the page; it lifts once Geist has loaded too. */
+export function announceMounted() {
+  if (Platform.OS === "web") document.dispatchEvent(new Event("splitwith:mounted"));
 }
