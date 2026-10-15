@@ -350,3 +350,36 @@ test("a price edit moves the Total by the difference on every phone, and on a sh
   await expect(short.getByTestId("total")).toHaveText("$14.50");
   await expect(shortNote(short)).toHaveText("Items are $4.50 short of the subtotal.");
 });
+
+test("How many 3 adds a 3x line, raises the Total by the line's price, and Edit item can split it into 3", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex));
+  await pick(sam, "Sam");
+  await openAdd(sam, "Item");
+  await field(sam, "Name").fill("Guinness");
+  await field(sam, "Price").fill("21.87");
+  await field(sam, "How many").fill("3");
+  await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(sheet(sam)).toHaveCount(0, live);
+
+  await expect(sam.getByRole("button", { name: /^Open 3x Guinness, \$21\.87, / })).toBeVisible(live);
+  await expect(sam.getByTestId("total")).toHaveText("$29.87");
+  await sam.getByRole("button", { name: /^Open 3x Guinness/ }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Split into 3" }).click();
+  await expect(sam.getByRole("button", { name: /^Open Guinness, \$7\.29, / })).toHaveCount(3, live);
+  await expect(sam.getByTestId("total")).toHaveText("$29.87");
+});
+
+test("How many shows only for an Item, and one that is not 1 to 20 says so and adds nothing", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex));
+  await pick(sam, "Sam");
+  await openAdd(sam, "Tax");
+  await expect(field(sam, "How many")).toHaveCount(0);
+  await sheet(sam).getByRole("group", { name: "What to add" }).getByRole("button", { name: "Item", exact: true }).click();
+  await field(sam, "Name").fill("Guinness");
+  await field(sam, "Price").fill("21.87");
+  await field(sam, "How many").fill("25");
+  await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(sheet(sam).getByRole("status")).toHaveText("Use a whole number from 1 to 20.");
+  await expect(field(sam, "How many")).toBeFocused();
+  await expect(sam.getByRole("button", { name: /^Open .*Guinness/ })).toHaveCount(0);
+});

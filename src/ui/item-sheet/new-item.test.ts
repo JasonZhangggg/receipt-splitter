@@ -26,7 +26,7 @@ function splitWith(count: number, printed: { subtotal?: number; adjustments?: Ad
   return result.split;
 }
 
-const typed = (fields: Partial<NewItem> = {}): NewItem => ({ name: "Fries", price: "6.50", ...fields });
+const typed = (fields: Partial<NewItem> = {}): NewItem => ({ name: "Fries", price: "6.50", quantity: "", ...fields });
 const fresh = itemId("fresh");
 
 describe("newItem", () => {
@@ -48,6 +48,25 @@ describe("newItem", () => {
     const zero = newItem(splitWith(2), typed({ price: "0" }), fresh, ann);
     expect(zero.ok && zero.op.type === "editReceipt" && zero.op.items?.[0]).toMatchObject({ item: { price: 0 } });
     expect(newItem(splitWith(2), typed({ price: "100000.01" }), fresh, ann)).toEqual({ ok: false, problem: "overLimit" });
+  });
+
+  test("with How many above 1, adds a quantity line whose price is the line's total, as the scanner reads one", () => {
+    expect(newItem(splitWith(2), typed({ name: "Guinness Draught", price: "21.87", quantity: " 3 " }), fresh, ann)).toEqual({
+      ok: true,
+      op: { by: ann, type: "editReceipt", items: [{ type: "add", item: { id: fresh, name: "Guinness Draught", price: 2187, quantity: 3 }, index: 2, who: [] }] },
+    });
+  });
+
+  test("reads an empty How many or 1 as one, with no quantity on the Item", () => {
+    for (const quantity of ["", "1"]) {
+      const answer = newItem(splitWith(2), typed({ quantity }), fresh, ann);
+      expect(answer.ok && answer.op.type === "editReceipt" && answer.op.items?.[0]).toEqual({ type: "add", item: { id: fresh, name: "Fries", price: 650 }, index: 2, who: [] });
+    }
+  });
+
+  test("refuses a How many that is not a whole number from 1 to 20", () => {
+    expect(["0", "21", "1.5", "two", "-2"].map((quantity) => newItem(splitWith(2), typed({ quantity }), fresh, ann))).toEqual(Array(5).fill({ ok: false, problem: "quantity" }));
+    expect(newItem(splitWith(2), typed({ quantity: "20" }), fresh, ann).ok).toBe(true);
   });
 
   test("adds the 100th Item and refuses the 101st as tooManyItems", () => {
