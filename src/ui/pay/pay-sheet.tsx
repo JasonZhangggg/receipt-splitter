@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { shareBreakdown } from "../../core/shares";
 import type { Participant, ParticipantId, Split } from "../../core/split";
-import { groupedAmount, money } from "../../draft";
+import { money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 import { SheetHeader } from "../split-view/sheet-header";
 import { breakdownCharges, breakdownLines } from "../split-view/model";
@@ -26,7 +26,7 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
   const c = useColors();
   const breakdown = shareBreakdown(split, person.id);
   const { mine, share } = payFacts(split, person, viewer);
-  const lines = breakdownLines(breakdown);
+  const lines = breakdownLines(breakdown, split.receipt.items, person.id);
   const charges = [...breakdownCharges(split.receipt, breakdown), ...(breakdown.difference === 0 ? [] : [{ id: "difference", name: say.receiptDifference, portion: breakdown.difference }])];
   const title = payTitle(split, person, viewer);
   return (
@@ -46,7 +46,7 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
                 </Text>
                 {line.part ? <Text style={[type.caption, { color: c.muted }]}>{line.part}</Text> : null}
               </View>
-              <Text style={[type.body, tabular, { color: c.ink }]}>{groupedAmount(line.portion)}</Text>
+              <Text style={[type.body, tabular, { color: c.ink }]}>{money(line.portion)}</Text>
             </View>
           ))
         )}

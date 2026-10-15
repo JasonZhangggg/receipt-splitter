@@ -3,7 +3,7 @@ import type { ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
 import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
-import { gapNote, groupedAmount, money } from "../../draft";
+import { gapNote, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 
 const UNICODE_FRACTIONS: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾", "1/5": "⅕", "1/6": "⅙", "1/8": "⅛" };
@@ -31,10 +31,14 @@ export function fractionText([numerator, denominator]: readonly [number, number]
   return UNICODE_FRACTIONS[`${numerator}/${denominator}`] ?? `${numerator}/${denominator}`;
 }
 
-export function shareLabel(fraction: readonly [number, number], price: string): string | null {
-  const [numerator, denominator] = fraction;
-  if (numerator === denominator) return null;
-  return `${fractionText(fraction)} of ${price}`;
+/** How an Item is split when someone shares it, as the Pay sheet reads it under the line: "Split 3 ways", "2 of 6 shares", "By amount". An Item one person had says nothing. */
+export function payNote({ split }: SplitItem, participantId: ParticipantId): string | null {
+  const claimers = claimersOf(split);
+  if (claimers.length < 2) return null;
+  if (split.by === "amount") return say.byAmount;
+  if (split.by === "even") return say.splitWays(claimers.length);
+  const total = split.units[0].reduce((sum, [, weight]) => sum + weight, 0);
+  return say.shareOfShares(split.units[0].find(([id]) => id === participantId)?.[1] ?? 0, total);
 }
 
 export function quantityText({ quantity = 1 }: { readonly quantity?: number }): string | null {
@@ -44,8 +48,11 @@ export function quantityText({ quantity = 1 }: { readonly quantity?: number }): 
 export type BreakdownLine = { readonly id: ItemId; readonly quantity: string | null; readonly name: string; readonly part: string | null; readonly portion: Cents };
 
 /** One line per row on the Split page: a quantity line is one line with its quantity, never "1 of 3". */
-export function breakdownLines(breakdown: ShareBreakdown): BreakdownLine[] {
-  return breakdown.items.map((line) => ({ id: line.id, quantity: quantityText(line), name: line.name, part: shareLabel(line.fraction, groupedAmount(line.price)), portion: line.portion }));
+export function breakdownLines(breakdown: ShareBreakdown, items: readonly SplitItem[], participantId: ParticipantId): BreakdownLine[] {
+  return breakdown.items.map((line) => {
+    const item = items.find(({ id }) => id === line.id);
+    return { id: line.id, quantity: quantityText(line), name: line.name, part: item ? payNote(item, participantId) : null, portion: line.portion };
+  });
 }
 
 const MAX_ID_LENGTH = 24;
