@@ -38,6 +38,12 @@ async function openAs(page: Page, link: string, name: string) {
   await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
+/** Home ignores taps and typing until the loader has left. */
+async function home(page: Page) {
+  await page.goto("/");
+  await expect(page.locator("#root")).not.toHaveAttribute("inert", live);
+}
+
 /** A forced click skips Playwright's wait for the target to stop moving, so wait for the sheet to finish sliding up first. */
 async function settled(target: Locator) {
   const top = async () => (await target.boundingBox())?.y;
@@ -64,7 +70,7 @@ async function expectHit(target: Locator, min: { width?: number; height?: number
 const placeholderColor = (field: Locator) => field.evaluate((input) => getComputedStyle(input, "::placeholder").color);
 
 test("the home blanks' placeholders are the muted gray, 4.6:1 on the page in light and 6.4:1 in dark", async ({ page }) => {
-  await page.goto("/");
+  await home(page);
   const blank = page.getByRole("textbox", { name: "Your name" });
   await expect(blank).toBeVisible();
   expect(await placeholderColor(blank)).toBe("rgb(115, 115, 115)");
@@ -75,7 +81,7 @@ test("the home blanks' placeholders are the muted gray, 4.6:1 on the page in lig
 });
 
 test("every tappable word and field in home's sentence has a hit area of at least 44 px, and the x after a name is 44 by 44", async ({ page }) => {
-  await page.goto("/");
+  await home(page);
   await expectHit(page.getByRole("button", { name: "Add the receipt" }), { height: 44 });
   await expectHit(page.getByRole("textbox", { name: "Your name" }), { height: 44, width: 44 });
   await expectHit(page.getByRole("textbox", { name: "Venmo handle" }), { height: 44, width: 44 });
@@ -87,8 +93,7 @@ test("every tappable word and field in home's sentence has a hit area of at leas
 });
 
 test("a tap above a blank's text, inside its padding, still focuses it", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("#root")).not.toHaveAttribute("inert", live);
+  await home(page);
   const blank = page.getByRole("textbox", { name: "Venmo handle" });
   const box = (await blank.boundingBox())!;
   expect(box.height).toBeGreaterThanOrEqual(43);
