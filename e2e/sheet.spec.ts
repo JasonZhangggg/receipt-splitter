@@ -646,3 +646,19 @@ test("a pull past 110 px closes the sheet, and a pull of 80 px does not", async 
   await drag(page, await grabOf(item), 140, 200, 150);
   await expect(item).toHaveCount(0, live);
 });
+
+test("a long pull down from tall lands at rest and does not close the sheet", async ({ browser, request, browserName }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  const item = await openRice(page);
+  const rest = (await item.boundingBox())!.y;
+
+  await drag(page, await grabOf(item), -160, 200, 150);
+  await settled(item);
+  const tallTop = (await item.boundingBox())!.y;
+  expect(tallTop).toBeLessThan(rest - 100);
+
+  await drag(page, await grabOf(item), Math.round((rest - tallTop) * 0.9), 250, 150);
+  await settled(item);
+  await expect(item).toBeVisible();
+  expect(Math.abs((await item.boundingBox())!.y - rest)).toBeLessThan(2);
+});

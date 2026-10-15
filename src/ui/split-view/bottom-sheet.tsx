@@ -242,7 +242,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, onUp, st
       return;
     }
     if (snaps) {
-      const snap = snapFor((offset.current ?? home) - home, velocity, tall);
+      const snap = snapFor((offset.current ?? home) - rest, velocity, tall, rest);
       if (snap === "close" && onDown) return leave(velocity);
       const next = snap === "tall" || (snap === "stay" && tall);
       settle(next ? 0 : rest, velocity);

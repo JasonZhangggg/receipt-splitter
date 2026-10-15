@@ -17,21 +17,21 @@ export function releaseIntent(travel: number, velocity: number, visible: number)
   return "stay";
 }
 
-/** A pull down past this many px, after the release's momentum, closes a snapping sheet. */
+/** A pull down past this many px below the rest snap, after the release's momentum, closes a snapping sheet. */
 export const closeDistance = 110;
 const snapAt = 40;
 /** The share of the screen a sheet fills at its tall snap. */
 export const tallShare = 0.94;
 /** A sheet leaves in about this long. */
-export const leaveMs = 200;
+export const leaveMs = 300;
 
 export type Snap = "close" | "tall" | "rest" | "stay";
 
-/** Where a released snapping sheet goes, from how far it is from the snap it started on (px, down is positive), its speed (px/s) and whether it started tall. */
-export function snapFor(travel: number, velocity: number, tall: boolean): Snap {
-  const projected = travel + project(velocity);
+/** Where a released snapping sheet goes, from how far it is below the rest snap (px, negative above it), its speed (px/s, down is positive), whether it started tall and how far tall sits above rest. Like a detent, a pull down from tall lands at rest; only a pull past `closeDistance` below rest closes. */
+export function snapFor(fromRest: number, velocity: number, tall: boolean, tallAbove: number): Snap {
+  const projected = fromRest + project(velocity);
   if (projected > closeDistance) return "close";
-  if (tall && projected > snapAt) return "rest";
+  if (tall && projected + tallAbove > snapAt) return "rest";
   if (!tall && projected < -snapAt) return "tall";
   return "stay";
 }

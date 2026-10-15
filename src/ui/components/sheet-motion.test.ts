@@ -61,19 +61,23 @@ describe("releaseIntent", () => {
 });
 
 describe("snapFor", () => {
-  test("closes past 110 px, snaps tall on a pull or flick up, and settles between", () => {
+  test("closes past 110 px below rest, snaps tall on a pull or flick up, and from tall lands at rest before it ever closes", () => {
+    const rest = 300;
     expect({
-      slowPast110: snapFor(120, 0, false),
-      slowShort: snapFor(100, 0, false),
-      flickDown: snapFor(20, 900, false),
-      pullUp: snapFor(-50, 0, false),
-      flickUp: snapFor(-8, -700, false),
-      nudgeUp: snapFor(-20, 0, false),
-      tallPullDownShort: snapFor(60, 0, true),
-      tallPullDownFar: snapFor(130, 0, true),
-      tallNudge: snapFor(20, 0, true),
-      tallPullUp: snapFor(-80, 0, true),
-    }).toEqual({ slowPast110: "close", slowShort: "stay", flickDown: "close", pullUp: "tall", flickUp: "tall", nudgeUp: "stay", tallPullDownShort: "rest", tallPullDownFar: "close", tallNudge: "stay", tallPullUp: "stay" });
+      slowPast110: snapFor(120, 0, false, rest),
+      slowShort: snapFor(100, 0, false, rest),
+      flickDown: snapFor(20, 900, false, rest),
+      pullUp: snapFor(-50, 0, false, rest),
+      flickUp: snapFor(-8, -700, false, rest),
+      nudgeUp: snapFor(-20, 0, false, rest),
+      tallPullDownShort: snapFor(-240, 0, true, rest),
+      tallPullDownLong: snapFor(-300 + 250, 0, true, rest),
+      tallPastRest100: snapFor(100, 0, true, rest),
+      tallPastRest130: snapFor(130, 0, true, rest),
+      tallNudge: snapFor(-280, 0, true, rest),
+      tallPullUp: snapFor(-380, 0, true, rest),
+      tallFlick: snapFor(-300, 400, true, rest),
+    }).toEqual({ slowPast110: "close", slowShort: "stay", flickDown: "close", pullUp: "tall", flickUp: "tall", nudgeUp: "stay", tallPullDownShort: "rest", tallPullDownLong: "rest", tallPastRest100: "rest", tallPastRest130: "close", tallNudge: "stay", tallPullUp: "stay", tallFlick: "rest" });
   });
 });
 
