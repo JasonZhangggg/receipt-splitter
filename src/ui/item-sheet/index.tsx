@@ -65,10 +65,14 @@ function typedAmounts(parts: readonly (readonly [ParticipantId, number])[], edit
   return parts.map(([participantId, cents]) => ({ participantId, cents: edit.values?.findLast((value) => value.participantId === participantId)?.value ?? cents }));
 }
 
-function holdsBack(seen: Split, itemId: ItemId, edit: ItemEdit, last: ParticipantId | null): boolean {
+function holdsBack(seen: Split, itemId: ItemId, live: SplitItem | undefined, edit: ItemEdit, last: ParticipantId | null): boolean {
   const row = seen.receipt.items.find(({ id }) => id === itemId);
   if (!row || row.split.by !== "amount" || row.split.units[0].length === 0 || Object.keys(divide(edit).held).length === 0) return false;
-  return amountStatus(row.price, typedAmounts(row.split.units[0], edit), last).by !== "exact";
+  const typed = typedAmounts(row.split.units[0], edit);
+  // Amounts typed back to what is stored, such as a remainder left by a price raise, change nothing, so there is nothing to hold.
+  const stored = live?.split.by === "amount" ? live.split.units[0] : null;
+  if (edit.by !== "even" && edit.by !== "shares" && stored?.length === typed.length && typed.every(({ participantId, cents }, at) => stored[at]?.[0] === participantId && stored[at]?.[1] === cents)) return false;
+  return amountStatus(row.price, typed, last).by !== "exact";
 }
 
 function repriced(split: Split, itemId: ItemId, price: SplitItem["price"]): Split {
@@ -140,7 +144,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   const item: SplitItem | undefined = seen.receipt.items.find(({ id }) => id === itemId);
   const lastTyped = unconfirmed.values?.at(-1)?.participantId ?? null;
   // A By amount split that does not add up to the price is never stored: the previous split and its shares stay, and nothing reaches the server or History, until it adds up.
-  const holding = holdsBack(seen, itemId, unconfirmed, lastTyped);
+  const holding = holdsBack(seen, itemId, live, unconfirmed, lastTyped);
   // Amounts that went over the price because the price was lowered are not saved either.
   const unsaved = holding || refusal === "amountOverPrice";
 
@@ -168,6 +172,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     void send(patch(sending)).then(({ ok }) => {
       setSent((was) => was.filter((edit) => edit !== sending));
       setProblem(ok ? null : say.saveFailed);
+      if (!ok) setFields((was) => was + 1);
     });
   };
   const holds = () => {

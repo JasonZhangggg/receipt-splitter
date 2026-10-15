@@ -432,14 +432,24 @@ test("a price change on a By amount Item saves as before, and the extra counts a
   await expect(page.getByTestId("unclaimed")).toHaveText("$2.00", live);
 
   await page.getByRole("button", { name: /^Open Pizza, / }).click();
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("5");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$2.00 left to assign");
+  await expect(sheet.getByText("Not saved")).toHaveCount(0);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await page.getByRole("button", { name: /^Open Pizza, / }).click();
   await sheet.getByRole("textbox", { name: "Price" }).fill("8");
   await expect(sheet.getByTestId("amount-status")).toHaveText("$2.00 over the price");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toBeVisible();
   await expect(sheet.getByText("Not saved")).toBeVisible();
+  await expect(page.getByTestId("unclaimed")).toHaveText("$2.00");
   await sheet.getByRole("textbox", { name: "Price" }).fill("12");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByRole("button", { name: /^Open Pizza, \$12\.00/ })).toBeVisible();
+  await expect(page.getByTestId("unclaimed")).toHaveText("$2.00");
 });
 
 test("a By amount edit that does not add up keeps the sheet open on Not saved through Close and Escape, and Evenly lets it go", async ({ browser, request, browserName }, { workerIndex }) => {
