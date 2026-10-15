@@ -2598,7 +2598,7 @@ describe("an added or deleted Item moving the Subtotal and Total (preferences 70
   });
 });
 
-describe("a missed line: Items short of the printed Subtotal fill the gap before the Total moves", () => {
+describe("a missed line: an added Item fills the Items' shortfall under the printed Subtotal before the Total moves", () => {
   const tea = itemId("tea");
   const totals = ({ receipt }: Split) => [receipt.subtotal, receipt.total];
   const gap = ({ receipt }: Split) => runTotalCheck(receipt);
@@ -2642,13 +2642,18 @@ describe("a missed line: Items short of the printed Subtotal fill the gap before
     expect(gap(split)).toMatchObject({ ok: false, subtotalGap: 650 });
   });
 
-  test("a delete on a receipt whose Items are over its Subtotal takes off the extra first", () => {
-    const small = apply(over(), remove(ann, fries));
-    const pitcherGone = apply(over(), remove(ann, pitcher));
+  test("a delete on a receipt whose Items are over its Subtotal lowers the Subtotal and Total by the full price", () => {
+    const split = apply(over(), remove(ann, fries));
 
-    expect(totals(small)).toEqual([4400, 4400]);
-    expect(gap(small)).toEqual({ ok: true });
-    expect(totals(pitcherGone)).toEqual([2200, 2200]);
+    expect(totals(split)).toEqual([4100, 4100]);
+    expect(gap(split)).toMatchObject({ ok: false, subtotalGap: -300 });
+  });
+
+  test("a delete then a re-add of the same Item on a receipt that adds up returns the Subtotal and Total", () => {
+    const deleted = apply(withBobAndCat(), remove(bob, fries));
+    const readded = apply(deleted, { by: bob, type: "editReceipt", items: [{ type: "add", item: { id: itemId("fries2"), name: "Fries", price: price(800) }, index: 1 }] });
+
+    expect([totals(deleted), totals(readded)]).toEqual([[4400, 4400], [5200, 5200]]);
   });
 
   test("Undo after each kind of add or delete puts the Subtotal and Total back exactly", () => {
@@ -2671,29 +2676,30 @@ describe("a missed line: Items short of the printed Subtotal fill the gap before
     expect(totals(apply(withBobAndCat(), priceEdit(bob, fries, 800, 600)))).toEqual([5000, 5000]);
   });
 
-  test("a price raised on a short receipt fills the shortfall first", () => {
-    const within = apply(short(), priceEdit(bob, fries, 800, 1000));
-    const past = apply(short(), priceEdit(bob, fries, 800, 1600));
+  test("a price raised on a short receipt raises the Subtotal and Total by the full difference and keeps the shortfall", () => {
+    const split = apply(short(), priceEdit(bob, fries, 800, 1000));
 
-    expect([totals(within), gap(within)]).toEqual([[5850, 5850], expect.objectContaining({ subtotalGap: 450 })]);
-    expect([totals(past), gap(past)]).toEqual([[6000, 6000], { ok: true }]);
+    expect([totals(split), gap(split)]).toEqual([[6050, 6050], expect.objectContaining({ subtotalGap: 650 })]);
   });
 
-  test("fixing a misread price to what was printed makes the receipt add up without moving the Total", () => {
-    const split = apply(short(), priceEdit(bob, fries, 800, 1450));
-
-    expect([totals(split), gap(split)]).toEqual([[5850, 5850], { ok: true }]);
+  test("a price lowered on a receipt whose Items are over moves the Subtotal and Total by the full difference", () => {
+    expect(totals(apply(over(), priceEdit(ann, fries, 800, 600)))).toEqual([4700, 4700]);
   });
 
-  test("a price lowered on a short receipt lowers the Subtotal and Total by the full difference", () => {
-    const split = apply(short(), priceEdit(bob, fries, 800, 600));
+  test("a price taken down and back up lands on the Total it started at, with or without a shortfall", () => {
+    const roundTrip = (before: Split) => {
+      const down = apply(before, priceEdit(bob, fries, 800, 700));
+      return [totals(before), totals(down), totals(apply(down, priceEdit(bob, fries, 700, 800)))];
+    };
 
-    expect([totals(split), gap(split)]).toEqual([[5650, 5650], expect.objectContaining({ subtotalGap: 650 })]);
+    expect(roundTrip(withBobAndCat())).toEqual([[5200, 5200], [5100, 5100], [5200, 5200]]);
+    expect(roundTrip(short())).toEqual([[5850, 5850], [5750, 5750], [5850, 5850]]);
   });
 
-  test("a price lowered on a receipt whose Items are over takes off the extra first", () => {
-    expect(totals(apply(over(), priceEdit(ann, fries, 800, 600)))).toEqual([4900, 4900]);
-    expect(totals(apply(over(), priceEdit(ann, fries, 800, 300)))).toEqual([4700, 4700]);
+  test("a price typed in steps lands where the same price typed at once does", () => {
+    const steps = apply(short(), priceEdit(bob, fries, 800, 100), priceEdit(bob, fries, 100, 1000));
+
+    expect(totals(steps)).toEqual(totals(apply(short(), priceEdit(bob, fries, 800, 1000))));
   });
 
   test("Undo of a price edit puts the Subtotal and Total back exactly, with or without a shortfall", () => {
