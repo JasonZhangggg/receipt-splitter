@@ -325,7 +325,7 @@ test("the tax and tip note shows only for an Item, and only on a receipt with ta
   await expect(sheet(plain).getByText(/short\.$/)).toHaveCount(0);
 });
 
-test("a price edit moves the Total by the difference on every phone, and on a short receipt typed slowly it fills the shortfall once", async ({ browser, request }, { workerIndex }) => {
+test("a price edit moves the Total by the difference on every phone, and typed slowly on a short receipt it moves it by the same full difference", async ({ browser, request }, { workerIndex }) => {
   const even = await createSplit(request, workerIndex);
   const sam = await open(browser, even);
   const priya = await open(browser, even);
@@ -346,13 +346,56 @@ test("a price edit moves the Total by the difference on every phone, and on a sh
   await price.click();
   await expect.poll(() => price.evaluate((input: HTMLInputElement) => input.value.slice(input.selectionStart!, input.selectionEnd!))).toBe("8.00");
   await short.keyboard.type("1");
-  await short.waitForTimeout(1200);
+  await expect(short.getByRole("button", { name: /^Open Rice, \$1\.00/ })).toHaveCount(1, live);
   await short.keyboard.type("0.00");
   await short.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
   await expect(short.getByRole("button", { name: /^Open Rice, \$10\.00/ })).toBeVisible(live);
-  await expect(short.getByTestId("total")).toHaveText("$14.50");
-  await expect(shortNote(short)).toHaveText("Items are $4.50 short of the subtotal.");
+  await expect(short.getByTestId("total")).toHaveText("$16.50");
+  await expect(shortNote(short)).toHaveText("Items are $6.50 short of the subtotal.");
 });
+
+test("a price typed in Edit item reaches another phone while the field is still focused, and stays after the typer leaves", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await sam.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+  const price = sam.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" });
+  await price.fill("13.00");
+
+  await expect(priya.getByRole("button", { name: /^Open Rice, \$13\.00/ })).toBeVisible({ timeout: 1500 });
+  await expect(priya.getByTestId("total")).toHaveText("$13.00");
+  await expect(price).toBeFocused();
+
+  await sam.goto("about:blank");
+  await priya.reload();
+  await expect(priya.getByRole("button", { name: /^Open Rice, \$13\.00/ })).toBeVisible(live);
+  await expect(priya.getByTestId("total")).toHaveText("$13.00");
+});
+
+for (const wait of [0, 1000]) {
+  test(`closing Edit item ${wait} ms after typing with the price still focused sends the name and price edits once`, async ({ browser, request }, { workerIndex }) => {
+    const sent: string[] = [];
+    const sam = await open(browser, await createSplit(request, workerIndex), (page) =>
+      page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => typeof payload === "string" && sent.push(payload))),
+    );
+    await pick(sam, "Sam");
+    await sam.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+    const dialog = sam.getByRole("dialog", { name: "Edit item" });
+    await dialog.getByRole("textbox", { name: "Item name" }).fill("Brown rice");
+    await dialog.getByRole("textbox", { name: "Price" }).fill("13.00");
+    await sam.waitForTimeout(wait);
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(sam.getByRole("button", { name: /^Open Brown rice, \$13\.00/ })).toBeVisible(live);
+    await sam.waitForTimeout(1000);
+
+    const edits = sent.filter((frame) => frame.includes('"editReceipt"'));
+    expect(edits.filter((frame) => frame.includes('"price":1300'))).toHaveLength(1);
+    expect(edits.filter((frame) => frame.includes('"name":"Brown rice"'))).toHaveLength(1);
+    await expect(sam.getByTestId("total")).toHaveText("$13.00");
+  });
+}
 
 test("How many 3 adds a 3x line, raises the Total by the line's price, and Edit item can split it into 3", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex));
