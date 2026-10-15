@@ -4,24 +4,50 @@ import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
 import { splitCopy } from "../split-copy";
-import { breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, linesNear, lineTag, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems } from "./model";
+import { breakdownCharges, breakdownLines, bundleNote, circleTap, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
 
-describe("lineTag", () => {
-  const order = [bob, ann, cat];
+describe("lineView", () => {
+  const people = [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }, { id: cat, name: "Cat" }];
+  const portions = (it: SplitItem, viewer: ParticipantId | null) => {
+    if (viewer === null) return new Map();
+    const receipt = { items: [it] as const, adjustments: [], subtotal: it.price, total: it.price };
+    const [host, ...others] = people;
+    return new Map(shareBreakdown({ receipt, participants: [host, ...others], payments: [] }, viewer).items.map(({ id, portion }) => [id, portion]));
+  };
+  const view = (it: SplitItem, viewer: ParticipantId | null = ann, me: ParticipantId | null = ann) => lineView(it, { people, me, viewer }, portions(it, viewer));
 
-  test("reads ½ for two people on a line, a ratio for shares in the table's order of people, split for amounts, and nothing for one person or nobody", () => {
+  test("the split line reads yours for the viewer and each for others", () => {
     expect([
-      lineTag(item({ by: "even", units: [[ann, bob]] }), order),
-      lineTag(item({ by: "even", units: [[ann, bob, cat]] }), order),
-      lineTag(item({ by: "shares", units: [[[ann, 2], [bob, 1]]] }), order),
-      lineTag(item({ by: "shares", units: [[[ann, 2], [bob, 1]]] }), [ann, bob, cat]),
-      lineTag(item({ by: "amount", units: [[[ann, cents(75)], [bob, cents(25)]]] }), order),
-      lineTag(item({ by: "even", units: [[ann]] }), order),
-      lineTag(item({ by: "even", units: [[]] }), order),
-    ]).toEqual(["½", "⅓", "1:2", "2:1", "split", null, null]);
+      view(item({ by: "even", units: [[ann, bob, cat]] }, 1400)).split,
+      view(item({ by: "even", units: [[bob, cat]] }, 1250)).split,
+      view(item({ by: "even", units: [[bob, cat]] }, 1250), bob).split,
+      view(item({ by: "shares", units: [[[ann, 2], [bob, 1]]] }, 900)).split,
+      view(item({ by: "amount", units: [[[ann, cents(250)], [bob, cents(650)]]] }, 900)).split,
+      view(item({ by: "shares", units: [[[bob, 2], [cat, 1]]] }, 900)).split,
+      view(item({ by: "amount", units: [[[bob, cents(250)], [cat, cents(650)]]] }, 900)).split,
+      view(item({ by: "even", units: [[bob]] })).split,
+      view(item({ by: "even", units: [[]] })).split,
+    ]).toEqual(["$4.67 yours", "$6.25 each", "$6.25 Bob's", "$6.00 yours", "$2.50 yours", "by shares", "by amount", null, null]);
+  });
+
+  test("$14.00 even across three people with the viewer sorted last reads $4.67 yours", () => {
+    expect(view(item({ by: "even", units: [[ann, bob, cat]] }, 1400), cat, cat).split).toBe("$4.67 yours");
+  });
+
+  test("an even split whose parts differ by a cent says how many ways instead of each", () => {
+    expect([view(item({ by: "even", units: [[ann, bob, cat]] }, 1400), null).split, view(item({ by: "even", units: [[ann, bob, cat]] }, 1500), null).split]).toEqual(["split 3 ways", "$5.00 each"]);
+  });
+
+  test("who had it lists the phone's owner as You first, then the others in the table's order, and says Nobody yet for an untouched line", () => {
+    expect([
+      view(item({ by: "even", units: [[cat, bob, ann]] })).who,
+      view(item({ by: "even", units: [[cat, bob]] }), ann, null).who,
+      view(item({ by: "even", units: [[bob]] }), ann, bob).who,
+      view(item({ by: "even", units: [[]] })).who,
+    ]).toEqual(["You, Bob, Cat", "Bob, Cat", "You", "Nobody yet"]);
   });
 });
 

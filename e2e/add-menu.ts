@@ -2,8 +2,8 @@ import { expect, type Page } from "@playwright/test";
 
 export type AddChoice = "Item" | "Tax" | "Tip" | "Discount";
 
-/** The receipt's one Add row. */
-export const addRow = (page: Page) => page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true });
+/** The receipt's one Add link. */
+export const addRow = (page: Page) => page.getByTestId("receipt").getByRole("button", { name: "Add item, tax, tip or discount", exact: true });
 
 /** Opens the Add menu and picks a kind from it; the form for that kind opens in its place. */
 export async function openAdd(page: Page, choice: AddChoice) {

@@ -1,9 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { type Colors, onPastel } from "../colors";
-import { type, useColors } from "../theme";
+import { useReducedMotion, webStyle } from "../motion";
+import { motion, type, useColors } from "../theme";
 
-type Tone = "dot" | "quiet" | "me" | "sheet" | "sheetIn" | "onAction" | "self" | "none";
+type Tone = "dot" | "quiet" | "me" | "sheet" | "sheetIn" | "onAction" | "none";
 
 const fills: Record<Tone, (c: Colors) => { fill: string; ink: string }> = {
   dot: (c) => ({ fill: c.dot, ink: c.ink }),
@@ -12,7 +13,6 @@ const fills: Record<Tone, (c: Colors) => { fill: string; ink: string }> = {
   sheet: (c) => ({ fill: c.sheet, ink: c.ink }),
   sheetIn: (c) => ({ fill: c.sheetIn, ink: c.muted }),
   onAction: (c) => ({ fill: c.onAction, ink: c.action }),
-  self: (c) => ({ fill: c.selfBadge, ink: c.onSelfBadge }),
   none: (c) => ({ fill: "transparent", ink: c.muted }),
 };
 
@@ -30,4 +30,25 @@ export function Dot({ name, size = 24, tone = "dot", ring, fillOverride }: { nam
 
 const styles = StyleSheet.create({
   dot: { alignItems: "center", justifyContent: "center" },
+  claim: { width: 12, height: 12, borderRadius: 6 },
 });
+
+const claimMotion = webStyle({ transitionProperty: "background-color, box-shadow, transform", transitionDuration: "200ms, 200ms, 160ms", transitionTimingFunction: motion.easeOut });
+const claimFade = webStyle({ transitionProperty: "background-color, box-shadow", transitionDuration: `${motion.reducedFade}ms`, transitionTimingFunction: motion.easeOut });
+
+/** The 12 px dot that claims a line: a hollow ring, filled when the viewer has the line. It presses to 0.8 and retargets from wherever it is if tapped again. */
+export function ClaimDot({ on, pressed }: { on: boolean; pressed: boolean }) {
+  const c = useColors();
+  const reduce = useReducedMotion();
+  return (
+    <View
+      testID={on ? "checked" : undefined}
+      style={[
+        styles.claim,
+        { backgroundColor: on ? c.ink : "transparent", boxShadow: `inset 0 0 0 1px ${on ? c.ink : c.dash}` },
+        reduce ? claimFade : claimMotion,
+        pressed && !reduce && { transform: [{ scale: 0.8 }] },
+      ]}
+    />
+  );
+}

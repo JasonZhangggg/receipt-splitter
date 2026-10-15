@@ -1,22 +1,23 @@
 import { useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import type { Shares } from "../../core/shares";
+import { shareBreakdown, type Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
 import type { Adjustment, AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
+import { TextLink } from "../components/text-link";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { layout, motion, tabular, type, useColors } from "../theme";
-import { usePersonInks } from "../person-inks";
-import { Dot } from "./dot";
-import { claimersOfItem, keepInPlace, lineTag, nameParts, quantityText, receiptRows, totalNote, claimedItems, type BundleRow, type Kept } from "./model";
+import { motion, tabular, type, useColors } from "../theme";
+import { ClaimDot } from "./dot";
+import { itemsHad, keepInPlace, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoLine, type BundleRow, type Kept, type Portions, type Viewing } from "./model";
 
 type Props = {
   split: Split;
   shares: Shares;
+  /** The person whose checks the dots show. */
   selected: Participant | null;
   me: ParticipantId | null;
   onCircle: (item: SplitItem, press: Press) => void;
@@ -27,18 +28,17 @@ type Props = {
   showing: ItemId | AdjustmentId | "add" | null;
 };
 
-const dotSize = 16;
-const markSize = 18;
-const tapSize = 44;
-const tapBleed = 13;
-const circleColumn = tapSize - tapBleed;
-const columnGap = 3;
-const nameStart = circleColumn + columnGap;
-const priceGap = 10;
+// The dot's column is 26 px wide: the name starts where the charges and the Total start.
+const nameStart = 26;
+const columnGap = 14;
+const dotTap = 44;
+const dotBleed = 14;
 const bleed = 12;
-const adjustmentsGap = 8;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
+const nameLine = 25.6;
+const noteLine = 22.4;
+const chargeRow = 34;
 
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing }: Props) {
   const c = useColors();
@@ -47,11 +47,12 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   const { items, adjustments, subtotal, total } = split.receipt;
   const { rows, charges } = useMemo(() => receiptRows(split.receipt), [split.receipt]);
   const [entering, settle] = useEntering([...items, ...adjustments].map(({ id }) => id));
-  const started = items.some((item) => claimersOfItem(item).length > 0);
+  const started = items.some(({ split: item }) => claimersOf(item).length > 0);
   const note = totalNote(split.receipt);
-  const order = split.participants.map(({ id }) => id);
+  const viewing: Viewing = { people: split.participants, me, viewer: selected?.id ?? null };
+  const portions = useMemo(() => new Map(selected ? shareBreakdown(split, selected.id).items.map(({ id, portion }) => [id, portion]) : []), [split, selected]);
   const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
-  const people = (item: SplitItem) => claimersOfItem(item).map(person);
+  const people = (item: SplitItem) => claimersOf(item.split).map(person);
   const openAdjustment = (id: AdjustmentId, press: Press) => {
     const row = split.receipt.adjustments.find((adjustment) => adjustment.id === id);
     if (row) onOpenAdjustment(row, press);
@@ -67,8 +68,9 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   const line = (item: SplitItem, inBundle: boolean) => (
     <Line
       item={item}
-      order={order}
-      claimers={claimersOf(item.split).map(person)}
+      viewing={viewing}
+      portions={portions}
+      claimers={people(item)}
       selected={selected}
       inBundle={inBundle}
       onCircle={(press) => onCircle(item, press)}
@@ -78,33 +80,30 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   );
 
   return (
-    <View testID="receipt" style={[styles.card, { backgroundColor: c.paper }]}>
-      {selected ? (
-        <Text style={[type.caption, styles.hint, { color: c.muted }]}>
-          {selected.id === me ? (
-            say.checkYours
-          ) : (
-            <>
-              {say.checkTheirs[0]}
-              <Text style={[styles.strong, { color: c.ink }]}>{selected.name}</Text>
-              {say.checkTheirs[1]}
-            </>
-          )}
+    <View testID="receipt">
+      <View style={styles.heading}>
+        <Text role="heading" aria-level={2} style={[type.body, { color: c.ink }]}>
+          {say.itemsHeading}
         </Text>
-      ) : null}
-      <View role="list" aria-label={say.item}>
+        {selected ? (
+          <Text testID="items-count" style={[type.caption, tabular, { color: c.muted }]}>
+            {say.itemsOf(itemsHad(items, selected.id), items.length, selected.id === me ? null : selected.name)}
+          </Text>
+        ) : null}
+      </View>
+      <View role="list" aria-label={say.item} style={[styles.list, { borderBottomColor: c.hairline }]}>
         <KeptRows rows={rows} entering={entering}>
           {(row) => {
             if (row.kind === "item") return line(row.item, false);
             const { bundle } = row;
+            const claimers = [...new Map(bundle.items.flatMap(people).map((one) => [one.id, one])).values()];
             return (
               <BundleGroup
                 bundle={bundle}
                 open={opened.has(bundle.id)}
                 claimed={claimedItems(bundle, shares.unclaimed.itemIds)}
-                claimers={[...new Map(bundle.items.flatMap(people).map((person) => [person.id, person])).values()]}
-                order={order}
-                selectedId={selected?.id}
+                claimers={claimers}
+                who={whoLine(claimers.map(({ id }) => id), viewing)}
                 onToggle={() => toggle(bundle.id)}
               >
                 <KeptRows rows={bundle.items} entering={entering}>
@@ -115,14 +114,14 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                   popup="dialog"
                   expanded={showing === bundle.id}
                   onPress={(press) => openAdjustment(bundle.id, press)}
-                  style={(pressed) => [styles.discount, pressStyle(pressed, reduce)]}
+                  style={(pressed) => [styles.discount, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
                 >
                   {() => (
                     <>
                       <Text numberOfLines={1} style={[type.body, styles.name, { color: c.muted }]}>
                         {bundle.discount.label}
                       </Text>
-                      <Text style={[type.body, tabular, { color: c.muted }]}>{groupedAmount(bundle.discount.amount)}</Text>
+                      <Text style={[type.body, tabular, { color: c.muted }]}>{money(bundle.discount.amount)}</Text>
                     </>
                   )}
                 </PressTarget>
@@ -131,13 +130,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           }}
         </KeptRows>
       </View>
-      <AddRow expanded={showing === "add"} onPress={onAdd} />
-      {note ? (
-        <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
-          {note}
-        </Text>
-      ) : null}
-      <View style={[styles.adjustments, { borderTopColor: c.hairline }]}>
+      <View style={styles.charges}>
         <Row label={say.subtotal} amount={subtotal} />
         <KeptRows rows={charges} entering={entering}>
           {(row) => (
@@ -152,19 +145,25 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
             </PressTarget>
           )}
         </KeptRows>
+        <TextLink plus name={say.add} label={say.add} popup="dialog" expanded={showing === "add"} onPress={onAdd} />
+        {note ? (
+          <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
+            {note}
+          </Text>
+        ) : null}
       </View>
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <Text style={[type.title, { color: c.ink }]}>{say.total}</Text>
-        <Text testID="total" style={[type.title, tabular, { color: c.ink }]}>
+        <Text style={[type.body, { color: c.ink }]}>{say.total}</Text>
+        <Text testID="total" style={[type.body, tabular, { color: c.ink }]}>
           {money(total)}
         </Text>
       </View>
       {started ? (
         <View style={styles.unclaimed}>
-          <Text testID="unclaimed-count" numberOfLines={1} style={[type.body, tabular, styles.rowLabel, { color: c.muted }]}>
+          <Text testID="unclaimed-count" numberOfLines={1} style={[styles.chargeText, tabular, styles.rowLabel, { color: c.muted }]}>
             {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
           </Text>
-          <Text testID="unclaimed" style={[type.body, tabular, { color: c.ink }]}>
+          <Text testID="unclaimed" style={[styles.chargeText, tabular, { color: c.ink }]}>
             {money(shares.unclaimed.total)}
           </Text>
         </View>
@@ -178,8 +177,7 @@ type BundleProps = {
   open: boolean;
   claimed: number;
   claimers: readonly Participant[];
-  order: readonly ParticipantId[];
-  selectedId?: ParticipantId;
+  who: string;
   onToggle: () => void;
   children: ReactNode;
 };
@@ -189,7 +187,7 @@ function inside(claimers: readonly Participant[], claimed: number): string {
   return [had, claimed > 0 ? say.claimedItems(claimed) : ""].filter(Boolean).join(", ");
 }
 
-function BundleGroup({ bundle, open, claimed, claimers, order, selectedId, onToggle, children }: BundleProps) {
+function BundleGroup({ bundle, open, claimed, claimers, who, onToggle, children }: BundleProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   const region = useId();
@@ -203,33 +201,38 @@ function BundleGroup({ bundle, open, claimed, claimers, order, selectedId, onTog
   }
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`}>
+      <View pointerEvents="none" style={[styles.rule, fade, { backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
       <PressTarget
         name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, claimed), open)}
         expanded={open}
         controls={region}
         onPress={onToggle}
-        style={(pressed) => [styles.header, pressStyle(pressed, reduce)]}
+        style={(pressed) => [styles.header, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
       >
         {() => (
           <>
-            <View style={[styles.chevron, { transform: [{ translateX: open ? 0 : -chevronTip }, { rotate: open ? "0deg" : "-90deg" }] }, !reduce && turn]}>
-              <Icon name="chevron" size={chevronSize} color={c.muted} />
-            </View>
-            <View style={styles.headerLead}>
+            <View style={styles.bundleTop}>
+              <View style={[styles.chevron, { transform: [{ translateX: open ? 0 : -chevronTip }, { rotate: open ? "0deg" : "-90deg" }] }, !reduce && turn]}>
+                <Icon name="chevron" size={chevronSize} color={c.muted} />
+              </View>
               <View style={styles.name}>
-                <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[type.body, styles.nameText, { color: c.ink }]}>
                   {bundle.name}
                 </Text>
-                <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
+                <Text numberOfLines={1} style={[type.caption, styles.noteText, { color: c.muted }]}>
                   {bundle.summary}
                 </Text>
-                <Presence present={showInside} animate={byClaim}>
-                  <Text style={[type.caption, tabular, styles.inside, { color: c.muted }]}>{say.claimedItems(claimed)}</Text>
-                </Presence>
               </View>
+              <Text style={[type.body, styles.nameText, tabular, { color: c.ink }]}>{money(bundle.net)}</Text>
             </View>
-            {showInside ? <Marks people={claimers} order={order} selectedId={selectedId} /> : null}
-            <Text style={[type.body, tabular, { color: c.ink }]}>{groupedAmount(bundle.net)}</Text>
+            <Presence present={showInside} animate={byClaim}>
+              <View style={styles.bundleWho}>
+                <Text numberOfLines={2} style={[type.caption, styles.noteText, styles.name, { color: c.muted }]}>
+                  {who}
+                </Text>
+                <Text style={[type.caption, tabular, styles.noteText, { color: c.muted }]}>{say.claimedItems(claimed)}</Text>
+              </View>
+            </Presence>
           </>
         )}
       </PressTarget>
@@ -387,34 +390,10 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
   );
 }
 
-const shownMarks = 3;
-
-/** Who had a line, the viewer included, as small overlapping initials before its price in table order: three at most, then "+N". The row's label already names them. */
-function Marks({ people, order, selectedId }: { people: readonly Participant[]; order: readonly ParticipantId[]; selectedId?: ParticipantId }) {
-  const c = useColors();
-  const inkOf = usePersonInks(order);
-  if (people.length === 0) return null;
-  const extra = people.length - shownMarks;
-  const seated = [...people].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-  return (
-    <View aria-hidden testID="claimer-marks" style={styles.marks}>
-      {seated.slice(0, shownMarks).map((person, index) => (
-        <View key={person.id} style={index > 0 && styles.overlap}>
-          {person.id === selectedId ? (
-            <Dot name={person.name} size={markSize} tone="self" ring={`inset 0 0 0 1px ${c.selfBadgeEdge}, 0 0 0 1.5px ${c.paper}`} />
-          ) : (
-            <Dot name={person.name} size={markSize} tone="quiet" fillOverride={inkOf(person.id).fill} ring={`0 0 0 1.5px ${c.paper}`} />
-          )}
-        </View>
-      ))}
-      {extra > 0 ? <Text style={[type.caption, tabular, styles.more, { color: c.muted }]}>{`+${extra}`}</Text> : null}
-    </View>
-  );
-}
-
 type LineProps = {
   item: SplitItem;
-  order: readonly ParticipantId[];
+  viewing: Viewing;
+  portions: Portions;
   claimers: readonly Participant[];
   selected: Participant | null;
   inBundle: boolean;
@@ -423,80 +402,54 @@ type LineProps = {
   expanded: boolean;
 };
 
-function Line({ item, order, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
-  const cost = item.price;
+/** A dot that claims the line, and the rest of the row, which opens it. The left column is the name, the detail and who had it; the right is the full price and what it comes to for the viewer or each person. */
+function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
   const c = useColors();
-  const reduce = useReducedMotion();
-  const tag = lineTag(item, order);
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
-  const price = groupedAmount(cost);
+  const price = groupedAmount(item.price);
   const [title, detail] = nameParts(item);
   const count = quantityText(item);
   const label = count ? `${count} ${item.name}` : item.name;
-  const who = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
+  const { who, split } = lineView(item, viewing, portions);
   return (
-    <View
-      role="listitem"
-      testID={`line-${item.id}`}
-      style={[
-        styles.line,
-        inBundle && { marginLeft: nameStart },
-      ]}
-    >
+    <View role="listitem" testID={`line-${item.id}`} style={[styles.line, { borderTopColor: c.hairline }, inBundle && { marginLeft: nameStart }]}>
       <PressTarget
         name={selected ? say.claimFor(label, selected.name) : say.whoHad(label)}
         toggled={selected ? mine : undefined}
         onPress={onCircle}
-        style={(pressed) => [styles.circle, pressStyle(pressed, reduce)]}
+        style={() => styles.circle}
       >
-        {() =>
-          mine ? (
-            <View testID="checked" style={[styles.empty, { backgroundColor: c.action }]}>
-              <Icon name="tick" size={dotSize} color={c.onAction} />
-            </View>
-          ) : (
-            <View style={[styles.empty, { boxShadow: `inset 0 0 0 1.5px ${c.muted}`, opacity: 0.6 }]} />
-          )
-        }
+        {(pressed) => <ClaimDot on={mine} pressed={pressed} />}
       </PressTarget>
-      <PressTarget name={`${say.open(label)}, $${price}, ${who}`} popup="dialog" expanded={expanded} onPress={onOpen} style={() => styles.body}>
+      <PressTarget name={[say.open(label), `$${price}`, who, split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
         {() => (
-          <View style={styles.bodyRow}>
+          <>
             <View style={styles.name}>
-              <Text numberOfLines={2} style={[type.body, { color: c.ink }]}>
+              <Text numberOfLines={2} style={[type.body, styles.nameText, { color: c.ink }]}>
                 {count ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${count}  `}</Text> : null}
                 {title}
-                {tag ? <Text style={[type.caption, { color: c.muted }]}>{`  ${tag}`}</Text> : null}
               </Text>
               {detail ? (
-                <Text numberOfLines={2} style={[type.caption, { color: c.muted }]}>
+                <Text numberOfLines={2} style={[type.caption, styles.noteText, { color: c.muted }]}>
                   {detail}
                 </Text>
               ) : null}
+              <Text numberOfLines={2} style={[type.caption, styles.noteText, { color: c.muted }]}>
+                {who}
+              </Text>
             </View>
-            <Marks people={claimers} order={order} selectedId={selected?.id} />
-            <Text style={[type.body, tabular, { color: c.ink }]}>{price}</Text>
-          </View>
+            <View style={styles.figures}>
+              <Text style={[type.body, styles.nameText, tabular, { color: c.ink }]}>{money(item.price)}</Text>
+              {split ? (
+                <Text numberOfLines={1} style={[type.caption, styles.noteText, tabular, { color: c.muted }]}>
+                  {split}
+                </Text>
+              ) : null}
+            </View>
+          </>
         )}
       </PressTarget>
     </View>
-  );
-}
-
-function AddRow({ expanded, onPress }: { expanded: boolean; onPress: (press: Press) => void }) {
-  const c = useColors();
-  const reduce = useReducedMotion();
-  return (
-    <PressTarget name={say.add} popup="dialog" expanded={expanded} onPress={onPress} style={(pressed) => [styles.line, styles.add, pressStyle(pressed, reduce)]}>
-      {() => (
-        <>
-          <View style={styles.addIcon}>
-            <Icon name="plus" size={dotSize} color={c.muted} />
-          </View>
-          <Text style={[type.body, { color: c.muted }]}>{say.add}</Text>
-        </>
-      )}
-    </PressTarget>
   );
 }
 
@@ -512,45 +465,45 @@ function RowFace({ label, amount }: { label: string; amount: number }) {
   const c = useColors();
   return (
     <>
-      <Text numberOfLines={1} style={[type.body, styles.rowLabel, { color: c.muted }]}>
+      <Text numberOfLines={1} style={[styles.chargeText, styles.rowLabel, { color: c.muted }]}>
         {label}
       </Text>
-      <Text style={[type.body, tabular, { color: c.muted }]}>{money(amount)}</Text>
+      <Text style={[styles.chargeText, tabular, { color: c.muted }]}>{money(amount)}</Text>
     </>
   );
 }
 
 const turn = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
+const fade = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
-  card: { paddingTop: 18, paddingLeft: 16, paddingRight: 17, paddingBottom: 20, borderRadius: layout.cardRadius },
-  hint: { marginTop: 0, marginBottom: 6 },
-  line: { flexDirection: "row", alignItems: "center", minHeight: layout.row, gap: columnGap },
-  circle: { minWidth: tapSize, height: tapSize, marginLeft: -tapBleed, paddingLeft: tapBleed, justifyContent: "center" },
-  marks: { flexDirection: "row", alignItems: "center", flexShrink: 0 },
-  overlap: { marginLeft: -3 },
-  more: { marginLeft: 4 },
-  empty: { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
-  body: { flex: 1, minWidth: 0, minHeight: layout.row, paddingVertical: 8, justifyContent: "center" },
-  bodyRow: { flexDirection: "row", alignItems: "center", gap: priceGap },
+  heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 32, marginBottom: 12 },
+  list: { borderBottomWidth: 1 },
+  line: { flexDirection: "row", alignItems: "flex-start", borderTopWidth: 1 },
+  // The dot is 12 px; its 44 px hit area bleeds past the gutter and 4 px under the row.
+  circle: { width: dotTap, height: 50, marginLeft: -dotBleed, marginRight: -4, paddingLeft: dotBleed, paddingTop: 19 },
+  body: { flex: 1, minWidth: 0, flexDirection: "row", columnGap, paddingVertical: 12 },
+  held: { opacity: 0.55 },
   name: { flex: 1, minWidth: 0 },
-  header: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 60, paddingVertical: 8 },
-  headerLead: { flex: 1, minWidth: 0, flexDirection: "row" },
-  inside: { marginTop: 2 },
-  chevron: { width: dotSize, height: dotSize, marginRight: nameStart - dotSize - priceGap, alignItems: "center", justifyContent: "center" },
+  nameText: { lineHeight: nameLine },
+  noteText: { lineHeight: noteLine },
+  figures: { flexShrink: 0, alignItems: "flex-end" },
+  header: { borderTopWidth: 1, paddingVertical: 12 },
+  bundleTop: { flexDirection: "row", alignItems: "flex-start", columnGap },
+  bundleWho: { flexDirection: "row", marginLeft: nameStart, columnGap },
+  chevron: { width: nameStart - columnGap, height: nameLine, alignItems: "center", justifyContent: "center" },
+  // The vertical rule runs from the open chevron's tip down beside the children; the chevron sits at the centre of its slot.
+  rule: { position: "absolute", left: (nameStart - columnGap) / 2 - 0.5, width: 1, top: 12 + nameLine / 2 + 4, bottom: 0 },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   collapsed: { minHeight: 0 },
-  discount: { flexDirection: "row", alignItems: "center", gap: priceGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart },
-  // A full row that overlaps the gap above the Subtotal hairline, so "Add" sits where the last Item's row would.
-  add: { marginBottom: -adjustmentsGap },
-  addIcon: { width: circleColumn, alignItems: "flex-start" },
-  why: { marginTop: 8, marginBottom: 2 },
-  adjustments: { marginTop: adjustmentsGap, paddingTop: 8, borderTopWidth: 1 },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.adjustmentRow, gap: 12 },
-  // A 44 px tap target that still sits on the 34 px row pitch; the overlap goes to the later row.
-  tapRow: { minHeight: tapSize, marginVertical: (layout.adjustmentRow - tapSize) / 2 },
+  discount: { flexDirection: "row", alignItems: "center", columnGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart, borderTopWidth: 1 },
+  charges: { marginTop: 14, paddingLeft: nameStart },
+  why: { marginTop: 2, marginBottom: 4 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: chargeRow, gap: 12 },
+  // A 44 px tap target that still sits on the row pitch; the overlap goes to the later row.
+  tapRow: { minHeight: dotTap, marginVertical: (chargeRow - dotTap) / 2 },
+  chargeText: { fontFamily: type.body.fontFamily, fontSize: 15, lineHeight: 24, letterSpacing: -0.1 },
   rowLabel: { flexShrink: 1 },
-  strong: { fontWeight: "500" },
-  total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 14, borderTopWidth: 1 },
-  unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+  total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 12, paddingLeft: nameStart, borderTopWidth: 1 },
+  unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: nameStart, marginTop: 10 },
 });

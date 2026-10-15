@@ -59,7 +59,7 @@ for (const width of [390, 1440]) {
       await page.screenshot({ path: file });
       results.push(file);
     };
-    const addRow = page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true });
+    const addRow = page.getByTestId("receipt").getByRole("button", { name: "Add item, tax, tip or discount", exact: true });
     await addRow.scrollIntoViewIfNeeded();
     await shot("receipt");
     await addRow.click();

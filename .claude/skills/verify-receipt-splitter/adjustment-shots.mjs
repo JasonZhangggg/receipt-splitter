@@ -68,7 +68,7 @@ for (const width of [390, 1440]) {
       await settle();
     };
 
-    const addRow = page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true });
+    const addRow = page.getByTestId("receipt").getByRole("button", { name: "Add item, tax, tip or discount", exact: true });
     await addRow.scrollIntoViewIfNeeded();
     await shot("receipt");
 

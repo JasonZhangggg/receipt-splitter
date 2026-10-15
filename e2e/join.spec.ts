@@ -350,7 +350,7 @@ test("when the browser refuses to save, a pick holds for the session and tapping
   await expect(question(page)).toHaveCount(0);
 
   await page.getByRole("button", { name: "Sprite, check for Jason" }).click();
-  await expect(page.getByRole("button", { name: /^Open Sprite, \$2\.50, had by Jason$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Open Sprite, \$2\.50, You, \$2\.50 yours$/ })).toBeVisible();
   await youAre(page, "Jason");
   await expect(question(page)).toHaveCount(0);
 });

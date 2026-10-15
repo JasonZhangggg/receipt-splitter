@@ -85,13 +85,13 @@ test("an Item added on one phone shows on another with who had it, and the Share
   await expect(totalNote).toBeVisible();
 
   await addFries(sam, ["Sam"]);
-  await expect(sam.getByRole("button", { name: "Open Fries, $6.50, had by Sam" })).toBeVisible(live);
-  await expect(priya.getByRole("button", { name: "Open Fries, $6.50, had by Sam" })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: "Open Fries, $6.50, You, $6.50 yours" })).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: "Open Fries, $6.50, Sam" })).toBeVisible(live);
   await expect(sam.getByTestId("owe")).toHaveText("$6.50");
   await expect(totalNote).toHaveCount(0);
 
   await priya.getByRole("button", { name: "Fries, check for Priya" }).click();
-  await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, had by (Sam, Priya|Priya, Sam)$/ })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, You, Priya, \$3\.25 yours$/ })).toBeVisible(live);
   await expect(sam.getByTestId("owe")).toHaveText("$3.25", live);
   await expect(priya.getByTestId("owe")).toHaveText("$3.25", live);
   expect(await shareOf(priya, "Sam")).toBe("$3.25");
@@ -102,7 +102,7 @@ test("people tapped in Who had it against id order (Sam, then Priya) still add t
   await pick(sam, "Sam");
 
   await addFries(sam, ["Sam", "Priya"]);
-  await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, had by (Sam, Priya|Priya, Sam)$/ })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, You, Priya, \$3\.25 yours$/ })).toBeVisible(live);
   await expect(sam.getByTestId("owe")).toHaveText("$3.25");
   expect(await shareOf(sam, "Priya")).toBe("$3.25");
 });
@@ -161,7 +161,7 @@ test("Add item with no name focuses the name and says so, and Return walks name,
   await sam.keyboard.press("Enter");
 
   await expect(sheet(sam)).toHaveCount(0, live);
-  await expect(sam.getByRole("button", { name: "Open Fries, $6.50, nobody had it" })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
   await expect(sam.getByText("large", { exact: true })).toBeVisible();
 });
 
@@ -247,7 +247,7 @@ for (const rafDelay of [0, 200]) {
             const box = row?.parentElement;
             if (row && box) {
               const label = row.querySelector('[aria-label^="Open Fries"]')?.getAttribute("aria-label") ?? "";
-              seen.push({ height: Math.round(box.getBoundingClientRect().height), opacity: Number(getComputedStyle(box).opacity), claimed: label.includes("had by Sam") });
+              seen.push({ height: Math.round(box.getBoundingClientRect().height), opacity: Number(getComputedStyle(box).opacity), claimed: label.includes("You") });
             }
             if (performance.now() - started < 4000) frame(sample);
             else resolve(seen);

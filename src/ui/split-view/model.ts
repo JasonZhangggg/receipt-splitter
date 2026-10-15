@@ -1,12 +1,10 @@
 import { claimersOf, type Operation } from "../../core/operations";
 import type { ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
-import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
+import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type Participant, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
 import { gapNote, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
-
-const UNICODE_FRACTIONS: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾", "1/5": "⅕", "1/6": "⅙", "1/8": "⅛" };
 
 export function claimersOfItem(item: SplitItem): ParticipantId[] {
   return [...claimersOf(item.split)];
@@ -17,18 +15,6 @@ export function ratio(weights: readonly (readonly [ParticipantId, number])[], or
     .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
     .map(([, weight]) => weight)
     .join(":");
-}
-
-export function lineTag(item: SplitItem, order: readonly ParticipantId[]): string | null {
-  const { split } = item;
-  if (claimersOf(split).length < 2) return null;
-  if (split.by === "shares") return ratio(split.units[0], order);
-  if (split.by === "amount") return "split";
-  return fractionText([1, split.units[0].length]);
-}
-
-export function fractionText([numerator, denominator]: readonly [number, number]): string {
-  return UNICODE_FRACTIONS[`${numerator}/${denominator}`] ?? `${numerator}/${denominator}`;
 }
 
 /** How an Item is split when someone shares it, as the Pay sheet reads it under the line: "Split 3 ways", "2 of 6 shares", "By amount". An Item one person had says nothing. */
@@ -73,6 +59,40 @@ export function splitIds(receipt: Receipt<SplitItem>, line: SplitItem): ItemId[]
 export function linesNear(order: readonly ItemId[], gone: ItemId): ItemId[] {
   const at = order.indexOf(gone);
   return at < 0 ? [] : [...order.slice(at + 1), ...order.slice(0, at).reverse()];
+}
+
+/** Whose list this is: everyone at the table, the person this phone belongs to, and the person whose checks the dots show. */
+export type Viewing = { readonly people: readonly Participant[]; readonly me: ParticipantId | null; readonly viewer: ParticipantId | null };
+
+/** What a row says under its name and price: who had it, and what it costs the viewer or each person. */
+export type LineView = { readonly who: string; readonly split: string | null };
+
+/** Names in the table's order, this phone's owner first as "You". */
+export function whoLine(claimers: readonly ParticipantId[], { people, me }: Viewing): string {
+  const had = people.filter(({ id }) => claimers.includes(id));
+  return [...had.filter(({ id }) => id === me).map(() => say.youHad), ...had.filter(({ id }) => id !== me).map(({ name }) => name)].join(", ");
+}
+
+/** What the viewer owes for each Item they have a part in, from their share breakdown, so a row reads what the Pay sheet charges. */
+export type Portions = ReadonlyMap<ItemId, Cents>;
+
+export function lineView(item: SplitItem, viewing: Viewing, portions: Portions): LineView {
+  const claimers = claimersOf(item.split);
+  return { who: claimers.length > 0 ? whoLine(claimers, viewing) : say.nobodyYet, split: splitLine(item, claimers, viewing, portions) };
+}
+
+function splitLine(item: SplitItem, claimers: readonly ParticipantId[], { people, me, viewer }: Viewing, portions: Portions): string | null {
+  const parts = lineAmounts(item);
+  const mine = viewer !== null && claimers.includes(viewer) ? portions.get(item.id) : undefined;
+  if (mine !== undefined) return `${money(mine)} ${viewer === me ? say.yours : say.theirs(people.find(({ id }) => id === viewer)?.name ?? "")}`;
+  if (claimers.length < 2) return null;
+  if (item.split.by === "even") return parts.every(({ cents }) => cents === parts[0].cents) ? `${money(parts[0].cents)} ${say.each}` : say.splitWaysLine(claimers.length);
+  return item.split.by === "shares" ? say.byShares : say.byAmountLine;
+}
+
+/** How many Items the viewer has a part in, for the Items heading. */
+export function itemsHad(items: readonly SplitItem[], viewer: ParticipantId | null): number {
+  return items.filter(({ split }) => viewer !== null && claimersOf(split).includes(viewer)).length;
 }
 
 export function circleTap(item: SplitItem, participantId: ParticipantId): Operation[] {

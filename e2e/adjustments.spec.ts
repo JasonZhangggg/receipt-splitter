@@ -65,7 +65,7 @@ async function samAndPriya(browser: Browser, link: string, inBundle = false): Pr
   if (inBundle) for (const page of [sam, priya]) await page.getByRole("button", { name: /^Beer Bucket, / }).click();
   await sam.getByRole("button", { name: "Rice, check for Sam" }).click();
   await priya.getByRole("button", { name: "Pitcher, check for Priya" }).click();
-  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, had by Priya$/ })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, Priya$/ })).toBeVisible(live);
   return [sam, priya];
 }
 
@@ -287,7 +287,7 @@ test("a Bundle discount takes a new amount off and keeps its Items", async ({ br
 
   for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$15.00", live);
   await expect(sam.getByRole("button", { name: "Open Bucket deal, -$5.00" })).toBeVisible(live);
-  await expect(sam.getByRole("button", { name: /^Open Rice, \$8\.00, had by Sam$/ })).toBeVisible();
+  await expect(sam.getByRole("button", { name: /^Open Rice, \$8\.00, You, \$8\.00 yours$/ })).toBeVisible();
   await expect(sam.getByTestId("owe")).toHaveText("$6.00", live);
 });
 
@@ -331,12 +331,10 @@ test("a tax turned into a discount on desktop opens in a popover, takes the name
   await expect(page.getByRole("button", { name: "Open Discount, -$1.00" })).toBeFocused();
 });
 
-test("a collapsed Bundle's claimer marks overlap the way an Item row's do", async ({ browser, request }, { workerIndex }) => {
+test("a collapsed Bundle says who had its Items and how many are claimed", async ({ browser, request }, { workerIndex }) => {
   const [sam] = await samAndPriya(browser, await createSplit(request, workerIndex, bucket), true);
   const header = sam.getByRole("button", { name: /^Beer Bucket, / });
   await header.click();
-  const mark = (letter: string) => header.getByText(letter, { exact: true }).evaluate((glyph) => glyph.parentElement!.getBoundingClientRect().toJSON() as { left: number; right: number });
-  await expect(header.getByText("P", { exact: true })).toBeVisible(live);
-  const [first, second] = [await mark("S"), await mark("P")];
-  expect(second.left).toBeLessThan(first.right);
+  await expect(header).toContainText("You, Priya", live);
+  await expect(header).toContainText("2 claimed");
 });
