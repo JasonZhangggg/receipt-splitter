@@ -294,12 +294,20 @@ test("only the browser that made the link can change the Venmo handle", async ({
   expect(await other.evaluate(() => (window as unknown as { nextHandles: () => Promise<unknown> }).nextHandles())).toEqual([{ service: "venmo", handle: "jason-zh" }]);
 });
 
-test("an unknown or malformed Split link says the split has expired", async ({ page }) => {
+test("an unknown or malformed Split link shows the not-found page with a Split a receipt pill home", async ({ page }) => {
   for (const path of ["/s/abc", "/s/q7Xv0Lr9_aZ-3mKpAbCdEf"]) {
     const response = await page.goto(path);
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "We can't find this split" })).toBeVisible();
+    await expect(page.getByText("It may have expired, or the link may be incomplete.")).toBeVisible();
+    await expect(page.getByText("This split has expired")).toHaveCount(0);
   }
+  const pill = page.getByRole("button", { name: "Split a receipt", exact: true });
+  // The black primary pill of decision 1, not the soft fill that sat 1.02:1 off the page.
+  await expect(pill.locator("div").first()).toHaveCSS("background-color", "rgb(23, 23, 23)");
+  await pill.click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
 });
 
 test("a Split whose socket closes with 4500 says it can't be opened, and stops reconnecting", async ({ page }) => {

@@ -115,14 +115,14 @@ test("an entry whose link says the split has expired is gone back on home, and t
   await seed(page, [jason, priya]);
   await rows(page).first().click();
   await expect(page).toHaveURL(new RegExp(`/s/${jason.id}$`));
-  await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "We can't find this split" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(page).toHaveURL(/\/$/);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 
   await rows(page).first().click();
-  await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "We can't find this split" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(action(page)).toBeVisible();
   await expect(list(page)).toHaveCount(0);
