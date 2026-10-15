@@ -16,7 +16,7 @@ The Host's device sends one downscaled JPEG of the receipt after the Split is cr
 
 - Scan a receipt on home, fill the payment handle and a name, and tap **Create split link**. The Host's device sends the PUT right after the link opens.
 - On any browser with the link, close "Which one are you?", tap **Menu** in the header, then **Receipt photo**. **Close photo** closes the viewer.
-- A Split made with **Example**, or before V2-6b, has no photo, so **Menu** holds **Payments** and **History**.
+- **Example** is a link on an empty home at 768 px and wider (`breakpoints.exampleFrom` in `src/ui/theme.ts`). It does not exist at phone width, so a phone-width drive cannot click it. A Split made with it, or before V2-6b, has no photo, so **Menu** holds **Payments** and **History**.
 
 ## Driving it with verify.mjs
 

@@ -1,5 +1,7 @@
 # Home page design
 
+> The B2 design in `docs/design/b2/` supersedes this one wherever the two differ.
+
 The approved design for the home page `/`, from the operator's six prototype rounds on 2026-09-30. This is a static sketch, not app code. RS-6 and RS-7 build from it.
 
 - `idea2.html` is the design. Serve the repository root over HTTP and open `docs/design/home/idea2.html?s=empty|reading|read|ready|link&t=light|dark`. Widths of 900 px and up get the desktop layout.

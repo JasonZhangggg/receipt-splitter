@@ -1,5 +1,7 @@
 # Receipt and home redesign, round 3
 
+> The B2 design in `docs/design/b2/` supersedes this one wherever the two differ.
+
 The approved design for the post-launch redesign of the Split page receipt and the home page, round 3 of the operator's mockups, approved on 2026-10-01. It is a static sketch, not app code. `docs/plans/receipt-splitter-v2.md` builds from it.
 
 - `round3.html` is the design. Open it in a browser. It loads its fonts from `fonts/` beside it, so this folder works on its own.
@@ -38,13 +40,13 @@ Web home, centered column.
 
 Phone home.
 
-- Empty. No **Example** button.
+- Empty. No **Example** button on the phone. The Example link shows at 768 px and wider.
 - Scanned. The compact receipt card.
 - Photo open.
 
 ## The operator's picks
 
-These come from `~/.claude/orchestrate/receipt-splitter/preferences.md`, rounds 1 to 3.
+These come from `.claude/orchestrate/preferences.md`, rounds 1 to 3.
 
 - On the phone, an Item opens C's bottom sheet with **Evenly**, **By shares**, and **By amount**, and a **Delete item** button.
 - On desktop, an Item opens A's popover anchored to its line. A's right pane holds the people and your share.
