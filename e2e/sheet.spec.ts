@@ -22,11 +22,11 @@ const venmo = { service: "venmo", handle: "jason-z" };
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, browserName: string, receipt: object = dinner, paymentHandles: object[] = [venmo], host = "Jason"): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, browserName: string, receipt: object = dinner, paymentHandles: object[] = [venmo], host = "Jason", others: object[] = [{ id: "sam", name: "Sam" }]): Promise<string> {
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.18.${browserName === "webkit" ? 50 + workerIndex : workerIndex}.${creates}` },
-    data: { split: { receipt, participants: [{ id: "jason", name: host }, { id: "sam", name: "Sam" }], paymentHandles } },
+    data: { split: { receipt, participants: [{ id: "jason", name: host }, ...others], paymentHandles } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
@@ -278,13 +278,16 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
   await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
   await expect(status).toHaveText("$87.75 left to assign", live);
   await expect(sheet.getByText("Not saved")).toBeVisible();
-  await page.waitForTimeout(1200);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet.getByText("Not saved")).toBeVisible();
   await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
   await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("70");
   await expect(status).toHaveText("$7.25 over the price");
   await expect(sheet.getByText("Not saved")).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Give Jason the rest, $62.75" })).toBeVisible();
-  await page.waitForTimeout(1200);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet.getByText("Not saved")).toBeVisible();
+  await by(sheet, "Evenly");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
 
@@ -337,6 +340,146 @@ test("a By amount edit held back while another phone takes Sam off the Item drop
   await expect(sheet).toHaveCount(0, live);
   await expect(page.getByTestId("owe")).toHaveText("$87.75", live);
   await expect(other.getByTestId("owe")).toHaveText("$0.00", live);
+});
+
+const tenDollar = { items: [{ id: "pizza", name: "Pizza", price: 1000 }], adjustments: [], subtotal: 1000, total: 1000 };
+
+async function openPizza(page: Page, names: string[]) {
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
+  const who = sheet.getByRole("group", { name: "Who had it" });
+  await page.getByRole("button", { name: /^Open Pizza, / }).click();
+  for (const name of names) {
+    await who.getByRole("button", { name, exact: true }).click();
+    await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
+  }
+  return sheet;
+}
+
+async function joinAs(browser: Browser, link: string, browserName: string, name: string): Promise<Page> {
+  const page = await open(browser, link, browserName);
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name, exact: true }).click();
+  await expect(page.getByTestId("owe")).toBeVisible(live);
+  return page;
+}
+
+const by = (sheet: Locator, mode: string) => sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: mode, exact: true }).click();
+
+test("a held amount for someone another phone then takes off the Item is not sent with the amounts that add up", async ({ browser, request, browserName }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, browserName, tenDollar, [venmo], "Jason", [{ id: "sam", name: "Sam" }, { id: "jo", name: "Jo" }]);
+  const page = await open(browser, link, browserName);
+  await pickJason(page);
+  const jo = await joinAs(browser, link, browserName, "Jo");
+  const sheet = await openPizza(page, ["Jason", "Sam", "Jo"]);
+  await by(sheet, "By amount");
+  await sheet.getByRole("textbox", { name: "Jo's amount" }).fill("3");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$7.00 left to assign");
+
+  await jo.getByRole("button", { name: "Pizza, check for Jo" }).click();
+  await expect(sheet.getByRole("textbox", { name: "Jo's amount" })).toHaveCount(0, live);
+  await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("6");
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("4");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("All $10.00 assigned");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByTestId("owe")).toHaveText("$6.00", live);
+  await expect(jo.getByTestId("owe")).toHaveText("$0.00", live);
+});
+
+test("typed amounts held while another phone changes the Item's mode are dropped, not applied in the new mode", async ({ browser, request, browserName }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, browserName, tenDollar);
+  const page = await open(browser, link, browserName);
+  await pickJason(page);
+  const sam = await joinAs(browser, link, browserName, "Sam");
+  const sheet = await openPizza(page, ["Jason", "Sam"]);
+  await by(sheet, "By amount");
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("5");
+  await sheet.getByRole("button", { name: "Give Jason the rest, $5.00" }).click();
+  await expect(sheet.getByTestId("amount-status")).toHaveText("All $10.00 assigned");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  const samSheet = sam.getByRole("dialog", { name: "Edit item" });
+  await sam.getByRole("button", { name: /^Open Pizza, / }).click();
+  await expect(samSheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true })).toHaveAttribute("aria-pressed", "true", live);
+
+  await page.getByRole("button", { name: /^Open Pizza, / }).click();
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("0.5");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$4.50 left to assign");
+
+  await by(sam.getByRole("dialog", { name: "Edit item" }), "By shares");
+  await expect(sheet.getByRole("button", { name: "Fewer shares for Sam" })).toBeVisible(live);
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByTestId("owe")).toHaveText("$5.00", live);
+});
+
+test("a price change on a By amount Item saves as before, and the extra counts as unclaimed; a price under the amounts keeps the sheet open on Not saved", async ({ browser, request, browserName }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, browserName, tenDollar);
+  const page = await open(browser, link, browserName);
+  await pickJason(page);
+  const sheet = await openPizza(page, ["Jason", "Sam"]);
+  await by(sheet, "By amount");
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("5");
+  await sheet.getByRole("button", { name: "Give Jason the rest, $5.00" }).click();
+  await expect(sheet.getByTestId("amount-status")).toHaveText("All $10.00 assigned");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+
+  await page.getByRole("button", { name: /^Open Pizza, / }).click();
+  await sheet.getByRole("textbox", { name: "Price" }).fill("12");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByRole("button", { name: /^Open Pizza, \$12\.00/ })).toBeVisible(live);
+  await expect(page.getByTestId("unclaimed")).toHaveText("$2.00", live);
+
+  await page.getByRole("button", { name: /^Open Pizza, / }).click();
+  await sheet.getByRole("textbox", { name: "Price" }).fill("8");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$2.00 over the price");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("Not saved")).toBeVisible();
+  await sheet.getByRole("textbox", { name: "Price" }).fill("12");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+});
+
+test("a By amount edit that does not add up keeps the sheet open on Not saved through Close and Escape, and Evenly lets it go", async ({ browser, request, browserName }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, browserName, tenDollar);
+  const page = await open(browser, link, browserName);
+  await pickJason(page);
+  const sheet = await openPizza(page, ["Jason", "Sam"]);
+  await by(sheet, "By amount");
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("5");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("Not saved")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeVisible();
+  await by(sheet, "Evenly");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0, live);
+  await expect(page.getByTestId("owe")).toHaveText("$5.00", live);
+});
+
+test("a held By amount edit that a price change on another phone makes exact saves by itself", async ({ browser, request, browserName }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, browserName, tenDollar);
+  const page = await open(browser, link, browserName);
+  await pickJason(page);
+  const sam = await joinAs(browser, link, browserName, "Sam");
+  const sheet = await openPizza(page, ["Jason", "Sam"]);
+  await by(sheet, "By amount");
+  await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("5");
+  await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("3");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$2.00 left to assign");
+  await expect(sheet.getByText("Not saved")).toBeVisible();
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet.getByText("Not saved")).toBeVisible();
+
+  await sam.getByRole("button", { name: /^Open Pizza, / }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" }).fill("8");
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
+  await expect(sheet.getByTestId("amount-status")).toHaveText("All $8.00 assigned", live);
+  await expect(sheet.getByText("Not saved")).toHaveCount(0);
+  await expect(sam.getByTestId("owe")).toHaveText("$3.00", live);
 });
 
 test("with a long name, Give the rest wraps under the status instead of truncating, inside the Item sheet", async ({ browser, request, browserName }, { workerIndex }) => {
