@@ -2492,3 +2492,126 @@ describe("an Adjustment edit with the Total following", () => {
     expect(parseOperation({ ...wire, totalFollows: false })).toEqual({ ok: false, rejection: { reason: "malformed", path: "totalFollows" } });
   });
 });
+
+describe("an added or deleted Item moving the Subtotal and Total (preferences 70)", () => {
+  const tea = itemId("tea");
+  const tax = adjustmentId("tax");
+  const tip = adjustmentId("tip");
+  const totals = ({ receipt }: Split) => [receipt.subtotal, receipt.total];
+  const addTea = (by: ParticipantId, cost = 300): Operation => ({
+    by,
+    type: "editReceipt",
+    items: [{ type: "add", item: { id: tea, name: "Tea", price: price(cost) }, index: 3 }],
+  });
+  const remove = (by: ParticipantId, id: typeof fries): Operation => ({ by, type: "editReceipt", items: [{ type: "delete", itemId: id }] });
+  const lastChange = (split: Split) => split.recentChanges.at(-1)!;
+  const undoTo = (split: Split, revision: number) => apply(split, { by: ann, type: "undo", revision });
+  // Printed tax and tip on $52.00, with Bob having the Pasta.
+  const taxed = () =>
+    apply(
+      created({
+        ...dinner,
+        adjustments: [
+          { id: tax, kind: "tax", name: "Tax", amount: cents(462) },
+          { id: tip, kind: "tip", name: "Tip", amount: cents(936) },
+        ],
+        total: cents(6598),
+      }),
+      { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } },
+      { by: bob, type: "claim", itemId: pasta, participantId: bob },
+    );
+
+  test("an add raises the Subtotal and the Total by the Item's price, in the same History change", () => {
+    const split = apply(withBobAndCat(), addTea(bob));
+
+    expect(totals(split)).toEqual([5500, 5500]);
+    expect(lastChange(split).writes).toEqual([
+      { kind: "item", id: tea, added: { index: 3, name: "Tea", price: 300, split: { by: "even", units: [[]] } } },
+      { kind: "totals", subtotalDelta: 300, totalDelta: 300 },
+    ]);
+    expect(runTotalCheck(split.receipt)).toEqual({ ok: true });
+  });
+
+  test("a delete lowers the Subtotal and the Total by the Item's price", () => {
+    const split = apply(withBobAndCat(), remove(bob, fries));
+
+    expect(totals(split)).toEqual([4400, 4400]);
+    expect(lastChange(split).writes.at(-1)).toEqual({ kind: "totals", subtotalDelta: -800, totalDelta: -800 });
+    expect(runTotalCheck(split.receipt)).toEqual({ ok: true });
+  });
+
+  test("a delete takes off the price the Split holds, after another phone changed it", () => {
+    const split = apply(withBobAndCat(), priceEdit(cat, fries, 800, 950), remove(bob, fries));
+
+    expect(totals(split)).toEqual([4400, 4400]);
+  });
+
+  test("an add and a delete keep the printed tax and tip, and the Shares add up to the new Total", () => {
+    const added = apply(taxed(), addTea(ann, 1000));
+    const deleted = apply(taxed(), remove(ann, fries));
+    const sharesSum = (split: Split) => {
+      const { shares, unclaimed } = computeShares(split);
+      return shares.reduce((sum: number, { share }) => sum + share, unclaimed.total);
+    };
+
+    expect(totals(added)).toEqual([6200, 7598]);
+    expect(totals(deleted)).toEqual([4400, 5798]);
+    expect(added.receipt.adjustments.map(({ amount }) => amount)).toEqual([462, 936]);
+    expect(deleted.receipt.adjustments.map(({ amount }) => amount)).toEqual([462, 936]);
+    expect([sharesSum(added), sharesSum(deleted)]).toEqual([7598, 5798]);
+    expect([shareOf(taxed(), "bob")?.share, shareOf(added, "bob")?.share, shareOf(deleted, "bob")?.share]).toEqual([1776, 1716, 1845]);
+  });
+
+  test("a delete that empties a Bundle also takes its discount off the Total", () => {
+    const bundled = created({
+      ...dinner,
+      adjustments: [{ id: adjustmentId("deal"), kind: "bundleDiscount", name: "Fries deal", amount: cents(-200), bundle: { name: "Snacks", items: [fries] } }],
+      total: cents(5000),
+    });
+    const split = apply(bundled, remove(ann, fries));
+
+    expect(split.receipt.adjustments).toEqual([]);
+    expect(totals(split)).toEqual([4400, 4400]);
+    expect(runTotalCheck(split.receipt)).toEqual({ ok: true });
+  });
+
+  test("an add or delete on a receipt that does not add up keeps its gap as it was", () => {
+    const misread = created({ ...dinner, subtotal: cents(5850), total: cents(5850) });
+
+    expect(runTotalCheck(apply(misread, addTea(ann)).receipt)).toMatchObject({ ok: false, subtotalGap: 650, totalGap: 0 });
+    expect(runTotalCheck(apply(misread, remove(ann, fries)).receipt)).toMatchObject({ ok: false, subtotalGap: 650, totalGap: 0 });
+  });
+
+  test("an Item at $0.00 records no totals write", () => {
+    const split = apply(withBobAndCat(), addTea(bob, 0));
+
+    expect(totals(split)).toEqual([5200, 5200]);
+    expect(lastChange(split).writes.map(({ kind }) => kind)).toEqual(["item"]);
+  });
+
+  test("Undo of an add or a delete puts the Subtotal and Total back exactly", () => {
+    const before = withBobAndCat();
+    const added = apply(before, addTea(bob));
+    const deleted = apply(before, remove(bob, fries));
+
+    expect(undoTo(added, added.revision).receipt).toEqual(before.receipt);
+    expect(undoTo(deleted, deleted.revision).receipt).toEqual(before.receipt);
+  });
+
+  test("Undo after another phone's edit keeps that edit and takes back only the add's or delete's own amount", () => {
+    const tipped = apply(taxed(), { by: bob, type: "addParticipant", participant: { id: cat, name: "Cat" } });
+    const tipEdit: Operation = { by: cat, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tip, amount: cents(1100) }], totalFollows: true };
+
+    const added = apply(tipped, addTea(ann));
+    expect(totals(undoTo(apply(added, tipEdit), added.revision))).toEqual([5200, 6762]);
+
+    const deleted = apply(tipped, remove(ann, fries));
+    expect(totals(undoTo(apply(deleted, addTea(cat)), deleted.revision))).toEqual([5500, 6898]);
+  });
+
+  test("refuses a delete that would take the Total under $0.00", () => {
+    const coupon = created({ ...dinner, adjustments: [{ id: adjustmentId("promo"), kind: "discount", name: "Promo", amount: cents(-4500) }], total: cents(700) });
+
+    expect(reasonFor(coupon, remove(ann, pitcher))).toBe("negativeTotal");
+  });
+});
