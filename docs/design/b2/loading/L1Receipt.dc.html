@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loading, a receipt fills in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.h{font-family:'Geist',system-ui,sans-serif;font-size:16px;line-height:1.6;letter-spacing:-0.006em;-webkit-font-smoothing:antialiased;background:#fcfcfc;color:#171717}
+.say{font-size:20px;line-height:1.75;letter-spacing:-0.015em;color:#737373}
+.act{color:#171717;border-bottom:1.5px solid #171717;line-height:1.25}
+.blank{display:inline-block;border-bottom:1.5px solid #d0d0d0;color:#a3a3a3;line-height:1.25;padding:0 2px}
+.row{box-sizing:border-box;width:100%;display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #ebebeb}
+.layer{position:absolute;inset:0}
+.loader{display:flex;align-items:center;justify-content:center;background:#fcfcfc;transition:opacity 200ms ease}
+.home{transition:opacity 260ms cubic-bezier(.23,1,.32,1)}
+.ln{stroke:#171717;stroke-width:1.5;stroke-linecap:butt;stroke-dasharray:1;stroke-dashoffset:1;animation:draw 2.4s cubic-bezier(.65,0,.35,1) infinite}
+.ln.t{stroke-width:2.25}
+@keyframes draw{0%{stroke-dashoffset:1}22%,78%{stroke-dashoffset:0}92%,100%{stroke-dashoffset:-1}}
+.paper{animation:feed 2.4s cubic-bezier(.65,0,.35,1) infinite}
+@keyframes feed{0%{transform:translateY(-3px)}30%,100%{transform:none}}
+</style>
+</helmet>
+<div class="h" style="width: 390px; height: 844px; position: relative; overflow: hidden">
+  <div class="layer home" style="opacity: {{homeOpacity}}; display: flex; flex-direction: column">
+    <div style="flex: 1; padding: 52px 24px 0">
+      <header style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 16px; font-weight: 500">SplitWith</span>
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#171717" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.75"></circle><path d="M12 3v2.25M18.36 5.64l-1.59 1.59M21 12h-2.25M18.36 18.36l-1.59-1.59M12 18.75V21M7.23 16.77l-1.59 1.59M5.25 12H3M7.23 7.23 5.64 5.64"></path></svg></header>
+      <div class="say" style="margin-top: 40px">I paid the bill. <span class="act">Add the receipt</span>. Friends tap what they had and pay me back on <span class="act">Venmo</span> at <span class="blank">@username</span>. I&#39;m <span class="blank">your name</span>, here with <span class="act" style="color: #737373; border-bottom-color: #d0d0d0">add friends</span>.</div>
+      <div style="margin-top: 56px; color: #737373; font-size: 14px; padding-bottom: 10px; border-bottom: 1px solid #ebebeb">Recent splits</div>
+      <div class="row"><span style="flex: 1"><span style="display: block">Jason, Sam, and 2 more</span><span style="display: block; color: #737373; font-size: 14px">Oct 11 · 4 people</span></span><span>$135.83</span></div>
+      <div class="row"><span style="flex: 1"><span style="display: block">Jason, Ana, and 4 more</span><span style="display: block; color: #737373; font-size: 14px">Oct 5 · 6 people</span></span><span>$212.40</span></div>
+    </div>
+    <footer style="border-top: 1px solid #ebebeb; padding: 14px 24px 34px; display: flex; align-items: center; justify-content: space-between"><span style="color: #737373; font-size: 14px">Add a receipt first.</span><span style="height: 48px; padding: 0 22px; border-radius: 24px; background: #171717; color: #fcfcfc; opacity: .28; display: flex; align-items: center; font-weight: 500">Create link</span></footer>
+  </div>
+  <div class="layer loader" role="status" aria-label="Loading" style="opacity: {{loaderOpacity}}; pointer-events: none">
+    <svg width="52" height="72" viewBox="0 -4 44 61" fill="none" aria-hidden="true"><g class="paper">
+      <path d="M4 2H40V50l-3 3-3-3-3 3-3-3-3 3-3-3-3 3-3-3-3 3-3-3-3 3-3-3V2Z" stroke="#171717" stroke-width="1.5" stroke-linejoin="round"></path>
+      <line class="ln" pathLength="1" x1="11" y1="14" x2="33" y2="14" style="animation-delay: 0ms"></line>
+      <line class="ln" pathLength="1" x1="11" y1="21" x2="27" y2="21" style="animation-delay: 120ms"></line>
+      <line class="ln" pathLength="1" x1="11" y1="28" x2="30" y2="28" style="animation-delay: 240ms"></line>
+      <line class="ln t" pathLength="1" x1="21" y1="39" x2="33" y2="39" style="animation-delay: 420ms"></line>
+    </g></svg>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { loading: true }; }
+  componentDidMount() { this.tick(); }
+  tick() { this.timer = setTimeout(() => { this.setState((s) => ({ loading: !s.loading })); this.tick(); }, this.state.loading ? 1600 : 1400); }
+  componentWillUnmount() { clearTimeout(this.timer); }
+  renderVals() { return { loaderOpacity: this.state.loading ? 1 : 0, homeOpacity: this.state.loading ? 0 : 1 }; }
+}
+</script>
+</body>
+</html>
