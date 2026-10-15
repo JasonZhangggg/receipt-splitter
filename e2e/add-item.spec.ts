@@ -18,9 +18,11 @@ const hundred: Row[] = Array.from({ length: 100 }, (_, at) => ({ id: `i${at}`, n
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, adjustments: Bundle[] = []): Promise<string> {
+type Charge = { id: string; kind: "tax" | "tip"; name: string; amount: number };
+
+async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, adjustments: (Bundle | Charge)[] = [], printed?: number): Promise<string> {
   creates += 1;
-  const subtotal = items.reduce((sum, { price }) => sum + price, 0);
+  const subtotal = printed ?? items.reduce((sum, { price }) => sum + price, 0);
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.54.${100 + workerIndex}.${creates}` },
     data: {
@@ -272,3 +274,78 @@ for (const rafDelay of [0, 200]) {
     expect(seen.every(({ height }, at) => at === 0 || height >= seen[at - 1].height)).toBe(true);
   });
 }
+
+// The reading missed a $6.50 line: Rice is $8.00 and the printed Subtotal and Total are $14.50.
+const missedLine = (request: APIRequestContext, workerIndex: number) => createSplit(request, workerIndex, rice, [], 1450);
+const shortNote = (page: Page) => page.getByRole("status").filter({ hasText: /short of|over the/ });
+
+test("on a receipt short of its Subtotal, the Add sheet offers the missing amount, a tap fills it, and adding it leaves the Total as printed", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await missedLine(request, workerIndex));
+  await pick(sam, "Sam");
+  await expect(shortNote(sam)).toHaveText("Items are $6.50 short of the subtotal.");
+
+  await openAdd(sam, "Item");
+  await expect(sheet(sam).getByText("The receipt is $6.50 short.")).toBeVisible();
+  await expect(field(sam, "Price")).toHaveValue("");
+  await sheet(sam).getByRole("button", { name: "Use $6.50", exact: true }).click();
+  await expect(field(sam, "Price")).toHaveValue("6.50");
+  await sheet(sam).getByRole("group", { name: "What to add" }).getByRole("button", { name: "Tax", exact: true }).click();
+  await expect(sheet(sam).getByRole("button", { name: "Use $6.50", exact: true })).toHaveCount(0);
+  await sheet(sam).getByRole("group", { name: "What to add" }).getByRole("button", { name: "Item", exact: true }).click();
+  await field(sam, "Name").fill("Fries");
+  await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
+
+  await expect(fries(sam)).toBeVisible(live);
+  await expect(sam.getByTestId("total")).toHaveText("$14.50");
+  await expect(shortNote(sam)).toHaveCount(0);
+});
+
+test("the tax and tip note shows only for an Item, and only on a receipt with tax or tip", async ({ browser, request }, { workerIndex }) => {
+  const note = (page: Page) => sheet(page).getByText(/stays? at the receipt's amounts?/);
+  const charges: Charge[] = [
+    { id: "tax", kind: "tax", name: "Tax", amount: 70 },
+    { id: "tip", kind: "tip", name: "Tip", amount: 160 },
+  ];
+  const taxed = await open(browser, await createSplit(request, workerIndex, rice, charges));
+  const plain = await open(browser, await createSplit(request, workerIndex));
+  await pick(taxed, "Sam");
+  await pick(plain, "Sam");
+
+  await openAdd(taxed, "Item");
+  await expect(note(taxed)).toHaveText("Tax and tip stay at the receipt's amounts and are shared across the new item too.");
+  for (const kind of ["Tax", "Tip", "Discount"] as const) {
+    await sheet(taxed).getByRole("group", { name: "What to add" }).getByRole("button", { name: kind, exact: true }).click();
+    await expect(note(taxed)).toHaveCount(0);
+  }
+  await openAdd(plain, "Item");
+  await expect(note(plain)).toHaveCount(0);
+  await expect(sheet(plain).getByText(/short\.$/)).toHaveCount(0);
+});
+
+test("a price edit moves the Total by the difference on every phone, and on a short receipt typed slowly it fills the shortfall once", async ({ browser, request }, { workerIndex }) => {
+  const even = await createSplit(request, workerIndex);
+  const sam = await open(browser, even);
+  const priya = await open(browser, even);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await sam.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" }).fill("10.00");
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
+  for (const page of [sam, priya]) {
+    await expect(page.getByTestId("total")).toHaveText("$10.00", live);
+    await expect(shortNote(page)).toHaveCount(0);
+  }
+
+  const short = await open(browser, await missedLine(request, workerIndex));
+  await pick(short, "Sam");
+  await short.getByRole("button", { name: /^Open Rice, \$8\.00/ }).click();
+  const price = short.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" });
+  await price.click();
+  await short.keyboard.type("1");
+  await short.waitForTimeout(1200);
+  await short.keyboard.type("0.00");
+  await short.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
+  await expect(short.getByRole("button", { name: /^Open Rice, \$10\.00/ })).toBeVisible(live);
+  await expect(short.getByTestId("total")).toHaveText("$14.50");
+  await expect(shortNote(short)).toHaveText("Items are $4.50 short of the subtotal.");
+});

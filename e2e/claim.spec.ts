@@ -137,7 +137,7 @@ test("Tostones split 2:1 by shares and the 2x Pitchers line claimed whole reach 
   await expect(sam.getByRole("button", { name: "Open 2x Pitchers, $24.00, You, $24.00 yours" })).toHaveCount(1, live);
 });
 
-test("a price change shows the mismatch everywhere, and a revert from another browser asks first and puts the price back", async ({ browser, request }, { workerIndex }) => {
+test("a price change moves the Total everywhere, and a revert from another browser asks first and puts the price and the Total back", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
   const jason = await open(browser, link);
@@ -147,7 +147,8 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await sam.getByRole("button", { name: /^Open Sprite/ }).click();
   await sam.getByRole("textbox", { name: "Price" }).fill("2.75");
   await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
-  await expect(jason.getByText("Items are $0.25 over the subtotal.")).toBeVisible(live);
+  await expect(jason.getByTestId("total")).toHaveText("$35.75", live);
+  await expect(jason.getByText(/short of|over the/)).toHaveCount(0);
 
   await fromMore(jason, "History");
   await jason.getByRole("button", { name: "Revert Sprite" }).click();
@@ -156,8 +157,8 @@ test("a price change shows the mismatch everywhere, and a revert from another br
   await confirm.click();
 
   await expect(jason.getByText("Reverted")).toBeVisible(live);
-  await expect(sam.getByText("Items are $0.25 over the subtotal.")).toHaveCount(0, live);
   await expect(sam.getByRole("button", { name: /^Open Sprite, \$2\.50/ })).toBeVisible(live);
+  await expect(sam.getByTestId("total")).toHaveText("$35.50", live);
 });
 
 test("a breakdown counts a 2x line as 1 item, as a Bundle header counts it", async ({ browser, request }, { workerIndex }) => {

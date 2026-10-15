@@ -2,18 +2,20 @@ import { describe, expect, test } from "vitest";
 
 import { createSplit } from "../../core/operations";
 import { cents, price } from "../../core/money";
-import { itemId, participantId, type Split } from "../../core/split";
+import { adjustmentId, itemId, participantId, type Adjustment, type Split } from "../../core/split";
 import { mintedId } from "../../core/test-ids";
-import { newItem, readAmount, type NewItem } from "./new-item";
+import { newItem, readAmount, sharedCharges, shortfall, type NewItem } from "./new-item";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
 
-function splitWith(count: number): Split {
+function splitWith(count: number, printed: { subtotal?: number; adjustments?: Adjustment[] } = {}): Split {
+  const adjustments = printed.adjustments ?? [];
+  const subtotal = printed.subtotal ?? 100 * count;
   const items = Array.from({ length: count }, (_, at) => ({ id: itemId(`i${at}`), name: `Item ${at}`, price: price(100) }));
   const result = createSplit({
     id: mintedId("q7Xv0Lr9_aZ-3mKp"),
-    receipt: { items: [items[0], ...items.slice(1)], adjustments: [], subtotal: cents(100 * count), total: cents(100 * count) },
+    receipt: { items: [items[0], ...items.slice(1)], adjustments, subtotal: cents(subtotal), total: cents(subtotal + adjustments.reduce((sum, { amount }) => sum + amount, 0)) },
     participants: [
       { id: ann, name: "Ann" },
       { id: bob, name: "Bob" },
@@ -78,5 +80,28 @@ describe("readAmount", () => {
   test("calls a price over $100,000 over the limit", () => {
     expect(readAmount("100000.01")).toBe("overLimit");
     expect(readAmount("100000")).toBe(10_000_000);
+  });
+});
+
+describe("shortfall", () => {
+  test("is how far the Items are under the printed Subtotal", () => {
+    expect(shortfall(splitWith(3, { subtotal: 950 }))).toBe(650);
+  });
+
+  test("is null when the Items add up to the Subtotal or are over it", () => {
+    expect([shortfall(splitWith(3)), shortfall(splitWith(3, { subtotal: 200 }))]).toEqual([null, null]);
+  });
+});
+
+describe("sharedCharges", () => {
+  const charge = (kind: "tax" | "tip" | "serviceCharge", amount: number): Adjustment => ({ id: adjustmentId(kind), kind, name: kind, amount: cents(amount) });
+
+  test("names the tax and the tip a new Item would share, in that order", () => {
+    expect(sharedCharges(splitWith(2, { adjustments: [charge("tip", 40), charge("tax", 20)] }))).toEqual(["tax", "tip"]);
+  });
+
+  test("leaves out a $0.00 tip, fees, and a receipt with neither", () => {
+    expect(sharedCharges(splitWith(2, { adjustments: [charge("tip", 0), charge("serviceCharge", 50)] }))).toEqual([]);
+    expect(sharedCharges(splitWith(2))).toEqual([]);
   });
 });
