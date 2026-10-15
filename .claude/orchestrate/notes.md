@@ -160,4 +160,3 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From the B2 merges (2026-10-15)
 
 - Two reviewers' local e2e runners were killed from outside partway through on 2026-10-15. Agents kill only processes they started, by PID (rule 51), and run e2e on their own `PORT` because playwright.config.ts defaults to 8787. Fixer: every owner brief.
-- Add no longer sets a quantity above 1 for a new Item by hand, and the edit operation has no quantity field (B2-6 review). Fixer: operator decision pending.
