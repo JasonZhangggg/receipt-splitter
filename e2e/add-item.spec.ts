@@ -18,10 +18,9 @@ const hundred: Row[] = Array.from({ length: 100 }, (_, at) => ({ id: `i${at}`, n
 
 let creates = 0;
 
-/** The printed Subtotal counts `missing` cents more than `items`, as when the reading missed a line. */
-async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, missing = 0, adjustments: Bundle[] = []): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, items: Row[] = rice, adjustments: Bundle[] = []): Promise<string> {
   creates += 1;
-  const subtotal = items.reduce((sum, { price }) => sum + price, missing);
+  const subtotal = items.reduce((sum, { price }) => sum + price, 0);
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.54.${100 + workerIndex}.${creates}` },
     data: {
@@ -74,19 +73,21 @@ async function shareOf(page: Page, name: string): Promise<string> {
   return share;
 }
 
-test("an Item added on one phone shows on another with nobody having it, and the Shares follow a claim on it", async ({ browser, request }, { workerIndex }) => {
-  const link = await createSplit(request, workerIndex, rice, 650);
+test("an Item added on one phone shows on another with nobody having it, raises the Total by its price, and the Shares follow a claim on it", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-  const totalNote = sam.getByRole("status").filter({ hasText: "$6.50" });
-  await expect(totalNote).toBeVisible();
+  await expect(sam.getByTestId("total")).toHaveText("$8.00");
 
   await addFries(sam);
   await expect(sam.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
   await expect(priya.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
-  await expect(totalNote).toHaveCount(0);
+  for (const page of [sam, priya]) {
+    await expect(page.getByTestId("total")).toHaveText("$14.50", live);
+    await expect(page.getByRole("status").filter({ hasText: /short of|over the/ })).toHaveCount(0);
+  }
 
   await sam.getByRole("button", { name: "Fries, check for Sam" }).click();
   await priya.getByRole("button", { name: "Fries, check for Priya" }).click();
@@ -97,7 +98,7 @@ test("an Item added on one phone shows on another with nobody having it, and the
 });
 
 test("people who check a new Item against id order (Priya, then Sam) still split it between them", async ({ browser, request }, { workerIndex }) => {
-  const sam = await open(browser, await createSplit(request, workerIndex, rice, 650));
+  const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
 
   await addFries(sam);
@@ -236,7 +237,7 @@ async function slowFramesOpen(browser: Browser, link: string, rafDelay: number):
 
 for (const rafDelay of [0, 200]) {
   test(`the added row's first painted frame is at height 0, and it opens at full height, with frames ${rafDelay} ms late @frame-timing`, async ({ browser, request }, { workerIndex }) => {
-    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex, bucketRows, 0, bucket), rafDelay);
+    const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex, bucketRows, bucket), rafDelay);
     await pick(sam, "Sam");
     await openAdd(sam, "Item");
     await field(sam, "Name").fill("Fries");

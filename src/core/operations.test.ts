@@ -640,7 +640,7 @@ describe("editing the Receipt", () => {
       { by: bob, type: "claim", itemId: fries, participantId: bob },
       { by: cat, type: "claim", itemId: fries, participantId: cat },
     );
-    const deleted = apply(claimed, { by: ann, type: "editReceipt", items: [{ type: "delete", itemId: fries }], subtotalDelta: cents(-800), totalDelta: cents(-800) });
+    const deleted = apply(claimed, { by: ann, type: "editReceipt", items: [{ type: "delete", itemId: fries }] });
     const deleteRevision = deleted.revision;
     const edited = apply(
       deleted,
@@ -1337,8 +1337,6 @@ describe("restoring the original Receipt", () => {
       by: null,
       type: "editReceipt",
       items: rows.map(({ id }) => ({ type: "delete", itemId: id })),
-      subtotalDelta: cents(-100 * rows.length),
-      totalDelta: cents(-100 * rows.length),
     });
     const emptied = apply(split, deleted(rest.slice(0, 22)), deleted(rest.slice(22)));
     const restored = apply(emptied, { by: null, type: "restoreReceipt" });
@@ -2172,10 +2170,7 @@ describe("random operations", () => {
 describe("Bundles", () => {
   const claimed = () => topgolf({ ...eachOf(bucketOne, priya), ...eachOf(["gameplay", ...bucketTwo], jason) });
   const bundleItems = (split: Split) => split.receipt.adjustments.flatMap((row) => (row.kind === "bundleDiscount" ? [[row.id, ...row.bundle.items]] : []));
-  const deleteItem = (id: string): Operation => {
-    const amount = topgolf().receipt.items.find((row) => row.id === id)?.price ?? 0;
-    return { by: jason, type: "editReceipt", items: [{ type: "delete", itemId: itemId(id) }], subtotalDelta: cents(-amount), totalDelta: cents(-amount) };
-  };
+  const deleteItem = (id: string): Operation => ({ by: jason, type: "editReceipt", items: [{ type: "delete", itemId: itemId(id) }] });
 
   test("deleting a Bundle's Item drops it from the Bundle in the same Change, and one Revert brings both back", () => {
     const start = claimed();
@@ -2353,16 +2348,15 @@ describe("adding an Item with who had it", () => {
     items: [{ type: "add", item: { id: tea, name: "Tea", price: price(300) }, index, who }],
   });
 
-  // The printed Subtotal already counts the Tea the reading missed, as on most adds.
-  const missingTea = () =>
+  const withTeaTakers = () =>
     apply(
-      created({ ...dinner, subtotal: cents(5500), total: cents(5500) }),
+      created(),
       { by: ann, type: "addParticipant", participant: { id: bob, name: "Bob" } },
       { by: ann, type: "addParticipant", participant: { id: cat, name: "Cat" } },
     );
 
   test("lands claimed evenly by the people named, so their Shares hold it to the cent", () => {
-    const split = apply(missingTea(), addTea([ann, bob]));
+    const split = apply(withTeaTakers(), addTea([ann, bob]));
 
     expect(split.receipt.items.at(-1)).toEqual({ id: tea, name: "Tea", price: 300, split: { by: "even", units: [[ann, bob]] } });
     expect(shareOf(split, "ann")?.share).toBe(150);
@@ -2371,7 +2365,7 @@ describe("adding an Item with who had it", () => {
   });
 
   test("takes who in any order, as people were tapped, and stores the claim the same as in id order", () => {
-    const split = apply(missingTea(), addTea([cat, ann]));
+    const split = apply(withTeaTakers(), addTea([cat, ann]));
 
     expect(split.receipt.items.at(-1)).toEqual({ id: tea, name: "Tea", price: 300, split: { by: "even", units: [[ann, cat]] } });
     expect(shareOf(split, "ann")?.share).toBe(150);
@@ -2380,7 +2374,7 @@ describe("adding an Item with who had it", () => {
   });
 
   test("is one History change, and its Revert takes the row and its claims off", () => {
-    const before = missingTea();
+    const before = withTeaTakers();
     const split = apply(before, addTea([cat]));
     const reverted = apply(split, { by: ann, type: "undo", revision: split.recentChanges.at(-1)!.revision });
 
@@ -2498,10 +2492,10 @@ describe("an added or deleted Item moving the Subtotal and Total (preferences 70
   const tax = adjustmentId("tax");
   const tip = adjustmentId("tip");
   const totals = ({ receipt }: Split) => [receipt.subtotal, receipt.total];
-  const addTea = (by: ParticipantId, cost = 300): Operation => ({
+  const addTea = (by: ParticipantId, cost = 300, index = 3): Operation => ({
     by,
     type: "editReceipt",
-    items: [{ type: "add", item: { id: tea, name: "Tea", price: price(cost) }, index: 3 }],
+    items: [{ type: "add", item: { id: tea, name: "Tea", price: price(cost) }, index }],
   });
   const remove = (by: ParticipantId, id: typeof fries): Operation => ({ by, type: "editReceipt", items: [{ type: "delete", itemId: id }] });
   const lastChange = (split: Split) => split.recentChanges.at(-1)!;
@@ -2606,7 +2600,7 @@ describe("an added or deleted Item moving the Subtotal and Total (preferences 70
     expect(totals(undoTo(apply(added, tipEdit), added.revision))).toEqual([5200, 6762]);
 
     const deleted = apply(tipped, remove(ann, fries));
-    expect(totals(undoTo(apply(deleted, addTea(cat)), deleted.revision))).toEqual([5500, 6898]);
+    expect(totals(undoTo(apply(deleted, addTea(cat, 300, 2)), deleted.revision))).toEqual([5500, 6898]);
   });
 
   test("refuses a delete that would take the Total under $0.00", () => {

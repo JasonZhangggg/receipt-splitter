@@ -52,18 +52,20 @@ const sheet = (page: Page) => page.getByRole("dialog", { name: "Edit item" });
 const rows = (page: Page) => page.locator('[data-testid^="line-"]').evaluateAll((lines) => lines.map((line) => line.textContent ?? ""));
 const undo = (page: Page) => page.getByRole("button", { name: "Undo", exact: true });
 
-test("Delete then Undo puts the Item back at its row with who had it and the same Total", async ({ browser, request }, { workerIndex }) => {
+test("Delete lowers the Total by the Item's price, and Undo puts the Item back at its row with who had it and the same Total", async ({ browser, request }, { workerIndex }) => {
   const sam = await openAs(browser, await createSplit(request, workerIndex), "Sam");
   await sam.getByRole("button", { name: "Pitcher, check for Sam" }).click();
   await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, You, \$12\.00 yours$/ })).toBeVisible(live);
   const before = await rows(sam);
   const total = await sam.getByTestId("total").textContent();
+  expect(total).toBe("$26.50");
 
   await sam.getByRole("button", { name: /^Open Pitcher/ }).click();
   await sheet(sam).getByRole("button", { name: "Delete item" }).click();
   await expect(sheet(sam)).toHaveCount(0, live);
   await expect(sam.getByText("Deleted Pitcher")).toBeVisible(live);
   await expect(sam.getByRole("button", { name: /^Open Pitcher/ })).toHaveCount(0);
+  await expect(sam.getByTestId("total")).toHaveText("$14.50");
 
   await undo(sam).click();
   await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, You, \$12\.00 yours$/ })).toBeVisible(live);
