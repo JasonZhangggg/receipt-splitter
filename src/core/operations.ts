@@ -262,7 +262,7 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const held = split.picks.find((pick) => pick.participantId === participantId);
       if (held?.device === device) return unchanged(split);
       if (held && !takeOver) return reject("namePicked");
-      const others = split.picks.filter((pick) => pick.participantId !== participantId);
+      const others = split.picks.filter((pick) => pick.participantId !== participantId && pick.device !== device);
       const picks = [...others, { participantId, device }].sort((a, b) => compareCodeUnits(a.participantId, b.participantId));
       return { ok: true, split: { ...split, picks }, record: null };
     }

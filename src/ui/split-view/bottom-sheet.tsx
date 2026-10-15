@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Reac
 import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { actedByKey } from "../components/acted-by-key";
 import { glide, glideFor, leaveFor, leaveMs, reducedFade, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
@@ -9,6 +10,8 @@ import { layout, motion, useColors } from "../theme";
 
 const tapSlop = 10;
 const grabHeight = 29;
+// The tall snap stops below the page header, so the wordmark and its buttons stay whole above it.
+const headerClear = 52;
 const barGap = 16;
 // The scroller clips, so its content keeps this much room on the top and sides for a focused field's ring.
 const ringRoom = 4;
@@ -39,7 +42,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const reduce = useReducedMotion();
   // The keyboard neither moves nor shrinks the sheet. iOS pans the page to reveal the focused field.
   const screen = useLayoutHeight();
-  const tallest = Math.min(Math.round(screen * tallShare), screen - insets.top - 8);
+  const tallest = Math.min(Math.round(screen * tallShare), screen - insets.top - headerClear);
   const [content, setContent] = useState(0);
   const [tall, setTall] = useState(false);
   const [barHeight, setBarHeight] = useState(0);
@@ -107,6 +110,12 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   }, [closing]);
 
   useEffect(() => () => clearTimeout(left.current), []);
+
+  // A sheet a key opened takes focus as it appears, so the next key reaches the sheet and not the page behind it. A touch or click leaves focus on the opener, and a field that took focus itself keeps it.
+  useEffect(() => {
+    const sheet = element();
+    if (sheet && actedByKey() && !sheet.contains(document.activeElement)) sheet.focus({ preventScroll: true });
+  }, []);
 
   const live = () => {
     const sheet = element();
@@ -186,6 +195,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
         role="dialog"
         aria-label={label}
         testID={testID}
+        tabIndex={-1}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

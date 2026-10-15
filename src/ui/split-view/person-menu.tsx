@@ -12,7 +12,7 @@ import { type, useColors } from "../theme";
 
 export const personMenuWidth = 248;
 
-/** What a long-press on a person's chip offers: Remove, with a gray line saying what goes with them when they had Items or paid. */
+/** What tapping a person in the People sheet's Remove mode offers: Remove, with a gray line saying what goes with them when they had Items or paid. */
 export function PersonMenu({ split, person, onRemove }: { split: Split; person: Participant; onRemove: () => void }) {
   const c = useColors();
   const reduce = useReducedMotion();

@@ -72,13 +72,13 @@ test("Create split link takes the Host to the tall pick sheet, and a second brow
   const link = await createLink(page);
 
   expect(link).toMatch(/^http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{24}$/);
-  await expect(rows(page)).toHaveText(["JJason", "SSam", "PPriya"]);
+  await expect(rows(page)).toHaveText(["Jason", "Sam", "Priya"]);
   await page.getByRole("button", { name: "Jason", exact: true }).click();
   await expect(page.getByTestId("owe")).toBeVisible();
 
   const sam = await open(browser, link);
   await expect(sam.getByText("Jason invited you to split $28.04")).toBeVisible();
-  await expect(rows(sam)).toHaveText(["JJasonPicked", "SSam", "PPriya"]);
+  await expect(rows(sam)).toHaveText(["JasonPicked on another phone", "Sam", "Priya"]);
 });
 
 test("after the Host picks on a link not yet shared, the bar shows Your share with no link row, and Sam's breakdown has none either", async ({ page }) => {
@@ -107,7 +107,7 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   context.on("request", (request) => loaded.push(new URL(request.url()).pathname));
   const lee = await context.newPage();
   await lee.goto(link);
-  await expect(rows(lee)).toHaveText(["JJason"]);
+  await expect(rows(lee)).toHaveText(["Jason"]);
   await lee.getByRole("button", { name: "Not here? Add yourself" }).click();
   await lee.getByRole("textbox", { name: "Your name" }).fill("Lee");
   await lee.getByRole("button", { name: "Join as Lee" }).click();
