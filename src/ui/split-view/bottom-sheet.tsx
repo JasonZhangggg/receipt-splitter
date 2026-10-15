@@ -211,9 +211,9 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
           {bar ? (
             <View
               onLayout={(event) => setBarHeight(Math.ceil(event.nativeEvent.layout.height))}
-              style={[styles.bar, { borderTopColor: c.hairline, backgroundColor: c.sheet, paddingBottom: 22 + insets.bottom, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}
+              style={[styles.bar, { borderTopColor: c.hairline, backgroundColor: c.sheet, paddingBottom: 22 + insets.bottom }]}
             >
-              <View style={styles.inset}>{bar}</View>
+              <View style={[styles.inset, { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>{bar}</View>
             </View>
           ) : null}
         </View>

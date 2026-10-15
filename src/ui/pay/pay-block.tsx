@@ -38,9 +38,7 @@ export function PayBlock({ split, host, handles, state, onPaid }: Props) {
           <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
         </View>
       )}
-      <View style={styles.center}>
-        <TextLink label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.markNotPaid} onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")} outsideScroll />
-      </View>
+      <TextLink center label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.markNotPaid} onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")} outsideScroll />
     </View>
   );
 }
@@ -129,6 +127,5 @@ const styles = StyleSheet.create({
   switcher: { width: switcherWidth, height: 54, alignItems: "center", justifyContent: "center" },
   hairline: { position: "absolute", left: 0, width: 1, height: 24, opacity: 0.3 },
   handles: { textAlign: "center", marginHorizontal: 4 },
-  center: { alignItems: "center" },
   paid: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 52, borderRadius: 26, borderWidth: 1 },
 });
