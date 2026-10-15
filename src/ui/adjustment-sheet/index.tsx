@@ -107,7 +107,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, on
     setLeaving(true);
     flushRef.current = () => {};
     const sent = await send(deleteAdjustment(me, id));
-    if (sent.ok) onDeleted({ name: row.name, revision: sent.revision });
+    if (sent.ok && sent.revision !== null) onDeleted({ name: row.name, revision: sent.revision });
     if (sent.ok || !splitRef.current.receipt.adjustments.some((adjustment) => adjustment.id === id)) return onClose();
     setLeaving(false);
     setProblem(adjustmentProblem(sent.rejection.reason));

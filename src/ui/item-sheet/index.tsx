@@ -217,7 +217,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     if (leavingFrom) return;
     if (onlyItem) return onNote(say.lastItem);
     flushRef.current = () => {};
-    leave({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }, ({ revision }) => onDeleted({ name: title, revision }));
+    leave({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }, ({ revision }) => revision !== null && onDeleted({ name: title, revision }));
   };
   const note = bundleNote(seen.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
