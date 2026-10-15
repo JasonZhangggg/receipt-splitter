@@ -331,12 +331,10 @@ test("a tax turned into a discount on desktop opens in a popover, takes the name
   await expect(page.getByRole("button", { name: "Open Discount, -$1.00" })).toBeFocused();
 });
 
-test("a collapsed Bundle's claimer marks overlap the way an Item row's do", async ({ browser, request }, { workerIndex }) => {
+test("a collapsed Bundle says who had its Items and how many are claimed", async ({ browser, request }, { workerIndex }) => {
   const [sam] = await samAndPriya(browser, await createSplit(request, workerIndex, bucket), true);
   const header = sam.getByRole("button", { name: /^Beer Bucket, / });
   await header.click();
-  const mark = (letter: string) => header.getByText(letter, { exact: true }).evaluate((glyph) => glyph.parentElement!.getBoundingClientRect().toJSON() as { left: number; right: number });
-  await expect(header.getByText("P", { exact: true })).toBeVisible(live);
-  const [first, second] = [await mark("S"), await mark("P")];
-  expect(second.left).toBeLessThan(first.right);
+  await expect(header).toContainText("You, Priya", live);
+  await expect(header).toContainText("2 claimed");
 });

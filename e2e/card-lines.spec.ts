@@ -1,4 +1,3 @@
-import { addRow } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -106,35 +105,3 @@ test("the Your share breakdown says nothing about unclaimed lines while the tota
   await expect(breakdown.getByTestId("unclaimed-items")).toHaveCount(0);
   await expect(breakdown.getByText(/unclaimed/i)).toHaveCount(0);
 });
-
-const centeredAddItem = async ({ page, request }: { page: Page; request: APIRequestContext }, { workerIndex }: { workerIndex: number }) => {
-  await pick(page, await createSplit(request, workerIndex), "Sam");
-  const add = addRow(page);
-  await add.scrollIntoViewIfNeeded();
-  const circle = page.getByRole("button", { name: "Sprite, check for Sam" });
-  const middle = (box: { left: number; width: number }) => box.left + box.width / 2;
-  await expect
-    .poll(async () => {
-      const dot = await circle.evaluate((target) => target.querySelector("div:empty")!.getBoundingClientRect().toJSON() as DOMRect);
-      const { row, label, plus } = await add.evaluate((row) => {
-        const box = (el: Element) => el.getBoundingClientRect().toJSON() as DOMRect;
-        const text = [...row.querySelectorAll("*")].find((el) => el.children.length === 0 && el.textContent === "Add")!;
-        return { row: box(row), label: box(text), plus: box(row.querySelector("svg")!) };
-      });
-      return {
-        labelCenteredInRow: Math.abs(label.top + label.height / 2 - (row.top + row.height / 2)) <= 1,
-        plusOnCircleColumn: Math.abs(middle(plus) - middle(dot)) <= 1,
-      };
-    }, live)
-    .toEqual({ labelCenteredInRow: true, plusOnCircleColumn: true });
-};
-
-const title = "Add is centered in its row, its plus centered on the Item circles";
-
-test(`on a phone, ${title}`, centeredAddItem);
-
-test.describe("desktop", () => {
-  test.use({ viewport: { width: 1280, height: 900 }, isMobile: false, hasTouch: false });
-  test(`on a desktop, ${title}`, centeredAddItem);
-});
-

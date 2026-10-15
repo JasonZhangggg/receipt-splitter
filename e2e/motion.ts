@@ -749,7 +749,7 @@ const splitRows: Scenario = {
 };
 
 const addSheet = (page: Page) => page.getByTestId("add-sheet");
-const addRowButton = (page: Page) => page.getByTestId("receipt").getByRole("button", { name: "Add", exact: true });
+const addRowButton = (page: Page) => page.getByTestId("receipt").getByRole("button", { name: "Add item, tax, tip or discount", exact: true });
 const addMenu = (page: Page) => page.getByRole("dialog", { name: "Add to the receipt" });
 const addProbes: Probe[] = [
   { key: "add", find: testId("add-sheet"), kind: "top" },
@@ -788,7 +788,7 @@ const addRowScenario: Scenario = {
   probes: [
     { key: "rowHeight", find: addedRow, kind: "height" },
     { key: "rowFade", find: addedRow, kind: "opacity" },
-    { key: "addRow", find: label("Add"), kind: "top" },
+    { key: "addRow", find: label("Add item, tax, tip or discount"), kind: "top" },
   ],
 };
 
@@ -805,7 +805,7 @@ const chargeDelete: Scenario = {
   act: (page) => tap(page.getByTestId("adjustment-sheet").getByRole("button", { name: "Delete charge" })),
   quietMs: 800,
   probes: [
-    { key: "addRow", find: label("Add"), kind: "top" },
+    { key: "addRow", find: label("Add item, tax, tip or discount"), kind: "top" },
     { key: "total", find: testId("total"), kind: "top" },
   ],
 };
@@ -826,7 +826,7 @@ const itemDelete: Scenario = {
   probes: [
     { key: "rowFade", find: leaving("tostones"), kind: "opacity" },
     { key: "bundle", find: testId("bundle-bucket"), kind: "top" },
-    { key: "addRow", find: label("Add"), kind: "top" },
+    { key: "addRow", find: label("Add item, tax, tip or discount"), kind: "top" },
   ],
 };
 
@@ -842,7 +842,7 @@ const bundleItemDelete: Scenario = {
   quietMs: 800,
   probes: [
     { key: "rowFade", find: leaving("sprite"), kind: "opacity" },
-    { key: "addRow", find: label("Add"), kind: "top" },
+    { key: "addRow", find: label("Add item, tax, tip or discount"), kind: "top" },
   ],
 };
 

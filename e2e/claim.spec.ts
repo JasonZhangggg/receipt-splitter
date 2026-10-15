@@ -125,7 +125,7 @@ test("Tostones split 2:1 by shares and the 2x Pitchers line claimed whole reach 
   await expect(sam.getByText("3 shares")).toBeVisible(live);
   await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
   await expect(owe(sam)).toHaveText("$0.33", live);
-  await expect(jason.getByText("2:1")).toBeVisible(live);
+  await expect(jason.getByTestId("line-tostones")).toContainText("$0.67 yours", live);
 
   await expect(jason.getByRole("button", { name: /^Open Pitchers/ })).toHaveCount(0);
   await expect(jason.getByRole("button", { name: /^Open 2x Pitchers, \$24\.00, / })).toHaveCount(1);
@@ -303,12 +303,12 @@ test("Priya's open confirm to check Rice for Sam closes when Sam checks Rice him
 });
 
 const line = (page: Page, id: string) => page.getByTestId(`line-${id}`);
-const marksOf = (page: Page, id: string) => line(page, id).getByTestId("claimer-marks");
+const count = (page: Page) => page.getByTestId("items-count");
 
 /** Selects a person's chip and checks lines for them, saying yes to the first confirm. */
 async function checkFor(page: Page, name: string, items: readonly string[]) {
   await viewAs(page, name);
-  await expect(page.getByText(`Check what ${name} had`, { exact: true })).toBeVisible(live);
+  await expect(count(page)).toContainText(`${name}'s`, live);
   for (const [at, item] of items.entries()) {
     await circle(page, item, name).click();
     if (at === 0) await page.getByRole("dialog", { name: `Check ${item} for ${name}?` }).getByRole("button", { name: `Check for ${name}` }).click();
@@ -316,46 +316,57 @@ async function checkFor(page: Page, name: string, items: readonly string[]) {
   }
 }
 
-test("the leading circle is the viewer's own check and everyone who checked a line, the viewer too, shows as marks before the price, three then +N", async ({ browser, request }, { workerIndex }) => {
+test("the dot is the viewer's own check, and each row says who had it and what the viewer pays, or what each pays", async ({ browser, request }, { workerIndex }) => {
   const jason = await open(browser, await createSplit(request, workerIndex, ["Jason", "Sam", "Priya", "Lee", "Ana"].map((name) => ({ id: name.toLowerCase(), name }))));
   await pick(jason, "Jason");
 
   await expect(line(jason, "sprite").getByTestId("checked")).toHaveCount(0);
-  await expect(marksOf(jason, "sprite")).toHaveCount(0);
+  await expect(line(jason, "sprite")).toContainText("Nobody yet");
+  await expect(count(jason)).toHaveText("0 of 4 yours");
 
   await circle(jason, "Rice", "Jason").click();
   await expect(jason.getByRole("button", { name: "Rice, check for Jason" })).toHaveAttribute("aria-pressed", "true", live);
   await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
-  await expect(marksOf(jason, "rice")).toHaveText("J");
+  await expect(line(jason, "rice")).toContainText("You");
+  await expect(line(jason, "rice")).toContainText("$8.00 yours");
+  await expect(count(jason)).toHaveText("1 of 4 yours");
 
   await checkFor(jason, "Sam", ["Tostones", "Rice"]);
   await checkFor(jason, "Priya", ["Rice"]);
   await checkFor(jason, "Lee", ["Rice"]);
   await checkFor(jason, "Ana", ["Rice"]);
   await viewAs(jason, "Jason, you");
-  await expect(jason.getByText("Check what you had", { exact: true })).toBeVisible(live);
+  await expect(count(jason)).toHaveText("1 of 4 yours", live);
 
   await expect(jason.getByRole("button", { name: "Tostones, check for Jason" })).toHaveAttribute("aria-pressed", "false");
   await expect(line(jason, "tostones").getByTestId("checked")).toHaveCount(0);
-  await expect(marksOf(jason, "tostones")).toHaveText("S");
-  await expect(marksOf(jason, "rice")).toHaveText("JSP+2");
+  await expect(line(jason, "tostones")).toContainText("Sam");
+  await expect(line(jason, "rice")).toContainText("You, Sam, Priya, Lee, Ana");
+  await expect(line(jason, "rice")).toContainText("$1.60 yours");
   await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
 
   await viewAs(jason, "Sam");
-  await expect(jason.getByText("Check what Sam had", { exact: true })).toBeVisible(live);
+  await expect(count(jason)).toHaveText("2 of 4 Sam's", live);
   await expect(jason.getByRole("button", { name: "Tostones, check for Sam" })).toHaveAttribute("aria-pressed", "true");
   await expect(line(jason, "tostones").getByTestId("checked")).toBeVisible();
-  await expect(marksOf(jason, "tostones")).toHaveText("S");
-  await expect(marksOf(jason, "rice")).toHaveText("JSP+2");
+  await expect(line(jason, "tostones")).toContainText("$1.00 Sam's");
+  await expect(line(jason, "rice")).toContainText("$1.60 Sam's");
   await expect(jason.getByRole("button", { name: "Sprite, check for Sam" })).toHaveAttribute("aria-pressed", "false");
 
   await viewAs(jason, "Jason, you");
-  await expect(marksOf(jason, "tostones")).toHaveText("S", live);
   await jason.setViewportSize({ width: 320, height: 640 });
-  for (const [id, price] of [["rice", "8.00"], ["tostones", "1.00"]] as const) {
-    const [name, marks, figure] = await Promise.all(
-      [line(jason, id).getByText(id === "rice" ? /^Rice/ : /^Tostones/), marksOf(jason, id), line(jason, id).getByText(price, { exact: true })].map((one) => one.boundingBox()),
-    );
-    expect({ id, nameBeforeMarks: name!.x + name!.width <= marks!.x, marksBeforePrice: marks!.x + marks!.width <= figure!.x }).toEqual({ id, nameBeforeMarks: true, marksBeforePrice: true });
+  for (const id of ["rice", "tostones"]) {
+    expect(await line(jason, id).evaluate((row) => row.scrollWidth <= row.clientWidth)).toBe(true);
   }
+});
+
+test("beside a long name the footer keeps its items count whole and shortens the name", async ({ browser, request }, { workerIndex }) => {
+  const long = "Bartholomew Featherstonehaugh-Smythe";
+  const jason = await open(browser, await createSplit(request, workerIndex, [{ id: "jason", name: "Jason" }, { id: "long", name: long }]));
+  await pick(jason, "Jason");
+  await viewAs(jason, long);
+  await expect(count(jason)).toContainText(`${long}'s`, live);
+  const aside = jason.getByTestId("footer").getByText(/items · incl\. tax & tip$/);
+  await expect(aside).toHaveText("0 of 4 items · incl. tax & tip");
+  expect(await aside.evaluate((text) => text.scrollWidth <= text.clientWidth)).toBe(true);
 });
