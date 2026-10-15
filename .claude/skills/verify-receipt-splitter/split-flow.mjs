@@ -166,7 +166,7 @@ await shot(sam, "H-someone");
 await sam.keyboard.press("Escape");
 await sam.getByRole("dialog", { name: "Payments" }).waitFor({ state: "detached" });
 await sam.getByRole("button", { name: "People", exact: true }).click();
-await sam.getByRole("group", { name: "People" }).getByRole("button", { name: "Priya", exact: true }).click();
+await sam.getByRole("dialog", { name: "People" }).getByRole("button", { name: "Priya", exact: true }).click();
 await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();
 await sam.waitForTimeout(500);
 await shot(sam, "G-yours");

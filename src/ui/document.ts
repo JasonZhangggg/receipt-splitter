@@ -31,7 +31,7 @@ html, body { overscroll-behavior: none; }
 body { text-wrap: pretty; }
 [data-pressable] { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 a[data-pressable] { -webkit-touch-callout: default; text-decoration: none; }
-[data-pressable]:focus { outline: none; }
+[data-pressable]:focus, [role="dialog"]:focus { outline: none; }
 [data-pressable]:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 [data-pressable]:has([data-press-face]):focus-visible { outline: none; }
 [data-pressable]:focus-visible [data-press-face] { outline: 2px solid var(--focus); outline-offset: 3px; }

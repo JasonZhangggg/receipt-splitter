@@ -26,17 +26,16 @@ import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { splitCopy as say } from "../../src/ui/split-copy";
 import { SplitHeader } from "../../src/ui/split-view/header";
 import { circleTap, linesNear } from "../../src/ui/split-view/model";
-import { PeopleChips } from "../../src/ui/split-view/people-chips";
+import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
+import { ViewingLine } from "../../src/ui/split-view/viewing-line";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
 import { holdOf, takenName } from "../../src/ui/split-view/name-hold";
-import { PickSheet } from "../../src/ui/split-view/pick-sheet";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
 import { SplitFooter } from "../../src/ui/split-view/footer";
 import { SplitIntro } from "../../src/ui/split-view/intro";
-import { SheetHeader } from "../../src/ui/split-view/sheet-header";
 import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-sheet";
 import { PayBlock } from "../../src/ui/pay/pay-block";
 import { shareStatus, statusWords } from "../../src/ui/pay/model";
@@ -149,6 +148,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const people = split.participants;
   // A selected person someone removed falls back to this device's own name.
   const selectedPerson = people.find((person) => person.id === selected) ?? people.find((person) => person.id === me) ?? null;
+  const selfPerson = people.find((person) => person.id === me);
   const creating = memory.creatorSecret !== undefined;
   const act = (op: Operation) => send(op).then((answer) => answer.ok);
 
@@ -161,7 +161,12 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     }
     remember({ me: participantId });
     setSelected(participantId);
-    timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
+    // The pick sheet collapses on its own; a switch from the People sheet closes that sheet instead.
+    if (phase === "pick") timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
+    else {
+      setChosen(null);
+      closeOverlay();
+    }
   };
 
   const nameTaken = useEffectEvent((lost: ParticipantId) =>
@@ -257,9 +262,9 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
   const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
   const menuGone = () => {
     if (menu && (wide || menu.from.keyboard || actedByKey())) {
-      // The chip it hung from may be the one removed; the selected chip is the nearest sensible place.
-      const chip = menu.from.trigger.isConnected ? menu.from.trigger : document.querySelector<HTMLElement>('[data-pressable]:has([aria-selected="true"])');
-      chip?.focus({ preventScroll: true });
+      // The row it hung from may be the one removed; the sheet's Done link is the nearest sensible place.
+      const row = menu.from.trigger.isConnected ? menu.from.trigger : document.querySelector<HTMLElement>(`[data-pressable][aria-label="${say.done}"]`);
+      row?.focus({ preventScroll: true });
     }
     setMenu(null);
   };
@@ -309,8 +314,8 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
           : null;
     trigger?.focus({ preventScroll: true });
   };
-  // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay sheet closes when this phone loses its name.
-  const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || (overlay?.kind === "pay" && (me === null || selectedPerson === null));
+  // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay and People sheets close when this phone loses its name.
+  const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
   // Escape closes the person menu over the People sheet first, and the sheet on the next press.
   useEscape(overlay !== null && !closing && (menu === null || menu.closing), closeOverlay);
@@ -351,20 +356,38 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     });
     closeOverlay();
   };
-  const pickContent = (
+  const peopleRows: readonly PersonRow[] = people.map((person) => {
+    const pick = split.picks.find(({ participantId }) => participantId === person.id);
+    return {
+      person,
+      share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0)),
+      mine: person.id === me,
+      viewed: person.id === selectedPerson?.id,
+      heldElsewhere: pick !== undefined && pick.device !== device,
+    };
+  });
+  const peopleSheet = (asking: boolean) => (
     <>
-      <PickSheet
-        rows={pickRows(split, device)}
+      <PeopleSheet
+        rows={peopleRows}
+        meName={asking ? null : (selfPerson?.name ?? "")}
         intro={intro(split, creating)}
         chosen={chosen}
-        onPick={(pid, takeOver) => void choose(pid, takeOver)}
-        onAdd={addYourself}
-        onClose={lookOnly}
+        onView={(participantId) => {
+          setSelected(participantId);
+          closeOverlay();
+        }}
+        onPick={(participantId, takeOver) => void choose(participantId, takeOver)}
+        onAdd={asking ? addYourself : (typed) => addPerson(typed).then((added) => ("refused" in added ? added.refused : null))}
+        onRemove={hold}
+        onClose={asking ? lookOnly : closeOverlay}
         url={splitUrl(splitId)}
       />
       {pickProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{pickProblem}</Text> : null}
+      {peopleNote}
     </>
   );
+  const pickContent = peopleSheet(true);
   const overlayContent = overlay ? (
     overlay.kind === "item" ? (
       <ItemSheet
@@ -384,23 +407,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     ) : overlay.kind === "payments" ? (
       <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
     ) : overlay.kind === "people" ? (
-      <View style={styles.people}>
-        <SheetHeader title={say.people} onClose={closeOverlay} />
-        <PeopleChips
-          people={people}
-          me={me}
-          selected={me ? (selectedPerson?.id ?? null) : null}
-          onSelect={(participantId) => {
-            if (me) setSelected(participantId === selectedPerson?.id ? me : participantId);
-            else setPhase("pick");
-            closeOverlay();
-          }}
-          onAdd={(typed) => void addPerson(typed)}
-          onHold={hold}
-
-        />
-        {peopleNote}
-      </View>
+      peopleSheet(false)
     ) : overlay.kind === "pay" ? (
       selectedPerson ? (
         <>
@@ -471,10 +478,11 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
             host={host.name}
             total={money(split.receipt.total)}
             onReceipt={photo ? () => setViewing(true) : undefined}
-            onPeople={(from) => open({ kind: "people" }, from)}
+            onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
             onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
             onHistory={(from) => open({ kind: "history" }, from)}
           />
+          {me && selectedPerson && selectedPerson.id !== me ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
           <View style={styles.doc}>{receipt}</View>
         </View>
       </ScrollView>
@@ -503,13 +511,6 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
     </View>
   );
-}
-
-function pickRows(split: Split, device: DeviceId) {
-  return split.participants.map((person) => {
-    const pick = split.picks.find(({ participantId }) => participantId === person.id);
-    return { person, picked: pick !== undefined && pick.device !== device };
-  });
 }
 
 function intro(split: Split, creating: boolean) {

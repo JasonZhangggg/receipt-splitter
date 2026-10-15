@@ -1,5 +1,5 @@
-import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
-import { fromMore } from "./header";
+import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
+import { fromMore, peopleSheet, personRow, showPeople, viewAs } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -16,37 +16,13 @@ const dinner = {
   total: 1050,
 };
 
-test("on a desktop window twelve names wrap onto more lines and none is clipped", async ({ browser, request }, { workerIndex }) => {
-  const page = await (await newContext(browser)).newPage();
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto(await createSplit(request, workerIndex, dozen));
-  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
-  const sam = page;
-  await expect(owe(sam)).toBeVisible(live);
-  await sam.getByRole("button", { name: "People", exact: true }).click();
-  await expect(chip(sam, "Sam, you")).toBeVisible(live);
-  await sam.waitForTimeout(600);
-  const lines = () =>
-    people(sam)
-      .getByRole("button")
-      .evaluateAll((chips) => new Set(chips.map((element) => Math.round(element.getBoundingClientRect().top))).size);
-  await expect.poll(lines, live).toBeGreaterThan(1);
-
-  const group = await people(sam).boundingBox();
-  for (const name of dozen) {
-    const box = await chip(sam, name === "Sam" ? "Sam, you" : name).boundingBox();
-    expect(box?.x).toBeGreaterThanOrEqual(group?.x ?? 0);
-    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual((group?.x ?? 0) + (group?.width ?? 0) + 1);
-  }
-});
-
-const dozen = ["Jason", "Sam", "Priya", "Alexandra", "Bartholomew", "Chen", "Dmitri", "Esperanza", "Fatima", "Giovanni", "Hiroshi", "Ingrid"];
+const dozen = ["Jason", "Sam", "Priya", "Alexandra Bartholomew", "Chen", "Dmitri", "Esperanza Fernandez", "Fatima", "Giovanni", "Hiroshi", "Ingrid", "Jean-Baptiste Emmanuel"];
 
 let creates = 0;
 
 async function createSplit(request: APIRequestContext, workerIndex: number, names = ["Jason", "Sam", "Priya"]): Promise<string> {
   creates += 1;
-  const participants = names.map((name) => ({ id: name.toLowerCase(), name }));
+  const participants = names.map((name) => ({ id: name.toLowerCase().replace(/\W/g, ""), name }));
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.51.${150 + workerIndex}.${creates}` },
     data: { split: { receipt: dinner, participants, paymentHandles: [{ service: "venmo", handle: "jason-z" }] } },
@@ -56,7 +32,6 @@ async function createSplit(request: APIRequestContext, workerIndex: number, name
   return new URL(`/s/${id}`, response.url()).href;
 }
 
-/** A touch drive needs the test's own page, which has the phone profile's touch screen; a second browser is a plain context. */
 async function open(from: Browser | Page, link: string, name: string): Promise<Page> {
   const page = "goto" in from ? from : await (await newContext(from)).newPage();
   await page.goto(link);
@@ -65,84 +40,119 @@ async function open(from: Browser | Page, link: string, name: string): Promise<P
   return page;
 }
 
-/** Opens the People sheet; a hold that starts while the sheet is still rising lands on the chip it covers, so it settles first. */
-async function showPeople(page: Page, name: string) {
-  await page.getByRole("button", { name: "People", exact: true }).click();
-  await expect(chip(page, `${name}, you`)).toBeVisible(live);
-  await page.waitForTimeout(600);
+/** Remove mode: the sheet's "Remove someone" link turns each row into a Remove button. */
+async function removeMode(page: Page) {
+  await peopleSheet(page).getByRole("button", { name: "Remove someone" }).click();
 }
 
-async function hidePeople(page: Page) {
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "People" })).toHaveCount(0, live);
-}
-
-const people = (page: Page) => page.getByRole("group", { name: "People" });
-const chip = (page: Page, name: string) => people(page).getByRole("button", { name, exact: true });
 const menu = (page: Page, name: string) => page.getByRole("dialog", { name: `Options for ${name}` });
 const owe = (page: Page) => page.getByTestId("owe");
+const circle = (page: Page, item: string, name: string) => page.getByRole("button", { name: `${item}, check for ${name}` });
 
-/** Drives a real touch through Chromium's input pipeline, so a hold reaches the press responder's timer and a drag scrolls natively. */
-async function touch(target: Locator, { holdMs = 0, dx = 0 }: { holdMs?: number; dx?: number }) {
-  const page = target.page();
-  test.skip(page.context().browser()?.browserType().name() !== "chromium", "a real touch goes through Chromium's CDP; the iOS Simulator check covers WebKit");
-  const box = await target.boundingBox();
-  if (!box) throw new Error("no box to touch");
-  const cdp = await page.context().newCDPSession(page);
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-  for (let step = 1; step <= 10 && dx !== 0; step += 1) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + (dx * step) / 10, y }] });
-    await page.waitForTimeout(16);
-  }
-  if (holdMs > 0) await page.waitForTimeout(holdMs);
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await cdp.detach();
-}
+test("viewing as another person ticks under their name after one confirm", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link, "Sam");
+  const priya = await open(browser, link, "Priya");
 
-test("a long-press on a chip opens Remove without selecting, a tap still selects, and the Host's chip offers nothing", async ({ page, request }, { workerIndex }) => {
-  const sam = await open(page, await createSplit(request, workerIndex), "Sam");
   await showPeople(sam, "Sam");
+  await expect(personRow(sam, "Priya")).toContainText("$0.00");
+  await personRow(sam, "Priya").click();
+  await expect(sam.getByTestId("viewing")).toHaveText("Viewing as Priya. Dots tick for them.Back to you");
+  await expect(sam.getByTestId("footer")).toContainText("Priya's share");
 
-  await touch(chip(sam, "Priya"), { holdMs: 800 });
-  await expect(menu(sam, "Priya").getByRole("button", { name: "Remove Priya" })).toBeVisible(live);
-  await expect(sam.getByText("Your share")).toBeVisible();
-  const selected = await sam.evaluate(() => window.getSelection()?.toString() ?? "");
-  expect(selected).toBe("");
+  await circle(sam, "Rice", "Priya").click();
+  await sam.getByRole("dialog", { name: "Check Rice for Priya?" }).getByRole("button", { name: "Check for Priya" }).click();
+  await expect(circle(sam, "Rice", "Priya")).toHaveAttribute("aria-pressed", "true", live);
+  await circle(sam, "Sprite", "Priya").click();
+  await expect(circle(sam, "Sprite", "Priya")).toHaveAttribute("aria-pressed", "true", live);
+  await expect(sam.getByRole("dialog", { name: /for Priya\?$/ })).toHaveCount(0);
+
+  await expect(circle(priya, "Rice", "Priya")).toHaveAttribute("aria-pressed", "true", live);
+  await expect(owe(priya)).toHaveText("$10.50", live);
+  await expect(circle(priya, "Rice", "Sam")).toHaveCount(0);
+
+  await sam.getByRole("button", { name: "Back to you" }).click();
+  await expect(sam.getByTestId("viewing")).toHaveCount(0);
+  await expect(sam.getByTestId("footer")).toContainText("Your share");
+  await expect(owe(sam)).toHaveText("$0.00");
+});
+
+test("a sheet opened from the keyboard takes focus, so the next key does not reach the page behind it", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex), "Sam");
+  await sam.getByRole("button", { name: "People", exact: true }).focus();
+  await sam.keyboard.press("Enter");
+  await expect(peopleSheet(sam)).toBeFocused();
+});
+
+test("twelve people with long names scroll in the sheet and no row spills out of it", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, dozen), "Sam");
+  await showPeople(sam, "Sam");
+  const sheet = await peopleSheet(sam).boundingBox();
+  expect(sheet).not.toBeNull();
+  for (const name of dozen) {
+    const row = personRow(sam, name === "Sam" ? "Sam, you" : name);
+    await row.scrollIntoViewIfNeeded();
+    const box = await row.boundingBox();
+    expect(box?.x).toBeGreaterThanOrEqual(sheet?.x ?? 0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual((sheet?.x ?? 0) + (sheet?.width ?? 0) + 1);
+    expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
+});
+
+test("the sheet adds a person, who shows with a $0.00 share, and refuses a name already there", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex), "Sam");
+  await showPeople(sam, "Sam");
+  await peopleSheet(sam).getByRole("button", { name: "Add a person" }).click();
+  await sam.getByRole("textbox", { name: "Name" }).fill("Lee");
+  await sam.keyboard.press("Enter");
+  await expect(personRow(sam, "Lee")).toContainText("$0.00", live);
+
+  await peopleSheet(sam).getByRole("button", { name: "Add a person" }).click();
+  await sam.getByRole("textbox", { name: "Name" }).fill("lee");
+  await sam.keyboard.press("Enter");
+  await expect(peopleSheet(sam).getByRole("alert")).toHaveText("That name is already here.");
+});
+
+test("Remove someone opens the person menu with what goes with them, the Host has no Remove, and Escape closes the menu before the sheet", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link, "Sam");
+  await circle(sam, "Rice", "Sam").click();
+  await showPeople(sam, "Sam");
+  await removeMode(sam);
+
+  await expect(peopleSheet(sam).getByRole("button", { name: "Remove Jason" })).toBeDisabled();
+  await peopleSheet(sam).getByRole("button", { name: "Remove Sam" }).click();
+  await expect(menu(sam, "Sam").getByText("Removing Sam unchecks 1 item.")).toBeVisible(live);
 
   await sam.keyboard.press("Escape");
-  await expect(menu(sam, "Priya")).toHaveCount(0, live);
-  await chip(sam, "Priya").click();
-  await expect(sam.getByRole("button", { name: /Priya's breakdown$/ })).toBeVisible(live);
-  await showPeople(sam, "Sam");
-
-  await touch(chip(sam, "Jason"), { holdMs: 800 });
-  await sam.waitForTimeout(300);
-  await expect(sam.getByRole("dialog", { name: /^Options for / })).toHaveCount(0);
+  await expect(menu(sam, "Sam")).toHaveCount(0, live);
+  await expect(peopleSheet(sam)).toBeVisible();
+  await peopleSheet(sam).getByRole("button", { name: "Done" }).click();
+  await expect(personRow(sam, "Priya")).toBeVisible();
 });
 
 test("removing a person who checked an Item gives the other claimer the whole Item, unpicks their phone, and History can revert it", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link, "Sam");
   const priya = await open(browser, link, "Priya");
-  await sam.getByRole("button", { name: "Rice, check for Sam" }).click();
-  await priya.getByRole("button", { name: "Rice, check for Priya" }).click();
+  await circle(sam, "Rice", "Sam").click();
+  await circle(priya, "Rice", "Priya").click();
   await expect(owe(sam)).toHaveText("$4.00", live);
 
   await showPeople(sam, "Sam");
-  await chip(sam, "Priya").click({ button: "right" });
+  await removeMode(sam);
+  await peopleSheet(sam).getByRole("button", { name: "Remove Priya" }).click();
   await expect(menu(sam, "Priya").getByText("Removing Priya unchecks 1 item.")).toBeVisible(live);
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
-  await expect(chip(sam, "Priya")).toHaveCount(0, live);
-  await hidePeople(sam);
+  await expect(personRow(sam, "Priya")).toHaveCount(0, live);
+  await sam.keyboard.press("Escape");
+  await expect(peopleSheet(sam)).toHaveCount(0, live);
   await expect(owe(sam)).toHaveText("$8.00", live);
   await expect(priya.getByText("Pick your name to check off what you had.")).toBeVisible(live);
-  await priya.getByRole("button", { name: "People", exact: true }).click({ timeout: 3000 });
-  await expect(chip(priya, "Sam")).toBeVisible(live);
-  await expect(chip(priya, "Priya")).toHaveCount(0);
-  await hidePeople(priya);
+  await priya.getByRole("button", { name: "People", exact: true }).click();
+  await expect(peopleSheet(priya)).toHaveCount(0);
+  await expect(priya.getByRole("dialog", { name: "Which one are you?" })).toBeVisible(live);
 
   await fromMore(sam, "History");
   await expect(sam.getByText("Removed Priya from the split")).toBeVisible(live);
@@ -151,42 +161,63 @@ test("removing a person who checked an Item gives the other claimer the whole It
   await sam.keyboard.press("Escape");
   await expect(sam.getByRole("dialog", { name: "History" })).toHaveCount(0, live);
   await showPeople(sam, "Sam");
-  await expect(chip(sam, "Priya")).toBeVisible(live);
+  await expect(personRow(sam, "Priya")).toBeVisible(live);
 });
 
-test("Payments open on a phone closes when another phone removes its person", async ({ browser, request }, { workerIndex }) => {
+test("the People sheet open on a phone closes when another phone removes that phone's person", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link, "Sam");
   const priya = await open(browser, link, "Priya");
-  await fromMore(priya, "Payments");
-  await expect(priya.getByRole("list", { name: "Payments" })).toBeVisible(live);
+  await showPeople(priya, "Priya");
 
   await showPeople(sam, "Sam");
-  await chip(sam, "Priya").click({ button: "right" });
+  await removeMode(sam);
+  await peopleSheet(sam).getByRole("button", { name: "Remove Priya" }).click();
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
-  await expect(priya.getByRole("list", { name: "Payments" })).toHaveCount(0, live);
+  await expect(peopleSheet(priya)).toHaveCount(0, live);
   await expect(priya.getByText("Pick your name to check off what you had.")).toBeVisible(live);
 });
 
-test("a menu open for someone another phone removes closes, and the next long-press still opens a menu", async ({ browser, request }, { workerIndex }) => {
+test("a phone viewing a person goes back to its own view when another phone removes them, and the sheet drops their row", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link, "Sam");
+  const jason = await open(browser, link, "Jason");
+  await viewAs(sam, "Priya");
+  await expect(sam.getByTestId("viewing")).toBeVisible();
+  await showPeople(sam, "Sam");
+
+  await showPeople(jason, "Jason");
+  await removeMode(jason);
+  await peopleSheet(jason).getByRole("button", { name: "Remove Priya" }).click();
+  await menu(jason, "Priya").getByRole("button", { name: "Remove Priya" }).click();
+
+  await expect(personRow(sam, "Priya")).toHaveCount(0, live);
+  await sam.keyboard.press("Escape");
+  await expect(sam.getByTestId("viewing")).toHaveCount(0, live);
+  await expect(sam.getByTestId("footer")).toContainText("Your share");
+});
+
+test("a person menu open for someone another phone removes closes, and the next one still opens", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, ["Jason", "Sam", "Priya", "Lee"]);
   const sam = await open(browser, link, "Sam");
   const jason = await open(browser, link, "Jason");
 
   await showPeople(sam, "Sam");
+  await removeMode(sam);
   await showPeople(jason, "Jason");
-  await chip(sam, "Priya").click({ button: "right" });
+  await removeMode(jason);
+  await peopleSheet(sam).getByRole("button", { name: "Remove Priya" }).click();
   await expect(menu(sam, "Priya")).toBeVisible(live);
-  await chip(jason, "Priya").click({ button: "right" });
+  await peopleSheet(jason).getByRole("button", { name: "Remove Priya" }).click();
   await menu(jason, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
   await expect(menu(sam, "Priya")).toHaveCount(0, live);
-  await chip(sam, "Lee").click({ button: "right" });
+  await peopleSheet(sam).getByRole("button", { name: "Remove Lee" }).click();
   await expect(menu(sam, "Lee").getByRole("button", { name: "Remove Lee" })).toBeVisible(live);
 });
 
-test("a removal the server refuses says so under the chips, and the person stays", async ({ browser, request }, { workerIndex }) => {
+test("a removal the server refuses says so under the rows, and the person stays", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const context = await newContext(browser);
   const sam = await context.newPage();
@@ -204,10 +235,41 @@ test("a removal the server refuses says so under the chips, and the person stays
   await expect(owe(sam)).toBeVisible(live);
   await showPeople(sam, "Sam");
 
-  await chip(sam, "Priya").click({ button: "right" });
+  await removeMode(sam);
+  await peopleSheet(sam).getByRole("button", { name: "Remove Priya" }).click();
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
   await expect(sam.getByText("Couldn't save that. Check it and try again.")).toBeVisible(live);
-  await expect(chip(sam, "Priya")).toBeVisible();
+  await expect(peopleSheet(sam).getByRole("button", { name: "Remove Priya" })).toBeVisible();
 });
 
+test("Switch account to a name another phone holds asks there, takes the name, and tells the other phone to pick", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link, "Sam");
+  const priya = await open(browser, link, "Priya");
+
+  await showPeople(sam, "Sam");
+  await peopleSheet(sam).getByRole("button", { name: "Switch account" }).click();
+  await peopleSheet(sam).getByRole("button", { name: "Priya, picked on another phone" }).click();
+  await expect(peopleSheet(sam).getByText("Picked on another phone.")).toBeVisible();
+  await peopleSheet(sam).getByRole("listitem").getByRole("button", { name: "Cancel" }).click();
+  await expect(peopleSheet(sam).getByText("Picked on another phone.")).toHaveCount(0);
+  await peopleSheet(sam).getByRole("button", { name: "Priya, picked on another phone" }).click();
+  await peopleSheet(sam).getByRole("button", { name: "That's me" }).click();
+
+  await expect(peopleSheet(sam)).toHaveCount(0, live);
+  await expect(circle(sam, "Rice", "Priya")).toBeVisible();
+  await expect(sam.getByTestId("footer")).toContainText("Your share");
+  await expect(priya.getByRole("status").filter({ hasText: "Priya was picked on another phone" })).toBeVisible(live);
+  await expect(sam.getByRole("status").filter({ hasText: "picked on another phone" })).toHaveCount(0);
+});
+
+test("a name that another phone picks while the Switch account list is open asks instead of taking it", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await open(browser, link, "Sam");
+  await showPeople(sam, "Sam");
+  await peopleSheet(sam).getByRole("button", { name: "Switch account" }).click();
+
+  await open(browser, link, "Priya");
+  await expect(peopleSheet(sam).getByRole("button", { name: "Priya, picked on another phone" })).toBeVisible(live);
+});

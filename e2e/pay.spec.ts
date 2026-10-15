@@ -423,7 +423,7 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   expect(await markOf(priya, "Sam")).toEqual(["exclaim"]);
 });
 
-test("the people chips show no check or exclamation mark and keep their plain names, however the payments stand", async ({ browser, request }, { workerIndex }) => {
+test("the People sheet rows show no check or exclamation mark and keep their plain names, however the payments stand", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -436,9 +436,9 @@ test("the people chips show no check or exclamation mark and keep their plain na
   await circle(priya, "Tea", "Priya").click();
   for (const page of [sam, priya]) {
     await page.getByRole("button", { name: "People", exact: true }).click();
-    const chips = page.getByRole("group", { name: "People" });
-    await expect(chips.locator('[data-icon="check"]')).toHaveCount(0);
-    await expect(chips.locator('[data-icon="exclaim"]')).toHaveCount(0);
+    const rows = page.getByRole("dialog", { name: "People" });
+    await expect(rows.locator('[data-icon="check"]')).toHaveCount(0);
+    await expect(rows.locator('[data-icon="exclaim"]')).toHaveCount(0);
   }
 });
 

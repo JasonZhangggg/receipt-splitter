@@ -1,5 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
-import { fromMore, viewAs } from "./header";
+import { fromMore, personRow, showPeople, viewAs } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -212,7 +212,7 @@ test("someone who owes $0.00 sees no Pay button and no I already paid, and both 
 
 const asks = (page: Page, question: string) => page.getByRole("dialog", { name: question });
 
-test("with Sam's chip selected, Priya's first circle tap asks before checking Rice for him, a Cancel leaves it unchecked, and a yes holds until the selection changes", async ({ browser, request }, { workerIndex }) => {
+test("viewing Sam, Priya's first circle tap asks before checking Rice for him, a Cancel leaves it unchecked, and a yes holds until the selection changes", async ({ browser, request }, { workerIndex }) => {
   const priya = await open(browser, await createSplit(request, workerIndex));
   await pick(priya, "Priya");
   await viewAs(priya, "Sam");
@@ -247,7 +247,7 @@ test("with Sam's chip selected, Priya's first circle tap asks before checking Ri
   await expect(owe(priya)).toHaveText("$1.00", live);
 });
 
-test("Priya's open confirm to check Rice for Sam closes when Jason removes Sam, and Sam's chip is gone", async ({ browser, request }, { workerIndex }) => {
+test("Priya's open confirm to check Rice for Sam closes when Jason removes Sam, and Sam's row is gone", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const jason = await open(browser, link);
   const priya = await open(browser, link);
@@ -257,14 +257,15 @@ test("Priya's open confirm to check Rice for Sam closes when Jason removes Sam, 
   await circle(priya, "Rice", "Sam").click();
   await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
 
-  await jason.getByRole("button", { name: "People", exact: true }).click();
-  await jason.getByRole("group", { name: "People" }).getByRole("button", { name: "Sam", exact: true }).click({ button: "right" });
+  await showPeople(jason, "Jason");
+  await jason.getByRole("button", { name: "Remove someone" }).click();
+  await jason.getByRole("dialog", { name: "People" }).getByRole("button", { name: "Remove Sam" }).click();
   await jason.getByRole("dialog", { name: "Options for Sam" }).getByRole("button", { name: "Remove Sam" }).click();
 
   await expect(asks(priya, "Check Rice for Sam?")).toHaveCount(0, live);
   await priya.getByRole("button", { name: "People", exact: true }).click();
-  await expect(priya.getByRole("group", { name: "People" }).getByRole("button", { name: "Priya, you", exact: true })).toBeVisible(live);
-  await expect(priya.getByRole("group", { name: "People" }).getByRole("button", { name: "Sam", exact: true })).toHaveCount(0);
+  await expect(personRow(priya, "Priya, you")).toBeVisible(live);
+  await expect(personRow(priya, "Sam")).toHaveCount(0);
   await priya.keyboard.press("Escape");
   await expect(circle(priya, "Rice", "Priya")).toHaveAttribute("aria-pressed", "false");
 });
