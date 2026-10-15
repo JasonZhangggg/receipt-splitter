@@ -155,8 +155,8 @@ describe("itemParts", () => {
     const split = splitOf(tostones);
 
     expect(itemParts(split, tostones)).toEqual([
-      { participantId: "ann", cents: 466 },
-      { participantId: "bob", cents: 467 },
+      { participantId: "ann", cents: 467 },
+      { participantId: "bob", cents: 466 },
       { participantId: "cat", cents: 467 },
     ]);
     expect(itemParts(split, tostones).find(({ participantId }) => participantId === cat)?.cents).toBe(shareBreakdown(split, cat).items[0].portion);

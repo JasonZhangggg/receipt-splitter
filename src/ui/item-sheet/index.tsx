@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Keyboard, Platform, StyleSheet, Text, View } from "react-native";
 
 import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
@@ -12,7 +12,7 @@ import { TextLink } from "../components/text-link";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
-import { bundleNote, lineAmounts, nameParts, splitIds } from "../split-view/model";
+import { bundleNote, itemParts, lineAmounts, nameParts, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
 import { amountStatus } from "./amount-status";
 import { readAmount } from "./new-item";
@@ -160,11 +160,19 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     setUnread(next);
     if (next.size === 0) setHeld(false);
   };
+  // Each claimer's Share breakdown is costly on a big Split, so the parts recompute when the Split, the price or the split changes, not on every keystroke in the name.
+  // `split` stands in for `seen`, since the preview changes only this Item, which itemParts swaps in; a name or detail edit keeps the row's split object.
+  const shownPrice = item?.price;
+  const shownSplit = item?.split;
+  const parts = useMemo((): Typed => {
+    const row = split.receipt.items.find(({ id }) => id === itemId);
+    return row && shownPrice !== undefined && shownSplit ? itemParts(split, { ...row, price: shownPrice, split: shownSplit }) : [];
+  }, [split, itemId, shownPrice, shownSplit]);
   if (item && shown && item.split.by !== shown.split.by) {
     const { from, left } = fade ?? settled;
     if (from > unseen) {
       const ms = Math.round(rowsFadeOut * from);
-      setLeaving({ item: shown, from, ms });
+      setLeaving({ item: shown, parts: itemParts(split, shown), from, ms });
       setEnterAfter(ms);
     } else {
       setEnterAfter(left);
@@ -233,9 +241,9 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     flush();
     leave({ by: me, type: "editReceipt", items: [{ type: "split", itemId, ids: [first, ...rest] }] });
   };
-  const body = (shownItem: SplitItem, as: Typed, editable: boolean) => (
+  const body = (shownItem: SplitItem, shownParts: Typed, as: Typed, editable: boolean) => (
     <>
-      <SplitRows key={editable ? fields : undefined} item={shownItem} nameOf={nameOf} edit={editable ? edit : noEdit} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} />
+      <SplitRows key={editable ? fields : undefined} item={shownItem} parts={shownParts} nameOf={nameOf} edit={editable ? edit : noEdit} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} />
       <StatusLine item={shownItem} typed={as} nameOf={nameOf} onFill={editable ? fill : undefined} />
     </>
   );
@@ -333,11 +341,11 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
           <Text style={[type.caption, styles.modeHint, { color: c.muted }]}>{say.modeHints[item.split.by]}</Text>
           <View>
             <View ref={incomingRef} key={item.split.by} style={[styles.rows, reduce ? null : enterAfter === null ? rowsEnter : [rowsEnterAfter, webStyle({ animationDelay: `${enterAfter}ms` })]]}>
-              {body(item, typed, true)}
+              {body(item, parts, typed, true)}
             </View>
             {leaving && !reduce ? (
               <View ref={leavingRef} key={`${leaving.item.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, styles.rows, { opacity: leaving.from }]}>
-                {body(leaving.item, lineAmounts(leaving.item), false)}
+                {body(leaving.item, leaving.parts, lineAmounts(leaving.item), false)}
               </View>
             ) : null}
           </View>
@@ -361,17 +369,19 @@ const noRefills: ReadonlyMap<ParticipantId, number> = new Map();
 
 type SplitRowsProps = {
   item: SplitItem;
+  /** Each claimer's part as the list and the Pay sheet show it. */
+  parts: Typed;
   nameOf: (id: ParticipantId) => string;
   edit: (next: ItemEdit) => void;
   typedAmount: (field: ParticipantId, text: string) => Cents | null;
   refills: ReadonlyMap<ParticipantId, number>;
 };
 
-function SplitRows({ item, nameOf, edit, typedAmount, refills }: SplitRowsProps) {
+function SplitRows({ item, parts, nameOf, edit, typedAmount, refills }: SplitRowsProps) {
   const c = useColors();
   return (
     <>
-      {lineAmounts(item).map(({ participantId, cents: amount }, index) => {
+      {parts.map(({ participantId, cents: amount }, index) => {
         const shares = item.split.by === "shares" ? (item.split.units[0][index]?.[1] ?? 1) : 0;
         const value = (next: number): ItemValue => ({ participantId, value: next });
         return (
@@ -480,7 +490,7 @@ const rowsEnterAfter = webAnimation({
   animationTimingFunction: motion.easeOut,
 });
 
-type Leaving = { item: SplitItem; from: number; ms: number };
+type Leaving = { item: SplitItem; parts: Typed; from: number; ms: number };
 // What the user was seeing when they switched: the incoming rows' opacity, and the animation time left on the leaving layer.
 type Fade = { from: number; left: number };
 const settled: Fade = { from: 1, left: 0 };
