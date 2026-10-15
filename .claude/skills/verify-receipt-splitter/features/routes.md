@@ -5,7 +5,7 @@ The site has two routes. `/` is the home screen. `/s/<id>` opens a Split by its 
 ## Sub-features
 
 - `routes-home` shows the home screen at `/`.
-- `routes-split` renders the Split page at `/s/<id>`. An id that was never created shows "This split has expired".
+- `routes-split` renders the Split page at `/s/<id>`: the header, the intro with its Receipt, People, Payments and History links, the receipt and a fixed footer with the Pay pill, in one centered column at every width. An id that was never created shows "This split has expired".
 - `routes-deep-link` serves `/s/<id>` with status 200 when it is the first page loaded.
 
 ## How to get to it (user POV)
