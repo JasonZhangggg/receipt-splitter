@@ -507,6 +507,39 @@ test.describe("reading through the server", () => {
     expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Finding the text", "Matching prices", "Taking a few more seconds", ""]);
   });
 
+  test("on the photo route the step word never goes back to Finding the text when the download lands late", async ({ page }) => {
+    test.setTimeout(120_000);
+    const releaseOcr = await holdTheDownload(page);
+    let answer = () => {};
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    let sent: { ocrLines: string[] } | null = null;
+    await page.route("**/api/scan", async (route) => {
+      sent = route.request().postDataJSON();
+      await answered;
+      await route.fulfill({ json: reply });
+    });
+    await page.goto("/");
+    const lines = await sample<string[]>(page, `[...document.querySelectorAll('[data-testid="reading-stage"]')].map((line) => line.textContent)`);
+    await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+
+    const stage = page.getByTestId("reading-stage");
+    await expect(stage).toHaveText("Matching prices", { timeout: 10_000 });
+    expect(sent!.ocrLines).toEqual([]);
+    releaseOcr();
+    await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
+    // Long enough for the released download to build the engine and start looking for text, which reports the step Finding the text names.
+    await page.waitForTimeout(4_000);
+    answer();
+    await expect(card(page)).toBeVisible(scanTimeout);
+    await expect(stage).toHaveCount(0);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+    const seen = await lines();
+    expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Matching prices", "Taking a few more seconds", ""]);
+    expect(await shown(page)).toBe("I paid $30.15. Change.");
+  });
+
   test("a large photo uploads at most 1 MB, at most 2048 px on its long edge", async ({ page }) => {
     test.setTimeout(150_000);
     let sent: { bytes: number; photo: string } | null = null;

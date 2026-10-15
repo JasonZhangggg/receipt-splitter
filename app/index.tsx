@@ -31,6 +31,8 @@ let pageDraft: Draft | null = null;
 let pageCopy: { file: ReceiptFile; copy: Promise<ReceiptJpeg | null> } | null = null;
 /** The OCR worker reports this share once its engine is loaded and it starts looking for text (ENGINE_READY in public/ocr-worker.mjs). */
 const ENGINE_READY = 0.6;
+/** The OCR worker reports this share once every model file has downloaded or come from its cache, before it builds the engine (DOWNLOADED in public/ocr-worker.mjs). */
+const DOWNLOADED = 0.5;
 /** The server's reading answers in about 1 s at the median (ADR 0010). Past this the wait is a flex fallback or a second pass, so home says it is taking longer. */
 const SLOW_SERVER_MS = 4000;
 
@@ -73,22 +75,23 @@ export default function Home() {
     dispatch({ type: "reading", file });
     globalThis.performance?.mark?.("scan-picked");
     let waiting = true;
-    let engineReady = () => {};
-    const ready = new Promise<void>((resolve) => (engineReady = resolve));
+    let downloaded = () => {};
+    const ready = new Promise<void>((resolve) => (downloaded = resolve));
     const ocr = recognize(photo, (fraction) => {
-      if (fraction < ENGINE_READY) return;
-      engineReady();
-      if (waiting && scan === scanning.current) setStage("text");
+      if (fraction >= DOWNLOADED) downloaded();
+      if (fraction >= ENGINE_READY && waiting && scan === scanning.current) setStage("text");
     }).catch(() => null);
+    // The wait covers the download, so a slow phone building a cached engine still sends OCR text.
     const route = await chooseRoute(ready, ocr);
-    waiting = false;
-    // The photo route sends no OCR text, and neither does an OCR run that failed. The run stays in flight for the fallback, and the model download goes on for the next scan.
+    // The photo route sends no OCR text, and neither does an OCR run that failed. The OCR run goes on in the worker for the fallback, and so does the download for the next scan.
     const sent = route === "photo" ? [] : ((await ocr) ?? []);
+    waiting = false;
     globalThis.performance?.mark?.("copy-start");
     const copying = receiptCopyOf(photo, sent).catch(() => null);
     void copying.then(() => globalThis.performance?.mark?.("copy-done"));
-    if (scan === scanning.current) pageCopy = { file, copy: copying };
-    if (scan === scanning.current) setStage("server");
+    if (scan !== scanning.current) return;
+    pageCopy = { file, copy: copying };
+    setStage("server");
     const slow = setTimeout(() => scan === scanning.current && setStage("slow"), SLOW_SERVER_MS);
     const onServer = await readOnServer(photo, sent);
     clearTimeout(slow);
