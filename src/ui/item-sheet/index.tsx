@@ -300,8 +300,12 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Icon name="people" size={16} color={c.muted} />
-            <Text style={[type.caption, { color: c.ink }]}>{say.whoHadIt}</Text>
-            <Text style={[type.caption, { color: c.muted }]}>{say.whoHint}</Text>
+            <Text numberOfLines={1} style={[type.caption, styles.hintLead, { color: c.ink }]}>
+              {say.whoHadIt}
+            </Text>
+            <Text numberOfLines={1} style={[type.caption, styles.hint, { color: c.muted }]}>
+              {say.whoHint}
+            </Text>
           </View>
           <View role="group" aria-label={say.whoHadIt} style={styles.people}>
             {split.participants.map((person) => {
@@ -511,7 +515,9 @@ const styles = StyleSheet.create({
   amount: { minWidth: 60, textAlign: "right" },
   stepper: { flexDirection: "row", alignItems: "center" },
   count: { minWidth: 56, textAlign: "center" },
-  status: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8 },
+  hintLead: { flexShrink: 0 },
+  hint: { flexShrink: 1 },
+  status: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: 12, marginTop: 8 },
   statusWords: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
   statusText: { flexShrink: 0 },
 });
