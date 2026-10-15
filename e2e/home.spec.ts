@@ -70,7 +70,7 @@ test("the header has the theme toggle and no menu, share or Example, and Recent 
   await settle(page);
   await page.getByRole("button", { name: "Recent splits", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Recent splits" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Ana and Ben/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Ana and Ben/ })).toBeVisible();
 });
 
 test("Add the receipt takes keyboard focus with a visible ring at 390 px", async ({ page }) => {

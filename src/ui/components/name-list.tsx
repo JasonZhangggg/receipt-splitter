@@ -33,6 +33,10 @@ export function NameList({ names, onAdd, onRemove, outsideScroll, ref }: Props) 
   const input = useRef<TextInput | null>(null);
   // A field that is already open keeps its place: focus comes back to it, and its blur then leaves it open.
   useImperativeHandle(ref, () => ({ open: () => (adding ? focusInPlace(input.current) : setAdding(true)) }), [adding]);
+  // Only opening the field focuses it. A ref callback would focus again on every render and take the focus back from the field Create just sent the person to.
+  useEffect(() => {
+    if (adding) focusInPlace(input.current);
+  }, [adding]);
   const first = names.length === 0;
   const commit = () => {
     if (typed.trim()) setRefusal(onAdd(typed));
@@ -66,10 +70,7 @@ export function NameList({ names, onAdd, onRemove, outsideScroll, ref }: Props) 
         ))}
         {adding ? (
           <UnderlineInput
-            ref={(field) => {
-              input.current = field;
-              focusInPlace(field);
-            }}
+            ref={input}
             aria-label={first ? copy.yourName : copy.newName}
             placeholder={first ? copy.yourName : copy.newName}
             value={typed}
