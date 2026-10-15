@@ -1,5 +1,5 @@
 import { fallbackSamples } from "../src/ui/home-copy";
-import { dropZone, openExample } from "./files";
+import { dropZone, exampleReply, openExample } from "./files";
 import { simulateKeyboard } from "./motion";
 import { mountHarness } from "./harness";
 import { expect, test, type Locator, type Page } from "./without-ocr";
@@ -145,12 +145,35 @@ test("a Venmo username Venmo would refuse says why before a tap, and a tap puts 
 });
 
 test("a tap on the gray Create focuses the blocking field", async ({ page }) => {
+  let finishRead = () => {};
+  const readFinished = new Promise<void>((resolve) => (finishRead = resolve));
+  await page.context().route("**/ocr-worker.mjs", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      headers: { "cross-origin-embedder-policy": "require-corp", "cross-origin-resource-policy": "same-origin" },
+      body: "self.onmessage = ({ data }) => { if (data.type === 'recognize') self.postMessage({ id: data.id, boxes: [] }); };",
+    }),
+  );
+  await page.context().route("**/api/scan", async (route) => {
+    await readFinished;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(exampleReply) });
+  });
   await page.goto("/");
   await settle(page);
   await action(page).click();
   await expect(hero(page)).toBeFocused();
 
-  await openExample(page);
+  const reasonLine = page.locator("[role=status][data-problem]");
+  await expect(reasonLine).toHaveText("Add a receipt first.");
+  await expect(reasonLine).toHaveAttribute("data-problem", "true");
+
+  const chooser = page.waitForEvent("filechooser");
+  await hero(page).click();
+  await (await chooser).setFiles("e2e/fixtures/topgolf-synthetic.png");
+  await expect(reasonLine).toHaveText("Reading the receipt.");
+  await expect(reasonLine).toHaveAttribute("data-problem", "false");
+  finishRead();
+  await expect(page.getByTestId("receipt")).toBeVisible();
   await venmo(page).fill("test");
   await action(page).click();
   await expect(venmo(page)).toBeFocused();

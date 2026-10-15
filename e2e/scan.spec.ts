@@ -458,7 +458,7 @@ test.describe("reading through the server", () => {
     releaseOcr();
     await expect(stage).toHaveText("Matching prices", scanTimeout);
     await expect.poll(() => askedAt).toBeGreaterThan(0);
-    await expect(stage).toHaveText("Almost done", { timeout: 10_000 });
+    await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
     expect(Date.now() - askedAt).toBeGreaterThan(3_000);
     answer();
     await expect(card(page)).toBeVisible(scanTimeout);
@@ -467,7 +467,7 @@ test.describe("reading through the server", () => {
 
     const seen = await lines();
     expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
-    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Finding the text", "Matching prices", "Almost done", ""]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Finding the text", "Matching prices", "Taking a few more seconds", ""]);
   });
 
   test("a large photo uploads at most 1 MB, at most 2048 px on its long edge", async ({ page }) => {

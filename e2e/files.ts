@@ -36,7 +36,7 @@ const names = ["Chicken Fried Rice And Egg", "California Tropic And Miso", "Add 
 const prices = [799, 799, 100, 250, 350];
 
 /** What the server's reading sends for SRD receipt 1040: five Items, Tax $1.61, Service fees $3.45, Total $28.04. */
-const exampleReply = {
+export const exampleReply = {
   items: names.map((name, index) => ({ name, price: prices[index], quantity: null, details: [], discounts: [] })),
   bundles: [],
   adjustments: [

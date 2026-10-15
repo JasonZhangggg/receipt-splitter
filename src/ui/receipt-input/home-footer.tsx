@@ -36,7 +36,7 @@ export function HomeFooter({ reason, problem, blocked, busy, onPress, onHeight, 
       style={[styles.footer, { paddingBottom: Math.max(24, insets.bottom + 8), paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}
     >
       <View style={[styles.column, { maxWidth: width, borderTopColor: c.hairline }]}>
-        <Text id={reasonId} role="status" style={[type.caption, { color: problem ? c.warn : c.muted }, reason ? styles.reason : null]}>
+        <Text id={reasonId} role="status" {...{ dataSet: { problem: String(problem) } }} style={[type.caption, { color: problem ? c.warn : c.muted }, reason ? styles.reason : null]}>
           {reason}
         </Text>
         <PressTarget

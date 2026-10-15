@@ -12,7 +12,7 @@ export const copy = {
   readingStage: {
     text: "Finding the text",
     server: "Matching prices",
-    slow: "Almost done",
+    slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
   pastedPhoto: "Pasted photo",

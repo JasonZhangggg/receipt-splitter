@@ -39,7 +39,7 @@ The operator made these calls while iterating. They win over older design docs a
 
 18. The operator chose the original start page over three variants (big receipt, viewfinder, one button).
 19. Header: "SplitWith", a "Recent splits" link and the theme toggle. Intro: "Snap the receipt. Friends tap what they had and pay you back."
-20. A large take-photo block: a paper drawing with a round black camera button, "Add the receipt", and "or choose a file". While reading it shows the stage ("Finding the text", "Matching prices", "Almost done"). When ready it shows a card with the name, total, Item count and "Replace".
+20. A large take-photo block: a paper drawing with a round black camera button, "Add the receipt", and "or choose a file". While reading it shows the stage ("Finding the text", "Matching prices", "Taking a few more seconds"). When ready it shows a card with the name, total, Item count and "Replace".
 21. "How friends pay you": an app select and a handle field with no visible labels, and "+ Add another way to get paid".
 22. "Who's at the table": one list of names, the first tagged "you", with an inline "+ Add your name" field. Enter adds the name and keeps the field open.
 23. A footer with a reason line (red while blocked, for example "Add a receipt first.") and a "Create split link" black pill, gray while blocked.

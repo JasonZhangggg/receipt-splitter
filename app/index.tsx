@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents } from "../src/core/money";
 import { recentSplits, rememberSplit } from "../src/device";
-import { loadDraft, mismatchNote, newName, readiness, reduceDraft, saveDraft, splitRequest, type Blocker, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
+import { loadDraft, mismatchNote, newName, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
 import { readReceipt } from "../src/parse";
@@ -49,7 +49,7 @@ export default function Home() {
   const [footerHeight, setFooterHeight] = useState(0);
   const [creating, setCreating] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const [tried, setTried] = useState<Blocker["kind"] | null>(null);
+  const [tried, setTried] = useState<string | null>(null);
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [viewing, setViewing] = useState(false);
   const [recent, setRecent] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
@@ -112,7 +112,7 @@ export default function Home() {
   const ready = readiness(draft);
   const blocked = ready.kind !== "ready";
   const reason = failure ?? (blocked ? blockerText(ready) : mismatchNote(draft));
-  const problem = failure !== null || (blocked && (tried === ready.kind || ready.kind === "badHandle"));
+  const problem = failure !== null || (blocked && (ready.kind === "badHandle" || tried === reason));
 
   const create = async (split: Ready) => {
     const request = splitRequest(split, newParticipantId);
@@ -137,7 +137,7 @@ export default function Home() {
   const press = () => {
     if (ready.kind === "ready") return void create(ready);
     if (scan.status === "reading") return;
-    setTried(ready.kind);
+    setTried(blockerText(ready));
     switch (ready.kind) {
       case "badHandle":
         return focusInPlace(handleInputs.current[ready.index] ?? null);
