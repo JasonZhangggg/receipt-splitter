@@ -137,14 +137,14 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
               submitBehavior="submit"
               blurOnSubmit={false}
             />
-            {problem ? <Text style={[type.caption, { color: c.muted }]}>{problem}</Text> : null}
+            {problem ? <Text role="alert" style={[type.caption, { color: c.warn }]}>{problem}</Text> : null}
             <Button label={typing.trim() ? say.joinAs(typing.trim()) : say.yourName} disabled={!typing.trim()} onPress={add} outsideScroll />
           </View>
         )
       ) : (
         <View style={[styles.phone, { borderTopColor: c.hairline }]}>
           <Text style={[type.caption, styles.phoneIs, { color: c.muted }]}>{say.phoneIs(meName)}</Text>
-          <TextLink label={mode === "switch" ? say.cancel : say.switchAccount} onPress={() => leave(mode === "switch" ? "view" : "switch")} outsideScroll />
+          {mode === "remove" ? null : <TextLink label={mode === "switch" ? say.cancel : say.switchAccount} onPress={() => leave(mode === "switch" ? "view" : "switch")} outsideScroll />}
         </View>
       )}
       {asking || mode === "switch" ? null : (
@@ -203,7 +203,9 @@ function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const on = chosen === person.id || (mode === "switch" ? mine : mode === "view" && row.viewed);
   const ink = on ? c.ink : c.muted;
   const name = mode === "switch" && row.heldElsewhere ? say.pickedName(person.name) : mine ? `${person.name}, ${say.you}` : person.name;
-  const note = row.heldElsewhere && mode === "switch" ? say.pickedElsewhere.replace(/\.$/, "") : host && !asking ? say.paidTheBill : null;
+  const tag = mine ? say.you : host && !asking ? say.paidTheBill : null;
+  const note =
+    row.heldElsewhere && (mode === "switch" || !host) ? say.pickedElsewhere.replace(/\.$/, "") : asking ? null : mine ? say.thisPhone : host ? say.getsPaid : null;
   return (
     <PressTarget
       name={removing ? say.removePerson(person.name) : name}
@@ -222,10 +224,12 @@ function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
               <View style={[styles.mark, styles.radio, dotFade, on ? { backgroundColor: c.ink, boxShadow: `inset 0 0 0 1px ${c.ink}` } : { boxShadow: `inset 0 0 0 1px ${c.dash}` }]} />
             )}
             <View style={styles.text}>
-              <Text numberOfLines={1} style={[type.body, colorFade, { color: ink }]}>
-                {person.name}
-                {mine ? <Text style={[type.caption, { color: c.muted }]}>{`  ${say.you}`}</Text> : null}
-              </Text>
+              <View style={styles.title}>
+                <Text numberOfLines={1} style={[type.body, colorFade, styles.name, { color: ink }]}>
+                  {person.name}
+                </Text>
+                {tag ? <Text style={[type.caption, styles.tag, { color: c.muted }]}>{tag}</Text> : null}
+              </View>
               {note ? <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>{note}</Text> : null}
             </View>
           </View>
@@ -245,10 +249,13 @@ const styles = StyleSheet.create({
   ask: { marginHorizontal: 2, marginBottom: 4 },
   hint: { marginTop: -6 },
   rows: {},
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 56, paddingVertical: 8, borderTopWidth: 1 },
-  lead: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 1, minWidth: 0 },
+  row: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minHeight: 44, paddingVertical: 10, borderTopWidth: 1 },
+  lead: { flexDirection: "row", alignItems: "flex-start", gap: 12, flexShrink: 1, minWidth: 0 },
   text: { flexShrink: 1, minWidth: 0 },
-  mark: { width: 16, height: 16, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  mark: { width: 16, height: 16, alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 4 },
+  title: { flexDirection: "row", alignItems: "baseline", gap: 8, minWidth: 0 },
+  name: { flexShrink: 1 },
+  tag: { flexShrink: 0 },
   radio: { width: 12, height: 12, borderRadius: 6, margin: 2 },
   claimback: { gap: 6, paddingVertical: 12, borderTopWidth: 1 },
   two: { flexDirection: "row", gap: layout.pairGap, marginTop: 6 },

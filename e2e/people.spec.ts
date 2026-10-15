@@ -236,6 +236,7 @@ test("a removal the server refuses says so under the rows, and the person stays"
   await showPeople(sam, "Sam");
 
   await removeMode(sam);
+  await expect(peopleSheet(sam).getByRole("button", { name: "Switch account" })).toHaveCount(0);
   await peopleSheet(sam).getByRole("button", { name: "Remove Priya" }).click();
   await menu(sam, "Priya").getByRole("button", { name: "Remove Priya" }).click();
 
