@@ -101,7 +101,12 @@ test("people who check a new Item against id order (Priya, then Sam) still split
   await pick(sam, "Sam");
 
   await addFries(sam);
+  await viewAs(sam, "Priya");
+  await expect(sam.getByRole("dialog", { name: "People" })).toHaveCount(0, live);
   await sam.getByRole("button", { name: "Fries, check for Priya" }).click();
+  await sam.getByRole("dialog", { name: "Check Fries for Priya?" }).getByRole("button", { name: "Check for Priya" }).click();
+  await viewAs(sam, "Priya");
+  await expect(sam.getByRole("dialog", { name: "People" })).toHaveCount(0, live);
   await sam.getByRole("button", { name: "Fries, check for Sam" }).click();
   await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, You, Priya, \$3\.25 yours$/ })).toBeVisible(live);
   await expect(sam.getByTestId("owe")).toHaveText("$3.25");

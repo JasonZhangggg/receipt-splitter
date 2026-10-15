@@ -54,7 +54,7 @@ const undo = (page: Page) => page.getByRole("button", { name: "Undo", exact: tru
 test("Delete then Undo puts the Item back at its row with who had it and the same Total", async ({ browser, request }, { workerIndex }) => {
   const sam = await openAs(browser, await createSplit(request, workerIndex), "Sam");
   await sam.getByRole("button", { name: "Pitcher, check for Sam" }).click();
-  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, had by Sam$/ })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, You, \$12\.00 yours$/ })).toBeVisible(live);
   const before = await rows(sam);
   const total = await sam.getByTestId("total").textContent();
 
@@ -65,7 +65,7 @@ test("Delete then Undo puts the Item back at its row with who had it and the sam
   await expect(sam.getByRole("button", { name: /^Open Pitcher/ })).toHaveCount(0);
 
   await undo(sam).click();
-  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, had by Sam$/ })).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, You, \$12\.00 yours$/ })).toBeVisible(live);
   expect(await rows(sam)).toEqual(before);
   await expect(sam.getByTestId("total")).toHaveText(total ?? "");
   await expect(sam.getByText("Deleted Pitcher")).toHaveCount(0, live);
@@ -76,7 +76,7 @@ test("Undo after another phone edited a different Item keeps that edit and bring
   const sam = await openAs(browser, link, "Sam");
   const priya = await openAs(browser, link, "Priya");
   await sam.getByRole("button", { name: "Rice, check for Sam" }).click();
-  await expect(priya.getByRole("button", { name: /^Open Rice, \$8\.00, had by Sam$/ })).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: /^Open Rice, \$8\.00, Sam$/ })).toBeVisible(live);
 
   await sam.getByRole("button", { name: /^Open Rice/ }).click();
   await sheet(sam).getByRole("button", { name: "Delete item" }).click();
@@ -89,8 +89,8 @@ test("Undo after another phone edited a different Item keeps that edit and bring
   await expect(sam.getByRole("button", { name: /^Open Fries, \$7\.50/ })).toBeVisible(live);
 
   await undo(sam).click();
-  for (const page of [sam, priya]) {
-    await expect(page.getByRole("button", { name: /^Open Rice, \$8\.00, had by Sam$/ })).toBeVisible(live);
+  for (const [page, who] of [[sam, "You, $8.00 yours"], [priya, "Sam"]] as const) {
+    await expect(page.getByRole("button", { name: `Open Rice, $8.00, ${who}`, exact: true })).toBeVisible(live);
     await expect(page.getByRole("button", { name: /^Open Fries, \$7\.50/ })).toBeVisible();
   }
   const order = (page: Page) => page.locator('[data-testid^="line-"]').evaluateAll((lines) => lines.map((line) => /Rice|Pitcher|Fries/.exec(line.textContent ?? "")?.[0]));

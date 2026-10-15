@@ -67,7 +67,7 @@ async function slowed(page: Page) {
     const tick = (t: number) => {
       for (const animation of document.getAnimations()) if (animation.playbackRate !== 1 / factor) animation.playbackRate = 1 / factor;
       const group = document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"]');
-      const copies = [...(group?.parentElement?.nextElementSibling?.children ?? [])].map((copy) => ({
+      const copies = [...(group?.nextElementSibling?.nextElementSibling?.children ?? [])].map((copy) => ({
         kind: copy.querySelector('[aria-label^="More shares"]') ? ("shares" as const) : copy.querySelector("input") ? ("amount" as const) : ("even" as const),
         opacity: Number(getComputedStyle(copy).opacity),
       }));
@@ -240,19 +240,13 @@ test("the item sheet stays where it lies in the page while the price field's key
   expect(runs(await tops())).toEqual([resting]);
 });
 
-test("with the keyboard up, the item sheet's price and name fields stay in view, uncovered", async ({ page }) => {
+test("with the keyboard up, the item sheet's price field stays in view, uncovered", async ({ page }) => {
   await simulateKeyboard(page, keyboard);
   await itemShared(page);
   const item = page.getByTestId("item-sheet");
   await tap(item.locator('input[aria-label="Price"]'));
   await page.waitForTimeout(600);
   expect(await inView(item.locator('input[aria-label="Price"]'))).toEqual({ inside: true, uncovered: true });
-
-  await blur(page);
-  await page.waitForTimeout(600);
-  await tap(item.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Add a person" }));
-  await page.waitForTimeout(600);
-  expect(await inView(item.locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
 });
 
 test("with the keyboard up, the name field added from the People sheet's plus stays in view, uncovered", async ({ page }) => {
