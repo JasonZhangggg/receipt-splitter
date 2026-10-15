@@ -1,7 +1,7 @@
 import type { Change, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
-import { nameParts, ratio } from "../split-view/model";
+import { nameParts } from "../split-view/model";
 
 export type Entry = {
   readonly revision: number;
@@ -51,7 +51,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
     case "item":
     case "adjustment": {
       if ("added" in write) return { lead: `Added ${write.added.name}` };
-      if ("removed" in write) return { lead: `Removed ${write.removed.name}` };
+      if ("removed" in write) return { lead: say.deleted(write.removed.name) };
       const rows: readonly { readonly id: string; readonly name: string }[] = write.kind === "item" ? split.receipt.items : split.receipt.adjustments;
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
@@ -71,8 +71,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       if ("amount" in edit && edit.amount) return { lead: name, before: groupedAmount(edit.amount[0]), after: groupedAmount(edit.amount[1]) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
-        const order = split.participants.map(({ id }) => id);
-        return { lead: `${name} split`, before: splitWord(before, order), after: splitWord(after, order) };
+        return { lead: `${name} split`, before: splitWord(before), after: splitWord(after) };
       }
       return { lead: name };
     }
@@ -89,11 +88,10 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
   }
 }
 
-export function splitWord(split: ItemSplit, order: readonly ParticipantId[]): string {
+export function splitWord(split: ItemSplit): string {
   if (split.by === "even") return "evenly";
   if (split.by === "amount") return "by amount";
-  const [first] = split.units;
-  return first.length > 1 ? ratio(first, order) : "by shares";
+  return "by shares";
 }
 
 export function whenText(at: number | undefined, now: number): string | null {

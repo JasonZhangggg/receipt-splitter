@@ -4,6 +4,7 @@ import { StyleSheet, Text, View, type TextStyle } from "react-native";
 import type { ParticipantId, Split } from "../../core/split";
 import { Button, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
+import { TextLink } from "../components/text-link";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
@@ -63,7 +64,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
         {entries.map((entry) => (
           <Row
             key={entry.revision}
-            meta={[entry.name ? say.asName(entry.name) : say.someone, whenText(entry.at, now)]}
+            meta={[entry.name ? say.byName(entry.name) : say.someone, whenText(entry.at, now)]}
             reverted={entry.reverted}
             what={
               <Text style={[type.body, styles.what, { color: c.ink }]}>
@@ -94,7 +95,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           />
         ))}
         <Row
-          meta={[say.asName(host.name)]}
+          meta={[say.byName(host.name)]}
           reverted={false}
           what={<Text style={[type.body, styles.what, { color: c.ink }]}>{say.created}</Text>}
           confirm={(swing) =>
@@ -215,7 +216,7 @@ function Confirm({ question, action, onYes, onNo }: { question: string; action: 
           <Button label={action} onPress={onYes} outsideScroll />
         </View>
         <View style={styles.half}>
-          <Button kind="soft" label={say.cancel} onPress={onNo} outsideScroll />
+          <TextLink center label={say.cancel} onPress={onNo} outsideScroll />
         </View>
       </View>
     </View>

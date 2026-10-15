@@ -26,10 +26,13 @@ export function LabeledField({ label, ref, ...input }: LabeledProps) {
   );
 }
 
-type MoneyProps = TextInputProps & { label: string; unit?: string; ref?: Ref<TextInput>; showLabel?: boolean; width?: number };
+// The field pads 14 px a character of its unit leftward under the unit and 13 px above and below, with margins taking it back, so a tap on the unit or near the rule focuses it and nothing moves.
+const unitReach = (unit: string) => unit.length * 14;
 
-/** An amount: the unit and the digits on one rule, right-aligned. With `showLabel` false the label is only the field's accessible name. */
-export function MoneyField({ label, unit = "$", showLabel = true, width = 96, ref, onFocus, onBlur, ...input }: MoneyProps) {
+type MoneyProps = TextInputProps & { label: string; unit?: string; ref?: Ref<TextInput>; showLabel?: boolean; width?: number; reach?: number };
+
+/** An amount: the unit and the digits on one rule, right-aligned. With `showLabel` false the label is only the field's accessible name. `reach` is how far left of the unit a tap still focuses it, for a field that ends a row. */
+export function MoneyField({ label, unit = "$", showLabel = true, width = 96, reach = 0, ref, onFocus, onBlur, ...input }: MoneyProps) {
   const c = useColors();
   const [focused, setFocused] = useState(false);
   return (
@@ -54,7 +57,7 @@ export function MoneyField({ label, unit = "$", showLabel = true, width = 96, re
             onBlur?.(event);
           }}
           {...input}
-          style={[type.input, tabular, styles.moneyInput, { color: c.ink }]}
+          style={[type.input, tabular, styles.moneyInput, { color: c.ink, paddingLeft: unitReach(unit) + reach, marginLeft: -(unitReach(unit) + reach) }]}
         />
       </View>
     </View>
@@ -125,7 +128,7 @@ export function IconAction({ label, icon, size, onPress, keepsFocus, pressedInk,
   const reduce = useReducedMotion();
   return (
     <PressTarget name={label} outsideScroll keepsFocus={keepsFocus} disabled={disabled} softDisabled={dim} onPress={onPress} style={(pressed) => [styles.iconHit, pressStyle(pressed, reduce, iconPress)]}>
-      {(pressed) => <Icon name={icon} size={size} color={dim || disabled ? c.dash : pressed ? c[pressedInk] : c.muted} />}
+      {(pressed) => <Icon name={icon} size={size} color={dim || disabled ? c.dot : pressed ? c[pressedInk] : c.muted} />}
     </PressTarget>
   );
 }
@@ -134,9 +137,9 @@ const styles = StyleSheet.create({
   labeled: { flex: 1, minWidth: 0 },
   moneyLabel: { textAlign: "right" },
   money: { flexDirection: "row", alignItems: "baseline", justifyContent: "flex-end", gap: 2, borderBottomWidth: 1, paddingVertical: 4 },
-  moneyInput: { flexShrink: 1, minWidth: 40, textAlign: "right", padding: 0 },
+  moneyInput: { flexShrink: 1, minWidth: 40, textAlign: "right", paddingVertical: 11, paddingRight: 0, marginVertical: -11 },
   options: { flexDirection: "row", flexWrap: "wrap", columnGap: 20 },
-  option: { minHeight: 44, justifyContent: "center" },
+  option: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, marginHorizontal: -12 },
   person: { minHeight: 44, justifyContent: "center", paddingRight: 14 },
   personFace: { flexDirection: "row", alignItems: "center", gap: 7 },
   personDot: { width: 8, height: 8, borderRadius: 4 },

@@ -399,6 +399,7 @@ function SplitRows({ item, parts, nameOf, edit, typedAmount, refills }: SplitRow
                   label={say.amountOf(nameOf(participantId))}
                   showLabel={false}
                   width={88}
+                  reach={240}
                   defaultValue={amount === 0 ? "" : plainAmount(amount)}
                   placeholder={plainAmount(0)}
                   onChangeText={(text) => {

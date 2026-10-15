@@ -10,13 +10,6 @@ export function claimersOfItem(item: SplitItem): ParticipantId[] {
   return [...claimersOf(item.split)];
 }
 
-export function ratio(weights: readonly (readonly [ParticipantId, number])[], order: readonly ParticipantId[]): string {
-  return [...weights]
-    .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
-    .map(([, weight]) => weight)
-    .join(":");
-}
-
 /** How an Item is split when someone shares it, as the Pay sheet reads it under the line: "Split 3 ways", "2 of 6 shares", "By amount". An Item one person had says nothing. */
 export function payNote({ split }: SplitItem, participantId: ParticipantId): string | null {
   const claimers = claimersOf(split);

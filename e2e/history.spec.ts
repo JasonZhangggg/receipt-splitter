@@ -230,7 +230,7 @@ test("Revert of another person's change asks first, then applies and settles the
   const link = await createSplit(request, workerIndex);
   const sam = await joinAs(browser, link, "Sam");
   const priya = await joinAs(browser, link, "Priya");
-  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await editAmount(sam, "Open Tax, $1.00", "Edit tax", "Amount", "3.00");
   await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
 
   await fromMore(priya, "History");
@@ -248,7 +248,7 @@ test("another phone reverts the same change first: the open question goes away, 
   const link = await createSplit(request, workerIndex);
   const sam = await joinAs(browser, link, "Sam");
   const priya = await joinAs(browser, link, "Priya");
-  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await editAmount(sam, "Open Tax, $1.00", "Edit tax", "Amount", "3.00");
   await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
 
   await fromMore(priya, "History");
@@ -270,9 +270,9 @@ test("a Revert leaves a later edit of someone else standing", async ({ browser, 
   const link = await createSplit(request, workerIndex);
   const sam = await joinAs(browser, link, "Sam");
   const priya = await joinAs(browser, link, "Priya");
-  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await editAmount(sam, "Open Tax, $1.00", "Edit tax", "Amount", "3.00");
   await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
-  await editAmount(priya, "Open Coupon, -$2.00", "Discount", "Amount off", "5");
+  await editAmount(priya, "Open Coupon, -$2.00", "Edit discount", "Amount off", "5");
   await expect(sam.getByTestId("total")).toHaveText("$18.00", live);
 
   await fromMore(sam, "History");

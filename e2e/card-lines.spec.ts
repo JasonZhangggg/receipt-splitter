@@ -79,7 +79,8 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await expectLine(both, "Unclaimed · 1 item", "$2.50");
 
   await check(priya, "Sprite", "Priya");
-  await expectLine(both, "Unclaimed", "$0.00");
+  for (const page of both) await expect(page.getByTestId("unclaimed-count")).toHaveCount(0, live);
+  for (const page of both) await expect(page.getByTestId("unclaimed")).toHaveCount(0);
 
   const sheet = priya.getByRole("dialog", { name: "Edit item" });
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
@@ -90,7 +91,7 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await expectLine(both, "Unclaimed · 1 item", "$1.50");
 
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("2.50");
-  await expectLine(both, "Unclaimed", "$0.00");
+  for (const page of both) await expect(page.getByTestId("unclaimed")).toHaveCount(0, live);
 });
 
 test("the Your share breakdown says nothing about unclaimed lines while the total line counts them", async ({ browser, request }, { workerIndex }) => {

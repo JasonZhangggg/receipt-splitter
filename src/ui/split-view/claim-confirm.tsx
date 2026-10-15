@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button } from "../components/button";
+import { TextLink } from "../components/text-link";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
 
@@ -14,7 +15,7 @@ export function ClaimConfirm({ question, action, onYes, onNo }: { question: stri
       <Text style={[type.body, styles.question, { color: c.ink }]}>{question}</Text>
       <View style={styles.actions}>
         <Button label={action} onPress={onYes} outsideScroll />
-        <Button kind="soft" label={say.cancel} onPress={onNo} outsideScroll />
+        <TextLink center label={say.cancel} onPress={onNo} outsideScroll />
       </View>
     </View>
   );

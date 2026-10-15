@@ -110,8 +110,8 @@ test("a tax fixed on one phone moves the Total and every Share on both", async (
   await expect(sam.getByTestId("owe")).toHaveText("$7.60", live);
 
   await sam.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await amountIn(sam, "Charge").fill("3.00");
-  await closeSheet(sam, "Charge");
+  await amountIn(sam, "Edit tax").fill("3.00");
+  await closeSheet(sam, "Edit tax");
 
   for (const page of [sam, priya]) {
     await expect(page.getByTestId("total")).toHaveText("$21.00", live);
@@ -124,18 +124,18 @@ test("a tax fixed on one phone moves the Total and every Share on both", async (
 test("an amount typed as 4 reads 4.00 after Done, and the Total follows it", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await amountIn(sam, "Charge").fill("4");
-  await amountIn(sam, "Charge").press("Enter");
+  await amountIn(sam, "Edit tax").fill("4");
+  await amountIn(sam, "Edit tax").press("Enter");
 
-  await expect(amountIn(sam, "Charge")).toHaveValue("4.00");
+  await expect(amountIn(sam, "Edit tax")).toHaveValue("4.00");
   await expect(priya.getByTestId("total")).toHaveText("$22.00", live);
 });
 
 test("a discount that would take the Total under $0.00 keeps its sheet open on the problem through Close, the scrim, Escape and a swipe, and Close never takes focus from the field", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Coupon, -$2.00" }).click();
-  const sheet = dialog(sam, "Discount");
-  const amount = amountIn(sam, "Discount", "Amount off");
+  const sheet = dialog(sam, "Edit discount");
+  const amount = amountIn(sam, "Edit discount", "Amount off");
   await expect(sheet.getByText("-$", { exact: true })).toBeVisible();
   await amount.fill("50");
   const blurs = await amount.evaluateHandle((input) => {
@@ -145,7 +145,7 @@ test("a discount that would take the Total under $0.00 keeps its sheet open on t
   });
 
   for (let press = 0; press < 2; press += 1) {
-    await closeSheet(sam, "Discount");
+    await closeSheet(sam, "Edit discount");
     await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
     await expect(amount).toBeFocused();
   }
@@ -168,8 +168,8 @@ test("a discount that would take the Total under $0.00 keeps its sheet open on t
   await expect(amount).toHaveValue("50.00");
   for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$19.00");
 
-  await amountIn(sam, "Discount", "Amount off").fill("3");
-  await closeSheet(sam, "Discount");
+  await amountIn(sam, "Edit discount", "Amount off").fill("3");
+  await closeSheet(sam, "Edit discount");
   await expect(sheet).toHaveCount(0, live);
   for (const page of [sam, priya]) {
     await expect(page.getByRole("button", { name: "Open Coupon, -$3.00" })).toBeVisible(live);
@@ -180,22 +180,22 @@ test("a discount that would take the Total under $0.00 keeps its sheet open on t
 test("a swipe down still closes the sheet after a touch on a field that iOS never ended", async ({ browser, request }, { workerIndex }) => {
   const [sam] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Coupon, -$2.00" }).click();
-  await editMenuTouch(amountIn(sam, "Discount", "Amount off"));
+  await editMenuTouch(amountIn(sam, "Edit discount", "Amount off"));
   await swipeDown(sam, "adjustment-sheet", { isPrimary: false });
-  await expect(dialog(sam, "Discount")).toHaveCount(0, live);
+  await expect(dialog(sam, "Edit discount")).toHaveCount(0, live);
 });
 
 test("a sheet left open with a typed name keeps the amount another phone fixed, and both edits stay", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await dialog(sam, "Charge").getByRole("textbox", { name: "Name", exact: true }).fill("Sales tax");
+  await dialog(sam, "Edit tax").getByRole("textbox", { name: "Name", exact: true }).fill("Sales tax");
   await expect(priya.getByRole("button", { name: "Open Sales tax, $1.00" })).toBeVisible(live);
 
   await priya.getByRole("button", { name: "Open Sales tax, $1.00" }).click();
-  await amountIn(priya, "Charge").fill("3.00");
-  await closeSheet(priya, "Charge");
-  await expect(amountIn(sam, "Charge")).toHaveValue("3.00", live);
-  await closeSheet(sam, "Charge");
+  await amountIn(priya, "Edit tax").fill("3.00");
+  await closeSheet(priya, "Edit tax");
+  await expect(amountIn(sam, "Edit tax")).toHaveValue("3.00", live);
+  await closeSheet(sam, "Edit tax");
   // Past the sheet's save delay, so a late save from Sam's sheet would have landed.
   await sam.waitForTimeout(1500);
 
@@ -208,14 +208,14 @@ test("a sheet left open with a typed name keeps the amount another phone fixed, 
 test("a sheet left open with a typed amount keeps the name another phone gave the line", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await amountIn(sam, "Charge").fill("2.50");
+  await amountIn(sam, "Edit tax").fill("2.50");
   await expect(priya.getByTestId("total")).toHaveText("$20.50", live);
 
   await priya.getByRole("button", { name: "Open Tax, $2.50" }).click();
-  await dialog(priya, "Charge").getByRole("textbox", { name: "Name", exact: true }).fill("VAT");
-  await closeSheet(priya, "Charge");
-  await expect(dialog(sam, "Charge").getByRole("textbox", { name: "Name", exact: true })).toHaveValue("VAT", live);
-  await closeSheet(sam, "Charge");
+  await dialog(priya, "Edit tax").getByRole("textbox", { name: "Name", exact: true }).fill("VAT");
+  await closeSheet(priya, "Edit tax");
+  await expect(dialog(sam, "Edit tax").getByRole("textbox", { name: "Name", exact: true })).toHaveValue("VAT", live);
+  await closeSheet(sam, "Edit tax");
   await sam.waitForTimeout(1500);
 
   for (const page of [sam, priya]) {
@@ -232,8 +232,8 @@ test("Your share stays open while another phone fixes the tax, and its lines fol
   await expect(breakdown).toContainText("$11.40");
 
   await sam.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await amountIn(sam, "Charge").fill("9.00");
-  await closeSheet(sam, "Charge");
+  await amountIn(sam, "Edit tax").fill("9.00");
+  await closeSheet(sam, "Edit tax");
 
   await expect(breakdown).toContainText("$5.40", live);
   await expect(breakdown).toContainText("$16.20");
@@ -264,9 +264,9 @@ test("a deleted discount leaves both phones and raises the Total", async ({ brow
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
 
   await priya.getByRole("button", { name: "Open Coupon, -$2.00" }).click();
-  await expect(amountIn(priya, "Discount", "Amount off")).toHaveValue("2.00");
-  await dialog(priya, "Discount").getByRole("button", { name: "Delete discount" }).click();
-  await expect(dialog(priya, "Discount")).toHaveCount(0, live);
+  await expect(amountIn(priya, "Edit discount", "Amount off")).toHaveValue("2.00");
+  await dialog(priya, "Edit discount").getByRole("button", { name: "Delete discount" }).click();
+  await expect(dialog(priya, "Edit discount")).toHaveCount(0, live);
 
   for (const page of [sam, priya]) {
     await expect(page.getByRole("button", { name: /^Open Coupon/ })).toHaveCount(0, live);
@@ -296,7 +296,7 @@ test("every kind the Add sheet offers lands in the charges with the Total the su
 test("a deleted charge says so in the bar, and Undo puts it and the Total back on both phones", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await priya.getByRole("button", { name: "Open Coupon, -$2.00" }).click();
-  await dialog(priya, "Discount").getByRole("button", { name: "Delete discount" }).click();
+  await dialog(priya, "Edit discount").getByRole("button", { name: "Delete discount" }).click();
   await expect(priya.getByText("Deleted Coupon")).toBeVisible(live);
   await expect(sam.getByTestId("total")).toHaveText("$21.00", live);
 
@@ -313,10 +313,10 @@ test("a Bundle discount takes a new amount off and keeps its Items", async ({ br
   await expect(sam.getByTestId("owe")).toHaveText("$7.20", live);
 
   await sam.getByRole("button", { name: "Open Bucket deal, -$2.00" }).click();
-  await expect(dialog(sam, "Discount").getByText("This discount comes off the 2 items in Beer Bucket.")).toBeVisible();
-  await expect(dialog(sam, "Discount").getByRole("group", { name: "What to add" })).toHaveCount(0);
-  await amountIn(sam, "Discount", "Amount off").fill("5");
-  await closeSheet(sam, "Discount");
+  await expect(dialog(sam, "Edit discount").getByText("This discount comes off the 2 items in Beer Bucket.")).toBeVisible();
+  await expect(dialog(sam, "Edit discount").getByRole("group", { name: "Kind" })).toHaveCount(0);
+  await amountIn(sam, "Edit discount", "Amount off").fill("5");
+  await closeSheet(sam, "Edit discount");
 
   for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$15.00", live);
   await expect(sam.getByRole("button", { name: "Open Bucket deal, -$5.00" })).toBeVisible(live);
@@ -327,8 +327,8 @@ test("a Bundle discount takes a new amount off and keeps its Items", async ({ br
 test("Revert from the other phone asks first and puts the tax and the Total back on both", async ({ browser, request }, { workerIndex }) => {
   const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await amountIn(sam, "Charge").fill("3.00");
-  await closeSheet(sam, "Charge");
+  await amountIn(sam, "Edit tax").fill("3.00");
+  await closeSheet(sam, "Edit tax");
   await expect(priya.getByTestId("total")).toHaveText("$21.00", live);
 
   await fromMore(priya, "History");
@@ -349,18 +349,18 @@ test("a tax turned into a discount on desktop opens in a popover, takes the name
   await expect(pane.getByTestId("owe")).toBeVisible(live);
 
   await page.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await dialog(page, "Charge").getByRole("group", { name: "What to add" }).getByRole("button", { name: "Discount" }).click();
+  await dialog(page, "Edit tax").getByRole("group", { name: "Kind" }).getByRole("button", { name: "Discount" }).click();
   // Named for the saved kind, the popover is renamed once the switch saves.
   const popover = page.getByRole("dialog");
-  await expect(popover.getByRole("heading", { name: "Discount" })).toBeVisible();
+  await expect(popover.getByRole("heading", { name: "Edit discount" })).toBeVisible();
   await expect(popover.getByRole("textbox", { name: "Amount off", exact: true })).toHaveValue("1.00");
   await expect(popover.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Discount");
 
   await expect(page.getByRole("button", { name: "Open Discount, -$1.00" })).toBeVisible(live);
-  await expect(dialog(page, "Discount")).toBeVisible();
+  await expect(dialog(page, "Edit discount")).toBeVisible();
   await expect(page.getByTestId("total")).toHaveText("$17.00", live);
   await page.keyboard.press("Escape");
-  await expect(dialog(page, "Discount")).toHaveCount(0);
+  await expect(dialog(page, "Edit discount")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Open Discount, -$1.00" })).toBeFocused();
 });
 

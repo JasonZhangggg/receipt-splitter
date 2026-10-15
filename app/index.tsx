@@ -110,7 +110,8 @@ export default function Home() {
   const ready = readiness(draft);
   const blocked = ready.kind !== "ready";
   const reason = failure ?? (blocked ? blockerText(ready) : mismatchNote(draft));
-  const problem = failure !== null || (blocked && (ready.kind === "badHandle" || tried === reason));
+  // After a read, a note that blocks Create is a problem with the receipt (nothing read, too many Items); before it, the note only says what is still to do.
+  const problem = failure !== null || (blocked && (ready.kind === "badHandle" || (ready.kind === "note" && scan.status === "read") || tried === reason));
 
   const create = async (split: Ready) => {
     const request = splitRequest(split, newParticipantId);
