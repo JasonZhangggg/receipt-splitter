@@ -76,12 +76,13 @@ test("every tappable word and field in home's sentence has a hit area of at leas
   await expectHit(page.getByRole("textbox", { name: "Name", exact: true }), { height: 44, width: 44 });
 });
 
-test("a tap 20 px above a blank's text still focuses it", async ({ page }) => {
+test("a tap above a blank's text, inside its padding, still focuses it", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => document.fonts.ready);
   const blank = page.getByRole("textbox", { name: "Venmo handle" });
   const box = (await blank.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2 - 20);
+  expect(box.height).toBeGreaterThanOrEqual(43);
+  await page.mouse.click(box.x + box.width / 2, box.y + 4);
   await expect(blank).toBeFocused();
 });
 
