@@ -155,7 +155,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
               {removable ? <TextLink label={mode === "remove" ? say.done : say.removeSomeone} onPress={() => leave(mode === "remove" ? "view" : "remove")} outsideScroll /> : null}
             </>
           ) : (
-            <View style={styles.adding}>
+            <View style={[styles.adding, styles.addRow]}>
               <UnderlineInput
                 autoFocus
                 aria-label={say.newPerson}
@@ -261,6 +261,7 @@ const styles = StyleSheet.create({
   two: { flexDirection: "row", gap: layout.pairGap, marginTop: 6 },
   half: { flex: 1 },
   adding: { gap: 10, flex: 1 },
+  addRow: { minHeight: 44, justifyContent: "center" },
   link: { marginTop: 12 },
   phone: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, borderTopWidth: 1, paddingTop: 2 },
   phoneIs: { flexShrink: 1 },
