@@ -40,6 +40,7 @@ export const splitCopy = {
   yours: "yours",
   theirs: (name: string) => `${name}'s`,
   each: "each",
+  splitWaysLine: (ways: number) => `split ${ways} ways`,
   byShares: "by shares",
   byAmountLine: "by amount",
   claimFor: (item: string, name: string) => `${item}, check for ${name}`,

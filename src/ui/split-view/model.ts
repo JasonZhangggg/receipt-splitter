@@ -86,7 +86,7 @@ function splitLine(item: SplitItem, claimers: readonly ParticipantId[], { people
   const mine = viewer !== null && claimers.includes(viewer) ? portions.get(item.id) : undefined;
   if (mine !== undefined) return `${money(mine)} ${viewer === me ? say.yours : say.theirs(people.find(({ id }) => id === viewer)?.name ?? "")}`;
   if (claimers.length < 2) return null;
-  if (item.split.by === "even") return `${money(Math.min(...parts.map(({ cents }) => cents)))} ${say.each}`;
+  if (item.split.by === "even") return parts.every(({ cents }) => cents === parts[0].cents) ? `${money(parts[0].cents)} ${say.each}` : say.splitWaysLine(claimers.length);
   return item.split.by === "shares" ? say.byShares : say.byAmountLine;
 }
 

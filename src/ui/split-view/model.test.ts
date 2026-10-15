@@ -37,6 +37,10 @@ describe("lineView", () => {
     expect(view(item({ by: "even", units: [[ann, bob, cat]] }, 1400), cat, cat).split).toBe("$4.67 yours");
   });
 
+  test("an even split whose parts differ by a cent says how many ways instead of each", () => {
+    expect([view(item({ by: "even", units: [[ann, bob, cat]] }, 1400), null).split, view(item({ by: "even", units: [[ann, bob, cat]] }, 1500), null).split]).toEqual(["split 3 ways", "$5.00 each"]);
+  });
+
   test("who had it lists the phone's owner as You first, then the others in the table's order, and says Nobody yet for an untouched line", () => {
     expect([
       view(item({ by: "even", units: [[cat, bob, ann]] })).who,
