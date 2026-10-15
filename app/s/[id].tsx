@@ -419,20 +419,21 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     />
   );
   const footer = (() => {
-    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} line="" pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} />;
+    const ask = { text: "", ink: c.muted, paidState: false };
+    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} aside={ask} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} />;
     const mine = selectedPerson.id === me;
     const pill = !viewed.hasBar ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name) } as const);
     const claimed = shareBreakdown(split, selectedPerson.id).items.length;
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
-    const words = statusWords(status);
-    const ink = status.kind === "settled" ? c.good : status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
+    // A settled share the pill already marks keeps the items count; every other paid state reads in words.
+    const words = status.kind === "settled" && pill?.kind === "paid" ? null : statusWords(status);
+    const ink = status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
     return (
       <SplitFooter
         label={mine ? say.yourShare : say.shareOf(selectedPerson.name)}
         amount={money(viewed.share)}
         whose={mine ? null : selectedPerson.name}
-        line={say.itemsLine(claimed, split.receipt.items.length)}
-        note={words ? { text: words, ink } : null}
+        aside={words ? { text: words, ink, paidState: true } : { text: say.itemsLine(claimed, split.receipt.items.length), ink: c.muted, paidState: false }}
         pill={pill}
         onOpen={(from) => open({ kind: "pay" }, from)}
         onHeight={setFooterHeight}

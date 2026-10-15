@@ -85,6 +85,8 @@ test("the Pay sheet lists the viewer's Items and Adjustment parts and its total 
   await expect(sheet.getByText("Tax", { exact: true })).toBeVisible();
   await expect(sheet.getByText("Tip", { exact: true })).toBeVisible();
   await expect(sheet.getByTestId("share")).toHaveText("$37.03");
+  await expect(sheet.getByText("$14.20", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("$16.00", { exact: true })).toBeVisible();
 });
 
 test("I already paid marks the viewer paid and Undo reverts it", async ({ browser, request }, { workerIndex }) => {
@@ -114,7 +116,7 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
   await expect(owe(sam)).toHaveText("$14.20", live);
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(note(sam)).toHaveText("Paid $14.20", live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
   await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toHaveCount(0, { timeout: 10_000 });
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
@@ -125,7 +127,7 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I paid the rest" }).click();
   await expect(sam.getByRole("status").getByText("Marked $30.20 as paid")).toBeVisible(live);
-  await expect(note(sam)).toHaveText("Paid $30.20", live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
 
   await sam.getByRole("button", { name: "Undo" }).click();
   await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
@@ -264,7 +266,7 @@ test("Sam pays $22.00, a Claim from Priya's browser drops his Share to $14.00, a
   await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toBeVisible(live);
   await sam.getByTestId("footer").getByRole("button", { name: "Paid" }).click();
   await expect(breakdown(sam).getByRole("button", { name: "Mark as not paid" })).toBeVisible(live);
-  await expect(note(sam)).toHaveText("Paid $22.00", live);
+  await expect(note(sam)).toHaveCount(0);
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
   await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();

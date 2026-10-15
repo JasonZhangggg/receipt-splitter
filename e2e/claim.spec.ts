@@ -183,7 +183,8 @@ test("the payer marks themselves paid, and another browser sees Paid $2.50 under
 
   await owe(priya).click();
   await priya.getByRole("button", { name: "I already paid" }).click();
-  await expect(priya.getByTestId("footer").getByTestId("share-note")).toHaveText("Paid $2.50", live);
+  await expect(priya.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
+  await expect(priya.getByTestId("footer").getByTestId("share-note")).toHaveCount(0);
 
   await viewAs(sam, "Priya");
   await sam.getByRole("button", { name: /, Show Priya's breakdown$/ }).click();

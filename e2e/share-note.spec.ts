@@ -64,7 +64,8 @@ test("the line under a share reads nothing unpaid, Paid, too much, still owed, a
 
   await owe(sam).click();
   await sam.getByTestId("breakdown").getByRole("button", { name: "I already paid" }).click();
-  await expect(note(sam)).toHaveText("Paid $30.00", live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
+  await expect(note(sam)).toHaveCount(0);
   await viewAs(jason, "Jason, you");
   await expect(note(jason)).toHaveText("1 of 2 paid you", live);
 
