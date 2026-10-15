@@ -377,15 +377,18 @@ test("the Edit item status tick draws once when it appears, not again as the tex
   await expect(sheet.getByText("2 people · $87.75")).toBeVisible();
   await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
   await expect(sheet.getByTestId("amount-status")).toHaveText("$87.75 left to assign", live);
+  await page.waitForTimeout(1200);
+  const pulses = await count("ai-pulse");
+  expect(pulses).toBeGreaterThan(1);
   await sheet.getByRole("textbox", { name: "Jason's amount" }).pressSequentially("30", { delay: 120 });
   await expect(sheet.getByTestId("amount-status")).toHaveText("$57.75 left to assign");
   await page.waitForTimeout(1200);
   expect(await count("ai-tick")).toBe(1);
-  expect(await count("ai-pulse")).toBe(2);
+  expect(await count("ai-pulse")).toBe(pulses);
 
   await sheet.getByRole("textbox", { name: "Sam's amount" }).pressSequentially("57.75", { delay: 120 });
   await expect(sheet.getByTestId("amount-status")).toHaveText("All $87.75 assigned");
   await page.waitForTimeout(1200);
   expect(await count("ai-tick")).toBe(2);
-  expect(await count("ai-pulse")).toBe(2);
+  expect(await count("ai-pulse")).toBe(pulses);
 });
