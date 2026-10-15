@@ -262,6 +262,13 @@ test("Switch account to a name another phone holds asks there, takes the name, a
   await expect(sam.getByTestId("footer")).toContainText("Your share");
   await expect(priya.getByRole("status").filter({ hasText: "Priya was picked on another phone" })).toBeVisible(live);
   await expect(sam.getByRole("status").filter({ hasText: "picked on another phone" })).toHaveCount(0);
+
+  const third = await (await newContext(browser)).newPage();
+  await third.goto(link);
+  const which = third.getByRole("dialog", { name: "Which one are you?" });
+  await expect(which.getByRole("button", { name: "Sam", exact: true })).toBeVisible(live);
+  await expect(which.getByRole("button", { name: "Priya, picked on another phone" })).toBeVisible();
+  await expect(which.getByRole("button", { name: "Sam, picked on another phone" })).toHaveCount(0);
 });
 
 test("a name that another phone picks while the Switch account list is open asks instead of taking it", async ({ browser, request }, { workerIndex }) => {

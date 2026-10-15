@@ -409,6 +409,13 @@ describe("picking a name", () => {
     expect(taken.recentChanges).toEqual(picked.recentChanges);
   });
 
+  test("a device that picks a second name gives up its first", () => {
+    const split = apply(withBobAndCat(), pick(bob), pick(cat));
+
+    expect(split.picks).toEqual([{ participantId: "cat", device: "phone-one" }]);
+    expect(reasonFor(split, pick(bob, laptop))).toBe("accepted");
+  });
+
   test("a vandal's unclaims leave no recent change, and Bob claims his Items again", () => {
     const claim = (itemId: typeof fries, claimed: boolean): Operation => ({ by: null, type: claimed ? "claim" : "unclaim", itemId, participantId: bob });
     const start = apply(withBobAndCat(), pick(bob), claim(fries, true), claim(pasta, true));
