@@ -153,6 +153,7 @@ test("a read with no Items keeps Create link off with its reason, and home offer
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add item, tax, tip or discount", exact: true })).toHaveCount(0);
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Couldn't read any items. Try another photo." });
+  await expect(page.getByRole("status").filter({ hasText: "Couldn't read any items. Try another photo." })).toHaveCSS("color", "rgb(196, 52, 42)");
   const picker = page.waitForEvent("filechooser");
   await action(page).click();
   await picker;

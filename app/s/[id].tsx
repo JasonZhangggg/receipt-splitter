@@ -16,7 +16,6 @@ import { Toast } from "../../src/ui/components/toast";
 import { Button, type Press } from "../../src/ui/components/button";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
-import { takesOff } from "../../src/ui/adjustment-sheet/adjustment";
 import { HistorySheet } from "../../src/ui/history";
 import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
@@ -108,9 +107,7 @@ type Bar = { readonly message: string; readonly action?: { readonly label: strin
 /** An Adjustment's sheet is named for its saved kind; its heading follows a kind switch at once. */
 const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
   overlay.kind === "adjustment"
-    ? takesOff(split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax")
-      ? say.discount
-      : say.charge
+    ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
 const tallPickTop = 170;
@@ -166,7 +163,10 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
 
   const closeGuard = useRef<CloseGuard | null>(null);
   const closeOverlay = () => {
-    if (!closeGuard.current?.()) setClosing(true);
+    if (closeGuard.current?.()) return;
+    // A closing sheet drops the keyboard with it, whichever way it was closed.
+    if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) document.activeElement.blur();
+    setClosing(true);
   };
 
   const choose = async (participantId: ParticipantId, takeOver: boolean) => {
@@ -264,8 +264,10 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
 
   const share = async () => {
     const url = splitUrl(splitId);
-    if (typeof navigator.share === "function") await navigator.share({ url }).catch(() => {});
-    else await navigator.clipboard?.writeText(url).catch(() => {});
+    // A cancelled share sheet rejects, and that is not a failure. Only the copy fallback has a result to show.
+    if (typeof navigator.share === "function") return void (await navigator.share({ url }).catch(() => {}));
+    const copied = await (navigator.clipboard?.writeText(url).then(() => true) ?? Promise.resolve(false)).catch(() => false);
+    setBar({ message: copied ? say.linkCopied : say.copyFailed, over: "footer" });
   };
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);

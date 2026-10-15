@@ -158,7 +158,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           {money(total)}
         </Text>
       </View>
-      {started ? (
+      {started && shares.unclaimed.total > 0 ? (
         <View style={styles.unclaimed}>
           <Text testID="unclaimed-count" numberOfLines={1} style={[styles.chargeText, tabular, styles.rowLabel, { color: c.muted }]}>
             {say.unclaimedTotal(shares.unclaimed.itemIds.length)}

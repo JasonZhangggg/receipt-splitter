@@ -34,14 +34,14 @@ const overhang = 14;
 const margin = 16;
 const leaveFor = 150;
 
-/** Calls `onEscape` on Escape from the first commit while `active`, before any focus has settled. */
+/** Calls `onEscape` on Escape from the first commit while `active`, before any focus has settled. It listens while the event is still on its way down, because a focused text field stops the key from reaching the document. */
 export function useEscape(active: boolean, onEscape: () => void) {
   const escape = useEffectEvent(onEscape);
   useLayoutEffect(() => {
     if (!active) return;
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && escape();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [active]);
 }
 

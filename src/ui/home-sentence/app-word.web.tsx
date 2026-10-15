@@ -39,6 +39,6 @@ const select = {
 } as const;
 
 const styles = StyleSheet.create({
-  word: { position: "relative" },
+  word: { position: "relative", paddingVertical: 9, marginVertical: -9 },
   name: { borderBottomWidth: 1.5, lineHeight: 25 },
 });

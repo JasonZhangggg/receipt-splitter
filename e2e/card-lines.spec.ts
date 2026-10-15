@@ -82,10 +82,11 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await expectLine(both, "Unclaimed · 1 item", "$2.50");
 
   await check(priya, "Sprite", "Priya");
-  await expectLine(both, "Unclaimed", "$0.00");
+  for (const page of both) await expect(page.getByTestId("unclaimed-count")).toHaveCount(0, live);
+  for (const page of both) await expect(page.getByTestId("unclaimed")).toHaveCount(0);
 
   await check(sam, "Sprite", "Sam");
-  await expectLine(both, "Unclaimed", "$0.00");
+  for (const page of both) await expect(page.getByTestId("unclaimed")).toHaveCount(0, live);
 
   const sheet = priya.getByRole("dialog", { name: "Edit item" });
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
@@ -97,7 +98,7 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await sheet.getByRole("button", { name: "Give Sam the rest, $1.50" }).click();
   await expect(sheet.getByTestId("amount-status")).toHaveText("All $2.50 assigned");
   await sheet.getByRole("button", { name: "Close" }).click();
-  await expectLine(both, "Unclaimed", "$0.00");
+  for (const page of both) await expect(page.getByTestId("unclaimed")).toHaveCount(0, live);
 
   await check(sam, "Sprite", "Sam");
   await expectLine(both, "Unclaimed · 1 item", "$1.50");
@@ -105,7 +106,7 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("2.50");
   await sheet.getByRole("button", { name: "Close" }).click();
-  await expectLine(both, "Unclaimed", "$0.00");
+  for (const page of both) await expect(page.getByTestId("unclaimed")).toHaveCount(0, live);
   expect(edits, "two edits reached the server: the exact split, then Priya's $2.50, and no blank By amount before them").toHaveLength(2);
 });
 

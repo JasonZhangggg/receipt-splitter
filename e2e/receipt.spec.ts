@@ -472,7 +472,7 @@ test("Delete item takes a Bundle Item off for everyone, and Revert brings it bac
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, collapsed", live);
 
   await fromMore(sam, "History");
-  await sam.getByRole("button", { name: "Revert Removed Michelob Ultra 16oz Aluminum Bottle" }).click();
+  await sam.getByRole("button", { name: "Revert Deleted Michelob Ultra 16oz Aluminum Bottle" }).click();
   await expect(sam.getByText("Reverted")).toBeVisible(live);
   await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 1 claimed, collapsed", live);
 });

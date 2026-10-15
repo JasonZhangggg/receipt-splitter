@@ -66,6 +66,34 @@ describe("historyOf", () => {
     expect(history[0]).toEqual({ revision: 4, lead: "Removed Sam from the split", more: 0, sentAs: "ann", name: "Ann", at: 4_000, reverted: false, revertible: true });
   });
 
+  test("a deleted Item reads Deleted, the word the undo bar uses", () => {
+    const fries = itemId("fries");
+    const history = historyOf(
+      split(
+        { by: sam, type: "editReceipt", items: [{ type: "add", item: { id: fries, name: "Fries", price: price(400) }, index: 1, who: [] }] },
+        { by: sam, type: "editReceipt", items: [{ type: "delete", itemId: fries }] },
+      ),
+    );
+
+    expect(history.map(({ lead }) => lead)).toEqual(["Deleted Fries", "Added Fries"]);
+  });
+
+  test("a change of split reads in words, by shares however the shares were weighted, never as a ratio", () => {
+    const history = historyOf(
+      split(
+        { by: sam, type: "claim", itemId: sprite, participantId: sam },
+        { by: ann, type: "claim", itemId: sprite, participantId: ann },
+        { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ participantId: sam, value: 1 }, { participantId: ann, value: 1 }] }] },
+        { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "amount", values: [{ participantId: sam, value: 100 }, { participantId: ann, value: 150 }] }] },
+      ),
+    );
+
+    expect(history.map(({ lead, before, after }) => [lead, before, after])).toEqual([
+      ["Sprite split", "by shares", "by amount"],
+      ["Sprite split", "evenly", "by shares"],
+    ]);
+  });
+
   test("groups a price change and a Payment of $1,000 and up by thousands", () => {
     const history = historyOf(
       split(

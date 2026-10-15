@@ -109,7 +109,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
                   <Button label={say.thatsMe} onPress={() => onPick(row.person.id, true)} outsideScroll />
                 </View>
                 <View style={styles.half}>
-                  <Button kind="soft" label={say.cancel} onPress={() => setHeld(null)} outsideScroll />
+                  <TextLink center label={say.cancel} onPress={() => setHeld(null)} outsideScroll />
                 </View>
               </View>
             </View>

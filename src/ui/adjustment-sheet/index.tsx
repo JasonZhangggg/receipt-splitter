@@ -119,12 +119,12 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, on
   return (
     <View style={styles.sheet} pointerEvents={leaving ? "none" : "auto"}>
       <SheetHeader
-        title={off ? say.discount : say.charge}
+        title={say.editKind[kind]}
         onClose={close}
         keepsFocus
         action={<IconAction label={off ? say.deleteDiscount : say.deleteCharge} icon="trash" size={15} pressedInk="warn" onPress={() => void remove()} />}
       />
-      {kind === "bundleDiscount" ? null : <Options options={RECEIPT_LEVEL_KINDS} labels={say.kinds} name={say.kind} value={kind} onChange={(next) => onChange(switchKind(shown, next))} />}
+      {kind === "bundleDiscount" ? null : <Options options={RECEIPT_LEVEL_KINDS} labels={say.kinds} name={say.kindOfCharge} value={kind} onChange={(next) => onChange(switchKind(shown, next))} />}
       <View style={styles.pair}>
         <LabeledField
           ref={nameField}
