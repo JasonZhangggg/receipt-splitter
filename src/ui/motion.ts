@@ -53,9 +53,10 @@ export const webAnimation = (style: WebOnly & Keyframes) => StyleSheet.create({ 
 
 type PressFeel = { scale: number; pressIn: number };
 
-export const pressFeel: Record<"button" | "slip", PressFeel> = {
+export const pressFeel: Record<"button" | "slip" | "pill", PressFeel> = {
   button: { scale: 0.96, pressIn: motion.pressIn },
   slip: { scale: 0.97, pressIn: motion.slipPressIn },
+  pill: { scale: 0.97, pressIn: motion.pillPressIn },
 };
 
 const dimmed = { opacity: 0.7 };
