@@ -131,11 +131,6 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         </KeptRows>
       </View>
       <View style={styles.charges}>
-        {note ? (
-          <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
-            {note}
-          </Text>
-        ) : null}
         <Row label={say.subtotal} amount={subtotal} />
         <KeptRows rows={charges} entering={entering}>
           {(row) => (
@@ -151,6 +146,11 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           )}
         </KeptRows>
         <TextLink plus name={say.add} label={say.add} popup="dialog" expanded={showing === "add"} onPress={onAdd} />
+        {note ? (
+          <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
+            {note}
+          </Text>
+        ) : null}
       </View>
       <View style={[styles.total, { borderTopColor: c.hairline }]}>
         <Text style={[type.body, { color: c.ink }]}>{say.total}</Text>
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
   collapsed: { minHeight: 0 },
   discount: { flexDirection: "row", alignItems: "center", columnGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart, borderTopWidth: 1 },
   charges: { marginTop: 14, paddingLeft: nameStart },
-  why: { marginBottom: 4 },
+  why: { marginTop: 2, marginBottom: 4 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: chargeRow, gap: 12 },
   // A 44 px tap target that still sits on the row pitch; the overlap goes to the later row.
   tapRow: { minHeight: dotTap, marginVertical: (chargeRow - dotTap) / 2 },
