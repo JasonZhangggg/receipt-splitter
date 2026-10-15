@@ -124,7 +124,7 @@ export function AddSheet({ split, me, send, onClose }: Props) {
             ref={quantityField}
             label={say.howMany}
             unit=""
-            width={64}
+            width={80}
             inputMode="numeric"
             placeholder="1"
             maxLength={2}
