@@ -201,6 +201,7 @@ function BundleGroup({ bundle, open, claimed, claimers, who, onToggle, children 
   }
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`}>
+      <View pointerEvents="none" style={[styles.rule, fade, { backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
       <PressTarget
         name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, claimed), open)}
         expanded={open}
@@ -491,6 +492,8 @@ const styles = StyleSheet.create({
   bundleTop: { flexDirection: "row", alignItems: "flex-start", columnGap },
   bundleWho: { flexDirection: "row", marginLeft: nameStart, columnGap },
   chevron: { width: nameStart - columnGap, height: nameLine, alignItems: "center", justifyContent: "center" },
+  // The vertical rule runs from the open chevron's tip down beside the children; the chevron sits at the centre of its slot.
+  rule: { position: "absolute", left: (nameStart - columnGap) / 2 - 0.5, width: 1, top: 12 + nameLine / 2 + 4, bottom: 0 },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   collapsed: { minHeight: 0 },
   discount: { flexDirection: "row", alignItems: "center", columnGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart, borderTopWidth: 1 },
