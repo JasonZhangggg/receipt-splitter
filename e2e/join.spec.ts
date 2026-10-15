@@ -220,8 +220,8 @@ test("a receipt replaced while the link is being created stays on home and finis
 
   await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
   await page.goBack();
-  await expect(page.getByText("0 items")).toBeVisible(linkTimeout);
-  await expect(page.getByText("Reading receipt")).toHaveCount(0);
+  await expect(page.getByText("5 items")).toBeVisible(linkTimeout);
+  await expect(page.getByText("Reading the receipt")).toHaveCount(0);
 });
 
 test("a refused create shows one reason and enables Create split link again", async ({ page }) => {
