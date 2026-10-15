@@ -163,7 +163,7 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 
 ## From the home sentence review (2026-10-15)
 
-- The motion scenarios in `e2e/motion.ts` (run by `.claude/skills/verify-receipt-splitter/motion.mjs`) include ones the home rewrite left stale. `chip-entrance` probes the Split page's "Jason, you" chip, and rule 85 removed chips. `keyboard-name-up`, `keyboard-name-down` and `reduced-item-open` (the generated reduced twin of `item-open`) were named by the reviewer as targeting UI that is gone or moved, and were not rerun in this round. Only `name-add` was rewritten for the sentence. Run `motion.mjs --only <id>` for each, repoint or delete every scenario that cannot find its target, and grep `e2e/motion.ts` for removed test ids and labels. Fixer: the next UI owner who touches `e2e/motion.ts`.
+- The motion scenarios in `e2e/motion.ts` that the home rewrite left stale are fixed in the motion-audit PR (`fix/motion-audit-1`). `chip-entrance`, `desk-pane-handoff` (and its reduced twin) and `desk-chip-swap` are deleted. `desk-popover-*` now drives the claim popover (People, view as Sam, tap Rice's dot). `keyboard-name-*` and `keyboard-price-*` target the People sheet and the Description field, `reduced-item-open` probes the sheet's fade, and `item-close` is renamed. `theme-flip`, `reduced-theme-flip` and `loader-leave` are new. All scenarios pass on the Chromium lanes at 1x and 4x. Still open: run `motion.mjs --lanes webkit-iphone` on the Mac, since the WebKit lane has not run with the repointed scenarios. Fixer: the operator's Mac run.
 
 ## From the photo-only scan route (PR #122, 2026-10-15)
 

@@ -115,14 +115,14 @@ test("an entry whose link says the split has expired is gone back on home, and t
   await seed(page, [jason, priya]);
   await rows(page).first().click();
   await expect(page).toHaveURL(new RegExp(`/s/${jason.id}$`));
-  await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "We can't find this split" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(page).toHaveURL(/\/$/);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 
   await rows(page).first().click();
-  await expect(page.getByRole("heading", { name: "This split has expired" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "We can't find this split" })).toBeVisible();
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(action(page)).toBeVisible();
   await expect(list(page)).toHaveCount(0);
@@ -325,4 +325,28 @@ test("twelve names make the sentence too tall to pin, so the whole page scrolls 
   await scrollTo(page, "end");
   expect(await topOf(heading)).toBeLessThan(0);
   await expect(rows(page).last()).toBeVisible();
+});
+
+test("Revert on your own change locks from the first tap, so a second tap during the arrow's swing sends no second undo", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await (await newContext(browser)).newPage();
+  await sam.setViewportSize(phone);
+  const undos: string[] = [];
+  sam.on("websocket", (socket) => socket.on("framesent", ({ payload }) => String(payload).includes('"type":"undo"') && undos.push(String(payload))));
+  await sam.goto(link);
+  await sam.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(sam.getByTestId("owe")).toBeVisible(live);
+  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await expect(sam.getByTestId("total")).toHaveText("$21.00", live);
+
+  await fromMore(sam, "History");
+  const revert = sam.getByRole("button", { name: "Revert Tax" });
+  await revert.click();
+  await expect(revert).toHaveAttribute("aria-disabled", "true");
+  await sam.waitForTimeout(120);
+  await revert.click({ force: true });
+  await expect(sam.getByText("Reverted")).toBeVisible(live);
+  await sam.waitForTimeout(500);
+  expect(undos).toHaveLength(1);
+  await expect(sam.getByTestId("total")).toHaveText("$19.00");
 });

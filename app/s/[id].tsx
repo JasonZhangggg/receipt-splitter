@@ -73,7 +73,7 @@ export default function SplitScreen() {
 
 function Gone({ reason }: { reason: GoneReason }) {
   const c = useColors();
-  const words = reason === "notFound" ? joinCopy.expired : joinCopy.unreadable;
+  const words = reason === "notFound" ? joinCopy.missing : joinCopy.unreadable;
   return (
     <View style={styles.gone}>
       <Text role="heading" aria-level={1} style={[type.hero, { color: c.ink }]}>
@@ -81,7 +81,7 @@ function Gone({ reason }: { reason: GoneReason }) {
       </Text>
       <Text style={[type.body, { color: c.muted }]}>{words.hint}</Text>
       <View style={styles.goneAction}>
-        <Button kind="soft" label={joinCopy.newSplit} onPress={() => router.replace("/")} />
+        <Button label={joinCopy.newSplit} onPress={() => router.replace("/")} />
       </View>
     </View>
   );
@@ -456,7 +456,7 @@ function SplitPage({ splitId, split, photo, send }: { splitId: SplitId; split: S
     const ask = { text: "", ink: c.muted, paidState: false };
     if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} aside={ask} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} />;
     const mine = selectedPerson.id === me;
-    const pill = !viewed.hasBar ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name) } as const);
+    const pill = !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name), ready: viewed.hasBar } as const);
     const claimed = shareBreakdown(split, selectedPerson.id).items.length;
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
     // A settled share the pill already marks keeps the items count; every other paid state reads in words.

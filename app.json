@@ -11,6 +11,11 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "sitemap": false
+      }
+    }
   }
 }

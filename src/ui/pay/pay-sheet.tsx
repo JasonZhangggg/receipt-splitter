@@ -18,7 +18,8 @@ export function payFacts(split: Split, person: Participant, viewer: ParticipantI
   const isHost = person.id === host.id;
   const share = shareBreakdown(split, person.id).share;
   const state = payState(share, split.payments.find(({ participantId }) => participantId === person.id)?.amount ?? null);
-  return { host, mine, isHost, share, state, hasBar: mine && !isHost && state.kind !== "nothing" };
+  const payer = mine && !isHost;
+  return { host, mine, isHost, share, state, payer, hasBar: payer && state.kind !== "nothing" };
 }
 
 /** The viewed person's Items with their part of each, their part of each Adjustment and their total. It reads the live Split, so another phone's edit lands here as it happens. */
@@ -37,8 +38,8 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
         {lines.length === 0 ? (
           <Text style={[type.body, styles.empty, { color: c.muted }]}>{say.nothingChecked(mine ? null : person.name)}</Text>
         ) : (
-          lines.map((line, index) => (
-            <View key={line.id} style={[styles.line, index > 0 && { borderTopColor: c.hairline, borderTopWidth: 1 }]}>
+          lines.map((line) => (
+            <View key={line.id} style={styles.line}>
               <View style={styles.name}>
                 <Text style={[type.body, { color: c.ink }]}>
                   {line.quantity ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${line.quantity}  `}</Text> : null}
@@ -85,7 +86,7 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 const styles = StyleSheet.create({
   body: { gap: 4 },
   items: { marginTop: 8 },
-  line: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 56, paddingVertical: 8 },
+  line: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 48, paddingVertical: 8 },
   name: { flex: 1, minWidth: 0 },
   empty: { paddingVertical: 12 },
   charges: { marginTop: 6, paddingTop: 6, borderTopWidth: 1 },
