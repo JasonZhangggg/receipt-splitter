@@ -193,7 +193,7 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       return commit(split, [
         ...(items ?? []).map((patch): MakeWrites => (current) => {
           const writes = itemWrites(current, patch);
-          if (typeof writes !== "string") lines = linesMoved(lines, writes);
+          if (typeof writes !== "string") lines = linesMoved(lines, current.receipt, writes);
           return writes;
         }),
         ...(adjustments ?? []).map((patch): MakeWrites => (current) => adjustmentWrites(current, patch)),
@@ -625,16 +625,21 @@ function leaveBundle(split: Split, itemId: ItemId): readonly Write[] {
 type Lines = { readonly subtotal: number; readonly total: number };
 
 /**
- * How far an Item patch's own writes move the Subtotal and Total: an added or deleted Item by its price, and a Bundle discount its delete dropped by that amount.
- * Printed tax, tip and fees keep their amounts, and a gap the receipt already had stays as it was (preferences 70).
+ * How far an Item patch's own writes move the Subtotal and Total (preferences 70). The Items move by an added or deleted price or a price's difference.
+ * A move toward the printed Subtotal first closes the gap (a line the reading missed, or one it read twice), and only the rest moves the Subtotal and Total.
+ * A delete that drops a Bundle discount also takes that amount off the Total. Printed tax, tip and fees keep their amounts.
  */
-function linesMoved(lines: Lines, writes: readonly Write[]): Lines {
-  return writes.reduce(({ subtotal, total }, write) => {
-    if (write.kind === "item" && "added" in write) return { subtotal: subtotal + write.added.price, total: total + write.added.price };
-    if (write.kind === "item" && "removed" in write) return { subtotal: subtotal - write.removed.price, total: total - write.removed.price };
-    if (write.kind === "adjustment" && "removed" in write) return { subtotal, total: total - write.removed.amount };
-    return { subtotal, total };
-  }, lines);
+function linesMoved(lines: Lines, receipt: Receipt, writes: readonly Write[]): Lines {
+  const items = writes.reduce((sum, write) => {
+    if (write.kind !== "item") return sum;
+    if ("added" in write) return sum + write.added.price;
+    if ("removed" in write) return sum - write.removed.price;
+    return write.edit.price ? sum + write.edit.price[1] - write.edit.price[0] : sum;
+  }, 0);
+  const gap = receipt.subtotal + lines.subtotal - receipt.items.reduce((sum, { price }) => sum + price, 0);
+  const subtotal = items > 0 ? Math.max(0, items - Math.max(0, gap)) : Math.min(0, items + Math.max(0, -gap));
+  const dropped = writes.reduce((sum, write) => (write.kind === "adjustment" && "removed" in write ? sum + write.removed.amount : sum), 0);
+  return { subtotal: lines.subtotal + subtotal, total: lines.total + subtotal - dropped };
 }
 
 function adjustmentsSum({ adjustments }: Receipt): number {

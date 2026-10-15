@@ -487,8 +487,6 @@ describe("Payments", () => {
         { type: "edit", itemId: fries, price: price(600) },
         { type: "edit", itemId: pasta, price: price(1650) },
       ],
-      subtotalDelta: cents(50),
-      totalDelta: cents(50),
     });
 
     expect(computeShares(edited).shares).toEqual([
@@ -1018,7 +1016,7 @@ describe("quantity lines", () => {
     const pricier = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), price: price(800) }] });
     const lessForJason = apply(split, { by: priya, type: "editReceipt", items: [{ type: "edit", itemId: itemId("g2"), values: [{ participantId: jason, value: cents(0) }] }] });
 
-    expect(shares(pricier)).toEqual([1094, 985]);
+    expect(shares(pricier)).toEqual([1098, 988]);
     expect(reasonFor(pricier, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
     expect(reasonFor(lessForJason, { by: priya, type: "undo", revision: split.revision })).toBe("conflict");
   });
