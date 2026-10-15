@@ -5,7 +5,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { motion, tabular, type, useColors } from "../theme";
 import { PressTarget } from "./button";
 import { Icon, type IconName } from "./icon";
-import { underline } from "./text-link";
+import { linkPress, underline } from "./text-link";
 import { UnderlineInput } from "./underline-input";
 
 const underlined = { dataSet: { underline: "" } };
@@ -72,12 +72,13 @@ type OptionsProps<Option extends string> = {
 /** A row of words, the chosen one underlined and in full ink. */
 export function Options<Option extends string>({ options, labels, name, value, onChange }: OptionsProps<Option>) {
   const c = useColors();
+  const reduce = useReducedMotion();
   return (
     <View role="group" aria-label={name} style={styles.options}>
       {options.map((option) => {
         const on = option === value;
         return (
-          <PressTarget key={option} name={labels[option]} toggled={on} outsideScroll onPress={() => onChange(option)} style={() => styles.option}>
+          <PressTarget key={option} name={labels[option]} toggled={on} outsideScroll onPress={() => onChange(option)} style={(pressed) => [styles.option, pressStyle(pressed, reduce, linkPress)]}>
             {() => <Text style={[type.body, underline, Platform.OS === "web" && inkChange, { color: on ? c.ink : c.muted, textDecorationColor: on ? c.ink : "transparent" }]}>{labels[option]}</Text>}
           </PressTarget>
         );
@@ -89,9 +90,10 @@ export function Options<Option extends string>({ options, labels, name, value, o
 /** A person as a dot and a name; the dot is filled when they are in. */
 export function PersonToggle({ name, on, onPress }: { name: string; on: boolean; onPress: () => void }) {
   const c = useColors();
+  const reduce = useReducedMotion();
   const ink = on ? c.ink : c.muted;
   return (
-    <PressTarget name={name} toggled={on} outsideScroll onPress={onPress} style={() => styles.person}>
+    <PressTarget name={name} toggled={on} outsideScroll onPress={onPress} style={(pressed) => [styles.person, pressStyle(pressed, reduce, linkPress)]}>
       {() => (
         <View style={styles.personFace}>
           <View style={[styles.personDot, Platform.OS === "web" && inkChange, { backgroundColor: on ? ink : "transparent", boxShadow: `inset 0 0 0 1px ${ink}` }]} />
