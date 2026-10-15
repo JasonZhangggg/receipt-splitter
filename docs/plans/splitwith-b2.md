@@ -855,7 +855,7 @@ These are the root's defaults where the mock is silent. The operator can overrid
 
 Emil design rules for every B2 PR, from the B2-1 design review (PASS+NOTES).
 
-1. Sheets enter with `motion.easeDrawer` and leave with `motion.easeOut` in about 200 ms. Never `ease-in`.
+1. Sheets enter with `motion.easeDrawer` and leave with `motion.easeOut` in about 300 ms, the shortest exit that keeps every frame under the 140 px step of `e2e/motion.ts` (B2-3 review). Never `ease-in`. From the tall snap a pull down returns to rest, and only a pull past rest closes, as iOS detents do.
 2. Sheet drag, the claim dot and the undo bar use transitions or WAAPI that retarget from the current state. Keyframes are only for one-shot icon motions.
 3. Pills press to `scale(0.97)` over 160 ms, small icon buttons to 0.88 to 0.9 over 140 ms, the dot to 0.8. Entrances start at 0.95 or more with opacity. Never `scale(0)`.
 4. Hover motion sits behind `@media (hover: hover) and (pointer: fine)`.
