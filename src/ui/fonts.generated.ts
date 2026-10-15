@@ -4,6 +4,6 @@ export const faces = {
 };
 
 export const fallbackMetrics = {
-  400: "size-adjust: 96.17%; ascent-override: 104.50%; descent-override: 30.67%; line-gap-override: 0%;",
-  500: "size-adjust: 103.14%; ascent-override: 97.44%; descent-override: 28.60%; line-gap-override: 0%;",
+  400: "size-adjust: 101.77%; ascent-override: 98.75%; descent-override: 28.99%; line-gap-override: 0%;",
+  500: "size-adjust: 104.76%; ascent-override: 95.93%; descent-override: 28.16%; line-gap-override: 0%;",
 };

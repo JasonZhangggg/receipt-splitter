@@ -80,15 +80,15 @@ test("the toast speaks through a polite live region, and its action is a 44 px t
   expect(await page.evaluate(() => (window as unknown as ToastWindow).actions)).toBe(1);
 });
 
-test("on the home page the toast sits above the sheet", async ({ page }) => {
+test("on the home page the toast sits above the footer", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Add receipt")).toBeVisible();
+  await expect(page.getByText("Add the receipt")).toBeVisible();
   await dropFile(page, { name: "menu.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") });
   const toast = page.getByText("That file is not a photo.");
   await expect(toast).toBeVisible();
-  const sheetTop = await page.locator("[data-sheet]").evaluate((sheet) => sheet.getBoundingClientRect().top);
+  const pillTop = (await page.getByRole("button", { name: "Create split link" }).boundingBox())!.y;
   await expect.poll(async () => {
     const box = (await toast.boundingBox())!;
-    return box.y + box.height <= sheetTop;
+    return box.y + box.height <= pillTop;
   }).toBe(true);
 });

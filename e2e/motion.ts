@@ -626,19 +626,6 @@ async function homeTyping(page: Page) {
   await page.waitForTimeout(500);
 }
 
-const lifts = new WeakMap<Page, Lift>();
-
-async function homePanelHeld(page: Page) {
-  if ((page.viewportSize()?.width ?? 0) >= 900) await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  const panel = page.locator("[data-sheet-surface]");
-  await panel.waitFor();
-  await page.waitForTimeout(800);
-  const field = (await page.getByRole("textbox", { name: "Venmo handle" }).boundingBox())!;
-  const left = (await panel.boundingBox())!.x;
-  lifts.set(page, await hold(page, { x: left + 4, y: field.y + field.height / 2 }, 120, 200));
-}
-
 const photoHarness = `
   import { useState } from "react";
   import { createRoot } from "react-dom/client";
@@ -963,24 +950,13 @@ const sheetAndHome: Scenario[] = [
     probes: itemProbes,
   },
   {
-    id: "home-panel-spring",
-    name: "Home: the panel springs back after a drag from the payment row",
-    setup: homePanelHeld,
-    act: (page) => lifts.get(page)!(),
-    probes: [
-      { key: "surface", find: "document.querySelector('[data-sheet-surface]')", kind: "top" },
-      { key: "action", find: `[...document.querySelectorAll("[role='button']")].find((el) => el.textContent === "Create split link") ?? null`, kind: "top" },
-    ],
-  },
-  {
     id: "name-add",
     name: "Home: a name chip is added",
     instant: true,
     setup: homeTyping,
     act: (page) => page.keyboard.press("Enter"),
     probes: [
-      { key: "surface", find: "document.querySelector('[data-sheet-surface]')", kind: "top" },
-      { key: "names", find: label("People at the table"), kind: "height" },
+      { key: "names", find: label("Who’s at the table"), kind: "height" },
       { key: "chip", find: label("Remove Samantha"), kind: "top" },
       { key: "chipFade", find: label("Remove Samantha"), kind: "opacity" },
       { key: "field", find: `document.querySelector('input[aria-label="Name"]')`, kind: "top" },
@@ -1072,7 +1048,7 @@ export const frames = (page: Page, count: number) =>
 
 export const animationsDone = (page: Page) => page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
 
-const anyWidth = new Set(["home-panel-spring", "name-add", "photo-open", "photo-close", "reduced-photo-open"]);
+const anyWidth = new Set(["name-add", "photo-open", "photo-close", "reduced-photo-open"]);
 
 const pane = (page: Page) => page.getByRole("complementary");
 const itemPopover = `document.querySelector('[role="dialog"][aria-label="Item"]')`;
