@@ -64,7 +64,10 @@ async function expectLine(pages: readonly Page[], label: string, amount: string)
 test("the Unclaimed total line counts the lines nobody fully had, a quantity line once and a By amount remainder as one, live on both phones", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
   const sam = await joinAs(browser, link, "Sam");
-  const priya = await joinAs(browser, link, "Priya");
+  const edits: string[] = [];
+  const priyaPage = await (await newContext(browser)).newPage();
+  priyaPage.on("websocket", (socket) => socket.on("framesent", ({ payload }) => String(payload).includes('"type":"editReceipt"') && edits.push(String(payload))));
+  const priya = await pick(priyaPage, link, "Priya");
   const both = [sam, priya] as const;
 
   await expect(sam.getByTestId("unclaimed-count")).toHaveCount(0);
@@ -81,16 +84,29 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await check(priya, "Sprite", "Priya");
   await expectLine(both, "Unclaimed", "$0.00");
 
+  await check(sam, "Sprite", "Sam");
+  await expectLine(both, "Unclaimed", "$0.00");
+
   const sheet = priya.getByRole("dialog", { name: "Edit item" });
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
   await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
-  await expectLine(both, "Unclaimed · 1 item", "$2.50");
+  await expect(sheet.getByTestId("amount-status")).toHaveText("$2.50 left to assign");
+  await expect(sheet.getByText("Not saved")).toBeVisible();
 
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("1.00");
+  await sheet.getByRole("button", { name: "Give Sam the rest, $1.50" }).click();
+  await expect(sheet.getByTestId("amount-status")).toHaveText("All $2.50 assigned");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expectLine(both, "Unclaimed", "$0.00");
+
+  await check(sam, "Sprite", "Sam");
   await expectLine(both, "Unclaimed · 1 item", "$1.50");
 
+  await priya.getByRole("button", { name: /^Open Sprite, / }).click();
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("2.50");
+  await sheet.getByRole("button", { name: "Close" }).click();
   await expectLine(both, "Unclaimed", "$0.00");
+  expect(edits, "two edits reached the server: the exact split, then Priya's $2.50, and no blank By amount before them").toHaveLength(2);
 });
 
 test("the Your share breakdown says nothing about unclaimed lines while the total line counts them", async ({ browser, request }, { workerIndex }) => {

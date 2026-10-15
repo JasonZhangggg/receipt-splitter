@@ -283,3 +283,27 @@ test("a Revert leaves a later edit of someone else standing", async ({ browser, 
     await expect(page.getByRole("button", { name: "Open Coupon, -$5.00" })).toBeVisible();
   }
 });
+
+test("Revert on your own change locks from the first tap, so a second tap during the arrow's swing sends no second undo", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex);
+  const sam = await (await newContext(browser)).newPage();
+  await sam.setViewportSize(phone);
+  const undos: string[] = [];
+  sam.on("websocket", (socket) => socket.on("framesent", ({ payload }) => String(payload).includes('"type":"undo"') && undos.push(String(payload))));
+  await sam.goto(link);
+  await sam.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(sam.getByTestId("owe")).toBeVisible(live);
+  await editAmount(sam, "Open Tax, $1.00", "Charge", "Amount", "3.00");
+  await expect(sam.getByTestId("total")).toHaveText("$21.00", live);
+
+  await fromMore(sam, "History");
+  const revert = sam.getByRole("button", { name: "Revert Tax" });
+  await revert.click();
+  await expect(revert).toHaveAttribute("aria-disabled", "true");
+  await sam.waitForTimeout(120);
+  await revert.click({ force: true });
+  await expect(sam.getByText("Reverted")).toBeVisible(live);
+  await sam.waitForTimeout(500);
+  expect(undos).toHaveLength(1);
+  await expect(sam.getByTestId("total")).toHaveText("$19.00");
+});
