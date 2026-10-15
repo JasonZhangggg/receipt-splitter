@@ -314,6 +314,7 @@ test("the tax and tip note shows only for an Item, and only on a receipt with ta
   await pick(plain, "Sam");
 
   await openAdd(taxed, "Item");
+  await expect(sheet(taxed).getByText("Split by each person who had it.", { exact: true })).toBeVisible();
   await expect(note(taxed)).toHaveText("Tax and tip stay at the receipt's amounts and are shared across the new item too.");
   for (const kind of ["Tax", "Tip", "Discount"] as const) {
     await sheet(taxed).getByRole("group", { name: "What to add" }).getByRole("button", { name: kind, exact: true }).click();
