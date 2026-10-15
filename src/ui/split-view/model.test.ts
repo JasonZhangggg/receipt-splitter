@@ -11,7 +11,13 @@ const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostone
 
 describe("lineView", () => {
   const people = [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }, { id: cat, name: "Cat" }];
-  const view = (it: SplitItem, viewer: ParticipantId | null = ann, me: ParticipantId | null = ann) => lineView(it, { people, me, viewer });
+  const portions = (it: SplitItem, viewer: ParticipantId | null) => {
+    if (viewer === null) return new Map();
+    const receipt = { items: [it] as const, adjustments: [], subtotal: it.price, total: it.price };
+    const [host, ...others] = people;
+    return new Map(shareBreakdown({ receipt, participants: [host, ...others], payments: [] }, viewer).items.map(({ id, portion }) => [id, portion]));
+  };
+  const view = (it: SplitItem, viewer: ParticipantId | null = ann, me: ParticipantId | null = ann) => lineView(it, { people, me, viewer }, portions(it, viewer));
 
   test("the split line reads yours for the viewer and each for others", () => {
     expect([
@@ -25,6 +31,10 @@ describe("lineView", () => {
       view(item({ by: "even", units: [[bob]] })).split,
       view(item({ by: "even", units: [[]] })).split,
     ]).toEqual(["$4.67 yours", "$6.25 each", "$6.25 Bob's", "$6.00 yours", "$2.50 yours", "by shares", "by amount", null, null]);
+  });
+
+  test("$14.00 even across three people with the viewer sorted last reads $4.67 yours", () => {
+    expect(view(item({ by: "even", units: [[ann, bob, cat]] }, 1400), cat, cat).split).toBe("$4.67 yours");
   });
 
   test("who had it lists the phone's owner as You first, then the others in the table's order, and says Nobody yet for an untouched line", () => {

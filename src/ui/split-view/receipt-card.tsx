@@ -1,7 +1,7 @@
 import { useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import type { Shares } from "../../core/shares";
+import { shareBreakdown, type Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
 import type { Adjustment, AdjustmentId, ItemId, Participant, ParticipantId, Split, SplitItem } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
@@ -12,7 +12,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
 import { ClaimDot } from "./dot";
-import { itemsHad, keepInPlace, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoLine, type BundleRow, type Kept, type Viewing } from "./model";
+import { itemsHad, keepInPlace, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoLine, type BundleRow, type Kept, type Portions, type Viewing } from "./model";
 
 type Props = {
   split: Split;
@@ -50,6 +50,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   const started = items.some(({ split: item }) => claimersOf(item).length > 0);
   const note = totalNote(split.receipt);
   const viewing: Viewing = { people: split.participants, me, viewer: selected?.id ?? null };
+  const portions = useMemo(() => new Map(selected ? shareBreakdown(split, selected.id).items.map(({ id, portion }) => [id, portion]) : []), [split, selected]);
   const person = (id: ParticipantId) => split.participants.find((one) => one.id === id) ?? { id, name: "" };
   const people = (item: SplitItem) => claimersOf(item.split).map(person);
   const openAdjustment = (id: AdjustmentId, press: Press) => {
@@ -68,6 +69,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
     <Line
       item={item}
       viewing={viewing}
+      portions={portions}
       claimers={people(item)}
       selected={selected}
       inBundle={inBundle}
@@ -390,6 +392,7 @@ function Shrink({ onDone, children }: { onDone: () => void; children: ReactNode 
 type LineProps = {
   item: SplitItem;
   viewing: Viewing;
+  portions: Portions;
   claimers: readonly Participant[];
   selected: Participant | null;
   inBundle: boolean;
@@ -399,7 +402,7 @@ type LineProps = {
 };
 
 /** A dot that claims the line, and the rest of the row, which opens it. The left column is the name, the detail and who had it; the right is the full price and what it comes to for the viewer or each person. */
-function Line({ item, viewing, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
+function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
   const c = useColors();
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
   const price = groupedAmount(item.price);
@@ -407,7 +410,7 @@ function Line({ item, viewing, claimers, selected, inBundle, onCircle, onOpen, e
   const count = quantityText(item);
   const label = count ? `${count} ${item.name}` : item.name;
   const had = claimers.length > 0 ? say.hadBy(claimers.map(({ name }) => name).join(", ")) : say.unclaimedLine;
-  const { who, split } = lineView(item, viewing);
+  const { who, split } = lineView(item, viewing, portions);
   return (
     <View role="listitem" testID={`line-${item.id}`} style={[styles.line, { borderTopColor: c.hairline }, inBundle && { marginLeft: nameStart }]}>
       <PressTarget

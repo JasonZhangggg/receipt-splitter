@@ -73,15 +73,18 @@ export function whoLine(claimers: readonly ParticipantId[], { people, me }: View
   return [...had.filter(({ id }) => id === me).map(() => say.youHad), ...had.filter(({ id }) => id !== me).map(({ name }) => name)].join(", ");
 }
 
-export function lineView(item: SplitItem, viewing: Viewing): LineView {
+/** What the viewer owes for each Item they have a part in, from their share breakdown, so a row reads what the Pay sheet charges. */
+export type Portions = ReadonlyMap<ItemId, Cents>;
+
+export function lineView(item: SplitItem, viewing: Viewing, portions: Portions): LineView {
   const claimers = claimersOf(item.split);
-  return { who: claimers.length > 0 ? whoLine(claimers, viewing) : say.nobodyYet, split: splitLine(item, claimers, viewing) };
+  return { who: claimers.length > 0 ? whoLine(claimers, viewing) : say.nobodyYet, split: splitLine(item, claimers, viewing, portions) };
 }
 
-function splitLine(item: SplitItem, claimers: readonly ParticipantId[], { people, me, viewer }: Viewing): string | null {
+function splitLine(item: SplitItem, claimers: readonly ParticipantId[], { people, me, viewer }: Viewing, portions: Portions): string | null {
   const parts = lineAmounts(item);
-  const mine = parts.find(({ participantId }) => participantId === viewer);
-  if (mine) return `${money(mine.cents)} ${viewer === me ? say.yours : say.theirs(people.find(({ id }) => id === viewer)?.name ?? "")}`;
+  const mine = viewer !== null && claimers.includes(viewer) ? portions.get(item.id) : undefined;
+  if (mine !== undefined) return `${money(mine)} ${viewer === me ? say.yours : say.theirs(people.find(({ id }) => id === viewer)?.name ?? "")}`;
   if (claimers.length < 2) return null;
   if (item.split.by === "even") return `${money(Math.min(...parts.map(({ cents }) => cents)))} ${say.each}`;
   return item.split.by === "shares" ? say.byShares : say.byAmountLine;
