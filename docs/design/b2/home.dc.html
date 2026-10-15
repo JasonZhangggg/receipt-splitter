@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Start a split</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.h{--bg:#fcfcfc;--fg:#171717;--muted:#737373;--faint:#a3a3a3;--line:#ebebeb;--underline:#d0d0d0;--warn:#c4342a;--ok:#1d7a46;--ease-out:cubic-bezier(.23,1,.32,1);font-family:'Geist',system-ui,sans-serif;font-size:16px;line-height:1.6;letter-spacing:-0.006em;-webkit-font-smoothing:antialiased;background:var(--bg);color:var(--fg)}
+.h[data-theme="dark"]{--bg:#111111;--fg:#ededed;--muted:#999999;--faint:#5c5c5c;--line:#232323;--underline:#4a4a4a;--warn:#f0766b;--ok:#5cc489}
+:where(.h) button{all:unset;box-sizing:border-box;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.h button:focus-visible,.h input:focus-visible,.h select:focus-visible{outline:2px solid var(--fg);outline-offset:2px;border-radius:4px}
+.h-scroll{scrollbar-width:none}
+.h-scroll::-webkit-scrollbar{display:none}
+.h .h-link{color:var(--muted);text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--muted);transition:color 150ms ease}
+.h .h-add{display:inline-flex;align-items:center;gap:8px;height:40px;font-size:14px;color:var(--muted)}
+.h-add span{text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--muted)}
+.h-label{font-size:14px;color:var(--muted)}
+.h-field{all:unset;box-sizing:border-box;width:100%;min-width:0;border-bottom:1px solid var(--line);padding:4px 0;font-family:inherit;font-size:16px;line-height:1.6;color:var(--fg);transition:border-color 150ms ease}
+.h-field:focus{border-color:var(--fg)}
+.h-field::placeholder{color:var(--faint)}
+.h-appwrap{position:relative;display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.h-appwrap:focus-within{border-color:var(--fg)}
+.h-app{appearance:none;-webkit-appearance:none;border:0;border-radius:0;background:transparent;padding:4px 22px 4px 0;font:inherit;line-height:1.6;color:var(--fg);cursor:pointer}
+.h-appwrap svg{position:absolute;right:2px;pointer-events:none;color:var(--muted)}
+.h .h-pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:22px;background:var(--fg);color:var(--bg);font-size:15px;font-weight:500;transition:transform 160ms var(--ease-out),opacity 150ms ease}
+.h .h-pill:active{transform:scale(.96)}
+.h .h-pill[data-off="true"]{opacity:.35}
+.h .h-x{width:36px;height:36px;margin-right:-10px;display:grid;place-items:center;color:var(--faint)}
+.h-name{display:inline-flex;align-items:center;gap:6px;height:36px;padding-right:2px}
+.h-name i{width:7px;height:7px;border-radius:50%;background:var(--fg)}
+.h-tag{font-size:13px;color:var(--muted);margin-left:2px}
+.h-inline{display:inline-flex;align-items:center;height:40px}
+.h-drop{border:1px solid var(--line);border-radius:14px;padding:22px 20px;display:flex;flex-direction:column;gap:14px}
+.h-start{padding:30px 20px 22px;gap:6px}
+.h .h-shoot{display:flex;flex-direction:column;align-items:center;transition:transform 160ms var(--ease-out)}
+.h .h-shoot:active{transform:scale(.97)}
+.h-paper{width:112px;height:138px;border-radius:10px;background:var(--line);display:flex;flex-direction:column;gap:9px;padding:20px 18px;box-sizing:border-box}
+.h-paper i{display:block;height:3px;border-radius:2px;background:var(--underline)}
+.h-cam{width:60px;height:60px;margin-top:-34px;border-radius:30px;background:var(--fg);color:var(--bg);display:grid;place-items:center;box-shadow:0 0 0 5px var(--bg)}
+.h-bar{height:2px;background:var(--line);border-radius:1px;overflow:hidden}
+.h-bar span{display:block;height:100%;background:var(--fg);transition:width 600ms var(--ease-out)}
+.h-slip{flex:none;width:52px;height:68px;border-radius:4px;background:var(--line);display:flex;flex-direction:column;gap:5px;padding:9px 8px;box-sizing:border-box}
+.h-slip i{display:block;height:2px;border-radius:1px;background:var(--faint)}
+.h-status[data-warn="true"]{color:var(--warn)}
+.ai{overflow:visible}
+.ai *{transform-box:fill-box;transform-origin:center}
+.ai-x path,.ai-minus path,.ai-check path{stroke-dasharray:1 1}
+[data-play] .ai-x path,.ai-x[data-play] path{animation:ai-draw 300ms ease-out both}
+[data-play] .ai-x path + path,.ai-x[data-play] path + path{animation-delay:110ms}
+[data-play] .ai-minus path,.ai-minus[data-play] path{animation:ai-draw 300ms ease-out both}
+[data-play] .ai-plus,.ai-plus[data-play]{animation:ai-spin 460ms cubic-bezier(.34,1.56,.64,1)}
+[data-play] .ai-trash .lid,.ai-trash[data-play] .lid{animation:ai-lid 420ms cubic-bezier(.34,1.56,.64,1)}
+[data-play] .ai-trash .body,.ai-trash[data-play] .body{animation:ai-sink 420ms cubic-bezier(.34,1.56,.64,1)}
+[data-play] .ai-tray .arrow,.ai-tray[data-play] .arrow{animation:ai-lift 500ms ease-in-out}
+[data-play] .ai-users .second,.ai-users[data-play] .second{animation:ai-join 520ms cubic-bezier(.34,1.56,.64,1) 60ms both}
+[data-play] .ai-pie .slice,.ai-pie[data-play] .slice{animation:ai-pop 640ms cubic-bezier(.4,0,.2,1)}
+[data-play] .ai-arrow .head,.ai-arrow[data-play] .head{animation:ai-nudge 400ms ease-in-out}
+[data-play] .ai-arrow .line,.ai-arrow[data-play] .line{transform-origin:right;animation:ai-shrink 400ms ease-in-out}
+[data-play] .ai-cam,.ai-cam[data-play]{animation:ai-press 300ms ease-in-out}
+[data-play] .ai-cam .lens,.ai-cam[data-play] .lens{animation:ai-lens 300ms ease-in-out}
+.ai-check path{animation:ai-tick 400ms ease-out both}
+.ai-alert .mark{animation:ai-pulse 800ms ease-in-out 2}
+.h-theme[data-dark="false"] .ai-sun .ray{animation:ai-ray 300ms ease-out var(--d) both}
+.h-theme[data-dark="true"] .ai-moon path{animation:ai-wiggle 640ms ease-in-out 120ms}
+@keyframes ai-draw{from{stroke-dashoffset:1;opacity:0}30%{opacity:1}to{stroke-dashoffset:0;opacity:1}}
+@keyframes ai-tick{from{stroke-dashoffset:1;opacity:0;transform:scale(.5)}25%{opacity:1}to{stroke-dashoffset:0;opacity:1;transform:none}}
+@keyframes ai-spin{from{transform:none}to{transform:rotate(180deg)}}
+@keyframes ai-lid{40%{transform:translateY(-1.5px)}}
+@keyframes ai-sink{40%{transform:translateY(1px)}}
+@keyframes ai-lift{40%{transform:translateY(-2px)}}
+@keyframes ai-join{from{transform:translateX(-6px);opacity:0}30%{opacity:0}to{transform:none;opacity:1}}
+@keyframes ai-pop{35%{transform:translate(1.6px,-1.6px)}60%{transform:translate(1.1px,-1.1px)}}
+@keyframes ai-nudge{50%{transform:translateX(-3px)}}
+@keyframes ai-shrink{50%{transform:scaleX(.8)}}
+@keyframes ai-press{50%{transform:scale(.95)}}
+@keyframes ai-lens{50%{transform:scale(1.1);opacity:.6}}
+@keyframes ai-pulse{50%{transform:scale(1.1);opacity:.4}}
+@keyframes ai-ray{from{opacity:0}}
+@keyframes ai-wiggle{20%{transform:rotate(-10deg)}40%{transform:rotate(10deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(5deg)}}
+@media (prefers-reduced-motion:reduce){.h .ai,.h .ai *{animation:none!important}}
+.h .h-theme{position:relative;flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:20px;color:var(--muted);transition:color 150ms ease}
+.h .h-theme:active{color:var(--fg)}
+.h-theme svg{position:absolute;transition:transform 460ms cubic-bezier(.34,1.56,.64,1),opacity 200ms ease}
+.h-theme .h-moon{opacity:0;transform:rotate(-90deg) scale(.4)}
+.h-theme[data-dark="true"] .h-sun{opacity:0;transform:rotate(90deg) scale(.4)}
+.h-theme[data-dark="true"] .h-moon{opacity:1;transform:none}
+.h-wipe{position:absolute;inset:0;z-index:60;pointer-events:none;animation:h-spread 560ms cubic-bezier(.32,.72,0,1) both}
+.h-wipe[data-out="true"]{opacity:0;transition:opacity 220ms ease}
+::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}
+@keyframes h-spread{from{clip-path:circle(0px at var(--x) var(--y))}to{clip-path:circle(1000px at var(--x) var(--y))}}
+@media (prefers-reduced-motion:reduce){.h-theme svg{transition:opacity 150ms ease}.h-theme .h-moon,.h-theme[data-dark="true"] .h-sun{transform:none}}
+.h-reason{color:var(--muted)}
+.h-reason[data-warn="true"]{color:var(--warn)}
+.h .h-field:focus-visible{outline:none}
+@media (prefers-reduced-motion:reduce){.h-bar span{transition:none}}
+</style>
+</helmet>
+<div class="h" data-theme="{{theme}}" style="width: 390px; height: 844px; position: relative; overflow: hidden">
+<div class="h-scroll" style="height: 100%; overflow-y: auto; box-sizing: border-box; padding: 40px 24px 150px">
+
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h1 style="margin: 0; font-size: 16px; font-weight: 500; line-height: inherit">SplitWith</h1>
+<span style="display: flex; align-items: center; gap: 6px; margin: -10px -10px -10px 0"><button class="h-link" style="font-size: 14px">Recent splits</button><button class="h-theme" data-dark="{{iconDarkAttr}}" aria-label="{{themeLabel}}" onClick="{{toggleTheme}}"><svg class="h-sun ai-sun" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.75"></circle><path class="ray" style="--d: 0ms" d="M12 3v2.25"></path><path class="ray" style="--d: 50ms" d="M18.36 5.64l-1.59 1.59"></path><path class="ray" style="--d: 100ms" d="M21 12h-2.25"></path><path class="ray" style="--d: 150ms" d="M18.36 18.36l-1.59-1.59"></path><path class="ray" style="--d: 200ms" d="M12 18.75V21"></path><path class="ray" style="--d: 250ms" d="M7.23 16.77l-1.59 1.59"></path><path class="ray" style="--d: 300ms" d="M5.25 12H3"></path><path class="ray" style="--d: 350ms" d="M7.23 7.23 5.64 5.64"></path></svg><svg class="h-moon ai-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.75 15A9.72 9.72 0 0 1 18 15.75c-5.39 0-9.75-4.37-9.75-9.75 0-1.33.27-2.6.75-3.75A9.75 9.75 0 0 0 3 11.25C3 16.64 7.37 21 12.75 21a9.75 9.75 0 0 0 9-6Z"></path></svg></button></span>
+</div>
+<p style="margin: 16px 0 0; color: var(--muted); text-wrap: pretty">Snap the receipt. Friends tap what they had and pay you back.</p>
+
+<section aria-label="Receipt" style="margin-top: 32px">
+<sc-if value="{{isEmpty}}" hint-placeholder-val="{{true}}">
+<div class="h-drop h-start">
+<button class="h-shoot" data-anim onClick="{{startReading}}" aria-label="Take a photo of the receipt">
+<span class="h-paper" aria-hidden="true"><i style="width: 72%"></i><i style="width: 52%"></i><i style="width: 64%"></i><i style="width: 40%"></i><i style="width: 58%"></i></span>
+<span class="h-cam" aria-hidden="true"><svg class="ai ai-cam" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.83 6.18a2.31 2.31 0 0 1-1.64 1.05c-.38.05-.76.11-1.13.18-1.05.17-1.8 1.1-1.8 2.17V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.57c0-1.07-.75-1.99-1.8-2.17-.37-.06-.75-.12-1.14-.17a2.31 2.31 0 0 1-1.64-1.06l-.82-1.31a2.19 2.19 0 0 0-1.74-1.04 48.8 48.8 0 0 0-5.23 0 2.19 2.19 0 0 0-1.74 1.04l-.82 1.32Z"></path><path class="lens" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.01v.01h-.01v-.01Z"></path></svg></span>
+<span style="margin-top: 22px; font-size: 18px; font-weight: 500; letter-spacing: -0.01em">Add the receipt</span>
+</button>
+<button class="h-link" onClick="{{startReading}}" style="align-self: center; font-size: 14px">or choose a file</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isReading}}" hint-placeholder-val="{{false}}">
+<div class="h-drop" role="status">
+<div style="display: flex; gap: 16px; align-items: center">
+<span class="h-slip" aria-hidden="true"><i style="width: 80%"></i><i style="width: 60%"></i><i style="width: 70%"></i><i style="width: 45%"></i><i style="width: 65%"></i></span>
+<div style="display: flex; flex-direction: column; flex: 1; min-width: 0">
+<span>Reading the receipt</span>
+<span class="h-label">{{stage}}</span>
+</div>
+</div>
+<div class="h-bar" aria-hidden="true"><span style="width: {{progress}}"></span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{isReady}}" hint-placeholder-val="{{false}}">
+<div class="h-drop">
+<div style="display: flex; gap: 16px; align-items: center">
+<button class="h-slip" aria-label="View the receipt photo" style="cursor: pointer"><i style="width: 80%"></i><i style="width: 60%"></i><i style="width: 70%"></i><i style="width: 45%"></i><i style="width: 65%"></i></button>
+<div style="display: flex; flex-direction: column; flex: 1; min-width: 0">
+<span style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px"><span>Casa Lupa</span><span style="font-variant-numeric: tabular-nums">$135.83</span></span>
+<span class="h-label" style="display: flex; justify-content: space-between; align-items: baseline">7 items<button class="h-link" onClick="{{replace}}" style="font-size: 14px">Replace</button></span>
+</div>
+</div>
+</div>
+</sc-if>
+</section>
+
+<section aria-label="How friends pay you" style="margin-top: 32px; display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h2 style="margin: 0; font-size: 16px; font-weight: 500">How friends pay you</h2>
+
+</div>
+<sc-for list="{{handles}}" as="h" hint-placeholder-count="1">
+<div style="display: flex; align-items: flex-end; gap: 16px; margin-top: 12px">
+<label style="flex: none; display: flex; flex-direction: column">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">Payment app</span>
+<span class="h-appwrap">
+<select class="h-app" value="{{h.app}}" onChange="{{h.onApp}}">
+<sc-for list="{{h.apps}}" as="a" hint-placeholder-count="4">
+<option value="{{a.id}}">{{a.label}}</option>
+</sc-for>
+</select>
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+</span>
+</label>
+<label style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">{{h.fieldLabel}}</span>
+<input class="h-field" placeholder="{{h.placeholder}}" value="{{h.value}}" onChange="{{h.onValue}}" autocapitalize="off" autocorrect="off" spellcheck="false">
+</label>
+<sc-if value="{{h.removable}}" hint-placeholder-val="{{false}}">
+<button class="h-x" data-anim aria-label="{{h.removeLabel}}" onClick="{{h.remove}}"><svg class="ai ai-x" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M6 6l12 12"></path><path pathLength="1" d="M18 6 6 18"></path></svg></button>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{canAddHandle}}" hint-placeholder-val="{{true}}">
+<button class="h-add" data-anim onClick="{{addHandle}}" style="align-self: flex-start; margin-top: 6px"><svg class="ai ai-plus" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg><span>Add another way to get paid</span></button>
+</sc-if>
+</section>
+
+<section aria-label="Who’s at the table" style="margin-top: 26px; display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h2 style="margin: 0; font-size: 16px; font-weight: 500">Who’s at the table</h2>
+
+</div>
+<div role="group" aria-label="Names" style="display: flex; flex-wrap: wrap; align-items: center; column-gap: 18px; margin-top: 8px">
+<sc-for list="{{names}}" as="n" hint-placeholder-count="2">
+<span class="h-name"><i aria-hidden="true"></i>{{n.name}}<sc-if value="{{n.isYou}}" hint-placeholder-val="{{false}}"><span class="h-tag">you</span></sc-if><button class="h-x" data-anim aria-label="{{n.removeLabel}}" onClick="{{n.remove}}" style="width: 28px; height: 28px; margin: 0"><svg class="ai ai-x" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M6 6l12 12"></path><path pathLength="1" d="M18 6 6 18"></path></svg></button></span>
+</sc-for>
+<sc-if value="{{addingName}}" hint-placeholder-val="{{false}}">
+<label class="h-inline">
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">{{draftPlaceholder}}</span>
+<input class="h-field" placeholder="{{draftPlaceholder}}" value="{{draft}}" onChange="{{onDraft}}" onKeyDown="{{onDraftKey}}" onBlur="{{onDraftBlur}}" style="width: 150px">
+</label>
+</sc-if>
+<sc-if value="{{notAddingName}}" hint-placeholder-val="{{true}}">
+<button class="h-add" data-anim onClick="{{openName}}"><svg class="ai ai-plus" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg><span>{{addNameLabel}}</span></button>
+</sc-if>
+</div>
+<span class="h-status" data-warn="true" style="min-height: 22px; font-size: 14px">{{nameError}}</span>
+</section>
+</div>
+
+<div style="position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg); padding: 0 24px 40px">
+<div style="border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 12px">
+<span class="h-reason" data-warn="{{warnAttr}}" role="status" style="font-size: 14px">{{reason}}</span>
+<button class="h-pill" data-anim data-off="{{offAttr}}" aria-disabled="{{blocked}}" onClick="{{create}}" style="width: 100%">Create split link<svg class="ai ai-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"></path><path class="line" d="M21 12H3"></path></svg></button>
+</div>
+</div>
+<sc-if value="{{wipeOn}}" hint-placeholder-val="{{false}}">
+<div class="h-wipe" data-out="{{wipeOutAttr}}" aria-hidden="true" style="--x: {{wipeX}}px; --y: {{wipeY}}px; background: {{wipeColor}}"></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"start":{"editor":"enum","options":["empty","reading","ready"],"default":"empty"},"$preview":{"width":390,"height":844}}'>
+const APPS = [
+  { id: 'venmo', label: 'Venmo', field: 'Username', placeholder: '@username' },
+  { id: 'cashapp', label: 'Cash App', field: 'Cashtag', placeholder: '$cashtag' },
+  { id: 'paypal', label: 'PayPal', field: 'Username', placeholder: 'paypal.me username' },
+  { id: 'zelle', label: 'Zelle', field: 'Email or phone', placeholder: 'Email or phone' },
+];
+const STAGES = ['Finding the text', 'Matching prices', 'Almost done'];
+
+class Component extends DCLogic {
+  componentDidMount() {
+    // Replays an icon's motion on press, or on hover with a mouse, like heroicons-animated.
+    const play = (el) => {
+      if (!el) return;
+      el.removeAttribute('data-play');
+      void el.getBoundingClientRect();
+      el.setAttribute('data-play', '');
+      clearTimeout(el.aiT);
+      el.aiT = setTimeout(() => el.removeAttribute('data-play'), 900);
+    };
+    this.onIcon = (e) => {
+      const t = e.target.closest && e.target.closest('[data-anim],[data-anim-for]');
+      if (!t || !t.closest('.h') || t.getAttribute('aria-disabled') === 'true') return;
+      if (e.type === 'pointerover' && (e.pointerType !== 'mouse' || t.contains(e.relatedTarget))) return;
+      const forId = t.getAttribute('data-anim-for');
+      if (!forId) {
+        // A press just after a hover lets the hover's motion finish instead of restarting it.
+        if (e.type === 'pointerdown' && t.aiHover && performance.now() - t.aiHover < 600) return;
+        if (e.type === 'pointerover') t.aiHover = performance.now();
+        play(t);
+        return;
+      }
+      if (e.type !== 'pointerdown') return;
+      const box = t.closest('.h-scroll') || t.closest('.h');
+      play(box.querySelector('[data-anim-id="' + forId + '"]'));
+    };
+    document.addEventListener('pointerdown', this.onIcon, true);
+    document.addEventListener('pointerover', this.onIcon, true);
+  }
+  componentWillUnmount() {
+    document.removeEventListener('pointerdown', this.onIcon, true);
+    document.removeEventListener('pointerover', this.onIcon, true);
+    clearTimeout(this.toastT);
+  }
+  isDark() { const d = this.st().dark; return d == null ? this.props.theme === 'dark' : d; }
+  toggleTheme(e) {
+    const next = !this.isDark();
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { this.set({ dark: next, wipe: null }); return; }
+    const btn = e.currentTarget;
+    const root = btn.closest('.h');
+    const box = root.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    const k = root.offsetWidth / box.width;
+    if (document.startViewTransition) {
+      const cx = b.left + b.width / 2;
+      const cy = b.top + b.height / 2;
+      const r = Math.hypot(Math.max(cx, window.innerWidth - cx), Math.max(cy, window.innerHeight - cy));
+      const flip = () => new Promise((done) => { this.setState({ ...this.st(), dark: next, iconDark: next, wipe: null }, done); setTimeout(done, 120); });
+      document.startViewTransition(flip).ready.then(() => {
+        document.documentElement.animate(
+          { clipPath: ['circle(0px at ' + cx + 'px ' + cy + 'px)', 'circle(' + r + 'px at ' + cx + 'px ' + cy + 'px)'] },
+          { duration: 600, easing: 'cubic-bezier(.32,.72,0,1)', pseudoElement: '::view-transition-new(root)' },
+        );
+      }).catch(() => {});
+      return;
+    }
+    clearTimeout(this.wipeIn); clearTimeout(this.wipeOut);
+    this.set({ iconDark: next, wipe: { x: Math.round((b.left + b.width / 2 - box.left) * k), y: Math.round((b.top + b.height / 2 - box.top) * k), color: next ? '#111111' : '#fcfcfc', out: false } });
+    this.wipeIn = setTimeout(() => {
+      this.set({ dark: next, wipe: { ...this.st().wipe, out: true } });
+      this.wipeOut = setTimeout(() => this.set({ wipe: null }), 240);
+    }, 560);
+  }
+  st() {
+    if (this.state && this.state.ready) return this.state;
+    return { ready: true, phase: this.props.start || 'empty', step: 0, handles: [{ app: 'venmo', value: '' }], names: [], addingName: false, draft: '', nameError: '', tried: false };
+  }
+  set(patch) { this.setState({ ...this.st(), ...patch }); }
+  componentWillUnmount() { clearTimeout(this.timer); }
+  startReading() {
+    clearTimeout(this.timer);
+    this.set({ phase: 'reading', step: 0 });
+    const tick = (step) => {
+      this.timer = setTimeout(() => {
+        if (step < 2) { this.set({ step: step + 1 }); tick(step + 1); } else this.set({ phase: 'ready' });
+      }, 900);
+    };
+    tick(0);
+  }
+  addName(keepOpen) {
+    const s = this.st();
+    const name = s.draft.trim();
+    if (!name) { this.set({ addingName: keepOpen && s.addingName, nameError: '' }); return; }
+    if (s.names.some((n) => n.toLowerCase() === name.toLowerCase())) { this.set({ nameError: 'That name is already here.' }); return; }
+    this.set({ names: [...s.names, name.slice(0, 40)], draft: '', nameError: '', addingName: !!keepOpen });
+  }
+  componentDidUpdate() {
+    if (this.st().addingName && !this.focused) {
+      this.focused = true;
+      const input = document.querySelector('.h-inline input');
+      if (input) input.focus();
+    }
+    if (!this.st().addingName) this.focused = false;
+  }
+  renderVals() {
+    const s = this.st();
+    const used = s.handles.map((h) => h.app);
+    const handles = s.handles.map((h, i) => {
+      const app = APPS.find((a) => a.id === h.app);
+      return {
+        apps: APPS.filter((a) => a.id === h.app || !used.includes(a.id)).map((a) => ({ id: a.id, label: a.label, on: a.id === h.app })),
+        app: h.app, fieldLabel: app.field, placeholder: app.placeholder, value: h.value,
+        removable: i > 0, removeLabel: 'Remove ' + app.label,
+        onApp: (e) => { const v = e.target.value; this.set({ handles: this.st().handles.map((x, j) => (j === i ? { app: v, value: '' } : x)) }); },
+        onValue: (e) => { const v = e.target.value; this.set({ handles: this.st().handles.map((x, j) => (j === i ? { ...x, value: v } : x)) }); },
+        remove: () => this.set({ handles: this.st().handles.filter((x, j) => j !== i) }),
+      };
+    });
+    let reason = '';
+    if (s.phase === 'empty') reason = 'Add a receipt first.';
+    else if (s.phase === 'reading') reason = 'Reading…';
+    else if (!s.names.length) reason = 'Add your name first.';
+    else if (s.created) reason = 'Link created.';
+    else reason = '';
+    const blocked = s.phase !== 'ready' || !s.names.length;
+    return {
+      theme: this.isDark() ? 'dark' : 'light',
+      toggleTheme: (e) => this.toggleTheme(e),
+      iconDarkAttr: String(this.st().wipe ? !!this.st().iconDark : this.isDark()),
+      themeLabel: this.isDark() ? 'Switch to light mode' : 'Switch to dark mode',
+      wipeOn: !!this.st().wipe,
+      wipeOutAttr: String(!!(this.st().wipe && this.st().wipe.out)),
+      wipeX: this.st().wipe ? this.st().wipe.x : 0,
+      wipeY: this.st().wipe ? this.st().wipe.y : 0,
+      wipeColor: this.st().wipe ? this.st().wipe.color : 'transparent',
+      isEmpty: s.phase === 'empty', isReading: s.phase === 'reading', isReady: s.phase === 'ready',
+      stage: STAGES[s.step], progress: [30, 60, 85][s.step] + '%',
+      startReading: () => this.startReading(),
+      replace: () => this.set({ phase: 'empty' }),
+      handles,
+      canAddHandle: s.handles.length < APPS.length,
+      addHandle: () => { const free = APPS.find((a) => !this.st().handles.some((h) => h.app === a.id)); if (free) this.set({ handles: [...this.st().handles, { app: free.id, value: '' }] }); },
+      names: s.names.map((name, i) => ({ name, isYou: i === 0, removeLabel: 'Remove ' + name, remove: () => this.set({ names: this.st().names.filter((n) => n !== name) }) })),
+      namesHint: s.names.length ? 'Others can add themselves' : 'Start with your name',
+      addingName: !!s.addingName, notAddingName: !s.addingName,
+      addNameLabel: s.names.length ? 'Add name' : 'Add your name',
+      draftPlaceholder: s.names.length ? 'Name' : 'Your name',
+      openName: () => this.set({ addingName: true, nameError: '' }),
+      onDraftBlur: () => this.addName(false),
+      draft: s.draft, onDraft: (e) => { const v = e.target.value; this.set({ draft: v, nameError: '' }); },
+      onDraftKey: (e) => { if (e.key === 'Enter') this.addName(true); if (e.key === 'Escape') this.set({ addingName: false, draft: '' }); },
+      nameError: s.nameError,
+      reason,
+      blocked, offAttr: String(blocked), warnAttr: String(blocked && s.tried),
+      create: () => { if (blocked) { this.set({ tried: true }); return; } this.set({ created: true }); },
+    };
+  }
+}
+</script>
+</body>
+</html>
