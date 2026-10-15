@@ -1,8 +1,9 @@
 export const splitCopy = {
   history: "History",
+  historyKept: "Every change to this split. Revert one to undo it.",
   payments: "Payments",
   receipt: "Receipt",
-  receiptPhoto: "Receipt",
+  receiptPhoto: "Receipt photo",
   receiptKept: "Kept for 14 days after the split was made.",
   openPhoto: "Open the receipt photo",
   shareLink: "Share link",
@@ -81,6 +82,7 @@ export const splitCopy = {
   ring: {
     yourPart: "Your part",
     partOf: (name: string) => `${name}'s part`,
+    everyonePays: (host: string) => `Everyone pays ${host}.`,
     of: (total: string) => `of ${total}`,
     unclaimed: (amount: string) => ` · ${amount} unclaimed`,
     label: (total: string, each: readonly string[], unclaimed: string | null) => `Receipt total ${total}. ${[...each, ...(unclaimed ? [`${unclaimed} unclaimed`] : [])].join(", ")}.`,

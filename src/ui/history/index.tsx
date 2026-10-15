@@ -27,6 +27,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   const c = useColors();
   const [now, setNow] = useState(() => Date.now());
   const [asking, setAsking] = useState<Target | null>(null);
+  const [pending, setPending] = useState<Target | null>(null);
   const [failed, setFailed] = useState<Target | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
@@ -38,18 +39,26 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   const stale = (target: Target) => target !== "restore" && (entries.find(({ revision }) => revision === target)?.reverted ?? true);
 
   const run = async (target: Target, action: () => Promise<boolean>) => {
+    setPending(target);
+    const done = await action();
+    setPending(null);
     setAsking(null);
-    setFailed((await action()) ? null : target);
+    setFailed(done ? null : target);
   };
   const revert = (entry: Entry) => {
-    if (entry.sentAs !== null && entry.sentAs === me) return void run(entry.revision, () => onRevert(entry.revision));
+    if (entry.sentAs !== null && entry.sentAs === me) {
+      void run(entry.revision, () => onRevert(entry.revision));
+      return true;
+    }
     setAsking(entry.revision);
+    return false;
   };
 
   return (
     <View style={styles.sheet}>
       <SheetHeader title={say.history} onClose={onClose} />
       {failed !== null && !stale(failed) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{say.revertFailed}</Text> : null}
+      <Text style={[type.body, { color: c.muted }]}>{say.historyKept}</Text>
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (
           <Row
@@ -64,9 +73,17 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
                 {entry.more > 0 ? <Text style={[styles.muted, { color: c.muted }]}>{` ${say.andMore(entry.more)}`}</Text> : null}
               </Text>
             }
-            confirm={
-              asking === entry.revision && !entry.reverted ? (
-                <Confirm question={say.confirmRevert(entry.name ?? say.someone)} action={say.confirm} onYes={() => run(entry.revision, () => onRevert(entry.revision))} onNo={() => setAsking(null)} />
+            confirm={(swing) =>
+              asking === entry.revision && pending !== entry.revision && !entry.reverted ? (
+                <Confirm
+                  question={say.confirmRevert(entry.name ?? say.someone)}
+                  action={say.confirm}
+                  onYes={() => {
+                    swing();
+                    void run(entry.revision, () => onRevert(entry.revision));
+                  }}
+                  onNo={() => setAsking(null)}
+                />
               ) : null
             }
             asking={asking === entry.revision}
@@ -80,12 +97,27 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           meta={[say.asName(host.name)]}
           reverted={false}
           what={<Text style={[type.body, styles.what, { color: c.ink }]}>{say.created}</Text>}
-          confirm={asking === "restore" ? <Confirm question={say.confirmRestore} action={say.confirmRestoreAction} onYes={() => run("restore", onRestore)} onNo={() => setAsking(null)} /> : null}
+          confirm={(swing) =>
+            asking === "restore" && pending !== "restore" ? (
+              <Confirm
+                question={say.confirmRestore}
+                action={say.confirmRestoreAction}
+                onYes={() => {
+                  swing();
+                  void run("restore", onRestore);
+                }}
+                onNo={() => setAsking(null)}
+              />
+            ) : null
+          }
           asking={asking === "restore"}
           canAct={split.original !== undefined}
           label={say.restore}
           name={say.restoreName}
-          onAct={() => setAsking("restore")}
+          onAct={() => {
+            setAsking("restore");
+            return false;
+          }}
         />
       </View>
     </View>
@@ -96,18 +128,20 @@ type RowProps = {
   meta: readonly (string | null)[];
   reverted: boolean;
   what: ReactNode;
-  confirm: ReactNode;
+  /** Given the arrow's swing, which an accepted confirm plays. */
+  confirm: (swing: () => void) => ReactNode;
   asking: boolean;
   canAct: boolean;
   label: string;
   name: string;
-  onAct: () => void;
+  /** Returns whether the action applied at once, so the arrow swings now and not on a later confirm. */
+  onAct: () => boolean;
 };
 
 function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct }: RowProps) {
   const c = useColors();
   const reduce = useReducedMotion();
-  // A Revert applies the moment it is tapped. Only its link stays a beat, so the undo arrow finishes its swing before "Reverted" takes the place.
+  // A Revert applies the moment it is accepted. Only its link stays a beat, so the undo arrow finishes its swing before "Reverted" takes the place.
   const [swinging, setSwinging] = useState(false);
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -118,9 +152,11 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
     }, swingFor);
     return () => clearTimeout(timer);
   }, [swinging]);
-  const act = () => {
+  const swing = () => {
     if (!reduce) setSwinging(true);
-    onAct();
+  };
+  const act = () => {
+    if (onAct()) swing();
   };
   const link = canAct && (swinging || (!asking && !reverted));
   return (
@@ -128,7 +164,7 @@ function Row({ meta, reverted, what, confirm, asking, canAct, label, name, onAct
       <View style={styles.body}>
         <View style={[reverted && styles.dimmed, !reduce && dim]}>{what}</View>
         <Text style={[type.caption, { color: c.muted }]}>{meta.filter(Boolean).join(" · ")}</Text>
-        {confirm}
+        {swinging ? null : confirm(swing)}
       </View>
       {link ? <Act label={label} name={name} onPress={act} /> : null}
       {reverted && !swinging ? <Reverted fresh={settled} /> : null}
