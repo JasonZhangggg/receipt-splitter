@@ -6,7 +6,7 @@ const easeOut = "cubic-bezier(.23, 1, .32, 1)";
  * text gradient; the two animations sit on different elements, so neither overrides the other. Reduced motion keeps plain ink text.
  */
 export const sentenceCss = `
-[data-step-in] { display: inline-block; animation: rs-step-in 320ms ${easeOut}; }
+[data-step-in] { animation: rs-step-in 320ms ${easeOut}; }
 @keyframes rs-step-in { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: none; } }
 span[data-shimmer] {
   background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 30%, var(--shimmer) 50%, var(--ink) 70%, var(--ink) 100%);
