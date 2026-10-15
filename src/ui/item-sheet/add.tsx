@@ -40,6 +40,7 @@ export function AddSheet({ split, me, send, onClose }: Props) {
   const [kind, setKind] = useState<Kind>("item");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const splitRef = useRef(split);
@@ -48,17 +49,19 @@ export function AddSheet({ split, me, send, onClose }: Props) {
   });
   const nameField = useRef<TextInput>(null);
   const amountField = useRef<TextInput>(null);
+  const quantityField = useRef<TextInput>(null);
   const isItem = kind === "item";
   const has = (on: Split) => (isItem ? on.receipt.items.some(({ id }) => id === ids.item) : on.receipt.adjustments.some(({ id }) => id === ids.adjustment));
 
   const add = async () => {
     if (sending) return;
     if (has(split)) return onClose();
-    const answer = isItem ? newItem(split, { name, price: amount }, ids.item, me) : newAdjustment(split, { kind, name, amount }, ids.adjustment, me);
+    const answer = isItem ? newItem(split, { name, price: amount, quantity }, ids.item, me) : newAdjustment(split, { kind, name, amount }, ids.adjustment, me);
     if (!answer.ok) {
       setProblem(problemText(answer.problem, isItem));
       if (answer.problem === "name") nameField.current?.focus();
       if (answer.problem === "price" || answer.problem === "amount" || answer.problem === "overLimit") amountField.current?.focus();
+      if (answer.problem === "quantity") quantityField.current?.focus();
       return;
     }
     setSending(true);
@@ -112,10 +115,29 @@ export function AddSheet({ split, me, send, onClose }: Props) {
             setProblem(null);
           }}
           onBlur={() => setAmount(tidyAmount)}
-          enterKeyHint="done"
-          submitBehavior="blurAndSubmit"
-          onSubmitEditing={() => void add()}
+          enterKeyHint={isItem ? "next" : "done"}
+          submitBehavior={isItem ? "submit" : "blurAndSubmit"}
+          onSubmitEditing={() => (isItem ? quantityField.current?.focus() : void add())}
         />
+        {isItem ? (
+          <MoneyField
+            ref={quantityField}
+            label={say.howMany}
+            unit=""
+            width={64}
+            inputMode="numeric"
+            placeholder="1"
+            maxLength={2}
+            value={quantity}
+            onChangeText={(next) => {
+              setQuantity(next);
+              setProblem(null);
+            }}
+            enterKeyHint="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={() => void add()}
+          />
+        ) : null}
       </View>
       {missing !== null ? (
         <View style={styles.offer}>

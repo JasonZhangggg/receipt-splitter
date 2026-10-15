@@ -150,7 +150,7 @@ test("a Split at 100 Items says it is full and sends nothing", async ({ browser,
   expect(sent.filter((frame) => frame.includes('"add"'))).toEqual([]);
 });
 
-test("Add item with no name focuses the name and says so, and Return walks name and price, then adds", async ({ browser, request }, { workerIndex }) => {
+test("Add item with no name focuses the name and says so, and Return walks name, price and How many, then adds", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
   await openAdd(sam, "Item");
@@ -163,6 +163,8 @@ test("Add item with no name focuses the name and says so, and Return walks name 
   await sam.keyboard.press("Enter");
   await expect(field(sam, "Price")).toBeFocused();
   await sam.keyboard.type("6.50");
+  await sam.keyboard.press("Enter");
+  await expect(field(sam, "How many")).toBeFocused();
   await sam.keyboard.press("Enter");
 
   await expect(sheet(sam)).toHaveCount(0, live);

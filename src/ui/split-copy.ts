@@ -123,6 +123,7 @@ export const splitCopy = {
   addProblem: {
     name: "Add a name.",
     price: "Add a price.",
+    quantity: "Use a whole number from 1 to 20.",
     overLimit: (max: string) => `That price is over ${max}.`,
     tooManyItems: "A split holds at most 100 items.",
     tooLarge: "This split is full. Delete an item to add one.",
@@ -132,6 +133,7 @@ export const splitCopy = {
   kind: "What to add",
   shortfall: (amount: string) => `The receipt is ${amount} short.`,
   useAmount: (amount: string) => `Use ${amount}`,
+  howMany: "How many",
   sharedCharges: {
     tax: "Tax stays at the receipt's amount and is shared across the new item too.",
     tip: "Tip stays at the receipt's amount and is shared across the new item too.",
