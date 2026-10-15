@@ -18,6 +18,8 @@ type TargetProps = Action & {
   name?: string;
   outsideScroll?: boolean;
   disabled?: boolean;
+  /** Reads as disabled to a screen reader and to icon motion but still takes a press, so a tap can say why. */
+  softDisabled?: boolean;
   busy?: boolean;
   describedBy?: string;
   toggled?: boolean;
@@ -34,11 +36,18 @@ type TargetProps = Action & {
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fallbackHref, name, outsideScroll = false, disabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
+export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fallbackHref, name, outsideScroll = false, disabled = false, softDisabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
   const [held, setHeld] = useState(false);
   const self = useRef<View>(null);
   if (disabled && held) setHeld(false);
   useContextMenu(self, onLongPress && !disabled ? onLongPress : null);
+  // Pressable writes its own aria-disabled from `disabled`, so a control that only looks off says so on the element.
+  useEffect(() => {
+    const element = self.current as unknown as HTMLElement | null;
+    if (Platform.OS !== "web" || !element) return;
+    if (softDisabled) element.setAttribute("aria-disabled", "true");
+    else if (!disabled) element.removeAttribute("aria-disabled");
+  }, [softDisabled, disabled]);
   const web =
     Platform.OS === "web"
       ? {
@@ -119,6 +128,13 @@ const kinds = {
     label: type.body,
     icon: 20,
     tone: (c: Colors): Tone => ({ fill: c.sheetIn, ink: c.ink }),
+  },
+  /** The compact black pill a sheet's form ends with. */
+  compact: {
+    face: { height: 44, paddingHorizontal: 22, borderRadius: 22 },
+    label: type.body,
+    icon: 18,
+    tone: (c: Colors, disabled: boolean): Tone => (disabled ? { fill: c.off, ink: c.onOff } : { fill: c.action, ink: c.onAction }),
   },
   outline: { face: { width: 54, height: 54, borderRadius: 27 }, label: type.body, icon: 20, tone: (c: Colors): Tone => ({ ink: c.ink, ring: c.hairline }) },
   /** The outline box beside the payment field: as tall as the field, 4 px wider each side than the remove box so the plus has more room. */

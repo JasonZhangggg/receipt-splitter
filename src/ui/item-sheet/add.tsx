@@ -2,17 +2,16 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { MAX_CENTS } from "../../core/money";
-import { MAX_DETAIL_LENGTH, MAX_QUANTITY, MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
-import { itemId, randomId, type ParticipantId, type Split } from "../../core/split";
+import { MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
+import { RECEIPT_LEVEL_KINDS, adjustmentId, itemId, randomId, type ParticipantId, type ReceiptLevelKind, type Split } from "../../core/split";
 import type { Answer } from "../../live/client";
-import { Button, PressTarget } from "../components/button";
-import { pressStyle, useReducedMotion } from "../motion";
+import { adjustmentProblem, newAdjustment, takesOff, tidyAmount, type AdjustmentProblem } from "../adjustment-sheet/adjustment";
+import { Button } from "../components/button";
+import { LabeledField, MoneyField, Options } from "../components/sheet-fields";
 import { splitCopy as say } from "../split-copy";
-import { fieldGroup } from "../document";
-import { layout, tabular, type, useColors } from "../theme";
-import { Stepper } from "./index";
-import { newItem, problemFor, type NewItem, type NewItemProblem } from "./new-item";
+import { type, useColors } from "../theme";
 import { SheetHeader } from "../split-view/sheet-header";
+import { newItem, problemFor, type NewItemProblem } from "./new-item";
 
 type Props = {
   split: Split;
@@ -21,147 +20,117 @@ type Props = {
   onClose: () => void;
 };
 
-const empty: NewItem = { name: "", detail: "", price: "", quantity: 1, who: [] };
+type Kind = "item" | ReceiptLevelKind;
+const kinds: readonly Kind[] = ["item", ...RECEIPT_LEVEL_KINDS];
+const labels: Record<Kind, string> = { item: say.item, ...say.kinds };
+const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
-/** A new Item as a form: nothing reaches the Split until Add item, so other phones never see it half typed. */
-export function AddItemSheet({ split, me, send, onClose }: Props) {
+function problemText(problem: NewItemProblem | AdjustmentProblem, item: boolean): string {
+  if (problem === "overLimit") return item ? say.addProblem.overLimit(maxAmount) : say.adjustmentProblem.overLimit(maxAmount);
+  return item ? say.addProblem[problem as Exclude<NewItemProblem, "overLimit">] : say.adjustmentProblem[problem as Exclude<AdjustmentProblem, "overLimit">];
+}
+
+/** A new Item, tax, tip, fee or discount as one form: nothing reaches the Split until Add, so other phones never see it half typed. */
+export function AddSheet({ split, me, send, onClose }: Props) {
   const c = useColors();
-  const reduce = useReducedMotion();
-  // Minted once, so a retry after a lost answer cannot add the Item twice.
-  const [id] = useState(() => itemId(randomId(12)));
-  const [typed, setTyped] = useState<NewItem>(empty);
-  const [problem, setProblem] = useState<NewItemProblem | null>(null);
+  // Minted once, so a retry after a lost answer cannot add the line twice.
+  const [ids] = useState(() => ({ item: itemId(randomId(12)), adjustment: adjustmentId(randomId(12)) }));
+  const [kind, setKind] = useState<Kind>("item");
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const splitRef = useRef(split);
   useLayoutEffect(() => {
     splitRef.current = split;
   });
   const nameField = useRef<TextInput>(null);
-  const detailField = useRef<TextInput>(null);
-  const priceField = useRef<TextInput>(null);
-  const change = (next: Partial<NewItem>) => {
-    setTyped((was) => ({ ...was, ...next }));
-    setProblem(null);
-  };
+  const amountField = useRef<TextInput>(null);
+  const isItem = kind === "item";
+  const has = (on: Split) => (isItem ? on.receipt.items.some(({ id }) => id === ids.item) : on.receipt.adjustments.some(({ id }) => id === ids.adjustment));
 
   const add = async () => {
     if (sending) return;
-    if (split.receipt.items.some((item) => item.id === id)) return onClose();
-    const answer = newItem(split, typed, id, me);
+    if (has(split)) return onClose();
+    const answer = isItem ? newItem(split, { name, price: amount }, ids.item, me) : newAdjustment(split, { kind, name, amount }, ids.adjustment, me);
     if (!answer.ok) {
-      setProblem(answer.problem);
+      setProblem(problemText(answer.problem, isItem));
       if (answer.problem === "name") nameField.current?.focus();
-      if (answer.problem === "price" || answer.problem === "overLimit") priceField.current?.focus();
+      if (answer.problem === "price" || answer.problem === "amount" || answer.problem === "overLimit") amountField.current?.focus();
       return;
     }
     setSending(true);
     const sent = await send(answer.op);
-    if (sent.ok || splitRef.current.receipt.items.some((item) => item.id === id)) return onClose();
+    if (sent.ok || has(splitRef.current)) return onClose();
     setSending(false);
-    setProblem(problemFor(sent.rejection.reason));
+    setProblem(problemText(isItem ? problemFor(sent.rejection.reason) : adjustmentProblem(sent.rejection.reason), isItem));
   };
 
+  const word = labels[kind];
+  const off = !isItem && takesOff(kind);
   return (
     <View style={styles.sheet} pointerEvents={sending ? "none" : "auto"}>
-      <SheetHeader title={say.newItem} onClose={onClose} />
-      <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
-        <TextInput
+      <SheetHeader title={say.addMenu} onClose={onClose} />
+      <Options
+        options={kinds}
+        labels={labels}
+        name={say.kind}
+        value={kind}
+        onChange={(next) => {
+          setKind(next);
+          setProblem(null);
+        }}
+      />
+      <View style={styles.pair}>
+        <LabeledField
           ref={nameField}
-          aria-label={say.itemName}
-          placeholder={say.itemName}
-          placeholderTextColor={c.muted}
-          value={typed.name}
+          label={say.adjustmentName}
+          placeholder={isItem ? say.itemNamePlaceholder : word}
+          value={name}
           maxLength={MAX_ROW_NAME_LENGTH}
           autoCapitalize="words"
-          onChangeText={(name) => change({ name })}
+          onChangeText={(next) => {
+            setName(next);
+            setProblem(null);
+          }}
           enterKeyHint="next"
           submitBehavior="submit"
-          onSubmitEditing={() => detailField.current?.focus()}
-          style={[type.input, styles.field, { color: c.ink }]}
+          onSubmitEditing={() => amountField.current?.focus()}
         />
-        <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
-        <TextInput
-          ref={detailField}
-          aria-label={say.itemDetail}
-          placeholder={say.addDetail}
-          placeholderTextColor={c.muted}
-          value={typed.detail}
-          maxLength={MAX_DETAIL_LENGTH}
-          onChangeText={(detail) => change({ detail })}
-          enterKeyHint="next"
-          submitBehavior="submit"
-          onSubmitEditing={() => priceField.current?.focus()}
-          style={[type.input, styles.field, { color: c.ink }]}
+        <MoneyField
+          ref={amountField}
+          label={isItem ? say.price : off ? say.amountOff : say.amount}
+          unit={off ? "-$" : "$"}
+          placeholder={say.pricePlaceholder}
+          value={amount}
+          onChangeText={(next) => {
+            setAmount(next);
+            setProblem(null);
+          }}
+          onBlur={() => setAmount(tidyAmount)}
+          enterKeyHint="done"
+          submitBehavior="blurAndSubmit"
+          onSubmitEditing={() => void add()}
         />
       </View>
-      <View {...fieldGroup} style={[styles.group, { backgroundColor: c.sheetIn }]}>
-        <View style={styles.row}>
-          <Text style={[type.caption, styles.rowLabel, { color: c.muted }]}>{say.price}</Text>
-          <Text style={[type.input, { color: c.ink }]}>$</Text>
-          <TextInput
-            ref={priceField}
-            aria-label={say.price}
-            placeholder={say.pricePlaceholder}
-            placeholderTextColor={c.muted}
-            inputMode="decimal"
-            value={typed.price}
-            onChangeText={(price) => change({ price })}
-            enterKeyHint="done"
-            submitBehavior="blurAndSubmit"
-            onSubmitEditing={() => void add()}
-            style={[type.input, tabular, styles.priceInput, { color: c.ink }]}
-          />
-        </View>
-        <View style={[styles.groupRule, { backgroundColor: c.hairline }]} />
-        <View style={styles.row}>
-          <Text style={[type.caption, styles.rowLabel, { color: c.muted }]}>{say.quantity}</Text>
-          <Stepper value={typed.quantity} min={1} max={MAX_QUANTITY} onChange={(quantity) => change({ quantity })} names={[say.oneFewer, say.oneMore]} />
-        </View>
-      </View>
-      <Text style={[type.caption, styles.label, { color: c.muted }]}>{say.whoHadIt}</Text>
-      <View role="group" aria-label={say.whoHadIt} style={styles.chips}>
-        {split.participants.map((person) => {
-          const on = typed.who.includes(person.id);
-          return (
-            <PressTarget
-              key={person.id}
-              name={person.name}
-              toggled={on}
-              outsideScroll
-              onPress={() => change({ who: on ? typed.who.filter((one) => one !== person.id) : [...typed.who, person.id] })}
-              style={(pressed) => pressStyle(pressed, reduce)}
-            >
-              {() => (
-                <View style={[styles.chip, { backgroundColor: on ? c.action : c.sheetIn }]}>
-                  <Text style={[type.body, { color: on ? c.onAction : c.ink }]}>{person.name}</Text>
-                </View>
-              )}
-            </PressTarget>
-          );
-        })}
-      </View>
+      <Text style={[type.caption, styles.hint, { color: c.muted }]}>{say.addHints[kind === "discount" ? "discount" : isItem ? "item" : "charge"]}</Text>
       <View style={styles.action}>
-        <Button label={say.addItem} busy={sending} outsideScroll onPress={() => void add()} />
+        <Text role="status" style={[type.caption, styles.problem, { color: c.warn }]}>
+          {problem ?? ""}
+        </Text>
+        <View style={styles.pill}>
+          <Button kind="compact" label={say.addKind(word)} busy={sending} outsideScroll onPress={() => void add()} />
+        </View>
       </View>
-      {/* Always laid out one line tall, so a problem appearing does not resize the sheet. */}
-      <Text role="status" style={[type.caption, styles.problem, { minHeight: type.caption.lineHeight, color: c.muted }]}>
-        {problem === null ? "" : problem === "overLimit" ? say.addProblem.overLimit(`$${(MAX_CENTS / 100).toLocaleString("en-US")}`) : say.addProblem[problem]}
-      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: { gap: layout.blockGap },
-  group: { borderRadius: layout.fieldRadius, overflow: "hidden" },
-  groupRule: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
-  field: { minHeight: layout.field, paddingHorizontal: 16 },
-  row: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: layout.field, paddingLeft: 16, paddingRight: 6 },
-  rowLabel: { marginRight: "auto" },
-  priceInput: { width: 96, textAlign: "right", minHeight: 44, paddingRight: 10 },
-  label: { marginHorizontal: 2, marginTop: 4, marginBottom: -4 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: layout.pairGap },
-  chip: { minHeight: 44, paddingHorizontal: 15, borderRadius: 22, justifyContent: "center" },
-  action: { marginTop: 4 },
-  problem: { alignSelf: "center", marginTop: -4 },
+  sheet: { gap: 14 },
+  pair: { flexDirection: "row", alignItems: "flex-end", gap: 20, marginTop: 4 },
+  hint: { marginTop: -4 },
+  action: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  problem: { flex: 1, minHeight: type.caption.lineHeight },
+  pill: { flexShrink: 0 },
 });

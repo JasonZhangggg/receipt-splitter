@@ -138,12 +138,12 @@ test("the Guinness line is one 3x row at 21.87, and its circle claims the whole 
 test("the Item sheet shows the gray line under a row's name in its Detail field, and renaming the Item keeps that line", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  const sheet = page.getByRole("dialog", { name: "Item" });
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
   const field = (name: string) => sheet.getByRole("textbox", { name, exact: true });
 
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
   await expect(field("Item name")).toHaveValue("Gameplay");
-  await expect(field("Detail")).toHaveValue("");
+  await expect(field("Description")).toHaveValue("");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
 
@@ -152,7 +152,7 @@ test("the Item sheet shows the gray line under a row's name in its Detail field,
   await expect(ultra.getByText("16oz Aluminum Bottle", { exact: true })).toBeVisible();
   await ultra.click();
   await expect(field("Item name")).toHaveValue("Michelob Ultra");
-  await expect(field("Detail")).toHaveValue("16oz Aluminum Bottle");
+  await expect(field("Description")).toHaveValue("16oz Aluminum Bottle");
 
   await field("Item name").fill("Michelob Ultra Lite");
   await sheet.getByRole("button", { name: "Close" }).click();
@@ -165,7 +165,7 @@ test("the Item sheet shows the gray line under a row's name in its Detail field,
 test("typing a sized row's name back to what it was saves nothing, so History has no empty row", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  const sheet = page.getByRole("dialog", { name: "Item" });
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
   const field = (name: string) => sheet.getByRole("textbox", { name, exact: true });
 
   await firstBucket(page).click();
@@ -176,7 +176,7 @@ test("typing a sized row's name back to what it was saves nothing, so History ha
   await expect(sheet).toHaveCount(0, live);
 
   await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).click();
-  await field("Detail").fill("16oz Can");
+  await field("Description").fill("16oz Can");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
   await fromMore(page, "History");
@@ -196,7 +196,7 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
   await expect(guinnessCircle(sam, "Sam")).toHaveAttribute("aria-pressed", "true", live);
 
   await guinness(sam).click();
-  const sheet = sam.getByRole("dialog", { name: "Item" });
+  const sheet = sam.getByRole("dialog", { name: "Edit item" });
   await expect(sheet.getByText("In Beer Bucket. Its 10% off takes $2.19 off this line.")).toBeVisible();
   await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
   await expect(sheet.getByTestId("quantity")).toHaveText("3");
@@ -242,7 +242,7 @@ test("no frame shows the 3x row beside the rows Split adds, or two 3x rows", asy
       }),
     region,
   );
-  await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Split into 3" }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Split into 3" }).click();
 
   const seen = [...new Set(await frames)];
   expect(seen).toEqual(["3x", "7.29 7.29 7.29"]);
@@ -289,7 +289,7 @@ function sheetFrames(page: Page) {
         const seen: string[] = [];
         const started = performance.now();
         const sample = () => {
-          const sheet = document.querySelector('[role="dialog"][aria-label="Item"]');
+          const sheet = document.querySelector('[role="dialog"][aria-label="Edit item"]');
           if (sheet) {
             const heading = sheet.querySelector('[role="heading"]')?.textContent ?? "no heading";
             const price = (sheet.querySelector('input[aria-label="Price"]') as HTMLInputElement | null)?.value ?? "no price";
@@ -312,7 +312,7 @@ for (const rafDelay of [0, 200]) {
     await guinnessCircle(sam, "Sam").click();
     await expect(guinnessCircle(sam, "Sam")).toHaveAttribute("aria-pressed", "true", live);
     await guinness(sam).click();
-    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
     const frames = sheetFrames(sam);
 
@@ -320,7 +320,7 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     await expect(cans(sam)).toHaveCount(3);
-    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19 $21.87"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87"]);
   });
 
   test(`the Item sheet keeps showing the deleted Item on every frame while Delete item closes it, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -328,14 +328,14 @@ for (const rafDelay of [0, 200]) {
     await pick(sam, "Sam");
     await firstBucket(sam).click();
     await sam.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first().click();
-    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("6.29");
     const frames = sheetFrames(sam);
 
     await sheet.getByRole("button", { name: "Delete item" }).click();
 
     await expect(sheet).toHaveCount(0, live);
-    expect([...new Set(await frames)]).toEqual(["Item | 6.29 | $0.63"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 6.29 | $0.63 $6.29"]);
   });
 
   test(`a price typed just before Split shows with the Bundle note for that price on every frame while the Split waits on the server, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -343,7 +343,7 @@ for (const rafDelay of [0, 200]) {
     await pick(sam, "Sam");
     await firstBucket(sam).click();
     await guinness(sam).click();
-    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const sheet = sam.getByRole("dialog", { name: "Edit item" });
     const price = sheet.getByRole("textbox", { name: "Price" });
     await expect(price).toHaveValue("21.87");
     await price.fill("24.00");
@@ -355,7 +355,7 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     await expect(sam.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, \$8\.00, / })).toHaveCount(3, live);
-    expect([...new Set(await frames)]).toEqual(["Item | 24.00 | $2.29"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 24.00 | $2.29 $24.00"]);
   });
 
   test(`a claim from another device while Split waits on the server leaves the sheet on the tapped state, and the rows arrive with the claim, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -367,7 +367,7 @@ for (const rafDelay of [0, 200]) {
     await firstBucket(sam).click();
     await firstBucket(priya).click();
     await guinness(sam).click();
-    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
     const frames = sheetFrames(sam);
 
@@ -378,7 +378,7 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, Priya" })).toHaveCount(3, live);
-    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87"]);
   });
 
   test(`a Split that loses a race to another device's Split leaves the sheet on the row as it is now, with its own price, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -390,20 +390,20 @@ for (const rafDelay of [0, 200]) {
     await firstBucket(sam).click();
     await firstBucket(priya).click();
     await guinness(sam).click();
-    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
     const frames = sheetFrames(sam);
 
     await sheet.getByRole("button", { name: "Split into 3" }).click();
     await guinness(priya).click();
-    await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Split into 3" }).click();
+    await priya.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Split into 3" }).click();
     await expect(guinness(priya)).toHaveCount(0, live);
     release();
 
     await expect(sheet.getByText("Couldn't save that. Check it and try again.")).toBeVisible(live);
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("7.29");
     await expect(cans(sam)).toHaveCount(3, live);
-    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19", "Item | 7.29 | $0.73"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87", "Edit item | 7.29 | $0.73 $7.29"]);
   });
 
   test(`a Delete item that loses a race to another device's Delete item closes the sheet on the tapped state, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -415,19 +415,19 @@ for (const rafDelay of [0, 200]) {
     await firstBucket(sam).click();
     await firstBucket(priya).click();
     await guinness(sam).click();
-    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
     const frames = sheetFrames(sam);
 
     await sheet.getByRole("button", { name: "Delete item" }).click();
     await guinness(priya).click();
-    await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Delete item" }).click();
+    await priya.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Delete item" }).click();
     await expect(guinness(priya)).toHaveCount(0, live);
     release();
 
     await expect(sheet).toHaveCount(0, live);
     await expect(guinness(sam)).toHaveCount(0);
-    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87"]);
   });
 
   test(`another device's Delete item closes an open Item sheet on the Item as it was, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -439,16 +439,16 @@ for (const rafDelay of [0, 200]) {
     await firstBucket(sam).click();
     await firstBucket(priya).click();
     await guinness(sam).click();
-    const sheet = sam.getByRole("dialog", { name: "Item" });
+    const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
     const frames = sheetFrames(sam);
 
     await guinness(priya).click();
-    await priya.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Delete item" }).click();
+    await priya.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Delete item" }).click();
 
     await expect(sheet).toHaveCount(0, live);
     await expect(guinness(sam)).toHaveCount(0);
-    expect([...new Set(await frames)]).toEqual(["Item | 21.87 | $2.19"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87"]);
   });
 }
 
@@ -463,7 +463,7 @@ test("Delete item takes a Bundle Item off for everyone, and Revert brings it bac
   await expect(guinnessCircle(sam, "Sam")).toHaveAttribute("aria-pressed", "true", live);
 
   await sam.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first().click();
-  const sheet = sam.getByRole("dialog", { name: "Item" });
+  const sheet = sam.getByRole("dialog", { name: "Edit item" });
   await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("6.29");
   await expect(sheet.getByRole("button", { name: /^Split into/ })).toHaveCount(0);
   await sheet.getByRole("button", { name: "Delete item" }).click();
@@ -567,7 +567,7 @@ test("typing the original name back while the first edit is unconfirmed still sa
   });
   await page.goto(await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  const sheet = page.getByRole("dialog", { name: "Item" });
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
   const name = sheet.getByRole("textbox", { name: "Item name", exact: true });
 
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();

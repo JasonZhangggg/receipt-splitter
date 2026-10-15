@@ -52,7 +52,7 @@ async function createSplit(request: APIRequestContext, workerIndex: number): Pro
 
 const pick_ = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" });
 const footer = (page: Page) => page.getByTestId("footer");
-const itemPopover = (page: Page) => page.getByRole("dialog", { name: "Item" });
+const itemPopover = (page: Page) => page.getByRole("dialog", { name: "Edit item" });
 const gameplay = (page: Page) => page.getByRole("button", { name: /^Open Gameplay, \$87\.75, / });
 const firstBucket = (page: Page) => page.getByRole("button", { name: /^Beer Bucket, / }).first();
 const guinness = (page: Page) => page.getByRole("button", { name: /^Open 3x Guinness Draught 14\.9oz Can, \$21\.87, / });

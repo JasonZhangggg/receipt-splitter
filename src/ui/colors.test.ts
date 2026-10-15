@@ -33,7 +33,6 @@ const text: [fg: keyof Colors, bg: keyof Colors][] = [
   ["onAction", "action"],
   ["onOff", "off"],
   ["onSelfBadge", "selfBadge"],
-  ["danger", "sheetIn"],
   ["good", "sheet"],
   ["good", "sheetIn"],
   ["good", "paper"],

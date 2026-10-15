@@ -46,7 +46,7 @@ test("on a 300 ms round trip, switching the split type never shows the old type 
         for (const node of record.addedNodes) if (node instanceof Element && node.querySelector('[aria-label="More shares for Jason"]')) added.push("rows");
     }).observe(document.body, { childList: true, subtree: true });
   });
-  const modes = await sample<string | null>(page, `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"] [aria-pressed="true"]')?.getAttribute("aria-label") ?? null`);
+  const modes = await sample<string | null>(page, `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"] [aria-pressed="true"]')?.getAttribute("aria-label") ?? null`);
   await tap(page.getByTestId("item-sheet").getByRole("button", { name: "By shares", exact: true }));
   await page.waitForTimeout(2000);
   expect(runs(await modes())).toEqual(["Evenly", "By shares"]);
@@ -66,8 +66,8 @@ async function slowed(page: Page) {
     Object.assign(window, { frames });
     const tick = (t: number) => {
       for (const animation of document.getAnimations()) if (animation.playbackRate !== 1 / factor) animation.playbackRate = 1 / factor;
-      const group = document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"]');
-      const copies = [...(group?.parentElement?.nextElementSibling?.children ?? [])].map((copy) => ({
+      const group = document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"]');
+      const copies = [...(group?.nextElementSibling?.nextElementSibling?.children ?? [])].map((copy) => ({
         kind: copy.querySelector('[aria-label^="More shares"]') ? ("shares" as const) : copy.querySelector("input") ? ("amount" as const) : ("even" as const),
         opacity: Number(getComputedStyle(copy).opacity),
       }));
@@ -99,7 +99,7 @@ const rowsOf = {
 };
 
 async function switchTo(page: Page, mode: "Evenly" | keyof typeof rowsOf) {
-  await page.getByTestId("item-sheet").getByRole("group", { name: "Split" }).getByRole("button", { name: mode, exact: true }).tap({ force: true });
+  await page.getByTestId("item-sheet").getByRole("group", { name: "How to split" }).getByRole("button", { name: mode, exact: true }).tap({ force: true });
 }
 
 test("at 4x slowdown, switching the split type fades the old rows out fully before the new rows fade in", { tag: "@frame-timing" }, async ({ page }) => {
@@ -240,19 +240,13 @@ test("the item sheet stays where it lies in the page while the price field's key
   expect(runs(await tops())).toEqual([resting]);
 });
 
-test("with the keyboard up, the item sheet's price and name fields stay in view, uncovered", async ({ page }) => {
+test("with the keyboard up, the item sheet's price field stays in view, uncovered", async ({ page }) => {
   await simulateKeyboard(page, keyboard);
   await itemShared(page);
   const item = page.getByTestId("item-sheet");
   await tap(item.locator('input[aria-label="Price"]'));
   await page.waitForTimeout(600);
   expect(await inView(item.locator('input[aria-label="Price"]'))).toEqual({ inside: true, uncovered: true });
-
-  await blur(page);
-  await page.waitForTimeout(600);
-  await tap(item.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Add a person" }));
-  await page.waitForTimeout(600);
-  expect(await inView(item.locator('input[aria-label="Name"]'))).toEqual({ inside: true, uncovered: true });
 });
 
 test("with the keyboard up, the name field added from the People sheet's plus stays in view, uncovered", async ({ page }) => {

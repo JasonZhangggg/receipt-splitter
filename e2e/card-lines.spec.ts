@@ -81,9 +81,9 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await check(priya, "Sprite", "Priya");
   await expectLine(both, "Unclaimed", "$0.00");
 
-  const sheet = priya.getByRole("dialog", { name: "Item" });
+  const sheet = priya.getByRole("dialog", { name: "Edit item" });
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
-  await sheet.getByRole("group", { name: "Split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
   await expectLine(both, "Unclaimed · 1 item", "$2.50");
 
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("1.00");

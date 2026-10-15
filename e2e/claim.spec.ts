@@ -122,8 +122,8 @@ test("Tostones split 2:1 by shares and the 2x Pitchers line claimed whole reach 
   await sam.getByRole("button", { name: /^Open Tostones/ }).click();
   await sam.getByRole("button", { name: "By shares" }).click();
   await sam.getByRole("button", { name: "More shares for Jason" }).click();
-  await expect(sam.getByText("3 shares")).toBeVisible(live);
-  await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await expect(sam.getByText("2 shares")).toBeVisible(live);
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
   await expect(owe(sam)).toHaveText("$0.33", live);
   await expect(jason.getByTestId("line-tostones")).toContainText("$0.67 yours", live);
 
@@ -132,7 +132,7 @@ test("Tostones split 2:1 by shares and the 2x Pitchers line claimed whole reach 
   await jason.getByRole("button", { name: /^Open 2x Pitchers/ }).click();
   await jason.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
   await expect(jason.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" })).toHaveAttribute("aria-pressed", "true", live);
-  await jason.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await jason.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
   await expect(owe(sam)).toHaveText("$24.33", live);
   await expect(sam.getByRole("button", { name: "Open 2x Pitchers, $24.00, You, $24.00 yours" })).toHaveCount(1, live);
 });
@@ -146,7 +146,7 @@ test("a price change shows the mismatch everywhere, and a revert from another br
 
   await sam.getByRole("button", { name: /^Open Sprite/ }).click();
   await sam.getByRole("textbox", { name: "Price" }).fill("2.75");
-  await sam.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Close" }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
   await expect(jason.getByText("Items are $0.25 over the subtotal.")).toBeVisible(live);
 
   await fromMore(jason, "History");
@@ -280,7 +280,7 @@ test("Priya's open confirm to check Rice for Sam closes when Jason deletes Rice"
   await expect(asks(priya, "Check Rice for Sam?")).toBeVisible(live);
 
   await jason.getByRole("button", { name: /^Open Rice, / }).click();
-  await jason.getByRole("dialog", { name: "Item" }).getByRole("button", { name: "Delete item" }).click();
+  await jason.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Delete item" }).click();
 
   await expect(asks(priya, "Check Rice for Sam?")).toHaveCount(0, live);
   await expect(circle(priya, "Rice", "Sam")).toHaveCount(0);

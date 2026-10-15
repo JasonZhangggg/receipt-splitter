@@ -659,7 +659,7 @@ const photoProbes: Probe[] = [
   { key: "photoScale", find: label("Close photo"), kind: "scale" },
 ];
 
-const segmentThumb = `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="Split"]')?.firstElementChild ?? null`;
+const segmentThumb = `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"]')?.firstElementChild ?? null`;
 const nameField = `document.querySelector('[data-testid="split-sheet"] input[aria-label="Name"]')`;
 const priceField = `document.querySelector('[data-testid="item-sheet"] input[aria-label="Price"]')`;
 
@@ -1006,7 +1006,7 @@ export const animationsDone = (page: Page) => page.waitForFunction(() => documen
 const anyWidth = new Set(["name-add", "photo-open", "photo-close", "reduced-photo-open"]);
 
 const pane = (page: Page) => page.getByRole("complementary");
-const itemPopover = `document.querySelector('[role="dialog"][aria-label="Item"]')`;
+const itemPopover = `document.querySelector('[role="dialog"][aria-label="Edit item"]')`;
 const popoverProbes: Probe[] = [
   { key: "popover", find: itemPopover, kind: "opacity" },
   { key: "popoverScale", find: itemPopover, kind: "scale" },
@@ -1038,7 +1038,7 @@ async function deskPicked(page: Page) {
 async function deskPopover(page: Page) {
   await deskPicked(page);
   await riceLine(page).click();
-  await page.getByRole("dialog", { name: "Item" }).waitFor();
+  await page.getByRole("dialog", { name: "Edit item" }).waitFor();
   await page.waitForTimeout(400);
 }
 

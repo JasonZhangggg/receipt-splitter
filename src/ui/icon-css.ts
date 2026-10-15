@@ -5,6 +5,7 @@ const inOut = "cubic-bezier(.77, 0, .175, 1)";
 /** Motions of docs/design/b2/split.dc.html. icon.web.tsx sets data-play for a replay. Tick and warning play on mount when icon.web.tsx marks them data-appear, which it does only for icons mounted after the first press or key, so ticks already on screen never animate. */
 export const iconCss = `
 .ai { overflow: visible; }
+.ai-trash { transition: stroke 150ms ease; }
 .ai * { transform-box: fill-box; transform-origin: center; }
 .ai-x path, .ai-minus path, .ai-check path { stroke-dasharray: 1 1; }
 @media (prefers-reduced-motion: no-preference) {

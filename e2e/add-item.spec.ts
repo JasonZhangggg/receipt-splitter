@@ -1,4 +1,4 @@
-import { openAdd } from "./add-menu";
+import { addSheet, openAdd } from "./add-menu";
 import { simulateKeyboard } from "./motion";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 import { fromMore, viewAs } from "./header";
@@ -55,15 +55,14 @@ async function pick(page: Page, name: string) {
   await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
-const sheet = (page: Page) => page.getByRole("dialog", { name: "New item" });
+const sheet = addSheet;
 const field = (page: Page, name: string) => sheet(page).getByRole("textbox", { name, exact: true });
 const fries = (page: Page) => page.getByRole("button", { name: /^Open Fries, \$6\.50, / });
 
-async function addFries(page: Page, who: string[]) {
+async function addFries(page: Page) {
   await openAdd(page, "Item");
-  await field(page, "Item name").fill("Fries");
+  await field(page, "Name").fill("Fries");
   await field(page, "Price").fill("6.50");
-  for (const name of who) await sheet(page).getByRole("group", { name: "Who had it" }).getByRole("button", { name, exact: true }).click();
   await sheet(page).getByRole("button", { name: "Add item", exact: true }).click();
   await expect(sheet(page)).toHaveCount(0, live);
 }
@@ -75,7 +74,7 @@ async function shareOf(page: Page, name: string): Promise<string> {
   return share;
 }
 
-test("an Item added on one phone shows on another with who had it, and the Shares follow a claim on it", async ({ browser, request }, { workerIndex }) => {
+test("an Item added on one phone shows on another with nobody having it, and the Shares follow a claim on it", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, rice, 650);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -84,12 +83,12 @@ test("an Item added on one phone shows on another with who had it, and the Share
   const totalNote = sam.getByRole("status").filter({ hasText: "$6.50" });
   await expect(totalNote).toBeVisible();
 
-  await addFries(sam, ["Sam"]);
-  await expect(sam.getByRole("button", { name: "Open Fries, $6.50, You, $6.50 yours" })).toBeVisible(live);
-  await expect(priya.getByRole("button", { name: "Open Fries, $6.50, Sam" })).toBeVisible(live);
-  await expect(sam.getByTestId("owe")).toHaveText("$6.50");
+  await addFries(sam);
+  await expect(sam.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
+  await expect(priya.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
   await expect(totalNote).toHaveCount(0);
 
+  await sam.getByRole("button", { name: "Fries, check for Sam" }).click();
   await priya.getByRole("button", { name: "Fries, check for Priya" }).click();
   await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, You, Priya, \$3\.25 yours$/ })).toBeVisible(live);
   await expect(sam.getByTestId("owe")).toHaveText("$3.25", live);
@@ -97,11 +96,18 @@ test("an Item added on one phone shows on another with who had it, and the Share
   expect(await shareOf(priya, "Sam")).toBe("$3.25");
 });
 
-test("people tapped in Who had it against id order (Sam, then Priya) still add the Item split between them", async ({ browser, request }, { workerIndex }) => {
+test("people who check a new Item against id order (Priya, then Sam) still split it between them", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, rice, 650));
   await pick(sam, "Sam");
 
-  await addFries(sam, ["Sam", "Priya"]);
+  await addFries(sam);
+  await viewAs(sam, "Priya");
+  await expect(sam.getByRole("dialog", { name: "People" })).toHaveCount(0, live);
+  await sam.getByRole("button", { name: "Fries, check for Priya" }).click();
+  await sam.getByRole("dialog", { name: "Check Fries for Priya?" }).getByRole("button", { name: "Check for Priya" }).click();
+  await viewAs(sam, "Priya");
+  await expect(sam.getByRole("dialog", { name: "People" })).toHaveCount(0, live);
+  await sam.getByRole("button", { name: "Fries, check for Sam" }).click();
   await expect(sam.getByRole("button", { name: /^Open Fries, \$6\.50, You, Priya, \$3\.25 yours$/ })).toBeVisible(live);
   await expect(sam.getByTestId("owe")).toHaveText("$3.25");
   expect(await shareOf(sam, "Priya")).toBe("$3.25");
@@ -113,7 +119,7 @@ test("History lists the add, and Revert from another phone asks first and takes 
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-  await addFries(sam, []);
+  await addFries(sam);
   await expect(fries(priya)).toBeVisible(live);
 
   await fromMore(priya, "History");
@@ -133,28 +139,25 @@ test("a Split at 100 Items says it is full and sends nothing", async ({ browser,
   await expect.poll(() => sent.some((frame) => frame.includes('"pick"'))).toBe(true);
 
   await openAdd(sam, "Item");
-  await field(sam, "Item name").fill("Fries");
+  await field(sam, "Name").fill("Fries");
   await field(sam, "Price").fill("6.50");
   await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
 
   await expect(sheet(sam).getByText("A split holds at most 100 items.")).toBeVisible();
-  await expect(field(sam, "Item name")).toHaveValue("Fries");
+  await expect(field(sam, "Name")).toHaveValue("Fries");
   expect(sent.filter((frame) => frame.includes('"add"'))).toEqual([]);
 });
 
-test("Add item with no name focuses the name and says so, and Return walks name, detail and price, then adds", async ({ browser, request }, { workerIndex }) => {
+test("Add item with no name focuses the name and says so, and Return walks name and price, then adds", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
   await openAdd(sam, "Item");
 
   await sheet(sam).getByRole("button", { name: "Add item", exact: true }).click();
   await expect(sheet(sam).getByText("Add a name.")).toBeVisible();
-  await expect(field(sam, "Item name")).toBeFocused();
+  await expect(field(sam, "Name")).toBeFocused();
 
   await sam.keyboard.type("Fries");
-  await sam.keyboard.press("Enter");
-  await expect(field(sam, "Detail")).toBeFocused();
-  await sam.keyboard.type("large");
   await sam.keyboard.press("Enter");
   await expect(field(sam, "Price")).toBeFocused();
   await sam.keyboard.type("6.50");
@@ -162,14 +165,19 @@ test("Add item with no name focuses the name and says so, and Return walks name,
 
   await expect(sheet(sam)).toHaveCount(0, live);
   await expect(sam.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
-  await expect(sam.getByText("large", { exact: true })).toBeVisible();
+
+  await sam.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" }).click();
+  const edit = sam.getByRole("dialog", { name: "Edit item" });
+  await edit.getByRole("textbox", { name: "Description" }).fill("large");
+  await edit.getByRole("button", { name: "Close" }).click();
+  await expect(sam.getByText("large", { exact: true })).toBeVisible(live);
 });
 
 test("the sheet keeps its top and height when a problem line appears", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex));
   await pick(sam, "Sam");
   await openAdd(sam, "Item");
-  await expect(field(sam, "Item name")).toBeVisible();
+  await expect(field(sam, "Name")).toBeVisible();
   await sam.waitForTimeout(800);
   const box = async () => {
     const { y, height } = (await sheet(sam).boundingBox())!;
@@ -204,7 +212,7 @@ test("with the iPhone keyboard up, each focused field of the add sheet is above 
   const top = async () => Math.round((await surface.boundingBox())!.y);
   const rest = await top();
 
-  for (const name of ["Item name", "Detail", "Price"]) {
+  for (const name of ["Name", "Price"]) {
     await field(page, name).tap();
     await expect(field(page, name)).toBeFocused();
     await expect.poll(() => page.evaluate(() => window.visualViewport!.height)).toBe(phone.height - iphoneKeyboard);
@@ -228,26 +236,24 @@ async function slowFramesOpen(browser: Browser, link: string, rafDelay: number):
 }
 
 for (const rafDelay of [0, 200]) {
-  test(`the added row's first painted frame is at height 0, and it opens with its claim on every frame, with frames ${rafDelay} ms late @frame-timing`, async ({ browser, request }, { workerIndex }) => {
+  test(`the added row's first painted frame is at height 0, and it opens at full height, with frames ${rafDelay} ms late @frame-timing`, async ({ browser, request }, { workerIndex }) => {
     const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex, bucketRows, 0, bucket), rafDelay);
     await pick(sam, "Sam");
     await openAdd(sam, "Item");
-    await field(sam, "Item name").fill("Fries");
+    await field(sam, "Name").fill("Fries");
     await field(sam, "Price").fill("6.50");
-    await sheet(sam).getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam", exact: true }).click();
 
     const frames = sam.evaluate(
       () =>
-        new Promise<{ height: number; opacity: number; claimed: boolean }[]>((resolve) => {
+        new Promise<{ height: number; opacity: number }[]>((resolve) => {
           const frame = (window as unknown as { sampleFrame: typeof requestAnimationFrame }).sampleFrame;
-          const seen: { height: number; opacity: number; claimed: boolean }[] = [];
+          const seen: { height: number; opacity: number }[] = [];
           const started = performance.now();
           const sample = () => {
             const row = [...document.querySelectorAll('[data-testid^="line-"]')].find((line) => line.textContent?.includes("Fries"));
             const box = row?.parentElement;
             if (row && box) {
-              const label = row.querySelector('[aria-label^="Open Fries"]')?.getAttribute("aria-label") ?? "";
-              seen.push({ height: Math.round(box.getBoundingClientRect().height), opacity: Number(getComputedStyle(box).opacity), claimed: label.includes("You") });
+              seen.push({ height: Math.round(box.getBoundingClientRect().height), opacity: Number(getComputedStyle(box).opacity) });
             }
             if (performance.now() - started < 4000) frame(sample);
             else resolve(seen);
@@ -261,7 +267,6 @@ for (const rafDelay of [0, 200]) {
     const seen = await frames;
     const full = seen.at(-1)!.height;
     expect(full).toBeGreaterThanOrEqual(44);
-    expect(seen.every(({ claimed }) => claimed)).toBe(true);
     expect(seen[0].height).toBeLessThanOrEqual(4);
     expect(seen[0].opacity).toBeLessThanOrEqual(0.1);
     expect(seen.every(({ height }, at) => at === 0 || height >= seen[at - 1].height)).toBe(true);

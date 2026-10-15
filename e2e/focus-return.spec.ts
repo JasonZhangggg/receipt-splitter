@@ -1,4 +1,4 @@
-import { addRow, type AddChoice } from "./add-menu";
+import { addRow, openAdd } from "./add-menu";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 import { fromMore } from "./header";
 
@@ -64,15 +64,11 @@ const focused = (page: Page) => page.evaluate(() => document.activeElement?.getA
 for (const how of ["Enter", "Space", "assistive click"] as const) {
   test(`${how} on Close gives focus back to the row or button that opened each sheet`, async ({ browser, request }, { workerIndex }) => {
     const sam = await samsPhone(browser, await createSplit(request, workerIndex));
-    const menu = async (choice: AddChoice) => {
-      await addRow(sam).click();
-      await sam.getByRole("dialog", { name: "Add to the receipt" }).getByRole("button", { name: choice, exact: true }).click();
-    };
     const openers: readonly (readonly [Locator, string, () => Promise<void>])[] = [
-      [sam.getByRole("button", { name: /^Open Rice, / }), "Item", () => sam.getByRole("button", { name: /^Open Rice, / }).click()],
+      [sam.getByRole("button", { name: /^Open Rice, / }), "Edit item", () => sam.getByRole("button", { name: /^Open Rice, / }).click()],
       [sam.getByRole("button", { name: "Open Coupon, -$1.00" }), "Discount", () => sam.getByRole("button", { name: "Open Coupon, -$1.00" }).click()],
-      [addRow(sam), "New item", () => menu("Item")],
-      [addRow(sam), "Add tax, tip or discount", () => menu("Tip")],
+      [addRow(sam), "Add to the receipt", () => openAdd(sam, "Item")],
+      [addRow(sam), "Add to the receipt", () => openAdd(sam, "Tip")],
       [sam.getByRole("button", { name: "History", exact: true }), "History", () => fromMore(sam, "History")],
     ];
     for (const [opener, title, open] of openers) {
@@ -89,7 +85,7 @@ for (const how of ["Enter", "Space", "assistive click"] as const) {
 test("Delete item pressed from the keyboard gives focus to the next row", async ({ browser, request }, { workerIndex }) => {
   const sam = await samsPhone(browser, await createSplit(request, workerIndex));
   await sam.getByRole("button", { name: /^Open Pitcher, / }).click();
-  const sheet = sam.getByRole("dialog", { name: "Item" });
+  const sheet = sam.getByRole("dialog", { name: "Edit item" });
   await sheet.getByRole("button", { name: "Delete item", exact: true }).focus();
   await sam.keyboard.press("Enter");
   await expect(sheet).toHaveCount(0, live);
@@ -112,7 +108,7 @@ test("a swipe down closes the Item sheet without moving focus or scrolling the p
   const sam = await samsPhone(browser, await createSplit(request, workerIndex));
   const row = sam.getByRole("button", { name: /^Open Rice, / });
   await row.click();
-  const sheet = sam.getByRole("dialog", { name: "Item" });
+  const sheet = sam.getByRole("dialog", { name: "Edit item" });
   await expect(sheet).toBeVisible();
   const focusBefore = await focused(sam);
   const before = await sam.evaluate(() => [scrollY, ...[...document.querySelectorAll("*")].filter((el) => el.scrollTop > 0).map((el) => el.scrollTop)]);

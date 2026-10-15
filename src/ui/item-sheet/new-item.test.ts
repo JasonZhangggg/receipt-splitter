@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { applyOperation, createSplit } from "../../core/operations";
+import { createSplit } from "../../core/operations";
 import { cents, price } from "../../core/money";
 import { itemId, participantId, type Split } from "../../core/split";
 import { mintedId } from "../../core/test-ids";
@@ -24,19 +24,14 @@ function splitWith(count: number): Split {
   return result.split;
 }
 
-const typed = (fields: Partial<NewItem> = {}): NewItem => ({ name: "Fries", detail: "", price: "6.50", quantity: 1, who: [], ...fields });
+const typed = (fields: Partial<NewItem> = {}): NewItem => ({ name: "Fries", price: "6.50", ...fields });
 const fresh = itemId("fresh");
 
 describe("newItem", () => {
-  test("leaves out of who anyone no longer in the Split", () => {
-    const answer = newItem(splitWith(2), typed({ who: [bob, participantId("gone")] }), fresh, ann);
-    expect(answer.ok && answer.op.type === "editReceipt" && answer.op.items?.[0]).toMatchObject({ who: [bob] });
-  });
-
-  test("sends one add at the end of the receipt with who had it", () => {
-    expect(newItem(splitWith(2), typed({ name: "  Fries ", who: [bob] }), fresh, ann)).toEqual({
+  test("sends one add at the end of the receipt with nobody having it", () => {
+    expect(newItem(splitWith(2), typed({ name: "  Fries " }), fresh, ann)).toEqual({
       ok: true,
-      op: { by: ann, type: "editReceipt", items: [{ type: "add", item: { id: fresh, name: "Fries", price: 650 }, index: 2, who: [bob] }] },
+      op: { by: ann, type: "editReceipt", items: [{ type: "add", item: { id: fresh, name: "Fries", price: 650 }, index: 2, who: [] }] },
     });
   });
 
@@ -53,36 +48,9 @@ describe("newItem", () => {
     expect(newItem(splitWith(2), typed({ price: "100000.01" }), fresh, ann)).toEqual({ ok: false, problem: "overLimit" });
   });
 
-  test("sends a quantity above 1 as a quantity line and a trimmed detail, and drops a blank detail", () => {
-    const three = newItem(splitWith(2), typed({ quantity: 3, price: "21.87", detail: "  no ice " }), fresh, null);
-    expect(three).toEqual({
-      ok: true,
-      op: { by: null, type: "editReceipt", items: [{ type: "add", item: { id: fresh, name: "Fries", price: 2187, quantity: 3, detail: "no ice" }, index: 2, who: [] }] },
-    });
-    const one = newItem(splitWith(2), typed({ detail: "   " }), fresh, null);
-    expect(one.ok && one.op.type === "editReceipt" && one.op.items?.[0]).toEqual({ type: "add", item: { id: fresh, name: "Fries", price: 650 }, index: 2, who: [] });
-  });
-
   test("adds the 100th Item and refuses the 101st as tooManyItems", () => {
     expect(newItem(splitWith(99), typed(), fresh, ann).ok).toBe(true);
     expect(newItem(splitWith(100), typed(), fresh, ann)).toEqual({ ok: false, problem: "tooManyItems" });
-  });
-
-  test("refuses an add as tooLarge once long Items fill the Split's byte budget, before 100 Items", () => {
-    let split = splitWith(1);
-    const long = typed({ name: "N".repeat(80), detail: "D".repeat(120), who: [ann, bob] });
-    for (let at = 0; at < 100; at += 1) {
-      const answer = newItem(split, long, itemId(`long${at}`), ann);
-      if (!answer.ok) {
-        expect(answer.problem).toBe("tooLarge");
-        expect(split.receipt.items.length).toBeLessThan(100);
-        return;
-      }
-      const applied = applyOperation(split, answer.op, { creator: false });
-      if (!applied.ok) throw new Error(applied.rejection.reason);
-      split = applied.split;
-    }
-    throw new Error("never refused");
   });
 });
 
