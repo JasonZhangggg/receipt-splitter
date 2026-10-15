@@ -61,7 +61,8 @@ const colorChange = webStyle({ transitionProperty: "border-color", transitionDur
 export function Blank({ style, onFocus, onBlur, ref, ...rest }: TextInputProps & { ref?: Ref<TextInput> }) {
   const c = useColors();
   const [focused, setFocused] = useState(false);
-  const chars = webStyle({ "--chars": Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1) } as never);
+  // A string, because a bare number gets a "px" unit and the calc in css.ts then fails.
+  const chars = webStyle({ "--chars": String(Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1)) } as never);
   return (
     <TextInput
       ref={ref}

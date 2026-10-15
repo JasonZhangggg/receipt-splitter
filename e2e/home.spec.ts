@@ -368,8 +368,9 @@ test("the handle placeholder fits its field at 320 px", async ({ page }) => {
     const ctx = document.createElement("canvas").getContext("2d")!;
     ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     ctx.letterSpacing = style.letterSpacing;
-    const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-    return { placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room };
+    // The field sizes to its placeholder, so compare against its fractional width: clientWidth rounds and can land either side of the text.
+    const room = input.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
+    return { placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room + 0.5 };
   });
   expect(fit).toEqual({ placeholder: "@username", fits: true });
   await expect(appPicker(page)).toBeVisible();
