@@ -260,7 +260,7 @@ test("By amount says what is left to assign as amounts are typed, and Give the r
   await expect(sheet.getByRole("textbox", { name: "Sam's amount" })).toHaveValue("25.00");
 });
 
-test("with a long name, Give the rest and the status share one line inside the Item sheet", async ({ browser, request, browserName }, { workerIndex }) => {
+test("with a long name, Give the rest wraps under the status instead of truncating, inside the Item sheet", async ({ browser, request, browserName }, { workerIndex }) => {
   const host = "Bartholomew Alexandria-Montgomery";
   const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 8775 }], adjustments: [], subtotal: 8775, total: 8775 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt, [venmo], host), browserName);
@@ -287,13 +287,12 @@ test("with a long name, Give the rest and the status share one line inside the I
       const said = box('[data-testid="amount-status"]');
       return {
         insideSheet: button.right <= root.getBoundingClientRect().right + 1,
-        beforeButton: said.right <= button.left,
-        centerGap: Math.abs(said.top + said.height / 2 - (button.top + button.height / 2)),
+        clear: said.right <= button.left || said.bottom <= button.top,
       };
     }, `Give ${host} the rest, $62.75`);
   await expect.poll(async () => (await lineUp()).insideSheet).toBe(true);
-  await expect.poll(async () => (await lineUp()).beforeButton).toBe(true);
-  await expect.poll(async () => (await lineUp()).centerGap, live).toBeLessThan(4);
+  await expect.poll(async () => (await lineUp()).clear).toBe(true);
+  expect(await give.evaluate((el) => [...el.querySelectorAll("*")].every((node) => node.scrollWidth <= node.clientWidth))).toBe(true);
   await expect(status).toHaveText("$62.75 left to assign");
   expect(await status.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 });
