@@ -84,8 +84,6 @@ export const motion = {
   reducedFade: 160,
   rowsIn: 200,
   rowsOut: 150,
-  readingCycle: 1600,
-  readingStagger: 150,
   readingBar: 240,
   stageIn: 200,
   photoIn: 240,
