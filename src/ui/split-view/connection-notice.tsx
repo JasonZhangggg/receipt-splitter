@@ -1,30 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { noticeAfterMs, type Connection } from "../../live/connection";
+import { nextNotice, type Connection, type Notice } from "../../live/connection";
 import { useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { easing, layout, motion, type, useColors } from "../theme";
 
-/** What the notice says, or null while the page is online or the connection has not been lost long enough to mention. */
-export function noticeFor(connection: Connection, lostLongEnough: boolean): string | null {
-  if (connection === "slow") return say.connection.slow;
-  return connection === "offline" && lostLongEnough ? say.connection.offline : null;
-}
+const words = { offline: say.connection.offline, slow: say.connection.slow };
 
-/** True once `active` has held for `ms`, and false the moment it stops. */
-function useHeldFor(active: boolean, ms: number): boolean {
-  const [held, setHeld] = useState(false);
+/** The notice that shows now. It follows `nextNotice`, which holds back a brief drop and keeps a shown notice up through a link that flaps. */
+function useNotice(connection: Connection): Notice {
+  const [notice, setNotice] = useState<Notice>(null);
+  const showing = useRef<Notice>(null);
   useEffect(() => {
-    if (!active) return;
-    const timer = setTimeout(() => setHeld(true), ms);
-    return () => {
-      clearTimeout(timer);
-      setHeld(false);
-    };
-  }, [active, ms]);
-  return held && active;
+    showing.current = notice;
+  });
+  useEffect(() => {
+    const next = nextNotice(connection, showing.current);
+    const timer = setTimeout(() => setNotice(next.notice), next.afterMs);
+    return () => clearTimeout(timer);
+  }, [connection]);
+  return notice;
 }
 
 /**
@@ -35,7 +32,8 @@ export function ConnectionNotice({ connection }: { connection: Connection }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
-  const message = noticeFor(connection, useHeldFor(connection === "offline", noticeAfterMs));
+  const notice = useNotice(connection);
+  const message = notice === null ? null : words[notice];
   const [progress] = useState(() => new Animated.Value(0));
   // The words stay while the line fades out, so it never changes shape on the way out.
   const [shown, setShown] = useState(message);

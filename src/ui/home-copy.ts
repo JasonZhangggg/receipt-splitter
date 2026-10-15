@@ -29,7 +29,7 @@ export const copy = {
     slow: "Taking a few more seconds",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
-  scanOffline: "No connection, so the receipt couldn't be read. Check it and try again.",
+  scanOffline: "No connection, so the receipt couldn't be read. Try again once you're back online.",
   paymentApp: "Payment app",
   addApp: "Another way to get paid",
   addAppName: "Add another way to get paid",

@@ -21,3 +21,18 @@ export function connectionOf({ socketOpen, browserOnline, stalled }: Link): Conn
   if (!socketOpen || !browserOnline) return "offline";
   return stalled > 0 ? "slow" : "online";
 }
+
+/** The reopened link must stay up this long before the offline notice goes, so a link that opens and drops in a loop does not blink it. */
+export const reopenHoldMs = 1000;
+
+export type Notice = "offline" | "slow" | null;
+
+/**
+ * What the notice should become for `connection`, and how long to wait before it does, given what shows now.
+ * A notice already on screen never waits again to change (slow goes straight to offline), and offline leaves only after `reopenHoldMs` of a steady link.
+ */
+export function nextNotice(connection: Connection, showing: Notice): { readonly notice: Notice; readonly afterMs: number } {
+  if (connection === "slow") return { notice: "slow", afterMs: 0 };
+  if (connection === "offline") return { notice: "offline", afterMs: showing === null ? noticeAfterMs : 0 };
+  return { notice: null, afterMs: showing === "offline" ? reopenHoldMs : 0 };
+}

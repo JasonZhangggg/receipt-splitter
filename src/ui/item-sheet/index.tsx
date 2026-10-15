@@ -124,7 +124,10 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     setSent((was) => [...was, sending]);
     void send(patch(sending)).then((answer) => {
       setSent((was) => was.filter((edit) => edit !== sending));
-      setProblem(answer.ok ? null : failedCopy(answer, say.saveFailed));
+      // An edit that timed out may have been applied; the Split the server then sent already shows it, so there is nothing to complain about.
+      const again = answer.ok ? null : applyOperation(currentRef.current, patch(sending), { creator: false });
+      const landed = again?.ok === true && JSON.stringify(again.split.receipt) === JSON.stringify(currentRef.current.receipt);
+      setProblem(answer.ok || landed ? null : failedCopy(answer, say.saveFailed));
     });
   };
   const holds = () => {

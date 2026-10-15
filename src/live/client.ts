@@ -29,8 +29,11 @@ export function splitUrl(id: SplitId): string {
 
 const endings: Record<number, GoneReason> = { 4404: "notFound", 4500: "unreadable" };
 
-/** One action waiting for the server. `slowTimer` marks it stalled; `deadline` settles it as failed so no send waits forever. */
-type Waiting = { readonly resolve: (answer: Answer) => void; readonly slowTimer: ReturnType<typeof setTimeout>; readonly deadline: ReturnType<typeof setTimeout>; stalled: boolean };
+/**
+ * One action waiting for the server. `slowTimer` marks it stalled. `deadline` fires when no answer came in time: the action may still have been applied, so the socket reconnects
+ * and the entry waits (`late`) for the server's join state, which settles the truth before the caller hears of the failure. A second `deadline` bounds that wait.
+ */
+type Waiting = { readonly resolve: (answer: Answer) => void; readonly slowTimer: ReturnType<typeof setTimeout>; deadline: ReturnType<typeof setTimeout>; stalled: boolean; late: boolean };
 
 const disconnected: Answer = { ok: false, rejection: { reason: "disconnected" } };
 const browserIsOnline = () => globalThis.navigator?.onLine !== false;
@@ -43,6 +46,8 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
   const [socketOpen, setSocketOpen] = useState(false);
   const [browserOnline, setBrowserOnline] = useState(browserIsOnline);
   const [stalled, setStalled] = useState(0);
+  const [joined, setJoined] = useState(0);
+  const reopening = useRef(false);
 
   const settle = useCallback((ref: string | null, answer: Answer) => {
     if (ref === null) return;
@@ -54,6 +59,11 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     if (entry.stalled) setStalled((count) => count - 1);
     entry.resolve(answer);
   }, []);
+
+  // Runs after the render of the join state, so a caller hearing "disconnected" for a timed-out action already sees the Split the server holds.
+  useEffect(() => {
+    for (const [ref, entry] of [...pending.current]) if (entry.late) settle(ref, disconnected);
+  }, [joined, settle]);
 
   useEffect(() => {
     const sync = () => setBrowserOnline(browserIsOnline());
@@ -82,6 +92,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
       switch (message.type) {
         case "state":
           setLive({ status: "live", split: message.split, photo: message.photo });
+          if (message.ref === null) setJoined((count) => count + 1);
           return settle(message.ref, { ok: true, revision: message.split.revision });
         case "unchanged":
           return settle(message.ref, { ok: true, revision: null });
@@ -94,7 +105,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     });
     ws.addEventListener("close", ({ code }: CloseEvent) => {
       setSocketOpen(false);
-      for (const ref of [...waiting.keys()]) settle(ref, disconnected);
+      for (const [ref, entry] of [...waiting]) if (!(reopening.current && entry.late)) settle(ref, disconnected);
       const reason = endings[code];
       if (reason === undefined) return;
       ws.close();
@@ -110,7 +121,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
   const send = useCallback<Send>((op, creatorSecret) => {
     const ws = socket.current;
     // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since. Refuse it now instead.
-    if (!ws || ws.readyState !== ws.OPEN || !browserIsOnline()) return Promise.resolve(disconnected);
+    if (!ws || ws.readyState !== ws.OPEN) return Promise.resolve(disconnected);
     const ref = `r${nextRef.current++}`;
     return new Promise((resolve) => {
       const entry: Waiting = {
@@ -120,7 +131,14 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
           entry.stalled = true;
           setStalled((count) => count + 1);
         }, slowAfterMs),
-        deadline: setTimeout(() => settle(ref, disconnected), answerByMs),
+        deadline: setTimeout(() => {
+          entry.late = true;
+          entry.deadline = setTimeout(() => settle(ref, disconnected), answerByMs);
+          reopening.current = true;
+          ws.reconnect();
+          reopening.current = false;
+        }, answerByMs),
+        late: false,
       };
       pending.current.set(ref, entry);
       ws.send(JSON.stringify(creatorSecret === undefined ? { ref, op } : { ref, op, creatorSecret }));

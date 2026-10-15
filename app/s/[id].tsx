@@ -4,7 +4,7 @@ import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cents, type Cents } from "../../src/core/money";
-import { claimersOf, type Operation } from "../../src/core/operations";
+import { claimersOf } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
 import { computeShares, shareBreakdown } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
@@ -155,7 +155,11 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const selectedPerson = people.find((person) => person.id === selected) ?? people.find((person) => person.id === me) ?? null;
   const selfPerson = people.find((person) => person.id === me);
   const creating = memory.creatorSecret !== undefined;
-  const act = (op: Operation) => send(op).then((answer) => answer.ok);
+  // The Split as last rendered. A send that timed out settles after the server's join state has rendered, so this tells whether the action landed anyway.
+  const latest = useRef(split);
+  useEffect(() => {
+    latest.current = split;
+  });
 
   const closeGuard = useRef<CloseGuard | null>(null);
   const closeOverlay = () => {
@@ -166,7 +170,9 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
     setPickProblem(null);
     setChosen(participantId);
     const picked = await send({ by: participantId, type: "pick", participantId, device, takeOver });
-    if (!picked.ok) {
+    // A pick the server recorded before the answer timed out stands.
+    const recorded = latest.current.picks.some((pick) => pick.participantId === participantId && pick.device === device);
+    if (!picked.ok && !(picked.rejection.reason === "disconnected" && recorded)) {
       setChosen(null);
       return setPickProblem(failedCopy(picked, say.pickFailed));
     }
@@ -228,7 +234,9 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
     for (const op of circleTap(item, person)) {
       const answer = await send({ ...op, by: me });
       if (answer.ok) continue;
-      if (answer.rejection.reason === "disconnected") setBar({ message: say.connection.failed, over: "footer" });
+      const now = latest.current.receipt.items.find(({ id }) => id === itemId);
+      const landed = now !== undefined && claimersOf(now.split).includes(person) !== claimersOf(item.split).includes(person);
+      if (answer.rejection.reason === "disconnected" && !landed) setBar({ message: say.connection.failed, over: "footer" });
       return;
     }
   };
@@ -433,7 +441,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
     ) : overlay.kind === "receipt" ? (
       <ReceiptSheet uri={photoUrl} onOpen={() => setViewing(true)} onClose={closeOverlay} />
     ) : (
-      <HistorySheet split={split} me={me} offline={connection === "offline"} onRevert={(revision) => act({ by: me, type: "undo", revision })} onRestore={() => act({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
+      <HistorySheet split={split} me={me} onRevert={(revision) => send({ by: me, type: "undo", revision })} onRestore={() => send({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
   ) : null;
   const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} onPaid={(paid) => void onPaid(paid)} /> : undefined;

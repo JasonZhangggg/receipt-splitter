@@ -1,5 +1,6 @@
 import { openExample } from "./files";
 import { expect, test, type APIRequestContext, type Page } from "./without-ocr";
+import type { WebSocketRoute } from "@playwright/test";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -63,11 +64,20 @@ test("offline for more than 1.5 s shows the notice, and reconnecting clears it",
 });
 
 test("a claim tap while offline says the connection is down and leaves the dot unclaimed, and after reconnecting it works", async ({ page, context, request }, { workerIndex }) => {
+  let socket: WebSocketRoute | null = null;
+  await page.routeWebSocket(/split-server/, (client) => {
+    socket = client;
+    const server = client.connectToServer();
+    client.onMessage((message) => server.send(message));
+    server.onMessage((message) => client.send(message));
+  });
   await openAs(page, await createSplit(request, workerIndex), "Sam");
   await context.setOffline(true);
+  (socket as WebSocketRoute | null)?.close();
+  await expect(notice(page)).toHaveText(offline, live);
 
   await rice(page).click();
-  await expect(page.getByText(failed)).toBeVisible(live);
+  await expect(page.getByText(failed)).toBeVisible({ timeout: 3000 });
   await expect(rice(page)).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("owe")).toHaveText("$0.00");
 
@@ -95,6 +105,59 @@ test("an answer held for more than 3 s shows the slow message, which clears when
   await expect(notice(page)).toHaveText(slow, { timeout: 6000 });
   await expect(rice(page)).toHaveAttribute("aria-pressed", "true", live);
   await expect(notice(page)).toHaveCount(0, live);
+});
+
+test("an answer held past 10 s after the server applied it ends on the saved values with no error", async ({ page, request }, { workerIndex }) => {
+  let holding = false;
+  await page.routeWebSocket(/split-server/, (client) => {
+    const server = client.connectToServer();
+    client.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      if (holding && String(message).includes('"ref":"r')) {
+        holding = false;
+        setTimeout(() => client.send(message), 20_000);
+      } else client.send(message);
+    });
+  });
+  await openAs(page, await createSplit(request, workerIndex), "Sam");
+
+  holding = true;
+  await rice(page).click();
+  await expect(page.getByTestId("owe")).toHaveText("$8.00", { timeout: 30_000 });
+  await expect(rice(page)).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(1500);
+  await expect(page.getByText(failed)).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^Open Tostones, / }).click();
+  holding = true;
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
+  const name = sheet.getByRole("textbox", { name: "Item name", exact: true });
+  await name.fill("Plantains");
+  await name.press("Tab");
+  await expect(name).toHaveValue("Plantains", { timeout: 30_000 });
+  await page.waitForTimeout(1500);
+  await expect(sheet.getByText(failed)).toHaveCount(0);
+  await expect(name).toHaveValue("Plantains");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("button", { name: /^Open Plantains, / })).toBeVisible(live);
+});
+
+test("a name pick the server recorded but answered late still takes the name", async ({ page, request }, { workerIndex }) => {
+  let holding = true;
+  await page.routeWebSocket(/split-server/, (client) => {
+    const server = client.connectToServer();
+    client.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      if (holding && String(message).includes('"ref":"r')) {
+        holding = false;
+        setTimeout(() => client.send(message), 20_000);
+      } else client.send(message);
+    });
+  });
+  await page.goto(await createSplit(request, workerIndex));
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(page.getByTestId("owe")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Couldn't pick that name. Check your connection and try again.")).toHaveCount(0);
 });
 
 test("Create link while offline says it is the connection", async ({ page, context }) => {
