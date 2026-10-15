@@ -20,7 +20,7 @@ const holdsGesture = webStyle({ touchAction: "none" });
 
 type Props = {
   children: ReactNode;
-  /** Lays a transparent hit area over the page that closes the sheet on a tap. The page behind is never dimmed. */
+  /** Lays a dim layer over the whole page, header and footer included, that closes the sheet on a tap. Its opacity follows the sheet's position. */
   tapAway?: boolean;
   /** A swipe down, or a tap away. Called once the sheet has left. */
   onDown?: () => void;
@@ -52,6 +52,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const rest = tallest - visible;
   const home = tall ? 0 : rest;
   const surface = useRef<View>(null);
+  const dim = useRef<View>(null);
   const body = useRef<View>(null);
   const offset = useRef<number | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -61,8 +62,19 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
 
   const element = () => surface.current as unknown as HTMLElement | null;
 
+  // Full at the rest snap and above it, none once the sheet is fully down, linear between, so the same easing on both keeps them in step.
+  const dimAt = (to: number) => {
+    const span = tallest - rest;
+    return span > 0 ? Math.min(1, Math.max(0, (tallest - to) / span)) : to >= tallest ? 0 : 1;
+  };
+
   const place = (to: number, ms: number, easing = glide.easing) => {
     offset.current = to;
+    const scrim = dim.current as unknown as HTMLElement | null;
+    if (scrim) {
+      scrim.style.transition = ms > 0 ? `opacity ${ms}ms ${easing}` : "none";
+      scrim.style.opacity = String(dimAt(to));
+    }
     const sheet = element();
     if (sheet) {
       sheet.style.transition = ms > 0 ? `transform ${ms}ms ${easing}` : "none";
@@ -74,7 +86,10 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
     if (reduce) {
       const entering = (offset.current ?? tallest) >= tallest - 1;
       place(to, 0);
-      if (entering) element()?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: reducedFade, easing: motion.easeOut });
+      if (entering) {
+        element()?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: reducedFade, easing: motion.easeOut });
+        (dim.current as unknown as HTMLElement | null)?.animate?.([{ opacity: 0 }, { opacity: dimAt(to) }], { duration: reducedFade, easing: motion.easeOut });
+      }
       return done?.();
     }
     const from = offset.current ?? tallest;
@@ -189,7 +204,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const fits = scrolls ? null : grip;
   return (
     <>
-      <View pointerEvents={tapAway ? "auto" : "none"} onPointerUp={onDown && (() => leave(0))} style={styles.hitArea} />
+      <View ref={dim} testID="sheet-dim" pointerEvents={tapAway ? "auto" : "none"} onPointerUp={onDown && (() => leave(0))} style={[styles.hitArea, { backgroundColor: c.sheetScrim }]} />
       <View
         ref={surface}
         role="dialog"
