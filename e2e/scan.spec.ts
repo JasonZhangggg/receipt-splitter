@@ -113,7 +113,7 @@ test.describe("reading SRD receipt 1040", () => {
   });
 });
 
-test("a read with a price over the limit creates the link, and the Split page fixes the row the note points at", async ({ page }, testInfo) => {
+test("a read with a price over the limit creates the link, and a price typed into the row the note points at moves the Total by that price", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await page.route("**/api/splits", (route) => route.continue({ headers: { ...route.request().headers(), "cf-connecting-ip": `198.54.${testInfo.workerIndex}.${testInfo.retry + 1}` } }));
   await page.goto("/");
@@ -135,7 +135,8 @@ test("a read with a price over the limit creates the link, and the Split page fi
   await page.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
 
   await expect(page.getByRole("button", { name: /^Open Perrier Sparkling Water, \$3\.50/ })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("Items are $3.50 short of the subtotal.")).toHaveCount(0);
+  await expect(page.getByTestId("total")).toHaveText("$31.54");
+  await expect(page.getByText("Items are $3.50 short of the subtotal.")).toBeVisible();
 });
 
 test("a read with no Items keeps Create split link off with its reason, and home offers no editor", async ({ page }) => {
