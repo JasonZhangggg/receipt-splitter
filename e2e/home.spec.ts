@@ -42,13 +42,13 @@ async function said(page: Page) {
   return (await sentence(page).innerText()).replace(/\u2060/g, "").replace(/\s+/g, " ").replace(/ ([.,])/g, "$1").trim();
 }
 
-test("the empty home at 390 px is one sentence with its blanks, the add link and a gray Create link, and only those words", async ({ page }) => {
+test("the empty home at 390 px is one sentence with its blanks and actions, and a gray Create link, and only those words", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await expect(appPicker(page)).toHaveValue("venmo");
-  expect(await said(page)).toBe("I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at. I’m, here with add friends.");
+  expect(await said(page)).toBe("I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at, or add an app. I’m, here with add friends.");
   const words = await sentence(page).innerText();
-  expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Another way to get paid", "Add a receipt first.", "Create link"]);
+  expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Add a receipt first.", "Create link"]);
   await expect(venmo(page)).toHaveAttribute("placeholder", "@username");
   await expect(yourName(page)).toHaveAttribute("placeholder", "your name");
   await expect(action(page)).toHaveAccessibleDescription("Add a receipt first.");
@@ -319,11 +319,12 @@ for (const width of [1024, 1440]) {
   });
 }
 
-test("Enter adds a name and keeps the field open, moving it from after I’m to after here with", async ({ page }) => {
+test("add friends opens a friend field before your name is in, Enter keeps it open, and your name's Enter moves on to the friends", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await page.getByRole("button", { name: "Add friends" }).click();
-  await expect(yourName(page)).toBeFocused();
+  const next = page.getByRole("textbox", { name: "Name", exact: true });
+  await expect(next).toBeFocused();
 
   for (const name of ["Sam", "Priya"]) {
     await page.keyboard.type(name);
@@ -331,17 +332,22 @@ test("Enter adds a name and keeps the field open, moving it from after I’m to 
   }
   await expect(removers(page)).toHaveCount(2);
   expect(await removers(page).evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")))).toEqual(["Remove Sam", "Remove Priya"]);
-  const next = page.getByRole("textbox", { name: "Name", exact: true });
   await expect(next).toBeFocused();
   await expect(next).toHaveValue("");
-  await expect(yourName(page)).toHaveCount(0);
+  await expect(yourName(page)).toHaveCount(1);
   await page.locator("h1").click();
-  await expect.poll(() => said(page)).toContain("I’m Sam, here with Priya and add more.");
-  await page.getByRole("button", { name: "Add friends" }).click();
+  await expect.poll(() => said(page)).toContain("I’m, here with Sam, Priya and add more.");
+
+  await yourName(page).click();
+  await page.keyboard.type("Jason");
+  await page.keyboard.press("Enter");
+  await expect(next).toBeFocused();
+  await expect(yourName(page)).toHaveCount(0);
   await page.keyboard.type("Priya");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("alert")).toHaveText("That name is already here.");
-  await expect(removers(page)).toHaveCount(2);
+  await page.locator("h1").click();
+  await expect.poll(() => said(page)).toContain("I’m Jason, here with Sam, Priya and add more.");
 });
 
 test("a tap on add friends while a typed name waits for Enter keeps the name and opens the friend field", async ({ page }) => {
@@ -401,7 +407,7 @@ test("each icon draws a glyph, hidden from assistive tech, at 390 px", async ({ 
     })),
   );
   const icon = (name: string) => ({ icon: name, hidden: "true", drawn: true });
-  expect(icons).toEqual([icon("sun"), icon("moon"), icon("plus"), icon("arrow")]);
+  expect(icons).toEqual([icon("sun"), icon("moon"), icon("arrow")]);
 });
 
 test("the payment app picker is a native select that lists the four apps with Venmo first", async ({ page }) => {
@@ -413,14 +419,17 @@ test("the payment app picker is a native select that lists the four apps with Ve
   await expect(page.getByRole("textbox", { name: "Zelle handle" })).toHaveAttribute("placeholder", "Email or phone");
 });
 
-test("a second way to get paid takes the next free app, and its remove button takes it away", async ({ page }) => {
+test("add an app adds the next free app with its field focused, an x follows each app's name, and an x takes its app away", async ({ page }) => {
   await page.goto("/");
   await settle(page);
+  await expect(page.getByRole("button", { name: "Remove Venmo" })).toHaveCount(0);
   await page.getByRole("button", { name: "Add another way to get paid" }).click();
-  await expect(page.getByRole("textbox", { name: "Cash App handle" })).toBeVisible();
-  expect(await said(page)).toContain("pay me back on Venmo at or Cash App at.");
-  await page.getByRole("button", { name: "Remove Cash App" }).click();
-  await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Cash App handle" })).toBeFocused();
+  expect(await said(page)).toContain("pay me back on Venmo at or Cash App at, or add an app.");
+  await page.getByRole("button", { name: "Remove Venmo" }).click();
+  await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Remove Cash App" })).toHaveCount(0);
+  expect(await said(page)).toContain("pay me back on Cash App at, or add an app.");
 });
 
 test("the fonts load as same-origin WOFF2 files with an immutable cache header while the page stays cross-origin isolated", async ({ page }) => {

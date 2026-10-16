@@ -46,7 +46,7 @@ const requestOf = (draft: Draft, newId: () => ReturnType<typeof participantId>) 
   return found.kind === "ready" ? splitRequest(found, newId) : null;
 };
 
-const withVenmo = (draft: Draft) => run(draft, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addName", name: "Jason" });
+const withVenmo = (draft: Draft) => run(draft, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "setHost", name: "Jason" });
 
 class MemoryStorage {
   values = new Map<string, string>();
@@ -75,7 +75,7 @@ describe("readiness", () => {
   });
 
   test("a ready draft carries the create body, so Create split link always has one to send", () => {
-    const found = readiness(run(withVenmo(read1040()), { type: "addName", name: "Sam" }));
+    const found = readiness(run(withVenmo(read1040()), { type: "addFriend", name: "Sam" }));
 
     expect(found.kind === "ready" && splitRequest(found, counter()).participants).toEqual([
       { id: "p0", name: "Jason" },
@@ -119,7 +119,7 @@ describe("readiness", () => {
   });
 
   test("creates with no way to pay, and sends no handle for an empty or blank field", () => {
-    const named = run(read1040(), { type: "addName", name: "Jason" }, { type: "addHandle" });
+    const named = run(read1040(), { type: "setHost", name: "Jason" }, { type: "addHandle" });
     const sent = (handle: string) => {
       const found = readiness(run(named, { type: "setHandle", index: 0, handle }));
       return found.kind === "ready" ? found.paymentHandles : found;
@@ -129,7 +129,7 @@ describe("readiness", () => {
   });
 
   test("names the row whose handle its app would refuse, before Create sends it", () => {
-    const named = run(read1040(), { type: "addName", name: "Jason" });
+    const named = run(read1040(), { type: "setHost", name: "Jason" });
     const venmo = (handle: string) => reasonOf(run(named, { type: "setHandle", index: 0, handle }));
     const second = (service: "cashApp" | "paypal" | "zelle", handle: string) =>
       reasonOf(run(named, { type: "setHandle", index: 0, handle: "@jason-z" }, { type: "addHandle" }, { type: "setService", index: 1, service }, { type: "setHandle", index: 1, handle }));
@@ -180,8 +180,8 @@ describe("a reload of home", () => {
       { type: "setHandle", index: 0, handle: "$jasonz" },
       { type: "addHandle" },
       { type: "setHandle", index: 1, handle: "@jason-z" },
-      { type: "addName", name: "Sam" },
-      { type: "addName", name: "Priya" },
+      { type: "addFriend", name: "Sam" },
+      { type: "addFriend", name: "Priya" },
     );
     saveDraft(draft, storage);
     expect(loadDraft(storage)).toEqual({
@@ -190,7 +190,8 @@ describe("a reload of home", () => {
         { service: "cashApp", handle: "$jasonz" },
         { service: "venmo", handle: "@jason-z" },
       ],
-      names: [],
+      host: null,
+      friends: [],
     });
   });
 
@@ -198,14 +199,14 @@ describe("a reload of home", () => {
     const storage = new MemoryStorage();
     saveDraft(withVenmo(read1040()), storage);
     const again = read1040(loadDraft(storage));
-    const named = run(again, { type: "addName", name: "Jason" });
+    const named = run(again, { type: "setHost", name: "Jason" });
     expect(readiness(named)).toMatchObject({ kind: "ready", paymentHandles: [{ service: "venmo", handle: "@jason-z" }], names: ["Jason"] });
   });
 
   test("keeps only the handles of a full Draft the previous build saved", () => {
     const storage = new MemoryStorage();
     storage.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: withVenmo(read1040()) }));
-    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] });
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] });
   });
 
   test("overwrites the previous build's Receipt on the first save", () => {
@@ -223,7 +224,7 @@ describe("a reload of home", () => {
       },
     });
     try {
-      expect(loadDraft()).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], names: [] });
+      expect(loadDraft()).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], host: null, friends: [] });
       expect(() => saveDraft(emptyDraft)).not.toThrow();
     } finally {
       Reflect.deleteProperty(globalThis, "localStorage");
@@ -258,11 +259,12 @@ describe("a reload of home", () => {
 
 describe("the Draft", () => {
   test("replacing the Receipt keeps the Payment handles and the names", () => {
-    const draft = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "reading", file: {} });
+    const draft = run(withVenmo(read1040()), { type: "addFriend", name: "Sam" }, { type: "reading", file: {} });
     expect(draft).toEqual({
       scan: { status: "reading", file: {} },
       handles: [{ service: "venmo", handle: "@jason-z" }],
-      names: ["Jason", "Sam"],
+      host: "Jason",
+      friends: ["Sam"],
     });
   });
 });
@@ -329,25 +331,25 @@ describe("the Payment handles and names", () => {
   });
 
   test("cuts a name to 40 graphemes, the longest a Split takes", () => {
-    expect(run(emptyDraft, { type: "addName", name: "S".repeat(45) }).names).toEqual(["S".repeat(40)]);
+    expect(run(emptyDraft, { type: "addFriend", name: "S".repeat(45) }).friends).toEqual(["S".repeat(40)]);
   });
 
   test("skips a name that repeats one already added once Unicode form, width, spacing and hidden characters are set aside, and drops hidden characters from a new name", () => {
     const draft = run(
       emptyDraft,
-      { type: "addName", name: "Jos\u00E9" },
-      { type: "addName", name: "Jose\u0301" },
-      { type: "addName", name: "Sam" },
-      { type: "addName", name: "Sam\u200B" },
-      { type: "addName", name: "\uFF33am" },
-      { type: "addName", name: "Mary  Ann" },
-      { type: "addName", name: "mary ann" },
-      { type: "addName", name: "\u202EBob" },
-      { type: "addName", name: "Lee \u200B Ann" },
-      { type: "addName", name: "\u{1F469}\u200D\u{1F373} Kim" },
-      { type: "addName", name: "Jo \u2764\uFE0F" },
+      { type: "addFriend", name: "Jos\u00E9" },
+      { type: "addFriend", name: "Jose\u0301" },
+      { type: "addFriend", name: "Sam" },
+      { type: "addFriend", name: "Sam\u200B" },
+      { type: "addFriend", name: "\uFF33am" },
+      { type: "addFriend", name: "Mary  Ann" },
+      { type: "addFriend", name: "mary ann" },
+      { type: "addFriend", name: "\u202EBob" },
+      { type: "addFriend", name: "Lee \u200B Ann" },
+      { type: "addFriend", name: "\u{1F469}\u200D\u{1F373} Kim" },
+      { type: "addFriend", name: "Jo \u2764\uFE0F" },
     );
-    expect(draft.names).toEqual(["Jos\u00E9", "Sam", "Mary Ann", "Bob", "Lee Ann", "\u{1F469}\u200D\u{1F373} Kim", "Jo \u2764\uFE0F"]);
+    expect(draft.friends).toEqual(["Jos\u00E9", "Sam", "Mary Ann", "Bob", "Lee Ann", "\u{1F469}\u200D\u{1F373} Kim", "Jo \u2764\uFE0F"]);
   });
 
   test("refuses a name that repeats one in the draft but for an invisible format character or case folding, and takes a different one", () => {
@@ -361,13 +363,13 @@ describe("the Payment handles and names", () => {
     const blanks = ["", "   ", "\u200B", "\u0007", "\u2800", "\u00AD", "\uFFF9", "\u3164 \u3164", "\u00AD \u00AD", "\u2800 \u2800", "\u200D \u200D", "\u0600 \u2800", "\uFFF9 \uFFF9"];
 
     expect(blanks.map((typed) => newName(typed, ["Sam"]))).toEqual(blanks.map(() => ({ ok: false, reason: "badName" })));
-    expect(run(emptyDraft, ...blanks.map((name): DraftAction => ({ type: "addName", name }))).names).toEqual([]);
+    expect(run(emptyDraft, ...blanks.map((name): DraftAction => ({ type: "addFriend", name }))).friends).toEqual([]);
   });
 
   test("adds trimmed names, skips blanks and repeats, and removes one", () => {
-    const draft = run(emptyDraft, { type: "addName", name: " Sam " }, { type: "addName", name: "" }, { type: "addName", name: "sam" }, { type: "addName", name: "Me" }, { type: "addName", name: "Priya" });
-    expect(draft.names).toEqual(["Sam", "Me", "Priya"]);
-    expect(run(draft, { type: "removeName", name: "Sam" }).names).toEqual(["Me", "Priya"]);
+    const draft = run(emptyDraft, { type: "addFriend", name: " Sam " }, { type: "addFriend", name: "" }, { type: "addFriend", name: "sam" }, { type: "addFriend", name: "Me" }, { type: "addFriend", name: "Priya" });
+    expect(draft.friends).toEqual(["Sam", "Me", "Priya"]);
+    expect(run(draft, { type: "removeFriend", name: "Sam" }).friends).toEqual(["Me", "Priya"]);
   });
 });
 
@@ -513,7 +515,7 @@ describe("a coupon worth more than its Item", () => {
       total: 12,
       check: { passed: true, gaps: { subtotal: 0, total: 0 } },
     };
-    const draft = run(emptyDraft, { type: "read", file, receipt: receiptOfReply(reply) }, { type: "addName", name: "Ann" }, { type: "addName", name: "Bob" });
+    const draft = run(emptyDraft, { type: "read", file, receipt: receiptOfReply(reply) }, { type: "setHost", name: "Ann" }, { type: "addFriend", name: "Bob" });
     const request = requestOf(draft, counter());
     if (!request) throw new Error(JSON.stringify(readiness(draft)));
     const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("coupon-read-00000000"));
@@ -543,7 +545,7 @@ describe("Bundles", () => {
       return [box(label, 20, row), box(amount, 600, row)];
     });
   const topgolf = parseReceipt(topgolfBoxes)!;
-  const readTopgolf = (draft = emptyDraft) => run(withVenmo(draft), { type: "addName", name: "Priya" }, { type: "read", file, receipt: topgolf });
+  const readTopgolf = (draft = emptyDraft) => run(withVenmo(draft), { type: "addFriend", name: "Priya" }, { type: "read", file, receipt: topgolf });
   const adjustmentsOf = (draft: Draft) => requestOf(draft, counter())?.receipt.adjustments;
   const bucketOne = { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] };
   const bucketTwo = { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] };
@@ -599,7 +601,7 @@ describe("Bundles", () => {
 describe("the Split link", () => {
   test("the create body carries the Receipt with its tip as an Adjustment, the Host first as the first name typed, and every handle the Host filled in", () => {
     const tipped: Receipt = { ...receipt1040, adjustments: [...receipt1040.adjustments, { id: adjustmentId("a3"), kind: "tip", name: "Tip", amount: cents(460) }], total: cents(3264) };
-    const draft = run(withVenmo(read1040()), { type: "read", file, receipt: tipped }, { type: "addHandle" }, { type: "setHandle", index: 1, handle: "$jasonz" }, { type: "addName", name: "Jason" }, { type: "addName", name: "Sam" }, { type: "addName", name: "Priya" });
+    const draft = run(withVenmo(read1040()), { type: "read", file, receipt: tipped }, { type: "addHandle" }, { type: "setHandle", index: 1, handle: "$jasonz" }, { type: "setHost", name: "Jason" }, { type: "addFriend", name: "Sam" }, { type: "addFriend", name: "Priya" });
 
     expect(requestOf(draft, counter())).toEqual({
       receipt: {
@@ -642,22 +644,22 @@ describe("the Split link", () => {
   });
 
   test("creating the Split starts a fresh draft that keeps only the Payment handles", () => {
-    const created = run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "created" });
+    const created = run(withVenmo(read1040()), { type: "addFriend", name: "Sam" }, { type: "created" });
 
-    expect(created).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] });
+    expect(created).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] });
   });
 
   test("a reload after creating opens a fresh draft, and one saved while linked to a Split by an older build does too", () => {
     const storage = new MemoryStorage();
-    saveDraft(run(withVenmo(read1040()), { type: "addName", name: "Sam" }, { type: "created" }), storage);
+    saveDraft(run(withVenmo(read1040()), { type: "addFriend", name: "Sam" }, { type: "created" }), storage);
     const fresh = loadDraft(storage);
     const older = new MemoryStorage();
-    const read = run(withVenmo(read1040()), { type: "addName", name: "Sam" });
+    const read = run(withVenmo(read1040()), { type: "addFriend", name: "Sam" });
     older.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: { ...read, names: [], scan: { ...read.scan, status: "linked", splitId } } }));
 
     expect([fresh, loadDraft(older)]).toEqual([
-      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] },
-      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], names: [] },
+      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] },
+      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] },
     ]);
   });
 });
@@ -673,7 +675,7 @@ describe("a reading with odd numbers still creates a Split", () => {
     check: { passed: true, gaps: { subtotal: 0, total: 0 } },
   });
   const sharesOf = (body: unknown, owners: string[]) => {
-    const draft = run(emptyDraft, { type: "read", file, receipt: receiptOfReply(body) }, { type: "addName", name: "Ann" }, { type: "addName", name: "Bob" });
+    const draft = run(emptyDraft, { type: "read", file, receipt: receiptOfReply(body) }, { type: "setHost", name: "Ann" }, { type: "addFriend", name: "Bob" });
     const request = requestOf(draft, counter());
     if (!request) throw new Error(JSON.stringify(readiness(draft)));
     const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("odd-numbers-0000000"));

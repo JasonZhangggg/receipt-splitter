@@ -14,7 +14,8 @@ type Scan =
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
 
-export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[]; readonly names: readonly string[] };
+/** The Host is apart from the friends, so friends can be named before the Host is. */
+export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[]; readonly host: string | null; readonly friends: readonly string[] };
 
 export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
@@ -24,12 +25,14 @@ export type DraftAction =
   | { readonly type: "setHandle"; readonly index: number; readonly handle: string }
   | { readonly type: "addHandle" }
   | { readonly type: "removeHandle"; readonly index: number }
-  | { readonly type: "addName"; readonly name: string }
-  | { readonly type: "removeName"; readonly name: string };
+  | { readonly type: "setHost"; readonly name: string }
+  | { readonly type: "removeHost" }
+  | { readonly type: "addFriend"; readonly name: string }
+  | { readonly type: "removeFriend"; readonly name: string };
 
 const MAX_GRAPHEMES = 80;
 
-export const emptyDraft: Draft = { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], names: [] };
+export const emptyDraft: Draft = { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], host: null, friends: [] };
 
 const graphemes = new Intl.Segmenter();
 
@@ -54,6 +57,9 @@ export function newName(
   return { ok: true, name };
 }
 
+/** Every name in the Draft, the Host first when there is one. */
+export const draftNames = ({ host, friends }: Draft): readonly string[] => (host === null ? friends : [host, ...friends]);
+
 export function reduceDraft(draft: Draft, action: DraftAction): Draft {
   switch (action.type) {
     case "reading":
@@ -72,12 +78,18 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     }
     case "removeHandle":
       return draft.handles.length > 1 ? { ...draft, handles: draft.handles.filter((_, i) => i !== action.index) } : draft;
-    case "addName": {
-      const named = newName(action.name, draft.names);
-      return named.ok ? { ...draft, names: [...draft.names, named.name] } : draft;
+    case "setHost": {
+      const named = newName(action.name, draft.friends);
+      return named.ok ? { ...draft, host: named.name } : draft;
     }
-    case "removeName":
-      return { ...draft, names: draft.names.filter((name) => name !== action.name) };
+    case "removeHost":
+      return { ...draft, host: null };
+    case "addFriend": {
+      const named = newName(action.name, draftNames(draft));
+      return named.ok ? { ...draft, friends: [...draft.friends, named.name] } : draft;
+    }
+    case "removeFriend":
+      return { ...draft, friends: draft.friends.filter((name) => name !== action.name) };
     default:
       return action satisfies never;
   }
@@ -186,7 +198,7 @@ export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonl
 
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
-export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
+export function readiness({ scan, handles, host, friends }: Draft): Blocker | Ready {
   if (scan.status === "empty") return note("Add a receipt first.");
   if (scan.status === "reading") return note("Reading the receipt.");
   if (!scan.receipt) return note("Couldn't read any items. Try another photo.");
@@ -198,9 +210,8 @@ export function readiness({ scan, handles, names }: Draft): Blocker | Ready {
     const problem = handle.trim() === "" ? null : handleProblem({ service, handle: handle.trim() });
     if (problem) return { kind: "badHandle", index, service, problem };
   }
-  const [host, ...others] = names;
-  if (host === undefined) return { kind: "noName" };
-  return { kind: "ready", receipt: scan.receipt, paymentHandles: filledHandles(handles), names: [host, ...others] };
+  if (host === null) return { kind: "noName" };
+  return { kind: "ready", receipt: scan.receipt, paymentHandles: filledHandles(handles), names: [host, ...friends] };
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;

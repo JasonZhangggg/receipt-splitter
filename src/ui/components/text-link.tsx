@@ -9,10 +9,10 @@ import { Icon } from "./icon";
 export const underline = { textDecorationLine: "underline", textDecorationThickness: "1px", textUnderlineOffset: "3px" } as TextStyle;
 export const linkPress = { scale: 0.97, pressIn: 100 };
 
-type Props = { center?: boolean; label: string; onPress: (press: Press) => void; name?: string; plus?: boolean; outsideScroll?: boolean; expanded?: boolean; popup?: "dialog" };
+type Props = { center?: boolean; ink?: boolean; label: string; onPress: (press: Press) => void; name?: string; plus?: boolean; outsideScroll?: boolean; expanded?: boolean; popup?: "dialog" };
 
-/** A quiet underlined action in the muted ink. With `plus` the "+" leads it and only the words are underlined. */
-export function TextLink({ center = false, label, onPress, name, plus = false, outsideScroll, expanded, popup }: Props) {
+/** A quiet underlined action in the muted ink, or the strong ink with `ink`. With `plus` the "+" leads it and only the words are underlined. */
+export function TextLink({ center = false, ink = false, label, onPress, name, plus = false, outsideScroll, expanded, popup }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
@@ -20,7 +20,7 @@ export function TextLink({ center = false, label, onPress, name, plus = false, o
       {() => (
         <View style={styles.face}>
           {plus ? <Icon name="plus" size={12} color={c.muted} /> : null}
-          <Text numberOfLines={1} style={[type.caption, underline, { color: c.muted, textDecorationColor: c.muted }]}>{label}</Text>
+          <Text numberOfLines={1} style={[type.caption, underline, { color: ink ? c.ink : c.muted, textDecorationColor: ink ? c.ink : c.muted }]}>{label}</Text>
         </View>
       )}
     </PressTarget>
