@@ -298,50 +298,23 @@ const scrollTo = (page: Page, to: number | "end") =>
   }, to);
 const topOf = async (locator: Locator) => Math.round((await locator.boundingBox())!.y);
 
-test("with eight Recent splits the header and sentence stay pinned while the list scrolls, and its last row ends above the footer", async ({ page }) => {
+test("with eight Recent splits the header and sentence scroll away with the list, and its last row ends above the footer", async ({ page }) => {
   await seed(page, eight);
   const sentence = page.getByTestId("sentence");
   const heading = page.getByRole("heading", { name: "SplitWith" });
-  const rest = [await topOf(heading), await topOf(sentence)];
-  expect(rest).toEqual([30, 104]);
+  expect([await topOf(heading), await topOf(sentence)]).toEqual([30, 104]);
   expect((await pageScroller(page))!.max).toBeGreaterThan(100);
   await scrollTo(page, "end");
   await expect(rows(page).last()).toBeVisible();
-  expect([await topOf(heading), await topOf(sentence)]).toEqual(rest);
+  expect(await topOf(heading)).toBeLessThan(0);
   const [last, footer] = [(await rows(page).last().boundingBox())!, (await action(page).boundingBox())!];
   expect(last.y + last.height).toBeLessThanOrEqual(footer.y);
-});
-
-test("on a phone with Safari's toolbars showing, 390 by 664, the header and sentence still pin while the list scrolls", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 664 });
-  await seed(page, eight);
-  const heading = page.getByRole("heading", { name: "SplitWith" });
-  const before = await topOf(heading);
-  await scrollTo(page, "end");
-  await expect(rows(page).last()).toBeVisible();
-  expect(await topOf(heading)).toBe(before);
-});
-
-test("held sideways, 844 by 390, the sentence leaves no room for the list, so the whole page scrolls and the header leaves", async ({ page }) => {
-  await page.setViewportSize({ width: 844, height: 390 });
-  await seed(page, eight);
-  await scrollTo(page, "end");
-  expect(await topOf(page.getByRole("heading", { name: "SplitWith" }))).toBeLessThan(0);
 });
 
 test("with no Recent splits nothing scrolls", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
   expect(await pageScroller(page)).toBeNull();
-});
-
-test("twelve names make the sentence too tall to pin, so the whole page scrolls and the header leaves", async ({ page }) => {
-  await seed(page, eight);
-  await addNames(page, "Jason", ...Array.from({ length: 12 }, (_, i) => `Guest number ${i + 1}`));
-  const heading = page.getByRole("heading", { name: "SplitWith" });
-  await scrollTo(page, "end");
-  expect(await topOf(heading)).toBeLessThan(0);
-  await expect(rows(page).last()).toBeVisible();
 });
 
 test("Revert on your own change locks from the first tap, so a second tap during the arrow's swing sends no second undo", async ({ browser, request }, { workerIndex }) => {

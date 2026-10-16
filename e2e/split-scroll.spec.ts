@@ -43,7 +43,7 @@ const box = async (locator: Locator) => {
   return [Math.round(x), Math.round(y), Math.round(width), Math.round(height)];
 };
 
-test("the Split page header stays at the top while the list scrolls to its end", async ({ page, request }, { workerIndex }) => {
+test("the Split page header scrolls away with the list", async ({ page, request }, { workerIndex }) => {
   await openSplit(page, request, workerIndex);
   const header = page.getByRole("heading", { level: 1 });
   const rest = await box(header);
@@ -51,5 +51,5 @@ test("the Split page header stays at the top while the list scrolls to its end",
   expect(await scrollPage(page, "end")).toBeGreaterThan(1000);
   await expect(page.getByRole("button", { name: "SplitWith, split a receipt" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Open Dish 30, / })).toBeVisible();
-  expect(await box(header)).toEqual(rest);
+  expect((await header.boundingBox())!.y).toBeLessThan(0);
 });
