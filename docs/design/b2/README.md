@@ -22,7 +22,7 @@ The operator made these calls while iterating. They win over older design docs a
 ### Split page
 
 7. Header: the Split's name, then the theme toggle and the share icon on the right. Under it an intro line ("Sam paid $135.83 on Saturday, Oct 11. Tap the dot next to what you had. Tap a line to edit it or split it another way.").
-    The header row (wordmark, theme toggle, Share) is pinned to the top while the list scrolls under it (operator, 2026-10-15). It has the page background, so rows do not show through, and respects the top safe-area inset. A hairline appears under it only once content has scrolled under it. The intro and the links below it scroll as before, and a tall sheet still stops below the header.
+    The header row scrolls away with the list. Nothing on the page is pinned except the footer (operator, 2026-10-16, replacing the pinned header of 2026-10-15).
 8. Receipt, People, Payments and History are underlined text links under the intro. Each opens its own sheet. There is no menu button and no sideways row of people chips.
 9. Item rows: the dot toggles the claim; the rest of the row opens the Edit item sheet. No arrow. The left column shows the name, the description, then who had it. The right column shows the full price, and under it the split line ("$4.67 yours", "$6.25 each").
     In the who-had-it line only "You" is in the strong ink; other names stay muted (operator, 2026-10-16).
@@ -52,7 +52,7 @@ The operator made these calls while iterating. They win over older design docs a
     - While reading, the step word takes the place of "Add the receipt" and follows the real stages: "Reading the receipt", "Finding the text", "Matching prices", then "Taking a few more seconds". Each word fades in with a 2 px blur over 320 ms ease-out, with no slide. A text gradient sweeps across it every 1.8 s. Reduced motion swaps plain text.
     - Once read, the clause is "I paid $X. Change." Change opens the chooser again.
     - Each added way to pay is an inline "or <app> at <handle>" clause. Names follow "here with", and the first name is the Host.
-    - The header and the sentence block (the sentence, its refusal line and "+ Add another app") are pinned to the top, and only Recent splits scrolls, between the pinned block and the fixed footer (operator, 2026-10-15). With no recent splits nothing scrolls. When the pinned block is taller than 420 px or leaves less than 180 px above the footer for the Recent splits label and two rows (many or long names, a phone held sideways), nothing pins and the whole page scrolls, so no field sits where the keyboard can cover it. A hairline appears under the pinned block once the list has scrolled under it.
+    - The header and the sentence scroll with the page, and only the footer stays fixed (operator, 2026-10-16, replacing the pinned sentence block of 2026-10-15). With no recent splits nothing scrolls.
     - Recent splits lists this device's stored Splits under the sentence. Each row shows who, the day, how many people and the total. The section and the header link are gone when there are none.
     - The footer matches the Split page: the reason line at the left, and a "Create link" pill at the right that is gray while blocked.
 
