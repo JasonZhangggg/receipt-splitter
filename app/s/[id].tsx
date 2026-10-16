@@ -41,7 +41,6 @@ import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-she
 import { PayBlock } from "../../src/ui/pay/pay-block";
 import { shareStatus, statusWords } from "../../src/ui/pay/model";
 import { webStyle } from "../../src/ui/motion";
-import { PinnedTop, useScrolledPast } from "../../src/ui/pinned-top";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
@@ -116,8 +115,6 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
-  const sides = { left: layout.gutter + insets.left, right: layout.gutter + insets.right };
-  const { scrolled, onScroll } = useScrolledPast();
   const wide = useLayoutWidth() >= breakpoints.pairFrom;
   const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
@@ -498,25 +495,22 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
 
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
-      <ScrollView style={styles.page} contentContainerStyle={{ paddingBottom: footerHeight + 16 }} onScroll={onScroll} scrollEventThrottle={16}>
-        <PinnedTop pinned scrolled={scrolled} top={insets.top} left={sides.left} right={sides.right}>
-          <View style={styles.column}>
-            <SplitHeader onShare={() => void share()} />
-          </View>
-        </PinnedTop>
-        <View style={{ paddingLeft: sides.left, paddingRight: sides.right }}>
-          <View style={styles.column}>
-            <SplitIntro
-              host={host.name}
-              total={money(split.receipt.total)}
-              onReceipt={photo ? (from) => open({ kind: "receipt" }, from) : undefined}
-              onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
-              onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-              onHistory={(from) => open({ kind: "history" }, from)}
-            />
-            {me && selectedPerson && selectedPerson.id !== me ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
-            <View style={styles.doc}>{receipt}</View>
-          </View>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: footerHeight + 16, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }}
+      >
+        <View style={styles.column}>
+          <SplitHeader onShare={() => void share()} />
+          <SplitIntro
+            host={host.name}
+            total={money(split.receipt.total)}
+            onReceipt={photo ? (from) => open({ kind: "receipt" }, from) : undefined}
+            onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
+            onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+            onHistory={(from) => open({ kind: "history" }, from)}
+          />
+          {me && selectedPerson && selectedPerson.id !== me ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
+          <View style={styles.doc}>{receipt}</View>
         </View>
       </ScrollView>
       {phase === "pick" ? null : footer}

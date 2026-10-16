@@ -19,8 +19,7 @@ import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-word
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
 import { stagePacer } from "../src/ui/home-sentence/stage-pacer";
 import { webStyle } from "../src/ui/motion";
-import { PinnedTop, useScrolledPast } from "../src/ui/pinned-top";
-import { RecentSplits, recentGap } from "../src/ui/recent-splits";
+import { RecentSplits } from "../src/ui/recent-splits";
 import { HomeFooter } from "../src/ui/receipt-input/home-footer";
 import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
 import { focusInPlace, useKeyboardRoom } from "../src/ui/receipt-input/keyboard-room";
@@ -45,18 +44,11 @@ const ENGINE_READY = 0.6;
 const DOWNLOADED = 0.5;
 /** The server's reading answers in about 1 s at the median (ADR 0010). Past this the wait is a flex fallback or a second pass, so home says it is taking longer. */
 const SLOW_SERVER_MS = 4000;
-/**
- * The sentence pins to the top only while it is at most PINNED_MAX tall, so its last field stays above an open iPhone keyboard (about 410 px of
- * page shows), and leaves LIST_ROOM above the footer for the Recent splits label and two rows. Otherwise (many or long names, a phone held
- * sideways) the whole page scrolls, so no field sits where the keyboard can cover it and nothing is trapped off screen.
- */
-const PINNED_MAX = 420;
-const LIST_ROOM = 180;
 
 export default function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const [draft, apply] = useReducer(reduceDraft, undefined, () => pageDraft ?? loadDraft());
   const [stage, setStage] = useState<ReadingStage>("start");
   const [notice, setNotice] = useState<string | null>(null);
@@ -72,8 +64,6 @@ export default function Home() {
   const sentence = useRef<Text>(null);
   const handleInputs = useRef<(TextInput | null)[]>([]);
   const nameField = useRef<NameField>(null);
-  const [topHeight, setTopHeight] = useState(0);
-  const { scrolled, onScroll } = useScrolledPast(recentGap);
   const room = useKeyboardRoom(scroller);
   useEffect(prefetchModel, []);
   useEffect(() => {
@@ -183,38 +173,32 @@ export default function Home() {
 
   return (
     <View style={[styles.screen, still, { backgroundColor: c.field }]}>
-      <ScrollView ref={scroller} style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: 32 + room }]} onScroll={onScroll} scrollEventThrottle={16}>
-        <PinnedTop pinned={topHeight <= PINNED_MAX && height - topHeight - footerHeight >= LIST_ROOM} scrolled={scrolled} top={20 + insets.top} bottom={12} left={sides.paddingLeft} right={sides.paddingRight} onHeight={setTopHeight}>
-          <View style={[styles.column, { maxWidth: columnWidth }]}>
-            <View style={styles.header}>
-              <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
-                {copy.wordmark}
-              </Text>
-              <ThemeToggle />
-            </View>
-
-            <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
-              <ReceiptWords state={receipt} onChoose={choose} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
-              <PeopleWords ref={nameField} names={draft.names} onAdd={(name) => dispatch({ type: "addName", name })} onRemove={(name) => dispatch({ type: "removeName", name })} onRefusal={setRefusal} />
+      <ScrollView ref={scroller} style={styles.screen} contentContainerStyle={[styles.page, sides, { paddingTop: 20 + insets.top, paddingBottom: 32 + room }]}>
+        <View style={[styles.column, { maxWidth: columnWidth }]}>
+          <View style={styles.header}>
+            <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
+              {copy.wordmark}
             </Text>
-            {refusal ? (
-              <Text role="alert" style={[type.caption, styles.refusal, { color: c.warn }]}>
-                {refusal}
-              </Text>
-            ) : null}
-            {roomForAnotherApp(draft.handles) ? (
-              <View style={styles.addApp}>
-                <TextLink plus label={copy.addApp} name={copy.addAppName} onPress={() => dispatch({ type: "addHandle" })} />
-              </View>
-            ) : null}
+            <ThemeToggle />
           </View>
-        </PinnedTop>
 
-        {stored.length > 0 ? (
-          <View style={[styles.recent, { maxWidth: columnWidth + sides.paddingLeft + sides.paddingRight, paddingLeft: sides.paddingLeft, paddingRight: sides.paddingRight }]}>
-            <RecentSplits splits={stored} now={now} />
-          </View>
-        ) : null}
+          <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
+            <ReceiptWords state={receipt} onChoose={choose} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
+            <PeopleWords ref={nameField} names={draft.names} onAdd={(name) => dispatch({ type: "addName", name })} onRemove={(name) => dispatch({ type: "removeName", name })} onRefusal={setRefusal} />
+          </Text>
+          {refusal ? (
+            <Text role="alert" style={[type.caption, styles.refusal, { color: c.warn }]}>
+              {refusal}
+            </Text>
+          ) : null}
+          {roomForAnotherApp(draft.handles) ? (
+            <View style={styles.addApp}>
+              <TextLink plus label={copy.addApp} name={copy.addAppName} onPress={() => dispatch({ type: "addHandle" })} />
+            </View>
+          ) : null}
+
+          {stored.length > 0 ? <RecentSplits splits={stored} now={now} /> : null}
+        </View>
       </ScrollView>
 
       <HomeFooter reason={reason} live={scan.status !== "reading"} problem={problem} blocked={blocked} busy={creating} onPress={press} onHeight={setFooterHeight} width={columnWidth} />
@@ -229,9 +213,8 @@ const still = webStyle({ overflow: "clip" });
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1, alignItems: "center" },
-  column: { width: "100%", alignSelf: "center" },
+  column: { width: "100%" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
-  recent: { width: "100%" },
   sentence: { marginTop: 40 },
   refusal: { marginTop: 8 },
   addApp: { marginTop: 4 },

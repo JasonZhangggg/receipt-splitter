@@ -13,9 +13,6 @@ const web = { dataSet: { pressable: "" }, delayPressIn: scrollViewTouchDelay };
 const fillIn = webStyle({ transitionProperty: "background-color", transitionDuration: "0ms" });
 const fillOut = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.pressOut}ms`, transitionTimingFunction: motion.easeOut });
 
-/** The space between the sentence block and the list. */
-export const recentGap = 32;
-
 /** The Splits this device stored, newest first, under the sentence. Each row shows only what the device keeps: who, when, how many, the total. */
 export function RecentSplits({ splits, now }: { splits: readonly RecentSplit[]; now: number }) {
   const c = useColors();
@@ -54,7 +51,7 @@ export function RecentSplits({ splits, now }: { splits: readonly RecentSplit[]; 
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: recentGap },
+  section: { marginTop: 44 },
   title: { paddingBottom: 10, borderBottomWidth: 1 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: 1 },
   text: { flex: 1, minWidth: 0 },
