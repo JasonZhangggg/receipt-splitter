@@ -95,16 +95,23 @@ test("a payer's Pay Jason pill is there but disabled until something is claimed,
   await expect(jason.getByTestId("footer").getByRole("button", { name: /^Pay / })).toHaveCount(0);
 });
 
-test("the Pay sheet lists the viewer's Items and Adjustment parts and its total equals the footer share", async ({ browser, request }, { workerIndex }) => {
+test("the Pay sheet lists the viewer's Items under What you had and Adjustment parts under Your part of tax and tip, its total equals the footer share, and You on the rows is in the strong ink", async ({ browser, request }, { workerIndex }) => {
   const taxed = { ...menu, adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 400 }, { id: "tip", kind: "tip", name: "Tip", amount: 600 }], subtotal: 4420, total: 5420 };
   const sam = await open(browser, await createSplit(request, workerIndex, [venmo], taxed));
   await pick(sam, "Sam");
   await circle(sam, "Pho", "Sam").click();
   await circle(sam, "Tea", "Sam").click();
   await expect(owe(sam)).toHaveText("$37.03", live);
+  const color = (text: string, row: string) => sam.getByTestId(row).getByText(text, { exact: true }).evaluate((el) => getComputedStyle(el).color);
+  expect([await color("You", "line-pho"), await color("Nobody yet", "line-wings")]).toEqual(["rgb(23, 23, 23)", "rgb(115, 115, 115)"]);
   await owe(sam).click();
   const sheet = breakdown(sam);
   await expect(sheet.getByText("Pho", { exact: true })).toBeVisible(live);
+  await expect(sheet.getByText("2 items", { exact: true })).toBeVisible();
+  const order = await sheet.evaluate((el) =>
+    ["What you had", "Pho", "Your part of tax and tip", "Tax"].map((text) => [...el.querySelectorAll("div")].find((node) => node.textContent === text && node.children.length === 0)!.getBoundingClientRect().top),
+  );
+  expect(order.every((y, i) => i === 0 || y > order[i - 1])).toBe(true);
   await expect(sheet.getByText("Tea", { exact: true })).toBeVisible();
   await expect(sheet.getByText("Wings")).toHaveCount(0);
   await expect(sheet.getByText("Tax", { exact: true })).toBeVisible();

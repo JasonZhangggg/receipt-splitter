@@ -1,5 +1,5 @@
 import { useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 
 import { shareBreakdown, type Shares } from "../../core/shares";
 import { claimersOf } from "../../core/operations";
@@ -12,7 +12,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
 import { ClaimDot } from "./dot";
-import { itemsHad, keepInPlace, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoLine, type BundleRow, type Kept, type Portions, type Viewing } from "./model";
+import { itemsHad, keepInPlace, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoHad, whoText, type BundleRow, type Who, type Kept, type Portions, type Viewing } from "./model";
 
 type Props = {
   split: Split;
@@ -103,7 +103,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                 open={opened.has(bundle.id)}
                 claimed={claimedItems(bundle, shares.unclaimed.itemIds)}
                 claimers={claimers}
-                who={whoLine(claimers.map(({ id }) => id), viewing)}
+                who={whoHad(claimers.map(({ id }) => id), viewing)}
                 onToggle={() => toggle(bundle.id)}
               >
                 <KeptRows rows={bundle.items} entering={entering}>
@@ -177,7 +177,7 @@ type BundleProps = {
   open: boolean;
   claimed: number;
   claimers: readonly Participant[];
-  who: string;
+  who: Who;
   onToggle: () => void;
   children: ReactNode;
 };
@@ -227,9 +227,7 @@ function BundleGroup({ bundle, open, claimed, claimers, who, onToggle, children 
             </View>
             <Presence present={showInside} animate={byClaim}>
               <View style={styles.bundleWho}>
-                <Text numberOfLines={2} style={[type.caption, styles.noteText, styles.name, { color: c.muted }]}>
-                  {who}
-                </Text>
+                <WhoLine who={who} style={styles.name} />
                 <Text style={[type.caption, tabular, styles.noteText, { color: c.muted }]}>{say.claimedItems(claimed)}</Text>
               </View>
             </Presence>
@@ -402,6 +400,23 @@ type LineProps = {
   expanded: boolean;
 };
 
+/** Who had it, in muted ink except "You", which takes the strong ink so the viewer's own lines stand apart from the details above. */
+function WhoLine({ who, style }: { who: Who; style?: StyleProp<TextStyle> }) {
+  const c = useColors();
+  return (
+    <Text numberOfLines={2} style={[type.caption, styles.noteText, style, { color: c.muted }]}>
+      {who.you ? (
+        <>
+          <Text style={{ color: c.ink }}>{say.youHad}</Text>
+          {who.others.map((name) => `, ${name}`).join("")}
+        </>
+      ) : (
+        whoText(who)
+      )}
+    </Text>
+  );
+}
+
 /** A dot that claims the line, and the rest of the row, which opens it. The left column is the name, the detail and who had it; the right is the full price and what it comes to for the viewer or each person. */
 function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
   const c = useColors();
@@ -421,7 +436,7 @@ function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle,
       >
         {(pressed) => <ClaimDot on={mine} pressed={pressed} />}
       </PressTarget>
-      <PressTarget name={[say.open(label), `$${price}`, who, split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
+      <PressTarget name={[say.open(label), `$${price}`, whoText(who), split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
         {() => (
           <>
             <View style={styles.name}>
@@ -434,9 +449,7 @@ function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle,
                   {detail}
                 </Text>
               ) : null}
-              <Text numberOfLines={2} style={[type.caption, styles.noteText, { color: c.muted }]}>
-                {who}
-              </Text>
+              <WhoLine who={who} />
             </View>
             <View style={styles.figures}>
               <Text style={[type.body, styles.nameText, tabular, { color: c.ink }]}>{money(item.price)}</Text>

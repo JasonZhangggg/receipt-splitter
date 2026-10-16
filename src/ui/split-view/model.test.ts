@@ -4,7 +4,7 @@ import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
 import { splitCopy } from "../split-copy";
-import { breakdownCharges, breakdownLines, bundleNote, circleTap, itemParts, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems } from "./model";
+import { breakdownCharges, breakdownLines, bundleNote, circleTap, itemParts, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems, whoText } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -42,12 +42,14 @@ describe("lineView", () => {
   });
 
   test("who had it lists the phone's owner as You first, then the others in the table's order, and says Nobody yet for an untouched line", () => {
-    expect([
+    const whos = [
       view(item({ by: "even", units: [[cat, bob, ann]] })).who,
       view(item({ by: "even", units: [[cat, bob]] }), ann, null).who,
       view(item({ by: "even", units: [[bob]] }), ann, bob).who,
       view(item({ by: "even", units: [[]] })).who,
-    ]).toEqual(["You, Bob, Cat", "Bob, Cat", "You", "Nobody yet"]);
+    ];
+    expect(whos.map(whoText)).toEqual(["You, Bob, Cat", "Bob, Cat", "You", "Nobody yet"]);
+    expect(whos.map(({ you }) => you)).toEqual([true, false, true, false]);
   });
 });
 
@@ -281,13 +283,13 @@ describe("receiptRows at Topgolf", () => {
     ]);
   });
 
-  test("lists the Guinness line Ann and Bob had in Ann's breakdown as one 3x line at half its price, with no 1 of 3", () => {
+  test("lists the Guinness line Ann and Bob had in Ann's breakdown as one 3x line at half its price, with no 1 of 3, and each printed size as its detail", () => {
     const receipt = topgolf([ann, bob]);
     const split = { receipt, participants: [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }] as const, payments: [] };
     expect(breakdownLines(shareBreakdown(split, ann), receipt.items, ann)).toEqual([
-      { id: "ultra1", quantity: null, name: "Michelob Ultra 16oz Aluminum Bottle", part: null, portion: 629 },
-      { id: "guinness1", quantity: "3x", name: "Guinness Draught 14.9oz Can", part: "Split 2 ways", portion: 1094 },
-      { id: "pineapple1", quantity: null, name: "High Noon Pineapple 12oz Can", part: null, portion: 849 },
+      { id: "ultra1", quantity: null, name: "Michelob Ultra", detail: "16oz Aluminum Bottle", part: null, portion: 629 },
+      { id: "guinness1", quantity: "3x", name: "Guinness Draught", detail: "14.9oz Can", part: "Split 2 ways", portion: 1094 },
+      { id: "pineapple1", quantity: null, name: "High Noon Pineapple", detail: "12oz Can", part: null, portion: 849 },
     ]);
   });
 
