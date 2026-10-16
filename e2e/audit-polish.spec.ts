@@ -77,7 +77,7 @@ test("the home blanks' placeholders are the muted gray, 4.6:1 on the page in lig
 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(17, 17, 17)");
-  expect(await placeholderColor(blank)).toBe("rgb(153, 153, 153)");
+  await expect.poll(() => placeholderColor(blank)).toBe("rgb(153, 153, 153)");
 });
 
 test("every tappable word and field in home's sentence has a hit area of at least 44 px, and the x after a name is 44 by 44", async ({ page }) => {

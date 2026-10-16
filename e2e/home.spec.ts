@@ -344,6 +344,20 @@ test("Enter adds a name and keeps the field open, moving it from after I’m to 
   await expect(removers(page)).toHaveCount(2);
 });
 
+test("a tap on add friends while a typed name waits for Enter keeps the name and opens the friend field", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await yourName(page).click();
+  await page.keyboard.type("Jason");
+  await page.getByRole("button", { name: "Add friends" }).click();
+  await expect(sentence(page).getByRole("group", { name: "Jason, you" })).toBeVisible();
+  const next = page.getByRole("textbox", { name: "Name", exact: true });
+  await expect(next).toBeFocused();
+  await page.keyboard.type("Sam");
+  await page.keyboard.press("Enter");
+  await expect(sentence(page).getByRole("group", { name: "Sam", exact: true })).toBeVisible();
+});
+
 test("the Host is the first name, named \"<name>, you\", and a name leaves with its remove button", async ({ page }) => {
   await page.goto("/");
   await settle(page);

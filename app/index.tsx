@@ -45,8 +45,13 @@ const ENGINE_READY = 0.6;
 const DOWNLOADED = 0.5;
 /** The server's reading answers in about 1 s at the median (ADR 0010). Past this the wait is a flex fallback or a second pass, so home says it is taking longer. */
 const SLOW_SERVER_MS = 4000;
-/** The sentence pins to the top only while it takes at most this share of the screen. Taller (many or long names, a phone held sideways), the whole page scrolls so no field sits where the keyboard can cover it and nothing is trapped off screen. */
-const PINNED_MAX_SHARE = 0.4;
+/**
+ * The sentence pins to the top only while it is at most PINNED_MAX tall, so its last field stays above an open iPhone keyboard (about 410 px of
+ * page shows), and leaves LIST_ROOM above the footer for the Recent splits label and two rows. Otherwise (many or long names, a phone held
+ * sideways) the whole page scrolls, so no field sits where the keyboard can cover it and nothing is trapped off screen.
+ */
+const PINNED_MAX = 420;
+const LIST_ROOM = 180;
 
 export default function Home() {
   const c = useColors();
@@ -179,7 +184,7 @@ export default function Home() {
   return (
     <View style={[styles.screen, still, { backgroundColor: c.field }]}>
       <ScrollView ref={scroller} style={styles.screen} contentContainerStyle={[styles.page, { paddingBottom: 32 + room }]} onScroll={onScroll} scrollEventThrottle={16}>
-        <PinnedTop pinned={topHeight <= height * PINNED_MAX_SHARE} scrolled={scrolled} top={20 + insets.top} bottom={12} left={sides.paddingLeft} right={sides.paddingRight} onHeight={setTopHeight}>
+        <PinnedTop pinned={topHeight <= PINNED_MAX && height - topHeight - footerHeight >= LIST_ROOM} scrolled={scrolled} top={20 + insets.top} bottom={12} left={sides.paddingLeft} right={sides.paddingRight} onHeight={setTopHeight}>
           <View style={[styles.column, { maxWidth: columnWidth }]}>
             <View style={styles.header}>
               <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
