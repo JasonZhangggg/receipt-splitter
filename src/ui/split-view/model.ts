@@ -24,13 +24,14 @@ export function quantityText({ quantity = 1 }: { readonly quantity?: number }): 
   return quantity > 1 ? `${quantity}x` : null;
 }
 
-export type BreakdownLine = { readonly id: ItemId; readonly quantity: string | null; readonly name: string; readonly part: string | null; readonly portion: Cents };
+export type BreakdownLine = { readonly id: ItemId; readonly quantity: string | null; readonly name: string; readonly detail: string | null; readonly part: string | null; readonly portion: Cents };
 
 /** One line per row on the Split page: a quantity line is one line with its quantity, never "1 of 3". */
 export function breakdownLines(breakdown: ShareBreakdown, items: readonly SplitItem[], participantId: ParticipantId): BreakdownLine[] {
   return breakdown.items.map((line) => {
     const item = items.find(({ id }) => id === line.id);
-    return { id: line.id, quantity: quantityText(line), name: line.name, part: item ? payNote(item, participantId) : null, portion: line.portion };
+    const [name, detail] = item ? nameParts(item) : [line.name, null];
+    return { id: line.id, quantity: quantityText(line), name, detail, part: item ? payNote(item, participantId) : null, portion: line.portion };
   });
 }
 
@@ -57,13 +58,20 @@ export function linesNear(order: readonly ItemId[], gone: ItemId): ItemId[] {
 /** Whose list this is: everyone at the table, the person this phone belongs to, and the person whose checks the dots show. */
 export type Viewing = { readonly people: readonly Participant[]; readonly me: ParticipantId | null; readonly viewer: ParticipantId | null };
 
-/** What a row says under its name and price: who had it, and what it costs the viewer or each person. */
-export type LineView = { readonly who: string; readonly split: string | null };
+/** Who had a line: whether this phone's owner did, and everyone else in the table's order. */
+export type Who = { readonly you: boolean; readonly others: readonly string[] };
 
-/** Names in the table's order, this phone's owner first as "You". */
-export function whoLine(claimers: readonly ParticipantId[], { people, me }: Viewing): string {
+/** What a row says under its name and price: who had it, and what it costs the viewer or each person. */
+export type LineView = { readonly who: Who; readonly split: string | null };
+
+export function whoHad(claimers: readonly ParticipantId[], { people, me }: Viewing): Who {
   const had = people.filter(({ id }) => claimers.includes(id));
-  return [...had.filter(({ id }) => id === me).map(() => say.youHad), ...had.filter(({ id }) => id !== me).map(({ name }) => name)].join(", ");
+  return { you: had.some(({ id }) => id === me), others: had.filter(({ id }) => id !== me).map(({ name }) => name) };
+}
+
+/** The who line as words: "You" first, then the others, or Nobody yet. */
+export function whoText({ you, others }: Who): string {
+  return you || others.length > 0 ? [...(you ? [say.youHad] : []), ...others].join(", ") : say.nobodyYet;
 }
 
 /** What the viewer owes for each Item they have a part in, from their share breakdown, so a row reads what the Pay sheet charges. */
@@ -71,7 +79,7 @@ export type Portions = ReadonlyMap<ItemId, Cents>;
 
 export function lineView(item: SplitItem, viewing: Viewing, portions: Portions): LineView {
   const claimers = claimersOf(item.split);
-  return { who: claimers.length > 0 ? whoLine(claimers, viewing) : say.nobodyYet, split: splitLine(item, claimers, viewing, portions) };
+  return { who: whoHad(claimers, viewing), split: splitLine(item, claimers, viewing, portions) };
 }
 
 function splitLine(item: SplitItem, claimers: readonly ParticipantId[], { people, me, viewer }: Viewing, portions: Portions): string | null {

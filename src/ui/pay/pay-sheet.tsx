@@ -33,8 +33,8 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
   return (
     <View style={styles.body}>
       <SheetHeader title={title} onClose={onClose} />
-      <Text style={[type.body, { color: c.muted }]}>{mine ? say.payHint : say.payHintOf(person.name)}</Text>
-      <View style={styles.items}>
+      <Label text={mine ? say.whatYouHad : say.whatTheyHad(person.name)} count={lines.length > 0 ? say.itemCount(lines.length) : null} />
+      <View>
         {lines.length === 0 ? (
           <Text style={[type.body, styles.empty, { color: c.muted }]}>{say.nothingChecked(mine ? null : person.name)}</Text>
         ) : (
@@ -44,6 +44,7 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
                 <Text style={[type.body, { color: c.ink }]}>
                   {line.quantity ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${line.quantity}  `}</Text> : null}
                   {line.name}
+                  {line.detail ? <Text style={{ color: c.muted }}>{` ${line.detail}`}</Text> : null}
                 </Text>
                 {line.part ? <Text style={[type.caption, { color: c.muted }]}>{line.part}</Text> : null}
               </View>
@@ -53,7 +54,8 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
         )}
       </View>
       {charges.length > 0 ? (
-        <View style={[styles.charges, { borderTopColor: c.hairline }]}>
+        <View style={styles.charges}>
+          <Label text={mine ? say.yourCharges : say.chargesOf(person.name)} count={null} />
           {charges.map((row) => (
             <View key={row.id} style={styles.charge}>
               <Text numberOfLines={1} style={[type.body, styles.name, { color: c.muted }]}>
@@ -76,6 +78,17 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
   );
 }
 
+/** A section's name in small muted type over a hairline, so the sheet reads where its Items and its charges begin. */
+function Label({ text, count }: { text: string; count: string | null }) {
+  const c = useColors();
+  return (
+    <View style={[styles.label, { borderBottomColor: c.hairline }]}>
+      <Text style={[type.caption, styles.name, { color: c.muted }]}>{text}</Text>
+      {count ? <Text style={[type.caption, tabular, { color: c.muted }]}>{count}</Text> : null}
+    </View>
+  );
+}
+
 export function payTitle(split: Split, person: Participant, viewer: ParticipantId | null) {
   const { host, mine, isHost } = payFacts(split, person, viewer);
   return mine ? (isHost ? say.yourShare : say.payHost(firstName(host.name))) : say.shareOf(person.name);
@@ -85,11 +98,11 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 const styles = StyleSheet.create({
   body: { gap: 4 },
-  items: { marginTop: 8 },
+  label: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 12, paddingBottom: 8, borderBottomWidth: 1 },
   line: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 48, paddingVertical: 8 },
   name: { flex: 1, minWidth: 0 },
   empty: { paddingVertical: 12 },
-  charges: { marginTop: 6, paddingTop: 6, borderTopWidth: 1 },
+  charges: { marginTop: 8 },
   charge: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8, paddingTop: 12, borderTopWidth: 1 },
   regular: { fontWeight: "400" },
