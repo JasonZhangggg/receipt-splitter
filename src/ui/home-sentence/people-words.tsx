@@ -51,6 +51,14 @@ export function PeopleWords({ names, onAdd, onRemove, onRefusal, ref }: Props) {
     onAdd(text);
     return true;
   };
+  const submit = () => {
+    if (commit() && field === "host") {
+      moving.current = true;
+      setAdding(true);
+    }
+  };
+  // A tap on add friends blurs a typed Host name before Enter; the press lands first, so it takes the name rather than focusing it again.
+  const addFriends = () => (field === "host" && typed.trim() ? submit() : open());
 
   const blank = (
     <Blank
@@ -65,12 +73,7 @@ export function PeopleWords({ names, onAdd, onRemove, onRefusal, ref }: Props) {
         setTyped(text);
         onRefusal(null);
       }}
-      onSubmitEditing={() => {
-        if (commit() && field === "host") {
-          moving.current = true;
-          setAdding(true);
-        }
-      }}
+      onSubmitEditing={submit}
       onKeyPress={(event) => {
         if (event.nativeEvent.key !== "Escape") return;
         setTyped("");
@@ -103,7 +106,7 @@ export function PeopleWords({ names, onAdd, onRemove, onRefusal, ref }: Props) {
     </Together>
   );
 
-  const more = field === "friend" ? blank : <Act quiet label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={open} />;
+  const more = field === "friend" ? blank : <Act quiet label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} />;
   return (
     <>
       <Words>{copy.sentence.iAm}</Words> {host === undefined ? blank : person(host, true)}

@@ -312,6 +312,23 @@ test("with eight Recent splits the header and sentence stay pinned while the lis
   expect(last.y + last.height).toBeLessThanOrEqual(footer.y);
 });
 
+test("on a phone with Safari's toolbars showing, 390 by 664, the header and sentence still pin while the list scrolls", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  await seed(page, eight);
+  const heading = page.getByRole("heading", { name: "SplitWith" });
+  const before = await topOf(heading);
+  await scrollTo(page, "end");
+  await expect(rows(page).last()).toBeVisible();
+  expect(await topOf(heading)).toBe(before);
+});
+
+test("held sideways, 844 by 390, the sentence leaves no room for the list, so the whole page scrolls and the header leaves", async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await seed(page, eight);
+  await scrollTo(page, "end");
+  expect(await topOf(page.getByRole("heading", { name: "SplitWith" }))).toBeLessThan(0);
+});
+
 test("with no Recent splits nothing scrolls", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
