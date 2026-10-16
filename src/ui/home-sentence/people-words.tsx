@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { Fragment, useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from "react";
 import type { TextInput } from "react-native";
 
 import { newName } from "../../draft";
@@ -9,9 +9,12 @@ import { Act, Blank, Remove, Together, Words } from "./words";
 export type NameField = { readonly open: () => void };
 
 type Props = {
-  names: readonly string[];
-  onAdd: (name: string) => void;
-  onRemove: (name: string) => void;
+  host: string | null;
+  friends: readonly string[];
+  onSetHost: (name: string) => void;
+  onRemoveHost: () => void;
+  onAddFriend: (name: string) => void;
+  onRemoveFriend: (name: string) => void;
   /** Why the last typed name was not added, shown by the page under the sentence. */
   onRefusal: (refusal: string | null) => void;
   /** Lets Create open the name field when a name is missing. */
@@ -19,29 +22,22 @@ type Props = {
 };
 
 /**
- * "I'm <your name>, here with <add friends>." The first name is the Host. Until it is in, the blank after "I'm" is the field; then the field
- * sits where "add friends" (or "add more") was, after the names, and Enter keeps it open for the next.
+ * "I'm <your name>, here with <add friends>." Until the Host's name is in, the blank after "I'm" is its field. Friends have their own field,
+ * where "add friends" (or "add more") was, so they can be named first; Enter keeps it open for the next.
  */
-export function PeopleWords({ names, onAdd, onRemove, onRefusal, ref }: Props) {
+export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFriend, onRemoveFriend, onRefusal, ref }: Props) {
   const [adding, setAdding] = useState(false);
-  const [typed, setTyped] = useState("");
-  const pressing = usePressing();
-  const input = useRef<TextInput | null>(null);
-  // The Host's Enter moves the field from after "I'm" to the end of the list; the old field's blur on the way must not close the new one.
-  const moving = useRef(false);
-  const [host, ...friends] = names;
-  const field = host === undefined ? "host" : adding ? "friend" : null;
-  const open = () => (field ? focusInPlace(input.current) : setAdding(true));
-  useImperativeHandle(ref, () => ({ open }));
+  const hostInput = useRef<TextInput | null>(null);
+  const friendInput = useRef<TextInput | null>(null);
+  const names = host === null ? friends : [host, ...friends];
+  const addFriends = () => (adding ? focusInPlace(friendInput.current) : setAdding(true));
+  useImperativeHandle(ref, () => ({ open: () => focusInPlace(hostInput.current) }));
   // Only opening the field focuses it. A ref callback would focus again on every render and take the focus back from the field Create just sent the person to.
   useEffect(() => {
-    moving.current = false;
-    if (field === "friend") focusInPlace(input.current);
-  }, [field]);
+    if (adding) focusInPlace(friendInput.current);
+  }, [adding]);
 
-  const commit = (): boolean => {
-    const text = typed;
-    setTyped("");
+  const add = (text: string, onAdd: (name: string) => void): boolean => {
     if (!text.trim()) return false;
     const named = newName(text, names);
     if (!named.ok) {
@@ -51,45 +47,6 @@ export function PeopleWords({ names, onAdd, onRemove, onRefusal, ref }: Props) {
     onAdd(text);
     return true;
   };
-  const submit = () => {
-    if (commit() && field === "host") {
-      moving.current = true;
-      setAdding(true);
-    }
-  };
-  // A tap on add friends blurs a typed Host name before Enter; the press lands first, so it takes the name rather than focusing it again.
-  const addFriends = () => (field === "host" && typed.trim() ? submit() : open());
-
-  const blank = (
-    <Blank
-      key="field"
-      ref={input}
-      aria-label={field === "host" ? copy.yourName : copy.newName}
-      placeholder={field === "host" ? copy.sentence.yourName : copy.sentence.name}
-      value={typed}
-      enterKeyHint="done"
-      autoCapitalize="words"
-      onChangeText={(text) => {
-        setTyped(text);
-        onRefusal(null);
-      }}
-      onSubmitEditing={submit}
-      onKeyPress={(event) => {
-        if (event.nativeEvent.key !== "Escape") return;
-        setTyped("");
-        setAdding(false);
-      }}
-      submitBehavior="submit"
-      blurOnSubmit={false}
-      onBlur={() =>
-        afterPress(pressing.current, () => {
-          if (moving.current || focused(input.current)) return;
-          commit();
-          setAdding(false);
-        })
-      }
-    />
-  );
 
   const person = (name: string, you: boolean) => (
     <Together key={name} role="group" aria-label={you ? `${name}, ${copy.you}` : name}>
@@ -100,16 +57,41 @@ export function PeopleWords({ names, onAdd, onRemove, onRefusal, ref }: Props) {
         name={copy.removeName(name)}
         onPress={() => {
           onRefusal(null);
-          onRemove(name);
+          if (you) onRemoveHost();
+          else onRemoveFriend(name);
         }}
       />
     </Together>
   );
 
-  const more = field === "friend" ? blank : <Act quiet label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} />;
+  const hostField = (
+    <NameBlank
+      input={hostInput}
+      label={copy.yourName}
+      placeholder={copy.sentence.yourName}
+      onCommit={(text) => add(text, onSetHost)}
+      // The Host's Enter goes on to the friends, unless one is already being typed.
+      onEnter={(added) => added && !adding && setAdding(true)}
+      onLeave={() => {}}
+      onRefusal={onRefusal}
+    />
+  );
+  const more = adding ? (
+    <NameBlank
+      input={friendInput}
+      label={copy.newName}
+      placeholder={copy.sentence.name}
+      onCommit={(text) => add(text, onAddFriend)}
+      onEnter={() => {}}
+      onLeave={() => setAdding(false)}
+      onRefusal={onRefusal}
+    />
+  ) : (
+    <Act label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} />
+  );
   return (
     <>
-      <Words>{copy.sentence.iAm}</Words> {host === undefined ? blank : person(host, true)}
+      <Words>{copy.sentence.iAm}</Words> {host === null ? hostField : person(host, true)}
       , <Words>{copy.sentence.hereWith}</Words>{" "}
       {friends.map((name, index) => (
         <Fragment key={name}>
@@ -125,6 +107,58 @@ export function PeopleWords({ names, onAdd, onRemove, onRefusal, ref }: Props) {
       {more}
       .
     </>
+  );
+}
+
+type BlankProps = {
+  input: RefObject<TextInput | null>;
+  label: string;
+  placeholder: string;
+  /** Takes what was typed; true when it went in. */
+  onCommit: (text: string) => boolean;
+  onEnter: (added: boolean) => void;
+  /** The field lost focus or Escape was pressed, after what was typed went in. */
+  onLeave: () => void;
+  onRefusal: (refusal: string | null) => void;
+};
+
+/** A name field in the sentence. Enter adds the name and keeps the field; leaving it adds what was typed. */
+function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRefusal }: BlankProps) {
+  const [typed, setTyped] = useState("");
+  const pressing = usePressing();
+  const commit = () => {
+    const text = typed;
+    setTyped("");
+    return onCommit(text);
+  };
+  return (
+    <Blank
+      ref={input}
+      aria-label={label}
+      placeholder={placeholder}
+      value={typed}
+      enterKeyHint="done"
+      autoCapitalize="words"
+      onChangeText={(text) => {
+        setTyped(text);
+        onRefusal(null);
+      }}
+      onSubmitEditing={() => onEnter(commit())}
+      onKeyPress={(event) => {
+        if (event.nativeEvent.key !== "Escape") return;
+        setTyped("");
+        onLeave();
+      }}
+      submitBehavior="submit"
+      blurOnSubmit={false}
+      onBlur={() =>
+        afterPress(pressing.current, () => {
+          if (focused(input.current)) return;
+          commit();
+          onLeave();
+        })
+      }
+    />
   );
 }
 

@@ -28,7 +28,7 @@ const readLunch: DraftAction = { type: "read", file, receipt: lunch };
 
 describe("why Create split link is off", () => {
   const why = (service: PaymentService, handle: string) => {
-    const actions: DraftAction[] = [readLunch, { type: "addName", name: "Jason" }, { type: "setService", index: 0, service }, { type: "setHandle", index: 0, handle }];
+    const actions: DraftAction[] = [readLunch, { type: "setHost", name: "Jason" }, { type: "setService", index: 0, service }, { type: "setHandle", index: 0, handle }];
     return blockerText(readiness(actions.reduce<Draft>(reduceDraft, emptyDraft)));
   };
 

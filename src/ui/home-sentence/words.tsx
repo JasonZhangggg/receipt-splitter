@@ -15,25 +15,25 @@ export function Words({ children, ink = false, breaks = false }: { children: str
 
 const breakAnywhere = webStyle({ overflowWrap: "anywhere" } as never);
 
-type ActProps = { label: string; name?: string; quiet?: boolean; onPress: () => void };
+type ActProps = { label: string; name?: string; onPress: () => void };
 
-/** An action inside the sentence: its words underlined, in ink, or gray when it only adds to what is there. A button does not inherit its font, so the words set it. */
-export function Act({ label, name, quiet = false, onPress }: ActProps) {
+/** An action inside the sentence: its words in ink, underlined in ink. A button does not inherit its font, so the words set it. */
+export function Act({ label, name, onPress }: ActProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
     <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.act, pressStyle(pressed, reduce, linkPress)]}>
-      {() => <Text style={[type.sayInput, styles.underlined, { color: quiet ? c.muted : c.ink, borderBottomColor: quiet ? c.dot : c.ink }]}>{label}</Text>}
+      {() => <Text style={[type.sayInput, styles.underlined, { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
     </PressTarget>
   );
 }
 
-/** The small x after a name or an added way to pay. */
-export function Remove({ name, onPress }: { name: string; onPress: () => void }) {
+/** The small x after a name or a way to pay. `onAppWord` lifts it to the middle of the app word, whose box is taller than its text. */
+export function Remove({ name, onAppWord = false, onPress }: { name: string; onAppWord?: boolean; onPress: () => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.remove, pressStyle(pressed, reduce, removePress)]}>
+    <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.remove, onAppWord && styles.onAppWord, pressStyle(pressed, reduce, removePress)]}>
       {() => <Icon name="x" size={12} color={c.muted} />}
     </PressTarget>
   );
@@ -95,6 +95,8 @@ const styles = StyleSheet.create({
   breaks: { flexShrink: 1, minWidth: 0 },
   underlined: { borderBottomWidth: 1.5 },
   remove: { width: 44, height: 44, marginLeft: -10, marginRight: -16, marginVertical: -6, alignSelf: "center", alignItems: "center", justifyContent: "center" },
+  // The app word pads its box for the tap area and draws its underline inside it, so the middle of the box sits 3.5 px under the middle of the word.
+  onAppWord: { top: -3.5 },
   rule: { maxWidth: "100%", borderBottomWidth: 1.5 },
   blank: { minWidth: 0, paddingVertical: 9, paddingHorizontal: 8, marginVertical: -9, marginHorizontal: -6 },
 });

@@ -10,16 +10,19 @@ import { prefetchModel, recognize } from "../src/ocr";
 import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
 import { chooseRoute, FALLBACK_WAIT_MS, within } from "../src/scan/route";
-import { TextLink } from "../src/ui/components/text-link";
 import { ThemeToggle } from "../src/ui/components/theme-toggle";
 import { Toast } from "../src/ui/components/toast";
-import { blockerText, copy } from "../src/ui/home-copy";
-import { PayWords, roomForAnotherApp } from "../src/ui/home-sentence/pay-words";
+import { useEscape } from "../src/ui/components/popover";
+import type { Press } from "../src/ui/components/button";
+import { actedByKey } from "../src/ui/components/acted-by-key";
+import { blockerText, copy, historyCopy } from "../src/ui/home-copy";
+import { PayWords } from "../src/ui/home-sentence/pay-words";
 import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-words";
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
 import { stagePacer } from "../src/ui/home-sentence/stage-pacer";
 import { webStyle } from "../src/ui/motion";
-import { RecentSplits } from "../src/ui/recent-splits";
+import { RecentSheet, RecentSplits } from "../src/ui/recent-splits";
+import { BottomSheet } from "../src/ui/split-view/bottom-sheet";
 import { HomeFooter } from "../src/ui/receipt-input/home-footer";
 import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
 import { focusInPlace, useKeyboardRoom } from "../src/ui/receipt-input/keyboard-room";
@@ -59,6 +62,8 @@ export default function Home() {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
+  const [pageHeight, setPageHeight] = useState<number | null>(null);
+  const [allSplits, setAllSplits] = useState<{ from: Press; closing: boolean } | null>(null);
   const pacer = useRef({ cancel() {} });
   const scroller = useRef<ScrollView>(null);
   const sentence = useRef<Text>(null);
@@ -171,9 +176,23 @@ export default function Home() {
     }
   };
 
+  const closeAll = () => setAllSplits((open) => open && { ...open, closing: true });
+  const allGone = () => {
+    const from = allSplits?.from;
+    setAllSplits(null);
+    if (from && (from.keyboard || actedByKey()) && from.trigger.isConnected) from.trigger.focus({ preventScroll: true });
+  };
+  useEscape(allSplits !== null && !allSplits.closing, closeAll);
+
+  const top = 20 + insets.top;
   return (
     <View style={[styles.screen, still, { backgroundColor: c.field }]}>
-      <ScrollView ref={scroller} style={styles.screen} contentContainerStyle={[styles.page, sides, { paddingTop: 20 + insets.top, paddingBottom: 32 + room }]}>
+      <ScrollView
+        ref={scroller}
+        style={styles.screen}
+        onLayout={({ nativeEvent }) => setPageHeight(nativeEvent.layout.height)}
+        contentContainerStyle={[styles.page, sides, { paddingTop: top, paddingBottom: bottomGap + room }]}
+      >
         <View style={[styles.column, { maxWidth: columnWidth }]}>
           <View style={styles.header}>
             <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
@@ -184,28 +203,40 @@ export default function Home() {
 
           <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
             <ReceiptWords state={receipt} onChoose={choose} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
-            <PeopleWords ref={nameField} names={draft.names} onAdd={(name) => dispatch({ type: "addName", name })} onRemove={(name) => dispatch({ type: "removeName", name })} onRefusal={setRefusal} />
+            <PeopleWords
+              ref={nameField}
+              host={draft.host}
+              friends={draft.friends}
+              onSetHost={(name) => dispatch({ type: "setHost", name })}
+              onRemoveHost={() => dispatch({ type: "removeHost" })}
+              onAddFriend={(name) => dispatch({ type: "addFriend", name })}
+              onRemoveFriend={(name) => dispatch({ type: "removeFriend", name })}
+              onRefusal={setRefusal}
+            />
           </Text>
           {refusal ? (
             <Text role="alert" style={[type.caption, styles.refusal, { color: c.warn }]}>
               {refusal}
             </Text>
           ) : null}
-          {roomForAnotherApp(draft.handles) ? (
-            <View style={styles.addApp}>
-              <TextLink plus label={copy.addApp} name={copy.addAppName} onPress={() => dispatch({ type: "addHandle" })} />
-            </View>
-          ) : null}
 
-          {stored.length > 0 ? <RecentSplits splits={stored} now={now} /> : null}
+          {stored.length > 0 ? <RecentSplits splits={stored} now={now} end={pageHeight === null ? null : pageHeight - top - bottomGap} onSeeAll={(from) => setAllSplits({ from, closing: false })} /> : null}
         </View>
       </ScrollView>
 
       <HomeFooter reason={reason} live={scan.status !== "reading"} problem={problem} blocked={blocked} busy={creating} onPress={press} onHeight={setFooterHeight} width={columnWidth} />
       <Toast message={notice} onHide={() => setNotice(null)} lift={footerHeight} />
+      {allSplits ? (
+        <BottomSheet tapAway label={historyCopy.title} closing={allSplits.closing} onDown={allGone} testID="recent-sheet">
+          <RecentSheet splits={stored} now={now} onClose={closeAll} />
+        </BottomSheet>
+      ) : null}
     </View>
   );
 }
+
+/** Room under the page's last row, above the footer. */
+const bottomGap = 32;
 
 // With no room past the page, iOS cannot scroll the window to reveal a field, so useKeyboardRoom scrolls the page's own scroller.
 const still = webStyle({ overflow: "clip" });
@@ -217,5 +248,4 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
   sentence: { marginTop: 40 },
   refusal: { marginTop: 8 },
-  addApp: { marginTop: 4 },
 });

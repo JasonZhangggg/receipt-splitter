@@ -64,7 +64,7 @@ export function ReceiptWords({ state, onChoose }: { state: ReceiptState; onChoos
           <Text style={tabular}>
             <Words ink>{money(state.total)}</Words>
           </Text>
-          . <Act quiet label={copy.change} name={copy.changeReceipt} onPress={onChoose} />
+          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} />
           .
         </Text>
       );
