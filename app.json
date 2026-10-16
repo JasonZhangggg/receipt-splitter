@@ -6,8 +6,7 @@
     "scheme": "receiptsplitter",
     "userInterfaceStyle": "automatic",
     "web": {
-      "output": "single",
-      "favicon": "./assets/favicon.png"
+      "output": "single"
     },
     "plugins": [
       "expo-router"
