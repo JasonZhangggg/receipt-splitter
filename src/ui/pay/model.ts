@@ -97,6 +97,13 @@ export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: re
   return [...mine, ...rows.filter(({ id }) => id !== viewer)];
 }
 
+/** The Payments list: everyone who still owes something (not paid, or paid short) first, then everyone else, each part with the viewer's own row first. */
+export function stillOwedFirst<Row extends Pick<PaymentRow, "id" | "state">>(rows: readonly Row[], viewer: ParticipantId | null): Row[] {
+  const owes = ({ state }: Row) => state === "unpaid" || state === "short";
+  const ordered = viewerFirst(rows, viewer);
+  return [...ordered.filter(owes), ...ordered.filter((row) => !owes(row))];
+}
+
 /** The row the Payments ring shows: the person tapped, or the viewer's own row, or the first. Someone removed mid-sheet falls back the same way. */
 export function pickedRow<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], picked: ParticipantId | null, viewer: ParticipantId | null): Row {
   return rows.find(({ id }) => id === picked) ?? rows.find(({ id }) => id === viewer) ?? rows[0];

@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { adjustmentId, itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { foldedRows, hostCollected, justPaid, payState, paymentStatus, pickedRow, shareStatus, statusWords } from "./model";
+import { foldedRows, hostCollected, justPaid, payState, paymentStatus, pickedRow, shareStatus, statusWords, stillOwedFirst } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -187,6 +187,28 @@ describe("foldedRows", () => {
     expect(foldedRows(rows, participantId("sam")).quiet.map(({ id }) => id)).toEqual(["priya", "lee"]);
     expect(foldedRows(rows, participantId("sam")).shown.map(({ id }) => id)).toEqual(["jason", "sam"]);
     expect(foldedRows(rows, participantId("priya")).shown.map(({ id }) => id)).toEqual(["jason", "sam", "priya"]);
+  });
+});
+
+describe("stillOwedFirst", () => {
+  const rows = [
+    { id: participantId("jason"), state: "host" as const },
+    { id: participantId("sam"), state: "settled" as const },
+    { id: participantId("priya"), state: "unpaid" as const },
+    { id: participantId("lee"), state: "over" as const },
+    { id: participantId("ana"), state: "short" as const },
+    { id: participantId("kim"), state: "unpaid" as const },
+  ];
+  const order = (viewer: string | null) => stillOwedFirst(rows, viewer === null ? null : participantId(viewer)).map(({ id }) => id);
+
+  test("puts everyone not paid or paid short first, then the Host and everyone paid, each in chip order", () => {
+    expect(order(null)).toEqual(["priya", "ana", "kim", "jason", "sam", "lee"]);
+  });
+
+  test("puts the viewer first within their own part", () => {
+    expect(order("kim")).toEqual(["kim", "priya", "ana", "jason", "sam", "lee"]);
+    expect(order("sam")).toEqual(["priya", "ana", "kim", "sam", "jason", "lee"]);
+    expect(order("jason")).toEqual(["priya", "ana", "kim", "jason", "sam", "lee"]);
   });
 });
 

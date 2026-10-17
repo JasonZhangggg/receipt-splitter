@@ -14,13 +14,13 @@ import type { Colors } from "../colors";
 import { layout, motion, type, useColors } from "../theme";
 import { slices, ring } from "./donut-model";
 import { DonutRing } from "./donut-ring";
-import { foldedRows, hostCollected, paymentStatus, pickedRow, viewerFirst, type PaymentRow } from "./model";
+import { foldedRows, hostCollected, paymentStatus, pickedRow, stillOwedFirst, type PaymentRow } from "./model";
 import { firstName } from "./pay-sheet";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void; /** In a bottom sheet: the ring stays put and only the people scroll, out to the sheet's edge. */ sheet?: boolean };
 
-/** Who has paid, for everyone in chip order. It reads the live Split, so another phone's payment lands here as it happens. */
+/** Who has paid, with everyone who still owes something at the top. It reads the live Split, so another phone's payment lands here as it happens. */
 export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -76,7 +76,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         style={[{ marginRight: -edge }, contain, sheet && { maxHeight: Math.max(minList, room - fixed - layout.pairGap) }]}
         contentContainerStyle={{ paddingRight: edge }}
       >
-        {viewerFirst(shown, me).map(({ id, name, share, state, words }) => {
+        {stillOwedFirst(shown, me).map(({ id, name, share, state, words }) => {
           const on = id === picked.id;
           return (
             <View key={id} role="listitem" {...{ dataSet: { state } }}>
