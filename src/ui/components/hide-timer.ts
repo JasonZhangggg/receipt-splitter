@@ -6,6 +6,8 @@ type Tab = {
 
 type Over = Pick<EventTarget, "addEventListener" | "removeEventListener">;
 
+const overEvents = ["pointerenter", "pointerleave", "focusin", "focusout"];
+
 /** Runs `hide` after `ms` of counted time. The count stops while the tab is hidden, while a mouse is over `over` and while focus is inside it, and resumes with what was left. A touch never holds it, so a tap's timing is unchanged. */
 export function hideAfter(ms: number, hide: () => void, tab: Tab | undefined = globalThis.document, over?: Over) {
   let left = ms;
@@ -28,32 +30,15 @@ export function hideAfter(ms: number, hide: () => void, tab: Tab | undefined = g
     if (holding() && timer) pause();
     else if (!holding() && !timer) run();
   };
-  const byMouse = (event: Event) => (event as PointerEvent).pointerType === "mouse";
-  const onEnter = (event: Event) => {
-    if (!byMouse(event)) return;
-    mouse = true;
-    update();
-  };
-  const onLeave = (event: Event) => {
-    if (!byMouse(event)) return;
-    mouse = false;
-    update();
-  };
-  const onFocusIn = () => {
-    focus = true;
-    update();
-  };
-  const onFocusOut = () => {
-    focus = false;
+  const watch = (event: Event) => {
+    if (event.type.startsWith("focus")) focus = event.type === "focusin";
+    else if ((event as PointerEvent).pointerType === "mouse") mouse = event.type === "pointerenter";
     update();
   };
   const stop = () => {
     clearTimeout(timer);
     tab?.removeEventListener("visibilitychange", update);
-    over?.removeEventListener("pointerenter", onEnter);
-    over?.removeEventListener("pointerleave", onLeave);
-    over?.removeEventListener("focusin", onFocusIn);
-    over?.removeEventListener("focusout", onFocusOut);
+    for (const type of overEvents) over?.removeEventListener(type, watch);
   };
   const done = () => {
     stop();
@@ -62,9 +47,6 @@ export function hideAfter(ms: number, hide: () => void, tab: Tab | undefined = g
 
   if (!holding()) run();
   tab?.addEventListener("visibilitychange", update);
-  over?.addEventListener("pointerenter", onEnter);
-  over?.addEventListener("pointerleave", onLeave);
-  over?.addEventListener("focusin", onFocusIn);
-  over?.addEventListener("focusout", onFocusOut);
+  for (const type of overEvents) over?.addEventListener(type, watch);
   return stop;
 }
