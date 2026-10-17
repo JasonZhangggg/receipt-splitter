@@ -29,8 +29,11 @@ export function Dot({ name, size = 24, tone = "dot", ring }: { name: string; siz
 const styles = StyleSheet.create({
   dot: { alignItems: "center", justifyContent: "center" },
   claim: { width: 12, height: 12, borderRadius: 6 },
+  // The focus ring draws on this 26 px round face, centred on the dot; the negative margins keep the layout at the dot's 12 px.
+  face: { width: 26, height: 26, margin: -7, borderRadius: 13, alignItems: "center", justifyContent: "center" },
 });
 
+const pressFace = { dataSet: { pressFace: "" } };
 const claimMotion = webStyle({ transitionProperty: "background-color, box-shadow, transform", transitionDuration: "200ms, 200ms, 160ms", transitionTimingFunction: motion.easeOut });
 const claimFade = webStyle({ transitionProperty: "background-color, box-shadow", transitionDuration: `${motion.reducedFade}ms`, transitionTimingFunction: motion.easeOut });
 
@@ -39,14 +42,16 @@ export function ClaimDot({ on, pressed }: { on: boolean; pressed: boolean }) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <View
-      testID={on ? "checked" : undefined}
-      style={[
-        styles.claim,
-        { backgroundColor: on ? c.ink : "transparent", boxShadow: `inset 0 0 0 1px ${on ? c.ink : c.dash}` },
-        reduce ? claimFade : claimMotion,
-        pressed && !reduce && { transform: [{ scale: 0.8 }] },
-      ]}
-    />
+    <View {...pressFace} style={styles.face}>
+      <View
+        testID={on ? "checked" : undefined}
+        style={[
+          styles.claim,
+          { backgroundColor: on ? c.ink : "transparent", boxShadow: `inset 0 0 0 1px ${on ? c.ink : c.dash}` },
+          reduce ? claimFade : claimMotion,
+          pressed && !reduce && { transform: [{ scale: 0.8 }] },
+        ]}
+      />
+    </View>
   );
 }
