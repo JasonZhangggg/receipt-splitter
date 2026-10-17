@@ -1,4 +1,4 @@
-import { claimersOf, type Operation } from "../../core/operations";
+import { claimersOf, type Optimistic } from "../../core/operations";
 import { shareBreakdown, type ShareBreakdown } from "../../core/shares";
 import type { Cents } from "../../core/money";
 import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type Participant, type ParticipantId, type Receipt, type Split, type SplitItem } from "../../core/split";
@@ -96,9 +96,10 @@ export function itemsHad(items: readonly SplitItem[], viewer: ParticipantId | nu
   return items.filter(({ split }) => viewer !== null && claimersOf(split).includes(viewer)).length;
 }
 
-export function circleTap(item: SplitItem, participantId: ParticipantId): Operation[] {
+/** The claim or unclaim a tap on the dot sends: the opposite of what the Item shows for the person. */
+export function circleTap(item: SplitItem, participantId: ParticipantId): Extract<Optimistic, { type: "claim" | "unclaim" }> {
   const had = claimersOf(item.split).includes(participantId);
-  return [{ by: participantId, type: had ? "unclaim" : "claim", itemId: item.id, participantId }];
+  return { by: participantId, type: had ? "unclaim" : "claim", itemId: item.id, participantId };
 }
 
 const SIZE = /^\d+(?:\.\d+)?(?:oz|ml|cl|l|lb|g|kg)$/i;

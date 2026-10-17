@@ -111,12 +111,12 @@ describe("keepInPlace", () => {
 
 describe("circleTap", () => {
   test("checks the person on the whole line, whoever else has it, quantity or not", () => {
-    expect(circleTap(item({ by: "even", units: [[ann]] }), bob)).toEqual([{ by: "bob", type: "claim", itemId: "tostones", participantId: "bob" }]);
-    expect(circleTap({ ...item({ by: "even", units: [[]] }), quantity: 3 }, bob)).toEqual([{ by: "bob", type: "claim", itemId: "tostones", participantId: "bob" }]);
+    expect(circleTap(item({ by: "even", units: [[ann]] }), bob)).toEqual({ by: "bob", type: "claim", itemId: "tostones", participantId: "bob" });
+    expect(circleTap({ ...item({ by: "even", units: [[]] }), quantity: 3 }, bob)).toEqual({ by: "bob", type: "claim", itemId: "tostones", participantId: "bob" });
   });
 
   test("unchecks the person from the line", () => {
-    expect(circleTap(item({ by: "shares", units: [[[ann, 1], [bob, 2]]] }), bob)).toEqual([{ by: "bob", type: "unclaim", itemId: "tostones", participantId: "bob" }]);
+    expect(circleTap(item({ by: "shares", units: [[[ann, 1], [bob, 2]]] }), bob)).toEqual({ by: "bob", type: "unclaim", itemId: "tostones", participantId: "bob" });
   });
 });
 

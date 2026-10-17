@@ -128,6 +128,8 @@ export const splitCopy = {
   markNotPaid: "Mark as not paid",
   markedPaid: (amount: string) => `Marked ${amount} as paid`,
   undo: "Undo",
+  tryAgain: "Try again",
+  couldntSave: "Couldn't save that.",
   bundleSummary: (items: number, off: string) => `${items} ${items === 1 ? "item" : "items"} · ${off} off`,
   bundleLabel: (name: string, summary: string, inside: string, open: boolean) => `${name}, ${summary.replace(" · ", ", ")}, ${inside ? `${inside}, ` : ""}${open ? "expanded" : "collapsed"}`,
   inBundle: (bundle: string, percent: string | null, off: string) => `In ${bundle}. Its ${percent ? `${percent}% off` : "discount"} takes ${off} off this line.`,

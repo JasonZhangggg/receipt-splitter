@@ -1,23 +1,32 @@
 import { PartySocket } from "partysocket";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { CreateSplitRefusal, CreateSplitRequest, CreateSplitResponse, Operation, ServerMessage, WireRejection } from "../core/operations";
+import { landed, type CreateSplitRefusal, type CreateSplitRequest, type CreateSplitResponse, type Operation, type Optimistic, type ServerMessage, type WireRejection } from "../core/operations";
 import { isRoutableSplitId, participantId, randomId, type ParticipantId, type Split, type SplitId } from "../core/split";
 import { createCopy } from "../ui/home-copy";
 import { answerByMs, connectionOf, slowAfterMs, type Connection } from "./connection";
 import type { ReceiptJpeg } from "../ui/receipt-input/jpeg";
+import { drop, fold, lay, received, refOf, type Seen } from "./layer";
 
 export type GoneReason = "notFound" | "unreadable";
 
 export type Live =
   | { readonly status: "connecting" }
-  | { readonly status: "live"; readonly split: Split; readonly photo: boolean }
+  /** `split` is what to show: the server's `server` Split with this phone's unanswered operations laid over it. */
+  | { readonly status: "live"; readonly split: Split; readonly server: Split; readonly photo: boolean }
   | { readonly status: "gone"; readonly reason: GoneReason };
 
 /** `revision` is the Split's revision once the Operation is in, which is the one an undo of it names. It is null when the Operation changed nothing (`unchanged`): there is no revision of its own to undo. */
 export type Answer = { readonly ok: true; readonly revision: number | null } | { readonly ok: false; readonly rejection: WireRejection | { readonly reason: "disconnected" } };
 
 type Send = (op: Operation, creatorSecret?: string) => Promise<Answer>;
+
+/**
+ * Shows `op` on the Split at once and sends it. Not sent (the socket is closed) means nothing was laid and the caller says so now.
+ * The answer is ok when the server took it, or when it never answered in time but the Split it sent next already holds the op's effect.
+ * A refusal or a failure takes the op off the Split again, so the caller's only job is to say what didn't apply.
+ */
+export type Act = (op: Optimistic) => { readonly sent: false } | { readonly sent: true; readonly answer: Promise<Answer> };
 
 export function newParticipantId(): ParticipantId {
   return participantId(randomId(12));
@@ -32,8 +41,9 @@ const endings: Record<number, GoneReason> = { 4404: "notFound", 4500: "unreadabl
 /**
  * One action waiting for the server. `slowTimer` marks it stalled. `deadline` fires when no answer came in time: the action may still have been applied, so the socket reconnects
  * and the entry waits (`late`) for the server's join state, which settles the truth before the caller hears of the failure. A second `deadline` bounds that wait.
+ * `op` is set when the action is laid over the Split (`act`); it leaves the Split exactly when the entry settles.
  */
-type Waiting = { readonly resolve: (answer: Answer) => void; readonly slowTimer: ReturnType<typeof setTimeout>; deadline: ReturnType<typeof setTimeout>; stalled: boolean; late: boolean };
+type Waiting = { readonly resolve: (answer: Answer) => void; readonly op: Optimistic | null; readonly slowTimer: ReturnType<typeof setTimeout>; deadline: ReturnType<typeof setTimeout>; stalled: boolean; late: boolean };
 
 const disconnected: Answer = { ok: false, rejection: { reason: "disconnected" } };
 /**
@@ -44,8 +54,10 @@ const disconnected: Answer = { ok: false, rejection: { reason: "disconnected" } 
 const firstRetryMs = 500;
 const browserIsOnline = () => globalThis.navigator?.onLine !== false;
 
-export function useLiveSplit(id: string | null): { live: Live; send: Send; connection: Connection } {
-  const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(null);
+export function useLiveSplit(id: string | null): { live: Live; send: Send; act: Act; connection: Connection; idle: boolean } {
+  const [seen, setSeen] = useState<Seen | null>(null);
+  const server = useRef<Split | null>(null);
+  const [inFlight, setInFlight] = useState(0);
   const socket = useRef<PartySocket | null>(null);
   const pending = useRef(new Map<string, Waiting>());
   const nextRef = useRef(0);
@@ -63,7 +75,11 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     clearTimeout(entry.slowTimer);
     clearTimeout(entry.deadline);
     if (entry.stalled) setStalled((count) => count - 1);
-    entry.resolve(answer);
+    setInFlight((count) => count - 1);
+    // An answer that never came is not a failure when the server's Split already holds what was asked.
+    const held = entry.op !== null && !answer.ok && answer.rejection.reason === "disconnected" && server.current !== null && landed(server.current, entry.op);
+    if (entry.op) setSeen((was) => was && drop(was, new Set([ref])));
+    entry.resolve(held ? { ok: true, revision: null } : answer);
   }, []);
 
   // Runs after the render of the join state, so a caller hearing "disconnected" for a timed-out action already sees the Split the server holds.
@@ -83,8 +99,9 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
 
   useEffect(() => {
     if (id === null || !isRoutableSplitId(id)) return;
-    const setLive = (live: Live) => setSeen({ id, live });
+    const update = (change: (was: Seen) => Seen) => setSeen((was) => change(was !== null && was.id === id ? was : { id, base: { status: "connecting" }, laid: [] }));
     const waiting = pending.current;
+    server.current = null;
     const ws = new PartySocket({
       host: location.host,
       protocol: location.protocol === "https:" ? "wss" : "ws",
@@ -96,27 +113,45 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     ws.addEventListener("open", () => setSocketOpen(true));
     ws.addEventListener("message", ({ data }: MessageEvent<string>) => {
       const message: ServerMessage = JSON.parse(data);
+      if (message.type === "state") server.current = message.split;
+      // The Split and the queue of laid operations change in one step, keyed by the answered ref.
+      const late = new Set([...waiting].filter(([, entry]) => entry.late && entry.op !== null).map(([ref]) => ref));
+      update((was) => received(was, message, late));
       switch (message.type) {
         case "state":
-          setLive({ status: "live", split: message.split, photo: message.photo });
           if (message.ref === null) setJoined((count) => count + 1);
           return settle(message.ref, { ok: true, revision: message.split.revision });
         case "unchanged":
           return settle(message.ref, { ok: true, revision: null });
-        case "rejected":
-          return settle(message.ref, { ok: false, rejection: message.rejection });
+        case "rejected": {
+          if (message.ref !== null) return settle(message.ref, { ok: false, rejection: message.rejection });
+          // Refused before its ref was read (a rate limit): the server answers in the order it read, so this was the oldest action still waiting on this socket.
+          const [oldest] = [...waiting].find(([, entry]) => !entry.late) ?? [];
+          return oldest === undefined ? undefined : settle(oldest, { ok: false, rejection: message.rejection });
+        }
         case "unavailable":
-          ws.close();
-          return setLive({ status: "gone", reason: message.reason });
+          return ws.close();
       }
     });
     ws.addEventListener("close", ({ code }: CloseEvent) => {
       setSocketOpen(false);
-      for (const [ref, entry] of [...waiting]) if (!(reopening.current && entry.late)) settle(ref, disconnected);
       const reason = endings[code];
+      for (const [ref, entry] of [...waiting]) {
+        if (reopening.current && entry.late) continue;
+        // A laid action keeps showing until the join state says whether it landed, or the wait runs out.
+        if (reason === undefined && socket.current === ws && entry.op !== null) {
+          if (!entry.late) {
+            entry.late = true;
+            clearTimeout(entry.deadline);
+            entry.deadline = setTimeout(() => settle(ref, disconnected), answerByMs);
+          }
+          continue;
+        }
+        settle(ref, disconnected);
+      }
       if (reason === undefined) return;
       ws.close();
-      setLive({ status: "gone", reason });
+      update((was) => ({ ...was, base: { status: "gone", reason } }));
     });
     return () => {
       ws.close();
@@ -125,36 +160,61 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     };
   }, [id, settle]);
 
-  const send = useCallback<Send>((op, creatorSecret) => {
-    const ws = socket.current;
-    // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since. Refuse it now instead.
-    if (!ws || ws.readyState !== ws.OPEN) return Promise.resolve(disconnected);
-    const ref = `r${nextRef.current++}`;
-    return new Promise((resolve) => {
-      const entry: Waiting = {
-        resolve,
-        stalled: false,
-        slowTimer: setTimeout(() => {
-          entry.stalled = true;
-          setStalled((count) => count + 1);
-        }, slowAfterMs),
-        deadline: setTimeout(() => {
-          entry.late = true;
-          entry.deadline = setTimeout(() => settle(ref, disconnected), answerByMs);
-          reopening.current = true;
-          ws.reconnect();
-          reopening.current = false;
-        }, answerByMs),
-        late: false,
-      };
-      pending.current.set(ref, entry);
-      ws.send(JSON.stringify(creatorSecret === undefined ? { ref, op } : { ref, op, creatorSecret }));
-    });
-  }, [settle]);
+  const transmit = useCallback(
+    (seq: number, op: Operation, creatorSecret: string | undefined, laid: Optimistic | null): Promise<Answer> => {
+      const ws = socket.current;
+      // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since. Refuse it now instead.
+      if (!ws || ws.readyState !== ws.OPEN) return Promise.resolve(disconnected);
+      const ref = refOf(seq);
+      return new Promise((resolve) => {
+        const entry: Waiting = {
+          resolve,
+          op: laid,
+          stalled: false,
+          slowTimer: setTimeout(() => {
+            entry.stalled = true;
+            setStalled((count) => count + 1);
+          }, slowAfterMs),
+          deadline: setTimeout(() => {
+            entry.late = true;
+            entry.deadline = setTimeout(() => settle(ref, disconnected), answerByMs);
+            reopening.current = true;
+            ws.reconnect();
+            reopening.current = false;
+          }, answerByMs),
+          late: false,
+        };
+        pending.current.set(ref, entry);
+        setInFlight((count) => count + 1);
+        ws.send(JSON.stringify(creatorSecret === undefined ? { ref, op } : { ref, op, creatorSecret }));
+      });
+    },
+    [settle],
+  );
 
-  const live: Live =
-    id !== null && !isRoutableSplitId(id) ? { status: "gone", reason: "notFound" } : seen !== null && seen.id === id ? seen.live : { status: "connecting" };
-  return { live, send, connection: connectionOf({ socketOpen, browserOnline, stalled }) };
+  const send = useCallback<Send>((op, creatorSecret) => transmit(nextRef.current++, op, creatorSecret, null), [transmit]);
+
+  const act = useCallback<Act>(
+    (op) => {
+      const ws = socket.current;
+      if (id === null || !ws || ws.readyState !== ws.OPEN) return { sent: false };
+      const seq = nextRef.current++;
+      setSeen((was) => (was !== null && was.id === id && was.base.status === "live" ? lay(was, { seq, ref: refOf(seq), op }) : was));
+      return { sent: true, answer: transmit(seq, op, undefined, op) };
+    },
+    [id, transmit],
+  );
+
+  const mine = seen !== null && seen.id === id ? seen : null;
+  const shown = useMemo((): Live => {
+    const base = mine?.base;
+    if (base === undefined || base.status === "connecting") return { status: "connecting" };
+    if (base.status === "gone") return base;
+    return { status: "live", split: fold(base.split, mine?.laid ?? []), server: base.split, photo: base.photo };
+  }, [mine?.base, mine?.laid]);
+
+  const live: Live = id !== null && !isRoutableSplitId(id) ? { status: "gone", reason: "notFound" } : shown;
+  return { live, send, act, connection: connectionOf({ socketOpen, browserOnline, stalled }), idle: inFlight === 0 };
 }
 
 export type Created = { readonly ok: true; readonly id: SplitId; readonly creatorSecret: string } | { readonly ok: false; readonly reason: string };

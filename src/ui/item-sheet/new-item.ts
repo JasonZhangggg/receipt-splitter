@@ -1,5 +1,5 @@
 import { MAX_CENTS, cents, price as toPrice, type Cents } from "../../core/money";
-import { MAX_QUANTITY, MAX_ROW_NAME_LENGTH, applyOperation, isName, type Operation, type WireRejection } from "../../core/operations";
+import { MAX_QUANTITY, MAX_ROW_NAME_LENGTH, applyOperation, isName, type Optimistic, type WireRejection } from "../../core/operations";
 import type { ItemId, ParticipantId, Split } from "../../core/split";
 import { parseAmount } from "../../draft";
 
@@ -13,7 +13,7 @@ export type NewItem = {
 
 export type NewItemProblem = "name" | "price" | "quantity" | "overLimit" | "tooManyItems" | "tooLarge" | "failed" | "offline";
 
-export type NewItemAnswer = { readonly ok: true; readonly op: Operation } | { readonly ok: false; readonly problem: NewItemProblem };
+export type NewItemAnswer = { readonly ok: true; readonly op: Optimistic } | { readonly ok: false; readonly problem: NewItemProblem };
 
 const amountShape = /^\d+(\.\d{0,2})?$|^\.\d{1,2}$/;
 
@@ -34,7 +34,7 @@ export function newItem(split: Split, typed: NewItem, id: ItemId, by: Participan
   const quantity = readQuantity(typed.quantity);
   if (quantity === null) return { ok: false, problem: "quantity" };
   const item = { id, name, price: toPrice(cents), ...(quantity > 1 && { quantity }) };
-  const op: Operation = { by, type: "editReceipt", items: [{ type: "add", item, index: split.receipt.items.length, who: [] }] };
+  const op: Optimistic = { by, type: "editReceipt", items: [{ type: "add", item, index: split.receipt.items.length, who: [] }] };
   const preview = applyOperation(split, op, { creator: false });
   if (preview.ok) return { ok: true, op };
   return { ok: false, problem: problemFor(preview.rejection.reason) };

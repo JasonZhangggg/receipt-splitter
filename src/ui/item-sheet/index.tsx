@@ -6,6 +6,7 @@ import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPat
 import { SPLIT_MODES, type SplitMode, type ItemId, type ParticipantId, type Split, type SplitItem } from "../../core/split";
 import { money, plainAmount } from "../../draft";
 import type { Answer } from "../../live/client";
+import type { Lay } from "../lay";
 import { Icon } from "../components/icon";
 import { IconAction, LabeledField, MoneyField, Options, PersonToggle } from "../components/sheet-fields";
 import { TextLink } from "../components/text-link";
@@ -26,6 +27,7 @@ type Props = {
   itemId: ItemId;
   me: ParticipantId | null;
   send: (op: Operation) => Promise<Answer>;
+  lay: Lay;
   onClose: () => void;
   /** A line the sheet cannot act on, said in the page's bar while the sheet stays open. */
   onNote: (message: string) => void;
@@ -90,7 +92,7 @@ function showsAsBefore(item: SplitItem, edit: ItemEdit): boolean {
   return nextTitle === title && (nextLine || null) === (line || null);
 }
 
-export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, onDeleted, guardRef }: Props) {
+export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNote, onDeleted, guardRef }: Props) {
   const c = useColors();
   // Split and Delete item change the Item at once; the sheet keeps showing the Split as it looked at the tap, unsaved edits included, until it has left.
   const [leavingFrom, setLeavingFrom] = useState<Split | null>(null);
@@ -261,7 +263,8 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   const nameOf = (id: ParticipantId) => split.participants.find((person) => person.id === id)?.name ?? "";
   const toggle = (participantId: ParticipantId, on: boolean) => {
     flush();
-    void send({ by: me, type: on ? "unclaim" : "claim", itemId, participantId });
+    // The dot and the Shares follow at once; the page's bar says if it didn't apply.
+    if (!lay({ by: me, type: on ? "unclaim" : "claim", itemId, participantId })) onNote(say.connection.failed);
   };
   // Close never takes focus, so a held sheet keeps its field and the keyboard. A closing sheet drops the keyboard as it leaves.
   const close = () => {
@@ -272,10 +275,9 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   // The fields show the row's two lines. When the row splits a size off the name, the first edit to either field saves that size as the detail, so the row keeps both lines.
   const [title, line] = nameParts(item);
   const sized = item.detail === undefined && line !== null;
-  const leave = (op: Operation, then?: (answer: Extract<Answer, { ok: true }>) => void) => {
+  const leave = (op: Operation) => {
     setLeavingFrom(seen);
     void send(op).then((answer) => {
-      if (answer.ok) then?.(answer);
       if (answer.ok || !currentRef.current.receipt.items.some(({ id }) => id === itemId)) return onClose();
       setLeavingFrom(null);
       setFields((was) => was + 1);
@@ -287,8 +289,11 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
   const remove = () => {
     if (leavingFrom) return;
     if (onlyItem) return onNote(say.lastItem);
+    // The line leaves the page and the sheet closes at once, on the picture it had. The Undo bar comes with the server's answer; a refusal puts the line back and says so in the bar.
+    if (!lay({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }, { then: ({ revision }) => revision !== null && onDeleted({ name: title, revision }) })) return setProblem(say.connection.failed);
     flushRef.current = () => {};
-    leave({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }, ({ revision }) => revision !== null && onDeleted({ name: title, revision }));
+    setLeavingFrom(seen);
+    onClose();
   };
   const note = bundleNote(seen.receipt, itemId, item.price);
   const quantity = item.quantity ?? 1;
