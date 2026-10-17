@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # DIAG (do not merge): only the flaky WebKit sheet test, 25 times, never stopping at the first failure.
+      # DIAG (do not merge): the full parallel e2e pass, twice, so the WebKit sheet flick runs under the load it fails under.
       - run: npm ci
       - id: playwright-version
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -44,6 +44,8 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-      - run: npx playwright install --with-deps webkit
+      - run: npx playwright install --with-deps chromium webkit
       - continue-on-error: true
-        run: npx playwright test e2e/sheet.spec.ts --project=mobile-safari -g "a flick down on the pick sheet" --repeat-each=25 --reporter=line
+        run: npx playwright test --grep-invert @frame-timing --reporter=line
+      - continue-on-error: true
+        run: npx playwright test --grep-invert @frame-timing --reporter=line
