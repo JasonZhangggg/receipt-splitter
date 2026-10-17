@@ -14,12 +14,14 @@ describe("POST /api/splits", () => {
     const response = await postSplit({ split: newSplit }, { ip: "203.0.113.5" });
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const { id, creatorSecret } = await response.json<{ id: string; creatorSecret: string }>();
+    const { id, creatorSecret, split } = await response.json<{ id: string; creatorSecret: string; split: unknown }>();
     expect(id).toMatch(/^[A-Za-z0-9_-]{24}$/);
     expect(creatorSecret).toMatch(/^[A-Za-z0-9_-]{43}$/);
 
     const client = await connect(id);
     const hello = await client.nextRaw();
+    // The Host's page shows this Split before its socket has said anything, so it must be the one the socket's join state carries.
+    expect(split).toEqual(JSON.parse(hello).split);
     expect(JSON.parse(hello)).toMatchObject({ type: "state", ref: null, split: { id, revision: 0, participants: [{ id: "ann" }] } });
     expect(hello).not.toContain(creatorSecret);
   });
