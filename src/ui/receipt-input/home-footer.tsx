@@ -65,5 +65,5 @@ const styles = StyleSheet.create({
   footer: { alignItems: "center", borderTopWidth: 1, paddingTop: 14 },
   column: { width: "100%", flexDirection: "row", alignItems: "center", gap: 16 },
   reason: { flex: 1, minWidth: 0 },
-  pill: { height: 48, paddingHorizontal: 22, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  pill: { height: 44, paddingHorizontal: 22, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });
