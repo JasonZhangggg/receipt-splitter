@@ -230,7 +230,7 @@ test("I already paid closes the sheet at once and shows Paid; it waits for a cla
   await expect(pay).toHaveCount(0, live);
   await expect(footer.getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", early);
   expect(wire.sent.map(({ op }) => op.type)).toEqual(["claim", "recordPayment"]);
-  expect(wire.sent[1].op.amount).toBe(800);
+  expect(wire.sent[1].op).toMatchObject({ type: "recordPayment", participantId: "sam", amount: 800 });
 
   // The payment itself is still in flight, so a tap on "Mark as not paid" waits as well, and the button says so.
   await sam.getByRole("button", { name: "Paid" }).click();
@@ -240,7 +240,39 @@ test("I already paid closes the sheet at once and shows Paid; it waits for a cla
   // Once the payment is answered the clear goes out, and the open sheet shows it before its own answer.
   await expect(pay.getByRole("button", { name: "I already paid" })).toBeVisible(live);
   expect(wire.sent.map(({ op }) => op.type)).toEqual(["claim", "recordPayment", "clearPayment"]);
+  await expect(sam.getByText("Marked $8.00 as paid")).toBeVisible(early);
   await expect(footer.getByRole("button", { name: "Paid" })).toHaveCount(0);
+});
+
+test("I already paid waits for a claim that is then refused, records nothing, and says the new Share", async ({ browser, request }, { workerIndex }) => {
+  const { page: sam, wire } = await openAs(browser, await createSplit(request, workerIndex), "Sam");
+  const footer = sam.getByTestId("footer");
+  wire.hold = true;
+  wire.rewrite = (frame) => (frame.op.itemId === "rice" ? { ...frame, op: { ...frame.op, itemId: "nothing-here" } } : frame);
+
+  await circle(sam, "Tostones").click();
+  await circle(sam, "Rice").click();
+  await expect(owe(sam)).toHaveText("$9.00", early);
+  await footer.getByRole("button", { name: "Pay Jason" }).click();
+  const pay = sam.getByTestId("breakdown");
+  await pay.getByRole("button", { name: "I already paid" }).click();
+  await expect(pay.getByRole("button", { name: "I already paid" })).toHaveAttribute("aria-busy", "true", early);
+
+  // The Rice claim is refused, so the Share the person agreed to ($9.00) is gone. Nothing is recorded; the sheet stays open and says what it is now.
+  await expect(pay.getByText("Your share is now $1.00")).toBeVisible(live);
+  await expect(owe(sam)).toHaveText("$1.00");
+  await expect(pay.getByRole("button", { name: "I already paid" })).not.toHaveAttribute("aria-busy", "true");
+  expect(wire.sent.map(({ op }) => op.type)).toEqual(["claim", "claim"]);
+  await sam.screenshot({ path: ".verify/shot-share-now.png" });
+
+  // A second tap records the Share on the page now. The refusal's bar sits over the sheet's button while it shows, so the tap waits for it to go.
+  wire.hold = false;
+  await sam.mouse.move(5, 5);
+  await expect(sam.getByText(savedFailed)).toHaveCount(0, { timeout: 8000 });
+  await pay.getByRole("button", { name: "I already paid" }).click();
+  await expect(pay).toHaveCount(0, live);
+  expect(wire.sent.map(({ op }) => op.type)).toEqual(["claim", "claim", "recordPayment"]);
+  expect(wire.sent[2].op).toMatchObject({ type: "recordPayment", participantId: "sam", amount: 100 });
 });
 
 test("with nothing in flight, I already paid closes the sheet before the server answers, and Undo follows the answer", async ({ browser, request }, { workerIndex }) => {

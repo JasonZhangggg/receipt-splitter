@@ -127,6 +127,7 @@ export const splitCopy = {
   youPaid: (amount: string) => `You paid ${amount}`,
   markNotPaid: "Mark as not paid",
   markedPaid: (amount: string) => `Marked ${amount} as paid`,
+  shareNow: (amount: string) => `Your share is now ${amount}`,
   undo: "Undo",
   tryAgain: "Try again",
   couldntSave: "Couldn't save that.",

@@ -18,19 +18,25 @@ import { switcherWidth } from "./switcher";
 import { MethodPicker } from "./method-picker";
 import type { PayState } from "./model";
 
-type Props = { split: SplitId; host: string; handles: readonly PaymentHandle[]; state: PayState; busy?: boolean; onPaid: (paid: boolean) => void };
+type Props = { split: SplitId; host: string; handles: readonly PaymentHandle[]; state: PayState; busy?: boolean; notice?: string | null; onPaid: (paid: boolean) => void };
 
 /** Venmo notes can be public, so the note stays generic. */
 const note = "Receipt split";
 const target = Platform.OS === "web" ? "web" : "app";
 
-export function PayBlock({ split, host, handles, state, busy = false, onPaid }: Props) {
+export function PayBlock({ split, host, handles, state, busy = false, notice = null, onPaid }: Props) {
   const c = useColors();
   if (state.kind === "nothing") return null;
   const due = state.kind === "unpaid" ? state.owe : state.kind === "short" ? state.rest : null;
   const paid = state.kind === "settled" || state.kind === "over" ? state.paid : null;
   return (
     <View style={styles.box}>
+      {/* First, so a bar over the sheet's foot does not hide it. */}
+      {notice === null ? null : (
+        <Text role="status" style={[type.caption, styles.handles, { color: c.warn }]}>
+          {notice}
+        </Text>
+      )}
       {due === null || handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={due} />}
       {paid === null ? null : (
         <View style={[styles.paid, { borderColor: c.hairline }]}>

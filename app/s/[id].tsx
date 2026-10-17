@@ -135,7 +135,9 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const [pickProblem, setPickProblem] = useState<string | null>(null);
   /** "I already paid" (or its undo) tapped while an earlier action was still unanswered: it goes out once those settle, from the Share they leave. */
   const [paying, setPaying] = useState<boolean | null>(null);
-  const waitingToPay = useRef<boolean | null>(null);
+  // What a tap on "I already paid" waits with: the Share the person saw when they tapped, which is what they agreed to pay.
+  const waitingToPay = useRef<{ readonly paid: boolean; readonly share: Cents } | null>(null);
+  const [payNote, setPayNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<ParticipantId | null>(me);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [closing, setClosing] = useState(false);
@@ -340,6 +342,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const peopleNote = peopleProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => {
+    setPayNote(null);
     setOverlay({ ...kind, from });
   };
   const deleted = ({ name, revision }: { readonly name: string; readonly revision: number }) =>
@@ -397,10 +400,17 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const viewed = me && selectedPerson ? payFacts(split, selectedPerson, me) : null;
   const viewedTitle = me && selectedPerson && viewed ? payTitle(split, selectedPerson, me) : say.payments;
   // The sheet closes the moment the payment is shown; the Undo bar follows the server's answer.
-  const pay = (paid: boolean) => {
+  // `agreed` is the Share the person saw when they tapped. If the actions that settled in between moved it, nothing is recorded: the sheet stays open and says the new amount, and a second tap records that.
+  const pay = (paid: boolean, agreed: Cents = myShare) => {
     waitingToPay.current = null;
     setPaying(null);
     if (!me) return;
+    if (paid && agreed !== myShare) {
+      const note = say.shareNow(money(myShare));
+      if (overlay?.kind === "pay" && viewed?.hasBar) setPayNote(note);
+      else setBar({ message: note });
+      return;
+    }
     const before = split.payments.find(({ participantId }) => participantId === me)?.amount ?? null;
     const shown = markPaid(me, paid ? myShare : null, () => {
       if (!paid) return;
@@ -418,14 +428,16 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (!shown) return setBar({ message: say.connection.failed });
     if (paid && overlay?.kind === "pay") closeOverlay();
   };
-  // The amount is the Share, which an action still on its way can change, so a tap made then waits for those to settle and reads the Share they leave.
+  // The amount is the Share, which an action still on its way can change, so a tap made then waits for those to settle, and records only if the Share is still the one the person saw.
   const onPaid = (paid: boolean) => {
+    setPayNote(null);
     if (idle) return pay(paid);
-    waitingToPay.current = paid;
+    waitingToPay.current = { paid, share: myShare };
     setPaying(paid);
   };
   const payWhenSettled = useEffectEvent(() => {
-    if (waitingToPay.current !== null) pay(waitingToPay.current);
+    const waiting = waitingToPay.current;
+    if (waiting !== null) pay(waiting.paid, waiting.share);
   });
   useEffect(() => {
     if (paying !== null && idle) payWhenSettled();
@@ -493,7 +505,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       <HistorySheet split={split} me={me} onRevert={(revision) => send({ by: me, type: "undo", revision })} onRestore={() => send({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
   ) : null;
-  const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} busy={paying !== null} onPaid={onPaid} /> : undefined;
+  const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} busy={paying !== null} notice={payNote} onPaid={onPaid} /> : undefined;
 
   const showingNow = closing ? null : overlay;
   const receipt = (

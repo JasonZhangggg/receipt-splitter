@@ -43,8 +43,13 @@ const sockets = vi.hoisted(() => {
       this.queue = [];
     }
     close() {}
+    closesOnReconnect = false;
     reconnect() {
       this.reconnects += 1;
+      if (this.closesOnReconnect) {
+        this.readyState = 3;
+        this.emit("close", { code: 1006 });
+      }
     }
     emit(type: string, event: unknown) {
       for (const listener of this.listeners.get(type) ?? []) listener(event);
@@ -302,6 +307,37 @@ describe("useLiveSplit with actions laid over the Split", () => {
     expect(first.answer).toEqual({ ok: true, revision: null });
   });
 
+  it("a refusal that says the line is already there counts as saved, so an Add that landed does not offer Try again", async () => {
+    const start = dinner();
+    await hear(state(start, null));
+    const nachos: Optimistic = { by: bob, type: "editReceipt", items: [{ type: "add", item: { id: itemId("nachos"), name: "Nachos", price: price(900) }, index: 3 }] };
+    const first = lay(nachos);
+    expect(hook.live.status === "live" && hook.live.split.receipt.total).toBe(2050);
+
+    // The add landed and the Split that holds it arrived, but the answer was lost and the same frame came back refused.
+    await hear(state(serve(start, nachos), null));
+    await hear({ type: "rejected", ref: socket().frames[0].ref, rejection: { reason: "duplicateId" } });
+    expect(first.answer).toEqual({ ok: true, revision: null });
+    expect(hook.live.status === "live" && hook.live.split.receipt.items.map(({ id }) => id)).toEqual([rice, itemId("fries"), sprite, itemId("nachos")]);
+    expect(hook.live.status === "live" && hook.live.split.receipt.total).toBe(2050);
+  });
+
+  it("a refusal for a delete of a line that is already gone counts as saved, and a refusal that is still true stays a failure", async () => {
+    const start = dinner();
+    await hear(state(start, null));
+    const remove: Optimistic = { by: bob, type: "editReceipt", items: [{ type: "delete", itemId: sprite }] };
+    const gone = lay(remove);
+    const stays = lay(claim(bob, rice));
+    await hear(state(serve(start, remove), null));
+    await hear({ type: "rejected", ref: socket().frames[0].ref, rejection: { reason: "unknownItem" } });
+    expect(gone.answer).toEqual({ ok: true, revision: null });
+
+    // Rice is still unclaimed on the server, so this refusal is real.
+    await hear({ type: "rejected", ref: socket().frames[1].ref, rejection: { reason: "unknownParticipant" } });
+    expect(stays.answer).toEqual({ ok: false, rejection: { reason: "unknownParticipant" } });
+    expect(shown()).toEqual({ ann: 0, bob: 0, cat: 0 });
+  });
+
   it("two quick adds go out in the order tapped and the index counts the first", async () => {
     const start = dinner();
     await hear(state(start, null));
@@ -380,6 +416,20 @@ describe("useLiveSplit with a Split already in hand before the socket opens", ()
     await act(async () => socket().emit("message", { data: JSON.stringify({ type: "state", ref: "r0", photo: false, split: echo }) }));
     expect(bobsShare()).toBe(800);
     expect(first.answer).toEqual({ ok: true, revision: echo.revision });
+    expect(hook.idle).toBe(true);
+  });
+
+  it("a tap still buffered when a slow first connect times out and reconnects fails at once and comes off the screen", async () => {
+    const first = tap(claim(bob, rice));
+    expect(bobsShare()).toBe(800);
+    socket().closesOnReconnect = true;
+    await act(async () => {
+      vi.advanceTimersByTime(answerByMs + 1);
+    });
+    expect(socket().reconnects).toBe(1);
+    expect(first.answer).toEqual({ ok: false, rejection: { reason: "disconnected" } });
+    expect(bobsShare()).toBe(0);
+    expect(socket().queue).toEqual([]);
     expect(hook.idle).toBe(true);
   });
 

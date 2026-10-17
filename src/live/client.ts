@@ -83,8 +83,8 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
     clearTimeout(entry.deadline);
     if (entry.stalled) setStalled((count) => count - 1);
     setInFlight((count) => count - 1);
-    // An answer that never came is not a failure when the server's Split already holds what was asked.
-    const held = entry.op !== null && !answer.ok && answer.rejection.reason === "disconnected" && server.current !== null && landed(server.current, entry.op);
+    // A failed answer is not a failure when the server's Split already holds what was asked: the answer never came but the action landed, or the refusal says it was already so (a duplicate id, a line already gone, an undo already done).
+    const held = entry.op !== null && !answer.ok && server.current !== null && landed(server.current, entry.op);
     if (entry.op) setSeen((was) => was && drop(was, new Set([ref])));
     entry.resolve(held ? { ok: true, revision: null } : answer);
   }, []);
@@ -155,12 +155,12 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
       ws.drainQueuedMessages();
       const reason = endings[code];
       for (const [ref, entry] of [...waiting]) {
-        if (reopening.current && entry.late) continue;
         // Never reached the server (dropped from the buffer above), so there is nothing to wait for.
         if (!entry.sent) {
           settle(ref, disconnected);
           continue;
         }
+        if (reopening.current && entry.late) continue;
         // A laid action keeps showing until the join state says whether it landed, or the wait runs out.
         if (reason === undefined && socket.current === ws && entry.op !== null) {
           if (!entry.late) {
