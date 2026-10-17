@@ -260,15 +260,17 @@ test("I already paid waits for a claim that is then refused, records nothing, an
 
   // The Rice claim is refused, so the Share the person agreed to ($9.00) is gone. Nothing is recorded; the sheet stays open and says what it is now.
   await expect(pay.getByText("Your share is now $1.00")).toBeVisible(live);
+  // That line is the only message: the refusal that settled during the wait raises no bar over the sheet.
+  await expect(sam.getByText(notSaved)).toHaveCount(0);
+  await sam.waitForTimeout(800);
+  await expect(sam.getByText(notSaved)).toHaveCount(0);
   await expect(owe(sam)).toHaveText("$1.00");
   await expect(pay.getByRole("button", { name: "I already paid" })).not.toHaveAttribute("aria-busy", "true");
   expect(wire.sent.map(({ op }) => op.type)).toEqual(["claim", "claim"]);
   await sam.screenshot({ path: ".verify/shot-share-now.png" });
 
-  // A second tap records the Share on the page now. The refusal's bar sits over the sheet's button while it shows, so the tap waits for it to go.
+  // A second tap records the Share on the page now.
   wire.hold = false;
-  await sam.mouse.move(5, 5);
-  await expect(sam.getByText(savedFailed)).toHaveCount(0, { timeout: 8000 });
   await pay.getByRole("button", { name: "I already paid" }).click();
   await expect(pay).toHaveCount(0, live);
   expect(wire.sent.map(({ op }) => op.type)).toEqual(["claim", "claim", "recordPayment"]);
