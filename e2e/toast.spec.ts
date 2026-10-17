@@ -22,6 +22,7 @@ async function mountToast(page: Page) {
       const hide = () => { window.hiddenAt.push(Date.now()); setMessage(null); };
       return (
         <View style={{ height: 600 }}>
+          <button id="opener">Opener</button>
           <Toast message={message} onHide={hide} action={{ label: "Undo", onPress: () => window.actions++ }} />
         </View>
       );
@@ -91,4 +92,56 @@ test("on the home page the toast sits above the footer", async ({ page }) => {
     const box = (await toast.boundingBox())!;
     return box.y + box.height <= pillTop;
   }).toBe(true);
+});
+
+test("focus inside the toast holds its 4 s count and leaving it resumes the count", async ({ page }) => {
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1000);
+  await mountToast(page);
+  await page.locator("#opener").focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Undo" })).toBeFocused();
+  await page.clock.runFor(20_000);
+  expect(await hiddenAt(page)).toEqual([]);
+  await page.keyboard.press("Shift+Tab");
+  await page.clock.runFor(3900);
+  expect(await hiddenAt(page)).toEqual([]);
+  await page.clock.runFor(200);
+  expect(await hiddenAt(page)).toHaveLength(1);
+});
+
+test("a mouse resting on the toast holds its count until it moves away", async ({ page }) => {
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1000);
+  await mountToast(page);
+  await page.getByText("Copied the link").hover();
+  await page.clock.runFor(20_000);
+  expect(await hiddenAt(page)).toEqual([]);
+  await page.mouse.move(5, 5);
+  await page.clock.runFor(4100);
+  expect(await hiddenAt(page)).toHaveLength(1);
+});
+
+test("a toast that leaves with focus on its Undo gives focus back to where it was", async ({ page }) => {
+  await mountToast(page);
+  await page.locator("#opener").focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Undo" })).toBeFocused();
+  await page.evaluate(() => (window as unknown as ToastWindow).show(null as unknown as string));
+  await expect(page.locator("#opener")).toBeFocused();
+});
+
+test("Undo is a pressable target that text selection skips, and its focus ring differs from the toast's color", async ({ page }) => {
+  await mountToast(page);
+  const undo = page.getByRole("button", { name: "Undo" });
+  await expect(undo).toHaveAttribute("data-pressable", "");
+  expect(await undo.evaluate((el) => getComputedStyle(el).userSelect)).toBe("none");
+  await page.locator("#opener").focus();
+  await page.keyboard.press("Tab");
+  const ring = await undo.evaluate((el) => {
+    const style = getComputedStyle(el.querySelector("[data-press-face]")!);
+    return { outline: style.outlineColor, width: style.outlineWidth, toast: getComputedStyle(el.parentElement!).backgroundColor };
+  });
+  expect(ring.width).toBe("2px");
+  expect(ring.outline).not.toBe(ring.toast);
 });

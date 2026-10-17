@@ -45,7 +45,7 @@ export function useEscape(active: boolean, onEscape: () => void) {
   }, [active]);
 }
 
-const tabbable = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+export const tabbable = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Keeps Tab and Shift+Tab cycling inside `surface` while it is mounted, since the backdrop already keeps the pointer in. */
 function useTabTrap(surface: { current: View | null }) {

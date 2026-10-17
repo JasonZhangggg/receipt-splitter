@@ -1,13 +1,16 @@
-import { useEffect, useEffectEvent, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useReducedMotion } from "../motion";
+import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { easing, layout, motion, type, useColors } from "../theme";
+import { PressTarget } from "./button";
 import { underline } from "./text-link";
 import { hideAfter } from "./hide-timer";
 
 const visibleFor = 4000;
+// The toast is ink-colored, so its focus ring is drawn in the field color.
+const ring = (color: string) => webStyle({ "--focus": color } as never);
 // The toast sits above the home panel, so it rides the panel's keyboard lift.
 const followsPanel = { dataSet: { followsPanel: "" } };
 
@@ -32,6 +35,9 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   }
   const showing = message ? action : shownAction;
   const hide = useEffectEvent(onHide);
+  const bar = useRef<View>(null);
+  // Where focus was before it moved into the toast, so it can go back when the toast leaves.
+  const before = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const animation = Animated.timing(progress, {
@@ -47,7 +53,27 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   }, [message, reduce, progress]);
 
   useEffect(() => {
-    if (message) return hideAfter(visibleFor, () => hide());
+    if (message) return hideAfter(visibleFor, () => hide(), undefined, (bar.current as unknown as HTMLElement | null) ?? undefined);
+  }, [message]);
+
+  useEffect(() => {
+    const element = bar.current as unknown as HTMLElement | null;
+    if (!element) return;
+    const onFocusIn = (event: FocusEvent) => {
+      const from = event.relatedTarget as HTMLElement | null;
+      if (from && !element.contains(from)) before.current = from;
+    };
+    element.addEventListener("focusin", onFocusIn);
+    return () => element.removeEventListener("focusin", onFocusIn);
+  }, [shown]);
+
+  // A toast that leaves with focus inside it hands focus back to where it came from, not to the top of the page.
+  useEffect(() => {
+    if (message) return;
+    const element = bar.current as unknown as HTMLElement | null;
+    const back = before.current;
+    before.current = null;
+    if (element?.contains(document.activeElement) && back?.isConnected && !back.closest("[inert]")) back.focus({ preventScroll: true });
   }, [message]);
 
   const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
@@ -56,12 +82,16 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   return (
     <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: 16 + (lift || insets.bottom) }]}>
       {shown ? (
-        <Animated.View style={[styles.toast, { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }, { scale }] }]}>
+        <Animated.View ref={bar} style={[styles.toast, ring(c.field), { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }, { scale }] }]}>
           <Text style={[type.caption, styles.message, { color: c.field }]}>{shown}</Text>
           {showing ? (
-            <Pressable role="button" onPress={showing.onPress} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-              <Text style={[type.caption, underline, { color: c.field, textDecorationColor: c.field }]}>{showing.label}</Text>
-            </Pressable>
+            <PressTarget onPress={showing.onPress} outsideScroll style={(pressed) => [styles.action, pressStyle(pressed, reduce)]}>
+              {() => (
+                <View {...{ dataSet: { pressFace: "" } }} style={styles.face}>
+                  <Text style={[type.caption, underline, { color: c.field, textDecorationColor: c.field }]}>{showing.label}</Text>
+                </View>
+              )}
+            </PressTarget>
           ) : null}
         </Animated.View>
       ) : null}
@@ -85,6 +115,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   message: { flexShrink: 1 },
-  pressed: { opacity: 0.6 },
-  action: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
+  action: { minWidth: 44, minHeight: 44 },
+  face: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, borderRadius: 22 },
 });

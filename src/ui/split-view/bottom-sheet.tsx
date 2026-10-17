@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View, type PointerEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { actedByKey } from "../components/acted-by-key";
+import { tabbable } from "../components/popover";
 import { glide, glideFor, leaveFor, leaveMs, reducedFade, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
@@ -17,6 +18,31 @@ const barGap = 16;
 const ringRoom = 4;
 const contain = webStyle({ overscrollBehavior: "contain" });
 const holdsGesture = webStyle({ touchAction: "none" });
+// The page column is 480 wide between its gutters, so the sheet surface is that plus both gutters and its text lines up with the page's.
+const surfaceWidth = 480 + 2 * layout.gutter;
+// A sheet is modal: the page behind it (the siblings that are not a sheet's dim or surface, a toast or a notice) is out of reach of Tab and screen readers while it is open. Counted, so one sheet closing under another keeps the page out.
+const overlayLayer = '[role="dialog"], [role="status"], [data-sheet-dim]';
+const held = new Map<HTMLElement, number>();
+function holdPage(from: HTMLElement) {
+  const page = [...(from.parentElement?.children ?? [])].filter((el): el is HTMLElement => el instanceof HTMLElement && !el.matches(overlayLayer));
+  for (const el of page) {
+    held.set(el, (held.get(el) ?? 0) + 1);
+    el.inert = true;
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    for (const el of page) {
+      const left = (held.get(el) ?? 1) - 1;
+      if (left > 0) held.set(el, left);
+      else {
+        held.delete(el);
+        el.inert = false;
+      }
+    }
+  };
+}
 
 type Props = {
   children: ReactNode;
@@ -59,6 +85,8 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const leaving = useRef(false);
   const left = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gestures = onDown !== undefined;
+  // The page is out of reach until the sheet starts to leave, so a key pressed as it slides away reaches the page and the opener can take focus back.
+  const releasePage = useRef<(() => void) | null>(null);
 
   const element = () => surface.current as unknown as HTMLElement | null;
 
@@ -108,6 +136,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
     if (leaving.current) return;
     if (holds?.()) return settle(home, velocity);
     leaving.current = true;
+    releasePage.current?.();
     settle(tallest, velocity, onDown);
   };
 
@@ -126,10 +155,38 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
 
   useEffect(() => () => clearTimeout(left.current), []);
 
+  useLayoutEffect(() => {
+    const sheet = element();
+    if (!sheet) return;
+    const release = holdPage(sheet);
+    releasePage.current = release;
+    return release;
+  }, []);
+
   // A sheet a key opened takes focus as it appears, so the next key reaches the sheet and not the page behind it. A touch or click leaves focus on the opener, and a field that took focus itself keeps it.
   useEffect(() => {
     const sheet = element();
     if (sheet && actedByKey() && !sheet.contains(document.activeElement)) sheet.focus({ preventScroll: true });
+  }, []);
+
+  // Tab cycles through the sheet and a toast's action over it, and never to the browser's own controls. Focus in a popover over the sheet is that popover's to trap.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const box = element();
+      if (event.key !== "Tab" || !box) return;
+      const at = document.activeElement;
+      const toast = [...document.querySelectorAll<HTMLElement>('[role="status"] [data-pressable]')];
+      const stops = [...box.querySelectorAll<HTMLElement>(tabbable), ...toast].filter((el) => el.getClientRects().length > 0);
+      const ours = at === null || at === document.body || box.contains(at) || toast.includes(at as HTMLElement);
+      if (!ours) return;
+      const edge = event.shiftKey ? stops[0] : stops.at(-1);
+      if (at === box && !event.shiftKey) return;
+      if (at && stops.includes(at as HTMLElement) && at !== edge) return;
+      event.preventDefault();
+      (event.shiftKey ? (stops.at(-1) ?? box) : (stops[0] ?? box)).focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   const live = () => {
@@ -204,10 +261,11 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const fits = scrolls ? null : grip;
   return (
     <>
-      <View ref={dim} testID="sheet-dim" pointerEvents={tapAway ? "auto" : "none"} onPointerUp={onDown && (() => leave(0))} style={[styles.hitArea, { backgroundColor: c.sheetScrim }]} />
+      <View ref={dim} testID="sheet-dim" {...{ dataSet: { sheetDim: "" } }} pointerEvents={tapAway ? "auto" : "none"} onPointerUp={onDown && (() => leave(0))} style={[styles.hitArea, { backgroundColor: c.sheetScrim }]} />
       <View
         ref={surface}
         role="dialog"
+        aria-modal
         aria-label={label}
         testID={testID}
         tabIndex={-1}
@@ -251,10 +309,10 @@ const layer = webStyle({ willChange: "transform" });
 
 const styles = StyleSheet.create({
   hitArea: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, maxWidth: surfaceWidth, marginHorizontal: "auto", borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   below: { position: "absolute", top: "100%", left: 0, right: 0 },
   column: { width: "100%" },
-  inset: { alignSelf: "center", width: "100%", maxWidth: 480 },
+  inset: { alignSelf: "center", width: "100%", maxWidth: surfaceWidth },
   grabArea: { alignSelf: "stretch", height: grabHeight - ringRoom, alignItems: "center", paddingTop: 10 },
   grab: { width: 36, height: 5, borderRadius: 3 },
   shrink: { flexShrink: 1 },
