@@ -150,8 +150,11 @@ test("Undo is a pressable target that text selection skips, and its focus ring d
 
 test("a message that wraps keeps room inside the bar, and a one-line toast stays 48 px tall", async ({ page }) => {
   await mountToast(page);
-  const room = (text: string) =>
-    page.getByText(text).evaluate((el: HTMLElement) => {
+  // The bar enters at scale 0.98, so it is measured only once it has settled.
+  const room = async (text: string) => {
+    const message = page.getByText(text);
+    await expect.poll(() => message.evaluate((el: HTMLElement) => [getComputedStyle(el.parentElement!).transform, getComputedStyle(el.parentElement!).opacity].join())).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\)),1$/);
+    return message.evaluate((el: HTMLElement) => {
       const bar = el.parentElement!.getBoundingClientRect();
       const words = document.createRange();
       words.selectNodeContents(el);
@@ -159,6 +162,7 @@ test("a message that wraps keeps room inside the bar, and a one-line toast stays
       const ink = { top: Math.min(...lines.map((r) => r.top)), bottom: Math.max(...lines.map((r) => r.bottom)), right: Math.max(...lines.map((r) => r.right)) };
       return { height: Math.round(bar.height), lines: new Set(lines.map((r) => Math.round(r.top))).size, top: Math.round(ink.top - bar.top), bottom: Math.round(bar.bottom - ink.bottom), right: Math.round(bar.right - ink.right) };
     });
+  };
   await page.evaluate(() => (window as unknown as ToastWindow).dropAction());
   expect((await room("Copied the link")).height).toBe(48);
   const long = "No connection, so the receipt couldn't be read. Try again once you're back online.";
