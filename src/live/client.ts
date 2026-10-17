@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CreateSplitRefusal, CreateSplitRequest, CreateSplitResponse, Operation, ServerMessage, WireRejection } from "../core/operations";
 import { isRoutableSplitId, participantId, randomId, type ParticipantId, type Split, type SplitId } from "../core/split";
 import { createCopy } from "../ui/home-copy";
-import { firstSight, forgetFirstSight, keepCreated } from "./first-sight";
+import { firstSight, forgetFirstSight, keepCreated, takeEarlySocket } from "./first-sight";
 import { answerByMs, connectionOf, slowAfterMs, type Connection } from "./connection";
 import type { ReceiptJpeg } from "../ui/receipt-input/jpeg";
 
@@ -46,7 +46,7 @@ const firstRetryMs = 500;
 const browserIsOnline = () => globalThis.navigator?.onLine !== false;
 
 export function useLiveSplit(id: string | null): { live: Live; send: Send; connection: Connection } {
-  // The first render shows a Split already in hand (the one just created here) instead of waiting for this hook's own socket to say so.
+  // The first render shows a Split already in hand (just created here, or the early socket's first state) instead of waiting for this hook's own socket to say so.
   const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(() => {
     const sight = id === null || !isRoutableSplitId(id) ? null : firstSight(id);
     return id !== null && sight ? { id, live: { status: "live", split: sight.split, photo: sight.photo } } : null;
@@ -92,12 +92,14 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     if (id === null || !isRoutableSplitId(id)) return;
     const setLive = (live: Live) => setSeen({ id, live });
     const waiting = pending.current;
+    const early = takeEarlySocket(id);
     const ws = new PartySocket({
       host: location.host,
       protocol: location.protocol === "https:" ? "wss" : "ws",
       party: "split-server",
       room: id,
       minReconnectionDelay: firstRetryMs,
+      ...(early && { WebSocket: early }),
     });
     socket.current = ws;
     everOpened.current = false;

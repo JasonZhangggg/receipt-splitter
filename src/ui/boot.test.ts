@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
+import { PartySocket } from "partysocket";
 import { expect, test } from "vitest";
 
+import { isRoutableSplitId } from "../core/split";
 import { colors } from "./colors";
 import { faces } from "./fonts.generated";
 
@@ -35,4 +37,18 @@ test("the Split page borrows the one loader in index.html rather than drawing it
   expect(split).toContain("useBusyLoader(");
   expect(split).not.toMatch(/<Svg|<svg|stroke-dash/);
   expect(html.match(/id="rs-boot"/g)).toHaveLength(1);
+});
+
+test("the early socket opens for exactly the links the app calls routable, at the path PartySocket would use", () => {
+  const pattern = /var found = \/(.+?)\/\.exec\(location\.pathname\)/.exec(html)?.[1];
+  expect(pattern).toBeDefined();
+  const early = new RegExp(pattern!);
+  const room = (length: number) => "a1_-".repeat(10).slice(0, length);
+  for (const path of [room(21), room(22), room(23), room(24), room(25), `${room(22)}/x`, "__proto__"]) {
+    expect(early.test(`/s/${path}`)).toBe(path === room(22) || path === room(24));
+    expect(early.test(`/s/${path}`)).toBe(isRoutableSplitId(path));
+  }
+  expect(html).toContain('"/parties/split-server/" + found[1]');
+  const ours = new PartySocket({ host: "example.test", protocol: "wss", party: "split-server", room: room(24), startClosed: true });
+  expect(new URL(ours._pkurl).pathname).toBe(`/parties/split-server/${room(24)}`);
 });
