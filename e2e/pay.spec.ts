@@ -421,9 +421,9 @@ test("the pill's visible label is only the app mark and the method, with the ful
   expect(box?.height).toBeGreaterThanOrEqual(44);
 });
 
-const paymentsList = (page: Page) => page.getByRole("list", { name: "Payments" });
+const paymentsList = (page: Page) => page.getByTestId("payments");
 const paymentRow = (page: Page, name: string) => paymentsList(page).getByRole("listitem").filter({ hasText: name });
-/** The glyphs in a row besides the viewer's person icon: only a green check once paid in full. */
+/** The glyphs in a row besides the viewer's person icon: none, even once paid in full, since the Paid heading says it. */
 const markOf = async (page: Page, name: string) => paymentRow(page, name).locator('[data-icon]:not([data-icon="person"])').evaluateAll((all) => all.map((one) => one.getAttribute("data-icon")));
 
 test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, then still owed when his share grows, with chips that never carry a mark", async ({ browser, request }, { workerIndex }) => {
@@ -438,7 +438,10 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
 
   await fromMore(priya, "Payments");
   await expect(priya.getByTestId("payments-summary")).toHaveText("0 of 2 paid", live);
-  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Jason/, /^Sam/]);
+  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Sam/, /^Jason/]);
+  await expect(paymentsList(priya).getByRole("heading")).toHaveText(["Not paid", "Paid"]);
+  await expect(paymentsList(priya).getByRole("list", { name: "Not paid", exact: true }).getByRole("listitem")).toHaveText([/^Priya/, /^Sam/]);
+  await expect(paymentsList(priya)).toContainText("Not paid$16.00 left");
   await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible();
   await expect(paymentRow(priya, "Sam")).toHaveText("SamNot paid$8.00");
   await expect(paymentRow(priya, "Jason")).toHaveText(/^JasonGets paid\$/);
@@ -451,7 +454,10 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid$8.00", live);
   await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "settled");
-  expect(await markOf(priya, "Sam")).toEqual(["check"]);
+  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Jason/, /^Sam/]);
+  await expect(paymentsList(priya).getByRole("list", { name: "Paid", exact: true }).getByRole("listitem")).toHaveText([/^Jason/, /^Sam/]);
+  await expect(paymentsList(priya)).toContainText("Paid$8.00 in");
+  expect(await markOf(priya, "Sam")).toEqual([]);
 
   await circle(sam, "Pho", "Sam").click();
   await expect(paymentRow(priya, "Sam")).toHaveText("SamPaid $8.00 · $14.20 still owed$22.20", live);

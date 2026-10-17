@@ -6,21 +6,19 @@ import type { ParticipantId, Split } from "../../core/split";
 import { computeShares } from "../../core/shares";
 import { money } from "../../draft";
 import { PressTarget } from "../components/button";
-import { Icon } from "../components/icon";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import type { Colors } from "../colors";
 import { layout, motion, type, useColors } from "../theme";
 import { slices, ring } from "./donut-model";
 import { DonutRing } from "./donut-ring";
-import { foldedRows, hostCollected, paymentStatus, pickedRow, viewerFirst, type PaymentRow } from "./model";
+import { foldedRows, hostCollected, paymentSections, paymentStatus, pickedRow } from "./model";
 import { firstName } from "./pay-sheet";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = { split: Split; me: ParticipantId | null; onClose: () => void; /** In a bottom sheet: the ring stays put and only the people scroll, out to the sheet's edge. */ sheet?: boolean };
 
-/** Who has paid, for everyone in chip order. It reads the live Split, so another phone's payment lands here as it happens. */
+/** Who has paid, with everyone who still owes something at the top. It reads the live Split, so another phone's payment lands here as it happens. */
 export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -70,42 +68,50 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         ) : null}
       </View>
       <ScrollView
-        role="list"
-        aria-label={say.payments}
+        testID="payments"
         {...(sheet ? { dataSet: { sheetScroll: "" } } : {})}
         style={[{ marginRight: -edge }, contain, sheet && { maxHeight: Math.max(minList, room - fixed - layout.pairGap) }]}
         contentContainerStyle={{ paddingRight: edge }}
       >
-        {viewerFirst(shown, me).map(({ id, name, share, state, words }) => {
-          const on = id === picked.id;
-          return (
-            <View key={id} role="listitem" {...{ dataSet: { state } }}>
-              <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share)}`} toggled={on} outsideScroll={!sheet} onPress={() => setTapped(id)} style={() => null}>
-                {(pressed) => {
-                  const ink = on || pressed ? c.ink : c.muted;
-                  return (
-                    <View style={[styles.row, { borderTopColor: c.hairline }]}>
-                      <View style={styles.body}>
-                        <View style={styles.who}>
-                          <View style={[styles.dot, { backgroundColor: on ? c.ink : c.dot }, !reduce && fade]} />
-                          <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }, !reduce && fade]}>
-                            {name}
-                            {id === me ? <Text style={[type.caption, { color: c.muted }]}>{`\u2002${say.you}`}</Text> : null}
-                          </Text>
-                        </View>
-                        <View style={styles.sub}>
-                          {state === "settled" ? <Icon name="check" size={13} color={c.good} /> : null}
-                          <Text style={[type.caption, { color: stateInk(c, state) }]}>{state === "settled" ? say.paid : words}</Text>
-                        </View>
-                      </View>
-                      <Text style={[type.body, styles.amount, { color: ink }, !reduce && fade]}>{money(share)}</Text>
-                    </View>
-                  );
-                }}
-              </PressTarget>
+        {paymentSections(shown, split.payments, me).map(({ kind, rows: part, amount }) => (
+          <View key={kind}>
+            <View style={styles.heading}>
+              <Text role="heading" aria-level={3} style={[type.caption, styles.headingLabel, { color: c.ink }]}>
+                {say.section[kind]}
+              </Text>
+              <Text style={[type.caption, styles.tabular, { color: c.muted }]}>{(kind === "owed" ? say.section.left : say.section.in)(money(amount))}</Text>
             </View>
-          );
-        })}
+            <View role="list" aria-label={say.section[kind]}>
+              {part.map(({ id, name, share, state, words }) => {
+                const on = id === picked.id;
+                return (
+                  <View key={id} role="listitem" {...{ dataSet: { state } }}>
+                    <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share)}`} toggled={on} outsideScroll={!sheet} onPress={() => setTapped(id)} style={() => null}>
+                      {(pressed) => {
+                        const ink = on || pressed ? c.ink : c.muted;
+                        return (
+                          <View style={[styles.row, { borderTopColor: c.hairline }]}>
+                            <View style={styles.body}>
+                              <View style={styles.who}>
+                                <View style={[styles.dot, { backgroundColor: on ? c.ink : c.dot }, !reduce && fade]} />
+                                <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }, !reduce && fade]}>
+                                  {name}
+                                  {id === me ? <Text style={[type.caption, { color: c.muted }]}>{`\u2002${say.you}`}</Text> : null}
+                                </Text>
+                              </View>
+                              <Text style={[type.caption, styles.sub, { color: state === "short" || state === "over" ? c.warn : c.muted }]}>{state === "settled" ? say.paid : words}</Text>
+                            </View>
+                            <Text style={[type.body, styles.amount, { color: ink }, !reduce && fade]}>{money(share)}</Text>
+                          </View>
+                        );
+                      }}
+                    </PressTarget>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ))}
         {quiet.length > 0 ? (
           <Text testID="owes-nothing" style={[type.caption, styles.quiet, { color: c.muted, borderTopColor: c.hairline }]}>
             {say.ring.owesNothing(quiet.map(({ name }) => firstName(name)))}
@@ -131,9 +137,6 @@ const centerIn = webAnimation({
   animationFillMode: "both",
 });
 
-/** Green marks "Paid" in this sheet only. A share that moved after the payment is a problem, so red. */
-const stateInk = (c: Colors, state: PaymentRow["state"]) => (state === "settled" ? c.good : state === "short" || state === "over" ? c.warn : c.muted);
-
 const styles = StyleSheet.create({
   tabular: { fontVariant: ["tabular-nums"] },
   caption: { textAlign: "center" },
@@ -145,7 +148,9 @@ const styles = StyleSheet.create({
   who: { flexDirection: "row", alignItems: "center", gap: 10 },
   dot: { width: 12, height: 12, borderRadius: 6 },
   name: { flexShrink: 1 },
-  sub: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 22 },
+  sub: { paddingLeft: 22 },
+  heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, paddingTop: 22, paddingBottom: 8 },
+  headingLabel: { fontWeight: "500" },
   quiet: { paddingVertical: 14, borderTopWidth: 1 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });
