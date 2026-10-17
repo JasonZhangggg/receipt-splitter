@@ -1,4 +1,10 @@
-type Glyph = { svg: string; weight?: number; motion?: string };
+type Glyph = { svg: string; motion?: string };
+
+/** Every icon draws with this stroke on screen, in px, whatever its size. B2's mock pairs 1.6 to 2.2 grid strokes with 13 to 19 px icons, which is 1.2 px. */
+export const strokePx = 1.2;
+
+/** The `stroke-width` on the 24-unit grid that draws `strokePx` at `size` px. */
+export const strokeFor = (size: number) => Math.round((strokePx * 24 * 100) / size) / 100;
 
 const tray =
   '<path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5"/><g class="arrow"><path d="M7.5 7.5 12 3m0 0 4.5 4.5M12 3v13.5"/></g>';
@@ -10,24 +16,22 @@ const rays = ["M12 3v2.25", "M18.36 5.64l-1.59 1.59", "M21 12h-2.25", "M18.36 18
 
 /** Heroicons outline paths (MIT) on a 24-unit grid. `motion` names the ai-* class that iconCss in ui/icon-css.ts animates. */
 export const glyphs = {
-  plus: { svg: '<path d="M5 12h14"/><path d="M12 5v14"/>', weight: 2, motion: "plus" },
-  minus: { svg: '<path pathLength="1" d="M5 12h14"/>', weight: 2, motion: "minus" },
-  x: { svg: '<path pathLength="1" d="M6 6l12 12"/><path pathLength="1" d="M18 6 6 18"/>', weight: 1.8, motion: "x" },
-  check: { svg: tick, weight: 2.2, motion: "check" },
-  tick: { svg: tick, weight: 2.2, motion: "check" },
+  plus: { svg: '<path d="M5 12h14"/><path d="M12 5v14"/>', motion: "plus" },
+  minus: { svg: '<path pathLength="1" d="M5 12h14"/>', motion: "minus" },
+  x: { svg: '<path pathLength="1" d="M6 6l12 12"/><path pathLength="1" d="M18 6 6 18"/>', motion: "x" },
+  check: { svg: tick, motion: "check" },
+  tick: { svg: tick, motion: "check" },
   exclaim: {
     svg: '<path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/><g class="mark"><path d="M12 8.25v4.5"/><path d="M12 15.75h.008v.008H12v-.008Z"/></g>',
-    weight: 1.8,
     motion: "alert",
   },
   trash: {
     svg: '<path class="lid" d="M15.75 5.39V4.48c0-1.18-.91-2.17-2.09-2.2a51.9 51.9 0 0 0-3.32 0c-1.18.03-2.09 1.02-2.09 2.2v.91M3.75 5.96c1.4-.24 2.8-.43 4.5-.57M20.25 5.96c-1.4-.24-2.8-.43-4.5-.57M8.25 5.39a50 50 0 0 1 7.5 0"/><path class="body" d="M14.74 9l-.35 9M9.6 18l-.34-9M19.23 5.79l-1.07 13.88a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79"/>',
-    weight: 1.9,
     motion: "trash",
   },
   share: { svg: tray, motion: "tray" },
   upload: { svg: tray, motion: "tray" },
-  arrow: { svg: '<path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"/><path class="line" d="M21 12H3"/>', weight: 2, motion: "arrow" },
+  arrow: { svg: '<path class="head" d="M13.5 4.5 21 12m0 0-7.5 7.5"/><path class="line" d="M21 12H3"/>', motion: "arrow" },
   person: {
     svg: '<path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/>',
   },
@@ -37,7 +41,7 @@ export const glyphs = {
   },
   pie: { svg: pie, motion: "pie" },
   split: { svg: pie, motion: "pie" },
-  history: { svg: undo, weight: 1.7, motion: "undo" },
+  history: { svg: undo, motion: "undo" },
   sun: {
     svg: `<circle cx="12" cy="12" r="3.75"/>${rays.map((d, i) => `<path class="ray" style="--d:${i * 50}ms" d="${d}"/>`).join("")}`,
     motion: "sun",

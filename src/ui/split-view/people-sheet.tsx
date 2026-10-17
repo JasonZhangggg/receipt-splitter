@@ -10,7 +10,7 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, tabular, type, useColors } from "../theme";
 import { LinkLine } from "./link-line";
-import { SheetHeader } from "./sheet-header";
+import { Pinned, SheetHeader } from "./sheet-header";
 
 export type PersonRow = {
   readonly person: Participant;
@@ -77,7 +77,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
   return (
     <View pointerEvents={chosen === null ? "auto" : "none"} style={styles.sheet}>
       {asking ? (
-        <>
+        <Pinned>
           <View style={styles.topline}>
             <Text style={[type.body, styles.invite, { color: c.muted }]}>
               <Text style={[styles.strong, { color: c.ink }]}>{intro.lead}</Text>
@@ -91,7 +91,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
           <Text role="heading" aria-level={2} style={[type.title, styles.ask, { color: c.ink }]}>
             {say.question}
           </Text>
-        </>
+        </Pinned>
       ) : (
         <>
           <SheetHeader title={say.people} onClose={onClose} />

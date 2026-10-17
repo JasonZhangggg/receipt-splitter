@@ -6,6 +6,9 @@ test.each([
   ["offline", null, { notice: "offline", afterMs: 1500 }],
   ["offline", "slow", { notice: "offline", afterMs: 0 }],
   ["offline", "offline", { notice: "offline", afterMs: 0 }],
+  ["dropped", null, { notice: "offline", afterMs: 5000 }],
+  ["dropped", "slow", { notice: "offline", afterMs: 0 }],
+  ["dropped", "offline", { notice: "offline", afterMs: 0 }],
   ["slow", null, { notice: "slow", afterMs: 0 }],
   ["online", "offline", { notice: null, afterMs: 1000 }],
   ["online", "slow", { notice: null, afterMs: 0 }],
@@ -17,7 +20,8 @@ test.each([
 test.each([
   [{ socketOpen: true, browserOnline: true, stalled: 0 }, "online"],
   [{ socketOpen: true, browserOnline: true, stalled: 2 }, "slow"],
-  [{ socketOpen: false, browserOnline: true, stalled: 0 }, "offline"],
+  [{ socketOpen: false, browserOnline: true, stalled: 0 }, "dropped"],
+  [{ socketOpen: false, browserOnline: true, stalled: 4 }, "dropped"],
   [{ socketOpen: true, browserOnline: false, stalled: 0 }, "offline"],
   [{ socketOpen: false, browserOnline: false, stalled: 3 }, "offline"],
 ] as const)("%o is %s", (link, expected) => {
