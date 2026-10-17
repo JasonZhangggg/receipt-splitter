@@ -54,7 +54,7 @@ The operator made these calls while iterating. They win over older design docs a
     - Each added way to pay is an inline "or <app> at <handle>" clause. "add an app" at the end of the payment clause adds the next app and focuses its handle field, until every app is in. With two or more apps, a small plain × (the one names use) follows each app name and removes that app. Names follow "here with", and the first name is the Host. Friends can be named before the Host (operator, 2026-10-16).
     - Home does not scroll (operator, 2026-10-16). Only the footer is fixed, and nothing above it is pinned.
     - Recent splits lists this device's stored Splits under the sentence. Each row shows who, the day, how many people and the total. Home shows as many rows as fit above the footer. When some don't fit, a "See all N" link below the rows opens a bottom sheet that scrolls through every one. The section is gone when there are none.
-    - The header holds the wordmark, a muted "Buy me a coffee" link to the maker's Venmo (https://venmo.com/u/Jason-Zhang-162, new tab) and the theme toggle (operator, 2026-10-17).
+    - The header holds the wordmark, an outline coffee-cup icon button named "Buy me a coffee", linking to the maker's Venmo (https://venmo.com/u/Jason-Zhang-162, new tab) and the theme toggle (operator, 2026-10-17).
     - The footer matches the Split page: the reason line at the left, and a "Create link" pill at the right that is gray while blocked.
 
 ### First load

@@ -11,10 +11,9 @@ import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
 import { chooseRoute, FALLBACK_WAIT_MS, within } from "../src/scan/route";
 import { ThemeToggle } from "../src/ui/components/theme-toggle";
-import { TextLink } from "../src/ui/components/text-link";
 import { Toast } from "../src/ui/components/toast";
 import { useEscape } from "../src/ui/components/popover";
-import type { Press } from "../src/ui/components/button";
+import { Button, type Press } from "../src/ui/components/button";
 import { actedByKey } from "../src/ui/components/acted-by-key";
 import { blockerText, coffeeLink, copy, historyCopy } from "../src/ui/home-copy";
 import { PayWords } from "../src/ui/home-sentence/pay-words";
@@ -200,7 +199,7 @@ export default function Home() {
               {copy.wordmark}
             </Text>
             <View style={styles.headerEnd}>
-              <TextLink label={copy.coffee} href={coffeeLink} />
+              <Button kind="icon" icon="coffee" name={copy.coffee} href={coffeeLink} />
               <ThemeToggle />
             </View>
           </View>
@@ -250,7 +249,7 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1, alignItems: "center" },
   column: { width: "100%" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
-  headerEnd: { flexDirection: "row", alignItems: "center", gap: 16 },
+  headerEnd: { flexDirection: "row", alignItems: "center" },
   sentence: { marginTop: 40 },
   refusal: { marginTop: 8 },
 });

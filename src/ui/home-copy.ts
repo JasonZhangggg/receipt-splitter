@@ -166,7 +166,6 @@ export const fallbackSamples = {
     copy.sentence.addFriends,
     copy.sentence.addApp,
     "Add a receipt first.",
-    copy.coffee,
   ],
   500: [copy.wordmark, copy.action],
 };

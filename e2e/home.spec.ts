@@ -48,14 +48,14 @@ test("the empty home at 390 px is one sentence with its blanks and actions, and 
   await expect(appPicker(page)).toHaveValue("venmo");
   expect(await said(page)).toBe("I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at, or add an app. I’m, here with add friends.");
   const words = await sentence(page).innerText();
-  expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Buy me a coffee", "Add a receipt first.", "Create link"]);
+  expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Add a receipt first.", "Create link"]);
   await expect(venmo(page)).toHaveAttribute("placeholder", "@username");
   await expect(yourName(page)).toHaveAttribute("placeholder", "your name");
   await expect(action(page)).toHaveAccessibleDescription("Add a receipt first.");
   await expect(page.getByRole("button", { name: "Add the receipt" })).toHaveCount(1);
 });
 
-test("the header has only the wordmark, Buy me a coffee and the theme toggle, and Recent splits shows under the sentence only once there are stored splits", async ({ page }) => {
+test("the header has only the wordmark, the coffee icon and the theme toggle, and Recent splits shows under the sentence only once there are stored splits", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await expect(page.getByRole("button", { name: "Switch to dark mode" })).toBeVisible();
@@ -409,7 +409,7 @@ test("each icon draws a glyph, hidden from assistive tech, at 390 px", async ({ 
     })),
   );
   const icon = (name: string) => ({ icon: name, hidden: "true", drawn: true });
-  expect(icons).toEqual([icon("sun"), icon("moon"), icon("arrow")]);
+  expect(icons).toEqual([icon("coffee"), icon("sun"), icon("moon"), icon("arrow")]);
 });
 
 test("the payment app picker is a native select that lists the four apps with Venmo first", async ({ page }) => {
