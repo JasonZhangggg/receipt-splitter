@@ -92,6 +92,17 @@ test("the synthetic Topgolf receipt reads as two Beer Bucket Bundles, and the li
   ]);
 });
 
+test("a 'not a receipt' answer from the server still lets the on-device read keep a receipt it can read", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.route("**/api/scan", (route) => route.fulfill({ status: 422, json: { refused: "notReceipt" } }));
+  await page.goto("/");
+  await choose(page, "e2e/fixtures/topgolf-synthetic.png");
+  await expect(card(page)).toBeVisible(scanTimeout);
+
+  await expect(card(page)).toHaveText(/^I paid \$207\.29\./);
+  await expect(page.getByText("That doesn't look like a receipt")).toHaveCount(0);
+});
+
 test.describe("reading SRD receipt 1040", () => {
   test.setTimeout(120_000);
 

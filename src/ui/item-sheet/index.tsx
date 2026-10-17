@@ -283,10 +283,8 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
       setProblem(failedCopy(answer, say.saveFailed));
     });
   };
-  const onlyItem = split.receipt.items.length < 2;
   const remove = () => {
     if (leavingFrom) return;
-    if (onlyItem) return onNote(say.lastItem);
     flushRef.current = () => {};
     leave({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }, ({ revision }) => revision !== null && onDeleted({ name: title, revision }));
   };
@@ -317,7 +315,7 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
         title={say.editItem}
         onClose={close}
         keepsFocus
-        action={<IconAction label={say.deleteItem} icon="trash" size={15} pressedInk="warn" dim={onlyItem} keepsFocus onPress={remove} />}
+        action={<IconAction label={say.deleteItem} icon="trash" size={15} pressedInk="warn" keepsFocus onPress={remove} />}
       />
       <View style={styles.body}>
         <View style={styles.pair}>

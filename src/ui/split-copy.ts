@@ -186,7 +186,6 @@ export const splitCopy = {
   modeHints: { even: "Everyone who had it pays the same.", shares: "Give more shares to whoever had more.", amount: "Type what each person pays." },
   nobodyHasThis: "Nobody has this yet. Tap a name above.",
   peopleLine: (count: number, price: string) => `${count} ${count === 1 ? "person" : "people"} · ${price}`,
-  lastItem: "A split needs at least one item.",
   deleted: (name: string) => `Deleted ${name}`,
   undoFailed: "Couldn't undo that.",
   modes: { even: "Evenly", shares: "By shares", amount: "By amount" },

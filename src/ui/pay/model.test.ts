@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
-import { itemId, participantId, type ItemSplit, type Split } from "../../core/split";
+import { adjustmentId, itemId, participantId, type ItemSplit, type Split } from "../../core/split";
 import { payState, paymentStatus, pickedRow, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
@@ -141,5 +141,20 @@ describe("pickedRow", () => {
 
   test("falls back to the viewer when the person tapped was removed from the Split", () => {
     expect(pickedRow(rows.filter(({ id }) => id !== sam), sam, priya).id).toBe(priya);
+  });
+});
+
+describe("paymentStatus on a Split with no Items", () => {
+  test("shows everyone at $0.00 and nobody owing, with a tip on the bill", () => {
+    const split = {
+      receipt: { items: [], adjustments: [{ id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(200) }], subtotal: cents(0), total: cents(200) },
+      participants: [
+        { id: participantId("ann"), name: "Ann" },
+        { id: participantId("bob"), name: "Bob" },
+      ],
+      payments: [],
+    } as unknown as Split;
+    const status = paymentStatus(split, computeShares(split), participantId("ann"));
+    expect([status.rows.map(({ share, state }) => [share, state]), status.owing, status.summary]).toEqual([[[0, "host"], [0, "nothing"]], 0, null]);
   });
 });

@@ -1,6 +1,6 @@
 import { addRow, openAdd, addSheet } from "./add-menu";
 import { addNames, dropZone, openExample } from "./files";
-import { youAre } from "./header";
+import { fromMore, youAre } from "./header";
 import { expect, newContext, test, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -65,4 +65,27 @@ test("a photo that is not a receipt says so, and the Host adds every item by han
   await addSheet(page).getByRole("button", { name: "Add item", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Open Pizza, \$12\.00/ })).toBeVisible(live);
   await expect(page.getByTestId("total")).toHaveText("$12.00");
+});
+
+test("the first item added by hand can be reverted in History, putting the Split back to no items", async ({ page }) => {
+  await page.route("**/api/scan", (route) => route.fulfill({ status: 422, json: { refused: "notReceipt" } }));
+  await page.goto("/");
+  const chooser = page.waitForEvent("filechooser");
+  await dropZone(page).click();
+  await (await chooser).setFiles("e2e/fixtures/blank.png");
+  await page.getByRole("button", { name: "add the items myself" }).click();
+  await fillHome(page);
+  await page.getByRole("button", { name: "Create link" }).click();
+  await expect(page).toHaveURL(/\/s\/[A-Za-z0-9_-]{24}$/, live);
+
+  await openAdd(page, "Item");
+  await addSheet(page).getByRole("textbox", { name: "Name", exact: true }).fill("Pizza");
+  await addSheet(page).getByRole("textbox", { name: "Price", exact: true }).fill("12.00");
+  await addSheet(page).getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(page.getByTestId("total")).toHaveText("$12.00", live);
+
+  await fromMore(page, "History");
+  await page.getByRole("button", { name: "Revert Added Pizza" }).click();
+  await expect(page.getByText("Reverted")).toBeVisible(live);
+  await expect(page.getByTestId("total")).toHaveText("$0.00", live);
 });

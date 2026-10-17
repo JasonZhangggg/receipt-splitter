@@ -143,7 +143,7 @@ type Fraction = readonly [numerator: bigint, denominator: bigint];
 export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "payments">, participantId: ParticipantId): ShareBreakdown {
   const { items, adjustments } = split.receipt;
   if (items.length === 0) return { items: [], adjustments: adjustments.map(({ id, kind, name }) => ({ id, kind, name, portion: cents(0) })), difference: cents(0), share: cents(0) };
-  const shareIn =(receipt: Receipt<SplitItem>) => computeShares({ ...split, receipt }).shares.find((row) => row.participantId === participantId)?.share ?? 0;
+  const shareIn = (receipt: Receipt<SplitItem>) => computeShares({ ...split, receipt }).shares.find((row) => row.participantId === participantId)?.share ?? 0;
   const share = shareIn(split.receipt);
   const itemsSum = items.reduce((total, { price }) => total + price, 0);
   const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: cents(itemsSum) });

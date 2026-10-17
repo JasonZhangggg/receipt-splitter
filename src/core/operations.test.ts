@@ -1662,7 +1662,7 @@ describe("limits", () => {
     );
   });
 
-  test("rejects an amount above MAX_CENTS, a blank name, an index outside the list, and deleting the last Item", () => {
+  test("rejects an amount above MAX_CENTS, a blank name, and an index outside the list", () => {
     const split = apply(withBobAndCat(), { by: bob, type: "pick", participantId: bob, device: deviceId("phone-bob"), takeOver: false });
 
     expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, device: deviceId("phone-bob"), amount: cents(MAX_CENTS + 1) })).toBe(
@@ -1672,11 +1672,32 @@ describe("limits", () => {
     expect(
       reasonFor(split, { by: null, type: "editReceipt", items: [{ type: "add", item: { id: itemId("tea"), name: "Tea", price: price(0) }, index: 4 }] }),
     ).toBe("badIndex");
+  });
+});
 
+describe("a Split that holds no Items", () => {
+  const tip = { id: adjustmentId("tip"), kind: "tip" as const, name: "Tip", amount: cents(200) };
+  const byHand = () => created({ items: [], adjustments: [tip], subtotal: cents(0), total: cents(200) });
+  const pizza = { id: itemId("pizza"), name: "Pizza", price: price(1200) };
+
+  test("undoing the first Item added by hand puts the Split back to no Items", () => {
+    const added = apply(byHand(), { by: ann, type: "editReceipt", items: [{ type: "add", item: pizza, index: 0 }] });
+    expect([added.receipt.subtotal, added.receipt.total]).toEqual([1200, 1400]);
+    expect(added.receipt.items.map(({ id }) => id)).toEqual([pizza.id]);
+
+    const undone = apply(added, { by: ann, type: "undo", revision: added.revision });
+    expect([undone.receipt.items, undone.receipt.subtotal, undone.receipt.total]).toEqual([[], 0, 200]);
+  });
+
+  test("deleting the last Item is accepted and leaves the Split with none", () => {
     const single = created({ items: [{ id: pitcher, name: "Pitcher", price: price(3000) }], adjustments: [], subtotal: cents(3000), total: cents(3000) });
-    expect(
-      reasonFor(single, { by: null, type: "editReceipt", items: [{ type: "delete", itemId: pitcher }], subtotalDelta: cents(-3000), totalDelta: cents(-3000) }),
-    ).toBe("lastItem");
+    const emptied = apply(single, { by: null, type: "editReceipt", items: [{ type: "delete", itemId: pitcher }] });
+    expect([emptied.receipt.items, emptied.receipt.total]).toEqual([[], 0]);
+  });
+
+  test("owes every Participant $0.00 with a tip on the bill, and holds the tip as unclaimed", () => {
+    const shares = computeShares(byHand());
+    expect([shares.shares.map(({ share }) => share), shares.unclaimed.total]).toEqual([[0], 200]);
   });
 });
 

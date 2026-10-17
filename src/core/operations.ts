@@ -126,7 +126,6 @@ export type RejectionReason =
   | "duplicateId"
   | "badIndex"
   | "emptyEdit"
-  | "lastItem"
   | "host"
   | "payerOnly"
   | "paymentNotRevertible"
@@ -698,9 +697,8 @@ function applyWrite(split: Split, write: Write): Split | RejectionReason {
       const filled = receipt.items.map((item) => ({ ...item, detail: item.detail ?? "", quantity: item.quantity ?? 1 }));
       const rows = putRow(filled, write, 0, ({ index, detail = "", quantity = 1, ...fields }) => ({ id: write.id, ...fields, detail, quantity }));
       if (typeof rows === "string") return rows;
-      const [first, ...rest] = rows.map(({ detail, quantity, split: shape, ...row }): SplitItem => ({ ...row, ...(detail !== "" && { detail }), ...(quantity !== 1 && { quantity }), split: shape }));
-      if (first === undefined) return "lastItem";
-      return { ...split, receipt: { ...receipt, items: [first, ...rest] } };
+      const items = rows.map(({ detail, quantity, split: shape, ...row }): SplitItem => ({ ...row, ...(detail !== "" && { detail }), ...(quantity !== 1 && { quantity }), split: shape }));
+      return { ...split, receipt: { ...receipt, items } };
     }
     case "adjustment": {
       if (!keepsNameValid(write, MAX_ROW_NAME_LENGTH)) return "badName";

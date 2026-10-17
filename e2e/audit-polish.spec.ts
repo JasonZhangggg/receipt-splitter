@@ -44,16 +44,6 @@ async function home(page: Page) {
   await expect(page.locator("#root")).not.toHaveAttribute("inert", live);
 }
 
-/** A forced click skips Playwright's wait for the target to stop moving, so wait for the sheet to finish sliding up first. */
-async function settled(target: Locator) {
-  const top = async () => (await target.boundingBox())?.y;
-  await expect.poll(async () => {
-    const before = await top();
-    await target.page().waitForTimeout(100);
-    return before !== undefined && before === (await top());
-  }, live).toBe(true);
-}
-
 /** The size a finger can hit: the element's own box, with whatever padding the page gives it. */
 async function hitSize(target: Locator) {
   const box = await target.boundingBox();
@@ -165,17 +155,6 @@ test("deleting an Item reads Deleted in the undo bar and in History, with 'by Sa
   await expect(history.getByText("Removed Pitcher")).toHaveCount(0);
   await expect(history.getByText(/^by Sam · /)).toBeVisible();
   await expect(history.getByText("by Jason", { exact: true })).toBeVisible();
-});
-
-test("the last Item's trash looks off, and a tap on it says why", async ({ page, request }, { workerIndex }) => {
-  await openAs(page, await createSplit(request, workerIndex, [{ id: "rice", name: "Rice", price: 800 }]), "Sam");
-  await page.getByRole("button", { name: /^Open Rice, / }).click();
-  const trash = page.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Delete item" });
-  await expect(trash).toHaveAttribute("aria-disabled", "true");
-  await expect(trash.locator("svg").first()).toHaveAttribute("stroke", "#D0D0D0");
-  await settled(trash);
-  await trash.click({ force: true });
-  await expect(page.getByText("A split needs at least one item.")).toBeVisible(live);
 });
 
 test("a confirm's Cancel is an underlined text link, not a filled button", async ({ page, request }, { workerIndex }) => {

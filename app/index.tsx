@@ -126,13 +126,14 @@ export default function Home() {
     const onServer = await readOnServer(photo, sent);
     clearTimeout(slow);
     const notReceipt = onServer === "notReceipt";
-    const boxes = onServer ? null : await within(ocr, FALLBACK_WAIT_MS);
+    // A "none" from the model can be wrong about a blurry receipt, so the on-device read still gets its turn.
+    const boxes = onServer && !notReceipt ? null : await within(ocr, FALLBACK_WAIT_MS);
     const onDevice = boxes ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
     await stages.settle();
     const receipt = (notReceipt ? null : onServer) || (onDevice?.receipt ?? null);
     if (scan === scanning.current) {
-      land({ type: "read", file, receipt, ...(notReceipt && { notReceipt: true as const }), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+      land({ type: "read", file, receipt, ...(notReceipt && receipt === null && { notReceipt: true as const }), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
       if (receipt === null && globalThis.navigator?.onLine === false) setNotice(copy.scanOffline);
     }
   }, [dispatch]);
