@@ -182,11 +182,12 @@ export function totalNote(receipt: Receipt<SplitItem>): string | null {
 
 /**
  * Each claimer's part of `item` as the list and the Pay sheet charge it, from their Share breakdown with `item` in place of its row, so an unsaved edit reads right.
- * By amount, the parts are the typed cents. They come in the order of `split.participants`, as "Who had it" lists people, whatever order the claims were stored in.
+ * By amount, the parts are the typed cents. They come in the order "Who had it" lists people, `viewer` first and then `split.participants`, whatever order the claims were stored in.
  */
-export function itemParts(split: Pick<Split, "receipt" | "participants" | "payments">, item: SplitItem): { readonly participantId: ParticipantId; readonly cents: number }[] {
+export function itemParts(split: Pick<Split, "receipt" | "participants" | "payments">, item: SplitItem, viewer: ParticipantId | null = null): { readonly participantId: ParticipantId; readonly cents: number }[] {
   const parts = lineAmounts(item);
-  const order = (list: typeof parts) => list.toSorted((a, b) => split.participants.findIndex(({ id }) => id === a.participantId) - split.participants.findIndex(({ id }) => id === b.participantId));
+  const at = ({ participantId }: (typeof parts)[number]) => (participantId === viewer ? -1 : split.participants.findIndex(({ id }) => id === participantId));
+  const order = (list: typeof parts) => list.toSorted((a, b) => at(a) - at(b));
   if (item.split.by === "amount") return order(parts);
   const [first, ...rest] = split.receipt.items.map((row) => (row.id === item.id ? item : row));
   const shown = { ...split, receipt: { ...split.receipt, items: [first, ...rest] as const } };

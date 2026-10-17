@@ -246,7 +246,7 @@ test("Sam's one pay pill switches among Jason's four apps, links each at his $14
   await expect(pills).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=14.20&note=Receipt%20split");
   await expect(pills).toHaveAttribute("target", "_blank");
   await expect(pills).toHaveAttribute("rel", "noopener noreferrer");
-  for (const unit of ["Venmo\u00a0@jason-z", "Cash App\u00a0$jasonz", "PayPal\u00a0jasonzhang", "Zelle\u00a0jason@example.com"]) await expect(breakdown(sam).getByText(unit, { exact: true })).toBeVisible();
+  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z Cash App\u00a0$jasonz PayPal\u00a0jasonzhang Zelle\u00a0jason@example.com")).toBeVisible();
   await expect(breakdown(sam).getByText("·")).toHaveCount(0);
 
   await app.selectOption("cashApp");
@@ -436,7 +436,7 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible();
   await expect(paymentRow(priya, "Sam")).toHaveText("SamNot paid$8.00");
   await expect(paymentRow(priya, "Jason")).toHaveText(/^JasonGets paid\$/);
-  await expect(paymentRow(priya, "Priya")).toHaveText("PriyayouNot paid$8.00");
+  await expect(paymentRow(priya, "Priya")).toHaveText("Priya youNot paid$8.00");
   expect([await markOf(priya, "Sam"), await markOf(priya, "Jason"), await markOf(priya, "Priya")]).toEqual([[], [], []]);
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
 

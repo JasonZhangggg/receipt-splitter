@@ -57,12 +57,7 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
         <View style={styles.charges}>
           <Label text={mine ? say.yourCharges : say.chargesOf(person.name)} count={null} />
           {charges.map((row) => (
-            <View key={row.id} style={styles.charge}>
-              <Text numberOfLines={1} style={[type.body, styles.name, { color: c.muted }]}>
-                {row.name}
-              </Text>
-              <Text style={[type.body, tabular, { color: c.muted }]}>{money(row.portion)}</Text>
-            </View>
+            <Row key={row.id} label={row.name} amount={money(row.portion)} ink={c.muted} />
           ))}
         </View>
       ) : null}
@@ -84,7 +79,7 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
   );
 }
 
-/** A label and its amount on one line, as the charges and the total read. Shown after a payment that no longer covers the share. */
+/** A label and its amount on one line: a charge, or what was paid and what is left after a short payment. */
 function Row({ label, amount, ink, testID }: { label: string; amount: string; ink: string; testID?: string }) {
   return (
     <View style={styles.charge}>

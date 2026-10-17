@@ -134,7 +134,7 @@ test("Edit item takes Escape from a focused field, and its Price and By amount f
   await sheet.getByRole("button", { name: "By amount" }).click();
   const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
   await expectHit(sams, { height: 44, width: 44 });
-  await sheet.getByText("Sam", { exact: true }).last().click({ force: true });
+  await sheet.getByText("You", { exact: true }).last().click({ force: true });
   await expect(sams).toBeFocused();
   await sheet.getByText("Priya", { exact: true }).last().click({ force: true });
   await expect(sheet.getByRole("textbox", { name: "Priya's amount" })).toBeFocused();

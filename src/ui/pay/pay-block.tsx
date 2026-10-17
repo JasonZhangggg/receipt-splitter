@@ -87,12 +87,8 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
           </MethodPicker>
         ) : null}
       </View>
-      {/* One app and handle per line, joined by a no-break space, so a line never ends on a separator or splits a handle. */}
-      <View style={styles.handleList}>
-        {handles.map((each) => (
-          <Text key={each.service} style={[type.caption, styles.handles, { color: c.muted }]}>{`${paymentApps[each.service].name}\u00a0${handleText(each)}`}</Text>
-        ))}
-      </View>
+      {/* One app and handle per line, each joined by a no-break space, so a line never ends on a separator or splits a handle. */}
+      <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((each) => `${paymentApps[each.service].name}\u00a0${handleText(each)}`).join("\n")}</Text>
       {problem ? <Text style={[type.caption, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );
@@ -130,7 +126,6 @@ const styles = StyleSheet.create({
   icon: { marginRight: 8 },
   switcher: { width: switcherWidth, height: 54, alignItems: "center", justifyContent: "center" },
   hairline: { position: "absolute", left: 0, width: 1, height: 24, opacity: 0.3 },
-  handleList: { gap: 2 },
   handles: { textAlign: "center", marginHorizontal: 4 },
   paid: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 52, borderRadius: 26, borderWidth: 1 },
 });

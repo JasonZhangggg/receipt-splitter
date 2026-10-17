@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type TextStyle } from "react-native";
 
 import type { ParticipantId, Split } from "../../core/split";
@@ -36,6 +36,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
     return () => clearInterval(timer);
   }, []);
   const entries = historyOf(split);
+  const restorable = useMemo(() => restoreChanges(split), [split]);
   const [host] = split.participants;
   // Another phone may have reverted the same change first. Then the Revert is already done, so there is nothing to confirm and nothing to complain about.
   const stale = (target: Target) => target !== "restore" && (entries.find(({ revision }) => revision === target)?.reverted ?? true);
@@ -115,7 +116,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           }
           asking={asking === "restore"}
           busy={pending === "restore"}
-          canAct={restoreChanges(split)}
+          canAct={restorable}
           label={say.restore}
           name={say.restoreName}
           onAct={() => {

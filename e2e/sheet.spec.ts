@@ -635,22 +635,25 @@ test("the Edit item status tick draws once when it appears, not again as the tex
   expect(await count("ai-pulse")).toBe(pulses);
 });
 
-test("Who had it puts You first and the others in participant order, and How to split lists the parts in that same order", async ({ browser, request, browserName }, { workerIndex }) => {
+test("Who had it and How to split both put You first and the others in participant order, and the viewer's row reads You", async ({ browser, request, browserName }, { workerIndex }) => {
   const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 9000 }], adjustments: [], subtotal: 9000, total: 9000 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt, [venmo], "Jason", [{ id: "sam", name: "Sam" }, { id: "priya", name: "Priya" }]), browserName);
-  await pickJason(page);
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Priya", exact: true }).click();
+  await expect(page.getByTestId("owe")).toBeVisible(live);
   const sheet = page.getByRole("dialog", { name: "Edit item" });
   const who = sheet.getByRole("group", { name: "Who had it" });
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
-  await expect(who.getByRole("button")).toHaveText(["You", "Sam", "Priya"], live);
-  for (const name of ["Jason, you", "Priya", "Sam"]) {
+  await expect(who.getByRole("button")).toHaveText(["You", "Jason", "Sam"], live);
+  for (const name of ["Jason", "Priya, you", "Sam"]) {
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
   await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By shares", exact: true }).click();
-  await expect(sheet.getByRole("button", { name: /^More shares for / })).toHaveCount(3, live);
-  const names = await sheet.getByRole("button", { name: /^More shares for / }).evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
-  expect(names, "the parts follow the participants, though the claims were stored Jason, Priya, Sam").toEqual(["More shares for Jason", "More shares for Sam", "More shares for Priya"]);
+  const more = sheet.getByRole("button", { name: /^More shares for / });
+  await expect(more).toHaveCount(3, live);
+  expect(await more.evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label"))), "the parts follow Who had it, though the claims were stored Jason, Priya, Sam").toEqual(["More shares for Priya", "More shares for Jason", "More shares for Sam"]);
+  await expect(sheet.getByText("You", { exact: true })).toHaveCount(2);
+  await expect(sheet.getByText("Priya", { exact: true })).toHaveCount(0);
 });
 
 test("the Price field reads 1,234.50 style plain two decimals once the typed price has saved", async ({ browser, request, browserName }, { workerIndex }) => {
