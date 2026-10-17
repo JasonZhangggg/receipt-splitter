@@ -188,9 +188,10 @@ export function mismatchNote({ scan }: Draft): string | null {
   return scan.totalUnread ? "Couldn't read the total, so check the rows." : null;
 }
 
-/** A `note` is about the Receipt. `noName` and `badHandle` name the field a tap on Create focuses. */
+/** A `note` is about the Receipt. `reading` has no words of its own, since the sentence says the step. `noName` and `badHandle` name the field a tap on Create focuses. */
 export type Blocker =
   | { readonly kind: "note"; readonly note: string }
+  | { readonly kind: "reading" }
   | { readonly kind: "noName" }
   | { readonly kind: "badHandle"; readonly index: number; readonly service: PaymentService; readonly problem: HandleProblem };
 
@@ -200,7 +201,7 @@ const note = (text: string): Blocker => ({ kind: "note", note: text });
 
 export function readiness({ scan, handles, host, friends }: Draft): Blocker | Ready {
   if (scan.status === "empty") return note("Add a receipt first.");
-  if (scan.status === "reading") return note("Reading the receipt.");
+  if (scan.status === "reading") return { kind: "reading" };
   if (!scan.receipt) return note("Couldn't read any items. Try another photo.");
   const { items, adjustments } = scan.receipt;
   if (items.length > MAX_ITEMS) return note(`A split holds up to ${MAX_ITEMS} items. This receipt has ${items.length}.`);

@@ -17,7 +17,10 @@ export default function NotFound() {
       <View style={styles.column}>
         <SplitHeader onShare={site.share} />
         <View style={styles.body}>
-          <Text style={[type.hero, { color: c.ink }]}>{joinCopy.noPage}</Text>
+          <Text role="heading" aria-level={1} style={[type.hero, { color: c.ink }]}>
+            {joinCopy.noPage.title}
+          </Text>
+          <Text style={[type.body, { color: c.muted }]}>{joinCopy.noPage.hint}</Text>
           <View style={styles.action}>
             <Button label={joinCopy.newSplit} onPress={() => router.replace("/")} />
           </View>

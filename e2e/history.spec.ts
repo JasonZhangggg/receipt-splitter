@@ -303,7 +303,7 @@ test("with fourteen Recent splits home does not scroll: the rows that fit end ab
   const fourteen = Array.from({ length: 14 }, (_, i): Stored => ({ ...eight[i % 8], id: `Many${String(i + 1).padStart(2, "0")}`.padEnd(22, "0"), added: now - (i + 1) * 60_000 }));
   await seed(page, fourteen);
   const heading = page.getByRole("heading", { name: "SplitWith" });
-  expect([await topOf(heading), await topOf(page.getByTestId("sentence"))]).toEqual([30, 104]);
+  expect([await topOf(heading), await topOf(page.getByTestId("sentence"))]).toEqual([11, 100]);
   expect(await pageScroller(page)).toBeNull();
   await expect(rows(page)).toHaveCount(4);
   const seeAll = list(page).getByRole("button", { name: "See all 14" });

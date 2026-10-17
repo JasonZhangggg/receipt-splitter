@@ -1,0 +1,243 @@
+import { addNames, dropFile, openExample, photo } from "./files";
+import { expect, test, type Page } from "./without-ocr";
+
+test.use({ viewport: { width: 390, height: 844 } });
+
+const sentence = (page: Page) => page.getByTestId("sentence");
+const addApp = (page: Page) => page.getByRole("button", { name: "Add another way to get paid" });
+const reasonLine = (page: Page) => page.locator("[role=status][data-problem]");
+
+async function settle(page: Page) {
+  await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
+}
+
+const focusedName = (page: Page) => page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.tagName);
+
+async function stored(page: Page, count: number) {
+  await page.addInitScript((n) => {
+    for (let i = 0; i < n; i++) {
+      const id = `AnaBenCy${String(i).padStart(14, "0")}`;
+      localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { names: ["Ana", "Ben"], total: 990 + i, added: Date.now() - i * 3600e3, seen: Date.now() } }));
+    }
+  }, count);
+}
+
+/** What the page shows of Recent splits against the footer: whether anything pokes under it, and whether the page scrolls. */
+const recentFit = (page: Page) =>
+  page.evaluate(() => {
+    const footerTop = document.querySelector("[role=status][data-problem]")!.parentElement!.parentElement!.getBoundingClientRect().top;
+    const section = document.querySelector('[role=region][aria-label="Recent splits"]')!.getBoundingClientRect();
+    const rows = [...document.querySelectorAll('[role=region][aria-label="Recent splits"] a')].map((row) => row.getBoundingClientRect());
+    const seeAll = [...document.querySelectorAll("button, a")].find((el) => /^See all/.test(el.textContent ?? ""))?.getBoundingClientRect();
+    const scroller = [...document.querySelectorAll("div")].find((div) => ["scroll", "auto"].includes(getComputedStyle(div).overflowY) && div.scrollHeight > 0)!;
+    return {
+      rows: rows.length,
+      lastRowEnd: rows.at(-1)?.bottom ?? 0,
+      seeAllEnd: seeAll?.bottom ?? null,
+      sectionEnd: section.bottom,
+      footerTop,
+      overflow: scroller.scrollHeight - scroller.clientHeight,
+    };
+  });
+
+for (const [width, height, apps, friends] of [
+  [390, 844, 3, 13],
+  [375, 667, 1, 5],
+] as const) {
+  test(`at ${width}x${height} Recent splits refits when the sentence grows: no row under the footer, See all in view, and no scrolling`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stored(page, 20);
+    await page.goto("/");
+    await settle(page);
+    const short = await recentFit(page);
+    expect(short.rows).toBeGreaterThan(0);
+    expect(short.overflow).toBe(0);
+
+    for (let i = 0; i < apps; i++) await addApp(page).click();
+    await addNames(page, "Jason", ...Array.from({ length: friends }, (_, i) => `Guest ${i + 1}`));
+    await page.waitForTimeout(300);
+    const long = await recentFit(page);
+    expect(long.rows).toBeLessThan(short.rows);
+    expect(long.lastRowEnd).toBeLessThanOrEqual(long.sectionEnd);
+    expect(long.seeAllEnd).not.toBeNull();
+    expect(long.seeAllEnd!).toBeLessThanOrEqual(long.footerTop);
+    expect(long.overflow).toBe(0);
+  });
+}
+
+test("the header's three icons and wordmark sit at the same place on home, the Split page's gone state and not-found, with 32 px focus rings", async ({ page }) => {
+  const icons = async (path: string) => {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { name: /SplitWith/ }).first()).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    return page.evaluate(() =>
+      ["Buy me a coffee", "Switch to dark mode", "Share link"].map((name) => {
+        const face = document.querySelector(`[aria-label="${name}"] [data-press-face]`)!.getBoundingClientRect();
+        return [Math.round(face.x + face.width / 2), Math.round(face.y + face.height / 2), Math.round(face.width), Math.round(face.height)];
+      }),
+    );
+  };
+  const home = await icons("/");
+  expect(home).toEqual([
+    [292, 33, 32, 32],
+    [324, 33, 32, 32],
+    [356, 33, 32, 32],
+  ]);
+  expect(await icons("/s/nothing-here")).toEqual(home);
+  expect(await icons("/nowhere/at-all")).toEqual(home);
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: /SplitWith/ })).toHaveCount(0);
+  await page.goto("/nowhere/at-all");
+  await expect(page.getByRole("link", { name: /SplitWith/ }).or(page.getByRole("button", { name: /SplitWith/ }))).toHaveCount(1);
+});
+
+test("the not-found page has a heading and a hint above its button", async ({ page }) => {
+  await page.goto("/nowhere/at-all");
+  await expect(page.getByRole("heading", { name: "This page doesn't exist" })).toBeVisible();
+  await expect(page.getByText("Check the link, or start a new split.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Split a receipt", exact: true })).toBeVisible();
+});
+
+test("a name that fits on a line stays whole, however full the line", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await addNames(page, ...Array.from({ length: 11 }, (_, i) => `Friend number ${i + 1}`));
+  await page.keyboard.press("Escape");
+  const heights = await page.evaluate(() => [...document.querySelectorAll("[role=group]")].map((g) => g.getBoundingClientRect().height));
+  expect(heights).toHaveLength(11);
+  expect(Math.max(...heights)).toBeLessThan(50);
+});
+
+test("a long name wraps in its head, and its last letters, x and comma stay together", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await addNames(page, "Maximiliana Alexandropoulou-Featherstonehaugh", "Sam");
+  await page.keyboard.press("Escape");
+  const lines = await page.evaluate(() => {
+    const group = document.querySelector('[role=group][aria-label^="Maximiliana"]')!;
+    const tail = group.lastElementChild!.getBoundingClientRect();
+    const cross = group.querySelector('[aria-label^="Remove "]')!.getBoundingClientRect();
+    const next = document.querySelector('[role=group][aria-label="Sam"]')!.getClientRects()[0]!;
+    return { height: group.getBoundingClientRect().height, tailMid: tail.top + tail.height / 2, crossMid: cross.top + cross.height / 2, tailLeft: tail.left, crossLeft: cross.left, nextTop: next.top, crossTop: cross.top };
+  });
+  expect(lines.height).toBeGreaterThan(60);
+  expect(Math.abs(lines.tailMid - lines.crossMid)).toBeLessThan(8);
+  expect(lines.crossLeft).toBeGreaterThan(lines.tailLeft);
+  await expect(sentence(page)).not.toContainText(/\n,/);
+});
+
+test("removing a name or an app with the keyboard moves the focus to the next x, else the previous, else the add action", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await addNames(page, "Jason", "Ann", "Bo");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Remove Ann" }).focus();
+  await page.keyboard.press("Enter");
+  expect(await focusedName(page)).toBe("Remove Bo");
+  await page.keyboard.press("Enter");
+  expect(await focusedName(page)).toBe("Remove Jason");
+  await page.keyboard.press("Enter");
+  expect(await focusedName(page)).toBe("Add friends");
+
+  await addApp(page).click();
+  await addApp(page).click();
+  await page.getByRole("button", { name: "Remove Cash App" }).focus();
+  await page.keyboard.press("Enter");
+  expect(await focusedName(page)).toBe("Remove PayPal");
+  await page.keyboard.press("Enter");
+  expect(await focusedName(page)).toBe("Add another way to get paid");
+});
+
+test("a name that is refused stays in the field, and the field stops at 40 characters", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await addNames(page, "Jason");
+  const field = page.getByRole("textbox", { name: "Name", exact: true });
+  await field.fill("Ann");
+  await field.press("Enter");
+  await field.fill("jason");
+  await field.press("Enter");
+  await expect(page.getByText("That name is already here.")).toBeVisible();
+  await expect(field).toHaveValue("jason");
+  await expect(field).toHaveAttribute("maxlength", "40");
+  await field.fill("Jasper");
+  await field.press("Enter");
+  await expect(field).toHaveValue("");
+});
+
+test("a photo dropped after a read replaces it", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await openExample(page);
+  await expect(page.getByTestId("receipt")).toContainText("$28.04");
+  await dropFile(page, photo("e2e/fixtures/blank.png", "image/png"));
+  await expect(page.getByTestId("reading-stage")).toBeVisible();
+  await expect(page.getByTestId("receipt")).toContainText("$28.04");
+});
+
+test("the footer says nothing while a receipt is read", async ({ page }) => {
+  await page.route("**/api/scan", () => new Promise(() => {}));
+  await page.goto("/");
+  await settle(page);
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Add the receipt" }).click();
+  await (await chooser).setFiles("e2e/fixtures/topgolf-synthetic.png");
+  await expect(page.getByTestId("reading-stage")).toBeVisible();
+  await expect(reasonLine(page)).toHaveText("");
+});
+
+test("every handle reason fits two lines beside the Create pill, and the footer keeps its height", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await openExample(page);
+  await addNames(page, "Jason");
+  await page.keyboard.press("Escape");
+  await addApp(page).click();
+  await addApp(page).click();
+  await addApp(page).click();
+  const footerHeight = () => page.evaluate(() => document.querySelector("[role=status][data-problem]")!.parentElement!.parentElement!.getBoundingClientRect().height);
+  const calm = await footerHeight();
+  const handles: [string, string][] = [
+    ["Venmo handle", "jason z"],
+    ["Venmo handle", "jason!z"],
+    ["Venmo handle", "a".repeat(31)],
+    ["Venmo handle", "abc"],
+    ["Venmo handle", "12345"],
+    ["Cash App handle", "a b"],
+    ["Cash App handle", "a_b"],
+    ["Cash App handle", "ab\u200bc"],
+    ["Venmo handle", "jason\u200bz"],
+    ["PayPal handle", "p".repeat(81)],
+    ["Zelle handle", "ann​@example.com"],
+  ];
+  for (const [field, value] of handles) {
+    await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
+    await page.getByRole("textbox", { name: "Cash App handle" }).fill("");
+    await page.getByRole("textbox", { name: "PayPal handle" }).fill("");
+    await page.getByRole("textbox", { name: "Zelle handle" }).fill("");
+    await page.getByRole("textbox", { name: field }).fill(value);
+    const lines = await reasonLine(page).evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+    expect(lines, `${field} ${value}: ${await reasonLine(page).innerText()}`).toBeLessThanOrEqual(2);
+    expect(await footerHeight()).toBe(calm);
+  }
+});
+
+test("a long handle stops short of the line's end, so its period stays beside it and the start of the handle stays in view", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  for (let i = 0; i < 3; i++) await addApp(page).click();
+  const zelle = page.getByRole("textbox", { name: "Zelle handle" });
+  await zelle.fill("maximiliana.alexandropoulou.featherstonehaugh@example-university.edu");
+  await zelle.blur();
+  const run = await zelle.evaluate((input) => {
+    const wrapper = input.parentElement!.parentElement!;
+    const field = input.getBoundingClientRect();
+    const column = document.querySelector('[data-testid="sentence"]')!.getBoundingClientRect();
+    return { lines: wrapper.getClientRects().length, scrolled: (input as HTMLInputElement).scrollLeft, room: column.right - field.right };
+  });
+  expect(run.lines).toBe(1);
+  expect(run.scrolled).toBe(0);
+  expect(run.room).toBeGreaterThan(0);
+});

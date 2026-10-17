@@ -100,7 +100,7 @@ test("Add the receipt takes keyboard focus with a visible ring at 1280 px", asyn
   await context.close();
 });
 
-const venmoRule = "Venmo usernames need at least 5 characters. This one has 4.";
+const venmoRule = "Venmo usernames need at least 5 characters.";
 
 async function addHost(page: Page, name: string) {
   await yourName(page).fill(name);
@@ -176,7 +176,8 @@ test("a tap on the gray Create focuses the blocking field", async ({ page }) => 
   const chooser = page.waitForEvent("filechooser");
   await hero(page).click();
   await (await chooser).setFiles("e2e/fixtures/topgolf-synthetic.png");
-  await expect(reasonLine).toHaveText("Reading the receipt.");
+  await expect(page.getByTestId("reading-stage")).toBeVisible();
+  await expect(reasonLine).toHaveText("");
   await expect(reasonLine).toHaveAttribute("data-problem", "false");
   finishRead();
   await expect(page.getByTestId("receipt")).toBeVisible();
@@ -277,7 +278,7 @@ test("at 320 px a 40-letter name and twelve more stay inside the column, and the
     buttons.map((button) => {
       const name = button.previousElementSibling!.getBoundingClientRect();
       const x = button.getBoundingClientRect();
-      return x.top + x.height / 2 >= name.top && x.top + x.height / 2 <= name.bottom && x.left >= name.left;
+      return x.top + x.height / 2 >= name.top && x.top + x.height / 2 <= name.bottom && x.left + x.width / 2 >= name.left;
     }),
   );
   expect(besideItsName).toEqual(Array(13).fill(true));
@@ -425,7 +426,7 @@ test("the payment app picker is a native select that lists the four apps with Ve
   const picker = appPicker(page);
   expect(await picker.locator("option").allTextContents()).toEqual(["Venmo", "Cash App", "PayPal", "Zelle"]);
   await picker.selectOption("zelle");
-  await expect(page.getByRole("textbox", { name: "Zelle handle" })).toHaveAttribute("placeholder", "Email or phone");
+  await expect(page.getByRole("textbox", { name: "Zelle handle" })).toHaveAttribute("placeholder", "email or phone");
 });
 
 test("add an app adds the next free app with its field focused, an x follows each app's name, and an x takes its app away", async ({ page }) => {

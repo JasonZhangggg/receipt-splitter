@@ -13,15 +13,21 @@ import { layout, type, useColors } from "../theme";
 
 type Props = { onShare: () => void };
 
-export function SplitHeader({ onShare }: Props) {
+/** The header row every page shares. On home the wordmark is the page's name and not a link, so it is plain text at the same height. */
+export function SplitHeader({ onShare, home = false }: Props & { home?: boolean }) {
   const c = useColors();
   const reduce = useReducedMotion();
+  const wordmark = <Text style={[type.title, { color: c.ink }]}>{copy.wordmark}</Text>;
   return (
     <View style={styles.header}>
       <View role="heading" aria-level={1}>
-        <PressTarget name={joinCopy.wordmarkHome} onPress={() => router.push("/")} style={(pressed) => [styles.home, pressStyle(pressed, reduce)]}>
-          {() => <Text style={[type.title, { color: c.ink }]}>{copy.wordmark}</Text>}
-        </PressTarget>
+        {home ? (
+          <View style={styles.home}>{wordmark}</View>
+        ) : (
+          <PressTarget name={joinCopy.wordmarkHome} onPress={() => router.push("/")} style={(pressed) => [styles.home, pressStyle(pressed, reduce)]}>
+            {() => wordmark}
+          </PressTarget>
+        )}
       </View>
       <HeaderIcons onShare={onShare} />
     </View>

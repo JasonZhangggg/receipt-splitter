@@ -1,10 +1,14 @@
 import { Fragment, useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from "react";
-import type { TextInput } from "react-native";
+import { Text, type TextInput } from "react-native";
 
+import { MAX_PARTICIPANT_NAME_LENGTH } from "../../core/operations";
 import { newName } from "../../draft";
 import { copy, joinCopy } from "../home-copy";
 import { focusInPlace } from "../receipt-input/keyboard-room";
-import { Act, Blank, Remove, Together, Words } from "./words";
+import { webStyle } from "../motion";
+import { Act, Blank, nowrap, Remove, Words } from "./words";
+
+const box = webStyle({ display: "inline-block", maxWidth: "100%" } as never);
 
 export type NameField = { readonly open: () => void };
 
@@ -48,20 +52,27 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
     return true;
   };
 
-  const person = (name: string, you: boolean) => (
-    <Together key={name} role="group" aria-label={you ? `${name}, ${copy.you}` : name}>
+  // A name, its x and its comma form one box: whole on a line when it fits. A name wider than the line wraps in its head, and its last 4 letters stay with the x and comma.
+  const person = (name: string, you: boolean, comma: boolean) => (
+    <Text key={name} role="group" aria-label={you ? `${name}, ${copy.you}` : name} style={box}>
       <Words ink breaks>
-        {name}
+        {name.slice(0, -4)}
       </Words>
-      <Remove
-        name={copy.removeName(name)}
-        onPress={() => {
-          onRefusal(null);
-          if (you) onRemoveHost();
-          else onRemoveFriend(name);
-        }}
-      />
-    </Together>
+      <Text style={nowrap}>
+        <Words ink>{name.slice(-4)}</Words>
+        <Remove
+          name={copy.removeName(name)}
+          others={names.length > 1}
+          fallback={copy.addFriendsName}
+          onPress={() => {
+            onRefusal(null);
+            if (you) onRemoveHost();
+            else onRemoveFriend(name);
+          }}
+        />
+        {comma ? "," : null}
+      </Text>
+    </Text>
   );
 
   const hostField = (
@@ -91,12 +102,19 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
   );
   return (
     <>
-      <Words>{copy.sentence.iAm}</Words> {host === null ? hostField : person(host, true)}
-      , <Words>{copy.sentence.hereWith}</Words>{" "}
+      <Words>{copy.sentence.iAm}</Words>{" "}
+      {host === null ? (
+        <>
+          {hostField}
+          {", "}
+        </>
+      ) : (
+        <>{person(host, true, true)} </>
+      )}
+      <Words>{copy.sentence.hereWith}</Words>{" "}
       {friends.map((name, index) => (
         <Fragment key={name}>
-          {person(name, false)}
-          {index < friends.length - 1 ? "," : null}{" "}
+          {person(name, false, index < friends.length - 1)}{" "}
         </Fragment>
       ))}
       {friends.length ? (
@@ -126,10 +144,14 @@ type BlankProps = {
 function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRefusal }: BlankProps) {
   const [typed, setTyped] = useState("");
   const pressing = usePressing();
+  const refused = useRef(false);
+  // A refused name stays in the field to be fixed; only a name that went in, or nothing but spaces, clears it.
   const commit = () => {
     const text = typed;
-    setTyped("");
-    return onCommit(text);
+    const added = onCommit(text);
+    refused.current = !added && text.trim() !== "";
+    if (added || !text.trim()) setTyped("");
+    return added;
   };
   return (
     <Blank
@@ -137,10 +159,12 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       aria-label={label}
       placeholder={placeholder}
       value={typed}
+      maxLength={MAX_PARTICIPANT_NAME_LENGTH}
       enterKeyHint="done"
       autoCapitalize="words"
       onChangeText={(text) => {
         setTyped(text);
+        refused.current = false;
         onRefusal(null);
       }}
       onSubmitEditing={() => onEnter(commit())}
@@ -154,7 +178,8 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       onBlur={() =>
         afterPress(pressing.current, () => {
           if (focused(input.current)) return;
-          commit();
+          // A name already refused is not judged again on the way out, or it would bring its note back after a removal.
+          if (!refused.current) commit();
           onLeave();
         })
       }

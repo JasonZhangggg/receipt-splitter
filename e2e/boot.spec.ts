@@ -110,7 +110,8 @@ test("the Split page gets the same loader while Geist is slow", async ({ page })
 test("an unknown route shows the not-found page and lifts the loader within 3 s", async ({ page }) => {
   await open(page, "/nope/nothing");
   await expect(loader(page)).toHaveCount(0, { timeout: 3_000 });
-  await expect(page.getByText("This page doesn't exist")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "This page doesn't exist" })).toBeVisible();
+  await expect(page.getByText("Check the link, or start a new split.")).toBeVisible();
   await expect(page.getByText("Sitemap")).toHaveCount(0);
   await expect(page.getByText("Page could not be found.")).toHaveCount(0);
   await page.getByRole("button", { name: "Split a receipt", exact: true }).click();

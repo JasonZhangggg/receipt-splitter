@@ -179,6 +179,7 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
   const reasonId = useId();
   const variant = kinds[kind];
   const tone = variant.tone(c, (disabled || blocked) && !busy);
+  const glyphIcon = icon && !busy ? <Icon name={icon} size={variant.icon} color={tone.ink} /> : null;
   const target = (
     <PressTarget
       {...action}
@@ -202,7 +203,13 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
           ]}
         >
           {busy && !reduce ? <View style={[styles.spinner, spin, { borderColor: tone.ink, borderRightColor: "transparent" }]} /> : null}
-          {icon && !busy ? <Icon name={icon} size={variant.icon} color={tone.ink} /> : null}
+          {kind === "icon" && glyphIcon ? (
+            <View {...roundFace}>
+              {glyphIcon}
+            </View>
+          ) : (
+            glyphIcon
+          )}
           {glyph ? <Mark glyph={glyph} ink={tone.ink} fill={tone.fill} /> : null}
           {label ? <Text style={[variant.label, { color: tone.ink }]}>{label}</Text> : null}
         </View>
@@ -219,6 +226,9 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
     </View>
   );
 }
+
+// Icon buttons sit 32 px apart, so their 44 px hit boxes overlap; the focus ring is drawn on a 32 px round face instead (data-press-face, document.ts).
+export const roundFace = { dataSet: { pressFace: "" }, style: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" } } as const;
 
 const spin = webAnimation({
   animationKeyframes: [{ from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } }],

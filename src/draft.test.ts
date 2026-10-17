@@ -68,7 +68,7 @@ describe("readiness", () => {
       ready: reasonOf(ready),
     }).toEqual({
       noReceipt: "Add a receipt first.",
-      reading: "Reading the receipt.",
+      reading: { kind: "reading" },
       noName: { kind: "noName" },
       ready: null,
     });

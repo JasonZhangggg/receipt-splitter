@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { frames, runs, sample } from "./motion";
+import { runs, sample } from "./motion";
 import { addNames, dropFile, dropZone, openExample, pasteFile, photo } from "./files";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -181,7 +181,7 @@ test.describe("at 1280 px", () => {
   test.use({ viewport: { width: 1280, height: 820 }, isMobile: false, hasTouch: false });
   test.setTimeout(120_000);
 
-  test("an image dropped on the page and an image pasted both read, a PDF gets one refusal line, and a drop on the read state changes nothing", async ({ page }) => {
+  test("an image dropped on the page and an image pasted both read, a PDF gets one refusal line, and a drop or paste on a finished read replaces it", async ({ page }) => {
     await page.goto("/");
     const zone = dropZone(page);
 
@@ -200,9 +200,11 @@ test.describe("at 1280 px", () => {
     await expect(card(page)).toContainText("$28.04", scanTimeout);
 
     await dropFile(page, photo("e2e/fixtures/blank.png", "image/png"));
+    await expect(card(page)).toHaveText("I paid the bill. Try another photo.", scanTimeout);
+    await dropFile(page, photo(receipt1040));
+    await expect(card(page)).toContainText("$28.04", scanTimeout);
     await pasteFile(page, photo("e2e/fixtures/blank.png", "image/png"));
-    await frames(page, 3);
-    await expect(card(page)).toContainText("$28.04");
+    await expect(card(page)).toHaveText("I paid the bill. Try another photo.", scanTimeout);
     expect(new URL(page.url()).pathname).toBe("/");
   });
 });
