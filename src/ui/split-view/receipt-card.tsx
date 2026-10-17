@@ -490,7 +490,7 @@ const turn = webStyle({ transitionProperty: "transform", transitionDuration: "20
 const fade = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
-  heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 12, marginBottom: 12 },
+  heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 22, marginBottom: 12 },
   list: { borderBottomWidth: 1 },
   line: { flexDirection: "row", alignItems: "flex-start", borderTopWidth: 1 },
   // The dot is 12 px; its 44 px hit area bleeds past the gutter and 4 px under the row.
