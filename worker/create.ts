@@ -34,7 +34,7 @@ export async function createSplit(request: Request, env: Cloudflare.Env): Promis
 
   const created = await env.SplitServer.getByName(id).create(parsed.split);
   if (!created.created) throw new Error(`minted Split id ${id} already exists`);
-  const response: CreateSplitResponse = { id, creatorSecret: created.creatorSecret };
+  const response: CreateSplitResponse = { id, creatorSecret: created.creatorSecret, split: parsed.split };
   return Response.json(response, { status: 201, headers: { "cache-control": "no-store" } });
 }
 
