@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AccessibilityInfo, Platform, StyleSheet, type ViewStyle } from "react-native";
+import { useEffect, useEffectEvent, useLayoutEffect, useState, type RefObject } from "react";
+import { AccessibilityInfo, Platform, StyleSheet, type View, type ViewStyle } from "react-native";
 
 import { motion } from "./theme";
 
@@ -72,4 +72,36 @@ export function pressStyle(pressed: boolean, reduce: boolean, feel: PressFeel = 
         transitionTimingFunction: motion.easeOut,
       }),
   ];
+}
+
+type Rise = { y: number; scale: number };
+
+/** The look a bar rests in while it is away, and the transform that gets it there. */
+export const awayStyle = (rise: Rise, reduce: boolean): ViewStyle => (reduce ? { opacity: 0 } : { opacity: 0, transform: [{ translateY: rise.y }, { scale: rise.scale }] });
+
+/**
+ * Fades a bar in or out on the compositor with the Web Animations API, so a busy JS thread does not stall it. The bar's own style rests in the
+ * target look and the animation runs toward it, starting from wherever a running one had got to, so a message that lands mid-exit does not jump.
+ * `onAway` runs once an exit has finished, which is when the bar can unmount.
+ */
+export function useFade(ref: RefObject<View | null>, show: boolean, rise: Rise, reduce: boolean, onAway: () => void) {
+  const away = useEffectEvent(onAway);
+  useLayoutEffect(() => {
+    const element = ref.current as unknown as HTMLElement | null;
+    if (!element?.animate) {
+      if (!show) away();
+      return;
+    }
+    const gone = reduce ? { opacity: 0 } : { opacity: 0, transform: `translateY(${rise.y}px) scale(${rise.scale})` };
+    const here = reduce ? { opacity: 1 } : { opacity: 1, transform: "none" };
+    const running = element.getAnimations();
+    const { opacity, transform } = getComputedStyle(element);
+    running.forEach((animation) => animation.cancel());
+    const from = running.length ? { opacity, transform } : show ? gone : here;
+    const duration = reduce ? motion.reducedFade : show ? motion.toastIn : motion.toastOut;
+    const fade = element.animate([from, show ? here : gone], { duration, easing: motion.easeOut });
+    fade.onfinish = () => {
+      if (!show) away();
+    };
+  }, [ref, show, reduce, rise.y, rise.scale]);
 }

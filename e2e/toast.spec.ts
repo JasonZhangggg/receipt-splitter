@@ -145,3 +145,19 @@ test("Undo is a pressable target that text selection skips, and its focus ring d
   expect(ring.width).toBe("2px");
   expect(ring.outline).not.toBe(ring.toast);
 });
+
+test("the toast fades in and out as a Web Animation, so a busy JS thread does not stall it", async ({ page }) => {
+  await mountToast(page);
+  await page.evaluate(() => {
+    const run = Element.prototype.animate;
+    const log: unknown[][] = [];
+    (window as unknown as { log: unknown[][] }).log = log;
+    Element.prototype.animate = function (this: Element, keyframes, options) {
+      log.push((keyframes as Keyframe[]).map((frame) => frame.opacity));
+      return run.call(this, keyframes, options);
+    };
+  });
+  await page.evaluate(() => (window as unknown as ToastWindow).show(null as never));
+  await expect(page.getByText("Copied the link")).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { log: unknown[][] }).log)).toMatchObject([[expect.anything(), 0]]);
+});

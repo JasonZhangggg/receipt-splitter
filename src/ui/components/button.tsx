@@ -7,7 +7,36 @@ import { motion, type, useColors } from "../theme";
 import { openWithFallback } from "../open-link";
 import { Icon, type IconName } from "./icon";
 
-export const scrollViewTouchDelay = 150;
+/** A touch has to rest this long before a row in a scroll fills, so a scroll that starts on it does not flash. Short, since the fill has a delay to make up for. */
+export const scrollViewTouchDelay = 50;
+/** A release before the pressed look has been on screen this long keeps it until then, so a quick tap still paints it. RN's own minimum is 130 ms. */
+const minPressed = 100;
+
+/** Whether a press is showing. A quick tap presses and releases in one tick, so the release waits out `minPressed` before the look goes. */
+export function useHeld() {
+  const [held, setHeld] = useState(false);
+  const since = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const stop = () => {
+    clearTimeout(timer.current);
+    setHeld(false);
+  };
+  return {
+    held,
+    stop,
+    press: () => {
+      clearTimeout(timer.current);
+      since.current = performance.now();
+      setHeld(true);
+    },
+    release: () => {
+      const left = minPressed - (performance.now() - since.current);
+      if (left > 0) timer.current = setTimeout(stop, left);
+      else stop();
+    },
+  };
+}
 
 /** The control a press came from and whether a key made it, so a popover can hang from the control and skip its entrance for a key. */
 export type Press = { readonly trigger: HTMLElement; readonly keyboard: boolean };
@@ -37,9 +66,9 @@ type TargetProps = Action & {
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
 export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fallbackHref, name, outsideScroll = false, disabled = false, softDisabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
-  const [held, setHeld] = useState(false);
+  const { held, press, release, stop } = useHeld();
   const self = useRef<View>(null);
-  if (disabled && held) setHeld(false);
+  if (disabled && held) stop();
   useContextMenu(self, onLongPress && !disabled ? onLongPress : null);
   // Pressable writes its own aria-disabled from `disabled`, so a control that only looks off says so on the element.
   useEffect(() => {
@@ -72,8 +101,8 @@ export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fa
       disabled={disabled}
       onLongPress={onLongPress && (() => onLongPress({ trigger: self.current as unknown as HTMLElement, keyboard: false }))}
       delayLongPress={holdFor}
-      onPressIn={() => setHeld(!disabled)}
-      onPressOut={() => setHeld(false)}
+      onPressIn={() => (disabled ? stop() : press())}
+      onPressOut={release}
       onPress={(event) => {
         if (disabled) return;
         if (href === undefined) onPress({ trigger: self.current as unknown as HTMLElement, keyboard: pressedByKey(event) });
@@ -87,8 +116,8 @@ export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fa
   );
 }
 
-// With the 150 ms press-in delay a hold opens at 500 ms, as an iOS context menu does.
-const holdFor = 350;
+// With the 50 ms press-in delay a hold opens at 500 ms, as an iOS context menu does.
+const holdFor = 450;
 
 /**
  * A right-click opens the same thing a held touch does. A touch's own contextmenu (Android fires one on a hold) only loses the browser menu,
