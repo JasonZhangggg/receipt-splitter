@@ -6,6 +6,7 @@ import { Button } from "../components/button";
 import { copy } from "../home-copy";
 import { useReducedMotion, webStyle } from "../motion";
 import { breakpoints, motion, type, useColors } from "../theme";
+import { usePhotoZoom } from "./zoom";
 
 export type Photo = { readonly uri: string; readonly name: string };
 
@@ -77,6 +78,7 @@ export function PhotoViewer({ photo, onExited }: Props) {
   });
   const surface = [fade, { opacity: shown ? 1 : 0 }, !reduce && !shown && styles.shrunk];
   const wide = width >= breakpoints.columnFrom;
+  const { setFrame, setLayer } = usePhotoZoom(wide, reduce, motion.easeOut);
 
   return (
     <Modal transparent visible animationType="none" onRequestClose={close}>
@@ -86,8 +88,10 @@ export function PhotoViewer({ photo, onExited }: Props) {
             <View testID="photo-scrim" onPointerUp={close} style={[styles.fill, fade, { opacity: shown ? 1 : 0, backgroundColor: c.scrim }]} />
             <View pointerEvents="box-none" style={[styles.fill, styles.center]}>
               <View pointerEvents="box-none" style={[styles.framed, surface]}>
-                <View style={[styles.photo, { width: frame.width, height: frame.height, backgroundColor: photoGround }]}>
-                  <Image source={{ uri: photo.uri }} resizeMode="contain" accessibilityLabel={photo.name} style={styles.fill} />
+                <View ref={setFrame as never} style={[styles.photo, { width: frame.width, height: frame.height, backgroundColor: photoGround }]}>
+                  <View ref={setLayer as never} style={styles.fill}>
+                    <Image source={{ uri: photo.uri }} resizeMode="contain" accessibilityLabel={photo.name} style={styles.fill} />
+                  </View>
                 </View>
                 <Button kind="overPhoto" icon="x" name={copy.closePhoto} onPress={close} outsideScroll />
               </View>

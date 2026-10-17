@@ -40,7 +40,7 @@ it("a create whose request never reaches the server says it is the connection", 
     throw new TypeError("Failed to fetch");
   });
 
-  expect(await createSplitLink(request)).toEqual({ ok: false, reason: "Check your connection and try again." });
+  expect(await createSplitLink(request)).toEqual({ ok: false, reason: "You're offline." });
 });
 
 const photo = receiptJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0x00, 0x02, 0x11, 0xff, 0xd9]))!;

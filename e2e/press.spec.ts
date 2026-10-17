@@ -12,7 +12,12 @@ const harness = `
   function Harness() {
     const [disabled, setDisabled] = useState(false);
     window.setDisabled = setDisabled;
-    return <Button label="Create split link" outsideScroll disabled={disabled} onPress={() => window.presses++} />;
+    return (
+      <>
+        <Button label="Create split link" outsideScroll disabled={disabled} onPress={() => window.presses++} />
+        <Button label="In a list" kind="soft" onPress={() => window.presses++} />
+      </>
+    );
   }
   window.presses = 0;
   createRoot(document.getElementById("root")).render(<SafeAreaProvider><Harness /></SafeAreaProvider>);
@@ -102,4 +107,30 @@ test("under reduced motion a press dims the Button and never scales it", async (
   await expect.poll(() => button.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(1);
   expect(await button.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
   await release();
+});
+
+test("a tap shorter than the press delay still paints the pressed look", async ({ page }) => {
+  await mount(page);
+  const row = page.getByRole("button", { name: "In a list" });
+  const box = (await row.boundingBox())!;
+  await row.evaluate((el) => {
+    const seen: { transform: string }[] = [];
+    (window as unknown as { seen: typeof seen }).seen = seen;
+    const frame = () => {
+      seen.push({ transform: getComputedStyle(el).transform });
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+  const cdp = await page.context().newCDPSession(page);
+  const point = [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point });
+  await page.waitForTimeout(80);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(500);
+  const seen = await page.evaluate(() => (window as unknown as { seen: { transform: string }[] }).seen);
+  const framesPressed = seen.filter((frame) => frame.transform !== "none").length;
+  expect(await presses(page)).toBe(1);
+  expect(framesPressed).toBeGreaterThan(3);
+  expect(seen.at(-1)!.transform).toBe("none");
 });

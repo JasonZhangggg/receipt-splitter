@@ -17,6 +17,8 @@ const barGap = 16;
 // The scroller clips, so its content keeps this much room on the top and sides for a focused field's ring.
 const ringRoom = 4;
 const contain = webStyle({ overscrollBehavior: "contain" });
+// A focused field or a scrolled-to row stops below the pinned title, not under it.
+const belowTitle = webStyle({ scrollPaddingTop: "60px" });
 const holdsGesture = webStyle({ touchAction: "none" });
 // The page column is 480 wide between its gutters, so the sheet surface is that plus both gutters and its text lines up with the page's.
 const surfaceWidth = 480 + 2 * layout.gutter;
@@ -60,6 +62,8 @@ type Props = {
   testID?: string;
 };
 
+type Pull = { id: number; x: number; y: number; from: number; moved: boolean; list: HTMLElement; samples: { y: number; t: number }[] };
+
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
 export function BottomSheet({ children, tapAway = false, onDown, holds, closing = false, minHeight = 0, bar, label, testID }: Props) {
@@ -82,6 +86,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const body = useRef<View>(null);
   const offset = useRef<number | null>(null);
   const drag = useRef<Drag | null>(null);
+  const pull = useRef<Pull | null>(null);
   const leaving = useRef(false);
   const left = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gestures = onDown !== undefined;
@@ -228,6 +233,15 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
     place(at < 0 ? rubberband(at, visible) : at > home && !onDown ? home + rubberband(at - home, visible) : at, 0);
   };
 
+  const release = (samples: Drag["samples"], at: number) => {
+    const velocity = releaseVelocity(samples, at);
+    const snap = snapFor((offset.current ?? home) - rest, velocity, tall, rest);
+    if (snap === "close" && onDown) return leave(velocity);
+    const next = snap === "tall" || (snap === "stay" && tall);
+    settle(next ? 0 : rest, velocity);
+    setTall(next);
+  };
+
   const onPointerUp = (event: PointerEvent) => {
     const current = drag.current;
     if (!current || current.pointer !== event.nativeEvent.pointerId) return;
@@ -236,12 +250,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
       if (current.resume !== null) settle(current.resume, 0);
       return;
     }
-    const velocity = releaseVelocity(current.samples, event.timeStamp);
-    const snap = snapFor((offset.current ?? home) - rest, velocity, tall, rest);
-    if (snap === "close" && onDown) return leave(velocity);
-    const next = snap === "tall" || (snap === "stay" && tall);
-    settle(next ? 0 : rest, velocity);
-    setTall(next);
+    release(current.samples, event.timeStamp);
   };
 
   const onPointerCancel = (event: PointerEvent) => {
@@ -249,6 +258,63 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
     drag.current = null;
     settle(home, 0);
   };
+
+  // A list that scrolls keeps its own touches until it sits at the top. A pull down from there carries the sheet, as on iOS, and an upward move scrolls as usual. The pointer events end when the browser takes a touch to scroll, so this runs on touch events, whose move can be cancelled.
+  const listAt = (target: EventTarget | null) => {
+    const list = (target as HTMLElement | null)?.closest?.<HTMLElement>("[data-sheet-scroll], [data-sheet-outer]") ?? null;
+    return list && (list.hasAttribute("data-sheet-scroll") || scrolls) ? list : null;
+  };
+  const pullStart = useEffectEvent((event: TouchEvent) => {
+    const list = listAt(event.target);
+    const touch = event.touches[0];
+    pull.current = !gestures || leaving.current || event.touches.length !== 1 || drag.current || !list || list.scrollTop > 0 || !touch ? null : { id: touch.identifier, x: touch.clientX, y: touch.clientY, from: 0, moved: false, list, samples: [{ y: touch.clientY, t: event.timeStamp }] };
+  });
+  const pullMove = useEffectEvent((event: TouchEvent) => {
+    const current = pull.current;
+    const touch = current && [...event.changedTouches].find(({ identifier }) => identifier === current.id);
+    if (!current || !touch) return;
+    const travel = touch.clientY - current.y;
+    if (!current.moved) {
+      // iOS stops sending cancelable moves once the list starts its own bounce, so a downward move at the top is held from its first pixel.
+      if (travel <= 0 || Math.abs(touch.clientX - current.x) > travel || current.list.scrollTop > 0) {
+        pull.current = null;
+        return;
+      }
+      if (event.cancelable) event.preventDefault();
+      if (travel <= tapSlop) return;
+      current.moved = true;
+      current.y = touch.clientY;
+      current.from = live();
+    }
+    if (event.cancelable) event.preventDefault();
+    current.samples = [...current.samples.slice(-4), { y: touch.clientY, t: event.timeStamp }];
+    const at = current.from + (touch.clientY - current.y);
+    place(at < 0 ? rubberband(at, visible) : at, 0);
+  });
+  const pullEnd = useEffectEvent((event: TouchEvent) => {
+    const current = pull.current;
+    pull.current = null;
+    if (!current?.moved) return;
+    if (event.type === "touchcancel") return settle(home, 0);
+    release(current.samples, event.timeStamp);
+  });
+  useEffect(() => {
+    const sheet = element();
+    if (!sheet) return;
+    const start = (event: TouchEvent) => pullStart(event);
+    const move = (event: TouchEvent) => pullMove(event);
+    const end = (event: TouchEvent) => pullEnd(event);
+    sheet.addEventListener("touchstart", start, { passive: true });
+    sheet.addEventListener("touchmove", move, { passive: false });
+    sheet.addEventListener("touchend", end);
+    sheet.addEventListener("touchcancel", end);
+    return () => {
+      sheet.removeEventListener("touchstart", start);
+      sheet.removeEventListener("touchmove", move);
+      sheet.removeEventListener("touchend", end);
+      sheet.removeEventListener("touchcancel", end);
+    };
+  }, []);
 
   const measure = () => {
     const box = body.current as unknown as HTMLElement | null;
@@ -282,7 +348,8 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
             <View style={[styles.grab, { backgroundColor: c.hairline }]} />
           </View>
           <ScrollView
-            style={[{ maxHeight: tallest - grabHeight + ringRoom - barHeight }, contain, fits]}
+            {...{ dataSet: { sheetOuter: "" } }}
+            style={[{ maxHeight: tallest - grabHeight + ringRoom - barHeight }, contain, belowTitle, fits]}
             contentContainerStyle={[{ paddingTop: ringRoom, paddingBottom: bar ? barGap : 30 + insets.bottom }, fits]}
           >
             <View style={[styles.inset, styles.shrink, { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
