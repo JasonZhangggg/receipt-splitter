@@ -10,14 +10,18 @@ import { deviceId, itemId, participantId, type Split } from "../core/split";
 import { mintedId } from "../core/test-ids";
 import { circleTap } from "../ui/split-view/model";
 import { answerByMs } from "./connection";
+import { forgetFirstSight, keepCreated } from "./first-sight";
 import { useLiveSplit, type Answer } from "./client";
 
 const sockets = vi.hoisted(() => {
   class FakeSocket {
     static all: FakeSocket[] = [];
     readonly OPEN = 1;
+    readonly CONNECTING = 0;
     readyState = 0;
     frames: { ref: string; op: Operation }[] = [];
+    /** What PartySocket holds while the link is not open. */
+    queue: { ref: string; op: Operation }[] = [];
     reconnects = 0;
     private listeners = new Map<string, ((event: unknown) => void)[]>();
     constructor() {
@@ -27,7 +31,16 @@ const sockets = vi.hoisted(() => {
       this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
     }
     send(data: string) {
-      this.frames.push(JSON.parse(data));
+      (this.readyState === this.OPEN ? this.frames : this.queue).push(JSON.parse(data));
+    }
+    drainQueuedMessages() {
+      this.queue = [];
+    }
+    open() {
+      this.readyState = 1;
+      this.emit("open", {});
+      this.frames.push(...this.queue);
+      this.queue = [];
     }
     close() {}
     reconnect() {
@@ -302,5 +315,84 @@ describe("useLiveSplit with actions laid over the Split", () => {
     expect(hook.live.status === "live" && hook.live.split.receipt.items.map(({ id }) => id)).toEqual([rice, itemId("fries"), sprite, itemId("nachos"), itemId("wings")]);
     expect(hook.live.status === "live" && hook.live.split.receipt.total).toBe(1350);
     expect(hook.live.status === "live" && hook.live.server.receipt.total).toBe(1150);
+  });
+});
+
+describe("useLiveSplit with a Split already in hand before the socket opens", () => {
+  let host: HTMLElement;
+  let root: Root;
+  let hook: ReturnType<typeof useLiveSplit>;
+  const seeded = { ...dinner(), id: room as Split["id"] };
+
+  function Probe() {
+    hook = useLiveSplit(room);
+    return null;
+  }
+  const socket = () => sockets.all.at(-1)!;
+  const total = () => (hook.live.status === "live" ? hook.live.split.receipt.total : null);
+  const bobsShare = () => {
+    if (hook.live.status !== "live") throw new Error("not live");
+    return computeShares(hook.live.split).shares.find(({ participantId: who }) => who === bob)?.share;
+  };
+  const tap = (op: Optimistic) => {
+    const out: { answer: Answer | null } = { answer: null };
+    act(() => {
+      const laid = hook.act(op);
+      if (!laid.sent) throw new Error("not sent");
+      void laid.answer.then((got) => {
+        out.answer = got;
+      });
+    });
+    return out;
+  };
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    sockets.all.length = 0;
+    keepCreated(seeded);
+    host = document.body.appendChild(document.createElement("div"));
+    root = createRoot(host);
+    await act(async () => root.render(createElement(Probe)));
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    forgetFirstSight(room);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("a tap before the open shows on the seeded Split, goes out when the link opens, and the echo does not count it twice", async () => {
+    expect(hook.live.status).toBe("live");
+    const first = tap(claim(bob, rice));
+    expect(bobsShare()).toBe(800);
+    expect(socket().frames).toEqual([]);
+
+    await act(async () => socket().open());
+    expect(socket().frames.map(({ op }) => op.type)).toEqual(["claim"]);
+    expect(bobsShare()).toBe(800);
+
+    await act(async () => socket().emit("message", { data: JSON.stringify({ type: "state", ref: null, photo: false, split: seeded }) }));
+    expect(bobsShare()).toBe(800);
+    const echo = serve(seeded, claim(bob, rice));
+    await act(async () => socket().emit("message", { data: JSON.stringify({ type: "state", ref: "r0", photo: false, split: echo }) }));
+    expect(bobsShare()).toBe(800);
+    expect(first.answer).toEqual({ ok: true, revision: echo.revision });
+    expect(hook.idle).toBe(true);
+  });
+
+  it("a socket that closes before it ever opened drops the buffered tap at once, not on the join state", async () => {
+    const first = tap(claim(bob, rice));
+    expect(bobsShare()).toBe(800);
+    await act(async () => {
+      socket().readyState = 3;
+      socket().emit("close", { code: 1006 });
+    });
+    expect(first.answer).toEqual({ ok: false, rejection: { reason: "disconnected" } });
+    expect(bobsShare()).toBe(0);
+    expect(socket().queue).toEqual([]);
+    expect(total()).toBe(1150);
   });
 });

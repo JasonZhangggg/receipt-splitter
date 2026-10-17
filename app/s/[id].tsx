@@ -166,8 +166,16 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     latest.current = split;
   });
 
+  // The sheet as last rendered. A close that follows an await runs in the render that started it, so it asks this ref whether a sheet is open now.
+  const openSheet = useRef(overlay);
+  useEffect(() => {
+    openSheet.current = overlay;
+  });
+
   const closeGuard = useRef<CloseGuard | null>(null);
   const closeOverlay = () => {
+    // With no sheet open, `closing` would stay set and shut the next sheet the moment it opens.
+    if (openSheet.current === null) return;
     if (closeGuard.current?.()) return;
     // A closing sheet drops the keyboard with it, whichever way it was closed.
     if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) document.activeElement.blur();

@@ -45,6 +45,20 @@ describe("snapFor", () => {
   });
 });
 
+describe("a release at the speed of a deliberate drag", () => {
+  test("a drag that eases down 48 px at 120 to 150 px/s stays, however its last samples were spaced, while a flick of the same travel still closes", () => {
+    const sample = (times: number[]) => times.map((t, i) => ({ y: (2.4 * (i + 1)), t }));
+    const slow = (times: number[]) => snapFor(48, releaseVelocity(sample(times), times.at(-1)! + 16), false, 300);
+    expect({
+      sixteenMsApart: slow([336, 352, 368, 384, 400]),
+      twentyMsApart: slow([420, 440, 460, 480, 500]),
+      lastTwoBunched: slow([336, 352, 368, 399, 400]),
+      flick: snapFor(48, 1200, false, 300),
+      slowUp: snapFor(-30, -150, false, 300),
+    }).toEqual({ sixteenMsApart: "stay", twentyMsApart: "stay", lastTwoBunched: "stay", flick: "close", slowUp: "stay" });
+  });
+});
+
 describe("glideFor", () => {
   test("starts a glide at the finger's speed, never slower than the resting glide nor shorter than 150 ms", () => {
     expect({ still: glideFor(300, 0), slow: glideFor(300, 400), fast: glideFor(300, 3000), faster: glideFor(100, 3000), away: glideFor(200, -2000) }).toEqual({

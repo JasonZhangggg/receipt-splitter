@@ -7,6 +7,28 @@
     <meta name="theme-color" content="#FCFCFC" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />
     <title>%WEB_TITLE%</title>
+    <!-- A Split link opens its live socket here, so the connection and the Split's first state travel while the bundle downloads. src/live/first-sight.ts takes it over once the app runs. The pattern is the one isRoutableSplitId accepts (src/ui/boot.test.ts checks). -->
+    <script>
+      (function () {
+        var found = /^\/s\/([A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{24})$/.exec(location.pathname);
+        if (!found) return;
+        try {
+          var early = { id: found[1], ws: new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/parties/split-server/" + found[1]), events: [] };
+          ["open", "message", "close", "error"].forEach(function (type) {
+            early.ws.addEventListener(type, function (event) {
+              if (early.events) early.events.push(event);
+            });
+          });
+          window.splitwithSocket = early;
+          // If the app has not taken the socket by now (the bundle failed), stop holding it and its events.
+          setTimeout(function () {
+            if (window.splitwithSocket !== early) return;
+            early.events = null;
+            early.ws.close();
+          }, 30000);
+        } catch (error) {}
+      })();
+    </script>
     <!-- The appearance this device picked (src/ui/appearance.ts) goes on before the first paint, since the bundle runs only after it. -->
     <script>
       (function () {

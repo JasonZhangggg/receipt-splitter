@@ -941,7 +941,8 @@ export type NewSplit = {
 
 export type CreateSplitRequest = { readonly split: Omit<NewSplit, "id"> };
 
-export type CreateSplitResponse = { readonly id: SplitId; readonly creatorSecret: string };
+/** `split` is the Split as stored, which is what the socket's first state will carry, so the Host's page can show it before the socket has said anything. */
+export type CreateSplitResponse = { readonly id: SplitId; readonly creatorSecret: string; readonly split: Split };
 
 export type CreateSplitRefusal =
   | { readonly refused: "bodyTooLarge" | "unavailable" | "rateLimited" | "dailyLimit" }

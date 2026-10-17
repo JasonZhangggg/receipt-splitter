@@ -5,7 +5,7 @@ import { mountHarness } from "./harness";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-type ToastWindow = Window & { hiddenAt: number[]; show: (message: string) => void; actions: number };
+type ToastWindow = Window & { hiddenAt: number[]; show: (message: string) => void; dropAction: () => void; actions: number };
 
 async function mountToast(page: Page) {
   await mountHarness(
@@ -18,12 +18,14 @@ async function mountToast(page: Page) {
     import { Toast } from "./src/ui/components/toast";
     function Harness() {
       const [message, setMessage] = useState("Copied the link");
+      const [action, setAction] = useState(true);
       window.show = setMessage;
+      window.dropAction = () => setAction(false);
       const hide = () => { window.hiddenAt.push(Date.now()); setMessage(null); };
       return (
         <View style={{ height: 600 }}>
           <button id="opener">Opener</button>
-          <Toast message={message} onHide={hide} action={{ label: "Undo", onPress: () => window.actions++ }} />
+          <Toast message={message} onHide={hide} action={action ? { label: "Undo", onPress: () => window.actions++ } : undefined} />
         </View>
       );
     }
@@ -144,6 +146,32 @@ test("Undo is a pressable target that text selection skips, and its focus ring d
   });
   expect(ring.width).toBe("2px");
   expect(ring.outline).not.toBe(ring.toast);
+});
+
+test("a message that wraps keeps room inside the bar, and a one-line toast stays 48 px tall", async ({ page }) => {
+  await mountToast(page);
+  // The bar enters at scale 0.98, so it is measured only once it has settled.
+  const room = async (text: string) => {
+    const message = page.getByText(text);
+    await expect.poll(() => message.evaluate((el: HTMLElement) => [getComputedStyle(el.parentElement!).transform, getComputedStyle(el.parentElement!).opacity].join())).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\)),1$/);
+    return message.evaluate((el: HTMLElement) => {
+      const bar = el.parentElement!.getBoundingClientRect();
+      const words = document.createRange();
+      words.selectNodeContents(el);
+      const lines = [...words.getClientRects()];
+      const ink = { top: Math.min(...lines.map((r) => r.top)), bottom: Math.max(...lines.map((r) => r.bottom)), right: Math.max(...lines.map((r) => r.right)) };
+      return { height: Math.round(bar.height), lines: new Set(lines.map((r) => Math.round(r.top))).size, top: Math.round(ink.top - bar.top), bottom: Math.round(bar.bottom - ink.bottom), right: Math.round(bar.right - ink.right) };
+    });
+  };
+  await page.evaluate(() => (window as unknown as ToastWindow).dropAction());
+  expect((await room("Copied the link")).height).toBe(48);
+  const long = "No connection, so the receipt couldn't be read. Try again once you're back online.";
+  await page.evaluate((text) => (window as unknown as ToastWindow).show(text), long);
+  const wrapped = await room(long);
+  expect(wrapped.lines).toBe(2);
+  expect(wrapped.top).toBeGreaterThanOrEqual(12);
+  expect(wrapped.bottom).toBeGreaterThanOrEqual(12);
+  expect(wrapped.right).toBeGreaterThanOrEqual(20);
 });
 
 test("the toast fades in and out as a Web Animation, so a busy JS thread does not stall it", async ({ page }) => {

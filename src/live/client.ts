@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { landed, type CreateSplitRefusal, type CreateSplitRequest, type CreateSplitResponse, type Operation, type Optimistic, type ServerMessage, type WireRejection } from "../core/operations";
 import { isRoutableSplitId, participantId, randomId, type ParticipantId, type Split, type SplitId } from "../core/split";
 import { createCopy } from "../ui/home-copy";
+import { firstSight, forgetFirstSight, keepCreated, takeEarlySocket } from "./first-sight";
 import { answerByMs, connectionOf, slowAfterMs, type Connection } from "./connection";
 import type { ReceiptJpeg } from "../ui/receipt-input/jpeg";
 import { drop, fold, lay, received, refOf, type Seen } from "./layer";
@@ -41,9 +42,9 @@ const endings: Record<number, GoneReason> = { 4404: "notFound", 4500: "unreadabl
 /**
  * One action waiting for the server. `slowTimer` marks it stalled. `deadline` fires when no answer came in time: the action may still have been applied, so the socket reconnects
  * and the entry waits (`late`) for the server's join state, which settles the truth before the caller hears of the failure. A second `deadline` bounds that wait.
- * `op` is set when the action is laid over the Split (`act`); it leaves the Split exactly when the entry settles.
+ * `op` is set when the action is laid over the Split (`act`); it leaves the Split exactly when the entry settles. `sent` is false while PartySocket still buffers the frame, before the first open.
  */
-type Waiting = { readonly resolve: (answer: Answer) => void; readonly op: Optimistic | null; readonly slowTimer: ReturnType<typeof setTimeout>; deadline: ReturnType<typeof setTimeout>; stalled: boolean; late: boolean };
+type Waiting = { readonly resolve: (answer: Answer) => void; readonly op: Optimistic | null; readonly slowTimer: ReturnType<typeof setTimeout>; deadline: ReturnType<typeof setTimeout>; stalled: boolean; late: boolean; sent: boolean };
 
 const disconnected: Answer = { ok: false, rejection: { reason: "disconnected" } };
 /**
@@ -55,10 +56,16 @@ const firstRetryMs = 500;
 const browserIsOnline = () => globalThis.navigator?.onLine !== false;
 
 export function useLiveSplit(id: string | null): { live: Live; send: Send; act: Act; connection: Connection; idle: boolean } {
-  const [seen, setSeen] = useState<Seen | null>(null);
+  // The first render shows a Split already in hand (just created here, or the early socket's newest state) instead of waiting for this hook's own socket to say so.
+  const [seen, setSeen] = useState<Seen | null>(() => {
+    const sight = id === null || !isRoutableSplitId(id) ? null : firstSight(id);
+    return id !== null && sight ? { id, base: { status: "live", split: sight.split, photo: sight.photo }, laid: [] } : null;
+  });
   const server = useRef<Split | null>(null);
   const [inFlight, setInFlight] = useState(0);
   const socket = useRef<PartySocket | null>(null);
+  /** Whether this link has ever opened. Until then a send waits for the open; after a drop it is refused (see `send`). */
+  const everOpened = useRef(false);
   const pending = useRef(new Map<string, Waiting>());
   const nextRef = useRef(0);
   const [socketOpen, setSocketOpen] = useState(false);
@@ -101,16 +108,24 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
     if (id === null || !isRoutableSplitId(id)) return;
     const update = (change: (was: Seen) => Seen) => setSeen((was) => change(was !== null && was.id === id ? was : { id, base: { status: "connecting" }, laid: [] }));
     const waiting = pending.current;
-    server.current = null;
+    // Read before the early socket is taken: the Split on screen from the first render is what a laid action sits on until the join state arrives.
+    server.current = firstSight(id)?.split ?? null;
+    const early = takeEarlySocket(id);
     const ws = new PartySocket({
       host: location.host,
       protocol: location.protocol === "https:" ? "wss" : "ws",
       party: "split-server",
       room: id,
       minReconnectionDelay: firstRetryMs,
+      ...(early && { WebSocket: early.socket }),
     });
     socket.current = ws;
-    ws.addEventListener("open", () => setSocketOpen(true));
+    everOpened.current = false;
+    ws.addEventListener("open", () => {
+      everOpened.current = true;
+      for (const entry of waiting.values()) entry.sent = true;
+      setSocketOpen(true);
+    });
     ws.addEventListener("message", ({ data }: MessageEvent<string>) => {
       const message: ServerMessage = JSON.parse(data);
       if (message.type === "state") server.current = message.split;
@@ -119,6 +134,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
       update((was) => received(was, message, late));
       switch (message.type) {
         case "state":
+          forgetFirstSight(id);
           if (message.ref === null) setJoined((count) => count + 1);
           return settle(message.ref, { ok: true, revision: message.split.revision });
         case "unchanged":
@@ -135,9 +151,16 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
     });
     ws.addEventListener("close", ({ code }: CloseEvent) => {
       setSocketOpen(false);
+      // An action sent before the first open and still waiting in PartySocket's buffer must not go out when the socket reopens.
+      ws.drainQueuedMessages();
       const reason = endings[code];
       for (const [ref, entry] of [...waiting]) {
         if (reopening.current && entry.late) continue;
+        // Never reached the server (dropped from the buffer above), so there is nothing to wait for.
+        if (!entry.sent) {
+          settle(ref, disconnected);
+          continue;
+        }
         // A laid action keeps showing until the join state says whether it landed, or the wait runs out.
         if (reason === undefined && socket.current === ws && entry.op !== null) {
           if (!entry.late) {
@@ -155,16 +178,19 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
     });
     return () => {
       ws.close();
+      early?.release();
       socket.current = null;
       setSocketOpen(false);
     };
   }, [id, settle]);
 
+  // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since, so a send is refused instead.
+  // The first connection is the exception: the page can show a Split before its socket has opened, and a tap in that gap goes out the moment the link does, on a Split at most one round trip old.
+  const canSend = useCallback((ws: PartySocket) => ws.readyState === ws.OPEN || (ws.readyState === ws.CONNECTING && !everOpened.current && browserIsOnline()), []);
   const transmit = useCallback(
     (seq: number, op: Operation, creatorSecret: string | undefined, laid: Optimistic | null): Promise<Answer> => {
       const ws = socket.current;
-      // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since. Refuse it now instead.
-      if (!ws || ws.readyState !== ws.OPEN) return Promise.resolve(disconnected);
+      if (!ws || !canSend(ws)) return Promise.resolve(disconnected);
       const ref = refOf(seq);
       return new Promise((resolve) => {
         const entry: Waiting = {
@@ -183,13 +209,14 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
             reopening.current = false;
           }, answerByMs),
           late: false,
+          sent: ws.readyState === ws.OPEN,
         };
         pending.current.set(ref, entry);
         setInFlight((count) => count + 1);
         ws.send(JSON.stringify(creatorSecret === undefined ? { ref, op } : { ref, op, creatorSecret }));
       });
     },
-    [settle],
+    [settle, canSend],
   );
 
   const send = useCallback<Send>((op, creatorSecret) => transmit(nextRef.current++, op, creatorSecret, null), [transmit]);
@@ -197,12 +224,12 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; act: 
   const act = useCallback<Act>(
     (op) => {
       const ws = socket.current;
-      if (id === null || !ws || ws.readyState !== ws.OPEN) return { sent: false };
+      if (id === null || !ws || !canSend(ws)) return { sent: false };
       const seq = nextRef.current++;
       setSeen((was) => (was !== null && was.id === id && was.base.status === "live" ? lay(was, { seq, ref: refOf(seq), op }) : was));
       return { sent: true, answer: transmit(seq, op, undefined, op) };
     },
-    [id, transmit],
+    [id, transmit, canSend],
   );
 
   const mine = seen !== null && seen.id === id ? seen : null;
@@ -227,7 +254,8 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
     return { ok: false, reason: createCopy.offline };
   }
   if (response.status === 201) {
-    const { id, creatorSecret }: CreateSplitResponse = await response.json();
+    const { id, creatorSecret, split }: CreateSplitResponse = await response.json();
+    keepCreated(split);
     return { ok: true, id, creatorSecret };
   }
   const refusal: CreateSplitRefusal | null = await response.json().catch(() => null);
