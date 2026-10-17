@@ -8,7 +8,7 @@ test.setTimeout(90_000);
 const live = { timeout: 15_000 };
 const offline = "Offline. Reconnecting\u2026";
 const slow = "Slow network. Saving\u2026";
-const failed = "Couldn't save that. Check your connection and try again.";
+const failed = "Didn't save. You're offline.";
 
 const dinner = {
   items: [
@@ -61,6 +61,27 @@ test("offline for more than 1.5 s shows the notice, and reconnecting clears it",
 
   await context.setOffline(false);
   await expect(notice(page)).toHaveCount(0, { timeout: 30_000 });
+});
+
+test("a socket that dies under an online browser, as on reopening a tab, reconnects within a second and never shows the notice", async ({ page, request }, { workerIndex }) => {
+  const sockets: WebSocketRoute[] = [];
+  await page.routeWebSocket(/split-server/, (client) => {
+    sockets.push(client);
+    const server = client.connectToServer();
+    client.onMessage((message) => server.send(message));
+    server.onMessage((message) => client.send(message));
+  });
+  await openAs(page, await createSplit(request, workerIndex), "Sam");
+  expect(sockets).toHaveLength(1);
+
+  sockets[0].close();
+  await expect.poll(() => sockets.length, { timeout: 1500 }).toBe(2);
+  await page.waitForTimeout(2500);
+  await expect(notice(page)).toHaveCount(0);
+
+  await rice(page).click();
+  await expect(rice(page)).toHaveAttribute("aria-pressed", "true", live);
+  await expect(page.getByTestId("owe")).toHaveText("$8.00", live);
 });
 
 test("a claim tap while offline says the connection is down and leaves the dot unclaimed, and after reconnecting it works", async ({ page, context, request }, { workerIndex }) => {
@@ -169,7 +190,7 @@ test("Create link while offline says it is the connection", async ({ page, conte
 
   await context.setOffline(true);
   await page.getByRole("button", { name: "Create link" }).click();
-  await expect(page.getByText("Check your connection and try again.")).toBeVisible(live);
+  await expect(page.getByText("You're offline.")).toBeVisible(live);
   await expect(page).toHaveURL(/\/$/);
 });
 

@@ -71,14 +71,14 @@ test("the header has only the wordmark, the coffee icon, the theme toggle and Sh
   for (const name of ["Menu", "Example", "Recent splits"]) await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Recent splits" })).toHaveCount(0);
   await page.evaluate(() =>
-    localStorage.setItem("receipt-splitter:split:AnaBenCy00000000000001", JSON.stringify({ recent: { names: ["Ana", "Ben"], total: 990, added: Date.now(), seen: Date.now() } })),
+    localStorage.setItem("receipt-splitter:split:AnaBenCy00000000000001", JSON.stringify({ recent: { names: ["Ana", "Ben"], you: 0, total: 990, added: Date.now(), seen: Date.now() } })),
   );
   await page.reload();
   await settle(page);
   await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toHaveCount(0);
   const list = page.getByRole("region", { name: "Recent splits" });
-  expect((await list.innerText()).split("\n").filter(Boolean)).toEqual(["Recent splits", "Ana and Ben", "Today · 2 people", "$9.90"]);
-  await expect(list.getByRole("link", { name: "Ana and Ben, Today, 2 people, $9.90" })).toHaveAttribute("href", "/s/AnaBenCy00000000000001");
+  expect((await list.innerText()).split("\n").filter(Boolean)).toEqual(["Recent splits", "With Ben", "Today · 2 people", "$9.90"]);
+  await expect(list.getByRole("link", { name: "With Ben, Today, 2 people, $9.90" })).toHaveAttribute("href", "/s/AnaBenCy00000000000001");
 });
 
 test("Add the receipt takes keyboard focus with a visible ring at 390 px", async ({ page }) => {

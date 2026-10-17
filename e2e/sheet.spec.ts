@@ -666,3 +666,80 @@ test("the Price field reads 1,234.50 style plain two decimals once the typed pri
   await expect(price).toHaveValue("1234.50", live);
   await expect(page.getByRole("button", { name: /^Open Rice, \$1,234\.50/ })).toBeVisible(live);
 });
+
+const crowd = Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, name: `Guest ${i + 1}` }));
+
+// A real touch is the only thing that scrolls a list natively, and WebKit's synthetic pointers cannot send one.
+async function openCrowdedPeople(browser: Browser, request: APIRequestContext, workerIndex: number, browserName: string) {
+  const page = await open(browser, await createSplit(request, workerIndex, browserName, dinner, [venmo], "Jason", crowd), browserName);
+  const sheet = page.getByRole("dialog", { name: "Which one are you?" });
+  const scroller = sheet.locator("[data-sheet-outer]");
+  expect(await scroller.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(100);
+  const title = page.getByRole("heading", { name: "Which one are you?" });
+  return { page, sheet, scroller, title };
+}
+
+const watchMoves = (page: Page) =>
+  page.evaluate(() => {
+    const seen: boolean[] = [];
+    Object.assign(window, { seenMoves: seen });
+    window.addEventListener("touchmove", (event) => seen.push(event.defaultPrevented));
+  });
+const movesSeen = (page: Page) => page.evaluate(() => (window as unknown as { seenMoves: boolean[] }).seenMoves);
+
+test("a long sheet keeps its title where it is while the list scrolls under it", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName !== "chromium", "needs a native touch scroll");
+  const { page, scroller, title } = await openCrowdedPeople(browser, request, workerIndex, browserName);
+  const before = (await title.boundingBox())!.y;
+  await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
+  expect(Math.abs((await title.boundingBox())!.y - before)).toBeLessThan(6);
+  await expect(title).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Guest 1", exact: true })).not.toBeInViewport();
+});
+
+test("a pull down from the top of a long list closes the sheet and picks nobody; a short one settles back", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName !== "chromium", "needs a native touch scroll");
+  const { page, sheet } = await openCrowdedPeople(browser, request, workerIndex, browserName);
+  const guest = sheet.getByRole("button", { name: "Guest 2", exact: true });
+  const rest = (await sheet.boundingBox())!.y;
+  await watchMoves(page);
+  await drag(page, await center(guest), 70, 300, 150);
+  const topMoves = await movesSeen(page);
+  expect(topMoves.length, "touch moves reached the page").toBeGreaterThan(2);
+  expect(topMoves[0], "the first downward move at the top is already held").toBe(true);
+  expect(topMoves.every(Boolean)).toBe(true);
+  await settled(sheet);
+  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible();
+
+  await drag(page, await center(guest), 260, 200, 100);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toHaveCount(0, live);
+  await expect(page.getByText("Pick your name to check off what you had.")).toBeVisible(live);
+});
+
+test("a pull down on a list scrolled away from the top scrolls it back and keeps the sheet open", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName !== "chromium", "needs a native touch scroll");
+  const { page, sheet, scroller } = await openCrowdedPeople(browser, request, workerIndex, browserName);
+  await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
+  const away = await scroller.evaluate((el) => el.scrollTop);
+  const rest = (await sheet.boundingBox())!.y;
+  await watchMoves(page);
+  await drag(page, { x: 195, y: 500 }, 160, 300, 100);
+  expect((await movesSeen(page)).some(Boolean), "a pull on a scrolled list is left to the browser").toBe(false);
+  await settled(sheet);
+  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
+  expect(await scroller.evaluate((el) => el.scrollTop)).toBeLessThan(away);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible();
+});
+
+test("a push up on a long list at the top scrolls it and leaves the sheet in place", async ({ browser, request, browserName }, { workerIndex }) => {
+  test.skip(browserName !== "chromium", "needs a native touch scroll");
+  const { page, sheet, scroller } = await openCrowdedPeople(browser, request, workerIndex, browserName);
+  const rest = (await sheet.boundingBox())!.y;
+  await drag(page, { x: 195, y: 600 }, -200, 300, 100);
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(50);
+  await settled(sheet);
+  expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
+});
