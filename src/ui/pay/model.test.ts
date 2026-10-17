@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { payState, paymentStatus, pickedRow, shareStatus, statusWords } from "./model";
+import { foldedRows, hostCollected, justPaid, payState, paymentStatus, pickedRow, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -141,5 +141,42 @@ describe("pickedRow", () => {
 
   test("falls back to the viewer when the person tapped was removed from the Split", () => {
     expect(pickedRow(rows.filter(({ id }) => id !== sam), sam, priya).id).toBe(priya);
+  });
+});
+
+describe("hostCollected", () => {
+  const row = (id: string, share: number, isHost = false) => ({ id: participantId(id), name: id, isHost, share: cents(share), state: "unpaid" as const, words: "" });
+  const rows = [row("jason", 6335, true), row("sam", 3000), row("priya", 2828), row("lee", 0)];
+
+  test("adds what friends paid the Host out of what friends owe, leaving the Host's own part out", () => {
+    const payments = [{ participantId: participantId("sam"), amount: cents(3000) }, { participantId: participantId("priya"), amount: cents(1000) }] as unknown as Split["payments"];
+    expect(hostCollected(rows, payments)).toEqual({ paid: 4000, owed: 5828 });
+  });
+
+  test("counts an overpayment as paid in full and nothing paid as $0.00", () => {
+    const over = [{ participantId: participantId("sam"), amount: cents(3500) }] as unknown as Split["payments"];
+    expect(hostCollected(rows, over)).toEqual({ paid: 3500, owed: 5828 });
+    expect(hostCollected(rows, [])).toEqual({ paid: 0, owed: 5828 });
+  });
+});
+
+describe("foldedRows", () => {
+  const rows = [
+    { id: participantId("jason"), state: "host" as const },
+    { id: participantId("sam"), state: "unpaid" as const },
+    { id: participantId("priya"), state: "nothing" as const },
+    { id: participantId("lee"), state: "nothing" as const },
+  ];
+
+  test("folds everyone who owes $0.00 but the Host and the viewer", () => {
+    expect(foldedRows(rows, participantId("sam")).quiet.map(({ id }) => id)).toEqual(["priya", "lee"]);
+    expect(foldedRows(rows, participantId("sam")).shown.map(({ id }) => id)).toEqual(["jason", "sam"]);
+    expect(foldedRows(rows, participantId("priya")).shown.map(({ id }) => id)).toEqual(["jason", "sam", "priya"]);
+  });
+});
+
+describe("justPaid", () => {
+  test("is the whole Share before any payment and only the rest after a short one", () => {
+    expect([justPaid(cents(3020), null), justPaid(cents(3020), cents(1420))]).toEqual([3020, 1600]);
   });
 });

@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents } from "../../core/money";
 import type { Shares } from "../../core/shares";
 import { participantId, type ItemId } from "../../core/split";
-import { arcs, ringMarkup, slices } from "./donut-model";
+import { arcAt, arcs, ringMarkup, slices } from "./donut-model";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -113,5 +113,51 @@ describe("ringMarkup", () => {
     expect(markup.indexOf('stroke="#abcdef"')).toBeLessThan(markup.indexOf('stroke="#123456"'));
     expect(markup).toContain('stroke-linecap="round"');
     expect(markup).not.toContain("opacity");
+  });
+});
+
+describe("arcAt", () => {
+  const sam = participantId("sam");
+  const priya = participantId("priya");
+  const lee = participantId("lee");
+  // Half the ring for Sam, 48% for Priya, a 2% sliver for Lee. The band's middle is at radius 80.
+  const all = [
+    { id: sam, cents: 5000, start: 0, fraction: 0.5 },
+    { id: priya, cents: 4800, start: 0.5, fraction: 0.48 },
+    { id: lee, cents: 200, start: 0.98, fraction: 0.02 },
+  ];
+
+  test("picks the arc under a tap on its band, measured clockwise from 12 o'clock", () => {
+    expect([arcAt(all, 80, 0), arcAt(all, 0, 80), arcAt(all, -80, 0)]).toEqual([sam, priya, priya]);
+  });
+
+  test("keeps a few px of slack past the band and ignores the hole and the far side of the band", () => {
+    expect([arcAt(all, 89, 0), arcAt(all, 92, 0), arcAt(all, 0, 0), arcAt(all, 30, 0)]).toEqual([sam, null, null, null]);
+  });
+
+  test("answers over a minimum stretch for a sliver, and lets a neighbor keep its own side", () => {
+    const tap = (turn: number) => arcAt(all, 80 * Math.sin(2 * Math.PI * turn), -80 * Math.cos(2 * Math.PI * turn));
+    expect([tap(0.99), tap(0.9975), tap(0.0025), tap(0.96)]).toEqual([lee, lee, lee, priya]);
+  });
+});
+
+describe("arcAt beside a sliver", () => {
+  const b = participantId("b");
+  const a = participantId("a");
+  const c = participantId("c");
+  const all = [
+    { id: b, cents: 4900, start: 0, fraction: 0.49 },
+    { id: a, cents: 100, start: 0.49, fraction: 0.01 },
+    { id: c, cents: 5000, start: 0.5, fraction: 0.5 },
+  ];
+  const tap = (turn: number) => arcAt(all, 80 * Math.sin(2 * Math.PI * turn), -80 * Math.cos(2 * Math.PI * turn));
+
+  test("a tap on a neighbor's paint, even right beside the sliver, picks the neighbor", () => {
+    // 1 px of ring is 0.002 of a turn at radius 80; 5 px either side of the sliver is well inside B and C.
+    expect([tap(0.2), tap(0.49 - 0.01), tap(0.5 + 0.01), tap(0.75)]).toEqual([b, b, c, c]);
+  });
+
+  test("the sliver is still picked on its own paint and just beside it", () => {
+    expect([tap(0.495), tap(0.49 - 0.002), tap(0.5 + 0.002)]).toEqual([a, a, a]);
   });
 });

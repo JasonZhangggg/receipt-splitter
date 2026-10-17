@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 
+import { price } from "../../core/money";
 import { participantId } from "../../core/split";
-import { amountStatus } from "./amount-status";
+import { amountStatus, suggestedAmounts } from "./amount-status";
 
 const jason = participantId("jason");
 const sam = participantId("sam");
@@ -47,5 +48,21 @@ describe("amountStatus", () => {
   test("over, the last typed amount is taken down to $0.00 at most, and no rest is offered when it cannot cover the excess", () => {
     expect(amountStatus(1000, [{ participantId: jason, cents: 1000 }, { participantId: sam, cents: 300 }], sam)).toEqual({ by: "over", over: 300, fill: { participantId: sam, cents: 0 } });
     expect(amountStatus(1000, [{ participantId: jason, cents: 1200 }, { participantId: sam, cents: 100 }], sam)).toEqual({ by: "over", over: 300, fill: null });
+  });
+});
+
+describe("suggestedAmounts", () => {
+  const untouched = (...ids: typeof jason[]) => ids.map((participantId) => ({ participantId, cents: 0 }));
+
+  test("offers an even split whose cents add up to the price, the first claimers taking the extra", () => {
+    expect(suggestedAmounts(price(8775), untouched(jason, sam), null)).toEqual([{ participantId: jason, cents: 4388 }, { participantId: sam, cents: 4387 }]);
+    expect(suggestedAmounts(price(1000), untouched(jason, sam, priya), null)).toEqual([{ participantId: jason, cents: 334 }, { participantId: sam, cents: 333 }, { participantId: priya, cents: 333 }]);
+  });
+
+  test("offers nothing once an amount is typed, a field holds money, the price is $0.00 or nobody has the Item", () => {
+    expect(suggestedAmounts(price(8775), untouched(jason, sam), jason)).toBeNull();
+    expect(suggestedAmounts(price(8775), [{ participantId: jason, cents: 100 }, { participantId: sam, cents: 0 }], null)).toBeNull();
+    expect(suggestedAmounts(price(0), untouched(jason, sam), null)).toBeNull();
+    expect(suggestedAmounts(price(8775), [], null)).toBeNull();
   });
 });

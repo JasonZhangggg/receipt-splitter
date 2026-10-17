@@ -1,4 +1,5 @@
-import type { ParticipantId } from "../../core/split";
+import type { ParticipantId, SplitItem } from "../../core/split";
+import { lineAmounts } from "../split-view/model";
 
 type Typed = { readonly participantId: ParticipantId; readonly cents: number };
 
@@ -25,4 +26,13 @@ export function amountStatus(price: number, amounts: readonly Typed[], last: Par
   }
   const empty = amounts.filter(({ cents }) => cents === 0);
   return { by: "left", left: price - assigned, assigned, fill: empty.length === 1 ? { participantId: empty[0]!.participantId, cents: price - assigned } : null };
+}
+
+/**
+ * The even split offered as a starting point while By amount is untouched: every amount at $0.00 and nothing typed. These are suggestions only; the Split
+ * keeps its $0.00 amounts until the user types or accepts them. The cents come from the even split's own rounding, so they add up to the price.
+ */
+export function suggestedAmounts(price: SplitItem["price"], amounts: readonly Typed[], last: ParticipantId | null): Fill[] | null {
+  if (price <= 0 || amounts.length === 0 || last !== null || amounts.some(({ cents }) => cents !== 0)) return null;
+  return lineAmounts({ price, split: { by: "even", units: [amounts.map(({ participantId }) => participantId)] } });
 }
