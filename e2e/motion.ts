@@ -569,15 +569,21 @@ export async function itemShared(page: Page) {
   await still(page.getByTestId("item-sheet"));
 }
 
+async function peopleOpen(page: Page, people = table) {
+  await picked(page, people);
+  await tap(page.getByRole("button", { name: "People", exact: true }));
+  await still(page.getByTestId("people-sheet"));
+}
+
 async function addingName(page: Page) {
-  await picked(page, fitsOneRow);
-  await tap(sheet(page).getByRole("button", { name: "Add a person" }));
+  await peopleOpen(page, fitsOneRow);
+  await tap(page.getByTestId("people-sheet").getByRole("button", { name: "Add a person" }));
   await page.waitForTimeout(500);
 }
 
 async function priceFocused(page: Page) {
   await itemOpen(page);
-  await tap(page.getByTestId("item-sheet").locator('input[aria-label="Price"]'));
+  await tap(page.getByTestId("item-sheet").locator('input[aria-label="Description"]'));
   await page.waitForTimeout(500);
 }
 
@@ -660,8 +666,9 @@ const photoProbes: Probe[] = [
 ];
 
 const segmentThumb = `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"]')?.firstElementChild ?? null`;
-const nameField = `document.querySelector('[data-testid="split-sheet"] input[aria-label="Name"]')`;
-const priceField = `document.querySelector('[data-testid="item-sheet"] input[aria-label="Price"]')`;
+const nameField = `document.querySelector('[data-testid="people-sheet"] input[aria-label="Name"]')`;
+const peopleTop: Probe = { key: "people", find: testId("people-sheet"), kind: "top" };
+const priceField = `document.querySelector('[data-testid="item-sheet"] input[aria-label="Description"]')`;
 
 const slow = (scenario: Scenario, latencyMs: number): Scenario => ({
   ...scenario,
@@ -758,22 +765,16 @@ const addProbes: Probe[] = [
 const addOpenScenario: Scenario = {
   id: "add-open",
   name: "Add item: the sheet opens from the Add row after the menu",
-  setup: async (page) => {
-    await picked(page);
-    await tap(addRowButton(page));
-    await still(addMenu(page));
-  },
-  act: (page) => tap(addMenu(page).getByRole("button", { name: "Item", exact: true })),
+  setup: picked,
+  act: (page) => tap(addRowButton(page)),
   probes: addProbes,
 };
 
 async function addFilled(page: Page) {
   await picked(page);
   await tap(addRowButton(page));
-  await tap(addMenu(page).getByRole("button", { name: "Item", exact: true }));
-  await addSheet(page).getByRole("textbox", { name: "Item name", exact: true }).fill("Tea");
+  await addSheet(page).getByRole("textbox", { name: "Name", exact: true }).fill("Tea");
   await addSheet(page).getByRole("textbox", { name: "Price", exact: true }).fill("3.00");
-  await tap(addSheet(page).getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Jason", exact: true }));
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await still(addSheet(page));
 }
@@ -923,9 +924,9 @@ const sheetAndHome: Scenario[] = [
     id: "keyboard-name-up",
     name: "Split sheet: the page pans up in one step when the name field takes focus",
     instant: true,
-    setup: withKeyboard((page) => picked(page, fitsOneRow)),
-    act: (page) => tap(sheet(page).getByRole("button", { name: "Add a person" })),
-    probes: [splitTop, { key: "field", find: nameField, kind: "top" }],
+    setup: withKeyboard((page) => peopleOpen(page, fitsOneRow)),
+    act: (page) => tap(page.getByTestId("people-sheet").getByRole("button", { name: "Add a person" })),
+    probes: [peopleTop, { key: "field", find: nameField, kind: "top" }],
   },
   {
     id: "keyboard-name-down",
@@ -933,14 +934,14 @@ const sheetAndHome: Scenario[] = [
     instant: true,
     setup: withKeyboard(addingName),
     act: blur,
-    probes: [splitTop],
+    probes: [peopleTop],
   },
   {
     id: "keyboard-price-up",
     name: "Item sheet: the page pans up in one step when the price field takes focus",
     instant: true,
     setup: withKeyboard(itemOpen),
-    act: (page) => tap(page.getByTestId("item-sheet").locator('input[aria-label="Price"]')),
+    act: (page) => tap(page.getByTestId("item-sheet").locator('input[aria-label="Description"]')),
     probes: [{ key: "item", find: testId("item-sheet"), kind: "top" }, { key: "field", find: priceField, kind: "top" }, splitTop],
   },
   {
@@ -970,7 +971,7 @@ const sheetAndHome: Scenario[] = [
   { ...reduced(collapseTap), probes: [{ key: "sheetFade", find: testId("breakdown"), kind: "opacity" }] },
   reduced(bundleExpand),
   reduced(bundleCollapse),
-  reduced(itemOpenScenario),
+  { ...reduced(itemOpenScenario), probes: [{ key: "itemFade", find: testId("item-sheet"), kind: "opacity" }] },
   reduced(splitRows),
   reduced(addRowScenario),
   reduced(chargeDelete),
@@ -1024,14 +1025,14 @@ async function deskSplit(page: Page) {
   });
   if (response.status() !== 201) throw new Error(`creating a Split answered ${response.status()}`);
   await page.goto(`/s/${(await response.json()).id}`);
-  await pane(page).getByRole("heading", { name: "Which one are you?" }).waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "Which one are you?" }).waitFor({ timeout: 15_000 });
   await page.waitForTimeout(300);
 }
 
 async function deskPicked(page: Page) {
   await deskSplit(page);
-  await pane(page).getByRole("button", { name: "Jason", exact: true }).click();
-  await pane(page).getByTestId("breakdown").waitFor();
+  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
+  await page.getByTestId("split-sheet").waitFor({ state: "detached" });
   await page.waitForTimeout(600);
 }
 
