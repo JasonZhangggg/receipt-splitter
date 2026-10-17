@@ -43,23 +43,18 @@ const states: { name: string; fill: (page: Page) => Promise<void> }[] = [
   { name: "nothing filled in", fill: async () => {} },
 ];
 
+// One test per width, so each stays well inside the 30 s budget on a slow runner, and each starts from an empty home.
 for (const { name, fill } of states) {
-  test(`no line of the home sentence starts with punctuation, at 320 to 430 px, with ${name}`, async ({ page }) => {
-    for (const width of widths) {
+  for (const width of widths) {
+    test(`no line of the home sentence starts with punctuation at ${width} px, with ${name}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/");
-      // The draft outlives a reload, so each width starts from a home with nothing in it.
-      await page.evaluate(() => {
-        localStorage.clear();
-        sessionStorage.clear();
-      });
-      await page.reload();
       await settle(page);
       await fill(page);
       await page.keyboard.press("Escape");
       await page.getByRole("heading", { name: "SplitWith" }).click();
-      expect(await punctuationStartingALine(page), `${width} px`).toEqual([]);
-      expect(await punctuationFreeToWrap(page), `${width} px`).toEqual([]);
-    }
-  });
+      expect(await punctuationStartingALine(page)).toEqual([]);
+      expect(await punctuationFreeToWrap(page)).toEqual([]);
+    });
+  }
 }
