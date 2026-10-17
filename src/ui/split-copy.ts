@@ -90,6 +90,12 @@ export const splitCopy = {
     partOf: (name: string) => `${name}'s part`,
     everyonePays: (host: string) => `Everyone pays ${host}.`,
     of: (total: string) => `of ${total}`,
+    paidYou: "paid you",
+    paidHost: (host: string) => `paid ${host}`,
+    owesNothing: (names: readonly string[]) => {
+      const shown = names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names;
+      return `${shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}` : shown[0]} ${names.length > 1 ? "owe" : "owes"} nothing.`;
+    },
     unclaimed: (amount: string) => ` · ${amount} unclaimed`,
     label: (total: string, each: readonly string[], unclaimed: string | null) => `Receipt total ${total}. ${[...each, ...(unclaimed ? [`${unclaimed} unclaimed`] : [])].join(", ")}.`,
   },
@@ -195,6 +201,9 @@ export const splitCopy = {
   amountOf: (name: string) => `${name}'s amount`,
   shares: (count: number) => `${count} ${count === 1 ? "share" : "shares"}`,
   leftToAssign: (amount: string) => `${amount} left to assign`,
+  suggestedEven: "Suggested: an even split",
+  useSuggested: "Use these",
+  useSuggestedName: "Use the suggested even amounts",
   allAssigned: (amount: string) => `All ${amount} assigned`,
   overThePrice: (amount: string) => `${amount} over the price`,
   notSaved: "Not saved",

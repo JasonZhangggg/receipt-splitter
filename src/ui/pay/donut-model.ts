@@ -53,3 +53,33 @@ export function ringMarkup(all: readonly Slice[], paint: (id: ParticipantId) => 
     .join("");
   return `<circle cx="${middle}" cy="${middle}" r="${radius}" fill="none" stroke="${track}" stroke-width="${thickness}"/><g transform="rotate(-90 ${middle} ${middle})">${arc}</g>`;
 }
+
+/** How far past an arc's band a tap still picks it, and the shortest stretch of ring, in px along its middle, that any arc answers to, so a 1% sliver is still tappable. */
+const hitSlack = 6;
+const hitMinimum = 28;
+/** A tap this close to the ends of an arc's own paint, in px, is left to the widened rule, so a neighbor's edge is not claimed by the wrong arc. */
+const hitEdge = 2;
+
+/**
+ * The arc a tap lands on, from the tap's offset from the ring's center. The band is the arc's stroke widened by `hitSlack`; around the ring an arc answers from its
+ * start to its end, or over `hitMinimum` px if it is shorter. A tap inside an arc's own painted span, past `hitEdge` px from its ends, always picks that arc, so a sliver
+ * cannot take a neighbor's paint. Elsewhere, where widened arcs overlap, the one whose middle is nearer wins. The track gap and the hole pick nothing.
+ */
+export function arcAt(all: readonly Slice[], dx: number, dy: number): ParticipantId | null {
+  const radius = (ring.size - ring.thickness) / 2;
+  if (Math.abs(Math.hypot(dx, dy) - radius) > ring.thickness / 2 + hitSlack) return null;
+  const turn = (Math.atan2(dx, -dy) / (2 * Math.PI) + 1) % 1;
+  const least = hitMinimum / (2 * Math.PI * radius);
+  const edge = hitEdge / (2 * Math.PI * radius);
+  for (const { id, start, fraction } of all) {
+    const into = (turn - start + 1) % 1;
+    if (into >= edge && into <= fraction - edge) return id;
+  }
+  let best: { id: ParticipantId; away: number } | null = null;
+  for (const { id, start, fraction } of all) {
+    const gap = Math.abs(turn - (start + fraction / 2));
+    const away = Math.min(gap, 1 - gap);
+    if (away <= Math.max(fraction, least) / 2 && (best === null || away < best.away)) best = { id, away };
+  }
+  return best?.id ?? null;
+}

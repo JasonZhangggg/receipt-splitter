@@ -40,7 +40,7 @@ import { SplitFooter } from "../../src/ui/split-view/footer";
 import { SplitIntro } from "../../src/ui/split-view/intro";
 import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-sheet";
 import { PayBlock } from "../../src/ui/pay/pay-block";
-import { shareStatus, statusWords } from "../../src/ui/pay/model";
+import { justPaid, shareStatus, statusWords } from "../../src/ui/pay/model";
 import { webStyle } from "../../src/ui/motion";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
@@ -374,7 +374,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
     const before = split.payments.find(({ participantId }) => participantId === me)?.amount ?? null;
     if (!(await markPaid(me, paid ? myShare : null)) || !paid) return;
     setBar({
-      message: say.markedPaid(money(myShare)),
+      message: say.markedPaid(money(justPaid(myShare, before))),
       action: {
         label: say.undo,
         onPress: () => {
