@@ -51,13 +51,19 @@ async function openAs(page: Page, link: string, name: string) {
 const rice = (page: Page) => page.getByRole("button", { name: "Rice, check for Sam" });
 const notice = (page: Page) => page.getByTestId("connection-notice");
 
+/** What the notice shows (the words and three dots) and what a screen reader gets (the sentence once, with its ellipsis). */
+async function expectNotice(page: Page, words: string, options: { timeout: number }) {
+  await expect(notice(page).locator('[aria-hidden="true"]')).toHaveText(words.replace("\u2026", "..."), options);
+  await expect(page.getByRole("status").filter({ hasText: words })).toMatchAriaSnapshot(`- status: ${words}`, options);
+}
+
 test("offline for more than 1.5 s shows the notice, and reconnecting clears it", async ({ page, context, request }, { workerIndex }) => {
   await openAs(page, await createSplit(request, workerIndex), "Sam");
 
   await context.setOffline(true);
   await page.waitForTimeout(600);
   await expect(notice(page)).toHaveCount(0);
-  await expect(notice(page)).toHaveText(offline, live);
+  await expectNotice(page, offline, live);
 
   await context.setOffline(false);
   await expect(notice(page)).toHaveCount(0, { timeout: 30_000 });
@@ -74,7 +80,7 @@ test("a claim tap while offline says the connection is down and leaves the dot u
   await openAs(page, await createSplit(request, workerIndex), "Sam");
   await context.setOffline(true);
   (socket as WebSocketRoute | null)?.close();
-  await expect(notice(page)).toHaveText(offline, live);
+  await expectNotice(page, offline, live);
 
   await rice(page).click();
   await expect(page.getByText(failed)).toBeVisible({ timeout: 3000 });
@@ -102,7 +108,7 @@ test("an answer held for more than 3 s shows the slow message, which clears when
 
   holding = true;
   await rice(page).click();
-  await expect(notice(page)).toHaveText(slow, { timeout: 6000 });
+  await expectNotice(page, slow, { timeout: 6000 });
   await expect(rice(page)).toHaveAttribute("aria-pressed", "true", live);
   await expect(notice(page)).toHaveCount(0, live);
 });
@@ -174,21 +180,71 @@ test("Create link while offline says it is the connection", async ({ page, conte
 });
 
 for (const width of [390, 320]) {
-  test(`at ${width} px wide the offline notice clears the coffee cup, and a sheet opened over it dims it`, async ({ page, context, request }, { workerIndex }) => {
+  test(`at ${width} px wide the offline notice clears the coffee cup on one line, and a sheet opened over it dims it`, async ({ page, context, request }, { workerIndex }) => {
     await page.setViewportSize({ width, height: 844 });
     await openAs(page, await createSplit(request, workerIndex), "Sam");
     await context.setOffline(true);
-    await expect(notice(page)).toHaveText(offline, live);
+    await expectNotice(page, offline, live);
     await page.waitForTimeout(400);
 
-    const pill = (await notice(page).boundingBox())!;
+    const line = (await notice(page).boundingBox())!;
+    expect(line.height).toBeLessThan(28);
     const cup = (await page.getByRole("link", { name: "Buy me a coffee" }).boundingBox())!;
-    expect(pill.x + pill.width).toBeLessThanOrEqual(cup.x + cup.width / 2 - 8);
+    expect(line.x + line.width).toBeLessThanOrEqual(cup.x + cup.width / 2 - 8);
 
     await page.getByRole("button", { name: "People", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "People" })).toBeVisible(live);
     await page.waitForTimeout(600);
-    const covered = await page.evaluate(({ x, y }) => document.elementsFromPoint(x, y)[0]?.closest('[data-testid="connection-notice"]') === null, { x: pill.x + pill.width / 2, y: pill.y + pill.height / 2 });
+    const covered = await page.evaluate(({ x, y }) => document.elementsFromPoint(x, y)[0]?.closest('[data-testid="connection-notice"]') === null, { x: line.x + line.width / 2, y: line.y + line.height / 2 });
     expect(covered).toBe(true);
   });
 }
+
+/** Holds each dot at one point of its loop, so the check reads a known frame instead of racing the clock. */
+async function dotsAt(page: Page, time: number) {
+  return notice(page).evaluate((root, at) => {
+    const dots = [...root.querySelectorAll<HTMLElement>('[aria-hidden="true"] span')];
+    const animations = document.getAnimations().filter((a) => a instanceof CSSAnimation && dots.includes((a.effect as KeyframeEffect).target as HTMLElement));
+    animations.forEach((a) => {
+      a.pause();
+      a.currentTime = at + Number(a.effect?.getTiming().delay);
+    });
+    return {
+      count: dots.length,
+      animated: animations.length,
+      timing: animations.map((a) => [a.effect?.getTiming().delay, a.effect?.getTiming().duration]),
+      transforms: dots.map((d) => getComputedStyle(d).transform),
+      opacities: dots.map((d) => getComputedStyle(d).opacity),
+      bubble: { background: getComputedStyle(root).backgroundColor, border: getComputedStyle(root).borderTopWidth, padding: getComputedStyle(root).paddingTop },
+    };
+  }, time);
+}
+
+test("the notice is a bare line whose three dots bounce in turn", async ({ page, context, request }, { workerIndex }) => {
+  await openAs(page, await createSplit(request, workerIndex), "Sam");
+  await context.setOffline(true);
+  await expectNotice(page, offline, live);
+
+  const peak = await dotsAt(page, 300);
+  expect(peak.bubble).toEqual({ background: "rgba(0, 0, 0, 0)", border: "0px", padding: "0px" });
+  expect(peak.count).toBe(3);
+  expect(peak.timing).toEqual([[0, 1200], [120, 1200], [240, 1200]]);
+  expect(peak.transforms).toEqual(["matrix(1, 0, 0, 1, 0, -3)", "matrix(1, 0, 0, 1, 0, -3)", "matrix(1, 0, 0, 1, 0, -3)"]);
+  expect(peak.opacities).toEqual(["1", "1", "1"]);
+  expect((await dotsAt(page, 600)).transforms).toEqual(["matrix(1, 0, 0, 1, 0, 0)", "matrix(1, 0, 0, 1, 0, 0)", "matrix(1, 0, 0, 1, 0, 0)"]);
+});
+
+test.describe("reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("the dots fade in turn and do not move", async ({ page, context, request }, { workerIndex }) => {
+    await openAs(page, await createSplit(request, workerIndex), "Sam");
+    await context.setOffline(true);
+    await expectNotice(page, offline, live);
+
+    const dim = await dotsAt(page, 300);
+    expect(dim.animated).toBe(3);
+    expect(dim.opacities).toEqual(["0.35", "0.35", "0.35"]);
+    expect(dim.transforms).toEqual(["none", "none", "none"]);
+  });
+});

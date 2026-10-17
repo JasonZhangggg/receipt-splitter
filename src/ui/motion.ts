@@ -37,6 +37,9 @@ type WebOnly = Partial<
     | "maskImage"
     | "WebkitMaskImage"
     | "willChange"
+    | "display"
+    | "clip"
+    | "clipPath"
     | "position"
     | "top"
     | "cursor",
