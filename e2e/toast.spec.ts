@@ -148,7 +148,7 @@ test("Undo is a pressable target that text selection skips, and its focus ring d
   expect(ring.outline).not.toBe(ring.toast);
 });
 
-test("a message that wraps keeps room inside the bar, and a one-line toast stays 48 px tall", async ({ page }) => {
+test("a message that wraps keeps room inside the bar, and a one-line toast stays 56 px tall", async ({ page }) => {
   await mountToast(page);
   // The bar enters at scale 0.98, so it is measured only once it has settled.
   const room = async (text: string) => {
@@ -164,14 +164,14 @@ test("a message that wraps keeps room inside the bar, and a one-line toast stays
     });
   };
   await page.evaluate(() => (window as unknown as ToastWindow).dropAction());
-  expect((await room("Copied the link")).height).toBe(48);
+  expect((await room("Copied the link")).height).toBe(56);
   const long = "No connection, so the receipt couldn't be read. Try again once you're back online.";
   await page.evaluate((text) => (window as unknown as ToastWindow).show(text), long);
   const wrapped = await room(long);
   expect(wrapped.lines).toBe(2);
   expect(wrapped.top).toBeGreaterThanOrEqual(12);
   expect(wrapped.bottom).toBeGreaterThanOrEqual(12);
-  expect(wrapped.right).toBeGreaterThanOrEqual(20);
+  expect(wrapped.right).toBeGreaterThanOrEqual(24);
 });
 
 test("the toast fades in and out as a Web Animation, so a busy JS thread does not stall it", async ({ page }) => {
@@ -188,4 +188,31 @@ test("the toast fades in and out as a Web Animation, so a busy JS thread does no
   await page.evaluate(() => (window as unknown as ToastWindow).show(null as never));
   await expect(page.getByText("Copied the link")).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { log: unknown[][] }).log)).toMatchObject([[expect.anything(), 0]]);
+});
+
+test("the words keep 24 px from the pill's ends, and the action's hit area stays at least 44 pt", async ({ page }) => {
+  await mountToast(page);
+  const room = async (text: string) => {
+    const message = page.getByText(text);
+    await expect.poll(() => message.evaluate((el: HTMLElement) => [getComputedStyle(el.parentElement!).transform, getComputedStyle(el.parentElement!).opacity].join())).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\)),1$/);
+    return message.evaluate((el: HTMLElement) => {
+      const bar = el.parentElement!.getBoundingClientRect();
+      const ink = (node: Element) => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return range.getBoundingClientRect();
+      };
+      const button = el.parentElement!.querySelector("[data-pressable]");
+      const label = button ? ink(button.querySelector("[data-press-face] > *")!) : null;
+      const hit = button?.getBoundingClientRect();
+      return { height: bar.height, left: Math.round(ink(el).left - bar.left), labelRight: label ? Math.round(bar.right - label.right) : null, hit: hit ? [Math.round(hit.width), Math.round(hit.height)] : null };
+    });
+  };
+  await page.evaluate(() => (window as unknown as ToastWindow).show("Couldn't save that."));
+  const withAction = await room("Couldn't save that.");
+  expect(withAction).toMatchObject({ height: 56, left: 24, labelRight: 24 });
+  expect(withAction.hit![0]).toBeGreaterThanOrEqual(44);
+  expect(withAction.hit![1]).toBeGreaterThanOrEqual(44);
+  await page.evaluate(() => (window as unknown as ToastWindow).dropAction());
+  expect(await room("Couldn't save that.")).toMatchObject({ height: 56, left: 24, hit: null });
 });
