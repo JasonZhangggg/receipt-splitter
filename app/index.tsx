@@ -10,11 +10,9 @@ import { prefetchModel, recognize } from "../src/ocr";
 import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
 import { chooseRoute, FALLBACK_WAIT_MS, within } from "../src/scan/route";
-import { ThemeToggle } from "../src/ui/components/theme-toggle";
 import { Toast } from "../src/ui/components/toast";
 import { useEscape } from "../src/ui/components/popover";
 import type { Press } from "../src/ui/components/button";
-import { CoffeeButton } from "../src/ui/components/coffee-button";
 import { actedByKey } from "../src/ui/components/acted-by-key";
 import { blockerText, copy, historyCopy } from "../src/ui/home-copy";
 import { PayWords } from "../src/ui/home-sentence/pay-words";
@@ -24,6 +22,9 @@ import { stagePacer } from "../src/ui/home-sentence/stage-pacer";
 import { webStyle } from "../src/ui/motion";
 import { RecentSheet, RecentSplits } from "../src/ui/recent-splits";
 import { BottomSheet } from "../src/ui/split-view/bottom-sheet";
+import { HeaderIcons } from "../src/ui/split-view/header";
+import { shareLink, siteUrl } from "../src/ui/share-link";
+import { splitCopy } from "../src/ui/split-copy";
 import { HomeFooter } from "../src/ui/receipt-input/home-footer";
 import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
 import { focusInPlace, useKeyboardRoom } from "../src/ui/receipt-input/keyboard-room";
@@ -76,6 +77,11 @@ export default function Home() {
     pageDraft = draft;
     saveDraft(draft);
   }, [draft]);
+
+  const shareSite = async () => {
+    const result = await shareLink(siteUrl());
+    if (result !== "shared") setNotice(result === "copied" ? splitCopy.linkCopied : splitCopy.copyFailed);
+  };
 
   const dispatch = useCallback((action: DraftAction) => {
     setFailure(null);
@@ -199,10 +205,7 @@ export default function Home() {
             <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
               {copy.wordmark}
             </Text>
-            <View style={styles.headerEnd}>
-              <CoffeeButton />
-              <ThemeToggle />
-            </View>
+            <HeaderIcons onShare={() => void shareSite()} />
           </View>
 
           <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
@@ -250,7 +253,6 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1, alignItems: "center" },
   column: { width: "100%" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
-  headerEnd: { flexDirection: "row", alignItems: "center" },
   sentence: { marginTop: 40 },
   refusal: { marginTop: 8 },
 });
