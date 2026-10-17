@@ -126,7 +126,7 @@ test.describe("on Chromium", () => {
 
     await page.getByRole("button", { name: "Split a receipt" }).click();
     await expect(page.getByRole("button", { name: "Add the receipt" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Share link" })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe("/");
   });
 
   test("a scan kept across a visit to Recent splits and Back still sends its photo after Create", async ({ page, request, browserName }, testInfo) => {

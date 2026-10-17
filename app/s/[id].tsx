@@ -25,7 +25,8 @@ import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { failedCopy, splitCopy as say } from "../../src/ui/split-copy";
 import { ConnectionNotice } from "../../src/ui/split-view/connection-notice";
 import type { Connection } from "../../src/live/connection";
-import { SplitHeader } from "../../src/ui/split-view/header";
+import { SplitHeader, useSiteShare } from "../../src/ui/split-view/header";
+import { shareLink } from "../../src/ui/share-link";
 import { circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
@@ -49,6 +50,7 @@ export default function SplitScreen() {
   const insets = useSafeAreaInsets();
   const splitId = isRoutableSplitId(id) ? id : null;
   const { live, send, connection } = useLiveSplit(id);
+  const site = useSiteShare();
   const expired = live.status === "gone" && live.reason === "notFound";
   useEffect(() => {
     if (expired && splitId) forgetSplit(splitId);
@@ -58,7 +60,7 @@ export default function SplitScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
-        <SplitHeader />
+        <SplitHeader onShare={site.share} />
         {live.status === "gone" ? (
           <Gone reason={live.reason} />
         ) : (
@@ -67,6 +69,7 @@ export default function SplitScreen() {
           </Text>
         )}
       </View>
+      <Toast message={site.notice} onHide={site.hideNotice} />
     </View>
   );
 }
@@ -260,11 +263,8 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   };
 
   const share = async () => {
-    const url = splitUrl(splitId);
-    // A cancelled share sheet rejects, and that is not a failure. Only the copy fallback has a result to show.
-    if (typeof navigator.share === "function") return void (await navigator.share({ url }).catch(() => {}));
-    const copied = await (navigator.clipboard?.writeText(url).then(() => true) ?? Promise.resolve(false)).catch(() => false);
-    setBar({ message: copied ? say.linkCopied : say.copyFailed, over: "footer" });
+    const result = await shareLink(splitUrl(splitId));
+    if (result !== "shared") setBar({ message: result === "copied" ? say.linkCopied : say.copyFailed, over: "footer" });
   };
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);

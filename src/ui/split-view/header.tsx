@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button, PressTarget } from "../components/button";
@@ -10,7 +11,7 @@ import { shareLink, siteUrl } from "../share-link";
 import { splitCopy as say } from "../split-copy";
 import { layout, type, useColors } from "../theme";
 
-type Props = { onShare?: () => void };
+type Props = { onShare: () => void };
 
 export function SplitHeader({ onShare }: Props) {
   const c = useColors();
@@ -27,8 +28,8 @@ export function SplitHeader({ onShare }: Props) {
   );
 }
 
-/** Coffee, the theme toggle and Share, 32 px apart, the same on every page. Share sends the site's link unless the page passes its own. */
-export function HeaderIcons({ onShare = () => void shareLink(siteUrl()) }: Props) {
+/** Coffee, the theme toggle and Share, 32 px apart, the same on every page. */
+export function HeaderIcons({ onShare }: Props) {
   return (
     <View style={styles.buttons}>
       <CoffeeButton />
@@ -36,6 +37,16 @@ export function HeaderIcons({ onShare = () => void shareLink(siteUrl()) }: Props
       <Button kind="icon" icon="share" name={say.shareLink} onPress={onShare} />
     </View>
   );
+}
+
+/** Share for pages that aren't a Split: sends the site's link, and says so when it was copied instead. */
+export function useSiteShare() {
+  const [notice, setNotice] = useState<string | null>(null);
+  const share = async () => {
+    const result = await shareLink(siteUrl());
+    if (result !== "shared") setNotice(result === "copied" ? say.linkCopied : say.copyFailed);
+  };
+  return { share: () => void share(), notice, hideNotice: () => setNotice(null) };
 }
 
 const styles = StyleSheet.create({
