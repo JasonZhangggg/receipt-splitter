@@ -5,7 +5,10 @@ import { MAX_PARTICIPANT_NAME_LENGTH } from "../../core/operations";
 import { newName } from "../../draft";
 import { copy, joinCopy } from "../home-copy";
 import { focusInPlace } from "../receipt-input/keyboard-room";
+import { webStyle } from "../motion";
 import { Act, Blank, nowrap, Remove, Words } from "./words";
+
+const box = webStyle({ display: "inline-block", maxWidth: "100%" } as never);
 
 export type NameField = { readonly open: () => void };
 
@@ -49,33 +52,28 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
     return true;
   };
 
-  // The name's last letters, its x and the comma after it never part, so a long name wraps in its head and the x never floats alone.
-  const person = (name: string, you: boolean, comma: boolean) => {
-    const [head, tail] = splitName(name);
-    return (
-      <Text key={name} role="group" aria-label={you ? `${name}, ${copy.you}` : name}>
-        {head ? (
-          <Words ink breaks>
-            {head}
-          </Words>
-        ) : null}
-        <Text style={nowrap}>
-          <Words ink>{tail}</Words>
-          <Remove
-            name={copy.removeName(name)}
-            others={names.length > 1}
-            fallback={copy.addFriendsName}
-            onPress={() => {
-              onRefusal(null);
-              if (you) onRemoveHost();
-              else onRemoveFriend(name);
-            }}
-          />
-          {comma ? "," : null}
-        </Text>
+  // A name, its x and its comma form one box: whole on a line when it fits. A name wider than the line wraps in its head, and its last 4 letters stay with the x and comma.
+  const person = (name: string, you: boolean, comma: boolean) => (
+    <Text key={name} role="group" aria-label={you ? `${name}, ${copy.you}` : name} style={box}>
+      <Words ink breaks>
+        {name.slice(0, -4)}
+      </Words>
+      <Text style={nowrap}>
+        <Words ink>{name.slice(-4)}</Words>
+        <Remove
+          name={copy.removeName(name)}
+          others={names.length > 1}
+          fallback={copy.addFriendsName}
+          onPress={() => {
+            onRefusal(null);
+            if (you) onRemoveHost();
+            else onRemoveFriend(name);
+          }}
+        />
+        {comma ? "," : null}
       </Text>
-    );
-  };
+    </Text>
+  );
 
   const hostField = (
     <NameBlank
@@ -187,13 +185,6 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       }
     />
   );
-}
-
-/** A name as the run that may wrap and the last word's end that stays with the x. A last word of 12 letters or fewer stays whole; a longer one keeps its last 4 letters. */
-function splitName(name: string): [head: string, tail: string] {
-  const letters = [...name.slice(name.lastIndexOf(" ") + 1)];
-  const tail = letters.length > 12 ? letters.slice(-4).join("") : letters.join("");
-  return [name.slice(0, name.length - tail.length), tail];
 }
 
 const pressEnds = ["pointerup", "pointercancel"] as const;

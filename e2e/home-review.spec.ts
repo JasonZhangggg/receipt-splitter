@@ -100,6 +100,16 @@ test("the not-found page has a heading and a hint above its button", async ({ pa
   await expect(page.getByRole("button", { name: "Split a receipt", exact: true })).toBeVisible();
 });
 
+test("a name that fits on a line stays whole, however full the line", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await addNames(page, ...Array.from({ length: 11 }, (_, i) => `Friend number ${i + 1}`));
+  await page.keyboard.press("Escape");
+  const heights = await page.evaluate(() => [...document.querySelectorAll("[role=group]")].map((g) => g.getBoundingClientRect().height));
+  expect(heights).toHaveLength(11);
+  expect(Math.max(...heights)).toBeLessThan(50);
+});
+
 test("a long name wraps in its head, and its last letters, x and comma stay together", async ({ page }) => {
   await page.goto("/");
   await settle(page);
@@ -110,9 +120,9 @@ test("a long name wraps in its head, and its last letters, x and comma stay toge
     const tail = group.lastElementChild!.getBoundingClientRect();
     const cross = group.querySelector('[aria-label^="Remove "]')!.getBoundingClientRect();
     const next = document.querySelector('[role=group][aria-label="Sam"]')!.getClientRects()[0]!;
-    return { head: group.getClientRects().length, tailMid: tail.top + tail.height / 2, crossMid: cross.top + cross.height / 2, tailLeft: tail.left, crossLeft: cross.left, nextTop: next.top, crossTop: cross.top };
+    return { height: group.getBoundingClientRect().height, tailMid: tail.top + tail.height / 2, crossMid: cross.top + cross.height / 2, tailLeft: tail.left, crossLeft: cross.left, nextTop: next.top, crossTop: cross.top };
   });
-  expect(lines.head).toBeGreaterThan(1);
+  expect(lines.height).toBeGreaterThan(60);
   expect(Math.abs(lines.tailMid - lines.crossMid)).toBeLessThan(8);
   expect(lines.crossLeft).toBeGreaterThan(lines.tailLeft);
   await expect(sentence(page)).not.toContainText(/\n,/);
