@@ -1,5 +1,5 @@
 import { addNames, openExample } from "./files";
-import { viewAs, youAre } from "./header";
+import { peopleSheet, showPeople, viewAs, youAre } from "./header";
 import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -380,4 +380,22 @@ test("a phone that loses its name to another phone is told once and can take it 
   await expect(told(first)).toHaveCount(0);
   await expect(told(second)).toHaveCount(1);
   await expect(second.getByText("Pick your name to check off what you had.")).toBeVisible();
+});
+
+test("the first sheet opened after taking a name back from the bar stays open", async ({ page, browser }) => {
+  await readyHome(page, ["Sam"]);
+  const link = await createLink(page);
+
+  const first = await open(browser, link);
+  await first.getByRole("button", { name: "Sam", exact: true }).click();
+  await youAre(first, "Sam");
+  const second = await open(browser, link);
+  await second.getByRole("button", { name: "Sam, picked on another phone" }).click();
+  await second.getByRole("button", { name: "That's me" }).click();
+  await youAre(second, "Sam");
+
+  await first.getByRole("status").filter({ hasText: "picked on another phone" }).getByRole("button", { name: "That's me" }).click();
+  // showPeople waits for the sheet to come to rest, so a sheet that is already sliding shut is not read as open.
+  await showPeople(first, "Sam");
+  await expect(peopleSheet(first).getByText("This phone is Sam.")).toBeVisible();
 });

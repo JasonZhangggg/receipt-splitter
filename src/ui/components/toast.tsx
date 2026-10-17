@@ -68,7 +68,7 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   return (
     <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: 16 + (lift || insets.bottom) }]}>
       {shown ? (
-        <View ref={bar} style={[styles.toast, ring(c.field), { backgroundColor: c.ink }, !message && awayStyle(rise, reduce)]}>
+        <View ref={bar} style={[styles.toast, !showing && styles.bare, ring(c.field), { backgroundColor: c.ink }, !message && awayStyle(rise, reduce)]}>
           <Text style={[type.caption, styles.message, { color: c.field }]}>{shown}</Text>
           {showing ? (
             <PressTarget onPress={showing.onPress} outsideScroll style={(pressed) => [styles.action, pressStyle(pressed, reduce)]}>
@@ -100,7 +100,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 24,
   },
-  message: { flexShrink: 1 },
+  // With no action at the end, the text keeps the same room on the right as on the left.
+  bare: { paddingRight: 20 },
+  // The padding is on the text, not the bar, so a one-line toast stays 48 tall while a wrapped one clears its rounded ends.
+  message: { flexShrink: 1, paddingVertical: 10 },
   action: { minWidth: 44, minHeight: 44 },
   face: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, borderRadius: 22 },
 });
