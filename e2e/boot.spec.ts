@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { faces } from "../src/ui/fonts.generated";
@@ -39,7 +40,7 @@ function watchBoot() {
   }).observe(document, { attributes: true, subtree: true, attributeFilter: ["data-boot"] });
   const frame = () => {
     const loader = document.getElementById("rs-boot");
-    const opacity = loader ? Number(getComputedStyle(loader).opacity) : 0;
+    const opacity = loader && getComputedStyle(loader).display !== "none" ? Number(getComputedStyle(loader).opacity) : 0;
     if (opacity > 0 && probe.shownAt === null) probe.shownAt = performance.now();
     probe.loaderPeak = Math.max(probe.loaderPeak, opacity);
     if (probe.goneAt === null) requestAnimationFrame(frame);
@@ -82,7 +83,9 @@ test("while Geist is slow the receipt loader shows, then lifts once the font is 
   expect(seen.loaderPeak).toBe(1);
   expect(seen.geistAtReveal).toBe(true);
   expect(seen.leaveAt! - seen.shownAt!).toBeGreaterThanOrEqual(300);
-  expect(seen.goneAt! - seen.leaveAt!).toBeGreaterThanOrEqual(190);
+  // The 200 ms fade timer starts when "leave" is set, but the observer stamps leaveAt only after the rest of that task, which ran 12 to 19 ms on CI WebKit.
+  // 150 still tells a fade from a loader that goes at once.
+  expect(seen.goneAt! - seen.leaveAt!).toBeGreaterThanOrEqual(150);
   // The loader has been up far longer than its 300 ms hold, so it lifts as soon as the last of the app and Geist is ready.
   const ready = Math.max(seen.mountedAt!, seen.geistAt!);
   const fonts = await page.evaluate(() =>
@@ -194,7 +197,7 @@ test("when the app never starts the page shows and takes input at 8 s, and a mou
       await new Promise(requestAnimationFrame);
       const loader = document.getElementById("rs-boot");
       seen.rootLow = Math.min(seen.rootLow, Number(getComputedStyle(document.getElementById("root")!).opacity));
-      seen.loaderHigh = Math.max(seen.loaderHigh, loader ? Number(getComputedStyle(loader).opacity) : 0);
+      seen.loaderHigh = Math.max(seen.loaderHigh, loader && getComputedStyle(loader).display !== "none" ? Number(getComputedStyle(loader).opacity) : 0);
     }
     return seen;
   });
@@ -228,4 +231,83 @@ test("on a dark device the loader draws light ink on the dark page", async ({ pa
   await expect(loader(page)).toHaveCSS("opacity", "1");
   await expect(loader(page)).toHaveCSS("color", "rgb(237, 237, 237)");
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(17, 17, 17)");
+});
+
+async function createSplit(page: Page) {
+  const created = await page.request.post("/api/splits", {
+    headers: { "cf-connecting-ip": `198.51.${randomInt(100, 200)}.${randomInt(1, 255)}` },
+    data: {
+      split: {
+        receipt: { items: [{ id: "rice", name: "Rice", price: 800 }], adjustments: [], subtotal: 800, total: 800 },
+        participants: [{ id: "jason", name: "Jason" }, { id: "sam", name: "Sam" }],
+        paymentHandles: [{ service: "venmo", handle: "jason-z" }],
+      },
+    },
+  });
+  expect(created.status()).toBe(201);
+  return (await created.json()).id as string;
+}
+
+/** Holds each message from the live server back, so the Split stays "connecting" for that long. */
+async function delaySocket(page: Page, ms: number) {
+  await page.routeWebSocket(/split-server/, (ws) => {
+    const server = ws.connectToServer();
+    server.onMessage((message) => setTimeout(() => ws.send(message), ms));
+    ws.onMessage((message) => server.send(message));
+  });
+}
+
+const opening = (page: Page) => page.getByRole("status", { name: "Opening split" });
+const paperTop = (page: Page) => page.locator("#rs-boot .paper").evaluate((el) => Math.round(el.getBoundingClientRect().left));
+
+test("a Split link that is still connecting once the app is ready keeps the same loader in place, and lifts it when the Split arrives", async ({ page }) => {
+  const id = await createSplit(page);
+  await delaySocket(page, 2500);
+  await open(page, `/s/${id}`);
+  await expect(page.locator("#rs-boot")).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("button", { name: "Share" })).toBeVisible({ timeout: 6_000 });
+  await expect(opening(page)).toHaveCSS("opacity", "1");
+  await expect(page.locator("#root")).not.toHaveAttribute("inert");
+  expect(await paperTop(page)).toBe(169);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 8_000 });
+  await expect(opening(page)).toHaveCount(0, { timeout: 2_000 });
+  await expect(page.locator("html")).not.toHaveAttribute("data-boot");
+  expect((await probe(page)).loaderPeak).toBe(1);
+});
+
+/** Opens the Split by changing the address the way a tap on a Recent row does, once Home is up. */
+async function openFromHome(page: Page, id: string) {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Create link" })).toBeVisible();
+  await expect(page.locator("html")).not.toHaveAttribute("data-boot");
+  await page.evaluate((to) => {
+    const seen = { peak: 0 };
+    Object.assign(window, { seen });
+    const frame = () => {
+      const loader = document.getElementById("rs-boot")!;
+      if (getComputedStyle(loader).display !== "none") seen.peak = Math.max(seen.peak, Number(getComputedStyle(loader).opacity));
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    history.pushState({}, "", to);
+    dispatchEvent(new PopStateEvent("popstate"));
+  }, `/s/${id}`);
+}
+const peak = (page: Page) => page.evaluate(() => (window as unknown as { seen: { peak: number } }).seen.peak);
+
+test("opening a Split from inside the app shows nothing when it connects within 300 ms", async ({ page }) => {
+  await openFromHome(page, await createSplit(page));
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 8_000 });
+  await page.waitForTimeout(500);
+  expect(await peak(page)).toBe(0);
+});
+
+test("opening a Split from inside the app shows the loader while it connects, then lifts it", async ({ page }) => {
+  const id = await createSplit(page);
+  await delaySocket(page, 2000);
+  await openFromHome(page, id);
+  await expect(opening(page)).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 8_000 });
+  await expect(page.locator("html")).not.toHaveAttribute("data-boot");
+  await expect(page.locator("#rs-boot")).toHaveAttribute("aria-label", "Loading");
 });
