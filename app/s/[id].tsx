@@ -413,8 +413,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (!me) return;
     if (paid && agreed !== myShare) {
       const note = say.shareNow(money(myShare));
-      if (overlay?.kind === "pay" && viewed?.hasBar) setPayNote(note);
-      else setBar({ message: note });
+      if (overlay?.kind === "pay" && viewed?.hasBar) {
+        setPayNote(note);
+        // The refusal that moved the Share already raised this line; the note says the same thing without covering the sheet.
+        setBar((open) => (open?.message === say.saveFailed ? null : open));
+      } else setBar({ message: note });
       return;
     }
     const before = split.payments.find(({ participantId }) => participantId === me)?.amount ?? null;
