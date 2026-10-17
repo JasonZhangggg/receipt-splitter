@@ -8,7 +8,7 @@ test.setTimeout(90_000);
 const live = { timeout: 15_000 };
 const offline = "Offline. Reconnecting\u2026";
 const slow = "Slow network. Saving\u2026";
-const failed = "Couldn't save that. Check your connection and try again.";
+const failed = "Offline. Couldn't save that.";
 
 const dinner = {
   items: [
@@ -169,7 +169,7 @@ test("Create link while offline says it is the connection", async ({ page, conte
 
   await context.setOffline(true);
   await page.getByRole("button", { name: "Create link" }).click();
-  await expect(page.getByText("Check your connection and try again.")).toBeVisible(live);
+  await expect(page.getByText("Offline. Couldn't create the link.")).toBeVisible(live);
   await expect(page).toHaveURL(/\/$/);
 });
 
