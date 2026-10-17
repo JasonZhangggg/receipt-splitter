@@ -533,3 +533,19 @@ test("Payments opens on your own part, a tap on a person turns their arc black a
     return inked.length === 1 && inked[0] !== own;
   }).toBe(true);
 });
+
+test("an Undo bar over an open sheet rides the sheet's bottom lift, not the footer's", async ({ browser, request }, { workerIndex }) => {
+  const sam = await open(browser, await createSplit(request, workerIndex, [venmo]));
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  const bar = sam.getByText("Marked $14.20 as paid");
+  await expect(bar).toBeVisible(live);
+  await sam.getByRole("button", { name: "Payments", exact: true }).click();
+  await expect(sam.getByRole("dialog", { name: "Payments" })).toBeVisible(live);
+  await expect(bar).toBeVisible();
+  await sam.waitForTimeout(500);
+  const box = (await sam.getByRole("status").filter({ has: bar }).boundingBox())!;
+  expect(844 - (box.y + box.height)).toBeLessThan(40);
+});

@@ -310,7 +310,7 @@ const count = (page: Page) => page.getByTestId("items-count");
 /** Selects a person's chip and checks lines for them, saying yes to the first confirm. */
 async function checkFor(page: Page, name: string, items: readonly string[]) {
   await viewAs(page, name);
-  await expect(count(page)).toContainText(`${name}'s`, live);
+  await expect(count(page)).toContainText("theirs", live);
   for (const [at, item] of items.entries()) {
     await circle(page, item, name).click();
     if (at === 0) await page.getByRole("dialog", { name: `Check ${item} for ${name}?` }).getByRole("button", { name: `Check for ${name}` }).click();
@@ -348,11 +348,11 @@ test("the dot is the viewer's own check, and each row says who had it and what t
   await expect(line(jason, "rice").getByTestId("checked")).toBeVisible();
 
   await viewAs(jason, "Sam");
-  await expect(count(jason)).toHaveText("2 of 4 Sam's", live);
+  await expect(count(jason)).toHaveText("2 of 4 theirs", live);
   await expect(jason.getByRole("button", { name: "Tostones, check for Sam" })).toHaveAttribute("aria-pressed", "true");
   await expect(line(jason, "tostones").getByTestId("checked")).toBeVisible();
-  await expect(line(jason, "tostones")).toContainText("$1.00 Sam's");
-  await expect(line(jason, "rice")).toContainText("$1.60 Sam's");
+  await expect(line(jason, "tostones")).toContainText("$1.00 theirs");
+  await expect(line(jason, "rice")).toContainText("$1.60 theirs");
   await expect(jason.getByRole("button", { name: "Sprite, check for Sam" })).toHaveAttribute("aria-pressed", "false");
 
   await viewAs(jason, "Jason, you");
@@ -367,8 +367,35 @@ test("beside a long name the footer keeps its items count whole and shortens the
   const jason = await open(browser, await createSplit(request, workerIndex, [{ id: "jason", name: "Jason" }, { id: "long", name: long }]));
   await pick(jason, "Jason");
   await viewAs(jason, long);
-  await expect(count(jason)).toContainText(`${long}'s`, live);
+  await expect(count(jason)).toHaveText("0 of 4 theirs", live);
   const aside = jason.getByTestId("footer").getByText(/items · incl\. tax & tip$/);
   await expect(aside).toHaveText("0 of 4 items · incl. tax & tip");
   expect(await aside.evaluate((text) => text.scrollWidth <= text.clientWidth)).toBe(true);
+});
+
+const longName = "Samantha Okonkwo-Fitzgerald";
+
+test("viewing a long-named person keeps every claimed row readable and the question and button short", async ({ browser, request }, { workerIndex }) => {
+  const jason = await open(browser, await createSplit(request, workerIndex, [{ id: "jason", name: "Jason" }, { id: "sam", name: longName }]));
+  await pick(jason, "Jason");
+  await circle(jason, "Rice", "Jason").click();
+  await expect(circle(jason, "Rice", "Jason")).toHaveAttribute("aria-pressed", "true", live);
+  await viewAs(jason, longName);
+  await circle(jason, "Rice", longName).click();
+  await asks(jason, `Check Rice for ${longName}?`).getByRole("button", { name: "Check for Samantha" }).click();
+  await expect(circle(jason, "Rice", longName)).toHaveAttribute("aria-pressed", "true", live);
+
+  await expect(count(jason)).toHaveText("1 of 4 theirs");
+  await expect(line(jason, "rice")).toContainText("$4.00 theirs");
+  const name = await line(jason, "rice").getByText("Rice", { exact: true }).boundingBox();
+  expect(name!.height).toBeLessThan(30);
+});
+
+test("the pick sheet's top edge sits 12 px below the links row", async ({ browser, request }, { workerIndex }) => {
+  const page = await open(browser, await createSplit(request, workerIndex));
+  const sheet = page.getByRole("dialog", { name: "Which one are you?" });
+  await settled(sheet);
+  const links = (await page.getByRole("button", { name: "History", exact: true }).boundingBox())!;
+  const top = (await sheet.boundingBox())!.y;
+  expect(Math.abs(top - (links.y + links.height + 12))).toBeLessThanOrEqual(1);
 });

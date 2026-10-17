@@ -69,9 +69,9 @@ export function ConnectionNotice({ connection }: { connection: Connection }) {
   );
 }
 
-/** The header's wordmark on the left and its two icon buttons on the right; the line sits between them. */
+/** The header's wordmark on the left and its three icon buttons (coffee, theme, Share, glyph centers 292, 324 and 356 at 390) on the right; the line sits between them. */
 const wordmarkRoom = 80;
-const buttonsRoom = 56;
+const buttonsRoom = 120;
 
 const styles = StyleSheet.create({
   anchor: { position: "absolute", left: 0, right: 0, height: layout.header - 6, justifyContent: "center" },

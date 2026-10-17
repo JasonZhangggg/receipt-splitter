@@ -172,3 +172,23 @@ test("Create link while offline says it is the connection", async ({ page, conte
   await expect(page.getByText("Check your connection and try again.")).toBeVisible(live);
   await expect(page).toHaveURL(/\/$/);
 });
+
+for (const width of [390, 320]) {
+  test(`at ${width} px wide the offline notice clears the coffee cup, and a sheet opened over it dims it`, async ({ page, context, request }, { workerIndex }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openAs(page, await createSplit(request, workerIndex), "Sam");
+    await context.setOffline(true);
+    await expect(notice(page)).toHaveText(offline, live);
+    await page.waitForTimeout(400);
+
+    const pill = (await notice(page).boundingBox())!;
+    const cup = (await page.getByRole("link", { name: "Buy me a coffee" }).boundingBox())!;
+    expect(pill.x + pill.width).toBeLessThanOrEqual(cup.x + 1);
+
+    await page.getByRole("button", { name: "People", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "People" })).toBeVisible(live);
+    await page.waitForTimeout(600);
+    const covered = await page.evaluate(({ x, y }) => document.elementsFromPoint(x, y)[0]?.closest('[data-testid="connection-notice"]') === null, { x: pill.x + pill.width / 2, y: pill.y + pill.height / 2 });
+    expect(covered).toBe(true);
+  });
+}
