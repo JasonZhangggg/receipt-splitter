@@ -23,13 +23,13 @@ export function keepCreated(split: Split) {
   created.set(split.id, split);
 }
 
-/** The Split to show on the first render of `id`, if one is already in hand: the one just created here, else the first state the early socket received. */
+/** The Split to show on the first render of `id`, if one is already in hand: the one just created here, else the newest state the early socket received. */
 export function firstSight(id: string): FirstSight | null {
   const own = created.get(id);
   if (own) return { split: own, photo: false };
   const early = globalThis.window?.splitwithSocket;
   if (early?.id !== id || !early.events) return null;
-  for (const event of early.events) {
+  for (const event of [...early.events].reverse()) {
     if (!(event instanceof MessageEvent)) continue;
     const message: ServerMessage = JSON.parse(event.data);
     if (message.type === "state") return { split: message.split, photo: message.photo };
@@ -44,12 +44,16 @@ export function forgetFirstSight(id: string) {
 
 type SocketConstructor = new (url: string) => WebSocket;
 
+/** `socket` is for PartySocket's `WebSocket` option. `release` is for the effect's cleanup. */
+export type EarlySocket = { readonly socket: SocketConstructor; readonly release: () => void };
+
 /**
- * A constructor for PartySocket's `WebSocket` option. Its first call hands back the early socket, so the page's connection started when the HTML did; every call after that,
+ * `socket` is a constructor for PartySocket's `WebSocket` option. Its first call hands back the early socket, so the page's connection started when the HTML did; every call after that,
  * a reconnect, builds a plain socket. The events the early socket saw are replayed in a microtask, after PartySocket has put its four listeners on it and before any new event can fire.
+ * `release` closes the early socket if PartySocket never took it, as when the effect cleans up before PartySocket's first connect (which it then skips, so nothing else would close the socket). After PartySocket took it, the socket is PartySocket's to close.
  * Undefined when there is no early socket for `id`, and PartySocket then builds its own. An early socket for another Split is closed.
  */
-export function takeEarlySocket(id: string): SocketConstructor | undefined {
+export function takeEarlySocket(id: string): EarlySocket | undefined {
   const early = globalThis.window?.splitwithSocket;
   if (!early) return undefined;
   delete globalThis.window.splitwithSocket;
@@ -59,14 +63,22 @@ export function takeEarlySocket(id: string): SocketConstructor | undefined {
   }
   const { ws, events } = early;
   let spent = false;
-  return function (url: string) {
-    if (spent) return new WebSocket(url);
-    spent = true;
-    // The inline script keeps recording into `events` until now, so nothing that arrives between the hook's effect and PartySocket's first connect is lost.
-    early.events = null;
-    queueMicrotask(() => {
-      for (const event of events) ws.dispatchEvent(new (event.constructor as typeof Event)(event.type, event));
-    });
-    return ws;
-  } as unknown as SocketConstructor;
+  return {
+    socket: function (url: string) {
+      if (spent) return new WebSocket(url);
+      spent = true;
+      // The inline script keeps recording into `events` until now, so nothing that arrives between the hook's effect and PartySocket's first connect is lost.
+      early.events = null;
+      queueMicrotask(() => {
+        for (const event of events) ws.dispatchEvent(new (event.constructor as typeof Event)(event.type, event));
+      });
+      return ws;
+    } as unknown as SocketConstructor,
+    release() {
+      if (spent) return;
+      spent = true;
+      early.events = null;
+      ws.close();
+    },
+  };
 }

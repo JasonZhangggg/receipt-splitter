@@ -46,7 +46,7 @@ const firstRetryMs = 500;
 const browserIsOnline = () => globalThis.navigator?.onLine !== false;
 
 export function useLiveSplit(id: string | null): { live: Live; send: Send; connection: Connection } {
-  // The first render shows a Split already in hand (just created here, or the early socket's first state) instead of waiting for this hook's own socket to say so.
+  // The first render shows a Split already in hand (just created here, or the early socket's newest state) instead of waiting for this hook's own socket to say so.
   const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(() => {
     const sight = id === null || !isRoutableSplitId(id) ? null : firstSight(id);
     return id !== null && sight ? { id, live: { status: "live", split: sight.split, photo: sight.photo } } : null;
@@ -99,7 +99,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
       party: "split-server",
       room: id,
       minReconnectionDelay: firstRetryMs,
-      ...(early && { WebSocket: early }),
+      ...(early && { WebSocket: early.socket }),
     });
     socket.current = ws;
     everOpened.current = false;
@@ -136,6 +136,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     });
     return () => {
       ws.close();
+      early?.release();
       socket.current = null;
       setSocketOpen(false);
     };
@@ -145,7 +146,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     const ws = socket.current;
     // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since. Refuse it now instead.
     // The first connection is the exception: the page can show a Split before its socket has opened, and a tap in that gap goes out the moment the link does, on a Split at most one round trip old.
-    const firstConnect = ws?.readyState === ws?.CONNECTING && !everOpened.current && browserIsOnline();
+    const firstConnect = ws !== null && ws.readyState === ws.CONNECTING && !everOpened.current && browserIsOnline();
     if (!ws || (ws.readyState !== ws.OPEN && !firstConnect)) return Promise.resolve(disconnected);
     const ref = `r${nextRef.current++}`;
     return new Promise((resolve) => {

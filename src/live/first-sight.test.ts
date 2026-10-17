@@ -42,8 +42,8 @@ test("a friend's page shows the state the early socket already received, and not
   early([new Event("open")]);
   expect(firstSight(id)).toBeNull();
 
-  early([new Event("open"), message(state(3))]);
-  expect(firstSight(id)?.split.revision).toBe(3);
+  early([new Event("open"), message(state(3)), message(state(5))]);
+  expect(firstSight(id)?.split.revision).toBe(5);
 });
 
 test("the early socket of another Split is not shown, and is closed when a page for this one starts", () => {
@@ -57,7 +57,7 @@ test("PartySocket's first connection gets the early socket with its events repla
   const fresh = vi.fn();
   vi.stubGlobal("WebSocket", class { constructor(readonly url: string) { fresh(url); } });
   const { ws } = early([new Event("open"), message(state(3))]);
-  const Adopted = takeEarlySocket(id)!;
+  const Adopted = takeEarlySocket(id)!.socket;
 
   const first = new Adopted("ws://x/room");
   expect(first).toBe(ws);
@@ -74,4 +74,22 @@ test("PartySocket's first connection gets the early socket with its events repla
   expect(new Adopted("ws://x/room")).not.toBe(ws);
   expect(fresh).toHaveBeenCalledWith("ws://x/room");
   expect(takeEarlySocket(id)).toBeUndefined();
+});
+
+test("an effect that cleans up before PartySocket's first connect closes the early socket and stops its recording", () => {
+  const { ws, record } = early([new Event("open")]);
+  const taken = takeEarlySocket(id)!;
+  taken.release();
+  expect(ws.closed).toBe(true);
+  expect(record.events).toBeNull();
+  expect(new taken.socket("ws://x/room")).not.toBe(ws);
+});
+
+test("once PartySocket has taken the early socket, release leaves it open", () => {
+  vi.stubGlobal("WebSocket", class {});
+  const { ws } = early([new Event("open")]);
+  const taken = takeEarlySocket(id)!;
+  expect(new taken.socket("ws://x/room")).toBe(ws);
+  taken.release();
+  expect(ws.closed).toBe(false);
 });

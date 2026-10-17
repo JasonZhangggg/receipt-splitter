@@ -20,6 +20,12 @@
             });
           });
           window.splitwithSocket = early;
+          // If the app has not taken the socket by now (the bundle failed), stop holding it and its events.
+          setTimeout(function () {
+            if (window.splitwithSocket !== early) return;
+            early.events = null;
+            early.ws.close();
+          }, 30000);
         } catch (error) {}
       })();
     </script>
