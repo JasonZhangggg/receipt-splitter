@@ -2,12 +2,10 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { Image, Modal, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Button, PressTarget } from "../components/button";
+import { Button } from "../components/button";
 import { copy } from "../home-copy";
-import { splitCopy as say } from "../split-copy";
-import { SheetHeader } from "../split-view/sheet-header";
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
-import { breakpoints, layout, motion, type, useColors } from "../theme";
+import { useReducedMotion, webStyle } from "../motion";
+import { breakpoints, motion, type, useColors } from "../theme";
 
 export type Photo = { readonly uri: string; readonly name: string };
 
@@ -19,25 +17,6 @@ type Props = {
 type Phase = "entering" | "shown" | "leaving";
 
 const photoGround = "#24221F";
-
-/** The Receipt link's sheet: the photo at a glance, and a tap on it opens the full-screen viewer. */
-export function ReceiptSheet({ uri, onOpen, onClose }: { uri: string; onOpen: () => void; onClose: () => void }) {
-  const c = useColors();
-  const reduce = useReducedMotion();
-  return (
-    <View style={styles.sheet}>
-      <SheetHeader title={say.receiptPhoto} onClose={onClose} />
-      <Text style={[type.body, { color: c.muted }]}>{say.receiptKept}</Text>
-      <PressTarget name={say.openPhoto} outsideScroll onPress={onOpen} style={(pressed) => pressStyle(pressed, reduce)}>
-        {() => (
-          <View style={[styles.thumb, { backgroundColor: c.hairline }]}>
-            <Image aria-hidden source={{ uri }} resizeMode="contain" style={styles.fill} />
-          </View>
-        )}
-      </PressTarget>
-    </View>
-  );
-}
 
 export function PhotoViewer({ photo, onExited }: Props) {
   const c = useColors();
@@ -101,8 +80,6 @@ export function PhotoViewer({ photo, onExited }: Props) {
 }
 
 const styles = StyleSheet.create({
-  sheet: { gap: layout.pairGap },
-  thumb: { height: 300, borderRadius: 12, overflow: "hidden" },
   fill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
   center: { alignItems: "center", justifyContent: "center" },
   shrunk: { transform: [{ scale: 0.96 }] },

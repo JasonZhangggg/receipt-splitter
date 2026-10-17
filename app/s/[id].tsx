@@ -21,11 +21,12 @@ import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet } from "../../src/ui/item-sheet";
 import { AddSheet } from "../../src/ui/item-sheet/add";
-import { PhotoViewer, ReceiptSheet } from "../../src/ui/photo-viewer";
+import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { failedCopy, splitCopy as say } from "../../src/ui/split-copy";
 import { ConnectionNotice } from "../../src/ui/split-view/connection-notice";
 import type { Connection } from "../../src/live/connection";
-import { SplitHeader } from "../../src/ui/split-view/header";
+import { SplitHeader, useSiteShare } from "../../src/ui/split-view/header";
+import { shareLink } from "../../src/ui/share-link";
 import { circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
@@ -49,6 +50,7 @@ export default function SplitScreen() {
   const insets = useSafeAreaInsets();
   const splitId = isRoutableSplitId(id) ? id : null;
   const { live, send, connection } = useLiveSplit(id);
+  const site = useSiteShare();
   const expired = live.status === "gone" && live.reason === "notFound";
   useEffect(() => {
     if (expired && splitId) forgetSplit(splitId);
@@ -58,7 +60,7 @@ export default function SplitScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
-        <SplitHeader />
+        <SplitHeader onShare={site.share} />
         {live.status === "gone" ? (
           <Gone reason={live.reason} />
         ) : (
@@ -67,6 +69,7 @@ export default function SplitScreen() {
           </Text>
         )}
       </View>
+      <Toast message={site.notice} onHide={site.hideNotice} />
     </View>
   );
 }
@@ -93,7 +96,6 @@ type OverlayKind =
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
   | { readonly kind: "history" }
-  | { readonly kind: "receipt" }
   | { readonly kind: "people" }
   | { readonly kind: "pay" }
   | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
@@ -135,9 +137,10 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
   const [bar, setBar] = useState<Bar | null>(null);
-  const [viewing, setViewing] = useState(false);
-  // The viewer needs the photo. If it goes away mid-view the flag drops with it, so it cannot come back when a photo does and Escape keeps closing sheets.
-  if (viewing && !photo) setViewing(false);
+  /** The Receipt link's press while the photo viewer is open: focus goes back there. */
+  const [viewing, setViewing] = useState<Press | null>(null);
+  // The viewer needs the photo. If it goes away mid-view it closes, so it cannot come back when a photo does and Escape keeps closing sheets.
+  if (viewing && !photo) setViewing(null);
   const photoUrl = `/api/splits/${splitId}/photo`;
   useEffect(() => {
     if (photo) Image.prefetch(photoUrl).catch(() => {});
@@ -260,11 +263,8 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   };
 
   const share = async () => {
-    const url = splitUrl(splitId);
-    // A cancelled share sheet rejects, and that is not a failure. Only the copy fallback has a result to show.
-    if (typeof navigator.share === "function") return void (await navigator.share({ url }).catch(() => {}));
-    const copied = await (navigator.clipboard?.writeText(url).then(() => true) ?? Promise.resolve(false)).catch(() => false);
-    setBar({ message: copied ? say.linkCopied : say.copyFailed, over: "footer" });
+    const result = await shareLink(splitUrl(splitId));
+    if (result !== "shared") setBar({ message: result === "copied" ? say.linkCopied : say.copyFailed, over: "footer" });
   };
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
@@ -326,6 +326,10 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
       },
       over: "footer",
     });
+  const photoClosed = () => {
+    if (viewing && (wide || viewing.keyboard || actedByKey()) && viewing.trigger.isConnected) viewing.trigger.focus({ preventScroll: true });
+    setViewing(null);
+  };
   const overlayGone = () => {
     setOverlay(null);
     setClosing(false);
@@ -340,7 +344,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
     trigger?.focus({ preventScroll: true });
   };
   // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay and People sheets close when this phone loses its name.
-  const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null)) || (overlay?.kind === "receipt" && !photo);
+  const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
   // Escape closes the person menu over the People sheet first, and the sheet on the next press.
   useEscape(overlay !== null && !closing && !viewing && (menu === null || menu.closing), closeOverlay);
@@ -440,8 +444,6 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
           {payProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
         </>
       ) : null
-    ) : overlay.kind === "receipt" ? (
-      <ReceiptSheet uri={photoUrl} onOpen={() => setViewing(true)} onClose={closeOverlay} />
     ) : (
       <HistorySheet split={split} me={me} onRevert={(revision) => send({ by: me, type: "undo", revision })} onRestore={() => send({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
@@ -504,7 +506,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
           <SplitIntro
             host={host.name}
             total={money(split.receipt.total)}
-            onReceipt={photo ? (from) => open({ kind: "receipt" }, from) : undefined}
+            onReceipt={photo ? setViewing : undefined}
             onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
             onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
             onHistory={(from) => open({ kind: "history" }, from)}
@@ -536,7 +538,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
       ) : null}
       <ConnectionNotice connection={connection} />
       <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={bar?.over === "sheet" && overlay && !closing ? 12 : footerHeight + 8} />
-      {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={() => setViewing(false)} /> : null}
+      {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={photoClosed} /> : null}
     </View>
   );
 }

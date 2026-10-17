@@ -55,11 +55,20 @@ test("the empty home at 390 px is one sentence with its blanks and actions, and 
   await expect(page.getByRole("button", { name: "Add the receipt" })).toHaveCount(1);
 });
 
-test("the header has only the wordmark and the theme toggle, and Recent splits shows under the sentence only once there are stored splits", async ({ page }) => {
+test("the header has only the wordmark, the coffee icon, the theme toggle and Share, and Recent splits shows under the sentence only once there are stored splits", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await expect(page.getByRole("button", { name: "Switch to dark mode" })).toBeVisible();
-  for (const name of ["Menu", "Share SplitWith", "Example", "Recent splits"]) await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
+  const coffee = page.getByRole("link", { name: "Buy me a coffee" });
+  expect([await coffee.getAttribute("href"), await coffee.getAttribute("target"), await coffee.getAttribute("rel")]).toEqual(["https://venmo.com/u/Jason-Zhang-162", "_blank", "noopener noreferrer"]);
+  // The glyphs sit 32 px apart, the last at the same place as on the Split page.
+  const centers = await page.locator("[data-icon]").evaluateAll((icons) =>
+    icons
+      .filter((icon) => icon.getBoundingClientRect().y < 80 && getComputedStyle(icon.parentElement!).opacity !== "0")
+      .map((icon) => [icon.getAttribute("data-icon"), Math.round(icon.getBoundingClientRect().x + icon.getBoundingClientRect().width / 2)]),
+  );
+  expect(centers).toEqual([["coffee", 292], ["sun", 324], ["share", 356]]);
+  for (const name of ["Menu", "Example", "Recent splits"]) await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Recent splits" })).toHaveCount(0);
   await page.evaluate(() =>
     localStorage.setItem("receipt-splitter:split:AnaBenCy00000000000001", JSON.stringify({ recent: { names: ["Ana", "Ben"], total: 990, added: Date.now(), seen: Date.now() } })),
@@ -407,7 +416,7 @@ test("each icon draws a glyph, hidden from assistive tech, at 390 px", async ({ 
     })),
   );
   const icon = (name: string) => ({ icon: name, hidden: "true", drawn: true });
-  expect(icons).toEqual([icon("sun"), icon("moon"), icon("arrow")]);
+  expect(icons).toEqual([icon("coffee"), icon("sun"), icon("moon"), icon("share"), icon("arrow")]);
 });
 
 test("the payment app picker is a native select that lists the four apps with Venmo first", async ({ page }) => {

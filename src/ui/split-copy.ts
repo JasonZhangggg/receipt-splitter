@@ -11,8 +11,6 @@ export const splitCopy = {
   payments: "Payments",
   receipt: "Receipt",
   receiptPhoto: "Receipt photo",
-  receiptKept: "Kept for 14 days after the split was made.",
-  openPhoto: "Open the receipt photo",
   shareLink: "Share link",
   close: "Close",
   closePick: "Close, just look",
