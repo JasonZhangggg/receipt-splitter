@@ -85,6 +85,15 @@ function weighted(receipt: Receipt<SplitItem>) {
 
 export function computeShares(split: Pick<Split, "receipt" | "participants" | "payments">): Shares {
   const { items, total } = split.receipt;
+  const [host, ...others] = split.participants;
+  // A Split whose Items are all still to be added has nothing to divide: nobody owes yet, and any charge on it is unclaimed.
+  if (items.length === 0) {
+    const paid = (id: ParticipantId) => split.payments.find(({ participantId }) => participantId === id)?.amount ?? cents(0);
+    return {
+      shares: [{ participantId: host.id, share: cents(0) }, ...others.map(({ id }) => ({ participantId: id, share: cents(0), paid: paid(id), owed: cents(-paid(id)) }))],
+      unclaimed: { itemIds: [], total },
+    };
+  }
   const { all, weightOf, denominator } = weighted(split.receipt);
   const parties: Party[] = [null, ...split.participants.map(({ id }) => id)];
   const floored = parties.map((id) => {
@@ -98,7 +107,6 @@ export function computeShares(split: Pick<Split, "receipt" | "participants" | "p
 
   const paidBy = new Map(split.payments.map((payment) => [payment.participantId, payment.amount]));
   const shareFor = (id: ParticipantId) => cents(rounded.get(id) ?? 0);
-  const [host, ...others] = split.participants;
   return {
     shares: [
       { participantId: host.id, share: shareFor(host.id) },
@@ -134,7 +142,8 @@ type Fraction = readonly [numerator: bigint, denominator: bigint];
 
 export function shareBreakdown(split: Pick<Split, "receipt" | "participants" | "payments">, participantId: ParticipantId): ShareBreakdown {
   const { items, adjustments } = split.receipt;
-  const shareIn = (receipt: Receipt<SplitItem>) => computeShares({ ...split, receipt }).shares.find((row) => row.participantId === participantId)?.share ?? 0;
+  if (items.length === 0) return { items: [], adjustments: adjustments.map(({ id, kind, name }) => ({ id, kind, name, portion: cents(0) })), difference: cents(0), share: cents(0) };
+  const shareIn =(receipt: Receipt<SplitItem>) => computeShares({ ...split, receipt }).shares.find((row) => row.participantId === participantId)?.share ?? 0;
   const share = shareIn(split.receipt);
   const itemsSum = items.reduce((total, { price }) => total + price, 0);
   const itemsPart = shareIn({ ...split.receipt, adjustments: [], total: cents(itemsSum) });

@@ -6,11 +6,12 @@ import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 /** One picked photo. Nothing reads it but its identity, which keys the cleaned copy to the scan it came from. */
 export type ReceiptFile = object;
 
-/** A read holds the Receipt Create split link sends, or null when it found no Item, since a Split holds at least one. */
+/** A read holds the Receipt Create split link sends, or null when it found no Item. `notReceipt` is the reader saying the photo shows no receipt. `byHand` is a Host who adds every Item on the Split page. */
 type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
-  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true };
+  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true; readonly notReceipt?: true }
+  | { readonly status: "byHand" };
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
 
@@ -19,7 +20,8 @@ export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[
 
 export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
-  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true }
+  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true; readonly notReceipt?: true }
+  | { readonly type: "byHand" }
   | { readonly type: "created" }
   | { readonly type: "setService"; readonly index: number; readonly service: PaymentService }
   | { readonly type: "setHandle"; readonly index: number; readonly handle: string }
@@ -65,7 +67,9 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     case "reading":
       return { ...draft, scan: { status: "reading", file: action.file } };
     case "read":
-      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.totalUnread && { totalUnread: true as const }) } };
+      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.totalUnread && { totalUnread: true as const }), ...(action.notReceipt && { notReceipt: true as const }) } };
+    case "byHand":
+      return { ...draft, scan: { status: "byHand" } };
     case "created":
       return { ...emptyDraft, handles: draft.handles };
     case "setService":
@@ -199,11 +203,14 @@ export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonl
 
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
+const receiptByHand: Receipt = { items: [], adjustments: [{ id: adjustmentId("tip"), kind: "tip", name: "Tip", amount: cents(0) }], subtotal: cents(0), total: cents(0) };
+
 export function readiness({ scan, handles, host, friends }: Draft): Blocker | Ready {
   if (scan.status === "empty") return note("Add a receipt first.");
   if (scan.status === "reading") return { kind: "reading" };
-  if (!scan.receipt) return note("Couldn't read any items. Try another photo.");
-  const { items, adjustments } = scan.receipt;
+  const receipt = scan.status === "byHand" ? receiptByHand : scan.receipt;
+  if (!receipt) return note(scan.status === "read" && scan.notReceipt ? "That doesn't look like a receipt. Try another photo." : "Couldn't read any items. Try another photo.");
+  const { items, adjustments } = receipt;
   if (items.length > MAX_ITEMS) return note(`A split holds up to ${MAX_ITEMS} items. This receipt has ${items.length}.`);
   // The Tip is always one of the Adjustments sent, so the receipt's own charges get one fewer.
   if (adjustments.length > MAX_ADJUSTMENTS) return note(`A split holds up to ${MAX_ADJUSTMENTS - 1} taxes, fees and discounts. This receipt has ${adjustments.length - 1}.`);
@@ -212,7 +219,7 @@ export function readiness({ scan, handles, host, friends }: Draft): Blocker | Re
     if (problem) return { kind: "badHandle", index, service, problem };
   }
   if (host === null) return { kind: "noName" };
-  return { kind: "ready", receipt: scan.receipt, paymentHandles: filledHandles(handles), names: [host, ...friends] };
+  return { kind: "ready", receipt, paymentHandles: filledHandles(handles), names: [host, ...friends] };
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;

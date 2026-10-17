@@ -173,12 +173,13 @@ async function scanBody(photo: Blob, boxes: readonly TextBox[]): Promise<string 
   return null;
 }
 
-/** Reads the receipt through `POST /api/scan`, or null on any refusal, failure, malformed reply, or no reply within the timeout. */
-export async function readOnServer(photo: Blob, boxes: readonly TextBox[], timeoutMs = SCAN_TIMEOUT_MS): Promise<Receipt | null> {
+/** Reads the receipt through `POST /api/scan`. "notReceipt" is the reader saying the photo shows none. Any other refusal, failure, malformed reply, or no reply within the timeout is null. */
+export async function readOnServer(photo: Blob, boxes: readonly TextBox[], timeoutMs = SCAN_TIMEOUT_MS): Promise<Receipt | "notReceipt" | null> {
   try {
     const body = await scanBody(photo, boxes);
     if (body === null) return null;
     const response = await fetch("/api/scan", { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(timeoutMs) });
+    if (response.status === 422) return (await response.json())?.refused === "notReceipt" ? "notReceipt" : null;
     return response.status === 200 ? receiptOfReply(await response.json()) : null;
   } catch {
     return null;

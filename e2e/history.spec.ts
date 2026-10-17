@@ -57,10 +57,9 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await addNames(page, "Jason", "Sam");
   const sent = page.waitForRequest((request) => request.url().endsWith("/api/splits") && request.method() === "POST");
   await action(page).click();
-  await expect(page.getByText("Link ready.")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("owe")).toBeVisible({ timeout: 30_000 });
   const link = page.url();
   const total = `$${((await sent).postDataJSON().split.receipt.total / 100).toFixed(2)}`;
-  await page.getByRole("button", { name: "Jason", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Your share \$/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Split a receipt" }).click();

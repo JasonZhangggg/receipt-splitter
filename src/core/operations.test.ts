@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { MAX_CENTS, cents, price } from "./money";
+import { pickDevice } from "./pick-device";
 import {
   MAX_CHANGE_BYTES,
   MAX_PARTICIPANT_NAME_LENGTH,
@@ -136,6 +137,13 @@ describe("createSplit", () => {
       revision: 0,
       recentChanges: [],
     });
+  });
+
+  test("a Split can start with no Items, and picks the Host on the creating device", () => {
+    const device = deviceId("abcdefghijklmnop");
+    const result = createSplit({ id: minted, receipt: { items: [], adjustments: [], subtotal: cents(0), total: cents(0) }, participants: [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }], paymentHandles: [], hostDevice: device });
+    if (!result.ok) throw new Error(JSON.stringify(result.rejection));
+    expect([result.split.receipt.items.length, result.split.picks]).toEqual([0, [{ participantId: ann, device: pickDevice(device, minted) }]]);
   });
 
   test("starts with every name the Host typed, after the Host, and no one picked, so the Host picks a name too", () => {

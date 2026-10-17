@@ -403,7 +403,7 @@ const paymentHandles = array(paymentHandle, PAYMENT_SERVICES.length);
 
 function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>, maxItems = MAX_ITEMS) {
   return strict((fields) => ({
-    items: fields.read("items", nonEmpty(itemParser, maxItems)),
+    items: fields.read("items", array(itemParser, maxItems)),
     adjustments: fields.read("adjustments", array(adjustmentParser, MAX_ADJUSTMENTS)),
     subtotal: fields.read("subtotal", cents),
     total: fields.read("total", cents),
@@ -412,10 +412,11 @@ function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>, maxIt
 
 const participants = nonEmpty(participant, MAX_PARTICIPANTS);
 
-const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read }) => ({
+const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read, maybe }) => ({
   receipt: read("receipt", receipt(receiptItem, anyAdjustment)),
   participants: read("participants", participants),
   paymentHandles: read("paymentHandles", paymentHandles),
+  ...maybe("hostDevice", deviceId),
 }));
 
 const createRequest: Parser<CreateSplitRequest> = strict(({ read }) => ({

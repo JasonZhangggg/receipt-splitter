@@ -899,6 +899,8 @@ export type NewSplit = {
   readonly receipt: Receipt;
   readonly participants: Split["participants"];
   readonly paymentHandles: readonly PaymentHandle[];
+  /** The creating browser's device id. It makes the Host's name picked on that browser from the first load. */
+  readonly hostDevice?: DeviceId;
 };
 
 export type CreateSplitRequest = { readonly split: Omit<NewSplit, "id"> };
@@ -931,21 +933,20 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
   const { items, adjustments, subtotal, total } = input.receipt;
   const plain = ({ quantity = 1, ...row }: Item): Item => (quantity === 1 ? row : { ...row, quantity });
   const unclaimed = (item: Item): SplitItem => ({ ...plain(item), split: unclaimedSplit() });
-  const [first, ...rest] = items;
-  const receipt: Receipt<SplitItem> = { items: [unclaimed(first), ...rest.map(unclaimed)], adjustments, subtotal, total };
+  const receipt: Receipt<SplitItem> = { items: items.map(unclaimed), adjustments, subtotal, total };
   const bare: Split = {
     schemaVersion: 4,
     id: input.id,
     currency: "USD",
     receipt,
     participants: input.participants,
-    picks: [],
+    picks: input.hostDevice ? [{ participantId: input.participants[0].id, device: pickDevice(input.hostDevice, input.id) }] : [],
     payments: [],
     paymentHandles: canonicalHandles(input.paymentHandles),
     revision: 0,
     recentChanges: [],
   };
-  const withOriginal: Split = { ...bare, original: { items: [plain(first), ...rest.map(plain)], adjustments, subtotal, total } };
+  const withOriginal: Split = { ...bare, original: { items: items.map(plain), adjustments, subtotal, total } };
   const check = (candidate: Split) => checkSplit(candidate) ?? capRejection(candidate, null);
   const split = check(withOriginal) === null ? withOriginal : bare;
   const rejection = repeatedNames(split.participants) > 0 ? { reason: "nameTaken" as const } : check(split);

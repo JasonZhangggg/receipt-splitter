@@ -24,7 +24,7 @@ async function readyHome(page: Page, names: string[] = []) {
 
 async function createLink(page: Page): Promise<string> {
   await page.getByRole("button", { name: "Create link" }).click();
-  await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
+  await expect(page.getByTestId("owe")).toBeVisible(linkTimeout);
   return page.url();
 }
 
@@ -67,14 +67,13 @@ test("a name that draws nothing adds no name and no note, and removing the name 
   await expect(people.getByRole("button", { name: /^Remove / })).toHaveCount(1);
 });
 
-test("Create link takes the Host to the tall pick sheet, and a second browser sees the Host's name as picked", async ({ page, browser }) => {
+test("Create link opens the Split with the Host already picked, and a second browser sees the Host's name as picked", async ({ page, browser }) => {
   await readyHome(page, ["Sam", "Priya"]);
   const link = await createLink(page);
 
   expect(link).toMatch(/^http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{24}$/);
-  await expect(rows(page)).toHaveText(["Jason", "Sam", "Priya"]);
-  await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByTestId("owe")).toBeVisible();
+  await expect(question(page)).toHaveCount(0);
+  await youAre(page, "Jason");
 
   const sam = await open(browser, link);
   await expect(sam.getByText("Jason invited you to split $28.04")).toBeVisible();
@@ -84,8 +83,6 @@ test("Create link takes the Host to the tall pick sheet, and a second browser se
 test("after the Host picks on a link not yet shared, the bar shows Your share with no link row, and Sam's breakdown has none either", async ({ page }) => {
   await readyHome(page, ["Sam"]);
   await createLink(page);
-  await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByTestId("owe")).toBeVisible();
 
   const footer = page.getByTestId("footer");
   await expect(footer.getByRole("button", { name: "Your share $0.00, Show what you owe" })).toBeVisible();
@@ -107,7 +104,7 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
   context.on("request", (request) => loaded.push(new URL(request.url()).pathname));
   const lee = await context.newPage();
   await lee.goto(link);
-  await expect(rows(lee)).toHaveText(["Jason"]);
+  await expect(rows(lee)).toHaveText(["JasonPicked on another phone"]);
   await lee.getByRole("button", { name: "Not here? Add yourself" }).click();
   await lee.getByRole("textbox", { name: "Your name" }).fill("Lee");
   await lee.getByRole("button", { name: "Join as Lee" }).click();
@@ -133,8 +130,6 @@ test("a browser not on the list adds itself, the Host's home opens fresh with on
 test("the wordmark on the Split page opens a fresh home that keeps the Venmo handle, and the Split stays on this device", async ({ page }) => {
   await readyHome(page);
   const link = await createLink(page);
-  await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByTestId("owe")).toBeVisible();
 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
@@ -167,21 +162,19 @@ test("a reload of home clears the receipt and the names, and the kept Venmo hand
   expect((await sent).postDataJSON().split.paymentHandles).toEqual([{ service: "venmo", handle: "jason-z" }]);
 });
 
-test("without a system share sheet the pick sheet's link has Copy alone", async ({ page }) => {
+test("without a system share sheet, Share link in the header copies the exact link", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
   });
   await readyHome(page);
-  await createLink(page);
-  await expect(question(page)).toBeVisible();
+  const link = await createLink(page);
 
-  expect(await page.evaluate(() => typeof navigator.share)).toBe("undefined");
-  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Share link" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
 });
 
-test("Copy on the pick sheet puts the exact link on the clipboard, and after a pick Share in the header hands it to the system share sheet", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+test("Share link in the header hands the exact link to the system share sheet", async ({ page }) => {
   await page.addInitScript(() => {
     const shared: ShareData[] = [];
     Object.assign(window, { shared });
@@ -189,15 +182,7 @@ test("Copy on the pick sheet puts the exact link on the clipboard, and after a p
   });
   await readyHome(page);
   const link = await createLink(page);
-  await expect(question(page)).toBeVisible();
 
-  await page.getByRole("button", { name: "Copy" }).click();
-  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
-  await expect(page.getByRole("button", { name: "Copied" })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(question(page)).toBeHidden();
   await page.getByRole("button", { name: "Share link" }).click();
   expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: link }]);
 });
@@ -217,7 +202,7 @@ test("a receipt replaced while the link is being created stays on home and finis
   await (await chooser).setFiles("e2e/fixtures/srd-1040-no-sprite.jpg");
   release();
 
-  await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
+  await expect(page.getByTestId("owe")).toBeVisible(linkTimeout);
   await page.goBack();
   await expect(page.getByTestId("receipt")).toContainText("$28.04", linkTimeout);
   await expect(page.getByText("Reading the receipt")).toHaveCount(0);
@@ -243,7 +228,7 @@ test("a refused create shows one reason and enables Create link again", async ({
   await expect(action).not.toHaveAttribute("aria-disabled", "true");
   await page.unroute("**/api/splits");
   await action.click();
-  await expect(page.getByText("Link ready.")).toBeVisible(linkTimeout);
+  await expect(page.getByTestId("owe")).toBeVisible(linkTimeout);
 });
 
 test("only the browser that made the link can change the Venmo handle", async ({ page, browser }) => {
@@ -344,23 +329,24 @@ test("a Split whose socket closes with 4500 says it can't be opened, and stops r
   expect(await sockets()).toBe(1);
 });
 
-test("when the browser refuses to save, a pick holds for the session and tapping an Item does not ask again", async ({ page }) => {
-  await readyHome(page);
+test("when the browser refuses to save, a pick holds for the session and tapping an Item does not ask again", async ({ page, browser }) => {
+  await readyHome(page, ["Sam"]);
   const link = await createLink(page);
-  await page.addInitScript(() => {
+  const sam = await (await newContext(browser)).newPage();
+  await sam.addInitScript(() => {
     Storage.prototype.setItem = () => {
       throw new DOMException("blocked", "QuotaExceededError");
     };
   });
-  await page.goto(link);
-  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
-  await expect(page.getByTestId("owe")).toBeVisible();
-  await expect(question(page)).toHaveCount(0);
+  await sam.goto(link);
+  await sam.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(sam.getByTestId("owe")).toBeVisible();
+  await expect(question(sam)).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sprite, check for Jason" }).click();
-  await expect(page.getByRole("button", { name: /^Open Sprite, \$2\.50, You, \$2\.50 yours$/ })).toBeVisible();
-  await youAre(page, "Jason");
-  await expect(question(page)).toHaveCount(0);
+  await sam.getByRole("button", { name: "Sprite, check for Sam" }).click();
+  await expect(sam.getByRole("button", { name: /^Open Sprite, \$2\.50, You, \$2\.50 yours$/ })).toBeVisible();
+  await youAre(sam, "Sam");
+  await expect(question(sam)).toHaveCount(0);
 });
 
 test("a phone that loses its name to another phone is told once and can take it back", async ({ page, browser }) => {

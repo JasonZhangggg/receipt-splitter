@@ -9,6 +9,7 @@ export const copy = {
   coffee: "Buy me a coffee",
   sentence: {
     paidTheBill: "I paid the bill.",
+    byHand: "I\u2019ll add the items myself.",
     iPaid: "I paid",
     friendsPay: "Friends tap what they had and pay me back",
     on: "on",
@@ -25,6 +26,7 @@ export const copy = {
   },
   addReceipt: "Add the receipt",
   tryAnotherPhoto: "Try another photo",
+  addByHand: "add the items myself",
   readingStage: {
     start: "Reading the receipt",
     text: "Finding the text",
