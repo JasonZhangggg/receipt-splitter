@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { nextNotice, type Connection, type Notice } from "../../live/connection";
-import { useReducedMotion } from "../motion";
+import { awayStyle, useFade, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { easing, layout, motion, type, useColors } from "../theme";
+import { layout, type, useColors } from "../theme";
 
+const rise = { y: 0, scale: 0.97 };
 const words = { offline: say.connection.offline, slow: say.connection.slow };
 
 /** The notice that shows now. It follows `nextNotice`, which holds back a brief drop and keeps a shown notice up through a link that flaps. */
@@ -34,35 +35,22 @@ export function ConnectionNotice({ connection }: { connection: Connection }) {
   const insets = useSafeAreaInsets();
   const notice = useNotice(connection);
   const message = notice === null ? null : words[notice];
-  const [progress] = useState(() => new Animated.Value(0));
+  const pill = useRef<View>(null);
   // The words stay while the line fades out, so it never changes shape on the way out.
   const [shown, setShown] = useState(message);
   if (message && message !== shown) setShown(message);
 
-  useEffect(() => {
-    const animation = Animated.timing(progress, {
-      toValue: message ? 1 : 0,
-      duration: reduce ? motion.reducedFade : message ? motion.toastIn : motion.toastOut,
-      easing: easing.easeOut,
-      useNativeDriver: false,
-    });
-    animation.start(({ finished }) => {
-      if (finished && !message) setShown(null);
-    });
-    return () => animation.stop();
-  }, [message, reduce, progress]);
-
-  const scale = reduce ? 1 : progress.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
+  useFade(pill, message !== null, rise, reduce, () => setShown(null));
 
   return (
     <View role="status" aria-live="polite" pointerEvents="none" style={[styles.anchor, { top: insets.top + 6, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       {shown ? (
         <View style={styles.column}>
-          <Animated.View testID="connection-notice" style={[styles.pill, { backgroundColor: c.field, borderColor: c.hairline, opacity: progress, transform: [{ scale }] }]}>
+          <View ref={pill} testID="connection-notice" style={[styles.pill, { backgroundColor: c.field, borderColor: c.hairline }, !message && awayStyle(rise, reduce)]}>
             <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
               {shown}
             </Text>
-          </Animated.View>
+          </View>
         </View>
       ) : null}
     </View>

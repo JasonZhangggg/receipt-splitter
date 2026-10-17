@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { RecentSplit } from "../device";
 import { money } from "../draft";
-import { scrollViewTouchDelay, type Press } from "./components/button";
+import { scrollViewTouchDelay, useHeld, type Press } from "./components/button";
 import { TextLink } from "./components/text-link";
 import { historyCopy as say } from "./home-copy";
 import { rowsThatFit } from "./recent-fit";
@@ -61,32 +61,35 @@ export function RecentSheet({ splits, now, onClose }: { splits: readonly RecentS
 
 /** Each row shows only what the device keeps: who, when, how many, the total. */
 function Rows({ splits, now }: { splits: readonly RecentSplit[]; now: number }) {
+  return splits.map((split) => <HistoryRow key={split.id} split={split} now={now} />);
+}
+
+function HistoryRow({ split: { id, names, you, total, added }, now }: { split: RecentSplit; now: number }) {
   const c = useColors();
-  return splits.map(({ id, names, you, total, added }) => {
-    const who = say.names(names.filter((_, place) => place !== you));
-    const when = say.when(added, now);
-    const people = say.people(names.length);
-    const amount = money(total);
-    return (
-      <Link key={id} href={`/s/${id}`} asChild>
-        <Pressable {...web} aria-label={say.row(who, when, people, amount)} style={{ borderBottomWidth: 1, borderBottomColor: c.hairline }}>
-          {({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => (
-            <View style={[styles.row, pressed || hovered ? [fillIn, { backgroundColor: c.hairline }] : fillOut]}>
-              <View style={styles.text}>
-                <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
-                  {who}
-                </Text>
-                <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
-                  {say.meta(when, people)}
-                </Text>
-              </View>
-              <Text style={[type.body, tabular, { color: c.ink }]}>{amount}</Text>
+  const { held, press, release } = useHeld();
+  const who = say.names(names.filter((_, place) => place !== you));
+  const when = say.when(added, now);
+  const people = say.people(names.length);
+  const amount = money(total);
+  return (
+    <Link href={`/s/${id}`} asChild>
+      <Pressable {...web} onPressIn={press} onPressOut={release} aria-label={say.row(who, when, people, amount)} style={{ borderBottomWidth: 1, borderBottomColor: c.hairline }}>
+        {({ hovered }: { pressed: boolean; hovered?: boolean }) => (
+          <View style={[styles.row, held || hovered ? [fillIn, { backgroundColor: c.hairline }] : fillOut]}>
+            <View style={styles.text}>
+              <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
+                {who}
+              </Text>
+              <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
+                {say.meta(when, people)}
+              </Text>
             </View>
-          )}
-        </Pressable>
-      </Link>
-    );
-  });
+            <Text style={[type.body, tabular, { color: c.ink }]}>{amount}</Text>
+          </View>
+        )}
+      </Pressable>
+    </Link>
+  );
 }
 
 const styles = StyleSheet.create({
