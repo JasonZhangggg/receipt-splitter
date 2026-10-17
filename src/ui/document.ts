@@ -54,9 +54,6 @@ export function installDocument() {
 
   const live = () => document.documentElement.setAttribute("data-icons-live", "");
   for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, live, { capture: true, once: true });
-
-  const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-  if (viewport && !viewport.content.includes("viewport-fit")) viewport.content += ", viewport-fit=cover";
 }
 
 /** Does at runtime what the script in public/index.html does before the first paint. With no pick, each theme-color tag goes back to its own scheme's color. */

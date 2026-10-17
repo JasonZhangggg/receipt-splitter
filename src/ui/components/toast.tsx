@@ -1,14 +1,15 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { pressStyle, useReducedMotion, webStyle } from "../motion";
-import { easing, layout, motion, type, useColors } from "../theme";
+import { awayStyle, pressStyle, useFade, useReducedMotion, webStyle } from "../motion";
+import { layout, type, useColors } from "../theme";
 import { PressTarget } from "./button";
 import { underline } from "./text-link";
 import { hideAfter } from "./hide-timer";
 
 const visibleFor = 4000;
+const rise = { y: 8, scale: 0.98 };
 // The toast is ink-colored, so its focus ring is drawn in the field color.
 const ring = (color: string) => webStyle({ "--focus": color } as never);
 // The toast sits above the home panel, so it rides the panel's keyboard lift.
@@ -25,7 +26,6 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
-  const [progress] = useState(() => new Animated.Value(0));
   const [shown, setShown] = useState(message);
   // While the bar fades out its Undo stays, so the bar does not change shape on the way out.
   const [shownAction, setShownAction] = useState(action);
@@ -39,18 +39,7 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   // Where focus was before it moved into the toast, so it can go back when the toast leaves.
   const before = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    const animation = Animated.timing(progress, {
-      toValue: message ? 1 : 0,
-      duration: reduce ? motion.reducedFade : message ? motion.toastIn : motion.toastOut,
-      easing: easing.easeOut,
-      useNativeDriver: false,
-    });
-    animation.start(({ finished }) => {
-      if (finished && !message) setShown(null);
-    });
-    return () => animation.stop();
-  }, [message, reduce, progress]);
+  useFade(bar, message !== null, rise, reduce, () => setShown(null));
 
   useEffect(() => {
     if (message) return hideAfter(visibleFor, () => hide(), undefined, (bar.current as unknown as HTMLElement | null) ?? undefined);
@@ -76,13 +65,10 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
     if (element?.contains(document.activeElement) && back?.isConnected && !back.closest("[inert]")) back.focus({ preventScroll: true });
   }, [message]);
 
-  const translateY = reduce ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
-  const scale = reduce ? 1 : progress.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] });
-
   return (
     <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: 16 + (lift || insets.bottom) }]}>
       {shown ? (
-        <Animated.View ref={bar} style={[styles.toast, ring(c.field), { backgroundColor: c.ink, opacity: progress, transform: [{ translateY }, { scale }] }]}>
+        <View ref={bar} style={[styles.toast, ring(c.field), { backgroundColor: c.ink }, !message && awayStyle(rise, reduce)]}>
           <Text style={[type.caption, styles.message, { color: c.field }]}>{shown}</Text>
           {showing ? (
             <PressTarget onPress={showing.onPress} outsideScroll style={(pressed) => [styles.action, pressStyle(pressed, reduce)]}>
@@ -93,7 +79,7 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
               )}
             </PressTarget>
           ) : null}
-        </Animated.View>
+        </View>
       ) : null}
     </View>
   );
