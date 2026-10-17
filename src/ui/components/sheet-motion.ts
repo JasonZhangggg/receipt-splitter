@@ -30,11 +30,18 @@ export function leaveFor(distance: number): number {
   return Math.round(Math.max(leaveMs, Math.abs(distance) * 0.55));
 }
 
+/** A finger easing along slower than this (px/s) carries no momentum past the release. A deliberate drag stays where it is let go; only a flick coasts, and only by its speed beyond this. */
+const flickFrom = 200;
+
+function coast(velocity: number): number {
+  return Math.sign(velocity) * Math.max(0, Math.abs(velocity) - flickFrom);
+}
+
 export type Snap = "close" | "tall" | "rest" | "stay";
 
 /** Where a released snapping sheet goes, from how far it is below the rest snap (px, negative above it), its speed (px/s, down is positive), whether it started tall and how far tall sits above rest. Like a detent, a pull down from tall lands at rest; only a pull past `closeDistance` below rest closes. */
 export function snapFor(fromRest: number, velocity: number, tall: boolean, tallAbove: number): Snap {
-  const projected = fromRest + project(velocity);
+  const projected = fromRest + project(coast(velocity));
   if (projected > closeDistance) return "close";
   if (tall && projected + tallAbove > snapAt) return "rest";
   if (!tall && projected < -snapAt) return "tall";
