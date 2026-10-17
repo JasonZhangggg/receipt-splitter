@@ -194,7 +194,7 @@ export function itemParts(split: Pick<Split, "receipt" | "participants" | "payme
   return order(parts.map(({ participantId, cents }) => ({ participantId, cents: shareBreakdown(shown, participantId).items.find(({ id }) => id === item.id)?.portion ?? cents })));
 }
 
-export function lineAmounts({ price, split }: SplitItem): { readonly participantId: ParticipantId; readonly cents: number }[] {
+export function lineAmounts<Line extends Pick<SplitItem, "price" | "split">>({ price, split }: Line): { readonly participantId: ParticipantId; readonly cents: number }[] {
   if (split.by === "amount") return split.units[0].map(([participantId, cents]) => ({ participantId, cents }));
   const weights = split.by === "even" ? split.units[0].map((id): [ParticipantId, number] => [id, 1]) : split.units[0];
   const total = weights.reduce((sum, [, weight]) => sum + weight, 0);

@@ -14,7 +14,7 @@ import type { Colors } from "../colors";
 import { layout, motion, type, useColors } from "../theme";
 import { slices, ring } from "./donut-model";
 import { DonutRing } from "./donut-ring";
-import { paymentStatus, pickedRow, viewerFirst, type PaymentRow } from "./model";
+import { foldedRows, hostCollected, paymentStatus, pickedRow, viewerFirst, type PaymentRow } from "./model";
 import { firstName } from "./pay-sheet";
 import { SheetHeader } from "../split-view/sheet-header";
 
@@ -30,7 +30,10 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const room = useLayoutHeight() - insets.top - 38 - sheetChrome - insets.bottom;
   const [fixed, setFixed] = useState(0);
   const [tapped, setTapped] = useState<ParticipantId | null>(null);
-  const picked = pickedRow(rows, tapped, me);
+  const { shown, quiet } = foldedRows(rows, me);
+  const picked = pickedRow(shown, tapped, me);
+  const collected = picked.isHost ? hostCollected(rows, split.payments) : null;
+  const host = collected !== null && collected.owed > 0;
   const edge = sheet ? layout.gutter + insets.right : rowEdge;
   const total = split.receipt.total;
   const unclaimed = shares.unclaimed.total;
@@ -53,14 +56,14 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         ) : null}
         {total > 0 ? (
           <View role="img" aria-label={label} style={styles.ring}>
-            <DonutRing slices={slices(shares)} paint={(id) => (id === picked.id ? c.ink : c.dot)} track={c.hairline} />
-            <View aria-hidden style={[styles.center, !reduce && centerIn]}>
-              <Text style={[type.hero, styles.tabular, { color: c.ink }]}>{money(picked.share)}</Text>
+            <DonutRing slices={slices(shares)} paint={(id) => (id === picked.id ? c.ink : c.dot)} track={c.hairline} onPick={setTapped} />
+            <View aria-hidden pointerEvents="none" style={[styles.center, !reduce && centerIn]}>
+              <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(host ? collected.paid : picked.share)}</Text>
               <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
-                {picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))}
+                {host ? (picked.id === me ? say.ring.paidYou : say.ring.paidHost(firstName(picked.name))) : picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))}
               </Text>
               <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
-                {say.ring.of(money(total))}
+                {say.ring.of(money(host ? collected.owed : total))}
               </Text>
             </View>
           </View>
@@ -73,7 +76,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         style={[{ marginRight: -edge }, contain, sheet && { maxHeight: Math.max(minList, room - fixed - layout.pairGap) }]}
         contentContainerStyle={{ paddingRight: edge }}
       >
-        {viewerFirst(rows, me).map(({ id, name, share, state, words }) => {
+        {viewerFirst(shown, me).map(({ id, name, share, state, words }) => {
           const on = id === picked.id;
           return (
             <View key={id} role="listitem" {...{ dataSet: { state } }}>
@@ -103,6 +106,11 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
             </View>
           );
         })}
+        {quiet.length > 0 ? (
+          <Text testID="owes-nothing" style={[type.caption, styles.quiet, { color: c.muted, borderTopColor: c.hairline }]}>
+            {say.ring.owesNothing(quiet.map(({ name }) => firstName(name)))}
+          </Text>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -138,5 +146,6 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6 },
   name: { flexShrink: 1 },
   sub: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 22 },
+  quiet: { paddingVertical: 14, borderTopWidth: 1 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });

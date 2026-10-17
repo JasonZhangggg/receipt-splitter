@@ -14,7 +14,7 @@ import { failedCopy, splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
 import { bundleNote, itemParts, lineAmounts, nameParts, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
-import { amountStatus } from "./amount-status";
+import { amountStatus, suggestedAmounts } from "./amount-status";
 import { readAmount } from "./new-item";
 import { viewerFirst } from "../pay/model";
 import { SheetHeader } from "../split-view/sheet-header";
@@ -296,18 +296,26 @@ export function ItemSheet({ split: current, itemId, me, send, onClose, onNote, o
     edit({ values: [{ participantId, value: cents }] });
     setRefills(new Map([...refills, [participantId, (refills.get(participantId) ?? 0) + 1]]));
   };
+  const accept = (all: readonly { participantId: ParticipantId; cents: number }[]) => {
+    forget((field) => field !== "price");
+    edit({ values: all.map(({ participantId, cents }) => ({ participantId, value: cents })) });
+    setRefills(new Map([...refills, ...all.map(({ participantId }): [ParticipantId, number] => [participantId, (refills.get(participantId) ?? 0) + 1])]));
+  };
   const splitLine = () => {
     const [first, ...rest] = splitIds(split.receipt, item);
     if (!first || leavingFrom) return;
     flush();
     leave({ by: me, type: "editReceipt", items: [{ type: "split", itemId, ids: [first, ...rest] }] });
   };
-  const body = (shownItem: SplitItem, shownParts: Typed, as: Typed, editable: boolean) => (
-    <>
-      <SplitRows key={editable ? fields : undefined} item={shownItem} parts={shownParts} nameOf={nameOf} me={me} edit={editable ? edit : noEdit} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} />
-      <StatusLine item={shownItem} typed={as} last={editable ? lastTyped : null} unsaved={editable && unsaved} attempted={editable && held} nameOf={nameOf} onFill={editable ? fill : undefined} />
-    </>
-  );
+  const body = (shownItem: SplitItem, shownParts: Typed, as: Typed, editable: boolean) => {
+    const suggested = shownItem.split.by === "amount" && !held ? suggestedAmounts(shownItem.price, as, editable ? lastTyped : null) : null;
+    return (
+      <>
+        <SplitRows key={editable ? fields : undefined} item={shownItem} parts={shownParts} nameOf={nameOf} me={me} edit={editable ? edit : noEdit} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} suggested={suggested} />
+        <StatusLine item={shownItem} typed={as} last={editable ? lastTyped : null} unsaved={editable && unsaved} attempted={editable && held} nameOf={nameOf} onFill={editable ? fill : undefined} suggested={suggested} onAccept={editable ? accept : undefined} />
+      </>
+    );
+  };
 
   return (
     <View style={styles.sheet} pointerEvents={leavingFrom ? "none" : "auto"}>
@@ -439,9 +447,11 @@ type SplitRowsProps = {
   edit: (next: ItemEdit) => void;
   typedAmount: (field: ParticipantId, text: string) => Cents | null;
   refills: ReadonlyMap<ParticipantId, number>;
+  /** The even split offered in the empty amount fields as muted placeholders; the Split holds none of it. */
+  suggested: readonly { participantId: ParticipantId; cents: number }[] | null;
 };
 
-function SplitRows({ item, parts, nameOf, me, edit, typedAmount, refills }: SplitRowsProps) {
+function SplitRows({ item, parts, nameOf, me, edit, typedAmount, refills, suggested }: SplitRowsProps) {
   const c = useColors();
   return (
     <>
@@ -465,7 +475,7 @@ function SplitRows({ item, parts, nameOf, me, edit, typedAmount, refills }: Spli
                   width={88}
                   reach={240}
                   defaultValue={amount === 0 ? "" : plainAmount(amount)}
-                  placeholder={plainAmount(0)}
+                  placeholder={plainAmount(suggested?.find((each) => each.participantId === participantId)?.cents ?? 0)}
                   onChangeText={(text) => {
                     const read = typedAmount(participantId, text.trim() === "" ? "0" : text);
                     if (read !== null) edit({ values: [value(read)] });
@@ -488,10 +498,10 @@ function amountProblem(field: AmountField, problem: "price" | "overLimit"): stri
   return problem === "price" ? say.adjustmentProblem.amount : say.adjustmentProblem.overLimit(maxAmount);
 }
 
-type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; unsaved: boolean; /** The user tried to close with the amounts not adding up. */ attempted: boolean; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void };
+type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; unsaved: boolean; /** The user tried to close with the amounts not adding up. */ attempted: boolean; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void; suggested: readonly { participantId: ParticipantId; cents: number }[] | null; onAccept?: (all: readonly { participantId: ParticipantId; cents: number }[]) => void };
 
 /** Where the split stands: a tick when it adds up, a warning with the gap when a By amount split does not. */
-function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill }: StatusProps) {
+function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill, suggested, onAccept }: StatusProps) {
   const c = useColors();
   const people = lineAmounts(item).length;
   const amounts = item.split.by === "amount" && people > 0 ? amountStatus(item.price, typed, last) : null;
@@ -499,7 +509,9 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill }: S
   const fresh = amounts?.by === "left" && amounts.assigned === 0 && last === null && !attempted;
   const off = amounts !== null && amounts.by !== "exact" && !fresh;
   const words =
-    people === 0
+    suggested
+      ? say.suggestedEven
+      : people === 0
       ? say.nobodyHasThis
       : amounts === null
         ? say.peopleLine(people, money(item.price))
@@ -508,7 +520,7 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill }: S
           : amounts.by === "over"
             ? say.overThePrice(money(amounts.over))
             : say.leftToAssign(money(amounts.left));
-  const fillWith = amounts !== null && amounts.by !== "exact" ? amounts.fill : null;
+  const fillWith = amounts !== null && amounts.by !== "exact" && !suggested ? amounts.fill : null;
   return (
     <View style={styles.status}>
       <View style={styles.statusWords}>
@@ -518,6 +530,7 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill }: S
         </Text>
         {unsaved && !fresh ? <Text style={[type.caption, { color: c.warn }]}>{say.notSaved}</Text> : null}
       </View>
+      {suggested && onAccept ? <TextLink label={say.useSuggested} name={say.useSuggestedName} outsideScroll onPress={() => onAccept(suggested)} /> : null}
       {fillWith && onFill ? <TextLink label={say.giveTheRest(nameOf(fillWith.participantId))} name={say.giveTheRestName(nameOf(fillWith.participantId), money(fillWith.cents))} outsideScroll onPress={() => onFill(fillWith.participantId, fillWith.cents)} /> : null}
     </View>
   );

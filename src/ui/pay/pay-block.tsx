@@ -87,8 +87,8 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
           </MethodPicker>
         ) : null}
       </View>
-      {/* One app and handle per line, each joined by a no-break space, so a line never ends on a separator or splits a handle. */}
-      <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((each) => `${paymentApps[each.service].name}\u00a0${handleText(each)}`).join("\n")}</Text>
+      {/* The app and its handle joined by a no-break space, so the line never splits a handle. Only the chosen app's: the picker holds the others. */}
+      <Text style={[type.caption, styles.handles, { color: c.muted }]}>{`${app.name}\u00a0${handleText(handle)}`}</Text>
       {problem ? <Text style={[type.caption, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );

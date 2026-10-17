@@ -162,7 +162,7 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
   await expect(breakdown(sam).getByText("Left to pay", { exact: true })).toBeVisible();
   await expect(breakdown(sam).getByTestId("left-to-pay")).toHaveText("$16.00");
   await breakdown(sam).getByRole("button", { name: "I paid the rest" }).click();
-  await expect(sam.getByRole("status").getByText("Marked $30.20 as paid")).toBeVisible(live);
+  await expect(sam.getByRole("status").getByText("Marked $16.00 as paid")).toBeVisible(live);
   await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
 
   await sam.getByRole("button", { name: "Undo" }).click();
@@ -246,12 +246,18 @@ test("Sam's one pay pill switches among Jason's four apps, links each at his $14
   await expect(pills).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=14.20&note=Receipt%20split");
   await expect(pills).toHaveAttribute("target", "_blank");
   await expect(pills).toHaveAttribute("rel", "noopener noreferrer");
-  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z Cash App\u00a0$jasonz PayPal\u00a0jasonzhang Zelle\u00a0jason@example.com")).toBeVisible();
+  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z", { exact: true })).toBeVisible();
+  const handles = () => breakdown(sam).evaluate((node) => node.textContent ?? "");
+  expect(await handles()).toContain("Venmo\u00a0@jason-z");
+  for (const other of ["Cash App\u00a0", "PayPal\u00a0", "Zelle\u00a0"]) expect(await handles()).not.toContain(other);
   await expect(breakdown(sam).getByText("·")).toHaveCount(0);
 
   await app.selectOption("cashApp");
   await expect(pills).toHaveAccessibleName("Pay Jason $14.20 on Cash App");
   await expect(pills).toHaveAttribute("href", "https://cash.app/$jasonz/14.20");
+  await expect(breakdown(sam).getByText("Cash App\u00a0$jasonz", { exact: true })).toBeVisible();
+  expect(await handles()).toContain("Cash App\u00a0$jasonz");
+  expect(await handles()).not.toContain("Venmo\u00a0");
   await app.selectOption("paypal");
   await expect(pills).toHaveAccessibleName("Pay Jason $14.20 on PayPal");
   await expect(pills).toHaveAttribute("href", "https://paypal.me/jasonzhang/14.20USD");
@@ -554,4 +560,90 @@ test("an Undo bar over an open sheet rides the sheet's bottom lift, not the foot
   await sam.waitForTimeout(500);
   const box = (await sam.getByRole("status").filter({ has: bar }).boundingBox())!;
   expect(844 - (box.y + box.height)).toBeLessThan(40);
+});
+
+test("Payments folds everyone who owes $0.00 into one muted line, in light and dark", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await expect(owe(sam)).toHaveText("$14.20", live);
+
+  await fromMore(sam, "Payments");
+  await expect(paymentsList(sam).getByRole("listitem")).toHaveText([/^Sam/, /^Jason/]);
+  await expect(paymentRow(sam, "Priya")).toHaveCount(0);
+  const line = sam.getByTestId("owes-nothing");
+  await expect(line).toHaveText("Priya owes nothing.");
+  const ink = (scheme: "light" | "dark") => sam.emulateMedia({ colorScheme: scheme }).then(() => line.evaluate((node) => getComputedStyle(node).color));
+  expect(await ink("light")).toBe("rgb(115, 115, 115)");
+  await expect.poll(() => ink("dark")).toBe("rgb(153, 153, 153)");
+});
+
+test("the Host's ring in Payments says what friends paid the Host out of what friends owe, not Your part", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  const jason = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await pick(jason, "Jason");
+  await circle(sam, "Pho", "Sam").click();
+  await circle(priya, "Tea", "Priya").click();
+  await expect(owe(sam)).toHaveText("$14.20", live);
+  await expect(owe(priya)).toHaveText("$16.00", live);
+
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await fromMore(jason, "Payments");
+  const dialog = jason.getByRole("dialog", { name: "Payments" });
+  const hostRow = paymentsList(jason).getByRole("button", { name: /^Jason, you, / });
+  await expect(hostRow).toHaveAttribute("aria-pressed", "true");
+  await expect(dialog.getByTestId("ring-amount")).toHaveText("$14.20", live);
+  await expect(dialog.getByText("paid you", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("of $30.20", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Your part", { exact: true })).toHaveCount(0);
+
+  await fromMore(priya, "Payments");
+  await paymentsList(priya).getByRole("button", { name: /^Jason, / }).click();
+  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("paid Jason", { exact: true })).toBeVisible();
+  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("of $30.20", { exact: true })).toBeVisible();
+});
+
+test("a tap on the ring's arc picks that person like their row, and a tap on the gap or the hole does nothing", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await circle(sam, "Pho", "Sam").click();
+  await circle(priya, "Tea", "Priya").click();
+  await expect(owe(priya)).toHaveText("$16.00", live);
+  await expect(owe(sam)).toHaveText("$14.20", live);
+
+  await fromMore(priya, "Payments");
+  const dialog = priya.getByRole("dialog", { name: "Payments" });
+  const samRow = paymentsList(priya).getByRole("button", { name: /^Sam, / });
+  const priyaRow = paymentsList(priya).getByRole("button", { name: /^Priya, you, / });
+  await expect(priyaRow).toHaveAttribute("aria-pressed", "true");
+  await priya.waitForTimeout(1200);
+  const svg = dialog.locator('svg[width="168"]');
+  expect(await svg.getAttribute("aria-hidden")).toBe("true");
+  // Sam's arc runs from 12 o'clock over 14.20 of the 44.20 total, Priya's over the next 16.00; taps land on the band's middle (radius 80 of 168).
+  const tapAt = async (turn: number, radius: number) => {
+    const box = (await svg.boundingBox())!;
+    const angle = 2 * Math.PI * turn;
+    await priya.mouse.click(box.x + box.width / 2 + radius * Math.sin(angle), box.y + box.height / 2 - radius * Math.cos(angle));
+  };
+  await tapAt(1420 / 4420 / 2, 80);
+  await expect(samRow).toHaveAttribute("aria-pressed", "true");
+  await expect(priyaRow).toHaveAttribute("aria-pressed", "false");
+  await expect(dialog.getByText("Sam's part", { exact: true })).toBeVisible();
+  await expect(dialog.getByTestId("ring-amount")).toHaveText("$14.20");
+
+  await tapAt(0.1, 40);
+  await tapAt(0.1, 0);
+  await expect(samRow).toHaveAttribute("aria-pressed", "true");
+  await tapAt((1420 + 1600 / 2) / 4420, 80);
+  await expect(priyaRow).toHaveAttribute("aria-pressed", "true");
+  await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
 });

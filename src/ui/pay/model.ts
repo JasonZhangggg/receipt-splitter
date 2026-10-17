@@ -101,3 +101,23 @@ export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: re
 export function pickedRow<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], picked: ParticipantId | null, viewer: ParticipantId | null): Row {
   return rows.find(({ id }) => id === picked) ?? rows.find(({ id }) => id === viewer) ?? rows[0];
 }
+
+/** What friends paid the Host out of what friends owe them: the Host's ring says "paid you of owed" instead of the Host's own part. Payments count as recorded, so an overpayment shows as more than owed. */
+export function hostCollected(rows: readonly PaymentRow[], payments: Split["payments"]): { readonly paid: Cents; readonly owed: Cents } {
+  const friends = rows.filter(({ isHost }) => !isHost);
+  const owed = friends.reduce((sum, { share }) => sum + share, 0);
+  const ids = new Set(friends.map(({ id }) => id));
+  const paid = payments.filter(({ participantId }) => ids.has(participantId)).reduce((sum, { amount }) => sum + amount, 0);
+  return { paid: cents(paid), owed: cents(owed) };
+}
+
+/** People other than the Host and the viewer who owe $0.00 and paid nothing, which Payments folds into one line instead of a row each. */
+export function foldedRows<Row extends Pick<PaymentRow, "id" | "state">>(rows: readonly Row[], viewer: ParticipantId | null): { readonly shown: Row[]; readonly quiet: Row[] } {
+  const quiet = rows.filter(({ id, state }) => state === "nothing" && id !== viewer);
+  return { shown: rows.filter((row) => !quiet.includes(row)), quiet };
+}
+
+/** What a payment just made adds: the Share less what was already paid, so "I paid the rest" names the rest and not the running total. */
+export function justPaid(share: Cents, before: Cents | null): Cents {
+  return cents(share - (before ?? 0));
+}
