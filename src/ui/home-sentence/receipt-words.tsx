@@ -33,8 +33,7 @@ export function ReceiptWords({ state, onChoose }: { state: ReceiptState; onChoos
     case "empty":
       return (
         <>
-          <Words>{copy.sentence.paidTheBill}</Words> <Act label={copy.addReceipt} onPress={onChoose} />
-          .
+          <Words>{copy.sentence.paidTheBill}</Words> <Act label={copy.addReceipt} onPress={onChoose} then="." />
         </>
       );
     case "reading":
@@ -54,18 +53,17 @@ export function ReceiptWords({ state, onChoose }: { state: ReceiptState; onChoos
       if (state.total === null)
         return (
           <Text ref={clause} testID="receipt" {...landing} {...(arrived === "read" ? null : stepIn)}>
-            <Words>{copy.sentence.paidTheBill}</Words> <Act label={copy.tryAnotherPhoto} onPress={onChoose} />
-            .
+            <Words>{copy.sentence.paidTheBill}</Words> <Act label={copy.tryAnotherPhoto} onPress={onChoose} then="." />
           </Text>
         );
       return (
-        <Text ref={clause} testID="receipt" {...landing} {...(arrived === "read" ? null : stepIn)}>
+        <Text ref={clause} testID="receipt" {...landing}>
           <Words>{copy.sentence.iPaid}</Words>{" "}
-          <Text style={tabular}>
+          {/* Only the amount is new; "I paid" and "Change" were there as words already. */}
+          <Text style={tabular} {...(arrived === "read" ? null : stepIn)}>
             <Words ink>{money(state.total)}</Words>
           </Text>
-          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} />
-          .
+          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." />
         </Text>
       );
   }

@@ -28,7 +28,9 @@ export function PayWords({ handles, dispatch, inputs }: Props) {
       <Words>{copy.sentence.friendsPay}</Words>
       {handles.map(({ service, handle }, index) => {
         const app = paymentApps[service];
-        const atEnd = index === handles.length - 1 && !roomForAnotherApp(handles);
+        const last = index === handles.length - 1;
+        // The last handle ends the clause with a period, or leads into ", or add an app."; either way it stays with the field.
+        const then = last ? (roomForAnotherApp(handles) ? "," : ".") : undefined;
         const choices = PAYMENT_SERVICES.filter((choice) => choice === service || !handles.some((row) => row.service === choice));
         const word = <AppWord service={service} choices={choices} onPick={(next) => dispatch({ type: "setService", index, service: next })} />;
         const field = (
@@ -36,6 +38,7 @@ export function PayWords({ handles, dispatch, inputs }: Props) {
             ref={(input) => {
               inputs.current[index] = input;
             }}
+            then={then}
             aria-label={`${app.name} handle`}
             value={handle}
             placeholder={app.hint}
@@ -56,24 +59,23 @@ export function PayWords({ handles, dispatch, inputs }: Props) {
               {several ? <Remove name={copy.removeApp(app.name)} others={handles.length > 2} fallback={copy.addAppName} onAppWord onPress={() => dispatch({ type: "removeHandle", index })} /> : null}
             </Text>{" "}
             <Words>{copy.sentence.at}</Words>{" "}
-            {atEnd ? <Text style={nowrap}>{field}.</Text> : field}
+            {field}
           </Fragment>
         );
       })}
       {roomForAnotherApp(handles) ? (
         <>
-          , <Words>{copy.sentence.or}</Words>{" "}
-          <Text style={nowrap}>
-            <Act
-              label={copy.sentence.addApp}
-              name={copy.addAppName}
-              onPress={() => {
-                adding.current = true;
-                dispatch({ type: "addHandle" });
-              }}
-            />
-            .
-          </Text>
+          {" "}
+          <Words>{copy.sentence.or}</Words>{" "}
+          <Act
+            label={copy.sentence.addApp}
+            name={copy.addAppName}
+            then="."
+            onPress={() => {
+              adding.current = true;
+              dispatch({ type: "addHandle" });
+            }}
+          />
         </>
       ) : null}
     </>

@@ -6,12 +6,13 @@ import { emptyDraft, readiness, reduceDraft, type Draft, type DraftAction } from
 import { blockerText, historyCopy } from "./home-copy";
 
 describe("a recent split's row", () => {
-  test("names up to three people, then counts the rest", () => {
-    expect([["Jason"], ["Jason", "Sam"], ["Jason", "Sam", "Priya"], ["Jason", "Sam", "Priya", "Ana", "Ben"]].map(historyCopy.names)).toEqual([
-      "Jason",
-      "Jason and Sam",
-      "Jason, Sam, and Priya",
-      "Jason, Sam, and 3 more",
+  test("names who else was there, two at most, and counts the rest", () => {
+    expect([[], ["Sam"], ["Bin", "lei"], ["bob", "Ann", "Cy"], ["bob", "a", "b", "c", "d"]].map(historyCopy.names)).toEqual([
+      "Just you",
+      "With Sam",
+      "With Bin and lei",
+      "With bob and 2 more",
+      "With bob and 4 more",
     ]);
   });
 

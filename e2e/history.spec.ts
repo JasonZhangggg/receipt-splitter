@@ -18,21 +18,22 @@ test.beforeEach(async ({ context }, testInfo) => {
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date("2026-10-04T12:00:00-07:00").getTime();
 
-type Stored = { id: string; names: string[]; total: number; added: number; seen?: number };
+/** `you` is this device's place in `names`; a record from before the device kept it has none, and lists everyone. */
+type Stored = { id: string; names: string[]; you?: number; total: number; added: number; seen?: number };
 
-const ana: Stored = { id: "AnaBenCy00000000000001", names: ["Ana", "Ben", "Cy", "Dee"], total: 990, added: now - 3 * DAY };
-const jason: Stored = { id: "JasonSam00000000000002", names: ["Jason", "Sam"], total: 4210, added: now - 2 * 60 * 60 * 1000 };
-const priya: Stored = { id: "PriyaJo000000000000003", names: ["Priya", "Jo"], total: 12875, added: now - DAY - 60_000 };
-const kim: Stored = { id: "KimLee00000000000000004", names: ["Kim", "Lee"], total: 3100, added: now - 5 * DAY };
-const omar: Stored = { id: "OmarNia0000000000000005", names: ["Omar"], total: 560, added: now - 6 * DAY };
-const lin: Stored = { id: "LinOnly0000000000000006", names: ["Lin"], total: 1400, added: now - 14 * DAY };
+const ana: Stored = { id: "AnaBenCy00000000000001", names: ["Ana", "Ben", "Cy", "Dee"], you: 0, total: 990, added: now - 3 * DAY };
+const jason: Stored = { id: "JasonSam00000000000002", names: ["Jason", "Sam"], you: 0, total: 4210, added: now - 2 * 60 * 60 * 1000 };
+const priya: Stored = { id: "PriyaJo000000000000003", names: ["Priya", "Jo"], you: 1, total: 12875, added: now - DAY - 60_000 };
+const kim: Stored = { id: "KimLee00000000000000004", names: ["Kim", "Lee"], you: 0, total: 3100, added: now - 5 * DAY };
+const omar: Stored = { id: "OmarNia0000000000000005", names: ["Omar"], you: 0, total: 560, added: now - 6 * DAY };
+const lin: Stored = { id: "LinOnly0000000000000006", names: ["Lin"], you: 0, total: 1400, added: now - 14 * DAY };
 const max: Stored = { id: "MaxIvy00000000000000007", names: ["Max", "Ivy"], total: 7700, added: now - 24 * DAY };
 
 async function seed(page: Page, splits: Stored[]) {
   await page.clock.setFixedTime(now);
   await page.goto("/");
   await page.evaluate((splits) => {
-    for (const { id, names, total, added, seen } of splits) localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { names, total, added, seen: seen ?? added } }));
+    for (const { id, names, you, total, added, seen } of splits) localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { names, you, total, added, seen: seen ?? added } }));
   }, splits);
   await page.reload();
   await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
@@ -66,7 +67,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, 2 people, ${total}`);
+  await expect(rows(page).first()).toHaveAccessibleName(`With Sam, Today, 2 people, ${total}`);
   await rows(page).first().click();
   await expect(page).toHaveURL(link);
   await expect(page.getByRole("button", { name: /^Your share \$/ })).toBeVisible({ timeout: 30_000 });
@@ -79,17 +80,17 @@ test("Recent splits sits under the sentence, with no header link, and lists the 
   expect(listed.y).toBeGreaterThan(words.y + words.height);
   await expect(list(page).getByRole("heading", { name: "Recent splits" })).toBeVisible();
   const all = [
-    "Jason and Sam, Today, 2 people, $42.10",
-    "Priya and Jo, Yesterday, 2 people, $128.75",
-    "Ana, Ben, and 2 more, Oct 1, 4 people, $9.90",
-    "Kim and Lee, Sep 29, 2 people, $31.00",
-    "Omar, Sep 28, 1 person, $5.60",
-    "Lin, Sep 20, 1 person, $14.00",
-    "Max and Ivy, Sep 10, 2 people, $77.00",
+    "With Sam, Today, 2 people, $42.10",
+    "With Priya, Yesterday, 2 people, $128.75",
+    "With Ben and 2 more, Oct 1, 4 people, $9.90",
+    "With Lee, Sep 29, 2 people, $31.00",
+    "Just you, Sep 28, 1 person, $5.60",
+    "Just you, Sep 20, 1 person, $14.00",
+    "With Max and Ivy, Sep 10, 2 people, $77.00",
   ];
   expect(await labels(page)).toEqual(all.slice(0, 4));
   expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual([jason, priya, ana, kim].map(({ id }) => `/s/${id}`));
-  expect((await rows(page).nth(2).innerText()).split("\n").filter(Boolean)).toEqual(["Ana, Ben, and 2 more", "Oct 1 · 4 people", "$9.90"]);
+  expect((await rows(page).nth(2).innerText()).split("\n").filter(Boolean)).toEqual(["With Ben and 2 more", "Oct 1 · 4 people", "$9.90"]);
 
   await list(page).getByRole("button", { name: "See all 7" }).click();
   const sheet = page.getByRole("dialog", { name: "Recent splits" });
@@ -114,7 +115,7 @@ test("a Split this browser last opened 61 days ago is not listed, and one opened
     { ...priya, added: now - 90 * DAY, seen: now - 59 * DAY },
   ]);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
+  await expect(rows(page).first()).toHaveAccessibleName(/^With Priya, /);
 });
 
 test("an entry whose link says the split has expired is gone back on home, and the list hides with the last one", async ({ page }) => {
@@ -125,7 +126,7 @@ test("an entry whose link says the split has expired is gone back on home, and t
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(page).toHaveURL(/\/$/);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
+  await expect(rows(page).first()).toHaveAccessibleName(/^With Priya, /);
 
   await rows(page).first().click();
   await expect(page.getByRole("heading", { name: "We can't find this split" })).toBeVisible();
