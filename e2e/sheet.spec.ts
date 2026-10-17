@@ -94,8 +94,45 @@ async function pickJason(page: Page) {
 
 test("a flick down on the pick sheet's rows closes it, and a drag that starts on a name does not pick it", async ({ browser, request, browserName }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex, browserName), browserName);
+  // DIAG (temporary): one JSON line per run for the WebKit flake.
+  const diag: Record<string, unknown> = { engine: browserName, project: test.info().project.name, repeat: test.info().repeatEachIndex, console: [] as string[] };
+  page.on("console", (message) => {
+    if (message.text().startsWith("DIAG-")) (diag.console as string[]).push(message.text());
+  });
   const jason = page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true });
-  await drag(page, await center(jason), 60, 400);
+  const from = await center(jason);
+  diag.from = from;
+  diag.viewport = page.viewportSize();
+  diag.before = await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y) as HTMLElement | null;
+    const sheet = document.querySelector<HTMLElement>('[data-testid="split-sheet"]');
+    const box = sheet?.getBoundingClientRect();
+    return { hit: hit ? `${hit.tagName}${hit.getAttribute("data-testid") ? "#" + hit.getAttribute("data-testid") : ""}:${(hit.textContent ?? "").slice(0, 20)}` : null, inSheet: !!(hit && sheet?.contains(hit)), sheetTop: box?.top, sheetH: box?.height, transform: sheet ? getComputedStyle(sheet).transform : null, transition: sheet?.style.transition };
+  }, from);
+  const started = Date.now();
+  await drag(page, from, 60, 400);
+  diag.dragMs = Date.now() - started;
+  const samples: unknown[] = [];
+  for (let i = 0; i < 20; i += 1) {
+    samples.push(
+      await page.evaluate(() => {
+        const sheet = document.querySelector<HTMLElement>('[data-testid="split-sheet"]');
+        const box = sheet?.getBoundingClientRect();
+        return [Math.round(performance.now()), box ? Math.round(box.top * 10) / 10 : null, sheet ? getComputedStyle(sheet).transform : null, sheet?.style.transform ?? null];
+      }),
+    );
+    await page.waitForTimeout(100);
+  }
+  diag.sheetEvery100ms = samples;
+  diag.dialogCount = await page.getByRole("dialog", { name: "Which one are you?" }).count();
+  diag.headingCount = await page.getByRole("heading", { name: "Which one are you?" }).count();
+  diag.pickedCount = await page.getByRole("button", { name: "Jason, you", exact: true }).count();
+  diag.handlerEvents = await page.evaluate(() => {
+    const events = ((window as unknown as { __diag?: Record<string, unknown>[] }).__diag ?? []).filter((entry) => entry.k !== "release");
+    const count = (kind: string) => events.filter((entry) => entry.k === kind).length;
+    return { down: count("down"), move: count("move"), up: count("up"), cancel: count("cancel"), moveT: events.filter((entry) => entry.k === "move").map((entry) => entry.t), moveGaps: events.filter((entry) => entry.k === "move").map((entry, i, all) => (i ? Math.round(((entry.t as number) - (all[i - 1].t as number)) * 10) / 10 : 0)), seq: events.map((entry) => `${entry.k}${entry.k === "move" ? (entry.drag ? (entry.moved ? "+" : "~") : "!") : ""}`).join(" "), tail: events.slice(-3) };
+  });
+  console.log("DIAG-JSON " + JSON.stringify(diag));
   await settled(page.getByTestId("split-sheet"));
   await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Jason, you", exact: true })).toHaveCount(0);

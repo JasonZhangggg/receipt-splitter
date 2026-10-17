@@ -66,6 +66,12 @@ type Pull = { id: number; x: number; y: number; from: number; moved: boolean; li
 
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
+// DIAG (temporary): what the sheet's handlers received and decided, for the WebKit flake.
+const diag = (entry: Record<string, unknown>) => {
+  const w = window as unknown as { __diag?: Record<string, unknown>[] };
+  (w.__diag ??= []).push({ ...entry, now: Math.round(performance.now() * 10) / 10 });
+};
+
 export function BottomSheet({ children, tapAway = false, onDown, holds, closing = false, minHeight = 0, bar, label, testID }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -202,6 +208,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
 
   const onPointerDown = (event: PointerEvent) => {
     const { pointerId, clientY, clientX } = event.nativeEvent;
+    diag({ k: "down", t: Math.round(event.timeStamp * 10) / 10, y: clientY, pid: pointerId, hadDrag: !!drag.current, leaving: leaving.current, gestures });
     // iOS never ends the touch that opens a field's edit menu. It sends no pointerup or pointercancel, and every later touch reports isPrimary false. So a new touch replaces the current drag unless that drag has already moved.
     if (drag.current?.moved || !gestures || leaving.current) return;
     const onGrab = (event.target as unknown as HTMLElement).closest?.("[data-sheet-grab]") != null;
@@ -219,6 +226,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const onPointerMove = (event: PointerEvent) => {
     const current = drag.current;
     const { pointerId, clientY, clientX } = event.nativeEvent;
+    diag({ k: "move", t: Math.round(event.timeStamp * 10) / 10, y: clientY, pid: pointerId, drag: !!current, moved: current?.moved });
     if (!current || current.pointer !== pointerId) return;
     const travel = clientY - current.startY;
     if (!current.moved) {
@@ -236,6 +244,13 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   const release = (samples: Drag["samples"], at: number) => {
     const velocity = releaseVelocity(samples, at);
     const snap = snapFor((offset.current ?? home) - rest, velocity, tall, rest);
+    {
+      const fromRest = (offset.current ?? home) - rest;
+      const coasted = Math.sign(velocity) * Math.max(0, Math.abs(velocity) - 200);
+      const entry = { k: "release", at: Math.round(at * 10) / 10, fromRest, velocity: Math.round(velocity), coast: Math.round(coasted), projected: Math.round(fromRest + ((coasted / 1000) * 0.998) / (1 - 0.998)), snap, tall, rest, home, samples: samples.map(({ y, t }) => [Math.round(y * 10) / 10, Math.round(t * 10) / 10]) };
+      diag(entry);
+      console.log("DIAG-release " + JSON.stringify(entry));
+    }
     if (snap === "close" && onDown) return leave(velocity);
     const next = snap === "tall" || (snap === "stay" && tall);
     settle(next ? 0 : rest, velocity);
@@ -244,6 +259,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
 
   const onPointerUp = (event: PointerEvent) => {
     const current = drag.current;
+    diag({ k: "up", t: Math.round(event.timeStamp * 10) / 10, pid: event.nativeEvent.pointerId, drag: !!current, moved: current?.moved });
     if (!current || current.pointer !== event.nativeEvent.pointerId) return;
     drag.current = null;
     if (!current.moved) {
@@ -254,6 +270,7 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
   };
 
   const onPointerCancel = (event: PointerEvent) => {
+    diag({ k: "cancel", t: Math.round(event.timeStamp * 10) / 10, pid: event.nativeEvent.pointerId, drag: !!drag.current });
     if (drag.current?.pointer !== event.nativeEvent.pointerId) return;
     drag.current = null;
     settle(home, 0);
