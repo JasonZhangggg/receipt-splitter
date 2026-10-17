@@ -62,8 +62,8 @@ export function RecentSheet({ splits, now, onClose }: { splits: readonly RecentS
 /** Each row shows only what the device keeps: who, when, how many, the total. */
 function Rows({ splits, now }: { splits: readonly RecentSplit[]; now: number }) {
   const c = useColors();
-  return splits.map(({ id, names, total, added }) => {
-    const who = say.names(names);
+  return splits.map(({ id, names, you, total, added }) => {
+    const who = say.names(names.filter((_, place) => place !== you));
     const when = say.when(added, now);
     const people = say.people(names.length);
     const amount = money(total);

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
-import { glyph, type IconName } from "./icon-glyphs";
+import { glyph, strokeFor, type IconName } from "./icon-glyphs";
 
 export type { IconName };
 
@@ -65,7 +65,7 @@ function useReplay(motion: string | undefined) {
 
 // Inline vector shapes paint in the frame that adds them; an image source can paint blank until it decodes.
 export function Icon({ name, size, color }: { name: IconName; size: number; color: string }) {
-  const { svg, weight = 1.6, motion } = glyph(name);
+  const { svg, motion } = glyph(name);
   const ref = useReplay(motion);
   // React 19 sets innerHTML again whenever the prop object is a new one, even with the same string, and that restarts a running tick or pulse on every render.
   const html = useMemo(() => ({ __html: svg }), [svg]);
@@ -80,7 +80,7 @@ export function Icon({ name, size, color }: { name: IconName; size: number; colo
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
-      strokeWidth={weight}
+      strokeWidth={strokeFor(size)}
       strokeLinecap="round"
       strokeLinejoin="round"
       style={box}

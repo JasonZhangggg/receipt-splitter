@@ -1,4 +1,4 @@
-import { useState, type Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 
 import { PressTarget } from "../components/button";
@@ -16,16 +16,26 @@ export function Words({ children, ink = false, breaks = false }: { children: str
 
 const breakAnywhere = webStyle({ overflowWrap: "anywhere" } as never);
 
-type ActProps = { label: string; name?: string; onPress: () => void };
+/**
+ * A field or action with the punctuation that follows it, in one run that cannot break. Browsers, WebKit on iPhone among them, may wrap before a
+ * comma or period that follows a field or button, which leaves it alone at the start of the next line.
+ */
+function Glued({ children, then }: { children: ReactNode; then: string | undefined }) {
+  return then === undefined ? children : <Text style={nowrap}>{children}{then}</Text>;
+}
+
+type ActProps = { label: string; name?: string; onPress: () => void; /** The punctuation right after it. */ then?: string };
 
 /** An action inside the sentence: its words in ink, underlined in ink. A button does not inherit its font, so the words set it. */
-export function Act({ label, name, onPress }: ActProps) {
+export function Act({ label, name, onPress, then }: ActProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.act, pressStyle(pressed, reduce, linkPress)]}>
-      {() => <Text style={[type.sayInput, styles.underlined, { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
-    </PressTarget>
+    <Glued then={then}>
+      <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.act, pressStyle(pressed, reduce, linkPress)]}>
+        {() => <Text style={[type.sayInput, styles.underlined, { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
+      </PressTarget>
+    </Glued>
   );
 }
 
@@ -79,29 +89,31 @@ const colorChange = webStyle({ transitionProperty: "border-color", transitionDur
  * wrapper hugging the text, and the field pads past it with a negative margin, so the hit area is 44 px tall while the layout and the rule stay put.
  * Without field-sizing (iOS Safari before 26.2 does not have it), css.ts sizes the field from `--chars`.
  */
-export function Blank({ style, onFocus, onBlur, ref, ...rest }: TextInputProps & { ref?: Ref<TextInput> }) {
+export function Blank({ style, onFocus, onBlur, ref, then, ...rest }: TextInputProps & { ref?: Ref<TextInput>; /** The punctuation right after it. */ then?: string }) {
   const c = useColors();
   const [focused, setFocused] = useState(false);
   // A string, because a bare number gets a "px" unit and the calc in css.ts then fails.
   const chars = webStyle({ "--chars": String(Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1)) } as never);
   return (
-    <View style={[styles.rule, leavesRoomForPeriod, colorChange, { borderBottomColor: focused ? c.ink : c.dot }]}>
-      <TextInput
-        ref={ref}
-        {...underlineMark}
-        placeholderTextColor={c.muted}
-        onFocus={(event) => {
-          setFocused(true);
-          onFocus?.(event);
-        }}
-        onBlur={(event) => {
-          setFocused(false);
-          onBlur?.(event);
-        }}
-        style={[type.sayInput, styles.blank, sized, chars, { color: c.ink }, style]}
-        {...rest}
-      />
-    </View>
+    <Glued then={then}>
+      <View style={[styles.rule, leavesRoomForPeriod, colorChange, { borderBottomColor: focused ? c.ink : c.dot }]}>
+        <TextInput
+          ref={ref}
+          {...underlineMark}
+          placeholderTextColor={c.muted}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
+          style={[type.sayInput, styles.blank, sized, chars, { color: c.ink }, style]}
+          {...rest}
+        />
+      </View>
+    </Glued>
   );
 }
 
