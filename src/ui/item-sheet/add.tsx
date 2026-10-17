@@ -1,11 +1,11 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { MAX_CENTS } from "../../core/money";
-import { MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
+import { MAX_ROW_NAME_LENGTH } from "../../core/operations";
 import { RECEIPT_LEVEL_KINDS, adjustmentId, itemId, randomId, type ParticipantId, type ReceiptLevelKind, type Split } from "../../core/split";
 import { money, plainAmount } from "../../draft";
-import type { Answer } from "../../live/client";
+import type { Lay } from "../lay";
 import { adjustmentProblem, newAdjustment, takesOff, tidyAmount, type AdjustmentProblem } from "../adjustment-sheet/adjustment";
 import { Button } from "../components/button";
 import { TextLink } from "../components/text-link";
@@ -18,7 +18,7 @@ import { newItem, problemFor, sharedCharges, shortfall, type NewItemProblem } fr
 type Props = {
   split: Split;
   me: ParticipantId | null;
-  send: (op: Operation) => Promise<Answer>;
+  lay: Lay;
   onClose: () => void;
 };
 
@@ -33,7 +33,7 @@ function problemText(problem: NewItemProblem | AdjustmentProblem, item: boolean)
 }
 
 /** A new Item, tax, tip, fee or discount as one form: nothing reaches the Split until Add, so other phones never see it half typed. */
-export function AddSheet({ split, me, send, onClose }: Props) {
+export function AddSheet({ split, me, lay, onClose }: Props) {
   const c = useColors();
   // Minted once, so a retry after a lost answer cannot add the line twice.
   const [ids] = useState(() => ({ item: itemId(randomId(12)), adjustment: adjustmentId(randomId(12)) }));
@@ -43,17 +43,13 @@ export function AddSheet({ split, me, send, onClose }: Props) {
   const [quantity, setQuantity] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const splitRef = useRef(split);
-  useLayoutEffect(() => {
-    splitRef.current = split;
-  });
   const nameField = useRef<TextInput>(null);
   const amountField = useRef<TextInput>(null);
   const quantityField = useRef<TextInput>(null);
   const isItem = kind === "item";
   const has = (on: Split) => (isItem ? on.receipt.items.some(({ id }) => id === ids.item) : on.receipt.adjustments.some(({ id }) => id === ids.adjustment));
 
-  const add = async () => {
+  const add = () => {
     if (sending) return;
     if (has(split)) return onClose();
     const answer = isItem ? newItem(split, { name, price: amount, quantity }, ids.item, me) : newAdjustment(split, { kind, name, amount }, ids.adjustment, me);
@@ -64,11 +60,13 @@ export function AddSheet({ split, me, send, onClose }: Props) {
       if (answer.problem === "quantity") quantityField.current?.focus();
       return;
     }
+    // The line is on the page the moment it is sent, so the sheet closes with it. A refusal takes the line off again and the bar says why, with Try again when the cause is the connection.
+    // The ids were minted once, so Try again cannot add the line twice.
+    const said = ({ rejection }: { readonly rejection: { readonly reason: Parameters<typeof problemFor>[0] } }) =>
+      problemText(isItem ? problemFor(rejection.reason) : adjustmentProblem(rejection.reason), isItem);
+    if (!lay(answer.op, { said, retry: true })) return setProblem(problemText("offline", isItem));
     setSending(true);
-    const sent = await send(answer.op);
-    if (sent.ok || has(splitRef.current)) return onClose();
-    setSending(false);
-    setProblem(problemText(isItem ? problemFor(sent.rejection.reason) : adjustmentProblem(sent.rejection.reason), isItem));
+    onClose();
   };
 
   const missing = isItem ? shortfall(split) : null;
@@ -117,7 +115,7 @@ export function AddSheet({ split, me, send, onClose }: Props) {
           onBlur={() => setAmount(tidyAmount)}
           enterKeyHint={isItem ? "next" : "done"}
           submitBehavior={isItem ? "submit" : "blurAndSubmit"}
-          onSubmitEditing={() => (isItem ? quantityField.current?.focus() : void add())}
+          onSubmitEditing={() => (isItem ? quantityField.current?.focus() : add())}
         />
         {isItem ? (
           <MoneyField
@@ -135,7 +133,7 @@ export function AddSheet({ split, me, send, onClose }: Props) {
             }}
             enterKeyHint="done"
             submitBehavior="blurAndSubmit"
-            onSubmitEditing={() => void add()}
+            onSubmitEditing={add}
           />
         ) : null}
       </View>
@@ -159,7 +157,7 @@ export function AddSheet({ split, me, send, onClose }: Props) {
           {problem ?? ""}
         </Text>
         <View style={styles.pill}>
-          <Button kind="compact" label={say.addKind(word)} busy={sending} outsideScroll onPress={() => void add()} />
+          <Button kind="compact" label={say.addKind(word)} busy={sending} outsideScroll onPress={add} />
         </View>
       </View>
     </View>

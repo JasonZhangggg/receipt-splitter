@@ -18,19 +18,25 @@ import { switcherWidth } from "./switcher";
 import { MethodPicker } from "./method-picker";
 import type { PayState } from "./model";
 
-type Props = { split: SplitId; host: string; handles: readonly PaymentHandle[]; state: PayState; onPaid: (paid: boolean) => void };
+type Props = { split: SplitId; host: string; handles: readonly PaymentHandle[]; state: PayState; busy?: boolean; notice?: string | null; onPaid: (paid: boolean) => void };
 
 /** Venmo notes can be public, so the note stays generic. */
 const note = "Receipt split";
 const target = Platform.OS === "web" ? "web" : "app";
 
-export function PayBlock({ split, host, handles, state, onPaid }: Props) {
+export function PayBlock({ split, host, handles, state, busy = false, notice = null, onPaid }: Props) {
   const c = useColors();
   if (state.kind === "nothing") return null;
   const due = state.kind === "unpaid" ? state.owe : state.kind === "short" ? state.rest : null;
   const paid = state.kind === "settled" || state.kind === "over" ? state.paid : null;
   return (
     <View style={styles.box}>
+      {/* First, so a bar over the sheet's foot does not hide it. */}
+      {notice === null ? null : (
+        <Text role="status" style={[type.caption, styles.handles, { color: c.warn }]}>
+          {notice}
+        </Text>
+      )}
       {due === null || handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={due} />}
       {paid === null ? null : (
         <View style={[styles.paid, { borderColor: c.hairline }]}>
@@ -38,7 +44,7 @@ export function PayBlock({ split, host, handles, state, onPaid }: Props) {
           <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
         </View>
       )}
-      <TextLink center label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.markNotPaid} onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")} outsideScroll />
+      <TextLink center label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.markNotPaid} busy={busy} onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")} outsideScroll />
     </View>
   );
 }

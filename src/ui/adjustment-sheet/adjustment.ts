@@ -1,5 +1,5 @@
 import { cents, type Cents } from "../../core/money";
-import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type AdjustmentPatch, type Operation, type WireRejection } from "../../core/operations";
+import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type AdjustmentPatch, type Operation, type Optimistic, type WireRejection } from "../../core/operations";
 import type { Adjustment, AdjustmentId, AdjustmentKind, ParticipantId, ReceiptLevelKind, Split } from "../../core/split";
 import { plainAmount } from "../../draft";
 import { splitCopy as say } from "../split-copy";
@@ -14,7 +14,7 @@ export type TypedAdjustment = {
 
 export type AdjustmentProblem = "name" | "amount" | "overLimit" | "tooManyAdjustments" | "negativeTotal" | "tooLarge" | "failed" | "offline";
 
-export type AdjustmentAnswer = { readonly ok: true; readonly op: Operation } | { readonly ok: false; readonly problem: AdjustmentProblem };
+export type AdjustmentAnswer<Sent extends Operation = Operation> = { readonly ok: true; readonly op: Sent } | { readonly ok: false; readonly problem: AdjustmentProblem };
 
 /** A discount comes off the total, so it is stored below zero. */
 export const takesOff = (kind: AdjustmentKind) => kind === "discount" || kind === "bundleDiscount";
@@ -40,6 +40,8 @@ export function switchKind(typed: TypedAdjustment, kind: ReceiptLevelKind): { ki
 
 /** Every edit keeps the Total at the Subtotal plus the Adjustments, so a fixed tax or tip moves it (preferences 70, 75). */
 const editReceipt = (by: ParticipantId | null, patch: AdjustmentPatch): Operation => ({ by, type: "editReceipt", adjustments: [patch], totalFollows: true });
+/** An add or a delete of one row: the kinds a phone may show before the server answers. */
+const receiptOp = (by: ParticipantId | null, patch: Extract<AdjustmentPatch, { type: "add" | "delete" }>): Optimistic => ({ by, type: "editReceipt", adjustments: [patch], totalFollows: true });
 
 /**
  * The edit to send for the fields typed in an Adjustment's sheet, null when none differs from the row, or the problem to show.
@@ -66,17 +68,17 @@ export function adjustmentEdit(split: Split, id: AdjustmentId, typed: Partial<Ty
 }
 
 /** The add to send for the add sheet, after the other Adjustments, or the one problem to show. An empty name takes the kind's. */
-export function newAdjustment(split: Split, typed: TypedAdjustment & { readonly kind: ReceiptLevelKind }, id: AdjustmentId, by: ParticipantId | null): AdjustmentAnswer {
+export function newAdjustment(split: Split, typed: TypedAdjustment & { readonly kind: ReceiptLevelKind }, id: AdjustmentId, by: ParticipantId | null): AdjustmentAnswer<Optimistic> {
   const amount = readAmount(typed.amount);
   if (typeof amount === "string") return { ok: false, problem: amount === "price" ? "amount" : amount };
   const name = typed.name.trim() || say.kinds[typed.kind];
   const adjustment = { id, kind: typed.kind, name, amount: signed(typed.kind, amount) };
-  return checked(split, editReceipt(by, { type: "add", adjustment, index: split.receipt.adjustments.length }));
+  return checked(split, receiptOp(by, { type: "add", adjustment, index: split.receipt.adjustments.length }));
 }
 
-export const deleteAdjustment = (by: ParticipantId | null, id: AdjustmentId) => editReceipt(by, { type: "delete", adjustmentId: id });
+export const deleteAdjustment = (by: ParticipantId | null, id: AdjustmentId) => receiptOp(by, { type: "delete", adjustmentId: id });
 
-function checked(split: Split, op: Operation): AdjustmentAnswer {
+function checked<Sent extends Operation>(split: Split, op: Sent): AdjustmentAnswer<Sent> {
   const preview = applyOperation(split, op, { creator: false });
   return preview.ok ? { ok: true, op } : { ok: false, problem: adjustmentProblem(preview.rejection.reason) };
 }

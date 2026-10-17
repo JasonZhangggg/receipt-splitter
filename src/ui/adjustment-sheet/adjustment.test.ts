@@ -3,13 +3,13 @@ import { describe, expect, test } from "vitest";
 import { applyOperation } from "../../core/operations";
 import { adjustmentId, type Split } from "../../core/split";
 import { jason, topgolf } from "../../core/topgolf.fixture";
-import { adjustmentEdit, newAdjustment, switchKind, tidyAmount, typedFrom } from "./adjustment";
+import { adjustmentEdit, newAdjustment, switchKind, tidyAmount, typedFrom, type AdjustmentAnswer } from "./adjustment";
 
 const tax = adjustmentId("tax");
 const bucket = adjustmentId("bucket1");
 const fresh = adjustmentId("fresh");
 
-const applied = (split: Split, answer: ReturnType<typeof newAdjustment> | null) => {
+const applied = (split: Split, answer: AdjustmentAnswer | null) => {
   if (!answer?.ok) throw new Error(JSON.stringify(answer));
   const result = applyOperation(split, answer.op, { creator: false });
   if (!result.ok) throw new Error(JSON.stringify(result.rejection));
