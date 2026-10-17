@@ -60,11 +60,12 @@ describe("Icon on the web", () => {
     expect(svg().hasAttribute("data-play")).toBe(false);
   });
 
-  it("Enter on the focused button plays the motion", async () => {
+  it("Enter and Space on the focused button play nothing", async () => {
     await mount("share");
 
     button().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    expect(svg().hasAttribute("data-play")).toBe(true);
+    button().dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+    expect(svg().hasAttribute("data-play")).toBe(false);
   });
 
   it("unmounting while the motion plays leaves no timer behind", async () => {
