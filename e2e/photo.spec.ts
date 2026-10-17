@@ -303,3 +303,47 @@ for (const width of [390, 1440]) {
 
   });
 }
+
+test("on a wide screen a double click zooms the receipt photo at the pointer, a drag pans it, a ctrl-wheel pinch zooms further and a second double click puts it back", async ({ page, request, browserName }, testInfo) => {
+  const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
+  expect((await putPhoto(request, id, creatorSecret, new Uint8Array(readFileSync("e2e/fixtures/srd-1040-no-sprite.jpg")))).status()).toBe(204);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/s/${id}`);
+  await page.getByRole("button", { name: "Close, just look" }).click();
+  await fromMore(page, "Receipt photo");
+  const shown = page.getByRole("img", { name: "Receipt photo" });
+  await expect(shown).toBeVisible();
+  await page.waitForTimeout(600);
+  const frame = (await shown.boundingBox())!;
+  const widthNow = async () => Math.round((await shown.boundingBox())!.width);
+  const settledWidth = async () => {
+    let last = -1;
+    await expect.poll(async () => ((await widthNow()) === last ? true : ((last = await widthNow()), false))).toBe(true);
+    return widthNow();
+  };
+
+  const aim = { x: frame.x + frame.width * 0.25, y: frame.y + frame.height * 0.25 };
+  await page.mouse.move(aim.x, aim.y);
+  await page.mouse.dblclick(aim.x, aim.y);
+  expect(await settledWidth()).toBe(Math.round(frame.width * 2.5));
+  const zoomed = (await shown.boundingBox())!;
+  expect(Math.abs(aim.x - zoomed.x - (aim.x - frame.x) * 2.5), "the point under the pointer stays under it").toBeLessThan(2);
+
+  await page.mouse.move(frame.x + 200, frame.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(frame.x + 120, frame.y + 150, { steps: 4 });
+  await page.mouse.up();
+  const panned = (await shown.boundingBox())!;
+  expect(Math.round(panned.x - zoomed.x), "the drag moved the photo 80 px left").toBe(-80);
+  expect(Math.round(panned.y - zoomed.y)).toBe(-50);
+
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up("Control");
+  expect(await settledWidth()).toBeGreaterThan(Math.round(frame.width * 2.5) + 20);
+
+  await page.mouse.dblclick(frame.x + 200, frame.y + 200);
+  expect(await settledWidth()).toBe(Math.round(frame.width));
+  expect(Math.round((await shown.boundingBox())!.x)).toBe(Math.round(frame.x));
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+});

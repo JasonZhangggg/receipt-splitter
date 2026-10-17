@@ -60,6 +60,15 @@ describe("Icon on the web", () => {
     expect(svg().hasAttribute("data-play")).toBe(false);
   });
 
+  it("every icon draws a 1.2 px stroke on screen at whatever size it is shown", async () => {
+    const drawn: number[] = [];
+    for (const [name, size] of [["x", 12], ["x", 16], ["plus", 13], ["trash", 15], ["check", 16], ["share", 18], ["chevron", 18], ["sun", 19]] as const) {
+      await act(async () => root.render(createElement("button", { type: "button" }, createElement(Icon, { name, size, color: "#000" }))));
+      drawn.push(Math.round((Number(svg().getAttribute("stroke-width")) * size * 100) / 24) / 100);
+    }
+    expect(drawn).toEqual([1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2]);
+  });
+
   it("Enter and Space on the focused button play nothing", async () => {
     await mount("share");
 
