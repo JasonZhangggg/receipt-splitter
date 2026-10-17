@@ -157,6 +157,10 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
   await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
 
   await owe(sam).click();
+  await expect(breakdown(sam).getByText("Paid", { exact: true })).toBeVisible();
+  await expect(breakdown(sam).getByTestId("paid-so-far")).toHaveText("$14.20");
+  await expect(breakdown(sam).getByText("Left to pay", { exact: true })).toBeVisible();
+  await expect(breakdown(sam).getByTestId("left-to-pay")).toHaveText("$16.00");
   await breakdown(sam).getByRole("button", { name: "I paid the rest" }).click();
   await expect(sam.getByRole("status").getByText("Marked $30.20 as paid")).toBeVisible(live);
   await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
@@ -242,7 +246,8 @@ test("Sam's one pay pill switches among Jason's four apps, links each at his $14
   await expect(pills).toHaveAttribute("href", "https://venmo.com/jason-z?txn=pay&amount=14.20&note=Receipt%20split");
   await expect(pills).toHaveAttribute("target", "_blank");
   await expect(pills).toHaveAttribute("rel", "noopener noreferrer");
-  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z\u00a0· Cash App\u00a0$jasonz\u00a0· PayPal\u00a0jasonzhang\u00a0· Zelle\u00a0jason@example.com")).toBeVisible();
+  await expect(breakdown(sam).getByText("Venmo\u00a0@jason-z Cash App\u00a0$jasonz PayPal\u00a0jasonzhang Zelle\u00a0jason@example.com")).toBeVisible();
+  await expect(breakdown(sam).getByText("·")).toHaveCount(0);
 
   await app.selectOption("cashApp");
   await expect(pills).toHaveAccessibleName("Pay Jason $14.20 on Cash App");
@@ -431,7 +436,7 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible();
   await expect(paymentRow(priya, "Sam")).toHaveText("SamNot paid$8.00");
   await expect(paymentRow(priya, "Jason")).toHaveText(/^JasonGets paid\$/);
-  await expect(paymentRow(priya, "Priya")).toHaveText("PriyaNot paid$8.00");
+  await expect(paymentRow(priya, "Priya")).toHaveText("Priya youNot paid$8.00");
   expect([await markOf(priya, "Sam"), await markOf(priya, "Jason"), await markOf(priya, "Priya")]).toEqual([[], [], []]);
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
 
@@ -476,7 +481,7 @@ test("the People sheet rows show no check or exclamation mark and keep their pla
   }
 });
 
-test("Payments lists Sam as paid too much once Priya checks Tea too, and the person icon marks only the viewer's row", async ({ browser, request }, { workerIndex }) => {
+test("Payments lists Sam as paid too much once Priya checks Tea too, and the muted you tag marks only the viewer's row", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -493,8 +498,9 @@ test("Payments lists Sam as paid too much once Priya checks Tea too, and the per
   await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "over");
   expect(await markOf(priya, "Sam")).toEqual([]);
-  await expect(paymentRow(priya, "Priya").locator("[data-icon]")).toHaveCount(1);
-  await expect(priya.getByRole("dialog", { name: "Payments" }).locator('[data-icon="person"]')).toHaveCount(1);
+  await expect(paymentRow(priya, "Priya").getByText("you", { exact: true })).toHaveCount(1);
+  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("you", { exact: true })).toHaveCount(1);
+  await expect(priya.getByRole("dialog", { name: "Payments" }).locator('[data-icon="person"]')).toHaveCount(0);
   await expect(sam.getByTestId("owe")).toBeVisible(live);
 });
 

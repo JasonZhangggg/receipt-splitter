@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type TextStyle } from "react-native";
 
 import type { ParticipantId, Split } from "../../core/split";
@@ -9,7 +9,7 @@ import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import type { Answer } from "../../live/client";
 import { failedCopy, splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
-import { historyOf, whenText, type Entry } from "./describe";
+import { historyOf, restoreChanges, whenText, type Entry } from "./describe";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = {
@@ -36,6 +36,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
     return () => clearInterval(timer);
   }, []);
   const entries = historyOf(split);
+  const restorable = useMemo(() => restoreChanges(split), [split]);
   const [host] = split.participants;
   // Another phone may have reverted the same change first. Then the Revert is already done, so there is nothing to confirm and nothing to complain about.
   const stale = (target: Target) => target !== "restore" && (entries.find(({ revision }) => revision === target)?.reverted ?? true);
@@ -65,7 +66,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
         {entries.map((entry) => (
           <Row
             key={entry.revision}
-            meta={[entry.name ? say.byName(entry.name) : say.someone, whenText(entry.at, now)]}
+            meta={[entry.byline ? (entry.name ? say.byName(entry.name) : say.someone) : null, whenText(entry.at, now)]}
             reverted={entry.reverted}
             what={
               <Text style={[type.body, styles.what, { color: c.ink }]}>
@@ -115,7 +116,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           }
           asking={asking === "restore"}
           busy={pending === "restore"}
-          canAct={split.original !== undefined}
+          canAct={restorable}
           label={say.restore}
           name={say.restoreName}
           onAct={() => {

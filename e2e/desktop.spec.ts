@@ -95,7 +95,7 @@ test("a Claim in the popover updates Your share in the right pane", async ({ pag
   await expect(footer(page).getByTestId("owe")).toHaveText("$0.00");
 
   await gameplay(page).click();
-  await itemPopover(page).getByRole("button", { name: "Sam", exact: true }).click();
+  await itemPopover(page).getByRole("button", { name: "Sam, you", exact: true }).click();
 
   await expect(footer(page).getByTestId("owe")).toHaveText("$106.94", live);
   await expect(itemPopover(page)).toBeVisible();

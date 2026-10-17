@@ -1,3 +1,4 @@
+import { applyOperation } from "../../core/operations";
 import type { Change, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
@@ -11,6 +12,8 @@ export type Entry = {
   readonly more: number;
   readonly sentAs: ParticipantId | null;
   readonly name: string | null;
+  /** Whether the row says who made the change; it does not when that person is already the subject, as in "Samantha paid $58.28". */
+  readonly byline: boolean;
   readonly at: number | undefined;
   readonly reverted: boolean;
   readonly revertible: boolean;
@@ -38,6 +41,7 @@ export function historyOf(split: Split): Entry[] {
         more: removal ? 0 : writes.filter((write) => write.kind !== "totals" && write !== lead).length,
         sentAs: change.by,
         name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
+        byline: !(lead.kind === "payment" && lead.participantId === change.by),
         at: change.at,
         reverted: change.undoneBy !== null,
         revertible: !change.writes.some((write) => (write.kind === "payment" && !removal) || write.kind === "perUnit"),
@@ -100,4 +104,11 @@ export function whenText(at: number | undefined, now: number): string | null {
   if (minutes < 1) return say.justNow;
   if (minutes < 60) return say.minutesAgo(minutes);
   return new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+/** Whether Restore would change the receipt: false while the Items, charges and totals already match the scan. */
+export function restoreChanges(split: Split): boolean {
+  if (split.original === undefined) return false;
+  const result = applyOperation(split, { by: null, type: "restoreReceipt" }, { creator: false });
+  return result.ok && result.changed;
 }

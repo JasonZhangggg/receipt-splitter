@@ -174,6 +174,27 @@ describe("itemParts", () => {
     ]);
   });
 
+  test("lists the parts in participant order, not the order the claims were stored in, without moving any cents", () => {
+    const stored = item({ by: "even", units: [[cat, ann, bob]] }, 1000);
+    const typed = item({ by: "amount", units: [[[cat, cents(500)], [ann, cents(300)], [bob, cents(200)]]] }, 1000);
+
+    expect(itemParts(splitOf(stored), stored)).toEqual([
+      { participantId: "ann", cents: 334 },
+      { participantId: "bob", cents: 333 },
+      { participantId: "cat", cents: 333 },
+    ]);
+    expect(itemParts(splitOf(stored), stored).map(({ participantId, cents }) => cents - shareBreakdown(splitOf(stored), participantId).items[0].portion)).toEqual([0, 0, 0]);
+    expect(itemParts(splitOf(typed), typed).map(({ participantId, cents }) => [participantId, cents])).toEqual([["ann", 300], ["bob", 200], ["cat", 500]]);
+  });
+
+  test("puts the viewer first, then the others in participant order, with every cent as the breakdown charges it", () => {
+    const stored = item({ by: "even", units: [[cat, ann, bob]] }, 1000);
+    const parts = itemParts(splitOf(stored), stored, cat);
+
+    expect(parts.map(({ participantId }) => participantId)).toEqual(["cat", "ann", "bob"]);
+    expect(parts.map(({ participantId, cents }) => cents - shareBreakdown(splitOf(stored), participantId).items[0].portion)).toEqual([0, 0, 0]);
+  });
+
   test("keeps the typed cents by amount", () => {
     const typed = item({ by: "amount", units: [[[ann, cents(250)], [bob, cents(0)]]] }, 900);
 

@@ -47,7 +47,7 @@ export function MoneyField({ label, unit = "$", showLabel = true, width = 96, re
           {...underlined}
           aria-label={label}
           inputMode="decimal"
-          placeholderTextColor={c.dash}
+          placeholderTextColor={c.muted}
           onFocus={(event) => {
             setFocused(true);
             onFocus?.(event);
@@ -90,8 +90,8 @@ export function Options<Option extends string>({ options, labels, name, value, o
   );
 }
 
-/** A person as a dot and a name; the dot is filled when they are in. */
-export function PersonToggle({ name, on, onPress }: { name: string; on: boolean; onPress: () => void }) {
+/** A person as a dot and a name; the dot is filled when they are in. `name` is the accessible name, `label` what is shown when that reads differently, such as "You". */
+export function PersonToggle({ name, label = name, on, onPress }: { name: string; label?: string; on: boolean; onPress: () => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const ink = on ? c.ink : c.muted;
@@ -100,7 +100,7 @@ export function PersonToggle({ name, on, onPress }: { name: string; on: boolean;
       {() => (
         <View style={styles.personFace}>
           <View style={[styles.personDot, Platform.OS === "web" && inkChange, { backgroundColor: on ? ink : "transparent", boxShadow: `inset 0 0 0 1px ${ink}` }]} />
-          <Text style={[type.body, Platform.OS === "web" && inkChange, { color: ink }]}>{name}</Text>
+          <Text style={[type.body, Platform.OS === "web" && inkChange, { color: ink }]}>{label}</Text>
         </View>
       )}
     </PressTarget>

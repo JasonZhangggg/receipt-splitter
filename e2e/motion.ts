@@ -561,7 +561,7 @@ async function itemOpen(page: Page) {
 export async function itemShared(page: Page) {
   await itemOpen(page);
   const had = page.getByTestId("item-sheet").getByRole("group", { name: "Who had it" });
-  for (const name of ["Jason", "Sam"]) {
+  for (const name of ["Jason, you", "Sam"]) {
     await tap(had.getByRole("button", { name, exact: true }));
     await had.locator(`[aria-label="${name}"][aria-pressed="true"]`).waitFor();
   }

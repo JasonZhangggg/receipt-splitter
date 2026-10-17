@@ -87,8 +87,8 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
           </MethodPicker>
         ) : null}
       </View>
-      {/* A long line breaks after a dot, never before one or between an app and its handle. */}
-      <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((each) => `${paymentApps[each.service].name}\u00a0${handleText(each)}`).join("\u00a0· ")}</Text>
+      {/* One app and handle per line, each joined by a no-break space, so a line never ends on a separator or splits a handle. */}
+      <Text style={[type.caption, styles.handles, { color: c.muted }]}>{handles.map((each) => `${paymentApps[each.service].name}\u00a0${handleText(each)}`).join("\n")}</Text>
       {problem ? <Text style={[type.caption, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );

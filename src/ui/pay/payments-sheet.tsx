@@ -87,8 +87,8 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
                           <View style={[styles.dot, { backgroundColor: on ? c.ink : c.dot }, !reduce && fade]} />
                           <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }, !reduce && fade]}>
                             {name}
+                            {id === me ? <Text style={[type.caption, { color: c.muted }]}>{`\u2002${say.you}`}</Text> : null}
                           </Text>
-                          {id === me ? <Icon name="person" size={13} color={ink} /> : null}
                         </View>
                         <View style={styles.sub}>
                           {state === "settled" ? <Icon name="check" size={13} color={c.good} /> : null}

@@ -4,7 +4,7 @@ import { cents, price } from "../../core/money";
 import { applyOperation, createSplit, type Operation } from "../../core/operations";
 import { parseSplit } from "../../core/parse";
 import { adjustmentId, deviceId, itemId, participantId, type MintedSplitId, type Split } from "../../core/split";
-import { historyOf, whenText } from "./describe";
+import { historyOf, restoreChanges, whenText } from "./describe";
 
 const [ann, sam] = [participantId("ann"), participantId("sam")];
 const sprite = itemId("sprite");
@@ -47,9 +47,9 @@ describe("historyOf", () => {
     );
 
     expect(history).toEqual([
-      { revision: 7, lead: "Sam paid $3.00", more: 0, sentAs: "sam", name: "Sam", at: 7_000, reverted: false, revertible: false },
-      { revision: 5, lead: "Sprite split", before: "evenly", after: "by shares", more: 0, sentAs: "ann", name: "Ann", at: 5_000, reverted: true, revertible: true },
-      { revision: 4, lead: "Sprite", before: "2.50", after: "2.75", more: 0, sentAs: "sam", name: "Sam", at: 4_000, reverted: false, revertible: true },
+      { revision: 7, lead: "Sam paid $3.00", more: 0, sentAs: "sam", name: "Sam", byline: false, at: 7_000, reverted: false, revertible: false },
+      { revision: 5, lead: "Sprite split", before: "evenly", after: "by shares", more: 0, sentAs: "ann", name: "Ann", byline: true, at: 5_000, reverted: true, revertible: true },
+      { revision: 4, lead: "Sprite", before: "2.50", after: "2.75", more: 0, sentAs: "sam", name: "Sam", byline: true, at: 4_000, reverted: false, revertible: true },
     ]);
   });
 
@@ -63,7 +63,7 @@ describe("historyOf", () => {
       ),
     );
 
-    expect(history[0]).toEqual({ revision: 4, lead: "Removed Sam from the split", more: 0, sentAs: "ann", name: "Ann", at: 4_000, reverted: false, revertible: true });
+    expect(history[0]).toEqual({ revision: 4, lead: "Removed Sam from the split", more: 0, sentAs: "ann", name: "Ann", byline: true, at: 4_000, reverted: false, revertible: true });
   });
 
   test("a deleted Item reads Deleted, the word the undo bar uses", () => {
@@ -110,7 +110,7 @@ describe("historyOf", () => {
 
   test("names a rename by its old and new names, and someone who sent no name as null", () => {
     expect(historyOf(split({ by: null, type: "editReceipt", items: [{ type: "edit", itemId: sprite, name: "Sprite Zero" }] }))).toEqual([
-      { revision: 1, lead: "", before: "Sprite", after: "Sprite Zero", more: 0, sentAs: null, name: null, at: 1_000, reverted: false, revertible: true },
+      { revision: 1, lead: "", before: "Sprite", after: "Sprite Zero", more: 0, sentAs: null, name: null, byline: true, at: 1_000, reverted: false, revertible: true },
     ]);
   });
 
@@ -186,7 +186,7 @@ test("reads a Split as one entry, Split Guinness Draught 14.9oz Can into 3, that
   if (!result.ok) throw new Error(JSON.stringify(result.rejection));
 
   expect(historyOf(result.split)).toEqual([
-    { revision: 1, lead: "Split Guinness Draught 14.9oz Can into 3", more: 0, sentAs: "ann", name: "Ann", at: 1_000, reverted: false, revertible: true },
+    { revision: 1, lead: "Split Guinness Draught 14.9oz Can into 3", more: 0, sentAs: "ann", name: "Ann", byline: true, at: 1_000, reverted: false, revertible: true },
   ]);
 });
 
@@ -212,4 +212,12 @@ test("whenText reads Just now, minutes, then the clock time", () => {
   const at = Date.UTC(2026, 9, 1, 0, 31);
   expect([whenText(at, at + 30_000), whenText(at, at + 2 * 60_000), whenText(undefined, at)]).toEqual(["Just now", "2 min ago", null]);
   expect(whenText(at, at + 61 * 60_000)).toMatch(/^\d{1,2}:31 [AP]M$/);
+});
+
+describe("restoreChanges", () => {
+  test("is false while the receipt matches the scan and true once an Item's price moved", () => {
+    expect(restoreChanges(split())).toBe(false);
+    expect(restoreChanges(split({ by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(275) }] }))).toBe(true);
+    expect(restoreChanges(split({ by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(275) }] }, { by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(250) }] }))).toBe(false);
+  });
 });
