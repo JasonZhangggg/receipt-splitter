@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CreateSplitRefusal, CreateSplitRequest, CreateSplitResponse, Operation, ServerMessage, WireRejection } from "../core/operations";
 import { isRoutableSplitId, participantId, randomId, type ParticipantId, type Split, type SplitId } from "../core/split";
 import { createCopy } from "../ui/home-copy";
+import { firstSight, forgetFirstSight, keepCreated } from "./first-sight";
 import { answerByMs, connectionOf, slowAfterMs, type Connection } from "./connection";
 import type { ReceiptJpeg } from "../ui/receipt-input/jpeg";
 
@@ -45,8 +46,14 @@ const firstRetryMs = 500;
 const browserIsOnline = () => globalThis.navigator?.onLine !== false;
 
 export function useLiveSplit(id: string | null): { live: Live; send: Send; connection: Connection } {
-  const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(null);
+  // The first render shows a Split already in hand (the one just created here) instead of waiting for this hook's own socket to say so.
+  const [seen, setSeen] = useState<{ readonly id: string; readonly live: Live } | null>(() => {
+    const sight = id === null || !isRoutableSplitId(id) ? null : firstSight(id);
+    return id !== null && sight ? { id, live: { status: "live", split: sight.split, photo: sight.photo } } : null;
+  });
   const socket = useRef<PartySocket | null>(null);
+  /** Whether this link has ever opened. Until then a send waits for the open; after a drop it is refused (see `send`). */
+  const everOpened = useRef(false);
   const pending = useRef(new Map<string, Waiting>());
   const nextRef = useRef(0);
   const [socketOpen, setSocketOpen] = useState(false);
@@ -93,11 +100,16 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
       minReconnectionDelay: firstRetryMs,
     });
     socket.current = ws;
-    ws.addEventListener("open", () => setSocketOpen(true));
+    everOpened.current = false;
+    ws.addEventListener("open", () => {
+      everOpened.current = true;
+      setSocketOpen(true);
+    });
     ws.addEventListener("message", ({ data }: MessageEvent<string>) => {
       const message: ServerMessage = JSON.parse(data);
       switch (message.type) {
         case "state":
+          forgetFirstSight(id);
           setLive({ status: "live", split: message.split, photo: message.photo });
           if (message.ref === null) setJoined((count) => count + 1);
           return settle(message.ref, { ok: true, revision: message.split.revision });
@@ -112,6 +124,8 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
     });
     ws.addEventListener("close", ({ code }: CloseEvent) => {
       setSocketOpen(false);
+      // An action sent before the first open and still waiting in PartySocket's buffer has just been answered "disconnected"; it must not go out when the socket reopens.
+      ws.drainQueuedMessages();
       for (const [ref, entry] of [...waiting]) if (!(reopening.current && entry.late)) settle(ref, disconnected);
       const reason = endings[code];
       if (reason === undefined) return;
@@ -128,7 +142,9 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
   const send = useCallback<Send>((op, creatorSecret) => {
     const ws = socket.current;
     // PartySocket would buffer a send made while closed and replay it on reconnect, against a Split other devices may have changed since. Refuse it now instead.
-    if (!ws || ws.readyState !== ws.OPEN) return Promise.resolve(disconnected);
+    // The first connection is the exception: the page can show a Split before its socket has opened, and a tap in that gap goes out the moment the link does, on a Split at most one round trip old.
+    const firstConnect = ws?.readyState === ws?.CONNECTING && !everOpened.current && browserIsOnline();
+    if (!ws || (ws.readyState !== ws.OPEN && !firstConnect)) return Promise.resolve(disconnected);
     const ref = `r${nextRef.current++}`;
     return new Promise((resolve) => {
       const entry: Waiting = {
@@ -167,7 +183,8 @@ export async function createSplitLink(request: CreateSplitRequest): Promise<Crea
     return { ok: false, reason: createCopy.offline };
   }
   if (response.status === 201) {
-    const { id, creatorSecret }: CreateSplitResponse = await response.json();
+    const { id, creatorSecret, split }: CreateSplitResponse = await response.json();
+    keepCreated(split);
     return { ok: true, id, creatorSecret };
   }
   const refusal: CreateSplitRefusal | null = await response.json().catch(() => null);
