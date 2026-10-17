@@ -34,11 +34,11 @@ describe("why Create split link is off", () => {
 
   test("says which Venmo rule the username breaks, the first that applies", () => {
     expect([why("venmo", "test"), why("venmo", "@"), why("venmo", "a".repeat(31)), why("venmo", "jason z"), why("venmo", "jason.z"), why("venmo", "jason-z")]).toEqual([
-      "Venmo usernames need at least 5 characters. This one has 4.",
+      "Venmo usernames need at least 5 characters.",
       "Add your Venmo username after the @.",
-      "Venmo usernames can have at most 30 characters. This one has 31.",
-      "Venmo usernames can't have a space. Use letters, numbers, hyphens or underscores.",
-      'Venmo usernames can\'t have ".". Use letters, numbers, hyphens or underscores.',
+      "Venmo usernames have at most 30 characters.",
+      "Venmo can't use a space. Try letters, numbers, - or _.",
+      'Venmo can\'t use ".". Try letters, numbers, - or _.',
       null,
     ]);
   });
@@ -54,11 +54,11 @@ describe("why Create split link is off", () => {
       why("paypal", "Jason Z / tips"),
     ]).toEqual([
       "Add your cashtag after the $.",
-      "Cashtags can have at most 20 characters. This one has 21.",
-      'Cashtags can\'t have "_". Use letters and numbers.',
+      "Cashtags have at most 20 characters.",
+      'Cash App can\'t use "_". Try letters and numbers.',
       "Cashtags need at least one letter.",
-      "PayPal handles can have at most 80 characters. This one has 81.",
-      "Zelle handles can't have an invisible character.",
+      "PayPal handles have at most 80 characters.",
+      "Zelle can't use an invisible character.",
       null,
     ]);
   });

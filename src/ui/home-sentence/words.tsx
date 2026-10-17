@@ -1,16 +1,17 @@
-import { useState, type ReactNode, type Ref } from "react";
+import { useState, type Ref } from "react";
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { linkPress } from "../components/text-link";
+import { focusInPlace } from "../receipt-input/keyboard-room";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { motion, type, useColors } from "../theme";
 
-/** A plain run of the sentence in its own span, so the font checks see it as a line of text. A name in `Together` can break anywhere to fit. */
+/** A plain run of the sentence in its own span, so the font checks see it as a line of text. A name can break anywhere to fit. */
 export function Words({ children, ink = false, breaks = false }: { children: string; ink?: boolean; breaks?: boolean }) {
   const c = useColors();
-  return <Text style={[ink && { color: c.ink }, breaks && [styles.breaks, breakAnywhere]]}>{children}</Text>;
+  return <Text style={[ink && { color: c.ink }, breaks && breakAnywhere]}>{children}</Text>;
 }
 
 const breakAnywhere = webStyle({ overflowWrap: "anywhere" } as never);
@@ -28,34 +29,49 @@ export function Act({ label, name, onPress }: ActProps) {
   );
 }
 
-/** The small x after a name or a way to pay. `onAppWord` lifts it to the middle of the app word, whose box is taller than its text. */
-export function Remove({ name, onAppWord = false, onPress }: { name: string; onAppWord?: boolean; onPress: () => void }) {
+type RemoveProps = {
+  name: string;
+  /** Whether other x's of its kind (names, or ways to pay) stay after this one goes. When none do, the focus goes to the control named `fallback`. */
+  others: boolean;
+  fallback: string;
+  /** Lifts the x to the middle of the app word, whose box is taller than its text. */
+  onAppWord?: boolean;
+  onPress: () => void;
+};
+
+/** The small x after a name or a way to pay. Removing with the keyboard keeps the focus in the sentence: next x of its kind, else the previous, else the control that adds one. */
+export function Remove({ name, others, fallback, onAppWord = false, onPress }: RemoveProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.remove, onAppWord && styles.onAppWord, pressStyle(pressed, reduce, removePress)]}>
+    <PressTarget
+      name={name}
+      onPress={({ trigger }) => {
+        // Names sit in a group; ways to pay do not.
+        const kind = (x: Element) => x.closest("[role=group]") === null;
+        const mates = [...document.querySelectorAll<HTMLElement>('[aria-label^="Remove "]')].filter((x) => kind(x) === kind(trigger));
+        const at = mates.indexOf(trigger);
+        // The focus moves first, while the x is still on the page; the heirs are keyed, so they stay through the removal.
+        focusInPlace((others ? (mates[at + 1] ?? mates[at - 1]) : document.querySelector<HTMLElement>(`[aria-label="${fallback}"]`)) ?? null);
+        onPress();
+      }}
+      style={(pressed) => [styles.remove, onAppWord && styles.onAppWord, pressStyle(pressed, reduce, removePress)]}
+    >
       {() => <Icon name="x" size={12} color={c.muted} />}
     </PressTarget>
   );
 }
 
-/**
- * A word and the x after it, kept on one line. A browser may break before any inline box, even after a word joiner, so the two share one
- * box, which moves to the next line whole and lets a long name wrap inside it.
- */
-export function Together({ children, role, "aria-label": label }: { children: ReactNode; role?: "group"; "aria-label"?: string }) {
-  return (
-    <View role={role} aria-label={label} style={styles.together}>
-      {children}
-    </View>
-  );
-}
+/** Keeps a run of the sentence on one line: a name's last letters with its x and comma, or "on Venmo x". */
+export const nowrap = webStyle({ whiteSpace: "nowrap" } as never);
 
 const removePress = { scale: 0.88, pressIn: 140 };
 
 const underlineMark = { dataSet: { underline: "" } };
 // The field is 12 px wider than the rule under it (see `Blank`), so its cap is the wrapper plus that.
 const sized = webStyle({ fieldSizing: "content", maxWidth: "calc(100% + 12px)" } as never);
+// A blank stops short of the line's end, so a long handle at the end keeps its period beside it and not alone on the next line.
+const leavesRoomForPeriod = webStyle({ maxWidth: "calc(100% - 14px)" } as never);
 const colorChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 
 /**
@@ -69,7 +85,7 @@ export function Blank({ style, onFocus, onBlur, ref, ...rest }: TextInputProps &
   // A string, because a bare number gets a "px" unit and the calc in css.ts then fails.
   const chars = webStyle({ "--chars": String(Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1)) } as never);
   return (
-    <View style={[styles.rule, colorChange, { borderBottomColor: focused ? c.ink : c.dot }]}>
+    <View style={[styles.rule, leavesRoomForPeriod, colorChange, { borderBottomColor: focused ? c.ink : c.dot }]}>
       <TextInput
         ref={ref}
         {...underlineMark}
@@ -91,12 +107,10 @@ export function Blank({ style, onFocus, onBlur, ref, ...rest }: TextInputProps &
 
 const styles = StyleSheet.create({
   act: { alignItems: "baseline", paddingVertical: 9, marginVertical: -9 },
-  together: { flexDirection: "row", alignItems: "baseline", maxWidth: "100%" },
-  breaks: { flexShrink: 1, minWidth: 0 },
   underlined: { borderBottomWidth: 1.5 },
   remove: { width: 44, height: 44, marginLeft: -10, marginRight: -16, marginVertical: -6, alignSelf: "center", alignItems: "center", justifyContent: "center" },
   // The app word pads its box for the tap area and draws its underline inside it, so the middle of the box sits 3.5 px under the middle of the word.
   onAppWord: { top: -3.5 },
-  rule: { maxWidth: "100%", borderBottomWidth: 1.5 },
+  rule: { borderBottomWidth: 1.5 },
   blank: { minWidth: 0, paddingVertical: 9, paddingHorizontal: 8, marginVertical: -9, marginHorizontal: -6 },
 });

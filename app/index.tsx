@@ -22,7 +22,7 @@ import { stagePacer } from "../src/ui/home-sentence/stage-pacer";
 import { webStyle } from "../src/ui/motion";
 import { RecentSheet, RecentSplits } from "../src/ui/recent-splits";
 import { BottomSheet } from "../src/ui/split-view/bottom-sheet";
-import { HeaderIcons } from "../src/ui/split-view/header";
+import { SplitHeader } from "../src/ui/split-view/header";
 import { shareLink, siteUrl } from "../src/ui/share-link";
 import { splitCopy } from "../src/ui/split-copy";
 import { HomeFooter } from "../src/ui/receipt-input/home-footer";
@@ -64,7 +64,6 @@ export default function Home() {
   const [refusal, setRefusal] = useState<string | null>(null);
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
-  const [pageHeight, setPageHeight] = useState<number | null>(null);
   const [allSplits, setAllSplits] = useState<{ from: Press; closing: boolean } | null>(null);
   const pacer = useRef({ cancel() {} });
   const scroller = useRef<ScrollView>(null);
@@ -136,7 +135,8 @@ export default function Home() {
       if (receipt === null && globalThis.navigator?.onLine === false) setNotice(copy.scanOffline);
     }
   }, [dispatch]);
-  usePhotoDrop(read, draft.scan.status === "empty");
+  // A drop or paste replaces a finished read as Change does; only a read in progress turns it away.
+  usePhotoDrop(read, draft.scan.status !== "reading");
   const choose = () => pickPhoto(read);
 
   const sides = { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right };
@@ -147,7 +147,7 @@ export default function Home() {
   const blocked = ready.kind !== "ready";
   const reason = failure ?? (blocked ? blockerText(ready) : mismatchNote(draft));
   // After a read, a note that blocks Create is a problem with the receipt (nothing read, too many Items); before it, the note only says what is still to do.
-  const problem = failure !== null || (blocked && (ready.kind === "badHandle" || (ready.kind === "note" && scan.status === "read") || tried === reason));
+  const problem = failure !== null || (blocked && (ready.kind === "badHandle" || (ready.kind === "note" && scan.status === "read") || (reason !== null && tried === reason)));
 
   const create = async (split: Ready) => {
     const request = splitRequest(split, newParticipantId);
@@ -170,7 +170,7 @@ export default function Home() {
   // A tap on the gray pill takes the person to what stops it: the bad handle, the name field, or Add the receipt.
   const press = () => {
     if (ready.kind === "ready") return void create(ready);
-    if (scan.status === "reading") return;
+    if (ready.kind === "reading") return;
     setTried(blockerText(ready));
     switch (ready.kind) {
       case "badHandle":
@@ -191,22 +191,15 @@ export default function Home() {
   };
   useEscape(allSplits !== null && !allSplits.closing, closeAll);
 
-  const top = 20 + insets.top;
   return (
     <View style={[styles.screen, still, { backgroundColor: c.field }]}>
       <ScrollView
         ref={scroller}
         style={styles.screen}
-        onLayout={({ nativeEvent }) => setPageHeight(nativeEvent.layout.height)}
-        contentContainerStyle={[styles.page, sides, { paddingTop: top, paddingBottom: bottomGap + room }]}
+        contentContainerStyle={[styles.page, sides, { paddingTop: insets.top, paddingBottom: bottomGap + room }]}
       >
         <View style={[styles.column, { maxWidth: columnWidth }]}>
-          <View style={styles.header}>
-            <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
-              {copy.wordmark}
-            </Text>
-            <HeaderIcons onShare={() => void shareSite()} />
-          </View>
+          <SplitHeader home onShare={() => void shareSite()} />
 
           <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
             <ReceiptWords state={receipt} onChoose={choose} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
@@ -227,7 +220,7 @@ export default function Home() {
             </Text>
           ) : null}
 
-          {stored.length > 0 ? <RecentSplits splits={stored} now={now} end={pageHeight === null ? null : pageHeight - top - bottomGap} onSeeAll={(from) => setAllSplits({ from, closing: false })} /> : null}
+          {stored.length > 0 ? <RecentSplits splits={stored} now={now} onSeeAll={(from) => setAllSplits({ from, closing: false })} /> : null}
         </View>
       </ScrollView>
 
@@ -251,8 +244,7 @@ const still = webStyle({ overflow: "clip" });
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1, alignItems: "center" },
-  column: { width: "100%" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
+  column: { width: "100%", flex: 1 },
   sentence: { marginTop: 40 },
   refusal: { marginTop: 8 },
 });

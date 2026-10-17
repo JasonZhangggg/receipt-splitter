@@ -4,7 +4,7 @@ import { copy } from "../home-copy";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { motion, useColors } from "../theme";
 import { useAppearanceFlip } from "../use-appearance-flip";
-import { PressTarget } from "./button";
+import { PressTarget, roundFace } from "./button";
 import { Icon } from "./icon";
 
 const iconMark = { dataSet: { themeIcon: "" } };
@@ -28,7 +28,7 @@ export function ThemeToggle() {
   return (
     <PressTarget name={copy.themeToggle[next]} onPress={(press) => flip(press.trigger)} style={(pressed) => [styles.target, pressStyle(pressed, reduce, iconPress)]}>
       {() => (
-        <View style={styles.face}>
+        <View {...roundFace}>
           <View {...iconMark} style={[styles.icon, swap(reduce), dark ? { opacity: 0, ...away } : { opacity: 1 }]}>
             <Icon name="sun" size={19} color={c.muted} />
           </View>
@@ -42,7 +42,6 @@ export function ThemeToggle() {
 }
 
 const styles = StyleSheet.create({
-  target: { width: 44, height: 44, marginRight: -12 },
-  face: { flex: 1, alignItems: "center", justifyContent: "center" },
+  target: { width: 44, height: 44, marginRight: -12, alignItems: "center", justifyContent: "center" },
   icon: { position: "absolute" },
 });

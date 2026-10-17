@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from "react";
-import type { TextInput } from "react-native";
+import { Text, type TextInput } from "react-native";
 
+import { MAX_PARTICIPANT_NAME_LENGTH } from "../../core/operations";
 import { newName } from "../../draft";
 import { copy, joinCopy } from "../home-copy";
 import { focusInPlace } from "../receipt-input/keyboard-room";
-import { Act, Blank, Remove, Together, Words } from "./words";
+import { Act, Blank, nowrap, Remove, Words } from "./words";
 
 export type NameField = { readonly open: () => void };
 
@@ -48,21 +49,33 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
     return true;
   };
 
-  const person = (name: string, you: boolean) => (
-    <Together key={name} role="group" aria-label={you ? `${name}, ${copy.you}` : name}>
-      <Words ink breaks>
-        {name}
-      </Words>
-      <Remove
-        name={copy.removeName(name)}
-        onPress={() => {
-          onRefusal(null);
-          if (you) onRemoveHost();
-          else onRemoveFriend(name);
-        }}
-      />
-    </Together>
-  );
+  // The name's last letters, its x and the comma after it never part, so a long name wraps in its head and the x never floats alone.
+  const person = (name: string, you: boolean, comma: boolean) => {
+    const [head, tail] = splitName(name);
+    return (
+      <Text key={name} role="group" aria-label={you ? `${name}, ${copy.you}` : name}>
+        {head ? (
+          <Words ink breaks>
+            {head}
+          </Words>
+        ) : null}
+        <Text style={nowrap}>
+          <Words ink>{tail}</Words>
+          <Remove
+            name={copy.removeName(name)}
+            others={names.length > 1}
+            fallback={copy.addFriendsName}
+            onPress={() => {
+              onRefusal(null);
+              if (you) onRemoveHost();
+              else onRemoveFriend(name);
+            }}
+          />
+          {comma ? "," : null}
+        </Text>
+      </Text>
+    );
+  };
 
   const hostField = (
     <NameBlank
@@ -91,12 +104,19 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
   );
   return (
     <>
-      <Words>{copy.sentence.iAm}</Words> {host === null ? hostField : person(host, true)}
-      , <Words>{copy.sentence.hereWith}</Words>{" "}
+      <Words>{copy.sentence.iAm}</Words>{" "}
+      {host === null ? (
+        <>
+          {hostField}
+          {", "}
+        </>
+      ) : (
+        <>{person(host, true, true)} </>
+      )}
+      <Words>{copy.sentence.hereWith}</Words>{" "}
       {friends.map((name, index) => (
         <Fragment key={name}>
-          {person(name, false)}
-          {index < friends.length - 1 ? "," : null}{" "}
+          {person(name, false, index < friends.length - 1)}{" "}
         </Fragment>
       ))}
       {friends.length ? (
@@ -126,10 +146,14 @@ type BlankProps = {
 function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRefusal }: BlankProps) {
   const [typed, setTyped] = useState("");
   const pressing = usePressing();
+  const refused = useRef(false);
+  // A refused name stays in the field to be fixed; only a name that went in, or nothing but spaces, clears it.
   const commit = () => {
     const text = typed;
-    setTyped("");
-    return onCommit(text);
+    const added = onCommit(text);
+    refused.current = !added && text.trim() !== "";
+    if (added || !text.trim()) setTyped("");
+    return added;
   };
   return (
     <Blank
@@ -137,10 +161,12 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       aria-label={label}
       placeholder={placeholder}
       value={typed}
+      maxLength={MAX_PARTICIPANT_NAME_LENGTH}
       enterKeyHint="done"
       autoCapitalize="words"
       onChangeText={(text) => {
         setTyped(text);
+        refused.current = false;
         onRefusal(null);
       }}
       onSubmitEditing={() => onEnter(commit())}
@@ -154,12 +180,20 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       onBlur={() =>
         afterPress(pressing.current, () => {
           if (focused(input.current)) return;
-          commit();
+          // A name already refused is not judged again on the way out, or it would bring its note back after a removal.
+          if (!refused.current) commit();
           onLeave();
         })
       }
     />
   );
+}
+
+/** A name as the run that may wrap and the last word's end that stays with the x. A last word of 12 letters or fewer stays whole; a longer one keeps its last 4 letters. */
+function splitName(name: string): [head: string, tail: string] {
+  const letters = [...name.slice(name.lastIndexOf(" ") + 1)];
+  const tail = letters.length > 12 ? letters.slice(-4).join("") : letters.join("");
+  return [name.slice(0, name.length - tail.length), tail];
 }
 
 const pressEnds = ["pointerup", "pointercancel"] as const;

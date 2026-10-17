@@ -46,7 +46,6 @@ export const copy = {
   closePhoto: "Close photo",
   removeName: (name: string) => `Remove ${name}`,
   removeApp: (app: string) => `Remove ${app}`,
-  mode: { light: "Light mode", dark: "Dark mode" } satisfies Record<Scheme, string>,
   themeToggle: { light: "Switch to light mode", dark: "Switch to dark mode" } satisfies Record<Scheme, string>,
 };
 
@@ -62,9 +61,10 @@ export const createCopy = {
   other: "Couldn't create the link. Try again.",
 };
 
+// The reason sits beside the Create pill, so each fits two lines at 390 px: short sentences, and the app's name in place of "username".
 const handleWords: Record<PaymentService, { one: string; many: string; sigil: string; use: string }> = {
-  venmo: { one: "Venmo username", many: "Venmo usernames", sigil: "@", use: " Use letters, numbers, hyphens or underscores." },
-  cashApp: { one: "cashtag", many: "Cashtags", sigil: "$", use: " Use letters and numbers." },
+  venmo: { one: "Venmo username", many: "Venmo usernames", sigil: "@", use: " Try letters, numbers, - or _." },
+  cashApp: { one: "cashtag", many: "Cashtags", sigil: "$", use: " Try letters and numbers." },
   paypal: { one: "PayPal handle", many: "PayPal handles", sigil: "", use: "" },
   zelle: { one: "Zelle handle", many: "Zelle handles", sigil: "", use: "" },
 };
@@ -75,11 +75,11 @@ function handleReason(service: PaymentService, problem: HandleProblem): string {
   const { one, many, sigil, use } = handleWords[service];
   switch (problem.kind) {
     case "short":
-      return problem.length === 0 ? `Add your ${one} after the ${sigil}.` : `${many} need at least ${problem.limit} characters. This one has ${problem.length}.`;
+      return problem.length === 0 ? `Add your ${one} after the ${sigil}.` : `${many} need at least ${problem.limit} characters.`;
     case "long":
-      return `${many} can have at most ${problem.limit} characters. This one has ${problem.length}.`;
+      return `${many} have at most ${problem.limit} characters.`;
     case "character":
-      return `${many} can't have ${characterName(problem.character)}.${use}`;
+      return `${paymentApps[service].name} can't use ${characterName(problem.character)}.${use}`;
     case "noLetter":
       return `${many} need at least one letter.`;
   }
@@ -89,6 +89,7 @@ function handleReason(service: PaymentService, problem: HandleProblem): string {
 export function blockerText(found: Blocker | Ready): string | null {
   switch (found.kind) {
     case "ready":
+    case "reading":
       return null;
     case "note":
       return found.note;
@@ -103,20 +104,17 @@ export const joinCopy = {
   opening: "Opening split",
   question: "Which one are you?",
   taken: "Picked on another device",
-  someoneElse: "Someone else",
   yourName: "Your name",
   join: "Join",
   nameNeeded: "Type your name.",
   nameTaken: "That name is already here.",
   nameRefused: "Couldn't add that name. Try another.",
-  joinFailed: "Couldn't join. Try again.",
-  atTheTable: "At the table",
   newSplit: "Split a receipt",
   /** The Split page's wordmark opens a fresh home; its name starts with the visible wordmark (WCAG 2.5.3). */
   wordmarkHome: "SplitWith, split a receipt",
   /** The server ends a Split that never existed and one that aged out the same way, so one wording covers both. */
   missing: { title: "We can't find this split", hint: "It may have expired, or the link may be incomplete." },
-  noPage: "This page doesn't exist",
+  noPage: { title: "This page doesn't exist", hint: "Check the link, or start a new split." },
   unreadable: { title: "This split can't be opened", hint: "Ask whoever sent the link to make a new one." },
 };
 
@@ -149,7 +147,7 @@ export const paymentApps: Record<PaymentService, { name: string; glyph: string; 
   venmo: { name: "Venmo", glyph: "V", hint: "@username" },
   cashApp: { name: "Cash App", glyph: "$", hint: "$cashtag" },
   paypal: { name: "PayPal", glyph: "P", hint: "username" },
-  zelle: { name: "Zelle", glyph: "Z", hint: "Email or phone" },
+  zelle: { name: "Zelle", glyph: "Z", hint: "email or phone" },
 };
 
 export const fallbackSamples = {
