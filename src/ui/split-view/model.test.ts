@@ -30,7 +30,7 @@ describe("lineView", () => {
       view(item({ by: "amount", units: [[[bob, cents(250)], [cat, cents(650)]]] }, 900)).split,
       view(item({ by: "even", units: [[bob]] })).split,
       view(item({ by: "even", units: [[]] })).split,
-    ]).toEqual(["$4.67 yours", "$6.25 each", "$6.25 Bob's", "$6.00 yours", "$2.50 yours", "by shares", "by amount", null, null]);
+    ]).toEqual(["$4.67 yours", "$6.25 each", "$6.25 theirs", "$6.00 yours", "$2.50 yours", "by shares", "by amount", null, null]);
   });
 
   test("$14.00 even across three people with the viewer sorted last reads $4.67 yours", () => {
