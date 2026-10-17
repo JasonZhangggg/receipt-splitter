@@ -180,5 +180,17 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 - On home, if the friend field is open when the last name is removed, focus has no fallback and drops to the body. Fixer: next home PR.
 - `maxLength` on names counts UTF-16 units, so emoji names hit the cap early. Fixer: next home PR.
 - `metro.config.js` stubs expo-router `Sitemap.js` and react-native-web list modules by path (#139). An Expo or RNW upgrade can move them and silently grow the bundle or break a screen. Re-check the stub list and the size budget on every upgrade. Fixer: the upgrade PR.
-- `e2e/sheet.spec.ts:95` (pick-sheet flick, `settled` timeout) failed once on Linux WebKit on #137. `e2e/boot.spec.ts:68` (loader fade 187.5 ms against a 190 ms floor) failed once on mobile-safari on #141. Both passed on the next run, and neither can run locally (no WebKit in cloud sessions). Fixer: next test-infra PR, if either fails again.
-- Operator decisions sent 2026-10-17, unanswered, current behavior kept: (1) the unreadable-receipt dead end, (2) auto-pick the Host after Create, (3) Recent rows saying "With Sam", (4) Create pill 48 vs 44 px, (5) fade only the new amount after a read, (6) pinned sheet titles and pull-down to close, (7) folding $0 Payments rows, (8) the Host ring's "paid you of", (9) photo zoom, (10) prefill By amount evenly, (11) only the selected app's handle in the Pay sheet, (12) one icon stroke weight.
+- Resolved 2026-10-17: `e2e/sheet.spec.ts:95` was a real bug. A slow drag's projected coast pushed it past `closeDistance` on a 16 ms cadence, and it's fixed by the 200 px/s dead band in `snapFor` (#158, also in main via #156). The `e2e/boot.spec.ts` fade floor is now 150 ms (#155 era).
+- Operator decisions 1 to 14 sent 2026-10-17 were answered the same day and built in #144 to #153.
+
+## From the 2026-10-17 afternoon merges (#145 to #159)
+
+- The Split page's offline notice at 320 px still truncates to "Offline. Reconn…" with the dots hidden (#154). Suggested "Reconnecting" on narrow screens. Fixer: operator call, then the next Split-page PR.
+- `useReducedMotion` (`src/ui/motion.ts:9`) reads in render and subscribes in an effect, the same shape that lost dark-mode switches (#157). It can miss a `prefers-reduced-motion` change at startup. Fixer: next motion PR, with `useSyncExternalStore` as in `src/ui/theme.ts`.
+- `e2e/boot.spec.ts:298` ("shows nothing when it connects within 300 ms") failed once on mobile-safari on #153. It assumes a real connect finishes inside the loader's 300 ms delay and doesn't hold the socket fast. If it fails again, make the test control the connect time. Fixer: next test-infra PR.
+- Join flake fix (#156) leaves 2 of 130 throttled runs where the take-over pick never applied. Cause unknown. Fixer: next join PR.
+- The connection-notice cushion (#151) hides short blips. Its limit under long PartySocket backoff (several reconnect attempts) isn't measured. Fixer: next connection PR.
+- Inferred, not checked on a device: iPhone pull-to-close on pinned sheet titles, Android pinch on the photo viewer, and `interactive-widget=resizes-content` with the Android keyboard. Fixer: the operator's phone check.
+- No WebKit in cloud sessions (`/opt/pw-browsers/webkit-*` missing), so mobile-safari failures reproduce only on CI or the Mac. Port the synthetic-PointerEvent path to Chromium to repro (as #158 did).
+- Not fixed from the receipt-host review (#153): deleting the last Item with a big discount says "That takes the total under $0.00", and the not-a-receipt state can wait up to 15 s while the on-device reader downloads.
+- Responsiveness list: items 1, 4, 7, 8, 10 and 11 shipped in 03ad5d6, 9 in #152, and 5 and 6 in #159. Items 2 and 3 (optimistic claims, close at once) are on `fix/optimistic-claims`. The design is in `.claude/orchestrate/optimistic-claims-design.md`, and "I already paid" waits for earlier pending ops before taking its amount.
