@@ -11,11 +11,12 @@ import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
 import { chooseRoute, FALLBACK_WAIT_MS, within } from "../src/scan/route";
 import { ThemeToggle } from "../src/ui/components/theme-toggle";
+import { TextLink } from "../src/ui/components/text-link";
 import { Toast } from "../src/ui/components/toast";
 import { useEscape } from "../src/ui/components/popover";
 import type { Press } from "../src/ui/components/button";
 import { actedByKey } from "../src/ui/components/acted-by-key";
-import { blockerText, copy, historyCopy } from "../src/ui/home-copy";
+import { blockerText, coffeeLink, copy, historyCopy } from "../src/ui/home-copy";
 import { PayWords } from "../src/ui/home-sentence/pay-words";
 import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-words";
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
@@ -198,7 +199,10 @@ export default function Home() {
             <Text role="heading" aria-level={1} style={[type.title, { color: c.ink }]}>
               {copy.wordmark}
             </Text>
-            <ThemeToggle />
+            <View style={styles.headerEnd}>
+              <TextLink label={copy.coffee} href={coffeeLink} />
+              <ThemeToggle />
+            </View>
           </View>
 
           <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
@@ -246,6 +250,7 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1, alignItems: "center" },
   column: { width: "100%" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
+  headerEnd: { flexDirection: "row", alignItems: "center", gap: 16 },
   sentence: { marginTop: 40 },
   refusal: { marginTop: 8 },
 });

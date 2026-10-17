@@ -74,12 +74,8 @@ async function create(page: Page) {
 
 const isPut = (request: Request) => request.method() === "PUT" && request.url().endsWith("/photo");
 const photoRow = (page: Page) => page.getByRole("button", { name: "Receipt", exact: true });
-const receiptSheet = (page: Page) => page.getByRole("dialog", { name: "Receipt photo", exact: true });
-/** The Receipt link opens a sheet with the photo; a tap on the photo opens the full-screen viewer. */
-async function viewPhoto(page: Page) {
-  await photoRow(page).click();
-  await receiptSheet(page).getByRole("button", { name: "Open the receipt photo" }).click();
-}
+/** The Receipt link opens the full-screen viewer straight away. */
+const viewPhoto = (page: Page) => photoRow(page).click();
 const historyLink = (page: Page) => page.getByRole("button", { name: "History", exact: true });
 
 /** Closes the pick sheet so the underlined links show, the Receipt link among them while the Split has a photo. */
@@ -225,7 +221,6 @@ test.describe("on Chromium", () => {
     const frame = states.at(-1)!;
     clients.at(-1)!.send(JSON.stringify({ ...frame, ref: null, photo: false }));
     await expect(guest.getByRole("button", { name: "Close photo" })).toHaveCount(0, live);
-    await expect(receiptSheet(guest)).toHaveCount(0, live);
     clients.at(-1)!.send(JSON.stringify({ ...frame, ref: null, photo: true }));
     await expect(photoRow(guest)).toBeVisible(live);
     await expect(guest.getByRole("button", { name: "Close photo" })).toHaveCount(0);
@@ -282,7 +277,7 @@ test("the canvas JPEG of a 12 MP photo and of an EXIF-rotated one fits 150 KB, c
 });
 
 for (const width of [390, 1440]) {
-  test(`at ${width} px the History link and the Receipt link open their sheet and viewer and each hands focus back to its link`, async ({ page, request, browserName }, testInfo) => {
+  test(`at ${width} px the History link and the Receipt link open the History sheet and the photo viewer, and each hands focus back to its link`, async ({ page, request, browserName }, testInfo) => {
     const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
     expect((await putPhoto(request, id, creatorSecret, new Uint8Array(readFileSync("e2e/fixtures/srd-1040-no-sprite.jpg")))).status()).toBe(204);
     await page.setViewportSize({ width, height: 844 });
@@ -299,17 +294,12 @@ for (const width of [390, 1440]) {
     await expect(historyLink(page), "History hands focus back").toBeFocused();
 
     await fromMore(page, "Receipt photo");
-    await expect(receiptSheet(page)).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(receiptSheet(page)).toHaveCount(0, live);
-    await expect(photoRow(page), "the Receipt sheet hands focus back").toBeFocused();
-
-    await viewPhoto(page);
-    await expect(shown).toBeVisible();
+    await expect(shown, "Receipt opens the photo with no sheet first").toBeVisible();
+    await expect(page.getByRole("dialog"), "the only dialog is the viewer").toHaveCount(1);
     await expect(page.getByRole("button", { name: "Close photo" }), "the viewer holds focus before Escape").toBeFocused();
     await page.keyboard.press("Escape");
     await expect(shown).toHaveCount(0, live);
-    await expect(receiptSheet(page), "Escape closes the viewer and leaves the sheet under it").toBeVisible();
+    await expect(photoRow(page), "the viewer hands focus back").toBeFocused();
 
   });
 }

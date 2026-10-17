@@ -6,6 +6,7 @@ import type { ReadingStage } from "./home-sentence/receipt-words";
 
 export const copy = {
   wordmark: "SplitWith",
+  coffee: "Buy me a coffee",
   sentence: {
     paidTheBill: "I paid the bill.",
     iPaid: "I paid",
@@ -48,6 +49,9 @@ export const copy = {
   mode: { light: "Light mode", dark: "Dark mode" } satisfies Record<Scheme, string>,
   themeToggle: { light: "Switch to light mode", dark: "Switch to dark mode" } satisfies Record<Scheme, string>,
 };
+
+/** Where Buy me a coffee goes: the maker's Venmo. */
+export const coffeeLink = "https://venmo.com/u/Jason-Zhang-162";
 
 export const createCopy = {
   busy: "Too many links from here. Try again in a minute.",
@@ -162,6 +166,7 @@ export const fallbackSamples = {
     copy.sentence.addFriends,
     copy.sentence.addApp,
     "Add a receipt first.",
+    copy.coffee,
   ],
   500: [copy.wordmark, copy.action],
 };
