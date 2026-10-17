@@ -159,8 +159,9 @@ test("a message that wraps keeps room inside the bar, and a one-line toast stays
       const words = document.createRange();
       words.selectNodeContents(el);
       const lines = [...words.getClientRects()];
-      const ink = { top: Math.min(...lines.map((r) => r.top)), bottom: Math.max(...lines.map((r) => r.bottom)), right: Math.max(...lines.map((r) => r.right)) };
-      return { height: Math.round(bar.height), lines: new Set(lines.map((r) => Math.round(r.top))).size, top: Math.round(ink.top - bar.top), bottom: Math.round(bar.bottom - ink.bottom), right: Math.round(bar.right - ink.right) };
+      // The right edge is the message's box: a line's ink can include the space it wrapped at, which hangs past the box.
+      const ink = { top: Math.min(...lines.map((r) => r.top)), bottom: Math.max(...lines.map((r) => r.bottom)) };
+      return { height: Math.round(bar.height), lines: new Set(lines.map((r) => Math.round(r.top))).size, top: Math.round(ink.top - bar.top), bottom: Math.round(bar.bottom - ink.bottom), right: Math.round(bar.right - el.getBoundingClientRect().right) };
     });
   };
   await page.evaluate(() => (window as unknown as ToastWindow).dropAction());
