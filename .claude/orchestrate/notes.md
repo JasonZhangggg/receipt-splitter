@@ -168,3 +168,17 @@ Triage of the old 204 notes (evidence per note) is in `archive/notes-triage-2026
 ## From the photo-only scan route (PR #122, 2026-10-15)
 
 - When the OCR model files are not in within 5 s of the pick, home sends the photo with `ocrLines: []`, and the reader gets the full uncropped frame with no OCR text. An uncropped frame is a known misread cause (`receipt-extraction-eval.md`, the crop findings). Nobody has measured how often this route reads wrong. Run the rule 56 eval on the Mac with `ocrLines: []` and compare it with the OCR route. Fixer: the operator's Mac eval.
+
+## From the deep review (PRs #137 to #141, 2026-10-17)
+
+- At 320 px the Split page's offline notice ellipsizes. Let it wrap or shorten the copy. Fixer: next Split-page PR.
+- `data-icons-live` still turns on at the first keydown rather than at first paint. Fixer: next overlays PR.
+- Review findings M9 (icon stroke widths differ) and M12 (type tokens) were not done in #137 to #141. M9 waits on operator decision 12 below. Fixer: a design-tokens PR.
+- On home, the reading step's changing words reflow the sentence around them (review finding H10, low). Skipped in #141. Fixer: next home PR.
+- "I paid the rest" shows "Marked $30.20 as paid", the cumulative total. The remainder would read more naturally. One-line change if the operator wants it. Fixer: sonnet.
+- On someone else's Pay sheet, a person who has settled or overpaid shows no payment line. Show "Paid" there too. Fixer: next Split-page PR, with an opus check on the money display.
+- On home, if the friend field is open when the last name is removed, focus has no fallback and drops to the body. Fixer: next home PR.
+- `maxLength` on names counts UTF-16 units, so emoji names hit the cap early. Fixer: next home PR.
+- `metro.config.js` stubs expo-router `Sitemap.js` and react-native-web list modules by path (#139). An Expo or RNW upgrade can move them and silently grow the bundle or break a screen. Re-check the stub list and the size budget on every upgrade. Fixer: the upgrade PR.
+- `e2e/sheet.spec.ts:95` (pick-sheet flick, `settled` timeout) failed once on Linux WebKit on #137. `e2e/boot.spec.ts:68` (loader fade 187.5 ms against a 190 ms floor) failed once on mobile-safari on #141. Both passed on the next run, and neither can run locally (no WebKit in cloud sessions). Fixer: next test-infra PR, if either fails again.
+- Operator decisions sent 2026-10-17, unanswered, current behavior kept: (1) the unreadable-receipt dead end, (2) auto-pick the Host after Create, (3) Recent rows saying "With Sam", (4) Create pill 48 vs 44 px, (5) fade only the new amount after a read, (6) pinned sheet titles and pull-down to close, (7) folding $0 Payments rows, (8) the Host ring's "paid you of", (9) photo zoom, (10) prefill By amount evenly, (11) only the selected app's handle in the Pay sheet, (12) one icon stroke weight.
