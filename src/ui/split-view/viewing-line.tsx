@@ -20,5 +20,5 @@ export function ViewingLine({ name, onBack }: { name: string; onBack: () => void
 }
 
 const styles = StyleSheet.create({
-  box: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 12, marginTop: 2, marginBottom: 6 },
+  box: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 12, marginTop: 2, marginBottom: 4 },
 });
