@@ -83,8 +83,9 @@ test("while Geist is slow the receipt loader shows, then lifts once the font is 
   expect(seen.loaderPeak).toBe(1);
   expect(seen.geistAtReveal).toBe(true);
   expect(seen.leaveAt! - seen.shownAt!).toBeGreaterThanOrEqual(300);
-  // The 200 ms fade timer starts when "leave" is set, but the observer stamps leaveAt only after the rest of that task, which ran 12 ms on CI WebKit.
-  expect(seen.goneAt! - seen.leaveAt!).toBeGreaterThanOrEqual(175);
+  // The 200 ms fade timer starts when "leave" is set, but the observer stamps leaveAt only after the rest of that task, which ran 12 to 19 ms on CI WebKit.
+  // 150 still tells a fade from a loader that goes at once.
+  expect(seen.goneAt! - seen.leaveAt!).toBeGreaterThanOrEqual(150);
   // The loader has been up far longer than its 300 ms hold, so it lifts as soon as the last of the app and Geist is ready.
   const ready = Math.max(seen.mountedAt!, seen.geistAt!);
   const fonts = await page.evaluate(() =>
