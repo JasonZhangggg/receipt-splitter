@@ -117,6 +117,20 @@ export type Operation = (
   | { readonly type: "restoreReceipt" }
 ) & { readonly by: ParticipantId | null };
 
+/**
+ * The Operations a phone may show before the server answers. Each is absolute or guarded by an id, so applying it to a Split that already holds it changes nothing:
+ * claim and unclaim set membership, a payment sets an amount, an add is refused as a duplicate id, a delete as an unknown one, and an undo as already undone.
+ * Item edits and the deltas of `editReceipt` are left out: replaying a delta would count it twice.
+ */
+export type Optimistic =
+  | Extract<Operation, { readonly type: "claim" | "unclaim" | "recordPayment" | "clearPayment" | "undo" }>
+  | (Omit<Extract<Operation, { readonly type: "editReceipt" }>, "items" | "adjustments" | "subtotalDelta" | "totalDelta"> & {
+      readonly items?: readonly Extract<ItemPatch, { readonly type: "add" | "delete" }>[];
+      readonly adjustments?: readonly Extract<AdjustmentPatch, { readonly type: "add" | "delete" }>[];
+      readonly subtotalDelta?: undefined;
+      readonly totalDelta?: undefined;
+    });
+
 export type Auth = { readonly creator: boolean };
 
 export type RejectionReason =
@@ -814,6 +828,30 @@ function fitChanges(state: Split, changes: readonly Change[], before: Split): re
     start += 1;
   }
   return changes.slice(start);
+}
+
+/** True when what the Operation set out to do is already so on `split`. A send whose answer never came counts as saved when it is, whoever made it so. */
+export function landed(split: Split, op: Optimistic): boolean {
+  switch (op.type) {
+    case "claim":
+    case "unclaim": {
+      const item = split.receipt.items.find(({ id }) => id === op.itemId);
+      return item !== undefined && claimersOf(item.split).includes(op.participantId) === (op.type === "claim");
+    }
+    case "recordPayment":
+      return paymentOf(split, op.participantId) === op.amount;
+    case "clearPayment":
+      return paymentOf(split, op.participantId) === null;
+    case "undo": {
+      const target = split.recentChanges.find((change) => change.revision === op.revision);
+      return target !== undefined && target.undoneBy !== null;
+    }
+    case "editReceipt":
+      return (
+        (op.items ?? []).every((patch) => split.receipt.items.some(({ id }) => id === (patch.type === "add" ? patch.item.id : patch.itemId)) === (patch.type === "add")) &&
+        (op.adjustments ?? []).every((patch) => split.receipt.adjustments.some(({ id }) => id === (patch.type === "add" ? patch.adjustment.id : patch.adjustmentId)) === (patch.type === "add"))
+      );
+  }
 }
 
 function findParticipant(split: Split, participantId: ParticipantId): Participant | undefined {

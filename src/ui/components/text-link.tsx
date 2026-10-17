@@ -9,14 +9,14 @@ import { Icon } from "./icon";
 export const underline = { textDecorationLine: "underline", textDecorationThickness: "1px", textUnderlineOffset: "3px" } as TextStyle;
 export const linkPress = { scale: 0.97, pressIn: 100 };
 
-type Props = { center?: boolean; ink?: boolean; label: string; onPress: (press: Press) => void; name?: string; plus?: boolean; outsideScroll?: boolean; expanded?: boolean; popup?: "dialog" };
+type Props = { center?: boolean; ink?: boolean; label: string; onPress: (press: Press) => void; name?: string; plus?: boolean; outsideScroll?: boolean; expanded?: boolean; popup?: "dialog"; busy?: boolean };
 
 /** A quiet underlined action in the muted ink, or the strong ink with `ink`. With `plus` the "+" leads it and only the words are underlined. */
-export function TextLink({ center = false, ink = false, label, onPress, name, plus = false, outsideScroll, expanded, popup }: Props) {
+export function TextLink({ center = false, ink = false, label, onPress, name, plus = false, outsideScroll, expanded, popup, busy = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={name} onPress={onPress} outsideScroll={outsideScroll} expanded={expanded} popup={popup} style={(pressed) => [styles.target, center && styles.centered, pressStyle(pressed, reduce, linkPress)]}>
+    <PressTarget name={name} onPress={onPress} outsideScroll={outsideScroll} expanded={expanded} popup={popup} busy={busy} disabled={busy} style={(pressed) => [styles.target, center && styles.centered, busy && styles.waiting, pressStyle(pressed, reduce, linkPress)]}>
       {() => (
         <View style={styles.face}>
           {plus ? <Icon name="plus" size={12} color={c.muted} /> : null}
@@ -30,5 +30,6 @@ export function TextLink({ center = false, ink = false, label, onPress, name, pl
 const styles = StyleSheet.create({
   target: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start", flexShrink: 1, minWidth: 0 },
   centered: { alignSelf: "center" },
+  waiting: { opacity: 0.5 },
   face: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
 });

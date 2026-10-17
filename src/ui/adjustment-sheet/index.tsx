@@ -5,6 +5,7 @@ import { MAX_CENTS } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
 import { RECEIPT_LEVEL_KINDS, type AdjustmentId, type ParticipantId, type Split } from "../../core/split";
 import type { Answer } from "../../live/client";
+import type { Lay } from "../lay";
 import { Icon } from "../components/icon";
 import { IconAction, LabeledField, MoneyField, Options } from "../components/sheet-fields";
 import { splitCopy as say } from "../split-copy";
@@ -26,6 +27,7 @@ type Props = {
   adjustmentId: AdjustmentId;
   me: ParticipantId | null;
   send: Send;
+  lay: Lay;
   onClose: () => void;
   /** The line is gone; `revision` is the one an Undo names. */
   onDeleted: (deleted: { readonly name: string; readonly revision: number }) => void;
@@ -33,7 +35,7 @@ type Props = {
 };
 
 /** A tax, tip, fee or discount, saved as it is typed like an Item's sheet. A Bundle discount keeps its kind and its Items. */
-export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, onDeleted, guardRef }: Props) {
+export function AdjustmentSheet({ split, adjustmentId: id, me, send, lay, onClose, onDeleted, guardRef }: Props) {
   const c = useColors();
   const live = split.receipt.adjustments.find((row) => row.id === id);
   // Another phone's delete takes the row away; the sheet closes on the row as it was.
@@ -102,15 +104,14 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, on
     flush();
     onClose();
   };
-  const remove = async () => {
+  // The row leaves the page and the sheet closes at once. The Undo bar comes with the server's answer; a refusal puts the row back and says so in the bar.
+  const remove = () => {
     if (leaving) return;
+    const name = row.name;
+    if (!lay(deleteAdjustment(me, id), { then: ({ revision }) => revision !== null && onDeleted({ name, revision }) })) return setProblem("offline");
     setLeaving(true);
     flushRef.current = () => {};
-    const sent = await send(deleteAdjustment(me, id));
-    if (sent.ok && sent.revision !== null) onDeleted({ name: row.name, revision: sent.revision });
-    if (sent.ok || !splitRef.current.receipt.adjustments.some((adjustment) => adjustment.id === id)) return onClose();
-    setLeaving(false);
-    setProblem(adjustmentProblem(sent.rejection.reason));
+    onClose();
   };
   const off = takesOff(shown.kind);
   const bundle = row.kind === "bundleDiscount" ? row.bundle : null;
@@ -122,7 +123,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, onClose, on
         title={say.editKind[kind]}
         onClose={close}
         keepsFocus
-        action={<IconAction label={off ? say.deleteDiscount : say.deleteCharge} icon="trash" size={15} pressedInk="warn" onPress={() => void remove()} />}
+        action={<IconAction label={off ? say.deleteDiscount : say.deleteCharge} icon="trash" size={15} pressedInk="warn" onPress={remove} />}
       />
       {kind === "bundleDiscount" ? null : <Options options={RECEIPT_LEVEL_KINDS} labels={say.kinds} name={say.kindOfCharge} value={kind} onChange={(next) => onChange(switchKind(shown, next))} />}
       <View style={styles.pair}>

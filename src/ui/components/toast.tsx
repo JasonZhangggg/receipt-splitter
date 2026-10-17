@@ -85,6 +85,11 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   );
 }
 
+/** The bar's room: every edge of its words sits `inset` from the pill's edge, and the action's hit area reaches `actionPad` past its label, so the bar itself gives the rest on that side. */
+const barHeight = 56;
+const inset = 24;
+const actionPad = 14;
+
 const styles = StyleSheet.create({
   anchor: { position: "absolute", left: layout.gutter, right: layout.gutter, alignItems: "center" },
   toast: {
@@ -94,16 +99,16 @@ const styles = StyleSheet.create({
     gap: 12,
     width: "100%",
     maxWidth: 480,
-    minHeight: 48,
-    paddingLeft: 20,
-    paddingRight: 6,
+    minHeight: barHeight,
+    paddingLeft: inset,
+    paddingRight: inset - actionPad,
     paddingVertical: 4,
-    borderRadius: 24,
+    borderRadius: barHeight / 2,
   },
   // With no action at the end, the text keeps the same room on the right as on the left.
-  bare: { paddingRight: 20 },
-  // The padding is on the text, not the bar, so a one-line toast stays 48 tall while a wrapped one clears its rounded ends.
+  bare: { paddingRight: inset },
+  // The padding is on the text, not the bar, so a one-line toast stays at its height while a wrapped one clears its rounded ends.
   message: { flexShrink: 1, paddingVertical: 10 },
   action: { minWidth: 44, minHeight: 44 },
-  face: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, borderRadius: 22 },
+  face: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: actionPad, borderRadius: 22 },
 });

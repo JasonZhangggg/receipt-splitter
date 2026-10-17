@@ -10,10 +10,11 @@ import { computeShares, shareBreakdown } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
-import { newParticipantId, splitUrl, useLiveSplit, type GoneReason } from "../../src/live/client";
+import { newParticipantId, splitUrl, useLiveSplit, type Answer, type GoneReason } from "../../src/live/client";
 import { actedByKey } from "../../src/ui/components/acted-by-key";
 import { Toast } from "../../src/ui/components/toast";
 import { Button, type Press } from "../../src/ui/components/button";
+import type { Lay } from "../../src/ui/lay";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
 import { HistorySheet } from "../../src/ui/history";
@@ -50,7 +51,7 @@ export default function SplitScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const splitId = isRoutableSplitId(id) ? id : null;
-  const { live, send, connection } = useLiveSplit(id);
+  const { live, send, act, connection, idle } = useLiveSplit(id);
   const site = useSiteShare();
   const expired = live.status === "gone" && live.reason === "notFound";
   useEffect(() => {
@@ -59,7 +60,7 @@ export default function SplitScreen() {
 
   useBusyLoader(live.status === "connecting", joinCopy.opening);
 
-  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} photo={live.photo} send={send} connection={connection} />;
+  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} server={live.server} photo={live.photo} send={send} act={act} idle={idle} connection={connection} />;
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
@@ -99,6 +100,7 @@ type OverlayKind =
 /** What is open over the page and the press that opened it: focus goes back there. */
 type Overlay = OverlayKind & { readonly from: Press };
 type Send = ReturnType<typeof useLiveSplit>["send"];
+type Act = ReturnType<typeof useLiveSplit>["act"];
 /** The one bar at the bottom of the page: an Undo for the last delete or payment, or a line to read. Over the sheet when the sheet stays open. */
 type Bar = { readonly message: string; readonly action?: { readonly label: string; readonly onPress: () => void } };
 
@@ -112,7 +114,8 @@ const checkFor = 80;
 const tallPickTop = 170;
 const pickGap = 12;
 
-function SplitPage({ splitId, split, photo, send, connection }: { splitId: SplitId; split: Split; photo: boolean; send: Send; connection: Connection }) {
+/** The Split as the server holds it is `server`; `split` is what this phone shows, with its unanswered actions laid over `server` (see `useLiveSplit`). */
+function SplitPage({ splitId, split, server, photo, send, act, idle, connection }: { splitId: SplitId; split: Split; server: Split; photo: boolean; send: Send; act: Act; idle: boolean; connection: Connection }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
@@ -130,7 +133,11 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const [phase, setPhase] = useState<Phase>(me ? "regular" : "pick");
   const [chosen, setChosen] = useState<ParticipantId | null>(null);
   const [pickProblem, setPickProblem] = useState<string | null>(null);
-  const [payProblem, setPayProblem] = useState<string | null>(null);
+  /** "I already paid" (or its undo) tapped while an earlier action was still unanswered: it goes out once those settle, from the Share they leave. */
+  const [paying, setPaying] = useState<boolean | null>(null);
+  // What a tap on "I already paid" waits with: the Share the person saw when they tapped, which is what they agreed to pay.
+  const waitingToPay = useRef<{ readonly paid: boolean; readonly share: Cents } | null>(null);
+  const [payNote, setPayNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<ParticipantId | null>(me);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [closing, setClosing] = useState(false);
@@ -147,7 +154,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   }, [photo, photoUrl]);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
-  useEffect(() => noteSplit(split), [split]);
+  useEffect(() => noteSplit(server), [server]);
 
   const shares = useMemo(() => computeShares(split), [split]);
   const people = split.participants;
@@ -238,31 +245,53 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
     setTrusted(null);
   }
   const [confirming, setConfirming] = useState<{ readonly itemId: ItemId; readonly name: string; readonly person: Participant; readonly had: boolean; readonly from: Press; readonly closing: boolean } | null>(null);
-  const claim = async (itemId: ItemId, person: ParticipantId) => {
+  /**
+   * Shows `op` on the Split now and sends it. When the server refuses it or never answers, the Split goes back to how the server has it and the bar says what didn't apply,
+   * with Try again for a refusal that is only the connection or the pace. False means the connection is down: nothing was shown or sent.
+   */
+  const lay: Lay = (op, how = {}) => {
+    const laid = act(op);
+    if (!laid.sent) return false;
+    void laid.answer.then((answer) => {
+      if (answer.ok) return how.then?.(answer);
+      const said = how.said ? how.said(answer) : answer.rejection.reason === "payerOnly" ? say.payerOnly : failedCopy(answer, say.saveFailed);
+      if (said === null) return;
+      const again = how.retry && (answer.rejection.reason === "disconnected" || answer.rejection.reason === "rateLimited");
+      setBar({
+        // The button already says "try again", so the generic line does not.
+        message: again && said === say.saveFailed ? say.couldntSave : said,
+        action: again
+          ? {
+              label: say.tryAgain,
+              onPress: () => {
+                setBar(null);
+                if (!lay(op, how)) setBar({ message: say.connection.failed });
+              },
+            }
+          : undefined,
+      });
+    });
+    return true;
+  };
+  // The Item is read off the Split on screen, so a second quick tap on a dot acts on the first.
+  const claim = (itemId: ItemId, person: ParticipantId) => {
     const item = split.receipt.items.find(({ id }) => id === itemId);
     if (!item || !me) return;
-    for (const op of circleTap(item, person)) {
-      const answer = await send({ ...op, by: me });
-      if (answer.ok) continue;
-      const now = latest.current.receipt.items.find(({ id }) => id === itemId);
-      const landed = now !== undefined && claimersOf(now.split).includes(person) !== claimersOf(item.split).includes(person);
-      if (answer.rejection.reason === "disconnected" && !landed) setBar({ message: say.connection.failed });
-      return;
-    }
+    if (!lay({ ...circleTap(item, person), by: me })) setBar({ message: say.connection.failed });
   };
-  const onCircle = async (item: SplitItem, from: Press) => {
+  const onCircle = (item: SplitItem, from: Press) => {
     if (!me || !selectedPerson) return setPhase("pick");
     if (selectedPerson.id !== me && trusted !== selectedPerson.id) {
       return setConfirming({ itemId: item.id, name: item.name, person: selectedPerson, had: claimersOf(item.split).includes(selectedPerson.id), from, closing: false });
     }
-    await claim(item.id, selectedPerson.id);
+    claim(item.id, selectedPerson.id);
   };
   const closeConfirming = () => setConfirming((open) => open && { ...open, closing: true });
   const confirmClaim = () => {
     if (!confirming || confirming.closing) return;
     setTrusted(confirming.person.id);
     closeConfirming();
-    void claim(confirming.itemId, confirming.person.id);
+    claim(confirming.itemId, confirming.person.id);
   };
   const confirmingGone = () => {
     if (confirming && (wide || confirming.from.keyboard || actedByKey()) && confirming.from.trigger.isConnected) confirming.from.trigger.focus({ preventScroll: true });
@@ -275,12 +304,8 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   };
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
-  const markPaid = async (payer: ParticipantId, amount: Cents | null) => {
-    setPayProblem(null);
-    const answer = await send(amount !== null ? { by: payer, type: "recordPayment", participantId: payer, device, amount } : { by: payer, type: "clearPayment", participantId: payer, device });
-    if (!answer.ok) setPayProblem(answer.rejection.reason === "payerOnly" ? say.payerOnly : failedCopy(answer, say.saveFailed));
-    return answer.ok;
-  };
+  const markPaid = (payer: ParticipantId, amount: Cents | null, then?: (answer: Extract<Answer, { ok: true }>) => void) =>
+    lay(amount !== null ? { by: payer, type: "recordPayment", participantId: payer, device, amount } : { by: payer, type: "clearPayment", participantId: payer, device }, { then });
 
   // The menu keeps the person it opened for, so it can finish leaving after they are gone.
   const [menu, setMenu] = useState<{ readonly person: Participant; readonly from: Press; readonly closing: boolean } | null>(null);
@@ -317,7 +342,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const peopleNote = peopleProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => {
-    setPayProblem(null);
+    setPayNote(null);
     setOverlay({ ...kind, from });
   };
   const deleted = ({ name, revision }: { readonly name: string; readonly revision: number }) =>
@@ -325,10 +350,10 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
       message: say.deleted(name),
       action: {
         label: say.undo,
-        onPress: async () => {
+        onPress: () => {
           setBar(null);
-          const answer = await send({ by: me, type: "undo", revision });
-          if (!answer.ok && answer.rejection.reason !== "alreadyUndone") setBar({ message: failedCopy(answer, say.undoFailed) });
+          const said = (answer: Extract<Answer, { ok: false }>) => (answer.rejection.reason === "alreadyUndone" ? null : failedCopy(answer, say.undoFailed));
+          if (!lay({ by: me, type: "undo", revision }, { said })) setBar({ message: say.connection.failed });
         },
       },
     });
@@ -374,22 +399,49 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const [host] = people;
   const viewed = me && selectedPerson ? payFacts(split, selectedPerson, me) : null;
   const viewedTitle = me && selectedPerson && viewed ? payTitle(split, selectedPerson, me) : say.payments;
-  const onPaid = async (paid: boolean) => {
+  // The sheet closes the moment the payment is shown; the Undo bar follows the server's answer.
+  // `agreed` is the Share the person saw when they tapped. If the actions that settled in between moved it, nothing is recorded: the sheet stays open and says the new amount, and a second tap records that.
+  const pay = (paid: boolean, agreed: Cents = myShare) => {
+    waitingToPay.current = null;
+    setPaying(null);
     if (!me) return;
+    if (paid && agreed !== myShare) {
+      const note = say.shareNow(money(myShare));
+      if (overlay?.kind === "pay" && viewed?.hasBar) setPayNote(note);
+      else setBar({ message: note });
+      return;
+    }
     const before = split.payments.find(({ participantId }) => participantId === me)?.amount ?? null;
-    if (!(await markPaid(me, paid ? myShare : null)) || !paid) return;
-    setBar({
-      message: say.markedPaid(money(justPaid(myShare, before))),
-      action: {
-        label: say.undo,
-        onPress: () => {
-          if (me) void markPaid(me, before);
-          setBar(null);
+    const shown = markPaid(me, paid ? myShare : null, () => {
+      if (!paid) return;
+      setBar({
+        message: say.markedPaid(money(justPaid(myShare, before))),
+        action: {
+          label: say.undo,
+          onPress: () => {
+            setBar(null);
+            if (!markPaid(me, before)) setBar({ message: say.connection.failed });
+          },
         },
-      },
+      });
     });
-    closeOverlay();
+    if (!shown) return setBar({ message: say.connection.failed });
+    if (paid && overlay?.kind === "pay") closeOverlay();
   };
+  // The amount is the Share, which an action still on its way can change, so a tap made then waits for those to settle, and records only if the Share is still the one the person saw.
+  const onPaid = (paid: boolean) => {
+    setPayNote(null);
+    if (idle) return pay(paid);
+    waitingToPay.current = { paid, share: myShare };
+    setPaying(paid);
+  };
+  const payWhenSettled = useEffectEvent(() => {
+    const waiting = waitingToPay.current;
+    if (waiting !== null) pay(waiting.paid, waiting.share);
+  });
+  useEffect(() => {
+    if (paying !== null && idle) payWhenSettled();
+  }, [paying, idle]);
   const peopleRows: readonly PersonRow[] = people.map((person) => {
     const pick = split.picks.find(({ participantId }) => participantId === person.id);
     return {
@@ -429,15 +481,16 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
         itemId={overlay.itemId}
         me={me}
         send={send}
+        lay={lay}
         onClose={closeOverlay}
         onNote={(message) => setBar({ message })}
         onDeleted={deleted}
         guardRef={closeGuard}
       />
     ) : overlay.kind === "add" ? (
-      <AddSheet split={split} me={me} send={send} onClose={closeOverlay} />
+      <AddSheet split={split} me={me} lay={lay} onClose={closeOverlay} />
     ) : overlay.kind === "adjustment" ? (
-      <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} onClose={closeOverlay} onDeleted={deleted} guardRef={closeGuard} />
+      <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} lay={lay} onClose={closeOverlay} onDeleted={deleted} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
       <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
     ) : overlay.kind === "people" ? (
@@ -446,14 +499,13 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
       selectedPerson ? (
         <>
           <PayBody split={split} person={selectedPerson} viewer={me} onClose={closeOverlay} />
-          {payProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{payProblem}</Text> : null}
         </>
       ) : null
     ) : (
       <HistorySheet split={split} me={me} onRevert={(revision) => send({ by: me, type: "undo", revision })} onRestore={() => send({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
     )
   ) : null;
-  const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} onPaid={(paid) => void onPaid(paid)} /> : undefined;
+  const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} busy={paying !== null} notice={payNote} onPaid={onPaid} /> : undefined;
 
   const showingNow = closing ? null : overlay;
   const receipt = (
@@ -462,7 +514,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
       shares={shares}
       selected={me ? selectedPerson : null}
       me={me}
-      onCircle={(item, from) => void onCircle(item, from)}
+      onCircle={onCircle}
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
       onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
