@@ -13,9 +13,10 @@ import { chooseRoute, FALLBACK_WAIT_MS, within } from "../src/scan/route";
 import { ThemeToggle } from "../src/ui/components/theme-toggle";
 import { Toast } from "../src/ui/components/toast";
 import { useEscape } from "../src/ui/components/popover";
-import { Button, type Press } from "../src/ui/components/button";
+import type { Press } from "../src/ui/components/button";
+import { CoffeeButton } from "../src/ui/components/coffee-button";
 import { actedByKey } from "../src/ui/components/acted-by-key";
-import { blockerText, coffeeLink, copy, historyCopy } from "../src/ui/home-copy";
+import { blockerText, copy, historyCopy } from "../src/ui/home-copy";
 import { PayWords } from "../src/ui/home-sentence/pay-words";
 import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-words";
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
@@ -199,7 +200,7 @@ export default function Home() {
               {copy.wordmark}
             </Text>
             <View style={styles.headerEnd}>
-              <Button kind="icon" icon="coffee" name={copy.coffee} href={coffeeLink} />
+              <CoffeeButton />
               <ThemeToggle />
             </View>
           </View>

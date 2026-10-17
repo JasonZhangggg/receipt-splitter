@@ -23,7 +23,7 @@ The operator made these calls while iterating. They win over older design docs a
 
 7. Header: the Split's name, then the theme toggle and the share icon on the right. Under it an intro line ("Sam paid $135.83 on Saturday, Oct 11. Tap the dot next to what you had. Tap a line to edit it or split it another way.").
     The header row scrolls away with the list. Nothing on the page is pinned except the footer (operator, 2026-10-16, replacing the pinned header of 2026-10-15).
-8. Receipt, People, Payments and History are underlined text links under the intro. People, Payments and History each open their own sheet. Receipt opens the full-screen photo straight away, with no sheet first (operator, 2026-10-17). There is no menu button and no sideways row of people chips.
+8. Receipt, People, Payments and History are underlined text links under the intro. People, Payments and History each open their own sheet. Receipt opens the full-screen photo straight away, with no sheet first (operator, 2026-10-17). The header's icons are the coffee cup, the theme toggle and Share, with their glyphs 32 px apart. There is no menu button and no sideways row of people chips.
 9. Item rows: the dot toggles the claim; the rest of the row opens the Edit item sheet. No arrow. The left column shows the name, the description, then who had it. The right column shows the full price, and under it the split line ("$4.67 yours", "$6.25 each").
     In the who-had-it line only "You" is in the strong ink; other names stay muted (operator, 2026-10-16).
 10. The list reads like a receipt in three parts: the Items, then a muted charges section (Subtotal, Tax, Tip, discounts and fees) with "+ Add item, tax, tip or discount" under it, then the Total between gray rules.
@@ -54,7 +54,7 @@ The operator made these calls while iterating. They win over older design docs a
     - Each added way to pay is an inline "or <app> at <handle>" clause. "add an app" at the end of the payment clause adds the next app and focuses its handle field, until every app is in. With two or more apps, a small plain × (the one names use) follows each app name and removes that app. Names follow "here with", and the first name is the Host. Friends can be named before the Host (operator, 2026-10-16).
     - Home does not scroll (operator, 2026-10-16). Only the footer is fixed, and nothing above it is pinned.
     - Recent splits lists this device's stored Splits under the sentence. Each row shows who, the day, how many people and the total. Home shows as many rows as fit above the footer. When some don't fit, a "See all N" link below the rows opens a bottom sheet that scrolls through every one. The section is gone when there are none.
-    - The header holds the wordmark, an outline coffee-cup icon button named "Buy me a coffee", linking to the maker's Venmo (https://venmo.com/u/Jason-Zhang-162, new tab) and the theme toggle (operator, 2026-10-17).
+    - The header holds the wordmark, an outline coffee-cup icon button named "Buy me a coffee", linking to the maker's Venmo (https://venmo.com/u/Jason-Zhang-162, new tab) and the theme toggle (operator, 2026-10-17). The Split page header has the same cup. The cup draws at the same 14.7 px square as Share.
     - The footer matches the Split page: the reason line at the left, and a "Create link" pill at the right that is gray while blocked.
 
 ### First load
