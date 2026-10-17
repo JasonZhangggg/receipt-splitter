@@ -337,9 +337,11 @@ test("on a wide screen a double click zooms the receipt photo at the pointer, a 
   expect(Math.round(panned.x - zoomed.x), "the drag moved the photo 80 px left").toBe(-80);
   expect(Math.round(panned.y - zoomed.y)).toBe(-50);
 
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, -100);
-  await page.keyboard.up("Control");
+  // Mobile WebKit has no mouse.wheel, so the pinch arrives as the ctrl-wheel event a trackpad sends.
+  await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y)!;
+    target.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+  }, { x: frame.x + 120, y: frame.y + 150 });
   expect(await settledWidth()).toBeGreaterThan(Math.round(frame.width * 2.5) + 20);
 
   await page.mouse.dblclick(frame.x + 200, frame.y + 200);
