@@ -63,6 +63,27 @@ test("offline for more than 1.5 s shows the notice, and reconnecting clears it",
   await expect(notice(page)).toHaveCount(0, { timeout: 30_000 });
 });
 
+test("a socket that dies under an online browser, as on reopening a tab, reconnects within a second and never shows the notice", async ({ page, request }, { workerIndex }) => {
+  const sockets: WebSocketRoute[] = [];
+  await page.routeWebSocket(/split-server/, (client) => {
+    sockets.push(client);
+    const server = client.connectToServer();
+    client.onMessage((message) => server.send(message));
+    server.onMessage((message) => client.send(message));
+  });
+  await openAs(page, await createSplit(request, workerIndex), "Sam");
+  expect(sockets).toHaveLength(1);
+
+  sockets[0].close();
+  await expect.poll(() => sockets.length, { timeout: 1500 }).toBe(2);
+  await page.waitForTimeout(2500);
+  await expect(notice(page)).toHaveCount(0);
+
+  await rice(page).click();
+  await expect(rice(page)).toHaveAttribute("aria-pressed", "true", live);
+  await expect(page.getByTestId("owe")).toHaveText("$8.00", live);
+});
+
 test("a claim tap while offline says the connection is down and leaves the dot unclaimed, and after reconnecting it works", async ({ page, context, request }, { workerIndex }) => {
   let socket: WebSocketRoute | null = null;
   await page.routeWebSocket(/split-server/, (client) => {
