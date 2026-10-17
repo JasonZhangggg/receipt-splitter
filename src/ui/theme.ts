@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Easing, StyleSheet, useColorScheme } from "react-native";
+import { Easing, Platform, StyleSheet, useColorScheme } from "react-native";
 
 import { readAppearance, resolveScheme, storeAppearance, type Appearance, type Scheme } from "./appearance";
 import { colors, type Colors } from "./colors";
@@ -22,7 +22,17 @@ export function setAppearance(next: Appearance) {
 
 export const useAppearance = () => useSyncExternalStore(subscribe, current, current);
 
-export const useSystemScheme = (): Scheme => (useColorScheme() === "dark" ? "dark" : "light");
+// react-native-web's useColorScheme reads the scheme in render and subscribes in an effect, so a change between the two (a slow first paint) is lost and the colors stay on the old scheme. useSyncExternalStore re-reads the query once it has subscribed.
+const systemDark = Platform.OS === "web" && typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
+const subscribeSystem = (listener: () => void) => {
+  systemDark?.addEventListener("change", listener);
+  return () => systemDark?.removeEventListener("change", listener);
+};
+const systemNow = (): Scheme => (systemDark?.matches ? "dark" : "light");
+const useWebScheme = () => useSyncExternalStore(subscribeSystem, systemNow, systemNow);
+const useNativeScheme = (): Scheme => (useColorScheme() === "dark" ? "dark" : "light");
+
+export const useSystemScheme: () => Scheme = Platform.OS === "web" ? useWebScheme : useNativeScheme;
 
 export const useScheme = (): Scheme => resolveScheme(useAppearance(), useSystemScheme());
 
