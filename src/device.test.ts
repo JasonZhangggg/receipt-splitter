@@ -54,6 +54,16 @@ describe("recent splits on this device", () => {
     ]);
   });
 
+  test("remember this device's place in the names: the Host's on the device that made the Split, else the person it picked", () => {
+    rememberSplit(mintedId(idOf(1)), { creatorSecret: "secret" });
+    noteSplit(splitOf(1, ["Jason", "Sam"]), T0);
+    rememberSplit(mintedId(idOf(2)), { me: participantId("p1") });
+    noteSplit(splitOf(2, ["Ana", "Ben", "Cy"]), T0);
+    noteSplit(splitOf(3, ["Kim", "Lee"]), T0);
+    const placed = Object.fromEntries(recentSplits(T0).map(({ id, you }) => [id, you]));
+    expect(placed).toEqual({ [idOf(1)]: 0, [idOf(2)]: 1, [idOf(3)]: undefined });
+  });
+
   test("list every Split within 60 days, not only the five newest", () => {
     for (let n = 1; n <= 7; n++) noteSplit(splitOf(n), T0 - (10 - n) * DAY);
     expect(listed().map(({ id }) => id)).toEqual([7, 6, 5, 4, 3, 2, 1].map(idOf));

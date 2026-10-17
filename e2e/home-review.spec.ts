@@ -241,3 +241,25 @@ test("a long handle stops short of the line's end, so its period stays beside it
   expect(run.scrolled).toBe(0);
   expect(run.room).toBeGreaterThan(0);
 });
+
+test("the Create link pill is 44 px tall, like the Split page's Pay pill", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  const box = await page.getByRole("button", { name: "Create link" }).boundingBox();
+  expect(box!.height).toBe(44);
+});
+
+test("when a read finishes, only the new amount fades in, not the words around it", async ({ page }) => {
+  await page.addInitScript(() => {
+    const faded = new Set<string>();
+    Object.assign(window, { faded });
+    new MutationObserver(() => {
+      for (const el of document.querySelectorAll("[data-testid=receipt] [data-step-in], [data-testid=receipt][data-step-in]")) faded.add(el.textContent ?? "");
+    }).observe(document, { childList: true, subtree: true, attributes: true });
+  });
+  await page.goto("/");
+  await settle(page);
+  await openExample(page);
+  await expect(page.getByTestId("receipt")).toContainText("$28.04");
+  expect(await page.evaluate(() => [...(window as unknown as { faded: Set<string> }).faded])).toEqual(["$28.04"]);
+});

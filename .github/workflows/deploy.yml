@@ -30,6 +30,8 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
       # A newer push to main has its own CI run that deploys. Deploying this older commit would overwrite it.
+      # CI skips pushes that only touch docs, Markdown or .claude/ (ci.yml paths-ignore), so such a push never deploys.
+      # When every commit after this one is of that kind, this commit's code is the tip's code, and this run deploys it.
       - id: tip
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,6 +40,13 @@ jobs:
           tip=$(gh api repos/${{ github.repository }}/commits/main --jq .sha)
           if [ "$tip" = "$RUN_SHA" ]; then
             echo "current=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          read -r status files code < <(gh api "repos/${{ github.repository }}/compare/$RUN_SHA...$tip" \
+            --jq '[.status, (.files | length), ([.files[].filename | select(test("^(docs/|\\.claude/)|\\.md$") | not)] | length)] | @tsv')
+          if [ "$status" = "ahead" ] && [ "$files" -lt 300 ] && [ "$code" = "0" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Deploying $RUN_SHA. The commits after it up to $tip only touch paths CI skips, so they have no run of their own."
           else
             echo "current=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Skipping deploy. $RUN_SHA is not the tip of main ($tip). The newer CI run will deploy."
