@@ -201,7 +201,9 @@ function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const removing = mode === "remove";
   const mine = row.mine && !asking;
   const on = chosen === person.id || (mode === "switch" ? mine : mode === "view" && row.viewed);
-  const ink = on ? c.ink : c.muted;
+  // Picking is a choice among equals, so names read as ink; only a name another phone holds steps back. Elsewhere the viewed row alone is ink.
+  const picking = asking || mode === "switch";
+  const ink = picking ? (row.heldElsewhere && !on ? c.muted : c.ink) : on ? c.ink : c.muted;
   const name = mode === "switch" && row.heldElsewhere ? say.pickedName(person.name) : mine ? `${person.name}, ${say.you}` : person.name;
   const tag = mine ? say.you : host && !asking ? say.paidTheBill : null;
   const note =
@@ -243,10 +245,10 @@ function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   topline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
-  invite: { flex: 1, marginTop: 2, marginLeft: 2 },
+  invite: { flex: 1, marginTop: 2 },
   strong: { fontWeight: "500" },
   close: { marginTop: -10, marginRight: -12 },
-  ask: { marginHorizontal: 2, marginBottom: 4 },
+  ask: { marginBottom: 4 },
   hint: { marginTop: -6 },
   rows: {},
   row: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minHeight: 44, paddingVertical: 10, borderTopWidth: 1 },

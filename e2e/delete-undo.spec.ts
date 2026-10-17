@@ -113,6 +113,7 @@ test("when another phone deletes the Item, an open Edit item sheet closes itself
 
   await expect(sheet(sam)).toHaveCount(0, live);
   await expect(sam.getByRole("button", { name: /^Open Rice/ })).toHaveCount(0, live);
+  await expect(sam.getByRole("status").getByText("Rice was deleted on another phone.")).toBeVisible(live);
 });
 
 test("with one Item left the trash is disabled, a tap says why, and nothing is sent", async ({ browser, request }, { workerIndex }) => {

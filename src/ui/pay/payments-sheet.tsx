@@ -85,10 +85,12 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
                       <View style={styles.body}>
                         <View style={styles.who}>
                           <View style={[styles.dot, { backgroundColor: on ? c.ink : c.dot }, !reduce && fade]} />
-                          <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }, !reduce && fade]}>
-                            {name}
-                          </Text>
-                          {id === me ? <Icon name="person" size={13} color={ink} /> : null}
+                          <View style={styles.title}>
+                            <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }, !reduce && fade]}>
+                              {name}
+                            </Text>
+                            {id === me ? <Text style={[type.caption, styles.tag, { color: c.muted }]}>{say.you}</Text> : null}
+                          </View>
                         </View>
                         <View style={styles.sub}>
                           {state === "settled" ? <Icon name="check" size={13} color={c.good} /> : null}
@@ -136,7 +138,9 @@ const styles = StyleSheet.create({
   body: { flex: 1, minWidth: 0, gap: 2 },
   who: { flexDirection: "row", alignItems: "center", gap: 10 },
   dot: { width: 12, height: 12, borderRadius: 6 },
+  title: { flexDirection: "row", alignItems: "baseline", gap: 8, minWidth: 0, flexShrink: 1 },
   name: { flexShrink: 1 },
+  tag: { flexShrink: 0 },
   sub: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 22 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });

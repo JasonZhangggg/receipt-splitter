@@ -92,7 +92,7 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
   await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
   await expect(sheet.getByTestId("amount-status")).toHaveText("$2.50 left to assign");
-  await expect(sheet.getByText("Not saved")).toBeVisible();
+  await expect(sheet.getByText("Not saved")).toHaveCount(0);
 
   await sheet.getByRole("textbox", { name: "Priya's amount" }).fill("1.00");
   await sheet.getByRole("button", { name: "Give Sam the rest, $1.50" }).click();

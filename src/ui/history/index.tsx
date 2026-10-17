@@ -9,7 +9,7 @@ import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import type { Answer } from "../../live/client";
 import { failedCopy, splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
-import { historyOf, whenText, type Entry } from "./describe";
+import { historyOf, restoreChanges, whenText, type Entry } from "./describe";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type Props = {
@@ -65,7 +65,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
         {entries.map((entry) => (
           <Row
             key={entry.revision}
-            meta={[entry.name ? say.byName(entry.name) : say.someone, whenText(entry.at, now)]}
+            meta={[entry.byline ? (entry.name ? say.byName(entry.name) : say.someone) : null, whenText(entry.at, now)]}
             reverted={entry.reverted}
             what={
               <Text style={[type.body, styles.what, { color: c.ink }]}>
@@ -115,7 +115,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           }
           asking={asking === "restore"}
           busy={pending === "restore"}
-          canAct={split.original !== undefined}
+          canAct={restoreChanges(split)}
           label={say.restore}
           name={say.restoreName}
           onAct={() => {

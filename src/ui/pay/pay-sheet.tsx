@@ -26,7 +26,7 @@ export function payFacts(split: Split, person: Participant, viewer: ParticipantI
 export function PayBody({ split, person, viewer, onClose }: Props) {
   const c = useColors();
   const breakdown = shareBreakdown(split, person.id);
-  const { mine, share } = payFacts(split, person, viewer);
+  const { mine, share, state } = payFacts(split, person, viewer);
   const lines = breakdownLines(breakdown, split.receipt.items, person.id);
   const charges = [...breakdownCharges(split.receipt, breakdown), ...(breakdown.difference === 0 ? [] : [{ id: "difference", name: say.receiptDifference, portion: breakdown.difference }])];
   const title = payTitle(split, person, viewer);
@@ -74,6 +74,26 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
           {money(share)}
         </Text>
       </View>
+      {state.kind === "short" ? (
+        <View style={styles.rest}>
+          <Row label={say.paid} amount={money(state.paid)} ink={c.muted} testID="paid-so-far" />
+          <Row label={say.leftToPay} amount={money(state.rest)} ink={c.ink} testID="left-to-pay" />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** A label and its amount on one line, as the charges and the total read. Shown after a payment that no longer covers the share. */
+function Row({ label, amount, ink, testID }: { label: string; amount: string; ink: string; testID?: string }) {
+  return (
+    <View style={styles.charge}>
+      <Text numberOfLines={1} style={[type.body, styles.name, { color: ink }]}>
+        {label}
+      </Text>
+      <Text testID={testID} style={[type.body, tabular, { color: ink }]}>
+        {amount}
+      </Text>
     </View>
   );
 }
@@ -99,11 +119,12 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 const styles = StyleSheet.create({
   body: { gap: 4 },
   label: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 12, paddingBottom: 8, borderBottomWidth: 1 },
-  line: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 48, paddingVertical: 8 },
+  line: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minHeight: 48, paddingVertical: 8 },
   name: { flex: 1, minWidth: 0 },
   empty: { paddingVertical: 12 },
   charges: { marginTop: 8 },
   charge: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34, gap: 12 },
   total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8, paddingTop: 12, borderTopWidth: 1 },
+  rest: { marginTop: 4 },
   regular: { fontWeight: "400" },
 });

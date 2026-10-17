@@ -17,7 +17,7 @@ export function UnderlineInput({ style, onFocus, onBlur, placeholderTextColor, r
     <TextInput
       ref={ref}
       {...underlined}
-      placeholderTextColor={placeholderTextColor ?? c.dash}
+      placeholderTextColor={placeholderTextColor ?? c.muted}
       onFocus={(event) => {
         setFocused(true);
         onFocus?.(event);
