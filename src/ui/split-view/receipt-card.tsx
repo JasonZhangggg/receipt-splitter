@@ -436,7 +436,7 @@ function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle,
       >
         {(pressed) => <ClaimDot on={mine} pressed={pressed} />}
       </PressTarget>
-      <PressTarget name={[say.open(label), `$${price}`, whoText(who), split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
+      <PressTarget name={[say.open(label), `$${price}`, whoText(who), split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, pressed ? rowFade : fade, pressed && styles.held]}>
         {() => (
           <>
             <View style={styles.name}>
@@ -488,6 +488,8 @@ function RowFace({ label, amount }: { label: string; amount: number }) {
 
 const turn = webStyle({ transitionProperty: "transform", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
 const fade = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
+/** A pressed row dims in 100 ms so a quick tap reaches it, and eases back over `fade`'s 200 ms. */
+const rowFade = webStyle({ transitionProperty: "opacity", transitionDuration: "100ms", transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
   heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 22, marginBottom: 12 },
