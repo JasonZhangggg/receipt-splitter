@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Platform } from "react-native";
 
 import type { Appearance, Scheme } from "./appearance";
@@ -53,9 +54,6 @@ export function installDocument() {
 
   const live = () => document.documentElement.setAttribute("data-icons-live", "");
   for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, live, { capture: true, once: true });
-
-  const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-  if (viewport && !viewport.content.includes("viewport-fit")) viewport.content += ", viewport-fit=cover";
 }
 
 /** Does at runtime what the script in public/index.html does before the first paint. With no pick, each theme-color tag goes back to its own scheme's color. */
@@ -73,4 +71,19 @@ export function paintAppearance(picked: Appearance) {
 /** Tells the loader in public/index.html that the first screen is on the page; it lifts once Geist has loaded too. */
 export function announceMounted() {
   if (Platform.OS === "web") document.dispatchEvent(new Event("splitwith:mounted"));
+}
+
+/** Shows the loader from public/index.html over the page while `active`, under `label`. It appears after 300 ms, so a fast connect shows nothing, and it lifts when `active` ends. */
+export function useBusyLoader(active: boolean, label: string) {
+  useEffect(() => {
+    if (Platform.OS !== "web" || !active) return;
+    const loader = document.getElementById("rs-boot");
+    const before = loader?.getAttribute("aria-label") ?? null;
+    loader?.setAttribute("aria-label", label);
+    document.dispatchEvent(new Event("splitwith:busy"));
+    return () => {
+      document.dispatchEvent(new Event("splitwith:idle"));
+      if (before !== null) loader?.setAttribute("aria-label", before);
+    };
+  }, [active, label]);
 }

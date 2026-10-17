@@ -41,6 +41,7 @@ import { SplitIntro } from "../../src/ui/split-view/intro";
 import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-sheet";
 import { PayBlock } from "../../src/ui/pay/pay-block";
 import { shareStatus, statusWords } from "../../src/ui/pay/model";
+import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
@@ -56,18 +57,14 @@ export default function SplitScreen() {
     if (expired && splitId) forgetSplit(splitId);
   }, [expired, splitId]);
 
+  useBusyLoader(live.status === "connecting", joinCopy.opening);
+
   if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} photo={live.photo} send={send} connection={connection} />;
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
         <SplitHeader onShare={site.share} />
-        {live.status === "gone" ? (
-          <Gone reason={live.reason} />
-        ) : (
-          <Text role="status" style={[type.body, styles.opening, { color: c.muted }]}>
-            {joinCopy.opening}
-          </Text>
-        )}
+        {live.status === "gone" ? <Gone reason={live.reason} /> : null}
       </View>
       <Toast message={site.notice} onHide={site.hideNotice} />
     </View>
@@ -567,7 +564,6 @@ const styles = StyleSheet.create({
   page: { flex: 1 },
   column: { alignSelf: "center", width: "100%", maxWidth: 480 },
   doc: { paddingTop: 6 },
-  opening: { paddingTop: 24 },
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   people: { gap: layout.blockGap },
