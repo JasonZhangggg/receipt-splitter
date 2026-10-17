@@ -174,6 +174,12 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     openSheet.current = overlay;
   });
 
+  // The phase as last rendered. People tapped while a pick is unanswered opens the pick sheet, which the pick then has to collapse.
+  const shownPhase = useRef(phase);
+  useEffect(() => {
+    shownPhase.current = phase;
+  });
+
   const closeGuard = useRef<CloseGuard | null>(null);
   const closeOverlay = () => {
     // With no sheet open, `closing` would stay set and shut the next sheet the moment it opens.
@@ -197,7 +203,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     remember({ me: participantId });
     setSelected(participantId);
     // The pick sheet collapses on its own; a switch from the People sheet closes that sheet instead.
-    if (phase === "pick") timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
+    if (shownPhase.current === "pick") timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
     else {
       setChosen(null);
       closeOverlay();
