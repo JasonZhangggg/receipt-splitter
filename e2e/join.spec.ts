@@ -399,3 +399,33 @@ test("the first sheet opened after taking a name back from the bar stays open", 
   await showPeople(first, "Sam");
   await expect(peopleSheet(first).getByText("This phone is Sam.")).toBeVisible();
 });
+
+test("People tapped while a name taken back from the bar is still unanswered shows the pick sheet, which closes once the name lands", async ({ page, browser }) => {
+  await readyHome(page, ["Sam"]);
+  const link = await createLink(page);
+  const first = await (await newContext(browser)).newPage();
+  let release = () => {};
+  await first.routeWebSocket(/\/parties\//, (client) => {
+    const server = client.connectToServer();
+    client.onMessage((message) => {
+      const frame = JSON.parse(String(message));
+      if (frame.op?.type === "pick" && frame.op.takeOver) release = () => server.send(message);
+      else server.send(message);
+    });
+    server.onMessage((message) => client.send(message));
+  });
+  await first.goto(link);
+  await first.getByRole("button", { name: "Sam", exact: true }).click();
+  await youAre(first, "Sam");
+  const second = await open(browser, link);
+  await second.getByRole("button", { name: "Sam, picked on another phone" }).click();
+  await second.getByRole("button", { name: "That's me" }).click();
+  await youAre(second, "Sam");
+
+  await first.getByRole("status").filter({ hasText: "picked on another phone" }).getByRole("button", { name: "That's me" }).click();
+  await first.getByRole("button", { name: "People", exact: true }).click();
+  await expect(question(first)).toBeVisible();
+  release();
+  await expect(question(first)).toHaveCount(0);
+  await youAre(first, "Sam");
+});
