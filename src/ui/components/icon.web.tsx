@@ -52,18 +52,12 @@ function useReplay(motion: string | undefined) {
       if (type === "pointerover" && (event.pointerType !== "mouse" || host.contains(event.relatedTarget as Node | null))) return;
       play(type);
     };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.target !== host || event.repeat || (event.key !== "Enter" && event.key !== " ") || off()) return;
-      play("pointerdown");
-    };
     host.addEventListener("pointerdown", onPointer);
     host.addEventListener("pointerover", onPointer);
-    host.addEventListener("keydown", onKey);
     return () => {
       clearTimeout(timer);
       host.removeEventListener("pointerdown", onPointer);
       host.removeEventListener("pointerover", onPointer);
-      host.removeEventListener("keydown", onKey);
     };
   }, [motion]);
   return ref;

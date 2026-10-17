@@ -167,6 +167,10 @@ type Props = ({ label: string; name?: string } | { label?: undefined; name: stri
   blocked?: boolean;
 };
 
+// A round button draws its focus ring on its face, so the ring follows the circle and not the square button around it.
+const roundRing = new Set<keyof typeof kinds>(["onPhoto", "overPhoto"]);
+const faceRing = { dataSet: { pressFace: "" } };
+
 const colorChange = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
 export function Button({ label, kind = "primary", icon, glyph, name, outsideScroll, disabled = false, busy = false, expanded, popup, reason, note, blocked = false, ...action }: Props) {
@@ -189,6 +193,7 @@ export function Button({ label, kind = "primary", icon, glyph, name, outsideScro
     >
       {() => (
         <View
+          {...(roundRing.has(kind) ? faceRing : null)}
           style={[
             styles.face,
             variant.face,
