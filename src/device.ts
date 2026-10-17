@@ -6,9 +6,10 @@ import { deviceId, isId, PAYMENT_SERVICES, randomId, type DeviceId, type Partici
 export type SplitOnDevice = { readonly creatorSecret?: string; readonly me?: ParticipantId; readonly payWith?: PaymentService };
 
 /** What home lists for a Split this device opened, read from the Split the page already holds. */
-type Recent = { readonly names: readonly string[]; readonly total: Cents; readonly added: number; readonly seen: number };
+type Recent = { readonly names: readonly string[]; readonly you?: number; readonly total: Cents; readonly added: number; readonly seen: number };
 
-export type RecentSplit = { readonly id: SplitId; readonly names: readonly string[]; readonly total: Cents; readonly added: number };
+/** `names` is everyone in the Split; `you` is this device's place in it, when the device knows it. */
+export type RecentSplit = { readonly id: SplitId; readonly names: readonly string[]; readonly you?: number; readonly total: Cents; readonly added: number };
 
 type SplitRecord = SplitOnDevice & { readonly recent?: Recent };
 
@@ -25,10 +26,10 @@ const storage = () => globalThis.localStorage as Storage | undefined;
 
 function parseRecent(value: unknown): Recent | undefined {
   if (typeof value !== "object" || value === null) return undefined;
-  const { names, total, added, seen } = value as Record<string, unknown>;
+  const { names, you, total, added, seen } = value as Record<string, unknown>;
   if (!Array.isArray(names) || !names.every((name) => typeof name === "string") || !isCents(total)) return undefined;
   if (typeof added !== "number" || typeof seen !== "number") return undefined;
-  return { names, total, added, seen };
+  return { names, ...(typeof you === "number" && Number.isInteger(you) && you >= 0 && you < names.length ? { you } : null), total, added, seen };
 }
 
 function readRecord(key: string): SplitRecord {
@@ -93,7 +94,10 @@ export function rememberSplit(id: SplitId, change: SplitChange) {
 
 export function noteSplit(split: Split, now = Date.now()) {
   const record = readRecord(keyOf(split.id));
-  const recent: Recent = { names: split.participants.map(({ name }) => name), total: split.receipt.total, added: record.recent?.added ?? now, seen: now };
+  // The Host made the Split on the device that holds its secret, so that device is the first name until it picks another.
+  const you = split.participants.findIndex(({ id }) => id === record.me);
+  const place = you >= 0 ? you : record.creatorSecret !== undefined ? 0 : -1;
+  const recent: Recent = { names: split.participants.map(({ name }) => name), ...(place >= 0 ? { you: place } : null), total: split.receipt.total, added: record.recent?.added ?? now, seen: now };
   writeRecord(split.id, { ...record, recent });
   const listed = storedIds()
     .flatMap((id) => {
@@ -108,7 +112,7 @@ export function recentSplits(now = Date.now()): readonly RecentSplit[] {
   return storedIds()
     .flatMap((id) => {
       const { recent } = readRecord(keyOf(id));
-      return recent && now - recent.seen <= LISTED_FOR_MS ? [{ id, names: recent.names, total: recent.total, added: recent.added }] : [];
+      return recent && now - recent.seen <= LISTED_FOR_MS ? [{ id, names: recent.names, ...(recent.you === undefined ? null : { you: recent.you }), total: recent.total, added: recent.added }] : [];
     })
     .sort((a, b) => b.added - a.added);
 }

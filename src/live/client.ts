@@ -36,6 +36,12 @@ const endings: Record<number, GoneReason> = { 4404: "notFound", 4500: "unreadabl
 type Waiting = { readonly resolve: (answer: Answer) => void; readonly slowTimer: ReturnType<typeof setTimeout>; deadline: ReturnType<typeof setTimeout>; stalled: boolean; late: boolean };
 
 const disconnected: Answer = { ok: false, rejection: { reason: "disconnected" } };
+/**
+ * How long PartySocket waits before its first retry after a drop. Its default is 3 s, and a phone that reopens a tab always finds the socket dead, so every reopen would sit through the full 3 s.
+ * Retries after that still back off (x1.3 each, up to PartySocket's 10 s), and a socket that opens and drops again within 5 s keeps its backoff.
+ * `reconnect()` cannot skip the wait: while one is pending it does nothing.
+ */
+const firstRetryMs = 500;
 const browserIsOnline = () => globalThis.navigator?.onLine !== false;
 
 export function useLiveSplit(id: string | null): { live: Live; send: Send; connection: Connection } {
@@ -84,6 +90,7 @@ export function useLiveSplit(id: string | null): { live: Live; send: Send; conne
       protocol: location.protocol === "https:" ? "wss" : "ws",
       party: "split-server",
       room: id,
+      minReconnectionDelay: firstRetryMs,
     });
     socket.current = ws;
     ws.addEventListener("open", () => setSocketOpen(true));

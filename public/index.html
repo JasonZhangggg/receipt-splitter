@@ -27,14 +27,17 @@
       @font-face { font-family: "Geist"; font-weight: 400; font-display: swap; src: url("/fonts/geist-400-89ade87fce.woff2") format("woff2"); }
       @font-face { font-family: "Geist"; font-weight: 500; font-display: swap; src: url("/fonts/geist-500-1e5e5e4514.woff2") format("woff2"); }
     </style>
-    <!-- The loader (decision 27 in docs/design/b2/README.md) covers the first load until the app has mounted and Geist has loaded, so the page never paints in the fallback face. data-boot is "wait", then "leave" while it fades, then gone. Without this script nothing is hidden. If the app never says it mounted, the CSS below shows the page at 8 s and the timer below makes it usable. The 300 ms and 8 s here match the CSS delays. -->
+    <!-- The loader (decision 27 in docs/design/b2/README.md) covers the first load until the app has mounted and Geist has loaded, so the page never paints in the fallback face. data-boot is "wait", then "leave" while it fades, then gone. The Split page also uses it while its link connects (see useBusyLoader in src/ui/document.ts): the app says "splitwith:busy" and "splitwith:idle", and data-boot is "busy" while the loader stays up over a visible page. A cold load that is still connecting when the app and Geist are ready goes from "wait" to "busy" without a fade, so the same drawing carries on. Without this script nothing is hidden. If the app never says it mounted, the CSS below shows the page at 8 s and the timer below makes it usable. The 300 ms and 8 s here match the CSS delays. -->
     <script>
       (function () {
         var t0 = performance.now();
         var html = document.documentElement;
         var mounted = false;
         var fonts = false;
-        var done = false;
+        var busy = false;
+        var booting = true;
+        var since = t0;
+        var timers = [];
         html.setAttribute("data-boot", "wait");
         function usable() {
           var root = document.getElementById("root");
@@ -43,39 +46,65 @@
             root.removeAttribute("aria-busy");
           }
         }
-        function reveal() {
-          if (done || !mounted || !fonts) return;
-          done = true;
-          var loader = document.getElementById("rs-boot");
-          var age = performance.now() - t0;
-          // Past 8 s the CSS has already shown the page and faded the loader, so nothing on screen may change.
-          if (age >= 8000) {
-            usable();
-            return loader && loader.remove();
-          }
+        function later(fn, ms) {
+          timers.push(setTimeout(fn, ms));
+        }
+        function lift(age) {
           function gone() {
-            if (loader) loader.remove();
             html.removeAttribute("data-boot");
           }
           if (age < 300) {
             usable();
             return gone();
           }
-          setTimeout(function () {
+          later(function () {
             usable();
             html.setAttribute("data-boot", "leave");
-            setTimeout(gone, 200);
+            later(gone, 200);
           }, Math.max(0, 600 - age));
         }
-        function fontsIn() {
-          fonts = true;
-          reveal();
+        function ready() {
+          if (!booting || !mounted || !fonts) return;
+          booting = false;
+          var age = performance.now() - t0;
+          // Past 8 s the CSS has already shown the page and faded the loader, so nothing on screen may change.
+          if (age >= 8000) {
+            usable();
+            return html.removeAttribute("data-boot");
+          }
+          if (busy) {
+            usable();
+            return html.setAttribute("data-boot", "busy");
+          }
+          lift(age);
+        }
+        function switched(now) {
+          if (busy === now) return;
+          busy = now;
+          if (booting) return;
+          timers.forEach(clearTimeout);
+          timers = [];
+          if (busy) {
+            since = performance.now();
+            return html.setAttribute("data-boot", "busy");
+          }
+          if (html.getAttribute("data-boot") === "busy") lift(performance.now() - since);
         }
         document.addEventListener("splitwith:mounted", function () {
           mounted = true;
-          reveal();
+          ready();
+        });
+        document.addEventListener("splitwith:busy", function () {
+          switched(true);
+        });
+        document.addEventListener("splitwith:idle", function () {
+          switched(false);
         });
         setTimeout(usable, 8000);
+        function fontsIn() {
+          fonts = true;
+          ready();
+        }
         setTimeout(fontsIn, Math.max(0, 3000 - performance.now()));
         try {
           Promise.all([document.fonts.load('400 16px "Geist"'), document.fonts.load('500 16px "Geist"')]).then(fontsIn, fontsIn);
@@ -91,6 +120,8 @@
       :root[data-theme="dark"] #rs-boot { color: #EDEDED; }
       /* Its own keyframes name: reusing rs-boot-out from the 8 s fallback above would update that animation, which started at load and has long finished. */
       [data-boot="leave"] #rs-boot { animation: rs-boot-leave 200ms cubic-bezier(.23,1,.32,1) forwards; }
+      /* Over a page that is already showing, with no 8 s fallback. Its first animation matches the one above, so a cold load that goes from "wait" to "busy" keeps fading in rather than starting over. */
+      [data-boot="busy"] #rs-boot { animation: rs-boot-in 200ms cubic-bezier(.23,1,.32,1) 300ms forwards; }
       #root { transition: opacity 260ms cubic-bezier(.23,1,.32,1); }
       /* 0.001 rather than 0, which looks the same: Chrome reports no first contentful paint for a page that fades up from 0, and the OCR prefetch waits for that paint. */
       [data-boot="wait"] #root { opacity: 0.001; animation: rs-boot-in 260ms cubic-bezier(.23,1,.32,1) 8s forwards; }

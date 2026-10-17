@@ -85,6 +85,7 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
       onEnter={(added) => added && !adding && setAdding(true)}
       onLeave={() => {}}
       onRefusal={onRefusal}
+      then=","
     />
   );
   const more = adding ? (
@@ -96,18 +97,16 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
       onEnter={() => {}}
       onLeave={() => setAdding(false)}
       onRefusal={onRefusal}
+      then="."
     />
   ) : (
-    <Act label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} />
+    <Act label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} then="." />
   );
   return (
     <>
       <Words>{copy.sentence.iAm}</Words>{" "}
       {host === null ? (
-        <>
-          {hostField}
-          {", "}
-        </>
+        <>{hostField} </>
       ) : (
         <>{person(host, true, true)} </>
       )}
@@ -123,7 +122,6 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
         </>
       ) : null}
       {more}
-      .
     </>
   );
 }
@@ -138,10 +136,12 @@ type BlankProps = {
   /** The field lost focus or Escape was pressed, after what was typed went in. */
   onLeave: () => void;
   onRefusal: (refusal: string | null) => void;
+  /** The punctuation right after the field. */
+  then: string;
 };
 
 /** A name field in the sentence. Enter adds the name and keeps the field; leaving it adds what was typed. */
-function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRefusal }: BlankProps) {
+function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRefusal, then }: BlankProps) {
   const [typed, setTyped] = useState("");
   const pressing = usePressing();
   const refused = useRef(false);
@@ -156,6 +156,7 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
   return (
     <Blank
       ref={input}
+      then={then}
       aria-label={label}
       placeholder={placeholder}
       value={typed}
