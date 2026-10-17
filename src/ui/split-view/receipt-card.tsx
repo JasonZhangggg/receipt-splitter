@@ -1,4 +1,4 @@
-import { useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 
 import { shareBreakdown, type Shares } from "../../core/shares";
@@ -65,6 +65,13 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       return next;
     });
   };
+  // A new Split arrives as fresh objects, so the Lines get callbacks that stay put and read the latest props.
+  const latest = useRef({ onCircle, onOpen });
+  useLayoutEffect(() => {
+    latest.current = { onCircle, onOpen };
+  });
+  const circleItem = useCallback((item: SplitItem, press: Press) => latest.current.onCircle(item, press), []);
+  const openItem = useCallback((item: SplitItem, press: Press) => latest.current.onOpen(item, press), []);
   const line = (item: SplitItem, inBundle: boolean) => (
     <Line
       item={item}
@@ -73,8 +80,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       claimers={people(item)}
       selected={selected}
       inBundle={inBundle}
-      onCircle={(press) => onCircle(item, press)}
-      onOpen={(press) => onOpen(item, press)}
+      onCircle={circleItem}
+      onOpen={openItem}
       expanded={showing === item.id}
     />
   );
@@ -395,10 +402,29 @@ type LineProps = {
   claimers: readonly Participant[];
   selected: Participant | null;
   inBundle: boolean;
-  onCircle: (press: Press) => void;
-  onOpen: (press: Press) => void;
+  onCircle: (item: SplitItem, press: Press) => void;
+  onOpen: (item: SplitItem, press: Press) => void;
   expanded: boolean;
 };
+
+const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
+
+/** A line draws from its Item, who is looking and the viewer's portion. Its claimers come from those, so a Split that arrives with the same values skips the render. */
+function sameLine(a: LineProps, b: LineProps): boolean {
+  return (
+    a.inBundle === b.inBundle &&
+    a.expanded === b.expanded &&
+    a.onCircle === b.onCircle &&
+    a.onOpen === b.onOpen &&
+    a.selected?.id === b.selected?.id &&
+    a.selected?.name === b.selected?.name &&
+    a.viewing.me === b.viewing.me &&
+    a.viewing.viewer === b.viewing.viewer &&
+    a.portions.get(a.item.id) === b.portions.get(b.item.id) &&
+    sameJson(a.viewing.people, b.viewing.people) &&
+    sameJson(a.item, b.item)
+  );
+}
 
 /** Who had it, in muted ink except "You", which takes the strong ink so the viewer's own lines stand apart from the details above. */
 function WhoLine({ who, style }: { who: Who; style?: StyleProp<TextStyle> }) {
@@ -418,7 +444,7 @@ function WhoLine({ who, style }: { who: Who; style?: StyleProp<TextStyle> }) {
 }
 
 /** A dot that claims the line, and the rest of the row, which opens it. The left column is the name, the detail and who had it; the right is the full price and what it comes to for the viewer or each person. */
-function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
+const Line = memo(function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
   const c = useColors();
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
   const price = groupedAmount(item.price);
@@ -431,12 +457,12 @@ function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle,
       <PressTarget
         name={selected ? say.claimFor(label, selected.name) : say.whoHad(label)}
         toggled={selected ? mine : undefined}
-        onPress={onCircle}
+        onPress={(press) => onCircle(item, press)}
         style={() => styles.circle}
       >
         {(pressed) => <ClaimDot on={mine} pressed={pressed} />}
       </PressTarget>
-      <PressTarget name={[say.open(label), `$${price}`, whoText(who), split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={onOpen} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
+      <PressTarget name={[say.open(label), `$${price}`, whoText(who), split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={(press) => onOpen(item, press)} style={(pressed) => [styles.body, fade, pressed && styles.held]}>
         {() => (
           <>
             <View style={styles.name}>
@@ -464,7 +490,7 @@ function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle,
       </PressTarget>
     </View>
   );
-}
+}, sameLine);
 
 function Row({ label, amount }: { label: string; amount: number }) {
   return (
