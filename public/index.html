@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#FCFCFC" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />
     <title>%WEB_TITLE%</title>
@@ -20,6 +20,9 @@
       })();
     </script>
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="SplitWith" />
     <!-- Geist starts downloading while the bundle does; the fallback faces and the rest of the CSS come from src/ui/document.ts. The URLs match src/ui/fonts.generated.ts (src/ui/boot.test.ts checks). -->
     <link rel="preload" href="/fonts/geist-400-89ade87fce.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/geist-500-1e5e5e4514.woff2" as="font" type="font/woff2" crossorigin />
@@ -145,6 +148,8 @@
     </style>
     <style id="rs-ground">
       :root { color-scheme: light dark; }
+      /* Double-tap zoom is off for the whole page, so a quick second tap on text never zooms. Pinch stays. */
+      html { touch-action: manipulation; }
       :root[data-theme="light"] { color-scheme: light; }
       :root[data-theme="dark"] { color-scheme: dark; }
       html, body { background-color: #FCFCFC; }
