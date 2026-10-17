@@ -183,7 +183,7 @@ for (const width of [390, 320]) {
 
     const pill = (await notice(page).boundingBox())!;
     const cup = (await page.getByRole("link", { name: "Buy me a coffee" }).boundingBox())!;
-    expect(pill.x + pill.width).toBeLessThanOrEqual(cup.x + 1);
+    expect(pill.x + pill.width).toBeLessThanOrEqual(cup.x + cup.width / 2 - 8);
 
     await page.getByRole("button", { name: "People", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "People" })).toBeVisible(live);

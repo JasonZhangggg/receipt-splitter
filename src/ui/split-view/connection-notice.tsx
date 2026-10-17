@@ -69,9 +69,9 @@ export function ConnectionNotice({ connection }: { connection: Connection }) {
   );
 }
 
-/** The header's wordmark on the left and its three icon buttons (coffee, theme, Share, glyph centers 292, 324 and 356 at 390) on the right; the line sits between them. */
-const wordmarkRoom = 80;
-const buttonsRoom = 120;
+/** The wordmark on the left and three icon buttons on the right (coffee, theme, Share, glyph centers 292, 324 and 356 at 390). The line may reach into the cup's 44 px box, since it takes no touches, but never over the 15 px glyph. */
+const wordmarkRoom = 72;
+const buttonsRoom = 92;
 
 const styles = StyleSheet.create({
   anchor: { position: "absolute", left: 0, right: 0, height: layout.header - 6, justifyContent: "center" },
