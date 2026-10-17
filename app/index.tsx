@@ -3,7 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { recentSplits, rememberSplit } from "../src/device";
+import { recentSplits, rememberSplit, thisDevice } from "../src/device";
 import { loadDraft, mismatchNote, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
@@ -125,13 +125,15 @@ export default function Home() {
     const slow = setTimeout(() => scan === scanning.current && stages.push("slow"), SLOW_SERVER_MS);
     const onServer = await readOnServer(photo, sent);
     clearTimeout(slow);
-    const boxes = onServer ? null : await within(ocr, FALLBACK_WAIT_MS);
+    const notReceipt = onServer === "notReceipt";
+    // A "none" from the model can be wrong about a blurry receipt, so the on-device read still gets its turn.
+    const boxes = onServer && !notReceipt ? null : await within(ocr, FALLBACK_WAIT_MS);
     const onDevice = boxes ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
     await stages.settle();
-    const receipt = onServer || (onDevice?.receipt ?? null);
+    const receipt = (notReceipt ? null : onServer) || (onDevice?.receipt ?? null);
     if (scan === scanning.current) {
-      land({ type: "read", file, receipt, ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+      land({ type: "read", file, receipt, ...(notReceipt && receipt === null && { notReceipt: true as const }), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
       if (receipt === null && globalThis.navigator?.onLine === false) setNotice(copy.scanOffline);
     }
   }, [dispatch]);
@@ -142,7 +144,7 @@ export default function Home() {
   const sides = { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right };
   const columnWidth = width >= breakpoints.roomyFrom ? 480 : 440;
   const { scan } = draft;
-  const receipt: ReceiptState = scan.status === "empty" ? { kind: "empty" } : scan.status === "reading" ? { kind: "reading", stage } : { kind: "read", total: scan.receipt?.total ?? null };
+  const receipt: ReceiptState = scan.status === "empty" ? { kind: "empty" } : scan.status === "reading" ? { kind: "reading", stage } : scan.status === "byHand" ? { kind: "byHand" } : { kind: "read", total: scan.receipt?.total ?? null };
   const ready = readiness(draft);
   const blocked = ready.kind !== "ready";
   const reason = failure ?? (blocked ? blockerText(ready) : mismatchNote(draft));
@@ -150,7 +152,7 @@ export default function Home() {
   const problem = failure !== null || (blocked && (ready.kind === "badHandle" || (ready.kind === "note" && scan.status === "read") || (reason !== null && tried === reason)));
 
   const create = async (split: Ready) => {
-    const request = splitRequest(split, newParticipantId);
+    const request = { ...splitRequest(split, newParticipantId), hostDevice: thisDevice() };
     const scan = scanning.current;
     const photoCopy = draft.scan.status === "read" && pageCopy?.file === draft.scan.file ? pageCopy.copy : null;
     setCreating(true);
@@ -158,7 +160,7 @@ export default function Home() {
     const created = await createSplitLink({ split: request });
     setCreating(false);
     if (!created.ok) return setFailure(created.reason);
-    rememberSplit(created.id, { creatorSecret: created.creatorSecret });
+    rememberSplit(created.id, { creatorSecret: created.creatorSecret, me: request.participants[0].id });
     void photoCopy?.then((jpeg) => jpeg && sendPhoto(created.id, created.creatorSecret, jpeg));
     if (scan === scanning.current) {
       pageCopy = null;
@@ -202,7 +204,7 @@ export default function Home() {
           <SplitHeader home onShare={() => void shareSite()} />
 
           <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
-            <ReceiptWords state={receipt} onChoose={choose} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
+            <ReceiptWords state={receipt} onChoose={choose} onByHand={() => dispatch({ type: "byHand" })} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
             <PeopleWords
               ref={nameField}
               host={draft.host}

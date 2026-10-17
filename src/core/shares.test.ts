@@ -911,3 +911,18 @@ describe("Bundles", () => {
 function bundleOf(first: string, second: string, amount: number): Adjustment {
   return { id: adjustmentId("bundle"), kind: "bundleDiscount", name: "Bundle", amount: cents(amount), bundle: { name: "Bundle", items: [itemId(first), itemId(second)] } };
 }
+
+describe("a Split with no Items yet", () => {
+  test("owes nothing from anyone, and holds any charge as unclaimed", () => {
+    const base = splitWith({ items: [["x", 100, []]], participants: ["ann", "bob"] });
+    const empty = { ...base, receipt: { ...base.receipt, items: [], subtotal: cents(0), total: cents(250) } };
+    const shares = computeShares(empty);
+    expect([shareCents(shares), shares.unclaimed]).toEqual([
+      [
+        ["ann", 0],
+        ["bob", 0],
+      ],
+      { itemIds: [], total: 250 },
+    ]);
+  });
+});

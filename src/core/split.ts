@@ -83,7 +83,8 @@ export type Adjustment =
 export type ReceiptLevelAdjustment = Extract<Adjustment, { readonly kind: ReceiptLevelKind }>;
 
 export type Receipt<I extends Item = Item> = {
-  readonly items: NonEmpty<I>;
+  /** Empty only for a Split whose Host adds every Item by hand. */
+  readonly items: readonly I[];
   readonly adjustments: readonly Adjustment[];
   readonly subtotal: Cents;
   readonly total: Cents;

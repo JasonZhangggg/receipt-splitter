@@ -220,4 +220,18 @@ describe("restoreChanges", () => {
     expect(restoreChanges(split({ by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(275) }] }))).toBe(true);
     expect(restoreChanges(split({ by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(275) }] }, { by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(250) }] }))).toBe(false);
   });
+
+  test("is false on a Split typed in by hand, even once it has Items", () => {
+    const created = createSplit({
+      id: "q7Xv0Lr9_aZ-3mKpAbCdEf" as MintedSplitId,
+      receipt: { items: [], adjustments: [], subtotal: cents(0), total: cents(0) },
+      participants: [{ id: ann, name: "Ann" }],
+      paymentHandles: [{ service: "venmo", handle: "ann-host" }],
+    });
+    if (!created.ok) throw new Error(JSON.stringify(created.rejection));
+    const added = applyOperation(created.split, { by: ann, type: "editReceipt", items: [{ type: "add", item: { id: sprite, name: "Sprite", price: price(250) }, index: 0 }], totalFollows: true }, { creator: true }, 1_000);
+    if (!added.ok) throw new Error(JSON.stringify(added.rejection));
+    expect(added.split.receipt.items).toHaveLength(1);
+    expect(restoreChanges(added.split)).toBe(false);
+  });
 });

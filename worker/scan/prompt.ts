@@ -22,7 +22,9 @@ const NO_OCR_HINT = "No OCR text is available, so read every character from the 
 /** Pass 1's prompt, for a request that carries OCR text or none. */
 export const pass1Prompt = (hasOcr: boolean) => `Read this receipt photo. ${hasOcr ? OCR_HINT : NO_OCR_HINT}
 
-Answer in this exact plain-text format, nothing else:
+If the photo is clearly not a receipt or bill (a person, a landscape, a screenshot of something else), answer only: none. A blurry, cropped or partial receipt is still a receipt: return what you can read.
+
+Otherwise answer in this exact plain-text format, nothing else:
 SUB|<printed subtotal in cents, or - if none>[|pre]
 TOT|<printed total (amount due) in cents>
 then one line per charge, in the order printed:

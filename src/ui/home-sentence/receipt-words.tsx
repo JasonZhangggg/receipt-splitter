@@ -12,7 +12,7 @@ import { Act, Words } from "./words";
 export type ReadingStage = "start" | "text" | "server" | "slow";
 
 /** A read with `total: null` found no Item, so there is no total to show and the clause asks for another photo. */
-export type ReceiptState = { readonly kind: "empty" } | { readonly kind: "reading"; readonly stage: ReadingStage } | { readonly kind: "read"; readonly total: Cents | null };
+export type ReceiptState = { readonly kind: "empty" } | { readonly kind: "reading"; readonly stage: ReadingStage } | { readonly kind: "read"; readonly total: Cents | null } | { readonly kind: "byHand" };
 
 const stepIn = { dataSet: { stepIn: "" } };
 const shimmer = { dataSet: { shimmer: "" } };
@@ -20,7 +20,7 @@ const shimmer = { dataSet: { shimmer: "" } };
 const landing = { tabIndex: -1, style: webStyle({ outlineStyle: "none" } as never) } as object;
 
 /** The sentence's first clause: "I paid the bill. Add the receipt.", the step word while it reads, then "I paid $X. Change." or, when no item was read, "I paid the bill. Try another photo." */
-export function ReceiptWords({ state, onChoose }: { state: ReceiptState; onChoose: () => void }) {
+export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptState; onChoose: () => void; onByHand: () => void }) {
   // Back to a home that already holds a read paints it settled; only a read that finishes in front of the person fades in.
   const [arrived] = useState(state.kind);
   const clause = useRef<Text>(null);
@@ -49,11 +49,18 @@ export function ReceiptWords({ state, onChoose }: { state: ReceiptState; onChoos
           .
         </Text>
       );
+    case "byHand":
+      return (
+        <Text ref={clause} testID="receipt" {...landing}>
+          <Words>{copy.sentence.byHand}</Words> <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." />
+        </Text>
+      );
     case "read":
       if (state.total === null)
         return (
           <Text ref={clause} testID="receipt" {...landing} {...(arrived === "read" ? null : stepIn)}>
-            <Words>{copy.sentence.paidTheBill}</Words> <Act label={copy.tryAnotherPhoto} onPress={onChoose} then="." />
+            <Words>{copy.sentence.paidTheBill}</Words> <Act label={copy.tryAnotherPhoto} onPress={onChoose} then="," />{" "}
+            <Words>{copy.sentence.or}</Words> <Act label={copy.addByHand} onPress={onByHand} then="." />
           </Text>
         );
       return (

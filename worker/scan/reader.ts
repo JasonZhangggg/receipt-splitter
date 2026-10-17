@@ -77,7 +77,7 @@ export type ScanPath = {
   readonly review: { readonly kind: Review["kind"]; readonly outcome: "kept" | "rejected" | "no time" | "call failed"; readonly refusedTotals: number } | null;
 };
 
-export type ReadResult = { readonly reply: ScanReply | null; readonly calls: readonly CallLog[]; readonly path: ScanPath; readonly skipped: number };
+export type ReadResult = { readonly reply: ScanReply | null; /** Pass 1 saw a photo with no receipt on it. */ readonly notReceipt?: true; readonly calls: readonly CallLog[]; readonly path: ScanPath; readonly skipped: number };
 
 type Content = readonly ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: ImageDetail } })[];
 
@@ -199,7 +199,9 @@ export async function readReceipt(input: ScanInput, config: ReaderConfig): Promi
     if (text !== null) pass1 = "standard";
   }
 
-  const first = passOf(replyLines(text ?? ""));
+  const lines = replyLines(text ?? "");
+  if (lines.length === 1 && /^none\.?$/i.test(lines[0])) return { reply: null, notReceipt: true, calls, path: { pass1, review: null }, skipped: 0 };
+  const first = passOf(lines);
   const finish = (best: Pass, review: ScanPath["review"]): ReadResult => ({
     reply: best.reading && best.check && toReply(best.reading, best.check),
     calls,

@@ -339,6 +339,12 @@ describe("reading", () => {
     expect([reply.items.map((item) => item.name), reply.check.problems.length]).toEqual([["Burger", "Fries"], 2]);
   });
 
+  it("answers 422 notReceipt when the reader says the photo is not a receipt, without a review call", async () => {
+    const calls = stubOpenRouter(() => completion("none"));
+    const response = await scan();
+    expect([response.status, await response.json(), calls.length]).toEqual([422, { refused: "notReceipt" }, 1]);
+  });
+
   it("answers 502 when no pass returns a usable reading", async () => {
     const calls = stubOpenRouter(
       () => completion(""),

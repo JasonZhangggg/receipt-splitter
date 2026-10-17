@@ -106,9 +106,12 @@ export function whenText(at: number | undefined, now: number): string | null {
   return new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-/** Whether Restore would change the receipt: false while the Items, charges and totals already match the scan. */
+/**
+ * Whether Restore would change the receipt: false while the Items, charges and totals already match the scan.
+ * A Split typed in by hand has no scan to go back to, and restoring its empty original would delete every Item.
+ */
 export function restoreChanges(split: Split): boolean {
-  if (split.original === undefined) return false;
+  if (split.original === undefined || split.original.items.length === 0) return false;
   const result = applyOperation(split, { by: null, type: "restoreReceipt" }, { creator: false });
   return result.ok && result.changed;
 }

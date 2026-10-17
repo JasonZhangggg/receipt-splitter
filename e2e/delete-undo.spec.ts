@@ -1,4 +1,3 @@
-import { still } from "./motion";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
@@ -116,25 +115,15 @@ test("when another phone deletes the Item, an open Edit item sheet closes itself
   await expect(sam.getByRole("status").getByText("Rice was removed on another phone.")).toBeVisible(live);
 });
 
-test("with one Item left the trash is disabled, a tap says why, and nothing is sent", async ({ browser, request }, { workerIndex }) => {
-  const sent: string[] = [];
-  const sam = await openAs(browser, await createSplit(request, workerIndex, [meal[0]]), "Sam", (page) =>
-    page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => typeof payload === "string" && sent.push(payload))),
-  );
+test("the last Item can be deleted, leaving the Split with no Items, and Undo puts it back", async ({ browser, request }, { workerIndex }) => {
+  const sam = await openAs(browser, await createSplit(request, workerIndex, [meal[0]]), "Sam");
   await sam.getByRole("button", { name: /^Open Rice/ }).click();
-  const trash = sheet(sam).getByRole("button", { name: "Delete item" });
-  await expect(trash).toHaveAttribute("aria-disabled", "true");
-  await still(trash);
-  await expect(trash).toBeInViewport();
-
-  await trash.click({ force: true });
-  await expect(sam.getByText("A split needs at least one item.")).toBeVisible();
-  await expect(sheet(sam)).toBeVisible();
-  expect(sent.filter((frame) => frame.includes('"delete"'))).toEqual([]);
-
-  await sheet(sam).getByRole("button", { name: "Close" }).click();
+  await sheet(sam).getByRole("button", { name: "Delete item" }).click();
   await expect(sheet(sam)).toHaveCount(0, live);
-  const note = await sam.getByText("A split needs at least one item.").boundingBox();
-  const footer = await sam.getByTestId("footer").boundingBox();
-  expect((note?.y ?? 0) + (note?.height ?? 0)).toBeLessThanOrEqual(footer?.y ?? 0);
+  await expect(sam.getByText("Deleted Rice")).toBeVisible(live);
+  await expect(sam.getByRole("button", { name: /^Open Rice/ })).toHaveCount(0);
+  await expect(sam.getByTestId("total")).toHaveText("$0.00");
+
+  await undo(sam).click();
+  await expect(sam.getByRole("button", { name: /^Open Rice/ })).toBeVisible(live);
 });

@@ -417,8 +417,20 @@ describe("a read the Split would refuse as it is", () => {
     expect([sent.subtotal, sent.total]).toEqual([2298, 2804]);
   });
 
-  test("a read with no Items keeps Create split link off, since a Split holds at least one Item", () => {
+  test("a read with no Items keeps Create split link off until the Host chooses to add them by hand", () => {
     expect(reasonOf(readReady(null))).toBe("Couldn't read any items. Try another photo.");
+  });
+
+  test("a photo the reader says is not a receipt says so", () => {
+    const draft = withVenmo(run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt: null, notReceipt: true }));
+    expect(reasonOf(draft)).toBe("That doesn't look like a receipt. Try another photo.");
+  });
+
+  test("adding the Items by hand sends a Split with no Items, and the server accepts it", () => {
+    const request = requestOf(withVenmo(run(emptyDraft, { type: "reading", file }, { type: "read", file, receipt: null, notReceipt: true }, { type: "byHand" })), counter());
+    if (!request) throw new Error("not ready");
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("by-hand-000000000000"));
+    expect(created.ok && [created.split.receipt.items.length, created.split.receipt.total]).toEqual([0, 0]);
   });
 
   const device = (rows: [string, string][]) => parseReceipt(receiptRows(rows));

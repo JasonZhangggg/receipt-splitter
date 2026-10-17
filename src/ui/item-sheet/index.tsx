@@ -285,10 +285,8 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
       setProblem(failedCopy(answer, say.saveFailed));
     });
   };
-  const onlyItem = split.receipt.items.length < 2;
   const remove = () => {
     if (leavingFrom) return;
-    if (onlyItem) return onNote(say.lastItem);
     // The line leaves the page and the sheet closes at once, on the picture it had. The Undo bar comes with the server's answer; a refusal puts the line back and says so in the bar.
     if (!lay({ by: me, type: "editReceipt", items: [{ type: "delete", itemId }] }, { then: ({ revision }) => revision !== null && onDeleted({ name: title, revision }) })) return setProblem(say.connection.failed);
     flushRef.current = () => {};
@@ -330,7 +328,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
         title={say.editItem}
         onClose={close}
         keepsFocus
-        action={<IconAction label={say.deleteItem} icon="trash" size={15} pressedInk="warn" dim={onlyItem} keepsFocus onPress={remove} />}
+        action={<IconAction label={say.deleteItem} icon="trash" size={15} pressedInk="warn" keepsFocus onPress={remove} />}
       />
       <View style={styles.body}>
         <View style={styles.pair}>

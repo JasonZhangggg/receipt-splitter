@@ -19,7 +19,7 @@ export const SCAN_DAILY_CAP_NAME = "scan-daily-cap";
 
 export const scanLimiterName = (ip: string) => `scan:${limiterKey(ip)}`;
 
-export type ScanRefusal = { readonly refused: "origin" | "bodyTooLarge" | "rejected" | "unavailable" | "rateLimited" | "dailyLimit" | "unreadable" };
+export type ScanRefusal = { readonly refused: "origin" | "bodyTooLarge" | "rejected" | "unavailable" | "rateLimited" | "dailyLimit" | "unreadable" | "notReceipt" };
 
 type ScanConfig = {
   readonly perIp: IpLimit;
@@ -133,7 +133,7 @@ export async function scanReceipt(request: Request, env: ScanEnv): Promise<Respo
   if (!today.ok) return tooMany("dailyLimit", today.retryAfterMs);
 
   const started = Date.now();
-  const { reply, calls, path, skipped } = await readReceipt(input, config.reader);
+  const { reply, notReceipt, calls, path, skipped } = await readReceipt(input, config.reader);
   const reserved = config.today.budget.reserveUsd;
   // A call with no reported cost, such as one abandoned at a deadline, may still be billed, so it counts at its own worst case.
   const cost = calls.reduce((total, call) => total + (call.cost ?? call.boundUsd), 0);
@@ -149,6 +149,7 @@ export async function scanReceipt(request: Request, env: ScanEnv): Promise<Respo
       check: reply === null ? null : { passed: reply.check.passed, gaps: reply.check.gaps, problems: reply.check.passed ? 0 : reply.check.problems.length },
     }),
   );
+  if (notReceipt) return refuse(422, "notReceipt");
   if (reply === null) return refuse(502, "unreadable");
   const debug: Record<string, string> = env.SCAN_DEBUG_HEADERS === "true" ? { "x-scan-cost": cost.toFixed(6), "x-scan-passes": String(calls.some((call) => call.step === "pass2" || call.step === "penny") ? 2 : 1) } : {};
   return Response.json(reply, { headers: { "cache-control": "no-store", ...debug } });

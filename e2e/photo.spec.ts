@@ -69,7 +69,7 @@ async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await addNames(page, "Jason");
   await page.getByRole("button", { name: "Create link" }).click();
-  await expect(page.getByText("Link ready.")).toBeVisible(live);
+  await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
 const isPut = (request: Request) => request.method() === "PUT" && request.url().endsWith("/photo");
@@ -80,7 +80,8 @@ const historyLink = (page: Page) => page.getByRole("button", { name: "History", 
 
 /** Closes the pick sheet so the underlined links show, the Receipt link among them while the Split has a photo. */
 async function openMore(page: Page) {
-  await page.getByRole("button", { name: "Close, just look" }).click();
+  const look = page.getByRole("button", { name: "Close, just look" });
+  if (await look.isVisible()) await look.click();
   await expect(historyLink(page)).toBeVisible();
 }
 
