@@ -207,6 +207,8 @@ test("every handle reason fits two lines beside the Create pill, and the footer 
     ["Venmo handle", "12345"],
     ["Cash App handle", "a b"],
     ["Cash App handle", "a_b"],
+    ["Cash App handle", "ab\u200bc"],
+    ["Venmo handle", "jason\u200bz"],
     ["PayPal handle", "p".repeat(81)],
     ["Zelle handle", "ann​@example.com"],
   ];

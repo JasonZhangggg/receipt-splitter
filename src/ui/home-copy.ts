@@ -69,7 +69,8 @@ const handleWords: Record<PaymentService, { one: string; many: string; sigil: st
   zelle: { one: "Zelle handle", many: "Zelle handles", sigil: "", use: "" },
 };
 
-const characterName = (character: string) => (character === " " ? "a space" : /^[\p{L}\p{N}\p{P}\p{S}]$/u.test(character) ? `"${character}"` : "an invisible character");
+const visible = (character: string) => /^[\p{L}\p{N}\p{P}\p{S}]$/u.test(character);
+const characterName = (character: string) => (character === " " ? "spaces" : visible(character) ? `"${character}"` : "an invisible character");
 
 function handleReason(service: PaymentService, problem: HandleProblem): string {
   const { one, many, sigil, use } = handleWords[service];
@@ -79,7 +80,8 @@ function handleReason(service: PaymentService, problem: HandleProblem): string {
     case "long":
       return `${many} have at most ${problem.limit} characters.`;
     case "character":
-      return `${paymentApps[service].name} can't use ${characterName(problem.character)}.${use}`;
+      // Only a wrong symbol gets the allowed set: a space or a hidden character is fixed by deleting it, and the hint would wrap the line to three.
+      return `${paymentApps[service].name} can't use ${characterName(problem.character)}.${visible(problem.character) ? use : ""}`;
     case "noLetter":
       return `${many} need at least one letter.`;
   }
