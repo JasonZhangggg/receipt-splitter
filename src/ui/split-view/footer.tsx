@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   ask: { flex: 1, minWidth: 0 },
   share: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: "center" },
   amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 32, lineHeight: 44, letterSpacing: -0.96 },
-  pillHit: { flexShrink: 0, maxWidth: "58%" },
+  pillHit: { flexShrink: 0, maxWidth: "58%", borderRadius: 22 },
   pill: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 44, paddingLeft: 20, paddingRight: 18, borderRadius: 22 },
   pillText: { flexShrink: 1, fontSize: 15, lineHeight: 22, fontWeight: "500" },
 });

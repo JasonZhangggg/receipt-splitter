@@ -103,7 +103,7 @@ type OverlayKind =
 type Overlay = OverlayKind & { readonly from: Press };
 type Send = ReturnType<typeof useLiveSplit>["send"];
 /** The one bar at the bottom of the page: an Undo for the last delete or payment, or a line to read. Over the sheet when the sheet stays open. */
-type Bar = { readonly message: string; readonly action?: { readonly label: string; readonly onPress: () => void }; readonly over: "footer" | "sheet" };
+type Bar = { readonly message: string; readonly action?: { readonly label: string; readonly onPress: () => void } };
 
 /** An Adjustment's sheet is named for its saved kind; its heading follows a kind switch at once. */
 const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
@@ -111,7 +111,9 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
+// Where the pick sheet's top edge sits before the links row has been measured, and the gap it keeps below that row once it has.
 const tallPickTop = 170;
+const pickGap = 12;
 
 function SplitPage({ splitId, split, photo, send, connection }: { splitId: SplitId; split: Split; photo: boolean; send: Send; connection: Connection }) {
   const c = useColors();
@@ -136,6 +138,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
+  const [linksBottom, setLinksBottom] = useState<number | null>(null);
   const [bar, setBar] = useState<Bar | null>(null);
   /** The Receipt link's press while the photo viewer is open: focus goes back there. */
   const [viewing, setViewing] = useState<Press | null>(null);
@@ -199,7 +202,6 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
           void choose(lost, true);
         },
       },
-      over: "footer",
     }),
   );
   useEffect(() => {
@@ -239,7 +241,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
       if (answer.ok) continue;
       const now = latest.current.receipt.items.find(({ id }) => id === itemId);
       const landed = now !== undefined && claimersOf(now.split).includes(person) !== claimersOf(item.split).includes(person);
-      if (answer.rejection.reason === "disconnected" && !landed) setBar({ message: say.connection.failed, over: "footer" });
+      if (answer.rejection.reason === "disconnected" && !landed) setBar({ message: say.connection.failed });
       return;
     }
   };
@@ -264,7 +266,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
 
   const share = async () => {
     const result = await shareLink(splitUrl(splitId));
-    if (result !== "shared") setBar({ message: result === "copied" ? say.linkCopied : say.copyFailed, over: "footer" });
+    if (result !== "shared") setBar({ message: result === "copied" ? say.linkCopied : say.copyFailed });
   };
 
   const myShare = shares.shares.find((row) => row.participantId === me)?.share ?? cents(0);
@@ -321,10 +323,9 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
         onPress: async () => {
           setBar(null);
           const answer = await send({ by: me, type: "undo", revision });
-          if (!answer.ok && answer.rejection.reason !== "alreadyUndone") setBar({ message: failedCopy(answer, say.undoFailed), over: "footer" });
+          if (!answer.ok && answer.rejection.reason !== "alreadyUndone") setBar({ message: failedCopy(answer, say.undoFailed) });
         },
       },
-      over: "footer",
     });
   const photoClosed = () => {
     if (viewing && (wide || viewing.keyboard || actedByKey()) && viewing.trigger.isConnected) viewing.trigger.focus({ preventScroll: true });
@@ -381,7 +382,6 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
           setBar(null);
         },
       },
-      over: "footer",
     });
     closeOverlay();
   };
@@ -425,7 +425,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
         me={me}
         send={send}
         onClose={closeOverlay}
-        onNote={(message) => setBar({ message, over: "sheet" })}
+        onNote={(message) => setBar({ message })}
         onDeleted={deleted}
         guardRef={closeGuard}
       />
@@ -506,6 +506,7 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
           <SplitIntro
             host={host.name}
             total={money(split.receipt.total)}
+            onLinksBottom={setLinksBottom}
             onReceipt={photo ? setViewing : undefined}
             onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
             onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
@@ -516,8 +517,9 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
         </View>
       </ScrollView>
       {phase === "pick" ? null : footer}
+      <ConnectionNotice connection={connection} />
       {phase === "regular" ? null : (
-        <BottomSheet tapAway label={say.question} minHeight={pageHeight - tallPickTop} closing={phase === "collapsing"} onDown={pickLeft} testID="split-sheet">
+        <BottomSheet tapAway label={say.question} minHeight={pageHeight - (linksBottom === null ? tallPickTop : linksBottom + pickGap)} closing={phase === "collapsing"} onDown={pickLeft} testID="split-sheet">
           {pickContent}
         </BottomSheet>
       )}
@@ -533,11 +535,10 @@ function SplitPage({ splitId, split, photo, send, connection }: { splitId: Split
       ) : null}
       {confirming ? (
         <Popover anchor={confirming.from.trigger} label={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} instant={confirming.from.keyboard} closing={confirming.closing} onClose={closeConfirming} onGone={confirmingGone} width={claimConfirmWidth} align="start">
-          <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(confirming.person.name, confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
+          <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(firstName(confirming.person.name), confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
         </Popover>
       ) : null}
-      <ConnectionNotice connection={connection} />
-      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={bar?.over === "sheet" && overlay && !closing ? 12 : footerHeight + 8} />
+      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={overlay && !closing ? 12 : footerHeight + 8} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={photoClosed} /> : null}
     </View>
   );
