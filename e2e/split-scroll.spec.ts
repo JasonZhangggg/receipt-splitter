@@ -53,15 +53,3 @@ test("the Split page header scrolls away with the list", async ({ page, request 
   await expect(page.getByRole("button", { name: /^Open Dish 30, / })).toBeVisible();
   expect((await header.boundingBox())!.y).toBeLessThan(0);
 });
-
-test("the Split page header holds the coffee cup, the theme toggle and Share, evenly spaced", async ({ page, request }, { workerIndex }) => {
-  await openSplit(page, request, workerIndex);
-  const coffee = page.getByRole("link", { name: "Buy me a coffee" });
-  expect([await coffee.getAttribute("href"), await coffee.getAttribute("target")]).toEqual(["https://venmo.com/u/Jason-Zhang-162", "_blank"]);
-  const centers = await page.locator("[data-icon]").evaluateAll((icons) =>
-    icons
-      .filter((icon) => icon.getBoundingClientRect().y < 60 && getComputedStyle(icon.parentElement!).opacity !== "0")
-      .map((icon) => [icon.getAttribute("data-icon"), Math.round(icon.getBoundingClientRect().x + icon.getBoundingClientRect().width / 2)]),
-  );
-  expect(centers).toEqual([["coffee", 292], ["sun", 324], ["share", 356]]);
-});

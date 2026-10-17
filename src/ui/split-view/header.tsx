@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button, PressTarget } from "../components/button";
-import { CoffeeButton } from "../components/coffee-button";
 import { ThemeToggle } from "../components/theme-toggle";
 import { copy, joinCopy } from "../home-copy";
 import { pressStyle, useReducedMotion } from "../motion";
@@ -22,7 +21,6 @@ export function SplitHeader({ onShare }: Props) {
         </PressTarget>
       </View>
       <View style={styles.buttons}>
-        <CoffeeButton />
         <ThemeToggle />
         {onShare ? <Button kind="icon" icon="share" name={say.shareLink} onPress={onShare} /> : null}
       </View>

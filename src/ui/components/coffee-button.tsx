@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { coffeeLink, copy } from "../home-copy";
 import { Button } from "./button";
 
-/** The coffee cup that opens the maker's Venmo. Its box overlaps the theme toggle's by 12 px, as the toggle's overlaps Share, so the glyphs sit evenly spaced. */
+/** Home's coffee cup that opens the maker's Venmo. Its box overlaps the theme toggle's by 12 px, as the Split page's toggle overlaps Share, so the two pages space their icons alike. */
 export function CoffeeButton() {
   return (
     <View style={styles.pull}>

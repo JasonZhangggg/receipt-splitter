@@ -61,6 +61,13 @@ test("the header has only the wordmark, the coffee icon and the theme toggle, an
   await expect(page.getByRole("button", { name: "Switch to dark mode" })).toBeVisible();
   const coffee = page.getByRole("link", { name: "Buy me a coffee" });
   expect([await coffee.getAttribute("href"), await coffee.getAttribute("target"), await coffee.getAttribute("rel")]).toEqual(["https://venmo.com/u/Jason-Zhang-162", "_blank", "noopener noreferrer"]);
+  // The cup's glyph sits 32 px from the toggle's, as the Split page's toggle sits from Share.
+  const centers = await page.locator("[data-icon]").evaluateAll((icons) =>
+    icons
+      .filter((icon) => icon.getBoundingClientRect().y < 80 && getComputedStyle(icon.parentElement!).opacity !== "0")
+      .map((icon) => [icon.getAttribute("data-icon"), Math.round(icon.getBoundingClientRect().x + icon.getBoundingClientRect().width / 2)]),
+  );
+  expect(centers).toEqual([["coffee", 324], ["sun", 356]]);
   for (const name of ["Menu", "Share SplitWith", "Example", "Recent splits"]) await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Recent splits" })).toHaveCount(0);
   await page.evaluate(() =>
