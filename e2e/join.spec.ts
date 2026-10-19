@@ -376,6 +376,8 @@ test("a phone that loses its name to another phone is told once and can take it 
   await expect(told(priya)).toHaveCount(0);
 
   await bar(first).getByRole("button", { name: "That's me" }).click();
+  // The name lands with the server's answer, and the footer asks until then. People tapped before that opens the pick sheet (the test after next).
+  await expect(first.getByText("Which one are you?")).toHaveCount(0, { timeout: 10_000 });
   await youAre(first, "Sam");
   await expect(told(first)).toHaveCount(0);
   await expect(told(second)).toHaveCount(1);
@@ -395,6 +397,7 @@ test("the first sheet opened after taking a name back from the bar stays open", 
   await youAre(second, "Sam");
 
   await first.getByRole("status").filter({ hasText: "picked on another phone" }).getByRole("button", { name: "That's me" }).click();
+  await expect(first.getByText("Which one are you?")).toHaveCount(0, { timeout: 10_000 });
   // showPeople waits for the sheet to come to rest, so a sheet that is already sliding shut is not read as open.
   await showPeople(first, "Sam");
   await expect(peopleSheet(first).getByText("This phone is Sam.")).toBeVisible();
