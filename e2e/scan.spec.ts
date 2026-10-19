@@ -232,7 +232,7 @@ async function holdTheDownload(page: Page) {
 test.describe("the reading state", () => {
   test.setTimeout(120_000);
 
-  test("puts the step word in place of Add the receipt, with no progress bar, and stops moving once the total shows", async ({ page }) => {
+  test("puts the step word in place of Add the receipt, with no progress bar, rises it in once and holds it still", async ({ page }) => {
     const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
@@ -241,8 +241,10 @@ test.describe("the reading state", () => {
     await expect(page.getByTestId("reading"), "focus follows the button that left").toBeFocused();
     await expect(page.locator("[data-problem]"), "the footer stays quiet while the step word speaks").toHaveAttribute("aria-live", "off");
     await expect(page.getByRole("progressbar")).toHaveCount(0);
-    const sweeping = await page.getByTestId("reading-stage").evaluate((word) => word.getAnimations().map((animation) => (animation as CSSAnimation).animationName));
-    expect(sweeping).toEqual(["rs-sweep"]);
+    await expect(page.getByTestId("reading-stage")).toHaveCSS("animation-name", "rs-rise");
+    await expect(page.getByTestId("reading-stage")).toHaveCSS("animation-iteration-count", "1");
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length), "nothing loops while the read is held").toBe(0);
+    await expect(page.getByTestId("reading-stage")).toHaveText("Reading the receipt");
 
     release();
     await expect(page.getByTestId("receipt")).toBeVisible(scanTimeout);
@@ -250,7 +252,7 @@ test.describe("the reading state", () => {
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   });
 
-  test("under reduced motion only a short opacity fade runs while it reads, with no sweep", async ({ page }) => {
+  test("under reduced motion only a short opacity fade runs while it reads, with no rise", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     const release = await holdTheDownload(page);
     await page.goto("/");

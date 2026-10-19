@@ -15,7 +15,7 @@ export type ReadingStage = "start" | "text" | "server" | "slow";
 export type ReceiptState = { readonly kind: "empty" } | { readonly kind: "reading"; readonly stage: ReadingStage } | { readonly kind: "read"; readonly total: Cents | null } | { readonly kind: "byHand" };
 
 const stepIn = { dataSet: { stepIn: "" } };
-const shimmer = { dataSet: { shimmer: "" } };
+const stepRise = { dataSet: { stepRise: "" } };
 // Focus lands on the clause when the button the person pressed leaves. A ring around the whole clause would only be noise.
 const landing = { tabIndex: -1, style: webStyle({ outlineStyle: "none" } as never) } as object;
 
@@ -41,10 +41,8 @@ export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptStat
         <Text ref={clause} testID="reading" role="status" aria-live="polite" {...landing}>
           <Words>{copy.sentence.paidTheBill}</Words>{" "}
           {/* A new key swaps the word in one commit, so the old step never shares a frame with the new one. */}
-          <Text key={state.stage} {...stepIn}>
-            <Text testID="reading-stage" {...shimmer}>
-              {copy.readingStage[state.stage]}
-            </Text>
+          <Text key={state.stage} testID="reading-stage" {...stepRise}>
+            <Words ink>{copy.readingStage[state.stage]}</Words>
           </Text>
           .
         </Text>
