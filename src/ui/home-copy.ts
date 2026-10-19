@@ -31,7 +31,7 @@ export const copy = {
     start: "Reading the receipt",
     text: "Finding the text",
     server: "Matching prices",
-    slow: "Taking a few more seconds",
+    slow: "Nearly done",
   } satisfies Record<ReadingStage, string>,
   notPhoto: "That file is not a photo.",
   scanOffline: "You're offline.",
