@@ -20,9 +20,9 @@ function css({ light, dark }: typeof colors) {
     (weight) => `@font-face { font-family: "Geist Fallback"; font-weight: ${weight}; src: ${local}; ${fallbackMetrics[weight]} }`,
   );
   return `${fallbackFaces.join("\n")}
-:root { --focus: ${light.focus}; --on-action: ${light.onAction}; --ink: ${light.ink}; --shimmer: ${light.shimmer}; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --focus: ${dark.focus}; --on-action: ${dark.onAction}; --ink: ${dark.ink}; --shimmer: ${dark.shimmer}; } }
-:root[data-theme="dark"] { --focus: ${dark.focus}; --on-action: ${dark.onAction}; --ink: ${dark.ink}; --shimmer: ${dark.shimmer}; }
+:root { --focus: ${light.focus}; --on-action: ${light.onAction}; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --focus: ${dark.focus}; --on-action: ${dark.onAction}; } }
+:root[data-theme="dark"] { --focus: ${dark.focus}; --on-action: ${dark.onAction}; }
 /* A theme flip is a clip-path circle on the new snapshot (use-appearance-flip.ts), so the default cross-fade of the root goes. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 /* No color may be mid-fade when the circle reveals the new theme (rule 18). The toggle's icons keep their own turn. */

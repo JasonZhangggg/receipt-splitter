@@ -60,15 +60,17 @@ async function expectHit(target: Locator, min: { width?: number; height?: number
 
 const placeholderColor = (field: Locator) => field.evaluate((input) => getComputedStyle(input, "::placeholder").color);
 
-test("the home blanks' placeholders are the muted gray, 4.6:1 on the page in light and 6.4:1 in dark", async ({ page }) => {
+test("the home blanks' placeholders and rules are ink, like the tappable words, in light and dark", async ({ page }) => {
   await home(page);
   const blank = page.getByRole("textbox", { name: "Your name" });
   await expect(blank).toBeVisible();
-  expect(await placeholderColor(blank)).toBe("rgb(115, 115, 115)");
+  expect(await placeholderColor(blank)).toBe("rgb(23, 23, 23)");
+  await expect(blank.locator("..")).toHaveCSS("border-bottom-color", "rgb(23, 23, 23)");
 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(17, 17, 17)");
-  await expect.poll(() => placeholderColor(blank)).toBe("rgb(153, 153, 153)");
+  await expect.poll(() => placeholderColor(blank)).toBe("rgb(237, 237, 237)");
+  await expect(blank.locator("..")).toHaveCSS("border-bottom-color", "rgb(237, 237, 237)");
 });
 
 test("every tappable word and field in home's sentence has a hit area of at least 44 px, and the x after a name is 44 by 44", async ({ page }) => {

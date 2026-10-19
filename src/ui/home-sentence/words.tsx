@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type Ref } from "react";
+import { type ReactNode, type Ref } from "react";
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 
 import { PressTarget } from "../components/button";
@@ -6,7 +6,7 @@ import { Icon } from "../components/icon";
 import { linkPress } from "../components/text-link";
 import { focusInPlace } from "../receipt-input/keyboard-room";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
-import { motion, type, useColors } from "../theme";
+import { type, useColors } from "../theme";
 
 /** A plain run of the sentence in its own span, so the font checks see it as a line of text. A name can break anywhere to fit. */
 export function Words({ children, ink = false, breaks = false }: { children: string; ink?: boolean; breaks?: boolean }) {
@@ -82,33 +82,23 @@ const underlineMark = { dataSet: { underline: "" } };
 const sized = webStyle({ fieldSizing: "content", maxWidth: "calc(100% + 12px)" } as never);
 // A blank stops short of the line's end, so a long handle at the end keeps its period beside it and not alone on the next line.
 const leavesRoomForPeriod = webStyle({ maxWidth: "calc(100% - 14px)" } as never);
-const colorChange = webStyle({ transitionProperty: "border-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 
 /**
- * A blank in the sentence: a field as wide as its placeholder or its text, with a gray rule under it that turns ink on focus. The rule is on a
+ * A blank in the sentence: a field as wide as its placeholder or its text, in ink with an ink rule under it, like the actions. The rule is on a
  * wrapper hugging the text, and the field pads past it with a negative margin, so the hit area is 44 px tall while the layout and the rule stay put.
  * Without field-sizing (iOS Safari before 26.2 does not have it), css.ts sizes the field from `--chars`.
  */
-export function Blank({ style, onFocus, onBlur, ref, then, ...rest }: TextInputProps & { ref?: Ref<TextInput>; /** The punctuation right after it. */ then?: string }) {
+export function Blank({ style, ref, then, ...rest }: TextInputProps & { ref?: Ref<TextInput>; /** The punctuation right after it. */ then?: string }) {
   const c = useColors();
-  const [focused, setFocused] = useState(false);
   // A string, because a bare number gets a "px" unit and the calc in css.ts then fails.
   const chars = webStyle({ "--chars": String(Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1)) } as never);
   return (
     <Glued then={then}>
-      <View style={[styles.rule, leavesRoomForPeriod, colorChange, { borderBottomColor: focused ? c.ink : c.dot }]}>
+      <View style={[styles.rule, leavesRoomForPeriod, { borderBottomColor: c.ink }]}>
         <TextInput
           ref={ref}
           {...underlineMark}
-          placeholderTextColor={c.muted}
-          onFocus={(event) => {
-            setFocused(true);
-            onFocus?.(event);
-          }}
-          onBlur={(event) => {
-            setFocused(false);
-            onBlur?.(event);
-          }}
+          placeholderTextColor={c.ink}
           style={[type.sayInput, styles.blank, sized, chars, { color: c.ink }, style]}
           {...rest}
         />
