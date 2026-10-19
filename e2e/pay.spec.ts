@@ -149,6 +149,8 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
   await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
+  // The Undo bar comes with the server's answer, after the optimistic "✓ Paid", so wait for it to show before waiting for it to go.
+  await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toBeVisible(live);
   await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toHaveCount(0, { timeout: 10_000 });
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
