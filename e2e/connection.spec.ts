@@ -1,4 +1,5 @@
 import { openExample } from "./files";
+import { features } from "../src/features";
 import { expect, test, type APIRequestContext, type Page } from "./without-ocr";
 import type { WebSocketRoute } from "@playwright/test";
 
@@ -201,7 +202,7 @@ test("Create link while offline says it is the connection", async ({ page, conte
 });
 
 for (const width of [390, 320]) {
-  test(`at ${width} px wide the offline notice clears the coffee cup on one line, and a sheet opened over it dims it`, async ({ page, context, request }, { workerIndex }) => {
+  test(`at ${width} px wide the offline notice clears the first header icon on one line, and a sheet opened over it dims it`, async ({ page, context, request }, { workerIndex }) => {
     await page.setViewportSize({ width, height: 844 });
     await openAs(page, await createSplit(request, workerIndex), "Sam");
     await context.setOffline(true);
@@ -210,8 +211,9 @@ for (const width of [390, 320]) {
 
     const line = (await notice(page).boundingBox())!;
     expect(line.height).toBeLessThan(28);
-    const cup = (await page.getByRole("link", { name: "Buy me a coffee" }).boundingBox())!;
-    expect(line.x + line.width).toBeLessThanOrEqual(cup.x + cup.width / 2 - 8);
+    const first = features.coffee ? page.getByRole("link", { name: "Buy me a coffee" }) : page.getByRole("button", { name: "Switch to dark mode" });
+    const icon = (await first.boundingBox())!;
+    expect(line.x + line.width).toBeLessThanOrEqual(icon.x + icon.width / 2 - 8);
 
     await page.getByRole("button", { name: "People", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "People" })).toBeVisible(live);

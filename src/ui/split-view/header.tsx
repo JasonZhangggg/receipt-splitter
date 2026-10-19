@@ -3,6 +3,7 @@ import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button, PressTarget } from "../components/button";
+import { features } from "../../features";
 import { CoffeeButton } from "../components/coffee-button";
 import { ThemeToggle } from "../components/theme-toggle";
 import { copy, joinCopy } from "../home-copy";
@@ -34,11 +35,11 @@ export function SplitHeader({ onShare, home = false }: Props & { home?: boolean 
   );
 }
 
-/** Coffee, the theme toggle and Share, 32 px apart, the same on every page. */
+/** Coffee (when `features.coffee` is on), the theme toggle and Share, 32 px apart, the same on every page. */
 export function HeaderIcons({ onShare }: Props) {
   return (
     <View style={styles.buttons}>
-      <CoffeeButton />
+      {features.coffee && <CoffeeButton />}
       <ThemeToggle />
       <Button kind="icon" icon="share" name={say.shareLink} onPress={onShare} />
     </View>

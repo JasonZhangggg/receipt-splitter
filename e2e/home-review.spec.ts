@@ -1,4 +1,5 @@
 import { addNames, dropFile, openExample, photo } from "./files";
+import { features } from "../src/features";
 import { expect, test, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -67,21 +68,23 @@ for (const [width, height, apps, friends] of [
   });
 }
 
-test("the header's three icons and wordmark sit at the same place on home, the Split page's gone state and not-found, with 32 px focus rings", async ({ page }) => {
+test("the header's icons and wordmark sit at the same place on home, the Split page's gone state and not-found, with 32 px focus rings", async ({ page }) => {
   const icons = async (path: string) => {
     await page.goto(path);
     await expect(page.getByRole("heading", { name: /SplitWith/ }).first()).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    return page.evaluate(() =>
-      ["Buy me a coffee", "Switch to dark mode", "Share link"].map((name) => {
+    const names = [...(features.coffee ? ["Buy me a coffee"] : []), "Switch to dark mode", "Share link"];
+    return page.evaluate((names) =>
+      names.map((name) => {
         const face = document.querySelector(`[aria-label="${name}"] [data-press-face]`)!.getBoundingClientRect();
         return [Math.round(face.x + face.width / 2), Math.round(face.y + face.height / 2), Math.round(face.width), Math.round(face.height)];
       }),
+      names,
     );
   };
   const home = await icons("/");
   expect(home).toEqual([
-    [292, 33, 32, 32],
+    ...(features.coffee ? [[292, 33, 32, 32]] : []),
     [324, 33, 32, 32],
     [356, 33, 32, 32],
   ]);
