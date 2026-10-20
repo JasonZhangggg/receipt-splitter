@@ -60,17 +60,32 @@ async function expectHit(target: Locator, min: { width?: number; height?: number
 
 const placeholderColor = (field: Locator) => field.evaluate((input) => getComputedStyle(input, "::placeholder").color);
 
-test("the home blanks' placeholders and rules are ink, like the tappable words, in light and dark", async ({ page }) => {
+test("home's needed steps are ink and its optional ones are muted, in light and dark", async ({ page }) => {
   await home(page);
   const blank = page.getByRole("textbox", { name: "Your name" });
+  const optional = [page.getByRole("button", { name: "Add another way to get paid" }), page.getByRole("button", { name: "Add friends" })].map((button) => button.getByText(/^add/));
   await expect(blank).toBeVisible();
   expect(await placeholderColor(blank)).toBe("rgb(23, 23, 23)");
   await expect(blank.locator("..")).toHaveCSS("border-bottom-color", "rgb(23, 23, 23)");
+  await expect(page.getByRole("button", { name: "Add the receipt" }).getByText("Add the receipt")).toHaveCSS("color", "rgb(23, 23, 23)");
+  for (const words of optional) {
+    await expect(words).toHaveCSS("color", "rgb(115, 115, 115)");
+    await expect(words).toHaveCSS("border-bottom-color", "rgb(115, 115, 115)");
+  }
+  await page.getByRole("button", { name: "Add friends" }).click();
+  const friend = page.getByRole("textbox", { name: "Name", exact: true });
+  expect(await placeholderColor(friend), "a friend's field is optional too").toBe("rgb(115, 115, 115)");
+  await expect(friend.locator("..")).toHaveCSS("border-bottom-color", "rgb(115, 115, 115)");
+  await friend.fill("Sam");
+  await expect(friend, "what is typed is ink").toHaveCSS("color", "rgb(23, 23, 23)");
+  await friend.fill("");
+  await page.keyboard.press("Escape");
 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(17, 17, 17)");
   await expect.poll(() => placeholderColor(blank)).toBe("rgb(237, 237, 237)");
   await expect(blank.locator("..")).toHaveCSS("border-bottom-color", "rgb(237, 237, 237)");
+  for (const words of optional) await expect(words).toHaveCSS("color", "rgb(153, 153, 153)");
 });
 
 test("every tappable word and field in home's sentence has a hit area of at least 44 px, and the x after a name is 44 by 44", async ({ page }) => {

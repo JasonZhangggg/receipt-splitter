@@ -24,16 +24,25 @@ function Glued({ children, then }: { children: ReactNode; then: string | undefin
   return then === undefined ? children : <Text style={nowrap}>{children}{then}</Text>;
 }
 
-type ActProps = { label: string; name?: string; onPress: () => void; /** The punctuation right after it. */ then?: string };
+type ActProps = {
+  label: string;
+  name?: string;
+  onPress: () => void;
+  /** The punctuation right after it. */
+  then?: string;
+  /** A step the link can be made without, like another app or friends: muted like the plain words, so the steps it needs stand out in ink. */
+  optional?: boolean;
+};
 
-/** An action inside the sentence: its words in ink, underlined in ink. A button does not inherit its font, so the words set it. */
-export function Act({ label, name, onPress, then }: ActProps) {
+/** An action inside the sentence: its words underlined, in ink, or muted when it is optional. A button does not inherit its font, so the words set it. */
+export function Act({ label, name, onPress, then, optional = false }: ActProps) {
   const c = useColors();
+  const color = optional ? c.muted : c.ink;
   const reduce = useReducedMotion();
   return (
     <Glued then={then}>
       <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.act, pressStyle(pressed, reduce, linkPress)]}>
-        {() => <Text style={[type.sayInput, styles.underlined, { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
+        {() => <Text style={[type.sayInput, styles.underlined, { color, borderBottomColor: color }]}>{label}</Text>}
       </PressTarget>
     </Glued>
   );
@@ -88,17 +97,24 @@ const leavesRoomForPeriod = webStyle({ maxWidth: "calc(100% - 14px)" } as never)
  * wrapper hugging the text, and the field pads past it with a negative margin, so the hit area is 44 px tall while the layout and the rule stay put.
  * Without field-sizing (iOS Safari before 26.2 does not have it), css.ts sizes the field from `--chars`.
  */
-export function Blank({ style, ref, then, ...rest }: TextInputProps & { ref?: Ref<TextInput>; /** The punctuation right after it. */ then?: string }) {
+export function Blank({
+  style,
+  ref,
+  then,
+  optional = false,
+  ...rest
+}: TextInputProps & { ref?: Ref<TextInput>; /** The punctuation right after it. */ then?: string; /** Like an optional Act: its placeholder and rule are muted, while what is typed stays ink. */ optional?: boolean }) {
   const c = useColors();
+  const mark = optional ? c.muted : c.ink;
   // A string, because a bare number gets a "px" unit and the calc in css.ts then fails.
   const chars = webStyle({ "--chars": String(Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1)) } as never);
   return (
     <Glued then={then}>
-      <View style={[styles.rule, leavesRoomForPeriod, { borderBottomColor: c.ink }]}>
+      <View style={[styles.rule, leavesRoomForPeriod, { borderBottomColor: mark }]}>
         <TextInput
           ref={ref}
           {...underlineMark}
-          placeholderTextColor={c.ink}
+          placeholderTextColor={mark}
           style={[type.sayInput, styles.blank, sized, chars, { color: c.ink }, style]}
           {...rest}
         />

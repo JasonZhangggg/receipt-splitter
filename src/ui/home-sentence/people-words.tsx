@@ -93,6 +93,7 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
       input={friendInput}
       label={copy.newName}
       placeholder={copy.sentence.name}
+      optional
       onCommit={(text) => add(text, onAddFriend)}
       onEnter={() => {}}
       onLeave={() => setAdding(false)}
@@ -100,7 +101,7 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
       then="."
     />
   ) : (
-    <Act label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} then="." />
+    <Act label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} then="." optional />
   );
   return (
     <>
@@ -138,10 +139,12 @@ type BlankProps = {
   onRefusal: (refusal: string | null) => void;
   /** The punctuation right after the field. */
   then: string;
+  /** A friend's field, which the link can be made without. */
+  optional?: boolean;
 };
 
 /** A name field in the sentence. Enter adds the name and keeps the field; leaving it adds what was typed. */
-function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRefusal, then }: BlankProps) {
+function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRefusal, then, optional }: BlankProps) {
   const [typed, setTyped] = useState("");
   const pressing = usePressing();
   const refused = useRef(false);
@@ -157,6 +160,7 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
     <Blank
       ref={input}
       then={then}
+      optional={optional}
       aria-label={label}
       placeholder={placeholder}
       value={typed}

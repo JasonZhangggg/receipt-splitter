@@ -71,6 +71,7 @@ export function PayWords({ handles, dispatch, inputs }: Props) {
             label={copy.sentence.addApp}
             name={copy.addAppName}
             then="."
+            optional
             onPress={() => {
               adding.current = true;
               dispatch({ type: "addHandle" });
