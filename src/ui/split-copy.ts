@@ -92,6 +92,9 @@ export const splitCopy = {
     of: (total: string) => `of ${total}`,
     paidYou: "paid you",
     paidHost: (host: string) => `paid ${host}`,
+    allPaidTitle: "All paid",
+    allPaid: (total: string) => `${total} settled`,
+    allPaidHost: (paid: string) => `${paid} paid you`,
     owesNothing: (names: readonly string[]) => {
       const shown = names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names;
       return `${shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}` : shown[0]} ${names.length > 1 ? "owe" : "owes"} nothing.`;

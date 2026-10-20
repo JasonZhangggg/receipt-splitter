@@ -6,11 +6,12 @@ import type { ParticipantId, Split } from "../../core/split";
 import { computeShares } from "../../core/shares";
 import { money } from "../../draft";
 import { PressTarget } from "../components/button";
+import { Icon } from "../components/icon";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
-import { slices, ring } from "./donut-model";
+import { checksLandBy, ring, ringMotion, slices } from "./donut-model";
 import { DonutRing } from "./donut-ring";
 import { foldedRows, hostCollected, paymentSections, paymentStatus, pickedRow } from "./model";
 import { firstName } from "./pay-sheet";
@@ -23,11 +24,21 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const shares = computeShares(split);
-  const { rows, summary } = paymentStatus(split, shares, me);
+  const { rows, summary, paid, owing } = paymentStatus(split, shares, me);
   const insets = useSafeAreaInsets();
   const room = useLayoutHeight() - insets.top - 38 - sheetChrome - insets.bottom;
   const [fixed, setFixed] = useState(0);
   const [tapped, setTapped] = useState<ParticipantId | null>(null);
+  // Every Item is claimed and everyone who owes something has paid. The moment that happens the ring goes back to All paid, even if someone was tapped before.
+  const settled = owing > 0 && paid === owing && shares.unclaimed.total === 0;
+  const [wasSettled, setWasSettled] = useState(settled);
+  // Whether All paid is still the one the sheet opened on, which waits for the ring to draw.
+  const [opening, setOpening] = useState(settled);
+  if (settled !== wasSettled) {
+    setWasSettled(settled);
+    setOpening(false);
+    if (settled) setTapped(null);
+  }
   const { shown, quiet } = foldedRows(rows, me);
   const picked = pickedRow(shown, tapped, me);
   const collected = picked.isHost ? hostCollected(rows, split.payments) : null;
@@ -35,6 +46,8 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const edge = sheet ? layout.gutter + insets.right : rowEdge;
   const total = split.receipt.total;
   const unclaimed = shares.unclaimed.total;
+  const arcs = slices(shares, me);
+  const checked = (id: ParticipantId) => rows.some((row) => row.id === id && (row.state === "settled" || row.state === "over" || row.state === "host"));
   const label = say.ring.label(
     money(total),
     rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share)}`),
@@ -54,15 +67,31 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         ) : null}
         {total > 0 ? (
           <View role="img" aria-label={label} style={styles.ring}>
-            <DonutRing slices={slices(shares)} paint={(id) => (id === picked.id ? c.ink : c.dot)} track={c.hairline} onPick={setTapped} />
+            <DonutRing
+              slices={arcs}
+              paint={(id) => (id === picked.id ? c.ink : c.dot)}
+              tick={(id) => (checked(id) ? (id === picked.id ? c.onAction : c.ink) : null)}
+              track={c.hairline}
+              onPick={setTapped}
+            />
             <View aria-hidden pointerEvents="none" style={[styles.center, !reduce && centerIn]}>
-              <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(host ? collected.paid : picked.share)}</Text>
-              <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
-                {host ? (picked.id === me ? say.ring.paidYou : say.ring.paidHost(firstName(picked.name))) : picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))}
-              </Text>
-              <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
-                {say.ring.of(money(host ? collected.owed : total))}
-              </Text>
+              {settled && tapped === null ? (
+                <AllPaid
+                  key="all"
+                  wait={reduce ? null : opening ? checksLandBy(arcs, checked) : allPaidAfterCheck}
+                  caption={host ? say.ring.allPaidHost(money(collected.paid)) : say.ring.allPaid(money(total))}
+                />
+              ) : (
+                <View key="one" style={styles.face}>
+                  <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(host ? collected.paid : picked.share)}</Text>
+                  <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
+                    {host ? (picked.id === me ? say.ring.paidYou : say.ring.paidHost(firstName(picked.name))) : picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))}
+                  </Text>
+                  <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
+                    {say.ring.of(money(host ? collected.owed : total))}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         ) : null}
@@ -122,6 +151,30 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   );
 }
 
+/** The ring's center once everyone has paid: a green tick over "All paid". It rises in `wait` ms after it mounts, so it lands after the ring's checks; null shows it at once. */
+function AllPaid({ wait, caption }: { wait: number | null; caption: string }) {
+  const c = useColors();
+  const [delay] = useState(wait);
+  return (
+    <View testID="all-paid" style={[styles.face, delay !== null && webAnimation({ ...allPaidIn, animationDelay: `${delay}ms` })]}>
+      <Icon name="check" size={22} color={c.good} />
+      <Text style={[type.hero, { color: c.ink }]}>{say.ring.allPaidTitle}</Text>
+      <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
+        {caption}
+      </Text>
+    </View>
+  );
+}
+
+/** A check that lands from a live payment pops in over `checkIn`; All paid follows just after it. */
+const allPaidAfterCheck = ringMotion.checkIn + 60;
+const allPaidIn = {
+  animationKeyframes: [{ from: { opacity: 0, transform: "translateY(4px)" }, to: { opacity: 1, transform: "none" } }],
+  animationDuration: "280ms",
+  animationTimingFunction: motion.easeOut,
+  animationFillMode: "both",
+};
+
 // The sheet's grab handle and bottom padding, which the content has to leave room for.
 const sheetChrome = 29 + 30;
 const rowEdge = 20;
@@ -142,6 +195,7 @@ const styles = StyleSheet.create({
   caption: { textAlign: "center" },
   ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 8 },
   center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
+  face: { alignItems: "center", maxWidth: "100%" },
   sheet: { gap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, minHeight: 56, paddingVertical: 10, borderTopWidth: 1 },
   body: { flex: 1, minWidth: 0, gap: 2 },
