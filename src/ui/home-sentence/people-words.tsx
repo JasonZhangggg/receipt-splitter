@@ -145,6 +145,7 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
   const [typed, setTyped] = useState("");
   const pressing = usePressing();
   const refused = useRef(false);
+  const composedRef = useComposed(input);
   // A refused name stays in the field to be fixed; only a name that went in, or nothing but spaces, clears it.
   const commit = () => {
     const text = typed;
@@ -163,6 +164,9 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       maxLength={MAX_PARTICIPANT_NAME_LENGTH}
       enterKeyHint="done"
       autoCapitalize="words"
+      // A name is not a dictionary word, and iOS marks a return that settles a pending correction as its own, which React Native Web drops.
+      autoCorrect={false}
+      spellCheck={false}
       onChangeText={(text) => {
         setTyped(text);
         refused.current = false;
@@ -170,7 +174,15 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       }}
       onSubmitEditing={() => onEnter(commit())}
       onKeyPress={(event) => {
-        if (event.nativeEvent.key !== "Escape") return;
+        const key = event.nativeEvent as unknown as KeyboardEvent;
+        if (key.key === "Enter") {
+          // React Native Web skips an Enter with keyCode 229. iOS sends one for a return it also used, and so does Safari for the Enter that
+          // confirms an input method's text, which follows a composition and must not add the name.
+          if (key.keyCode === 229 && !key.isComposing && !composedRef.current) onEnter(commit());
+          composedRef.current = false;
+          return;
+        }
+        if (key.key !== "Escape") return;
         setTyped("");
         onLeave();
       }}
@@ -186,6 +198,19 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       }
     />
   );
+}
+
+/** Whether an input method composed text in the field since its last Enter. */
+function useComposed(input: RefObject<TextInput | null>) {
+  const composedRef = useRef(false);
+  useEffect(() => {
+    const field = input.current as unknown as HTMLElement | null;
+    if (!field?.addEventListener) return;
+    const start = () => (composedRef.current = true);
+    field.addEventListener("compositionstart", start);
+    return () => field.removeEventListener("compositionstart", start);
+  }, [input]);
+  return composedRef;
 }
 
 const pressEnds = ["pointerup", "pointercancel"] as const;

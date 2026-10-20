@@ -363,6 +363,44 @@ test("add friends opens a friend field before your name is in, Enter keeps it op
   await expect.poll(() => said(page)).toContain("I’m Jason, here with Sam, Priya and add more.");
 });
 
+// iOS Safari marks the return key with keyCode 229 when it pressed the key for its own text system, as with a pending autocorrect, and React Native
+// Web drops every such Enter. An input method (Japanese, Chinese) composes first, and its 229 Enter only confirms the composition.
+const enterAs229 = (field: Locator, { composed }: { composed: boolean }) =>
+  field.evaluate((input, composed) => {
+    if (composed) input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    if (composed) input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    for (const type of ["keydown", "keyup"]) input.dispatchEvent(new KeyboardEvent(type, { key: "Enter", keyCode: 229, bubbles: true, cancelable: true }));
+  }, composed);
+
+test("an Enter that iOS marks as its own (keyCode 229) still adds the name, but one that confirms an input method's text does not", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await page.getByRole("button", { name: "Add friends" }).click();
+  const next = page.getByRole("textbox", { name: "Name", exact: true });
+  await page.keyboard.type("Dwight");
+  await enterAs229(next, { composed: false });
+  await expect(sentence(page).getByRole("group", { name: "Dwight", exact: true })).toBeVisible();
+  await expect(next).toBeFocused();
+  await expect(next).toHaveValue("");
+
+  await page.keyboard.type("Kenji");
+  await enterAs229(next, { composed: true });
+  await expect(next, "confirming the input method's text leaves the name to be finished").toHaveValue("Kenji");
+  await expect(sentence(page).getByRole("group", { name: "Kenji", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(sentence(page).getByRole("group", { name: "Kenji", exact: true })).toBeVisible();
+});
+
+test("names are not autocorrected or spell-checked, so a friend's name goes in as typed", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await page.getByRole("button", { name: "Add friends" }).click();
+  for (const field of [yourName(page), page.getByRole("textbox", { name: "Name", exact: true })]) {
+    await expect(field).toHaveAttribute("autocorrect", "off");
+    await expect(field).toHaveAttribute("spellcheck", "false");
+  }
+});
+
 test("a tap on add friends while a typed name waits for Enter keeps the name and opens the friend field", async ({ page }) => {
   await page.goto("/");
   await settle(page);
