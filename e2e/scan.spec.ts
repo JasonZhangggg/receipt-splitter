@@ -232,7 +232,7 @@ async function holdTheDownload(page: Page) {
 test.describe("the reading state", () => {
   test.setTimeout(120_000);
 
-  test("puts the step word in place of Add the receipt, with no progress bar, rises it in once and holds it still", async ({ page }) => {
+  test("puts the step word in place of Add the receipt, with no progress bar, rolls it in once and holds it still", async ({ page }) => {
     const release = await holdTheDownload(page);
     await page.goto("/");
     await choose(page, receipt1040);
@@ -241,8 +241,9 @@ test.describe("the reading state", () => {
     await expect(page.getByTestId("reading"), "focus follows the button that left").toBeFocused();
     await expect(page.locator("[data-problem]"), "the footer stays quiet while the step word speaks").toHaveAttribute("aria-live", "off");
     await expect(page.getByRole("progressbar")).toHaveCount(0);
-    await expect(page.getByTestId("reading-stage")).toHaveCSS("animation-name", "rs-rise");
-    await expect(page.getByTestId("reading-stage")).toHaveCSS("animation-iteration-count", "1");
+    await expect(page.getByTestId("reading-stage").locator("[data-step-roll-in]")).toHaveCSS("animation-name", "rs-roll-in");
+    await expect(page.getByTestId("reading-stage").locator("[data-step-roll-in]")).toHaveCSS("animation-iteration-count", "1");
+    await expect(page.getByTestId("reading-stage"), "the first step has no word to roll out").not.toHaveAttribute("data-step-from");
     await expect.poll(() => page.evaluate(() => document.getAnimations().length), "nothing loops while the read is held").toBe(0);
     await expect(page.getByTestId("reading-stage")).toHaveText("Reading the receipt");
 
@@ -252,7 +253,7 @@ test.describe("the reading state", () => {
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
   });
 
-  test("under reduced motion only a short opacity fade runs while it reads, with no rise", async ({ page }) => {
+  test("under reduced motion only a short opacity fade runs while it reads, with no roll", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     const release = await holdTheDownload(page);
     await page.goto("/");
@@ -510,7 +511,8 @@ test.describe("reading through the server", () => {
     releaseOcr();
     await expect(stage).toHaveText("Matching prices", scanTimeout);
     await expect.poll(() => askedAt).toBeGreaterThan(0);
-    await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
+    await expect(stage).toHaveText("Nearly done", { timeout: 10_000 });
+    await expect(stage, "the step it replaced rolls out above it").toHaveAttribute("data-step-from", "Matching prices");
     expect(Date.now() - askedAt).toBeGreaterThan(3_000);
     answer();
     await expect(card(page)).toBeVisible(scanTimeout);
@@ -519,7 +521,7 @@ test.describe("reading through the server", () => {
 
     const seen = await lines();
     expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
-    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Finding the text", "Matching prices", "Taking a few more seconds", ""]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Finding the text", "Matching prices", "Nearly done", ""]);
   });
 
   test("on the photo route the step word never goes back to Finding the text when the download lands late", async ({ page }) => {
@@ -541,7 +543,7 @@ test.describe("reading through the server", () => {
     await expect(stage).toHaveText("Matching prices", { timeout: 10_000 });
     expect(sent!.ocrLines).toEqual([]);
     releaseOcr();
-    await expect(stage).toHaveText("Taking a few more seconds", { timeout: 10_000 });
+    await expect(stage).toHaveText("Nearly done", { timeout: 10_000 });
     // Long enough for the released download to build the engine and start looking for text, which reports the step Finding the text names.
     await page.waitForTimeout(4_000);
     answer();
@@ -551,7 +553,7 @@ test.describe("reading through the server", () => {
 
     const seen = await lines();
     expect(seen.filter((frame) => frame.length > 1)).toEqual([]);
-    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Matching prices", "Taking a few more seconds", ""]);
+    expect(runs(seen.map((frame) => frame[0] ?? ""))).toEqual(["", "Reading the receipt", "Matching prices", "Nearly done", ""]);
     expect(await shown(page)).toBe("I paid $30.15. Change.");
   });
 
