@@ -158,8 +158,8 @@ describe("checks", () => {
 
   test("All paid on opening waits for the last checked arc to draw in and its check to pop", () => {
     const four = [ann, bob, cy, participantId("dee")].map((id, index) => ({ id, cents: 100, start: index / 4, fraction: 0.25 }));
-    expect(checksLandBy(four, () => true)).toBe(200 + 315 + 420 + 300);
-    expect(checksLandBy(four, (id) => id === ann)).toBe(200 + 0 + 420 + 300);
+    expect(checksLandBy(four, () => true)).toBe(200 + 315 + 560 + 300);
+    expect(checksLandBy(four, (id) => id === ann)).toBe(200 + 0 + 560 + 300);
   });
 });
 

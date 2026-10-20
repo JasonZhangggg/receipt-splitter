@@ -32,11 +32,9 @@ const draw = `@keyframes ring-draw{from{stroke-dasharray:0 ${length};opacity:0}1
  */
 export function DonutRing({ slices, paint, track, tick, onPick }: Props) {
   const reduce = useReducedMotion();
-  // The checks the ring opens with, each with when it pops in; any other check arrives later and pops in at once.
-  const [atMount] = useState(() => {
-    const checked = new Set(checks(slices, (id) => (tick?.(id) ?? null) !== null).map(({ id }) => id));
-    return new Map(arcs(slices).flatMap(({ id, delay }) => (checked.has(id) ? [[id, sheetArrives + delay + checkAfterDraw] as const] : [])));
-  });
+  const [mountedAt] = useState(() => performance.now());
+  // When each arc has drawn in, counted from the ring's mount; a check waits for its arc, so one that arrives later pops in at once.
+  const lands = new Map(arcs(slices).map(({ id, delay }) => [id, sheetArrives + delay + checkAfterDraw]));
   return (
     <svg aria-hidden width={ring.size} height={ring.size} viewBox={`0 0 ${ring.size} ${ring.size}`} style={{ display: "block", flexShrink: 0, overflow: "visible" }}
       onClick={(event) => {
@@ -69,16 +67,16 @@ export function DonutRing({ slices, paint, track, tick, onPick }: Props) {
       </g>
       {tick
         ? checks(slices, (id) => tick(id) !== null).map(({ id, x, y }) => (
-            <Check key={id} x={middle + x} y={middle + y} fill={paint(id)} tick={tick(id) ?? ""} delay={reduce ? null : (atMount.get(id) ?? 0)} />
+            <Check key={id} x={middle + x} y={middle + y} fill={paint(id)} tick={tick(id) ?? ""} landsAt={reduce ? null : mountedAt + (lands.get(id) ?? 0)} />
           ))
         : null}
     </svg>
   );
 }
 
-/** A paid arc's check disc. Its pop-in delay is fixed when it first appears, so a later render cannot replay or hurry it; null shows it at once. */
-function Check({ x, y, fill, tick, delay }: { x: number; y: number; fill: string; tick: string; delay: number | null }) {
-  const [wait] = useState(delay);
+/** A paid arc's check disc. It pops in once its arc has drawn, at `landsAt` on the page clock, or at once if that has passed; null shows it without motion. */
+function Check({ x, y, fill, tick, landsAt }: { x: number; y: number; fill: string; tick: string; landsAt: number | null }) {
+  const [wait] = useState(() => (landsAt === null ? null : Math.max(0, landsAt - performance.now())));
   const recolor = wait === null ? undefined : `${recolorFor}ms ${motion.easeOut}`;
   return (
     <g data-check="" style={{ transformBox: "fill-box", transformOrigin: "center", ...(wait === null ? {} : { animation: `ring-check ${checkIn}ms ${motion.easeOut} ${wait}ms both` }) }}>

@@ -29,9 +29,10 @@ const sweepFor = 420;
 
 /**
  * The ring's mount timing on the web. The Payments sheet takes about 300 ms to arrive; the arcs wait `sheetArrives` for it so the ring draws on a sheet that has
- * landed. A check pops in `checkAfterDraw` after its arc starts drawing and takes `checkIn`; one that arrives later, from a payment, pops in at once.
+ * landed. A check pops in `checkAfterDraw` after its arc starts drawing, as the 620 ms draw settles, and takes `checkIn`; one that arrives after its arc has
+ * drawn, from a payment, pops in at once.
  */
-export const ringMotion = { sheetArrives: 200, checkAfterDraw: 420, checkIn: 300 } as const;
+export const ringMotion = { sheetArrives: 200, checkAfterDraw: 560, checkIn: 300 } as const;
 
 export type Arc = { id: ParticipantId; dash: string; offset: number; delay: number };
 
