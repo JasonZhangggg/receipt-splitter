@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents } from "../../core/money";
 import type { Shares } from "../../core/shares";
 import { participantId, type ItemId } from "../../core/split";
-import { arcAt, arcs, ringMarkup, slices } from "./donut-model";
+import { arcAt, arcs, checks, checksLandBy, ringMarkup, slices } from "./donut-model";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -106,7 +106,79 @@ describe("arcs", () => {
   });
 });
 
+describe("slices turned to the viewer", () => {
+  const three = shares(
+    [
+      [ann, 2000],
+      [bob, 1000],
+      [cy, 1000],
+    ],
+    0,
+  );
+
+  test("start the ring with the viewer's arc and keep chip order after it, wrapping round", () => {
+    expect(slices(three, bob)).toEqual([
+      { id: "bob", cents: 1000, start: 0, fraction: 0.25 },
+      { id: "cy", cents: 1000, start: 0.25, fraction: 0.25 },
+      { id: "ann", cents: 2000, start: 0.5, fraction: 0.5 },
+    ]);
+  });
+
+  test("keep chip order for no viewer or a viewer who is not in the Split", () => {
+    expect(slices(three, null).map(({ id }) => id)).toEqual(["ann", "bob", "cy"]);
+    expect(slices(three, participantId("zed")).map(({ id }) => id)).toEqual(["ann", "bob", "cy"]);
+  });
+
+  test("leave out a viewer whose Share is $0.00 and start with whoever follows them", () => {
+    expect(slices(shares([[ann, 1000], [bob, 0], [cy, 1000]], 0), bob).map(({ id }) => id)).toEqual(["cy", "ann"]);
+  });
+});
+
+describe("checks", () => {
+  test("put one on the middle of each paid arc, as an offset from the center", () => {
+    const half = [
+      { id: ann, cents: 100, start: 0, fraction: 0.5 },
+      { id: bob, cents: 100, start: 0.5, fraction: 0.5 },
+    ];
+    const [right, left] = checks(half, () => true);
+    expect(right.id).toBe("ann");
+    expect(right.x).toBeCloseTo(80);
+    expect(right.y).toBeCloseTo(0);
+    expect(left.x).toBeCloseTo(-80);
+    expect(checks(half, (id) => id === bob).map(({ id }) => id)).toEqual(["bob"]);
+  });
+
+  test("skip a paid arc whose paint is shorter than the disc", () => {
+    const sliver = [
+      { id: ann, cents: 100, start: 0, fraction: 0.96 },
+      { id: bob, cents: 4, start: 0.96, fraction: 0.04 },
+    ];
+    expect(checks(sliver, () => true).map(({ id }) => id)).toEqual(["ann"]);
+  });
+
+  test("All paid on opening waits for the last checked arc to draw in and its check to pop", () => {
+    const four = [ann, bob, cy, participantId("dee")].map((id, index) => ({ id, cents: 100, start: index / 4, fraction: 0.25 }));
+    expect(checksLandBy(four, () => true)).toBe(200 + 315 + 420 + 300);
+    expect(checksLandBy(four, (id) => id === ann)).toBe(200 + 0 + 420 + 300);
+  });
+});
+
 describe("ringMarkup", () => {
+  test("draws a disc in the arc's color with a tick on each arc that tick colors, after the arcs", () => {
+    const markup = ringMarkup(
+      [
+        { id: ann, cents: 100, start: 0, fraction: 0.5 },
+        { id: bob, cents: 100, start: 0.5, fraction: 0.5 },
+      ],
+      (id) => (id === ann ? "#111111" : "#cccccc"),
+      "#eeeeee",
+      (id) => (id === ann ? "#ffffff" : null),
+    );
+    expect(markup.match(/<circle/g)).toHaveLength(4);
+    expect(markup).toMatch(/<circle cx="164" cy="84" r="9.5" fill="#111111"\/><path d="m4.5 12.75 6 6 9-13.5" fill="none" stroke="#ffffff"/);
+    expect(markup).not.toContain('fill="#cccccc"');
+  });
+
   test("draws the track first, then one round-capped circle per arc in the color paint gives it", () => {
     const markup = ringMarkup([{ id: ann, cents: 100, start: 0, fraction: 1 }], () => "#123456", "#abcdef");
     expect(markup.match(/<circle/g)).toHaveLength(2);

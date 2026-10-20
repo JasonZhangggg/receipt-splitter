@@ -636,13 +636,13 @@ test("a tap on the ring's arc picks that person like their row, and a tap on the
   await priya.waitForTimeout(1200);
   const svg = dialog.locator('svg[width="168"]');
   expect(await svg.getAttribute("aria-hidden")).toBe("true");
-  // Sam's arc runs from 12 o'clock over 14.20 of the 44.20 total, Priya's over the next 16.00; taps land on the band's middle (radius 80 of 168).
+  // Priya's own arc runs from 12 o'clock over 16.00 of the 44.20 total, Sam's over the next 14.20; taps land on the band's middle (radius 80 of 168).
   const tapAt = async (turn: number, radius: number) => {
     const box = (await svg.boundingBox())!;
     const angle = 2 * Math.PI * turn;
     await priya.mouse.click(box.x + box.width / 2 + radius * Math.sin(angle), box.y + box.height / 2 - radius * Math.cos(angle));
   };
-  await tapAt(1420 / 4420 / 2, 80);
+  await tapAt((1600 + 1420 / 2) / 4420, 80);
   await expect(samRow).toHaveAttribute("aria-pressed", "true");
   await expect(priyaRow).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByText("Sam's part", { exact: true })).toBeVisible();
@@ -651,7 +651,39 @@ test("a tap on the ring's arc picks that person like their row, and a tap on the
   await tapAt(0.1, 40);
   await tapAt(0.1, 0);
   await expect(samRow).toHaveAttribute("aria-pressed", "true");
-  await tapAt((1420 + 1600 / 2) / 4420, 80);
+  await tapAt(1600 / 2 / 4420, 80);
   await expect(priyaRow).toHaveAttribute("aria-pressed", "true");
   await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
+});
+
+test("Payments puts a check on each paid arc, and says All paid once the last person pays while it is open", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const sam = await open(browser, link);
+  const priya = await open(browser, link);
+  await pick(sam, "Sam");
+  await pick(priya, "Priya");
+  await circle(sam, "Pho", "Sam").click();
+  await circle(sam, "Wings", "Sam").click();
+  await circle(priya, "Tea", "Priya").click();
+  await expect(owe(sam)).toHaveText("$28.20", live);
+  await expect(owe(priya)).toHaveText("$16.00", live);
+  await owe(priya).click();
+  await breakdown(priya).getByRole("button", { name: "I already paid" }).click();
+  await expect(priya.getByRole("status").getByText("Marked $16.00 as paid")).toBeVisible(live);
+
+  await fromMore(priya, "Payments");
+  const dialog = priya.getByRole("dialog", { name: "Payments" });
+  const checks = dialog.locator("svg [data-check]");
+  await expect(checks).toHaveCount(1, live);
+  await expect(dialog.getByTestId("all-paid")).toHaveCount(0);
+  await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
+
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(checks).toHaveCount(2, live);
+  await expect(dialog.getByTestId("all-paid")).toHaveText("All paid$44.20 settled");
+
+  await paymentsList(priya).getByRole("button", { name: /^Sam, / }).click();
+  await expect(dialog.getByTestId("all-paid")).toHaveCount(0);
+  await expect(dialog.getByTestId("ring-amount")).toHaveText("$28.20");
 });
