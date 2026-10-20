@@ -41,11 +41,10 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   }
   const { shown, quiet } = foldedRows(rows, me);
   const picked = pickedRow(shown, tapped, me);
-  const collected = picked.isHost ? hostCollected(rows, split.payments) : null;
-  const host = collected !== null && collected.owed > 0;
   const edge = sheet ? layout.gutter + insets.right : rowEdge;
   const total = split.receipt.total;
   const unclaimed = shares.unclaimed.total;
+  const collected = hostCollected(rows, split.payments);
   const arcs = slices(shares, me);
   const checked = (id: ParticipantId) => rows.some((row) => row.id === id && (row.state === "settled" || row.state === "over" || row.state === "host"));
   const label = say.ring.label(
@@ -62,6 +61,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
             {say.ring.everyonePays(firstName(rows[0].name))}
             {summary ? " " : null}
             <Text testID="payments-summary">{summary}</Text>
+            {summary ? <Text testID="payments-collected">{say.ring.collected(money(collected.paid), money(collected.owed))}</Text> : null}
             {unclaimed > 0 ? say.ring.unclaimed(money(unclaimed)) : null}
           </Text>
         ) : null}
@@ -75,23 +75,21 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
               onPick={setTapped}
             />
             <View aria-hidden pointerEvents="none" style={[styles.center, !reduce && centerIn]}>
-              {settled && tapped === null ? (
-                <AllPaid
-                  key="all"
-                  wait={reduce ? null : opening ? checksLandBy(arcs, checked) : allPaidAfterCheck}
-                  caption={host ? say.ring.allPaidHost(money(collected.paid)) : say.ring.allPaid(money(total))}
-                />
-              ) : (
+              {settled && tapped === null ? null : (
                 <View key="one" style={styles.face}>
-                  <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(host ? collected.paid : picked.share)}</Text>
-                  <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
-                    {host ? (picked.id === me ? say.ring.paidYou : say.ring.paidHost(firstName(picked.name))) : picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))}
-                  </Text>
-                  <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
-                    {say.ring.of(money(host ? collected.owed : total))}
-                  </Text>
+                  <Part amount={picked.share} words={picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))} total={total} />
                 </View>
               )}
+              {settled && tapped === null ? (
+                <>
+                  {opening || reduce ? null : (
+                    <View key="leaving" style={[styles.face, partOut]}>
+                      <Part amount={picked.share} words={say.ring.yourPart} total={total} />
+                    </View>
+                  )}
+                  <AllPaid key="all" wait={reduce ? null : opening ? checksLandBy(arcs, checked) : allPaidAfterCheck} caption={say.ring.allPaid(money(total))} />
+                </>
+              ) : null}
             </View>
           </View>
         ) : null}
@@ -151,6 +149,22 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   );
 }
 
+/** The ring's center for one person: their part of the Total. Everyone's ring reads this way, the Host's included. */
+function Part({ amount, words, total }: { amount: number; words: string; total: number }) {
+  const c = useColors();
+  return (
+    <>
+      <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(amount)}</Text>
+      <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
+        {words}
+      </Text>
+      <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
+        {say.ring.of(money(total))}
+      </Text>
+    </>
+  );
+}
+
 /** The ring's center once everyone has paid: a green tick over "All paid". It rises in `wait` ms after it mounts, so it lands after the ring's checks; null shows it at once. */
 function AllPaid({ wait, caption }: { wait: number | null; caption: string }) {
   const c = useColors();
@@ -166,11 +180,20 @@ function AllPaid({ wait, caption }: { wait: number | null; caption: string }) {
   );
 }
 
-/** A check that lands from a live payment pops in over `checkIn`; All paid follows just after it. */
-const allPaidAfterCheck = ringMotion.checkIn + 60;
+/**
+ * When the last payment lands live, your part lifts away as the last check pops in, and All paid eases in as the check settles, so the two overlap rather than
+ * leaving the center empty.
+ */
+const allPaidAfterCheck = Math.round(ringMotion.checkIn * 0.6);
+const partOut = webAnimation({
+  animationKeyframes: [{ from: { opacity: 1, transform: "none" }, to: { opacity: 0, transform: "translateY(-6px) scale(0.98)" } }],
+  animationDuration: "240ms",
+  animationTimingFunction: motion.easeOut,
+  animationFillMode: "forwards",
+});
 const allPaidIn = {
-  animationKeyframes: [{ from: { opacity: 0, transform: "translateY(4px)" }, to: { opacity: 1, transform: "none" } }],
-  animationDuration: "280ms",
+  animationKeyframes: [{ from: { opacity: 0, transform: "translateY(8px) scale(0.96)" }, to: { opacity: 1, transform: "none" } }],
+  animationDuration: "520ms",
   animationTimingFunction: motion.easeOut,
   animationFillMode: "both",
 };
@@ -195,7 +218,7 @@ const styles = StyleSheet.create({
   caption: { textAlign: "center" },
   ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 8 },
   center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
-  face: { alignItems: "center", maxWidth: "100%" },
+  face: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, minHeight: 56, paddingVertical: 10, borderTopWidth: 1 },
   body: { flex: 1, minWidth: 0, gap: 2 },
