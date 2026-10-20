@@ -119,7 +119,7 @@ export function pickedRow<Row extends { readonly id: ParticipantId }>(rows: read
   return rows.find(({ id }) => id === picked) ?? rows.find(({ id }) => id === viewer) ?? rows[0];
 }
 
-/** What friends paid the Host out of what friends owe them: the Host's ring says "paid you of owed" instead of the Host's own part. Payments count as recorded, so an overpayment shows as more than owed. */
+/** What friends paid the Host out of what friends owe them, which the Payments summary line gives on every phone. Payments count as recorded, so an overpayment shows as more than owed. */
 export function hostCollected(rows: readonly PaymentRow[], payments: Split["payments"]): { readonly paid: Cents; readonly owed: Cents } {
   const friends = rows.filter(({ isHost }) => !isHost);
   const owed = friends.reduce((sum, { share }) => sum + share, 0);

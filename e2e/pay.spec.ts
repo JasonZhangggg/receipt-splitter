@@ -587,7 +587,7 @@ test("Payments folds everyone who owes $0.00 into one muted line, in light and d
   await expect.poll(() => ink("dark")).toBe("rgb(153, 153, 153)");
 });
 
-test("the Host's ring in Payments says what friends paid the Host out of what friends owe, not Your part", async ({ browser, request }, { workerIndex }) => {
+test("the Host's ring reads like everyone's, their part of the Total, and the line above it says what friends paid of what they owe", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -597,6 +597,7 @@ test("the Host's ring in Payments says what friends paid the Host out of what fr
   await pick(jason, "Jason");
   await circle(sam, "Pho", "Sam").click();
   await circle(priya, "Tea", "Priya").click();
+  await circle(jason, "Wings", "Jason").click();
   await expect(owe(sam)).toHaveText("$14.20", live);
   await expect(owe(priya)).toHaveText("$16.00", live);
 
@@ -606,15 +607,18 @@ test("the Host's ring in Payments says what friends paid the Host out of what fr
   const dialog = jason.getByRole("dialog", { name: "Payments" });
   const hostRow = paymentsList(jason).getByRole("button", { name: /^Jason, you, / });
   await expect(hostRow).toHaveAttribute("aria-pressed", "true");
-  await expect(dialog.getByTestId("ring-amount")).toHaveText("$14.20", live);
-  await expect(dialog.getByText("paid you", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("of $30.20", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Your part", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByTestId("payments-collected")).toHaveText(" · $14.20 of $30.20 in", live);
+  await expect(dialog.getByTestId("ring-amount")).toHaveText("$14.00");
+  await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("of $44.20", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("paid you", { exact: true })).toHaveCount(0);
 
   await fromMore(priya, "Payments");
+  const theirs = priya.getByRole("dialog", { name: "Payments" });
+  await expect(theirs.getByTestId("payments-collected")).toHaveText(" · $14.20 of $30.20 in", live);
   await paymentsList(priya).getByRole("button", { name: /^Jason, / }).click();
-  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("paid Jason", { exact: true })).toBeVisible();
-  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("of $30.20", { exact: true })).toBeVisible();
+  await expect(theirs.getByText("Jason's part", { exact: true })).toBeVisible();
+  await expect(theirs.getByTestId("ring-amount")).toHaveText("$14.00");
 });
 
 test("a tap on the ring's arc picks that person like their row, and a tap on the gap or the hole does nothing", async ({ browser, request }, { workerIndex }) => {
