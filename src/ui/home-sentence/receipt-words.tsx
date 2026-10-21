@@ -57,7 +57,7 @@ export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptStat
     case "byHand":
       return (
         <Text ref={clause} testID="receipt" {...landing}>
-          <Words>{copy.sentence.byHand}</Words> <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." />
+          <Words>{copy.sentence.byHand}</Words> <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." quiet />
         </Text>
       );
     case "read":
@@ -83,7 +83,7 @@ export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptStat
               </>
             )}
           </Text>
-          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." />
+          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." quiet />
         </Text>
       );
   }
