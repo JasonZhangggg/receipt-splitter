@@ -100,7 +100,7 @@ export function PeopleWords({ host, friends, onSetHost, onRemoveHost, onAddFrien
       then="."
     />
   ) : (
-    <Act label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} then="." />
+    <Act label={friends.length ? copy.sentence.addMore : copy.sentence.addFriends} name={copy.addFriendsName} onPress={addFriends} then="." quiet={friends.length > 0} />
   );
   return (
     <>

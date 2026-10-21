@@ -209,6 +209,7 @@ describe("reading", () => {
       "1",
       "0.000400",
       {
+        place: null,
         items: [
           { name: "Burger", price: 800, quantity: null, details: [], discounts: [{ name: "Promo", amount: -100 }] },
           { name: "Fries", price: 600, quantity: null, details: [], discounts: [] },

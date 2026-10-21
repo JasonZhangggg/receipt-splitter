@@ -1,5 +1,6 @@
 /** An invented receipt. Never put a real receipt here. */
-const EXAMPLE = `SUB|3235
+const EXAMPLE = `AT|Corner Cafe
+SUB|3235
 TOT|3525
 i|Cold Brew|575
 +|Large, oat milk
@@ -25,6 +26,7 @@ export const pass1Prompt = (hasOcr: boolean) => `Read this receipt photo. ${hasO
 If the photo is clearly not a receipt or bill (a person, a landscape, a screenshot of something else), answer only: none. A blurry, cropped or partial receipt is still a receipt: return what you can read.
 
 Otherwise answer in this exact plain-text format, nothing else:
+AT|<the business name printed on the receipt, in normal title case, or - if none>
 SUB|<printed subtotal in cents, or - if none>[|pre]
 TOT|<printed total (amount due) in cents>
 then one line per charge, in the order printed:
@@ -62,7 +64,7 @@ export function pass2Prompt(problems: readonly string[], lines: readonly string[
   const numbered = lines.length === 0 ? "(none)" : lines.map((line, at) => `${at + 1}. ${line}`).join("\n");
   return `A first reading of this receipt photo failed its arithmetic check: ${problems.join("; ")}.
 
-First reading, numbered (SUB subtotal[|pre = before discounts], TOT total; k|name|cents[|qty] with k: i item, d discount, t tax, p tip, s service charge, f fee; +|detail is a detail of the item above; -|name|cents is a discount of the item above; b|header opens a bundle and > marks its items and discount):
+First reading, numbered (AT business name, SUB subtotal[|pre = before discounts], TOT total; k|name|cents[|qty] with k: i item, d discount, t tax, p tip, s service charge, f fee; +|detail is a detail of the item above; -|name|cents is a discount of the item above; b|header opens a bundle and > marks its items and discount):
 ${numbered}
 ${bundleRules}
 Look at the photo and reply ONLY with the edits that fix it, one per line, nothing else:

@@ -93,6 +93,16 @@ function subtotalOf(reply: ScanReply, items: readonly Item[], adjustments: reado
   return isCents(subtotal) ? subtotal : cents(itemsSum);
 }
 
+/** The longest place name the sentence shows. A longer one is cut short with an ellipsis. */
+const MAX_PLACE_LENGTH = 32;
+
+/** The business name in the route's reply, tidied for the sentence with a typographic apostrophe, or null when the reply has none. */
+export function placeOfReply(value: unknown): string | null {
+  const place = isObject(value) && isText(value.place) ? value.place.replace(/\s+/g, " ").replace(/'/g, "\u2019").replace(/[\s.]+$/, "").trim() : "";
+  if (place === "") return null;
+  return place.length > MAX_PLACE_LENGTH ? `${place.slice(0, MAX_PLACE_LENGTH - 1).trimEnd()}\u2026` : place;
+}
+
 /** Maps the route's reply to a Receipt, or null when the reply does not have the reply's shape. */
 export function receiptOfReply(value: unknown): Receipt | null {
   const reply = parseReply(value);
@@ -173,14 +183,17 @@ async function scanBody(photo: Blob, boxes: readonly TextBox[]): Promise<string 
   return null;
 }
 
-/** Reads the receipt through `POST /api/scan`. "notReceipt" is the reader saying the photo shows none. Any other refusal, failure, malformed reply, or no reply within the timeout is null. */
-export async function readOnServer(photo: Blob, boxes: readonly TextBox[], timeoutMs = SCAN_TIMEOUT_MS): Promise<Receipt | "notReceipt" | null> {
+/** Reads the receipt and the place it came from through `POST /api/scan`. "notReceipt" is the reader saying the photo shows none. Any other refusal, failure, malformed reply, or no reply within the timeout is null. */
+export async function readOnServer(photo: Blob, boxes: readonly TextBox[], timeoutMs = SCAN_TIMEOUT_MS): Promise<{ readonly receipt: Receipt; readonly place: string | null } | "notReceipt" | null> {
   try {
     const body = await scanBody(photo, boxes);
     if (body === null) return null;
     const response = await fetch("/api/scan", { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(timeoutMs) });
     if (response.status === 422) return (await response.json())?.refused === "notReceipt" ? "notReceipt" : null;
-    return response.status === 200 ? receiptOfReply(await response.json()) : null;
+    if (response.status !== 200) return null;
+    const reply: unknown = await response.json();
+    const receipt = receiptOfReply(reply);
+    return receipt && { receipt, place: placeOfReply(reply) };
   } catch {
     return null;
   }
