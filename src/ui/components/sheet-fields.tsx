@@ -99,7 +99,7 @@ export function PersonToggle({ name, label = name, on, onPress }: { name: string
     <PressTarget name={name} toggled={on} outsideScroll onPress={onPress} style={(pressed) => [styles.person, pressStyle(pressed, reduce, linkPress)]}>
       {() => (
         <View style={styles.personFace}>
-          <View style={[styles.personDot, Platform.OS === "web" && inkChange, { backgroundColor: on ? ink : "transparent", boxShadow: `inset 0 0 0 1px ${ink}` }]} />
+          <View style={[styles.personDot, Platform.OS === "web" && inkChange, { backgroundColor: on ? ink : "transparent", boxShadow: `inset 0 0 0 1.5px ${on ? ink : c.dash}` }]} />
           <Text style={[type.body, Platform.OS === "web" && inkChange, { color: ink }]}>{label}</Text>
         </View>
       )}
@@ -140,8 +140,9 @@ const styles = StyleSheet.create({
   moneyInput: { flexShrink: 1, minWidth: 40, textAlign: "right", paddingVertical: 11, paddingRight: 0, marginVertical: -11 },
   options: { flexDirection: "row", flexWrap: "wrap", columnGap: 20 },
   option: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, marginHorizontal: -12 },
-  person: { minHeight: 44, justifyContent: "center", paddingRight: 14 },
-  personFace: { flexDirection: "row", alignItems: "center", gap: 7 },
-  personDot: { width: 8, height: 8, borderRadius: 4 },
+  person: { minHeight: 44, justifyContent: "center", paddingRight: 18 },
+  personFace: { flexDirection: "row", alignItems: "center", gap: 8 },
+  // The same 16 px dot the list claims a line with, so a toggle here reads as the same act.
+  personDot: { width: 16, height: 16, borderRadius: 8 },
   iconHit: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 });

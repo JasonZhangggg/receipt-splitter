@@ -17,7 +17,7 @@ type Props = {
   onHistory: (press: Press) => void;
 };
 
-/** Who paid and what to do, then the underlined links to the Receipt photo, People, Payments and History. */
+/** Who paid, in ink, and what to do, then the ink links to the Receipt photo, People, Payments and History. */
 export function SplitIntro({ host, total, onLinksBottom, onReceipt, onPeople, onPayments, onHistory }: Props) {
   const c = useColors();
   const links = useRef<View>(null);
@@ -27,12 +27,14 @@ export function SplitIntro({ host, total, onLinksBottom, onReceipt, onPeople, on
   };
   return (
     <View onLayout={reportLinks} style={styles.box}>
-      <Text style={[type.body, { color: c.muted }]}>{say.intro(host, total)}</Text>
+      <Text style={[type.body, { color: c.muted }]}>
+        <Text style={{ color: c.ink }}>{say.intro(host, total)}</Text> {say.introHint}
+      </Text>
       <View ref={links} style={styles.links}>
-        {onReceipt ? <TextLink label={say.receipt} onPress={onReceipt} /> : null}
-        <TextLink label={say.people} onPress={onPeople} />
-        <TextLink label={say.payments} onPress={onPayments} />
-        <TextLink label={say.history} onPress={onHistory} />
+        {onReceipt ? <TextLink ink body label={say.receipt} onPress={onReceipt} /> : null}
+        <TextLink ink body label={say.people} onPress={onPeople} />
+        <TextLink ink body label={say.payments} onPress={onPayments} />
+        <TextLink ink body label={say.history} onPress={onHistory} />
       </View>
     </View>
   );
@@ -40,5 +42,5 @@ export function SplitIntro({ host, total, onLinksBottom, onReceipt, onPeople, on
 
 const styles = StyleSheet.create({
   box: { paddingTop: 6, paddingBottom: 4 },
-  links: { flexDirection: "row", flexWrap: "wrap", columnGap: 20, marginTop: 4 },
+  links: { flexDirection: "row", flexWrap: "wrap", columnGap: 24, marginTop: 6 },
 });

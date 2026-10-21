@@ -1,4 +1,4 @@
-// The B2 set (docs/design/b2/README.md): bg, fg, muted, faint, line, underline, warn red, ok green. `paper`, `inset` and `sheetIn` are a hair off the page until the screens drop their fills.
+// The B2 set (docs/design/b2/README.md): bg, fg, muted, faint, line, underline, warn red, ok green. `paper`, `inset` and `sheetIn` are a hair off the page until the screens drop their fills. In dark mode a sheet sits a step lighter than the page, so it reads as raised above it.
 const light = {
   field: "#FCFCFC",
   paper: "#FAFAFA",
@@ -40,7 +40,7 @@ const dark: Colors = {
   inset: "#111111",
   ink: "#EDEDED",
   muted: "#999999",
-  hairline: "#232323",
+  hairline: "#2A2A2A",
   dash: "#5C5C5C",
   action: "#EDEDED",
   onAction: "#111111",
@@ -49,8 +49,8 @@ const dark: Colors = {
   good: "#5CC489",
   warn: "#F0766B",
   bar: "rgba(17, 17, 17, 0.8)",
-  sheet: "#111111",
-  sheetIn: "#181818",
+  sheet: "#191919",
+  sheetIn: "#242424",
   dot: "#4A4A4A",
   scrim: "rgba(0, 0, 0, 0.5)",
   sheetScrim: "rgba(0, 0, 0, 0.36)",
@@ -62,7 +62,7 @@ const dark: Colors = {
   skeleton: "#232323",
   skeletonInk: "#4A4A4A",
   focus: "#EDEDED",
-  sheetShadow: "0 -1px 0 #232323, 0 -10px 30px rgba(0, 0, 0, 0.4)",
+  sheetShadow: "0 -1px 0 #2A2A2A, 0 -10px 30px rgba(0, 0, 0, 0.4)",
   panelShadow: "0 0 0 1px #232323, 0 10px 30px rgba(0, 0, 0, 0.3)",
   popShadow: "0 0 0 1px #2E2E2E, 0 18px 40px rgba(0, 0, 0, 0.5)",
 };
