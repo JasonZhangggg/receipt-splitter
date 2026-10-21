@@ -24,16 +24,16 @@ function Glued({ children, then }: { children: ReactNode; then: string | undefin
   return then === undefined ? children : <Text style={nowrap}>{children}{then}</Text>;
 }
 
-type ActProps = { label: string; name?: string; onPress: () => void; /** The punctuation right after it. */ then?: string };
+type ActProps = { label: string; name?: string; onPress: () => void; /** The punctuation right after it. */ then?: string; /** An optional step: muted words over a lighter rule. */ quiet?: boolean };
 
-/** An action inside the sentence: its words in ink, underlined in ink. A button does not inherit its font, so the words set it. */
-export function Act({ label, name, onPress, then }: ActProps) {
+/** An action inside the sentence: its words in ink, underlined in ink, or muted with `quiet`. A button does not inherit its font, so the words set it. */
+export function Act({ label, name, onPress, then, quiet = false }: ActProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
     <Glued then={then}>
       <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.act, pressStyle(pressed, reduce, linkPress)]}>
-        {() => <Text style={[type.sayInput, styles.underlined, { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
+        {() => <Text style={[type.sayInput, styles.underlined, quiet ? { color: c.muted, borderBottomColor: c.dash } : { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
       </PressTarget>
     </Glued>
   );

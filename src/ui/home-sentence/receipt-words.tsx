@@ -12,14 +12,14 @@ import { Act, Words } from "./words";
 export type ReadingStage = "start" | "text" | "server" | "slow";
 
 /** A read with `total: null` found no Item, so there is no total to show and the clause asks for another photo. */
-export type ReceiptState = { readonly kind: "empty" } | { readonly kind: "reading"; readonly stage: ReadingStage } | { readonly kind: "read"; readonly total: Cents | null } | { readonly kind: "byHand" };
+export type ReceiptState = { readonly kind: "empty" } | { readonly kind: "reading"; readonly stage: ReadingStage } | { readonly kind: "read"; readonly total: Cents | null; readonly place: string | null } | { readonly kind: "byHand" };
 
 const stepIn = { dataSet: { stepIn: "" } };
 const rollIn = { dataSet: { stepRollIn: "" } };
 // Focus lands on the clause when the button the person pressed leaves. A ring around the whole clause would only be noise.
 const landing = { tabIndex: -1, style: webStyle({ outlineStyle: "none" } as never) } as object;
 
-/** The sentence's first clause: "I paid the bill. Add the receipt.", the step word while it reads, then "I paid $X. Change." or, when no item was read, "I paid the bill. Try another photo." */
+/** The sentence's first clause: "I paid the bill. Add the receipt.", the step word while it reads, then "I paid $X at <place>. Change." (the place only when the server read one) or, when no item was read, "I paid the bill. Try another photo." */
 export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptState; onChoose: () => void; onByHand: () => void }) {
   // Back to a home that already holds a read paints it settled; only a read that finishes in front of the person fades in.
   const [arrived] = useState(state.kind);
@@ -57,7 +57,7 @@ export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptStat
     case "byHand":
       return (
         <Text ref={clause} testID="receipt" {...landing}>
-          <Words>{copy.sentence.byHand}</Words> <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." />
+          <Words>{copy.sentence.byHand}</Words> <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." quiet />
         </Text>
       );
     case "read":
@@ -71,11 +71,19 @@ export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptStat
       return (
         <Text ref={clause} testID="receipt" {...landing}>
           <Words>{copy.sentence.iPaid}</Words>{" "}
-          {/* Only the amount is new; "I paid" and "Change" were there as words already. */}
-          <Text style={tabular} {...(arrived === "read" ? null : stepIn)}>
-            <Words ink>{money(state.total)}</Words>
+          {/* Only the amount and the place are new; "I paid" and "Change" were there as words already. */}
+          <Text {...(arrived === "read" ? null : stepIn)}>
+            <Text style={tabular}>
+              <Words ink>{money(state.total)}</Words>
+            </Text>
+            {state.place === null ? null : (
+              <>
+                {" "}
+                <Words>{copy.sentence.at}</Words> <Words ink breaks>{state.place}</Words>
+              </>
+            )}
           </Text>
-          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." />
+          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." quiet />
         </Text>
       );
   }

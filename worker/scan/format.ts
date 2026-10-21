@@ -30,6 +30,8 @@ export type ReadBundle<Members extends readonly number[] = readonly number[]> = 
 
 /** One reading of a reply, before the check. A Bundle may still be empty, which the check refuses. */
 export type Reading = {
+  /** The business name printed on the receipt, or null when none was read. */
+  readonly place: string | null;
   readonly subtotal: Subtotal | null;
   readonly total: Cents;
   readonly items: NonEmpty<ReadItem>;
@@ -42,6 +44,7 @@ export type Reading = {
 
 /** The body of a 200 from `POST /api/scan`. */
 export type ScanReply = {
+  readonly place: string | null;
   readonly items: NonEmpty<ReadItem>;
   readonly bundles: readonly ReadBundle<NonEmpty<number>>[];
   readonly adjustments: readonly ReadAdjustment[];
@@ -83,6 +86,7 @@ type ItemDraft = { name: string; price: Cents; quantity: number | null; details:
 
 /** Reads pass 1's compact format. Returns null without a total or an Item. */
 export function readLines(lines: readonly string[]): Reading | null {
+  let place: string | null = null;
   let subtotal: Subtotal | null = null;
   let total: Cents | null = null;
   const items: ItemDraft[] = [];
@@ -96,7 +100,13 @@ export function readLines(lines: readonly string[]): Reading | null {
     const inside = line.startsWith(">");
     const fields = fieldsOf(line);
     const tag = fields[0].toLowerCase();
-    if (!inside && !["+", "-", "sub", "tot"].includes(tag)) bundle = null;
+    if (!inside && !["+", "-", "at", "sub", "tot"].includes(tag)) bundle = null;
+
+    if (tag === "at") {
+      const name = fields.slice(1).join(" ").trim();
+      place = name === "" || name === "-" ? null : name;
+      continue;
+    }
 
     if (tag === "sub") {
       const printed = amount(fields[1]);
@@ -169,7 +179,7 @@ export function readLines(lines: readonly string[]): Reading | null {
   }
 
   if (total === null || items.length === 0) return null;
-  return { subtotal, total, items: items as unknown as NonEmpty<ReadItem>, bundles, adjustments, skipped };
+  return { place, subtotal, total, items: items as unknown as NonEmpty<ReadItem>, bundles, adjustments, skipped };
 }
 
 /** The reply for a reading. A Bundle the reading left empty gives its discounts to the whole receipt. */
@@ -177,6 +187,7 @@ export function toReply(reading: Reading, check: Check): ScanReply {
   const isFull = (bundle: ReadBundle): bundle is ReadBundle<NonEmpty<number>> => bundle.items.length > 0;
   const orphaned = reading.bundles.filter((bundle) => !isFull(bundle)).flatMap((bundle) => bundle.discounts);
   return {
+    place: reading.place,
     items: reading.items,
     bundles: reading.bundles.filter(isFull),
     adjustments: [...reading.adjustments, ...orphaned.map(({ name, amount }) => ({ kind: "discount" as const, name, amount }))],
