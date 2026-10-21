@@ -2,7 +2,15 @@
 
 Every push to `main` that passes CI deploys to production. `.github/workflows/deploy.yml` builds `dist/` and runs `wrangler deploy` against `wrangler.jsonc`.
 
-Production is the Worker `app` on the account subdomain `splitwith`, so the address is `app.splitwith.workers.dev`.
+Production is the Worker `app`, served at `https://splitwith.dev`. It also still answers at `app.splitwith.workers.dev`, the account subdomain `splitwith` plus the Worker name. Both addresses reach the same Worker and the same stored Splits, so links shared on either keep opening.
+
+## Custom domain
+
+`splitwith.dev` is a Worker Custom Domain, added in the Cloudflare dashboard under Workers & Pages, `app`, Settings, Domains & Routes. Cloudflare manages its DNS record and HTTPS certificate. `.dev` is on the HSTS preload list, so browsers only load it over HTTPS.
+
+`wrangler.jsonc` has no `routes`, so `wrangler deploy` leaves the dashboard's domain in place. If you move the domain into `routes` with `custom_domain: true`, the deploy token also needs edit access to Workers Routes on the `splitwith.dev` zone.
+
+The browser keeps each device's recent Splits and creator rights per address. A device that used the workers.dev address sees its history only there.
 
 ## Set up once
 

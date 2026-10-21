@@ -1,6 +1,6 @@
 # SplitWith handoff (2026-10-14)
 
-Repo: `/home/user/receipt-splitter` in cloud sessions. GitHub: https://github.com/JasonZhangggg/receipt-splitter. Production: https://app.splitwith.workers.dev. Every merge to `main` deploys after CI. Confirm the Deploy run for the tip.
+Repo: `/home/user/receipt-splitter` in cloud sessions. GitHub: https://github.com/JasonZhangggg/receipt-splitter. Production: https://splitwith.dev (also https://app.splitwith.workers.dev, same Worker). Every merge to `main` deploys after CI. Confirm the Deploy run for the tip.
 
 The app is called SplitWith (rule 89). Older files say Splitwith. Identifiers, the repo and storage keys keep their old names.
 
