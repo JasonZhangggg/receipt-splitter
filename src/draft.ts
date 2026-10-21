@@ -6,11 +6,11 @@ import { runTotalCheck, type FailedTotalCheck } from "./core/total-check";
 /** One picked photo. Nothing reads it but its identity, which keys the cleaned copy to the scan it came from. */
 export type ReceiptFile = object;
 
-/** A read holds the Receipt Create split link sends, or null when it found no Item. `notReceipt` is the reader saying the photo shows no receipt. `byHand` is a Host who adds every Item on the Split page. */
+/** A read holds the Receipt Create split link sends, or null when it found no Item, and the business name the server read from it. `notReceipt` is the reader saying the photo shows no receipt. `byHand` is a Host who adds every Item on the Split page. */
 type Scan =
   | { readonly status: "empty" }
   | { readonly status: "reading"; readonly file: ReceiptFile }
-  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true; readonly notReceipt?: true }
+  | { readonly status: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly place?: string; readonly totalUnread?: true; readonly notReceipt?: true }
   | { readonly status: "byHand" };
 
 export type HandleRow = { readonly service: PaymentService; readonly handle: string };
@@ -20,7 +20,7 @@ export type Draft = { readonly scan: Scan; readonly handles: readonly HandleRow[
 
 export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
-  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly totalUnread?: true; readonly notReceipt?: true }
+  | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly place?: string; readonly totalUnread?: true; readonly notReceipt?: true }
   | { readonly type: "byHand" }
   | { readonly type: "created" }
   | { readonly type: "setService"; readonly index: number; readonly service: PaymentService }
@@ -67,7 +67,7 @@ export function reduceDraft(draft: Draft, action: DraftAction): Draft {
     case "reading":
       return { ...draft, scan: { status: "reading", file: action.file } };
     case "read":
-      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.totalUnread && { totalUnread: true as const }), ...(action.notReceipt && { notReceipt: true as const }) } };
+      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.receipt && action.place && { place: action.place }), ...(action.totalUnread && { totalUnread: true as const }), ...(action.notReceipt && { notReceipt: true as const }) } };
     case "byHand":
       return { ...draft, scan: { status: "byHand" } };
     case "created":

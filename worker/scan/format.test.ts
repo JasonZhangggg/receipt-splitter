@@ -4,6 +4,12 @@ import { applyEdits, readLines, replyLines } from "./format";
 const read = (reply: string) => readLines(replyLines(reply));
 
 describe("readLines", () => {
+  it("reads the business name from the AT line, and a dash as none", () => {
+    expect(read(["AT|Joe's Diner", "TOT|500", "i|Eggs|500"].join("\n"))?.place).toBe("Joe's Diner");
+    expect(read(["AT|-", "TOT|500", "i|Eggs|500"].join("\n"))?.place).toBeNull();
+    expect(read(["TOT|500", "i|Eggs|500"].join("\n"))?.place).toBeNull();
+  });
+
   it("drops a negative tip line, such as a cash tender read as a tip, and counts it as skipped", () => {
     const reading = read(["TOT|1500", "i|Beans|1000", "i|Milk|500", "p|CASH|-112", "p|Tip|150", "p|Cash|112-"].join("\n"));
     expect([reading?.adjustments, reading?.skipped]).toEqual([[{ kind: "tip", name: "Tip", amount: 150 }], 2]);
@@ -34,6 +40,7 @@ describe("readLines", () => {
       "```",
     ].join("\n");
     expect(read(reply)).toEqual({
+      place: null,
       subtotal: { amount: 3235, beforeDiscounts: false },
       total: 3525,
       items: [

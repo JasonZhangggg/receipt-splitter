@@ -70,6 +70,7 @@ export function PayWords({ handles, dispatch, inputs }: Props) {
           <Act
             label={copy.sentence.addApp}
             name={copy.addAppName}
+            quiet
             then="."
             onPress={() => {
               adding.current = true;

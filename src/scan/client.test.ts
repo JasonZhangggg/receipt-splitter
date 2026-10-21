@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cropOf, receiptOfReply } from "./client";
+import { cropOf, placeOfReply, receiptOfReply } from "./client";
 
 const reply = {
   items: [
@@ -127,6 +127,16 @@ describe("receiptOfReply", () => {
     expect(receiptOfReply({ ...reply, bundles: [{ ...reply.bundles[0], items: [2, 9] }] })).toBeNull();
     expect(receiptOfReply({ ...reply, adjustments: [{ kind: "surcharge", name: "Fuel", amount: 10 }] })).toBeNull();
     expect(receiptOfReply("<html>")).toBeNull();
+  });
+});
+
+describe("placeOfReply", () => {
+  test("tidies the business name for the sentence, and gives null when the reply has none", () => {
+    expect([{ place: "  Joe's   Diner. " }, { place: "" }, { place: null }, {}].map(placeOfReply)).toEqual(["Joe\u2019s Diner", null, null, null]);
+  });
+
+  test("cuts a long name to 32 characters with an ellipsis", () => {
+    expect(placeOfReply({ place: "The Very Long Name Of A Restaurant Group" })).toBe("The Very Long Name Of A Restaur\u2026");
   });
 });
 

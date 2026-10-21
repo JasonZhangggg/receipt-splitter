@@ -131,9 +131,10 @@ export default function Home() {
     const onDevice = boxes ? readReceipt(boxes) : null;
     globalThis.performance?.mark?.("scan-read");
     await stages.settle();
-    const receipt = (notReceipt ? null : onServer) || (onDevice?.receipt ?? null);
+    const server = notReceipt ? null : onServer;
+    const receipt = server?.receipt ?? onDevice?.receipt ?? null;
     if (scan === scanning.current) {
-      land({ type: "read", file, receipt, ...(notReceipt && receipt === null && { notReceipt: true as const }), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+      land({ type: "read", file, receipt, ...(server?.place && { place: server.place }), ...(notReceipt && receipt === null && { notReceipt: true as const }), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
       if (receipt === null && globalThis.navigator?.onLine === false) setNotice(copy.scanOffline);
     }
   }, [dispatch]);
@@ -144,7 +145,7 @@ export default function Home() {
   const sides = { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right };
   const columnWidth = width >= breakpoints.roomyFrom ? 480 : 440;
   const { scan } = draft;
-  const receipt: ReceiptState = scan.status === "empty" ? { kind: "empty" } : scan.status === "reading" ? { kind: "reading", stage } : scan.status === "byHand" ? { kind: "byHand" } : { kind: "read", total: scan.receipt?.total ?? null };
+  const receipt: ReceiptState = scan.status === "empty" ? { kind: "empty" } : scan.status === "reading" ? { kind: "reading", stage } : scan.status === "byHand" ? { kind: "byHand" } : { kind: "read", total: scan.receipt?.total ?? null, place: scan.place ?? null };
   const ready = readiness(draft);
   const blocked = ready.kind !== "ready";
   const reason = failure ?? (blocked ? blockerText(ready) : mismatchNote(draft));
