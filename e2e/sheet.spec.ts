@@ -303,7 +303,7 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
   await expect(page.getByRole("button", { name: /^Open Gameplay, / })).toHaveAccessibleName("Open Gameplay, $87.75, You, Sam, $43.88 yours");
   await fromMore(page, "History");
   const history = page.getByRole("list", { name: "History" }).getByRole("listitem");
-  await expect(history).toHaveText(["Created the splitby Jason"]);
+  await expect(history).toHaveText(["Created the splitJason"]);
   await page.getByRole("dialog", { name: "History" }).getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
@@ -317,7 +317,7 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
 
   await expect(page.getByTestId("owe")).toHaveText("$62.75", live);
   await fromMore(page, "History");
-  await expect(history.first()).toHaveText("Gameplay split evenly → by amountby Jason · Just nowRevert", live);
+  await expect(history.first()).toHaveText("Gameplay split evenly → by amountJason · Just now", live);
 });
 
 test("a By amount edit held back while another phone takes Sam off the Item drops Sam's amount and saves once Jason's own add up", async ({ browser, request, browserName }, { workerIndex }) => {
@@ -803,3 +803,26 @@ test("a push up on a long list at the top scrolls it and leaves the sheet in pla
   await settled(sheet);
   expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
 });
+
+// A thumb often settles a few pixels down before it pushes up, and iOS will not scroll a touch whose first move was held, so the list must follow the finger itself.
+for (const dip of [4, 16]) {
+  test(`a push up that starts with a ${dip} px dip at the top still scrolls the list and leaves the sheet in place`, async ({ browser, request, browserName }, { workerIndex }) => {
+    test.skip(browserName !== "chromium", "needs a native touch scroll");
+    const { page, sheet, scroller } = await openCrowdedPeople(browser, request, workerIndex, browserName);
+    const rest = (await sheet.boundingBox())!.y;
+    const cdp = await page.context().newCDPSession(page);
+    const at = (y: number) => cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 195, y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 195, y: 600 }] });
+    for (let y = 602; y <= 600 + dip; y += 2) await at(y);
+    for (let i = 1; i <= 20; i++) {
+      await at(600 + dip - i * 12);
+      await page.waitForTimeout(16);
+    }
+    await page.waitForTimeout(150);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(150);
+    await settled(sheet);
+    expect(Math.abs((await sheet.boundingBox())!.y - rest)).toBeLessThan(2);
+    await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible();
+  });
+}

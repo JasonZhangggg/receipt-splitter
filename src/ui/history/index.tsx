@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { StyleSheet, Text, View, type TextStyle } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import type { ParticipantId, Split } from "../../core/split";
 import { Button, PressTarget } from "../components/button";
@@ -66,7 +66,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
         {entries.map((entry) => (
           <Row
             key={entry.revision}
-            meta={[entry.byline ? (entry.name ? say.byName(entry.name) : say.someone) : null, whenText(entry.at, now)]}
+            meta={[entry.byline ? (entry.name ?? say.someone) : null, whenText(entry.at, now)]}
             reverted={entry.reverted}
             what={
               <Text style={[type.body, styles.what, { color: c.ink }]}>
@@ -92,13 +92,12 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
             asking={asking === entry.revision}
             busy={pending === entry.revision}
             canAct={entry.revertible}
-            label={say.revert}
             name={`${say.revert} ${entry.lead || entry.after}`}
             onAct={() => revert(entry)}
           />
         ))}
         <Row
-          meta={[say.byName(host.name)]}
+          meta={[host.name]}
           reverted={false}
           what={<Text style={[type.body, styles.what, { color: c.ink }]}>{say.created}</Text>}
           confirm={(swing) =>
@@ -117,7 +116,6 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
           asking={asking === "restore"}
           busy={pending === "restore"}
           canAct={restorable}
-          label={say.restore}
           name={say.restoreName}
           onAct={() => {
             setAsking("restore");
@@ -139,13 +137,12 @@ type RowProps = {
   /** The action is on its way to the Split. */
   busy: boolean;
   canAct: boolean;
-  label: string;
   name: string;
   /** Returns whether the action applied at once, so the arrow swings now and not on a later confirm. */
   onAct: () => boolean;
 };
 
-function Row({ meta, reverted, what, confirm, asking, busy, canAct, label, name, onAct }: RowProps) {
+function Row({ meta, reverted, what, confirm, asking, busy, canAct, name, onAct }: RowProps) {
   const c = useColors();
   const reduce = useReducedMotion();
   // A Revert applies the moment it is accepted. Only its link stays a beat, so the undo arrow finishes its swing before "Reverted" takes the place.
@@ -174,29 +171,18 @@ function Row({ meta, reverted, what, confirm, asking, busy, canAct, label, name,
         <Text style={[type.caption, { color: c.muted }]}>{meta.filter(Boolean).join(" · ")}</Text>
         {swinging ? null : confirm(swing)}
       </View>
-      {link ? <Act label={label} name={name} locked={locked} onPress={act} /> : null}
+      {link ? <Act name={name} locked={locked} onPress={act} /> : null}
       {reverted && !swinging ? <Reverted fresh={settled} /> : null}
     </View>
   );
 }
 
-// React Native has no text-underline-offset, so the browser's own is set through the style object.
-const underline = { textDecorationLine: "underline", textDecorationThickness: "1px", textUnderlineOffset: "3px" } as TextStyle;
-
-/** An underlined link with the undo arrow before it. The arrow swings on a press, or on a hover with a mouse. */
-function Act({ label, name, locked, onPress }: { label: string; name: string; locked: boolean; onPress: () => void }) {
+/** The undo arrow alone, so a long list does not repeat the same word down its edge. It swings on a press, or on a hover with a mouse. */
+function Act({ name, locked, onPress }: { name: string; locked: boolean; onPress: () => void }) {
   const c = useColors();
   return (
     <PressTarget name={name} outsideScroll disabled={locked} onPress={onPress} style={() => styles.act}>
-      {(pressed) => {
-        const ink = pressed ? c.ink : c.muted;
-        return (
-          <View style={styles.actFace}>
-            <Icon name="history" size={14} color={ink} />
-            <Text style={[type.caption, underline, { color: ink, textDecorationColor: ink }]}>{label}</Text>
-          </View>
-        );
-      }}
+      {(pressed) => <Icon name="history" size={18} color={pressed ? c.ink : c.muted} />}
     </PressTarget>
   );
 }
@@ -252,8 +238,8 @@ const styles = StyleSheet.create({
   what: { fontVariant: ["tabular-nums"] },
   muted: { fontWeight: "400" },
   dimmed: { opacity: 0.45 },
-  act: { minHeight: 44, justifyContent: "center", marginVertical: -8 },
-  actFace: { flexDirection: "row", alignItems: "center", gap: 5 },
+  // 44 px to hit, with the glyph on the column's right edge and level with the first line.
+  act: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center", marginVertical: -10 },
   done: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 28 },
   confirm: { gap: 10, marginTop: 8 },
   two: { flexDirection: "row", gap: 10 },
