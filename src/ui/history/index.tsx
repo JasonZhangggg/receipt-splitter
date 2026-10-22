@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { ParticipantId, Split } from "../../core/split";
-import { Button, PressTarget } from "../components/button";
+import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
-import { TextLink } from "../components/text-link";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import type { Answer } from "../../live/client";
 import { failedCopy, splitCopy as say } from "../split-copy";
@@ -12,25 +11,28 @@ import { layout, motion, type, useColors } from "../theme";
 import { historyOf, restoreChanges, whenText, type Entry } from "./describe";
 import { SheetHeader } from "../split-view/sheet-header";
 
+export type HistoryTarget = number | "restore";
+
+/** A Revert of someone else's change, or a Restore, asked in a popover hung from the row's arrow, as a claim for someone else is. */
+export type HistoryAsk = { readonly target: HistoryTarget; readonly question: string; readonly action: string; readonly from: Press; readonly onYes: () => void };
+
 type Props = {
   split: Split;
   me: ParticipantId | null;
   onRevert: (revision: number) => Promise<Answer>;
   onRestore: () => Promise<Answer>;
+  onAsk: (ask: HistoryAsk) => void;
   onClose: () => void;
 };
-
-type Target = number | "restore";
 
 /** How long the undo arrow's swing runs (icon-css.ts), which the link stays on screen to finish after a tap. */
 const swingFor = 560;
 
-export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props) {
+export function HistorySheet({ split, me, onRevert, onRestore, onAsk, onClose }: Props) {
   const c = useColors();
   const [now, setNow] = useState(() => Date.now());
-  const [asking, setAsking] = useState<Target | null>(null);
-  const [pending, setPending] = useState<Target | null>(null);
-  const [failed, setFailed] = useState<{ readonly target: Target; readonly words: string } | null>(null);
+  const [pending, setPending] = useState<HistoryTarget | null>(null);
+  const [failed, setFailed] = useState<{ readonly target: HistoryTarget; readonly words: string } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
@@ -38,22 +40,30 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
   const entries = historyOf(split);
   const restorable = useMemo(() => restoreChanges(split), [split]);
   const [host] = split.participants;
-  // Another phone may have reverted the same change first. Then the Revert is already done, so there is nothing to confirm and nothing to complain about.
-  const stale = (target: Target) => target !== "restore" && (entries.find(({ revision }) => revision === target)?.reverted ?? true);
+  // Another phone may have reverted the same change first. Then the Revert is already done, so there is nothing to complain about.
+  const stale = (target: HistoryTarget) => target !== "restore" && (entries.find(({ revision }) => revision === target)?.reverted ?? true);
 
-  const run = async (target: Target, action: () => Promise<Answer>) => {
+  const run = async (target: HistoryTarget, action: () => Promise<Answer>) => {
     setPending(target);
     const answer = await action();
     setPending(null);
-    setAsking(null);
     setFailed(answer.ok ? null : { target, words: failedCopy(answer, say.revertFailed) });
   };
-  const revert = (entry: Entry) => {
+  const revert = (entry: Entry, from: Press, swing: () => void) => {
     if (entry.sentAs !== null && entry.sentAs === me) {
       void run(entry.revision, () => onRevert(entry.revision));
       return true;
     }
-    setAsking(entry.revision);
+    onAsk({
+      target: entry.revision,
+      question: say.confirmRevert(entry.name ?? say.someone),
+      action: say.confirm,
+      from,
+      onYes: () => {
+        swing();
+        void run(entry.revision, () => onRevert(entry.revision));
+      },
+    });
     return false;
   };
 
@@ -76,49 +86,30 @@ export function HistorySheet({ split, me, onRevert, onRestore, onClose }: Props)
                 {entry.more > 0 ? <Text style={[styles.muted, { color: c.muted }]}>{` ${say.andMore(entry.more)}`}</Text> : null}
               </Text>
             }
-            confirm={(swing) =>
-              asking === entry.revision && pending !== entry.revision && !entry.reverted ? (
-                <Confirm
-                  question={say.confirmRevert(entry.name ?? say.someone)}
-                  action={say.confirm}
-                  onYes={() => {
-                    swing();
-                    void run(entry.revision, () => onRevert(entry.revision));
-                  }}
-                  onNo={() => setAsking(null)}
-                />
-              ) : null
-            }
-            asking={asking === entry.revision}
             busy={pending === entry.revision}
             canAct={entry.revertible}
             name={`${say.revert} ${entry.lead || entry.after}`}
-            onAct={() => revert(entry)}
+            onAct={(from, swing) => revert(entry, from, swing)}
           />
         ))}
         <Row
           meta={[host.name]}
           reverted={false}
           what={<Text style={[type.body, styles.what, { color: c.ink }]}>{say.created}</Text>}
-          confirm={(swing) =>
-            asking === "restore" && pending !== "restore" ? (
-              <Confirm
-                question={say.confirmRestore}
-                action={say.confirmRestoreAction}
-                onYes={() => {
-                  swing();
-                  void run("restore", onRestore);
-                }}
-                onNo={() => setAsking(null)}
-              />
-            ) : null
-          }
-          asking={asking === "restore"}
           busy={pending === "restore"}
           canAct={restorable}
           name={say.restoreName}
-          onAct={() => {
-            setAsking("restore");
+          onAct={(from, swing) => {
+            onAsk({
+              target: "restore",
+              question: say.confirmRestore,
+              action: say.confirmRestoreAction,
+              from,
+              onYes: () => {
+                swing();
+                void run("restore", onRestore);
+              },
+            });
             return false;
           }}
         />
@@ -131,21 +122,18 @@ type RowProps = {
   meta: readonly (string | null)[];
   reverted: boolean;
   what: ReactNode;
-  /** Given the arrow's swing, which an accepted confirm plays. */
-  confirm: (swing: () => void) => ReactNode;
-  asking: boolean;
   /** The action is on its way to the Split. */
   busy: boolean;
   canAct: boolean;
   name: string;
-  /** Returns whether the action applied at once, so the arrow swings now and not on a later confirm. */
-  onAct: () => boolean;
+  /** Given the press and the arrow's swing, which an accepted confirm plays. Returns whether the action applied at once, so the arrow swings now and not on a later confirm. */
+  onAct: (from: Press, swing: () => void) => boolean;
 };
 
-function Row({ meta, reverted, what, confirm, asking, busy, canAct, name, onAct }: RowProps) {
+function Row({ meta, reverted, what, busy, canAct, name, onAct }: RowProps) {
   const c = useColors();
   const reduce = useReducedMotion();
-  // A Revert applies the moment it is accepted. Only its link stays a beat, so the undo arrow finishes its swing before "Reverted" takes the place.
+  // A Revert applies the moment it is accepted. Only its arrow stays a beat, so it finishes its swing before "Reverted" takes the place.
   const [swinging, setSwinging] = useState(false);
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -160,16 +148,15 @@ function Row({ meta, reverted, what, confirm, asking, busy, canAct, name, onAct 
     if (!reduce) setSwinging(true);
   };
   const locked = busy || swinging;
-  const act = () => {
-    if (!locked && onAct()) swing();
+  const act = (from: Press) => {
+    if (!locked && onAct(from, swing)) swing();
   };
-  const link = canAct && (swinging || (!asking && !reverted));
+  const link = canAct && (swinging || !reverted);
   return (
     <View role="listitem" style={[styles.row, { borderTopColor: c.hairline }]}>
       <View style={styles.body}>
         <View style={[reverted && styles.dimmed, !reduce && dim]}>{what}</View>
         <Text style={[type.caption, { color: c.muted }]}>{meta.filter(Boolean).join(" · ")}</Text>
-        {swinging ? null : confirm(swing)}
       </View>
       {link ? <Act name={name} locked={locked} onPress={act} /> : null}
       {reverted && !swinging ? <Reverted fresh={settled} /> : null}
@@ -178,7 +165,7 @@ function Row({ meta, reverted, what, confirm, asking, busy, canAct, name, onAct 
 }
 
 /** The undo arrow alone, so a long list does not repeat the same word down its edge. It swings on a press, or on a hover with a mouse. */
-function Act({ name, locked, onPress }: { name: string; locked: boolean; onPress: () => void }) {
+function Act({ name, locked, onPress }: { name: string; locked: boolean; onPress: (from: Press) => void }) {
   const c = useColors();
   return (
     <PressTarget name={name} outsideScroll disabled={locked} onPress={onPress} style={() => styles.act}>
@@ -195,23 +182,6 @@ function Reverted({ fresh }: { fresh: boolean }) {
     <View style={[styles.done, fresh && (reduce ? doneFade : doneIn)]}>
       <Icon name="check" size={13} color={c.muted} />
       <Text style={[type.caption, { color: c.muted }]}>{say.reverted}</Text>
-    </View>
-  );
-}
-
-function Confirm({ question, action, onYes, onNo }: { question: string; action: string; onYes: () => void; onNo: () => void }) {
-  const c = useColors();
-  return (
-    <View role="alertdialog" aria-label={question} style={styles.confirm}>
-      <Text style={[type.body, { color: c.ink }]}>{question}</Text>
-      <View style={styles.two}>
-        <View style={styles.half}>
-          <Button label={action} onPress={onYes} outsideScroll />
-        </View>
-        <View style={styles.half}>
-          <TextLink center label={say.cancel} onPress={onNo} outsideScroll />
-        </View>
-      </View>
     </View>
   );
 }
@@ -241,7 +211,4 @@ const styles = StyleSheet.create({
   // 44 px to hit, with the glyph on the column's right edge, centered on the row however many lines it wraps to.
   act: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center", marginVertical: -10 },
   done: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 28 },
-  confirm: { gap: 10, marginTop: 8 },
-  two: { flexDirection: "row", gap: 10 },
-  half: { flex: 1 },
 });

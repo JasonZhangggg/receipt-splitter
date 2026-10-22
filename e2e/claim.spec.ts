@@ -153,7 +153,7 @@ test("a price change moves the Total everywhere, and a revert from another brows
 
   await fromMore(jason, "History");
   await jason.getByRole("button", { name: "Revert Sprite" }).click();
-  const confirm = jason.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" });
+  const confirm = jason.getByRole("dialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" });
   await settled(confirm);
   await confirm.click();
 

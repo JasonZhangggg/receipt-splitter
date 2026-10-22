@@ -241,7 +241,7 @@ test("Revert of another person's change asks first, then applies and settles the
 
   await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Tax" }).click();
-  const ask = priya.getByRole("alertdialog", { name: "Revert Sam's change?" });
+  const ask = priya.getByRole("dialog", { name: "Revert Sam's change?" });
   await expect(ask).toBeVisible();
   await expect(priya.getByTestId("total"), "nothing changes until the answer").toHaveText("$21.00");
   await ask.getByRole("button", { name: "Revert" }).click();
@@ -259,7 +259,7 @@ test("another phone reverts the same change first: the open question goes away, 
 
   await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Tax" }).click();
-  const ask = priya.getByRole("alertdialog", { name: "Revert Sam's change?" });
+  const ask = priya.getByRole("dialog", { name: "Revert Sam's change?" });
   await expect(ask).toBeVisible();
 
   await fromMore(sam, "History");
