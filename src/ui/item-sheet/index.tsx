@@ -366,11 +366,6 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
             selectTextOnFocus
           />
         </View>
-        {quantity > 1 ? (
-          <View style={styles.quantity}>
-            <TextLink ink icon="split" label={say.splitInto(quantity)} outsideScroll onPress={splitLine} />
-          </View>
-        ) : null}
         <View style={styles.detail}>
           <LabeledField
             label={say.itemDetail}
@@ -382,6 +377,11 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
             enterKeyHint="done"
           />
         </View>
+        {quantity > 1 ? (
+          <View style={styles.quantity}>
+            <TextLink ink icon="split" label={say.splitInto(quantity)} outsideScroll onPress={splitLine} />
+          </View>
+        ) : null}
         {note ? (
           <View style={styles.note}>
             <Icon name="bag" size={15} color={c.muted} />
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
   quantity: { marginTop: -16, marginBottom: -12 },
   note: { flexDirection: "row", alignItems: "center", gap: 8 },
   noteText: { flexShrink: 1 },
-  section: { gap: 8 },
+  section: { gap: 8, marginTop: 12 },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 7 },
   rows: { gap: 0 },
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },
