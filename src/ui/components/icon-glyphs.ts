@@ -21,6 +21,8 @@ export const glyphs = {
   x: { svg: '<path pathLength="1" d="M6 6l12 12"/><path pathLength="1" d="M18 6 6 18"/>', motion: "x" },
   check: { svg: tick, motion: "check" },
   tick: { svg: tick, motion: "check" },
+  // The same tick with no motion, for the chosen row of a menu, which is not news.
+  chosen: { svg: tick },
   exclaim: {
     svg: '<path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/><g class="mark"><path d="M12 8.25v4.5"/><path d="M12 15.75h.008v.008H12v-.008Z"/></g>',
     motion: "alert",

@@ -293,7 +293,10 @@ function sheetFrames(page: Page) {
           if (sheet) {
             const heading = sheet.querySelector('[role="heading"]')?.textContent ?? "no heading";
             const price = (sheet.querySelector('input[aria-label="Price"]') as HTMLInputElement | null)?.value ?? "no price";
-            const amounts = [...new Set((sheet.textContent ?? "").match(/\$\d+\.\d\d/g) ?? [])].join(" ");
+            // The money fields' unit and sizing copy are hidden from assistive tech and repeat the Price field, which is read above.
+            const shown = sheet.cloneNode(true) as Element;
+            shown.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
+            const amounts = [...new Set((shown.textContent ?? "").match(/\$\d+\.\d\d/g) ?? [])].join(" ");
             seen.push(`${heading} | ${price} | ${amounts}`);
           }
           if (performance.now() - started < 5000) frame(sample);

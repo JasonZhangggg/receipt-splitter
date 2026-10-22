@@ -21,7 +21,7 @@ export function ModeMenu({ value, onPick }: { value: SplitMode; onPick: (by: Spl
           <PressTarget key={mode} name={say.modes[mode]} toggled={on} outsideScroll onPress={() => onPick(mode)} style={(pressed) => [pressStyle(pressed, reduce), styles.press]}>
             {(pressed) => (
               <View style={[styles.row, pressed && { backgroundColor: c.sheetIn }]}>
-                <View style={styles.tick}>{on ? <Icon name="check" size={14} color={c.ink} /> : null}</View>
+                <View style={styles.tick}>{on ? <Icon name="chosen" size={14} color={c.ink} /> : null}</View>
                 <View style={styles.words}>
                   <Text style={[type.body, { color: c.ink }]}>{say.modes[mode]}</Text>
                   <Text style={[type.caption, { color: c.muted }]}>{say.modeHints[mode]}</Text>

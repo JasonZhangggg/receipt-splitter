@@ -269,7 +269,7 @@ test("By amount says what is left to assign as amounts are typed, and Give the r
   await expect(sheet.getByRole("textbox", { name: "Sam's amount" })).toHaveValue("25.00");
 });
 
-test("By amount that is blank or over the price saves nothing: the Item stays Evenly, the footer and History do not change, and Give the rest is offered when over", async ({ browser, request, browserName }, { workerIndex }) => {
+test("By amount that is blank or over the price saves nothing: the Item stays Evenly, the footer and History do not change, and Make <name> <amount> is offered when over", async ({ browser, request, browserName }, { workerIndex }) => {
   const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 8775 }], adjustments: [], subtotal: 8775, total: 8775 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt), browserName);
   await pickJason(page);
@@ -292,7 +292,7 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
   await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("70");
   await expect(status).toHaveText("$7.25 over the price");
   await expect(sheet.getByText("Not saved")).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "Give Jason the rest, $62.75" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Make Jason $62.75" })).toBeVisible();
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet.getByText("Not saved")).toBeVisible();
   await by(sheet, "Evenly");
