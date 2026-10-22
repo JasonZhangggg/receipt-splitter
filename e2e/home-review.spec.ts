@@ -160,10 +160,11 @@ test("a name that is refused stays in the field, and the field stops at 40 chara
   const field = page.getByRole("textbox", { name: "Name", exact: true });
   await field.fill("Ann");
   await field.press("Enter");
-  await field.fill("jason");
+  // The field capitalizes the first letter, so this is "JASON": the same name in other letters.
+  await field.fill("jASON");
   await field.press("Enter");
   await expect(page.getByText("That name is already here.")).toBeVisible();
-  await expect(field).toHaveValue("jason");
+  await expect(field).toHaveValue("JASON");
   await expect(field).toHaveAttribute("maxlength", "40");
   await field.fill("Jasper");
   await field.press("Enter");

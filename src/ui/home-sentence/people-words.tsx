@@ -4,6 +4,7 @@ import { Text, type TextInput } from "react-native";
 import { MAX_PARTICIPANT_NAME_LENGTH } from "../../core/operations";
 import { newName } from "../../draft";
 import { copy, joinCopy } from "../home-copy";
+import { typedName } from "../components/name-case";
 import { focusInPlace } from "../receipt-input/keyboard-room";
 import { webStyle } from "../motion";
 import { Act, afterPress, Blank, focused, nowrap, Remove, useComposed, usePressing, Words } from "./words";
@@ -167,8 +168,8 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       // A name is not a dictionary word, and iOS marks a return that settles a pending correction as its own, which React Native Web drops.
       autoCorrect={false}
       spellCheck={false}
-      onChangeText={(text) => {
-        setTyped(text);
+      onChange={(event) => {
+        setTyped(typedName(event));
         refused.current = false;
         onRefusal(null);
       }}

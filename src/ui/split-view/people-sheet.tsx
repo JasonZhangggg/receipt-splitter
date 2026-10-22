@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { Participant, ParticipantId } from "../../core/split";
 import { Button, PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
+import { typedName } from "../components/name-case";
 import { TextLink } from "../components/text-link";
 import { UnderlineInput } from "../components/underline-input";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
@@ -138,7 +139,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
               value={typing}
               autoCapitalize="words"
               enterKeyHint="go"
-              onChangeText={setTyping}
+              onChange={(event) => setTyping(typedName(event))}
               onSubmitEditing={add}
               submitBehavior="submit"
               blurOnSubmit={false}
@@ -169,8 +170,8 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
                 value={typing}
                 autoCapitalize="words"
                 enterKeyHint="done"
-                onChangeText={(text) => {
-                  setTyping(text);
+                onChange={(event) => {
+                  setTyping(typedName(event));
                   setProblem(null);
                 }}
                 onSubmitEditing={add}
