@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { applyOperation, createSplit, type Operation } from "../../core/operations";
 import { parseSplit } from "../../core/parse";
+import { computeShares } from "../../core/shares";
 import { adjustmentId, deviceId, itemId, participantId, type MintedSplitId, type Split } from "../../core/split";
 import { historyOf, restoreChanges, whenText } from "./describe";
 
@@ -40,7 +41,7 @@ describe("historyOf", () => {
         { by: sam, type: "claim", itemId: sprite, participantId: sam },
         { by: null, type: "addParticipant", participant: { id: participantId("lee"), name: "Lee" } },
         { by: sam, type: "editReceipt", items: [{ type: "edit", itemId: sprite, price: price(275) }] },
-        { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ participantId: sam, value: 2 }] }] },
+        { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "amount", values: [{ participantId: sam, value: 100 }] }] },
         { by: ann, type: "undo", revision: 5 },
         { by: sam, type: "recordPayment", participantId: sam, device: deviceId("phone"), amount: cents(300) },
       ),
@@ -48,7 +49,7 @@ describe("historyOf", () => {
 
     expect(history).toEqual([
       { revision: 7, lead: "Sam paid $3.00", more: 0, sentAs: "sam", name: "Sam", byline: false, at: 7_000, reverted: false, revertible: false },
-      { revision: 5, lead: "Sprite split", before: "evenly", after: "by shares", more: 0, sentAs: "ann", name: "Ann", byline: true, at: 5_000, reverted: true, revertible: true },
+      { revision: 5, lead: "Sprite split", before: "evenly", after: "by amount", more: 0, sentAs: "ann", name: "Ann", byline: true, at: 5_000, reverted: true, revertible: true },
       { revision: 4, lead: "Sprite", before: "2.50", after: "2.75", more: 0, sentAs: "sam", name: "Sam", byline: true, at: 4_000, reverted: false, revertible: true },
     ]);
   });
@@ -78,7 +79,7 @@ describe("historyOf", () => {
     expect(history.map(({ lead }) => lead)).toEqual(["Deleted Fries", "Added Fries"]);
   });
 
-  test("a change of split reads in words, by shares however the shares were weighted, never as a ratio", () => {
+  test("a change of split reads in words, never as a ratio, and back-to-back switches by one person read as one entry from the first to the last", () => {
     const history = historyOf(
       split(
         { by: sam, type: "claim", itemId: sprite, participantId: sam },
@@ -88,10 +89,51 @@ describe("historyOf", () => {
       ),
     );
 
-    expect(history.map(({ lead, before, after }) => [lead, before, after])).toEqual([
-      ["Sprite split", "by shares", "by amount"],
-      ["Sprite split", "evenly", "by shares"],
+    expect(history.map(({ revision, lead, before, after, at }) => [revision, lead, before, after, at])).toEqual([[3, "Sprite split", "evenly", "by amount", 4_000]]);
+  });
+
+  test("leaves out a switch that moves nobody's money, alone or as a run that ends where it started", () => {
+    const shares: Operation = { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares" }] };
+    const amount: Operation = { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "amount" }] };
+    const even: Operation = { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "even" }] };
+    const claims: Operation[] = [
+      { by: sam, type: "claim", itemId: sprite, participantId: sam },
+      { by: ann, type: "claim", itemId: sprite, participantId: ann },
+    ];
+
+    expect(historyOf(split(...claims, shares))).toEqual([]);
+    expect(historyOf(split(...claims, shares, amount, even, shares))).toEqual([]);
+  });
+
+  test("share counts typed one after another join the switch before them", () => {
+    const shares = (value: number): Operation => ({ by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ participantId: sam, value }, { participantId: ann, value: 1 }] }] });
+    const history = historyOf(split({ by: sam, type: "claim", itemId: sprite, participantId: sam }, { by: ann, type: "claim", itemId: sprite, participantId: ann }, shares(2), shares(3)));
+
+    expect(history.map(({ lead, before, after }) => [lead, before, after])).toEqual([["Sprite split", "evenly", "by shares"]]);
+    expect(historyOf(split({ by: sam, type: "claim", itemId: sprite, participantId: sam }, { by: ann, type: "claim", itemId: sprite, participantId: ann }, shares(1), shares(2))).map(({ lead }) => lead)).toEqual([
+      "Sprite split",
     ]);
+  });
+
+  test("a run breaks at another person's switch, and each part keeps its own Revert", () => {
+    const by = (who: typeof ann, value: number): Operation => ({ by: who, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ participantId: sam, value }, { participantId: ann, value: 1 }] }] });
+    const history = historyOf(split({ by: sam, type: "claim", itemId: sprite, participantId: sam }, { by: ann, type: "claim", itemId: sprite, participantId: ann }, by(ann, 2), by(sam, 3)));
+
+    expect(history.map(({ revision, lead, before, after, sentAs }) => [revision, lead, before, after, sentAs])).toEqual([
+      [4, "Changed how Sprite is split", undefined, undefined, "sam"],
+      [3, "Sprite split", "evenly", "by shares", "ann"],
+    ]);
+  });
+
+  test("reverting a run's entry puts the Item back as it was before the run, and the entry reads as reverted", () => {
+    const shares = (value: number): Operation => ({ by: ann, type: "editReceipt", items: [{ type: "edit", itemId: sprite, by: "shares", values: [{ participantId: sam, value }, { participantId: ann, value: 1 }] }] });
+    const ran = split({ by: sam, type: "claim", itemId: sprite, participantId: sam }, { by: ann, type: "claim", itemId: sprite, participantId: ann }, shares(2), shares(3));
+    const [run] = historyOf(ran);
+    const reverted = applyOperation(ran, { by: ann, type: "undo", revision: run.revision }, { creator: false }, 9_000);
+    if (!reverted.ok) throw new Error(JSON.stringify(reverted.rejection));
+
+    expect(computeShares(reverted.split).shares.map(({ share }) => share)).toEqual([150, 150]);
+    expect(historyOf(reverted.split).map(({ revision, reverted }) => [revision, reverted])).toEqual([[run.revision, true]]);
   });
 
   test("groups a price change and a Payment of $1,000 and up by thousands", () => {
