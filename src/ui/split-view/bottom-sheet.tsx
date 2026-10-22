@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { actedByKey } from "../components/acted-by-key";
 import { tabbable } from "../components/popover";
-import { glide, glideFor, leaveFor, leaveMs, reducedFade, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
+import { decelerationRate, glide, glideFor, leaveFor, leaveMs, reducedFade, releaseVelocity, rubberband, snapFor, tallShare } from "../components/sheet-motion";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webStyle } from "../motion";
 import { layout, motion, useColors } from "../theme";
@@ -62,7 +62,8 @@ type Props = {
   testID?: string;
 };
 
-type Pull = { id: number; x: number; y: number; from: number; moved: boolean; list: HTMLElement; samples: { y: number; t: number }[] };
+/** `held` once a move has been cancelled, after which the browser will not scroll this touch. `y` is where the finger's travel counts from, and `from` where the sheet was then. */
+type Pull = { id: number; x: number; y: number; from: number; held: boolean; moved: boolean; list: HTMLElement; samples: { y: number; t: number }[] };
 
 type Drag = { pointer: number; startY: number; startX: number; from: number; moved: boolean; resume: number | null; samples: { y: number; t: number }[] };
 
@@ -264,38 +265,78 @@ export function BottomSheet({ children, tapAway = false, onDown, holds, closing 
     const list = (target as HTMLElement | null)?.closest?.<HTMLElement>("[data-sheet-scroll], [data-sheet-outer]") ?? null;
     return list && (list.hasAttribute("data-sheet-scroll") || scrolls) ? list : null;
   };
+  const coasting = useRef(0);
+  // A list the finger scrolled by hand carries on with the release's speed, slowing as a native scroll does.
+  const coast = (list: HTMLElement, velocity: number) => {
+    let speed = velocity / 1000;
+    let last = performance.now();
+    // Kept apart from scrollTop, which rounds, so a slow coast does not stall on sub-pixel steps.
+    let at = list.scrollTop;
+    const end = list.scrollHeight - list.clientHeight;
+    const step = (now: number) => {
+      const elapsed = now - last;
+      last = now;
+      speed *= decelerationRate ** elapsed;
+      at = Math.min(end, Math.max(0, at + speed * elapsed));
+      list.scrollTop = at;
+      if (Math.abs(speed) > 0.02 && at > 0 && at < end) coasting.current = requestAnimationFrame(step);
+    };
+    coasting.current = requestAnimationFrame(step);
+  };
+  useEffect(() => () => cancelAnimationFrame(coasting.current), []);
+
   const pullStart = useEffectEvent((event: TouchEvent) => {
+    cancelAnimationFrame(coasting.current);
     const list = listAt(event.target);
     const touch = event.touches[0];
-    pull.current = !gestures || leaving.current || event.touches.length !== 1 || drag.current || !list || list.scrollTop > 0 || !touch ? null : { id: touch.identifier, x: touch.clientX, y: touch.clientY, from: 0, moved: false, list, samples: [{ y: touch.clientY, t: event.timeStamp }] };
+    pull.current = !gestures || leaving.current || event.touches.length !== 1 || drag.current || !list || list.scrollTop > 0 || !touch ? null : { id: touch.identifier, x: touch.clientX, y: touch.clientY, from: live(), held: false, moved: false, list, samples: [{ y: touch.clientY, t: event.timeStamp }] };
   });
+  // Scrolling the list comes first: the sheet only follows the part of a held touch that is below where it started, and the list scrolls by the rest, so a pull that turns back up scrolls as if the sheet had never moved.
+  const track = (current: Pull, y: number) => {
+    const travel = y - current.y;
+    if (travel >= 0) {
+      const at = current.from + travel;
+      current.list.scrollTop = 0;
+      return place(at < 0 ? rubberband(at, visible) : at, 0);
+    }
+    if (offset.current !== current.from) place(current.from, 0);
+    current.list.scrollTop = -travel;
+  };
   const pullMove = useEffectEvent((event: TouchEvent) => {
     const current = pull.current;
     const touch = current && [...event.changedTouches].find(({ identifier }) => identifier === current.id);
     if (!current || !touch) return;
     const travel = touch.clientY - current.y;
     if (!current.moved) {
-      // iOS stops sending cancelable moves once the list starts its own bounce, so a downward move at the top is held from its first pixel.
+      // iOS stops sending cancelable moves once the list starts its own bounce, so a downward move at the top is held from its first pixel. A held touch that turns up or sideways is the list's, scrolled by hand from here.
       if (travel <= 0 || Math.abs(touch.clientX - current.x) > travel || current.list.scrollTop > 0) {
-        pull.current = null;
-        return;
+        if (!current.held) {
+          pull.current = null;
+          return;
+        }
+        current.moved = true;
+      } else {
+        if (event.cancelable) event.preventDefault();
+        current.held = true;
+        if (travel <= tapSlop) return;
+        current.moved = true;
+        current.y = touch.clientY;
+        current.from = live();
       }
-      if (event.cancelable) event.preventDefault();
-      if (travel <= tapSlop) return;
-      current.moved = true;
-      current.y = touch.clientY;
-      current.from = live();
     }
     if (event.cancelable) event.preventDefault();
     current.samples = [...current.samples.slice(-4), { y: touch.clientY, t: event.timeStamp }];
-    const at = current.from + (touch.clientY - current.y);
-    place(at < 0 ? rubberband(at, visible) : at, 0);
+    track(current, touch.clientY);
   });
   const pullEnd = useEffectEvent((event: TouchEvent) => {
     const current = pull.current;
     pull.current = null;
     if (!current?.moved) return;
     if (event.type === "touchcancel") return settle(home, 0);
+    if (current.list.scrollTop > 0) {
+      if (offset.current !== home) settle(home, 0);
+      return coast(current.list, -releaseVelocity(current.samples, event.timeStamp));
+    }
     release(current.samples, event.timeStamp);
   });
   useEffect(() => {

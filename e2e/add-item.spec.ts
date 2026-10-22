@@ -126,7 +126,7 @@ test("History lists the add, and Revert from another phone asks first and takes 
 
   await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Added Fries" }).click();
-  await priya.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
+  await priya.getByRole("dialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
   await expect(priya.getByText("Reverted")).toBeVisible(live);
   await expect(fries(sam)).toHaveCount(0, live);
   await expect(fries(priya)).toHaveCount(0);

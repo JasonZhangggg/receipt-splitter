@@ -333,7 +333,7 @@ test("Revert from the other phone asks first and puts the tax and the Total back
 
   await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Tax" }).click();
-  await priya.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
+  await priya.getByRole("dialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
   await expect(priya.getByText("Reverted")).toBeVisible(live);
 
   for (const page of [sam, priya]) {

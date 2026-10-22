@@ -143,7 +143,7 @@ test("the Add sheet's kind options are 44 px wide, Tip included", async ({ page,
   await expectHit(kinds.getByRole("button", { name: "Tip", exact: true }), { width: 44 });
 });
 
-test("deleting an Item reads Deleted in the undo bar and in History, with 'by Sam' naming who", async ({ page, request }, { workerIndex }) => {
+test("deleting an Item reads Deleted in the undo bar and in History, with Sam named as who", async ({ page, request }, { workerIndex }) => {
   await openAs(page, await createSplit(request, workerIndex), "Sam");
   await page.getByRole("button", { name: /^Open Pitcher, / }).click();
   await page.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Delete item" }).click();
@@ -153,8 +153,8 @@ test("deleting an Item reads Deleted in the undo bar and in History, with 'by Sa
   const history = page.getByTestId("history-sheet");
   await expect(history.getByText("Deleted Pitcher")).toBeVisible(live);
   await expect(history.getByText("Removed Pitcher")).toHaveCount(0);
-  await expect(history.getByText(/^by Sam · /)).toBeVisible();
-  await expect(history.getByText("by Jason", { exact: true })).toBeVisible();
+  await expect(history.getByText(/^Sam · /)).toBeVisible();
+  await expect(history.getByText("Jason", { exact: true })).toBeVisible();
 });
 
 test("a confirm's Cancel is an underlined text link, not a filled button", async ({ page, request }, { workerIndex }) => {

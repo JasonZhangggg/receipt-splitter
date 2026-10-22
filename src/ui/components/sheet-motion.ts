@@ -1,4 +1,5 @@
-const decelerationRate = 0.998;
+/** How much of its speed a coasting sheet or list keeps each millisecond, as on iOS. */
+export const decelerationRate = 0.998;
 
 export function project(velocity: number): number {
   return ((velocity / 1000) * decelerationRate) / (1 - decelerationRate);

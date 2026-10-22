@@ -17,7 +17,7 @@ import { Button, type Press } from "../../src/ui/components/button";
 import type { Lay } from "../../src/ui/lay";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
-import { HistorySheet } from "../../src/ui/history";
+import { HistorySheet, type HistoryAsk } from "../../src/ui/history";
 import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
 import { ItemSheet, type ModesOpen } from "../../src/ui/item-sheet";
@@ -326,6 +326,17 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const item = split.receipt.items.find(({ id }) => id === confirming.itemId);
     if (!item || !present(confirming.person.id) || claimersOf(item.split).includes(confirming.person.id) !== confirming.had) setConfirming({ ...confirming, closing: true });
   }
+  // History's Revert or Restore question, hung from the row's arrow. It leaves with the sheet, or once another phone has reverted the same change.
+  const [question, setQuestion] = useState<(HistoryAsk & { readonly closing: boolean }) | null>(null);
+  if (question && !question.closing) {
+    const change = question.target === "restore" ? null : split.recentChanges.find(({ revision }) => revision === question.target);
+    if (overlay?.kind !== "history" || closing || (change !== null && (change === undefined || change.undoneBy !== null))) setQuestion({ ...question, closing: true });
+  }
+  const closeQuestion = () => setQuestion((open) => open && { ...open, closing: true });
+  const questionGone = () => {
+    if (question && (wide || question.from.keyboard || actedByKey()) && question.from.trigger.isConnected) question.from.trigger.focus({ preventScroll: true });
+    setQuestion(null);
+  };
   // The Edit item sheet's menu of ways to split. It leaves with the sheet.
   const [modes, setModes] = useState<(ModesOpen & { readonly closing: boolean }) | null>(null);
   if (modes && !modes.closing && (overlay?.kind !== "item" || closing)) setModes({ ...modes, closing: true });
@@ -393,7 +404,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
   // Escape closes the person menu over the People sheet, or the split menu over Edit item, first, and the sheet on the next press.
-  useEscape(overlay !== null && !closing && !viewing && (menu === null || menu.closing) && (modes === null || modes.closing), closeOverlay);
+  useEscape(overlay !== null && !closing && !viewing && (menu === null || menu.closing) && (modes === null || modes.closing) && (question === null || question.closing), closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);
@@ -522,7 +533,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         </>
       ) : null
     ) : (
-      <HistorySheet split={split} me={me} onRevert={(revision) => send({ by: me, type: "undo", revision })} onRestore={() => send({ by: me, type: "restoreReceipt" })} onClose={closeOverlay} />
+      <HistorySheet split={split} me={me} onRevert={(revision) => send({ by: me, type: "undo", revision })} onRestore={() => send({ by: me, type: "restoreReceipt" })} onAsk={(ask) => setQuestion({ ...ask, closing: false })} onClose={closeOverlay} />
     )
   ) : null;
   const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} busy={paying !== null} notice={payNote} onPaid={onPaid} /> : undefined;
@@ -619,6 +630,20 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
               modes.pick(by);
               closeModes();
             }}
+          />
+        </Popover>
+      ) : null}
+      {question ? (
+        <Popover anchor={question.from.trigger} label={question.question} instant={question.from.keyboard} closing={question.closing} onClose={closeQuestion} onGone={questionGone} width={claimConfirmWidth}>
+          <ClaimConfirm
+            question={question.question}
+            action={question.action}
+            onYes={() => {
+              if (question.closing) return;
+              closeQuestion();
+              question.onYes();
+            }}
+            onNo={closeQuestion}
           />
         </Popover>
       ) : null}

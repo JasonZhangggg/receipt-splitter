@@ -213,7 +213,7 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
 
   await fromMore(priya, "History");
   await priya.getByRole("button", { name: "Revert Split Guinness Draught 14.9oz Can into 3" }).click();
-  await priya.getByRole("alertdialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
+  await priya.getByRole("dialog", { name: "Revert Sam's change?" }).getByRole("button", { name: "Revert" }).click();
   await expect(priya.getByText("Reverted")).toBeVisible(live);
   await expect(sam.getByRole("button", { name: "Open 3x Guinness Draught 14.9oz Can, $21.87, You, $21.87 yours" })).toHaveCount(1, live);
   await expect(cans(sam)).toHaveCount(0);
