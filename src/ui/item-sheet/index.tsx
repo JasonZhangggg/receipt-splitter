@@ -3,14 +3,15 @@ import { Keyboard, Platform, StyleSheet, Text, View } from "react-native";
 
 import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
-import { SPLIT_MODES, type SplitMode, type ItemId, type ParticipantId, type Split, type SplitItem } from "../../core/split";
+import { type SplitMode, type ItemId, type Participant, type ParticipantId, type Split, type SplitItem } from "../../core/split";
 import { money, plainAmount } from "../../draft";
 import type { Answer } from "../../live/client";
 import type { Lay } from "../lay";
 import { Icon } from "../components/icon";
-import { IconAction, LabeledField, MoneyField, Options, PersonToggle } from "../components/sheet-fields";
-import { TextLink } from "../components/text-link";
-import { useReducedMotion, webAnimation, webStyle } from "../motion";
+import { PressTarget, type Press } from "../components/button";
+import { IconAction, LabeledField, MoneyField, PersonToggle } from "../components/sheet-fields";
+import { TextLink, linkPress, underline } from "../components/text-link";
+import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { failedCopy, splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
 import { bundleNote, itemParts, lineAmounts, nameParts, splitIds } from "../split-view/model";
@@ -34,7 +35,13 @@ type Props = {
   /** The Item is gone; `revision` is the one an Undo names. */
   onDeleted: (deleted: { readonly name: string; readonly revision: number }) => void;
   guardRef: RefObject<CloseGuard | null>;
+  /** Opens the menu of ways to split from the mode link; `pick` applies one. The page holds the popover, since it floats over the sheet. */
+  onModes: (open: ModesOpen) => void;
+  /** The menu is open, so the link says it is expanded. */
+  modesOpen: boolean;
 };
+
+export type ModesOpen = { readonly from: Press; readonly value: SplitMode; readonly pick: (by: SplitMode) => void };
 
 /** The price field, or a person's field when the Item is split by amount. */
 type AmountField = "price" | ParticipantId;
@@ -92,7 +99,7 @@ function showsAsBefore(item: SplitItem, edit: ItemEdit): boolean {
   return nextTitle === title && (nextLine || null) === (line || null);
 }
 
-export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNote, onDeleted, guardRef }: Props) {
+export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNote, onDeleted, guardRef, onModes, modesOpen }: Props) {
   const c = useColors();
   // Split and Delete item change the Item at once; the sheet keeps showing the Split as it looked at the tap, unsaved edits included, until it has left.
   const [leavingFrom, setLeavingFrom] = useState<Split | null>(null);
@@ -259,7 +266,6 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
   };
   const unreadProblem = held ? [...unread][0] : undefined;
   const shownProblem = unreadProblem ? amountProblem(...unreadProblem) : problem;
-  const had = claimersOf(item.split);
   const nameOf = (id: ParticipantId) => split.participants.find((person) => person.id === id)?.name ?? "";
   const toggle = (participantId: ParticipantId, on: boolean) => {
     flush();
@@ -312,14 +318,19 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
     flush();
     leave({ by: me, type: "editReceipt", items: [{ type: "split", itemId, ids: [first, ...rest] }] });
   };
+  const people = viewerFirst(split.participants, me);
   const body = (shownItem: SplitItem, shownParts: Typed, as: Typed, editable: boolean) => {
     const suggested = shownItem.split.by === "amount" && !held ? suggestedAmounts(shownItem.price, as, editable ? lastTyped : null) : null;
     return (
       <>
-        <SplitRows key={editable ? fields : undefined} item={shownItem} parts={shownParts} nameOf={nameOf} me={me} edit={editable ? edit : noEdit} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} suggested={suggested} />
-        <StatusLine item={shownItem} typed={as} last={editable ? lastTyped : null} unsaved={editable && unsaved} attempted={editable && held} nameOf={nameOf} onFill={editable ? fill : undefined} suggested={suggested} onAccept={editable ? accept : undefined} />
+        <SplitRows key={editable ? fields : undefined} item={shownItem} people={people} parts={shownParts} nameOf={nameOf} me={me} edit={editable ? edit : noEdit} toggle={editable ? toggle : noToggle} typedAmount={editable ? typedAmount : noAmount} refills={editable ? refills : noRefills} suggested={suggested} />
+        <StatusLine item={shownItem} typed={as} last={editable ? lastTyped : null} unsaved={editable && unsaved} attempted={editable && held} nameOf={nameOf} me={me} onFill={editable ? fill : undefined} suggested={suggested} onAccept={editable ? accept : undefined} />
       </>
     );
+  };
+  const pick = (by: SplitMode) => {
+    if (by !== item.split.by) setFade({ from: opacityOf(incomingRef.current), left: msLeft(leavingRef.current) });
+    edit({ by });
   };
 
   return (
@@ -335,6 +346,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
           <LabeledField
             label={say.itemName}
             key={`name-${fields}`}
+            prefix={quantity > 1 ? say.times(quantity) : undefined}
             placeholder={say.itemNamePlaceholder}
             defaultValue={title}
             onChangeText={(name) => name.trim() && edit({ name: name.trim(), ...(sized && { detail: line }) })}
@@ -354,15 +366,6 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
             selectTextOnFocus
           />
         </View>
-        {quantity > 1 ? (
-          <View style={styles.quantity}>
-            <Text style={[type.caption, { color: c.muted }]}>{say.quantity}</Text>
-            <Text testID="quantity" style={[type.caption, tabular, { color: c.ink }]}>
-              {quantity}
-            </Text>
-            <TextLink label={say.splitInto(quantity)} outsideScroll onPress={splitLine} />
-          </View>
-        ) : null}
         <View style={styles.detail}>
           <LabeledField
             label={say.itemDetail}
@@ -374,6 +377,11 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
             enterKeyHint="done"
           />
         </View>
+        {quantity > 1 ? (
+          <View style={styles.quantity}>
+            <TextLink ink icon="split" label={say.splitInto(quantity)} outsideScroll onPress={splitLine} />
+          </View>
+        ) : null}
         {note ? (
           <View style={styles.note}>
             <Icon name="bag" size={15} color={c.muted} />
@@ -386,41 +394,26 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
             <Text numberOfLines={1} style={[type.caption, styles.hintLead, { color: c.ink }]}>
               {say.whoHadIt}
             </Text>
-            <Text numberOfLines={1} style={[type.caption, styles.hint, { color: c.muted }]}>
-              {say.whoHint}
+            <Text numberOfLines={1} style={[type.caption, tabular, styles.hint, { color: c.muted }]}>
+              · {money(item.price)}
             </Text>
+            <PressTarget name={say.modeFor(say.modes[item.split.by])} popup="dialog" expanded={modesOpen} outsideScroll onPress={(from) => onModes({ from, value: item.split.by, pick })} style={(pressed) => [styles.mode, pressStyle(pressed, reduce, linkPress)]}>
+              {() => (
+                <View style={styles.modeFace}>
+                  <Text testID="split-mode" style={[type.caption, underline, { color: c.ink, textDecorationColor: c.ink }]}>
+                    {say.modes[item.split.by]}
+                  </Text>
+                  <Icon name="chevron" size={12} color={c.ink} />
+                </View>
+              )}
+            </PressTarget>
           </View>
-          <View role="group" aria-label={say.whoHadIt} style={styles.people}>
-            {viewerFirst(split.participants, me).map((person) => {
-              const on = had.includes(person.id);
-              const you = person.id === me;
-              return <PersonToggle key={person.id} name={you ? `${person.name}, ${say.you}` : person.name} label={you ? say.youHad : person.name} on={on} onPress={() => toggle(person.id, on)} />;
-            })}
-          </View>
-        </View>
-        <View style={styles.section}>
-          <View style={styles.sectionHead}>
-            <Icon name="pie" size={16} color={c.muted} />
-            <Text style={[type.caption, { color: c.ink }]}>{say.split}</Text>
-            <Text style={[type.caption, tabular, { color: c.ink }]}>{money(item.price)}</Text>
-          </View>
-          <Options
-            options={SPLIT_MODES}
-            labels={say.modes}
-            name={say.split}
-            value={item.split.by}
-            onChange={(by) => {
-              if (by !== item.split.by) setFade({ from: opacityOf(incomingRef.current), left: msLeft(leavingRef.current) });
-              edit({ by });
-            }}
-          />
-          <Text style={[type.caption, styles.modeHint, { color: c.muted }]}>{say.modeHints[item.split.by]}</Text>
-          <View>
+          <View testID="split-rows">
             <View ref={incomingRef} key={item.split.by} style={[styles.rows, reduce ? null : enterAfter === null ? rowsEnter : [rowsEnterAfter, webStyle({ animationDelay: `${enterAfter}ms` })]]}>
               {body(item, parts, typed, true)}
             </View>
             {leaving && !reduce ? (
-              <View ref={leavingRef} key={`${leaving.item.split.by}-leaving`} pointerEvents="none" style={[styles.leaving, styles.rows, { opacity: leaving.from }]}>
+              <View ref={leavingRef} key={`${leaving.item.split.by}-leaving`} pointerEvents="none" aria-hidden style={[styles.leaving, styles.rows, { opacity: leaving.from }]}>
                 {body(leaving.item, leaving.parts, lineAmounts(leaving.item), false)}
               </View>
             ) : null}
@@ -442,59 +435,68 @@ type Typed = readonly { readonly participantId: ParticipantId; readonly cents: n
 const noEdit = () => {};
 const noAmount = () => null;
 const noRefills: ReadonlyMap<ParticipantId, number> = new Map();
+const noToggle = () => {};
 
 type SplitRowsProps = {
   item: SplitItem;
+  /** Everyone on the Split, the viewer first: each gets a row, with their part when they had the Item. */
+  people: readonly Participant[];
   /** Each claimer's part as the list and the Pay sheet show it. */
   parts: Typed;
   nameOf: (id: ParticipantId) => string;
   me: ParticipantId | null;
   edit: (next: ItemEdit) => void;
+  toggle: (participantId: ParticipantId, on: boolean) => void;
   typedAmount: (field: ParticipantId, text: string) => Cents | null;
   refills: ReadonlyMap<ParticipantId, number>;
   /** The even split offered in the empty amount fields as muted placeholders; the Split holds none of it. */
   suggested: readonly { participantId: ParticipantId; cents: number }[] | null;
 };
 
-function SplitRows({ item, parts, nameOf, me, edit, typedAmount, refills, suggested }: SplitRowsProps) {
+/** One row a person: their dot and name, which add or drop them, then their part of the price in the Item's mode. */
+function SplitRows({ item, people, parts, nameOf, me, edit, toggle, typedAmount, refills, suggested }: SplitRowsProps) {
   const c = useColors();
   return (
-    <>
-      {parts.map(({ participantId, cents: amount }) => {
+    <View role="group" aria-label={say.whoHadIt}>
+      {people.map((person) => {
+        const participantId = person.id;
+        const part = parts.find((each) => each.participantId === participantId);
+        const you = participantId === me;
         const shares = item.split.by === "shares" ? (item.split.units[0].find(([id]) => id === participantId)?.[1] ?? 1) : 0;
         const value = (next: number): ItemValue => ({ participantId, value: next });
         return (
           <View key={participantId} style={styles.splitRow}>
-            <Text numberOfLines={1} style={[type.body, styles.whoName, { color: c.ink }]}>
-              {participantId === me ? say.youHad : nameOf(participantId)}
-            </Text>
-            <View style={styles.part}>
-              {item.split.by === "shares" ? (
-                <Stepper value={shares} min={1} max={MAX_SHARES} onChange={(next) => edit({ values: [value(next)] })} names={[say.fewerShares(nameOf(participantId)), say.moreShares(nameOf(participantId))]} />
-              ) : null}
-              {item.split.by === "amount" ? (
-                <MoneyField
-                  key={refills.get(participantId) ?? 0}
-                  label={say.amountOf(nameOf(participantId))}
-                  showLabel={false}
-                  width={88}
-                  reach={240}
-                  defaultValue={amount === 0 ? "" : plainAmount(amount)}
-                  placeholder={plainAmount(suggested?.find((each) => each.participantId === participantId)?.cents ?? 0)}
-                  onChangeText={(text) => {
-                    const read = typedAmount(participantId, text.trim() === "" ? "0" : text);
-                    if (read !== null) edit({ values: [value(read)] });
-                  }}
-                  selectTextOnFocus
-                />
-              ) : (
-                <Text style={[type.body, tabular, styles.amount, { color: c.ink }]}>{money(amount)}</Text>
-              )}
-            </View>
+            <PersonToggle name={you ? `${person.name}, ${say.you}` : person.name} label={you ? say.youHad : person.name} on={part !== undefined} onPress={() => toggle(participantId, part !== undefined)} />
+            {part === undefined ? (
+              <Text style={[type.caption, { color: c.muted }]}>{say.didntHave}</Text>
+            ) : (
+              <View style={styles.part}>
+                {item.split.by === "shares" ? (
+                  <Stepper value={shares} min={1} max={MAX_SHARES} onChange={(next) => edit({ values: [value(next)] })} names={[say.fewerShares(nameOf(participantId)), say.moreShares(nameOf(participantId))]} />
+                ) : null}
+                {item.split.by === "amount" ? (
+                  <MoneyField
+                    key={refills.get(participantId) ?? 0}
+                    label={say.amountOf(nameOf(participantId))}
+                    showLabel={false}
+                    width={88}
+                    defaultValue={part.cents === 0 ? "" : plainAmount(part.cents)}
+                    placeholder={plainAmount(suggested?.find((each) => each.participantId === participantId)?.cents ?? 0)}
+                    onChangeText={(text) => {
+                      const read = typedAmount(participantId, text.trim() === "" ? "0" : text);
+                      if (read !== null) edit({ values: [value(read)] });
+                    }}
+                    selectTextOnFocus
+                  />
+                ) : (
+                  <Text style={[type.body, tabular, styles.amount, { color: c.ink }]}>{money(part.cents)}</Text>
+                )}
+              </View>
+            )}
           </View>
         );
       })}
-    </>
+    </View>
   );
 }
 
@@ -503,12 +505,13 @@ function amountProblem(field: AmountField, problem: "price" | "overLimit"): stri
   return problem === "price" ? say.adjustmentProblem.amount : say.adjustmentProblem.overLimit(maxAmount);
 }
 
-type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; unsaved: boolean; /** The user tried to close with the amounts not adding up. */ attempted: boolean; nameOf: (id: ParticipantId) => string; onFill?: (participantId: ParticipantId, cents: number) => void; suggested: readonly { participantId: ParticipantId; cents: number }[] | null; onAccept?: (all: readonly { participantId: ParticipantId; cents: number }[]) => void };
+type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; unsaved: boolean; /** The user tried to close with the amounts not adding up. */ attempted: boolean; nameOf: (id: ParticipantId) => string; me: ParticipantId | null; onFill?: (participantId: ParticipantId, cents: number) => void; suggested: readonly { participantId: ParticipantId; cents: number }[] | null; onAccept?: (all: readonly { participantId: ParticipantId; cents: number }[]) => void };
 
 /** Where the split stands: a tick when it adds up, a warning with the gap when a By amount split does not. */
-function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill, suggested, onAccept }: StatusProps) {
+function StatusLine({ item, typed, last, unsaved, attempted, nameOf, me, onFill, suggested, onAccept }: StatusProps) {
   const c = useColors();
-  const people = lineAmounts(item).length;
+  const lines = lineAmounts(item);
+  const people = lines.length;
   const amounts = item.split.by === "amount" && people > 0 ? amountStatus(item.price, typed, last) : null;
   // Right after switching to By amount nothing is typed, so the whole price is left; that is a starting point, not a mistake, until an amount is typed or Close is tried.
   const fresh = amounts?.by === "left" && amounts.assigned === 0 && last === null && !attempted;
@@ -519,7 +522,13 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill, sug
       : people === 0
       ? say.nobodyHasThis
       : amounts === null
-        ? say.peopleLine(people, money(item.price))
+        ? people === 1
+          ? lines[0].participantId === me
+            ? say.youPayAll
+            : say.paysAll(nameOf(lines[0].participantId))
+          : item.split.by === "shares"
+            ? say.sharesInAll(item.split.units[0].reduce((sum, [, count]) => sum + count, 0))
+            : say.splitWays(people)
         : amounts.by === "exact"
           ? say.allAssigned(money(item.price))
           : amounts.by === "over"
@@ -536,7 +545,14 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, onFill, sug
         {unsaved && !fresh ? <Text style={[type.caption, { color: c.warn }]}>{say.notSaved}</Text> : null}
       </View>
       {suggested && onAccept ? <TextLink label={say.useSuggested} name={say.useSuggestedName} outsideScroll onPress={() => onAccept(suggested)} /> : null}
-      {fillWith && onFill ? <TextLink label={say.giveTheRest(nameOf(fillWith.participantId))} name={say.giveTheRestName(nameOf(fillWith.participantId), money(fillWith.cents))} outsideScroll onPress={() => onFill(fillWith.participantId, fillWith.cents)} /> : null}
+      {fillWith && onFill ? (
+        <TextLink
+          label={amounts?.by === "over" ? say.makeAmount(nameOf(fillWith.participantId), money(fillWith.cents)) : say.giveTheRest(nameOf(fillWith.participantId))}
+          name={amounts?.by === "over" ? undefined : say.giveTheRestName(nameOf(fillWith.participantId), money(fillWith.cents))}
+          outsideScroll
+          onPress={() => onFill(fillWith.participantId, fillWith.cents)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -595,13 +611,11 @@ const styles = StyleSheet.create({
   body: { gap: 24 },
   pair: { flexDirection: "row", alignItems: "flex-end", gap: 20 },
   detail: { marginTop: -8 },
-  quantity: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: -16 },
+  quantity: { marginTop: -16, marginBottom: -12 },
   note: { flexDirection: "row", alignItems: "center", gap: 8 },
   noteText: { flexShrink: 1 },
-  section: { gap: 8 },
+  section: { gap: 8, marginTop: 12 },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: 7 },
-  people: { flexDirection: "row", flexWrap: "wrap", columnGap: 4 },
-  modeHint: { marginTop: -4 },
   rows: { gap: 0 },
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },
   splitRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 44 },
@@ -611,7 +625,9 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: "row", alignItems: "center" },
   count: { minWidth: 56, textAlign: "center" },
   hintLead: { flexShrink: 0 },
-  hint: { flexShrink: 1 },
+  hint: { flexShrink: 1, flexGrow: 1 },
+  mode: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, marginHorizontal: -12, marginVertical: -12 },
+  modeFace: { flexDirection: "row", alignItems: "center", gap: 4 },
   status: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: 12, marginTop: 8 },
   statusWords: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
   statusText: { flexShrink: 0 },

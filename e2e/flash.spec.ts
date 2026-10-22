@@ -46,8 +46,8 @@ test("on a 300 ms round trip, switching the split type never shows the old type 
         for (const node of record.addedNodes) if (node instanceof Element && node.querySelector('[aria-label="More shares for Jason"]')) added.push("rows");
     }).observe(document.body, { childList: true, subtree: true });
   });
-  const modes = await sample<string | null>(page, `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"] [aria-pressed="true"]')?.getAttribute("aria-label") ?? null`);
-  await tap(page.getByTestId("item-sheet").getByRole("button", { name: "By shares", exact: true }));
+  const modes = await sample<string | null>(page, `document.querySelector('[data-testid="item-sheet"] [data-testid="split-mode"]')?.textContent ?? null`);
+  await switchTo(page, "By shares");
   await page.waitForTimeout(2000);
   expect(runs(await modes())).toEqual(["Evenly", "By shares"]);
   expect(await page.evaluate(() => (window as unknown as { added: string[] }).added)).toEqual(["rows"]);
@@ -66,12 +66,12 @@ async function slowed(page: Page) {
     Object.assign(window, { frames });
     const tick = (t: number) => {
       for (const animation of document.getAnimations()) if (animation.playbackRate !== 1 / factor) animation.playbackRate = 1 / factor;
-      const group = document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"]');
-      const copies = [...(group?.nextElementSibling?.nextElementSibling?.children ?? [])].map((copy) => ({
+      const rows = document.querySelector('[data-testid="item-sheet"] [data-testid="split-rows"]');
+      const copies = [...(rows?.children ?? [])].map((copy) => ({
         kind: copy.querySelector('[aria-label^="More shares"]') ? ("shares" as const) : copy.querySelector("input") ? ("amount" as const) : ("even" as const),
         opacity: Number(getComputedStyle(copy).opacity),
       }));
-      frames.push({ t, mode: group?.querySelector('[aria-pressed="true"]')?.getAttribute("aria-label") ?? null, copies });
+      frames.push({ t, mode: document.querySelector('[data-testid="item-sheet"] [data-testid="split-mode"]')?.textContent ?? null, copies });
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -99,7 +99,8 @@ const rowsOf = {
 };
 
 async function switchTo(page: Page, mode: "Evenly" | keyof typeof rowsOf) {
-  await page.getByTestId("item-sheet").getByRole("group", { name: "How to split" }).getByRole("button", { name: mode, exact: true }).tap({ force: true });
+  await page.getByTestId("item-sheet").getByRole("button", { name: /^How to split: / }).tap({ force: true });
+  await page.getByRole("dialog", { name: "How to split" }).getByRole("button", { name: mode, exact: true }).tap({ force: true });
 }
 
 test("at 4x slowdown, switching the split type fades the old rows out fully before the new rows fade in", { tag: "@frame-timing" }, async ({ page }) => {

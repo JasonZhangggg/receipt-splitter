@@ -1,4 +1,5 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
+import { chooseMode } from "./split-mode";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -90,7 +91,7 @@ test("the Unclaimed total line counts the lines nobody fully had, a quantity lin
 
   const sheet = priya.getByRole("dialog", { name: "Edit item" });
   await priya.getByRole("button", { name: /^Open Sprite, / }).click();
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   await expect(sheet.getByTestId("amount-status")).toHaveText("Suggested: an even split");
   await expect(sheet.getByText("Not saved")).toHaveCount(0);
 

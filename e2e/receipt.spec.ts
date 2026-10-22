@@ -199,7 +199,7 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
   const sheet = sam.getByRole("dialog", { name: "Edit item" });
   await expect(sheet.getByText("In Beer Bucket. Its 10% off takes $2.19 off this line.")).toBeVisible();
   await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
-  await expect(sheet.getByTestId("quantity")).toHaveText("3");
+  await expect(sheet.getByText("3×", { exact: true })).toBeVisible();
   await expect(sheet.getByText("each", { exact: true })).toHaveCount(0);
   await sheet.getByRole("button", { name: "Split into 3" }).click();
 
@@ -293,7 +293,10 @@ function sheetFrames(page: Page) {
           if (sheet) {
             const heading = sheet.querySelector('[role="heading"]')?.textContent ?? "no heading";
             const price = (sheet.querySelector('input[aria-label="Price"]') as HTMLInputElement | null)?.value ?? "no price";
-            const amounts = [...new Set((sheet.textContent ?? "").match(/\$\d+\.\d\d/g) ?? [])].join(" ");
+            // The money fields' unit and sizing copy are hidden from assistive tech and repeat the Price field, which is read above.
+            const shown = sheet.cloneNode(true) as Element;
+            shown.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
+            const amounts = [...new Set((shown.textContent ?? "").match(/\$\d+\.\d\d/g) ?? [])].join(" ");
             seen.push(`${heading} | ${price} | ${amounts}`);
           }
           if (performance.now() - started < 5000) frame(sample);

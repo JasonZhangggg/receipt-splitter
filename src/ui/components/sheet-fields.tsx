@@ -13,41 +13,30 @@ const ruleChange = webStyle({ transitionProperty: "border-color", transitionDura
 const inkChange = webStyle({ transitionProperty: "color, text-decoration-color, background-color", transitionDuration: `${motion.dragOver}ms`, transitionTimingFunction: "ease" });
 const iconPress = { scale: 0.9, pressIn: 140 };
 
-type LabeledProps = TextInputProps & { label: string; ref?: Ref<TextInput> };
+type LabeledProps = TextInputProps & { label: string; ref?: Ref<TextInput>; /** A muted word before the text on the same rule, such as an Item's "2×". */ prefix?: string };
 
 /** A text field with its label above and a thin rule under it. */
-export function LabeledField({ label, ref, ...input }: LabeledProps) {
+export function LabeledField({ label, ref, prefix, onFocus, onBlur, ...input }: LabeledProps) {
   const c = useColors();
+  const [focused, setFocused] = useState(false);
+  if (!prefix) {
+    return (
+      <View style={styles.labeled}>
+        <Text style={[type.caption, { color: c.muted }]}>{label}</Text>
+        <UnderlineInput ref={ref} aria-label={label} onFocus={onFocus} onBlur={onBlur} {...input} />
+      </View>
+    );
+  }
   return (
     <View style={styles.labeled}>
       <Text style={[type.caption, { color: c.muted }]}>{label}</Text>
-      <UnderlineInput ref={ref} aria-label={label} {...input} />
-    </View>
-  );
-}
-
-// The field pads 14 px a character of its unit leftward under the unit and 13 px above and below, with margins taking it back, so a tap on the unit or near the rule focuses it and nothing moves.
-const unitReach = (unit: string) => unit.length * 14;
-
-type MoneyProps = TextInputProps & { label: string; unit?: string; ref?: Ref<TextInput>; showLabel?: boolean; width?: number; reach?: number };
-
-/** An amount: the unit and the digits on one rule, right-aligned. With `showLabel` false the label is only the field's accessible name. `reach` is how far left of the unit a tap still focuses it, for a field that ends a row. */
-export function MoneyField({ label, unit = "$", showLabel = true, width = 96, reach = 0, ref, onFocus, onBlur, ...input }: MoneyProps) {
-  const c = useColors();
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={{ width, flexShrink: 0 }}>
-      {showLabel ? <Text style={[type.caption, styles.moneyLabel, { color: c.muted }]}>{label}</Text> : null}
-      <View style={[styles.money, ruleChange, { borderBottomColor: focused ? c.ink : c.hairline }]}>
-        <Text aria-hidden style={[type.input, { color: c.muted }]}>
-          {unit}
+      <View style={[styles.prefixed, ruleChange, { borderBottomColor: focused ? c.ink : c.hairline }]}>
+        <Text aria-hidden style={[type.input, tabular, { color: c.muted }]}>
+          {prefix}
         </Text>
-        <TextInput
+        <UnderlineInput
           ref={ref}
-          {...underlined}
           aria-label={label}
-          inputMode="decimal"
-          placeholderTextColor={c.muted}
           onFocus={(event) => {
             setFocused(true);
             onFocus?.(event);
@@ -57,8 +46,69 @@ export function MoneyField({ label, unit = "$", showLabel = true, width = 96, re
             onBlur?.(event);
           }}
           {...input}
-          style={[type.input, tabular, styles.moneyInput, { color: c.ink, paddingLeft: unitReach(unit) + reach, marginLeft: -(unitReach(unit) + reach) }]}
+          style={styles.prefixedInput}
         />
+      </View>
+    </View>
+  );
+}
+
+// The field reaches 14 px a character of its unit leftward over the unit, plus the gap, and 13 px above and below, with margins taking it back, so a tap on the unit or near the rule focuses it and nothing moves.
+const unitReach = (unit: string) => (unit ? unit.length * 14 + unitGap : 0);
+// The same gap an Item's "2×" keeps before its name, so the two read as one pattern.
+const unitGap = 8;
+
+type MoneyProps = TextInputProps & { label: string; unit?: string; ref?: Ref<TextInput>; showLabel?: boolean; width?: number; reach?: number };
+
+/**
+ * An amount: the unit a word-space before the digits, right-aligned on one rule. The field is at least `width` wide and grows leftward with the digits, so the unit stays beside the number at any length.
+ * With `showLabel` false the label is only the field's accessible name. `reach` is how far left of the unit a tap still focuses it, for a field that ends a row.
+ */
+export function MoneyField({ label, unit = "$", showLabel = true, width = 76, reach = 0, ref, onFocus, onBlur, onChangeText, value, defaultValue, placeholder, ...input }: MoneyProps) {
+  const c = useColors();
+  const [focused, setFocused] = useState(false);
+  // This copy of an uncontrolled field's text only sizes it.
+  const [typed, setTyped] = useState(defaultValue ?? "");
+  const text = value ?? typed;
+  const over = unitReach(unit) + reach;
+  return (
+    <View style={{ minWidth: width, flexShrink: 0 }}>
+      {showLabel ? <Text style={[type.caption, styles.moneyLabel, { color: c.muted }]}>{label}</Text> : null}
+      <View style={[styles.money, ruleChange, { borderBottomColor: focused ? c.ink : c.hairline }]}>
+        {unit ? (
+          <Text aria-hidden style={[type.input, { color: c.muted }]}>
+            {unit}
+          </Text>
+        ) : null}
+        <View>
+          <Text aria-hidden numberOfLines={1} style={[type.input, tabular, styles.moneySizer]}>
+            {text || placeholder || " "}
+          </Text>
+          <TextInput
+            ref={ref}
+            {...underlined}
+            aria-label={label}
+            inputMode="decimal"
+            placeholder={placeholder}
+            placeholderTextColor={c.muted}
+            value={value}
+            defaultValue={defaultValue}
+            onChangeText={(next) => {
+              setTyped(next);
+              onChangeText?.(next);
+            }}
+            onFocus={(event) => {
+              setFocused(true);
+              onFocus?.(event);
+            }}
+            onBlur={(event) => {
+              setFocused(false);
+              onBlur?.(event);
+            }}
+            {...input}
+            style={[type.input, tabular, styles.moneyInput, { color: c.ink, left: -over, paddingLeft: over }]}
+          />
+        </View>
       </View>
     </View>
   );
@@ -136,8 +186,12 @@ export function IconAction({ label, icon, size, onPress, keepsFocus, pressedInk,
 const styles = StyleSheet.create({
   labeled: { flex: 1, minWidth: 0 },
   moneyLabel: { textAlign: "right" },
-  money: { flexDirection: "row", alignItems: "baseline", justifyContent: "flex-end", gap: 2, borderBottomWidth: 1, paddingVertical: 4 },
-  moneyInput: { flexShrink: 1, minWidth: 40, textAlign: "right", paddingVertical: 11, paddingRight: 0, marginVertical: -11 },
+  money: { flexDirection: "row", alignItems: "baseline", justifyContent: "flex-end", gap: unitGap, borderBottomWidth: 1, paddingVertical: 4 },
+  // Holds the field's width at its text's; one pixel more keeps the caret in view.
+  moneySizer: { opacity: 0, paddingRight: 1 },
+  moneyInput: { position: "absolute", top: -11, bottom: -11, right: 0, textAlign: "right", paddingVertical: 11, paddingRight: 0 },
+  prefixed: { flexDirection: "row", alignItems: "baseline", gap: unitGap, borderBottomWidth: 1 },
+  prefixedInput: { flex: 1, borderBottomWidth: 0 },
   options: { flexDirection: "row", flexWrap: "wrap", columnGap: 20 },
   option: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, marginHorizontal: -12 },
   person: { minHeight: 44, justifyContent: "center", paddingRight: 18 },

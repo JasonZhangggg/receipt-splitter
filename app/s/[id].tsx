@@ -20,7 +20,8 @@ import { AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet"
 import { HistorySheet } from "../../src/ui/history";
 import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
-import { ItemSheet } from "../../src/ui/item-sheet";
+import { ItemSheet, type ModesOpen } from "../../src/ui/item-sheet";
+import { ModeMenu, modeMenuWidth } from "../../src/ui/item-sheet/mode-menu";
 import { AddSheet } from "../../src/ui/item-sheet/add";
 import { PhotoViewer } from "../../src/ui/photo-viewer";
 import { failedCopy, splitCopy as say } from "../../src/ui/split-copy";
@@ -325,6 +326,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const item = split.receipt.items.find(({ id }) => id === confirming.itemId);
     if (!item || !present(confirming.person.id) || claimersOf(item.split).includes(confirming.person.id) !== confirming.had) setConfirming({ ...confirming, closing: true });
   }
+  // The Edit item sheet's menu of ways to split. It leaves with the sheet.
+  const [modes, setModes] = useState<(ModesOpen & { readonly closing: boolean }) | null>(null);
+  if (modes && !modes.closing && (overlay?.kind !== "item" || closing)) setModes({ ...modes, closing: true });
+  const closeModes = () => setModes((open) => open && { ...open, closing: true });
+  const modesGone = () => {
+    if (modes && (wide || modes.from.keyboard || actedByKey()) && modes.from.trigger.isConnected) modes.from.trigger.focus({ preventScroll: true });
+    setModes(null);
+  };
   const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
   const menuGone = () => {
     if (menu && (wide || menu.from.keyboard || actedByKey())) {
@@ -383,8 +392,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay and People sheets close when this phone loses its name.
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
-  // Escape closes the person menu over the People sheet first, and the sheet on the next press.
-  useEscape(overlay !== null && !closing && !viewing && (menu === null || menu.closing), closeOverlay);
+  // Escape closes the person menu over the People sheet, or the split menu over Edit item, first, and the sheet on the next press.
+  useEscape(overlay !== null && !closing && !viewing && (menu === null || menu.closing) && (modes === null || modes.closing), closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);
@@ -495,6 +504,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         onNote={(message) => setBar({ message })}
         onDeleted={deleted}
         guardRef={closeGuard}
+        onModes={(open) => setModes({ ...open, closing: false })}
+        modesOpen={modes !== null && !modes.closing}
       />
     ) : overlay.kind === "add" ? (
       <AddSheet split={split} me={me} lay={lay} onClose={closeOverlay} />
@@ -597,6 +608,17 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
+        </Popover>
+      ) : null}
+      {modes ? (
+        <Popover anchor={modes.from.trigger} label={say.split} instant={modes.from.keyboard} closing={modes.closing} onClose={closeModes} onGone={modesGone} width={modeMenuWidth}>
+          <ModeMenu
+            value={modes.value}
+            onPick={(by) => {
+              modes.pick(by);
+              closeModes();
+            }}
+          />
         </Popover>
       ) : null}
       {confirming ? (

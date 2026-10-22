@@ -21,6 +21,8 @@ export const glyphs = {
   x: { svg: '<path pathLength="1" d="M6 6l12 12"/><path pathLength="1" d="M18 6 6 18"/>', motion: "x" },
   check: { svg: tick, motion: "check" },
   tick: { svg: tick, motion: "check" },
+  // The same tick with no motion, for the chosen row of a menu, which is not news.
+  chosen: { svg: tick },
   exclaim: {
     svg: '<path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/><g class="mark"><path d="M12 8.25v4.5"/><path d="M12 15.75h.008v.008H12v-.008Z"/></g>',
     motion: "alert",
@@ -40,7 +42,8 @@ export const glyphs = {
     motion: "users",
   },
   pie: { svg: pie, motion: "pie" },
-  split: { svg: pie, motion: "pie" },
+  // One line forking into two, for splitting an Item into its own lines.
+  split: { svg: '<path d="M3 12h4.5c3.5 0 4.5-5.25 9-5.25H21"/><path d="M7.5 12c3.5 0 4.5 5.25 9 5.25H21"/><path d="M18 3.75l3 3-3 3"/><path d="M18 14.25l3 3-3 3"/>' },
   history: { svg: undo, motion: "undo" },
   sun: {
     svg: `<circle cx="12" cy="12" r="3.75"/>${rays.map((d, i) => `<path class="ray" style="--d:${i * 50}ms" d="${d}"/>`).join("")}`,

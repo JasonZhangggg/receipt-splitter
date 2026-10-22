@@ -1,5 +1,6 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 import { fromMore, personRow, showPeople, viewAs } from "./header";
+import { chooseMode } from "./split-mode";
 
 test.use({ viewport: { width: 390, height: 844 } });
 test.setTimeout(90_000);
@@ -120,7 +121,7 @@ test("Tostones split 2:1 by shares and the 2x Pitchers line claimed whole reach 
   await expect(owe(sam)).toHaveText("$0.50", live);
 
   await sam.getByRole("button", { name: /^Open Tostones/ }).click();
-  await sam.getByRole("button", { name: "By shares" }).click();
+  await chooseMode(sam.getByRole("dialog", { name: "Edit item" }), "By shares");
   await sam.getByRole("button", { name: "More shares for Jason" }).click();
   await expect(sam.getByText("2 shares")).toBeVisible(live);
   await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();

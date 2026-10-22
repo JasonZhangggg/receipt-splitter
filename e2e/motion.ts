@@ -664,7 +664,6 @@ const photoProbes: Probe[] = [
   { key: "photoScale", find: label("Close photo"), kind: "scale" },
 ];
 
-const segmentThumb = `document.querySelector('[data-testid="item-sheet"] [role="group"][aria-label="How to split"]')?.firstElementChild ?? null`;
 const nameField = `document.querySelector('[data-testid="people-sheet"] input[aria-label="Name"]')`;
 const peopleTop: Probe = { key: "people", find: testId("people-sheet"), kind: "top" };
 const priceField = `document.querySelector('[data-testid="item-sheet"] input[aria-label="Description"]')`;
@@ -726,11 +725,15 @@ const bundleCollapse: Scenario = {
 const splitType: Scenario = {
   id: "split-type",
   name: "Item sheet: split type changes once, through the save",
-  setup: itemShared,
-  act: (page) => tap(page.getByTestId("item-sheet").getByRole("button", { name: "By shares", exact: true })),
+  setup: async (page) => {
+    await itemShared(page);
+    await tap(page.getByTestId("item-sheet").getByRole("button", { name: /^How to split: / }));
+    await still(page.getByRole("dialog", { name: "How to split" }));
+  },
+  act: (page) => tap(page.getByRole("dialog", { name: "How to split" }).getByRole("button", { name: "By shares", exact: true })),
   quietMs: 1200,
   probes: [
-    { key: "thumb", find: segmentThumb, kind: "left" },
+    { key: "mode", find: testId("split-mode"), kind: "opacity" },
     { key: "rows", find: label("More shares for Jason"), kind: "opacity" },
   ],
 };
