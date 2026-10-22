@@ -1,6 +1,7 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 import { fromMore } from "./header";
 import { snapAt } from "../src/ui/components/sheet-motion";
+import { chooseMode } from "./split-mode";
 
 test.setTimeout(90_000);
 
@@ -194,7 +195,7 @@ test("text that is not an amount in a By amount field holds the Item sheet open 
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
   await expect(sams).toHaveValue("", live);
   await sheet.getByRole("textbox", { name: "Jason's amount" }).fill("8");
@@ -225,7 +226,7 @@ test("By amount says what is left to assign as amounts are typed, and Give the r
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   const status = sheet.getByTestId("amount-status");
   const jasons = sheet.getByRole("textbox", { name: "Jason's amount" });
   const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
@@ -282,7 +283,7 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
   await expect(page.getByTestId("owe")).toHaveText("$43.88", live);
   const status = sheet.getByTestId("amount-status");
 
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   await expect(status).toHaveText("Suggested: an even split", live);
   await expect(sheet.getByText("Not saved")).toHaveCount(0);
   await sheet.getByRole("button", { name: "Close" }).click();
@@ -306,7 +307,7 @@ test("By amount that is blank or over the price saves nothing: the Item stays Ev
   await page.getByRole("dialog", { name: "History" }).getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("button", { name: /^Open Gameplay, / }).click();
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
   await sheet.getByRole("button", { name: "Give Jason the rest, $62.75" }).click();
   await expect(status).toHaveText("All $87.75 assigned");
@@ -334,7 +335,7 @@ test("a By amount edit held back while another phone takes Sam off the Item drop
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
   await expect(sheet.getByTestId("amount-status")).toHaveText("$62.75 left to assign");
 
@@ -369,7 +370,7 @@ async function joinAs(browser: Browser, link: string, browserName: string, name:
   return page;
 }
 
-const by = (sheet: Locator, mode: string) => sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: mode, exact: true }).click();
+const by = (sheet: Locator, mode: string) => chooseMode(sheet, mode);
 
 test("a held amount for someone another phone then takes off the Item is not sent with the amounts that add up", async ({ browser, request, browserName }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, browserName, tenDollar, [venmo], "Jason", [{ id: "sam", name: "Sam" }, { id: "jo", name: "Jo" }]);
@@ -406,7 +407,7 @@ test("typed amounts held while another phone changes the Item's mode are dropped
   await expect(sheet).toHaveCount(0, live);
   const samSheet = sam.getByRole("dialog", { name: "Edit item" });
   await sam.getByRole("button", { name: /^Open Pizza, / }).click();
-  await expect(samSheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true })).toHaveAttribute("aria-pressed", "true", live);
+  await expect(samSheet.getByTestId("split-mode")).toHaveText("By amount", live);
 
   await page.getByRole("button", { name: /^Open Pizza, / }).click();
   await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("0.5");
@@ -513,7 +514,7 @@ test("with a long name, Give the rest wraps under the status instead of truncati
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   await sheet.getByRole("textbox", { name: "Sam's amount" }).fill("25");
   const give = sheet.getByRole("button", { name: `Give ${host} the rest, $62.75` });
   const status = sheet.getByTestId("amount-status");
@@ -613,8 +614,8 @@ test("the Edit item status tick draws once when it appears, not again as the tex
   await expect(sheet.locator('[data-icon="check"]')).toHaveCount(1, live);
   await expect.poll(() => count("ai-tick")).toBe(1);
   await who.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(sheet.getByText("2 people · $87.75")).toBeVisible();
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await expect(sheet.getByText("Split 2 ways")).toBeVisible();
+  await chooseMode(sheet, "By amount");
   await expect(sheet.getByTestId("amount-status")).toHaveText("Suggested: an even split", live);
   await expect(sheet.locator('[data-icon="exclaim"]')).toHaveCount(0);
   const jasonAmount = sheet.getByRole("textbox", { name: "Jason's amount" });
@@ -637,7 +638,7 @@ test("the Edit item status tick draws once when it appears, not again as the tex
   expect(await count("ai-pulse")).toBe(pulses);
 });
 
-test("Who had it and How to split both put You first and the others in participant order, and the viewer's row reads You", async ({ browser, request, browserName }, { workerIndex }) => {
+test("Who had it puts You first and the others in participant order, with each part on its person's row", async ({ browser, request, browserName }, { workerIndex }) => {
   const receipt = { items: [{ id: "gameplay", name: "Gameplay", price: 9000 }], adjustments: [], subtotal: 9000, total: 9000 };
   const page = await open(browser, await createSplit(request, workerIndex, browserName, receipt, [venmo], "Jason", [{ id: "sam", name: "Sam" }, { id: "priya", name: "Priya" }]), browserName);
   await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Priya", exact: true }).click();
@@ -650,11 +651,11 @@ test("Who had it and How to split both put You first and the others in participa
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By shares", exact: true }).click();
+  await chooseMode(sheet, "By shares");
   const more = sheet.getByRole("button", { name: /^More shares for / });
   await expect(more).toHaveCount(3, live);
   expect(await more.evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label"))), "the parts follow Who had it, though the claims were stored Jason, Priya, Sam").toEqual(["More shares for Priya", "More shares for Jason", "More shares for Sam"]);
-  await expect(sheet.getByText("You", { exact: true })).toHaveCount(2);
+  await expect(sheet.getByText("You", { exact: true })).toHaveCount(1);
   await expect(sheet.getByText("Priya", { exact: true })).toHaveCount(0);
 });
 
@@ -681,7 +682,7 @@ test("By amount opens with an even split as muted suggestions that change nothin
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
   await expect(page.getByTestId("owe")).toHaveText("$43.88", live);
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   const jasons = sheet.getByRole("textbox", { name: "Jason's amount" });
   const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
   await expect(jasons).toHaveAttribute("placeholder", "43.88", live);
@@ -718,7 +719,7 @@ test("Use these keeps an unreadable price's problem, so Close is still held on i
     await who.getByRole("button", { name, exact: true }).click();
     await expect(who.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true", live);
   }
-  await sheet.getByRole("group", { name: "How to split" }).getByRole("button", { name: "By amount", exact: true }).click();
+  await chooseMode(sheet, "By amount");
   await sheet.getByRole("textbox", { name: "Price" }).fill("12.3.4");
   await sheet.getByRole("button", { name: "Use the suggested even amounts" }).click();
   await sheet.getByRole("button", { name: "Close" }).click();

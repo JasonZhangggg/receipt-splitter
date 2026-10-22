@@ -40,7 +40,8 @@ export const glyphs = {
     motion: "users",
   },
   pie: { svg: pie, motion: "pie" },
-  split: { svg: pie, motion: "pie" },
+  // One line forking into two, for splitting an Item into its own lines.
+  split: { svg: '<path d="M3 12h4.5c3.5 0 4.5-5.25 9-5.25H21"/><path d="M7.5 12c3.5 0 4.5 5.25 9 5.25H21"/><path d="M18 3.75l3 3-3 3"/><path d="M18 14.25l3 3-3 3"/>' },
   history: { svg: undo, motion: "undo" },
   sun: {
     svg: `<circle cx="12" cy="12" r="3.75"/>${rays.map((d, i) => `<path class="ray" style="--d:${i * 50}ms" d="${d}"/>`).join("")}`,

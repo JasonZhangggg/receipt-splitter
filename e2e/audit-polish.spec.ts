@@ -1,6 +1,7 @@
 import { addNames } from "./files";
 import { features } from "../src/features";
 import { expect, test, type APIRequestContext, type Locator, type Page } from "./without-ocr";
+import { chooseMode } from "./split-mode";
 
 const phone = { width: 390, height: 844 };
 test.use({ viewport: phone });
@@ -114,7 +115,7 @@ test("Edit tax is titled for its kind, its options and amount are 44 px to hit, 
   await expect(sheet).toHaveCount(0, live);
 });
 
-test("Edit item takes Escape from a focused field, and its Price and By amount fields are 44 px to hit, a tap on a person's name focusing their amount", async ({ page, request }, { workerIndex }) => {
+test("Edit item takes Escape from a focused field, and its Price and By amount fields are 44 px to hit", async ({ page, request }, { workerIndex }) => {
   await openAs(page, await createSplit(request, workerIndex), "Sam");
   await page.getByRole("button", { name: /^Open Rice, / }).click();
   const sheet = page.getByRole("dialog", { name: "Edit item" });
@@ -124,15 +125,11 @@ test("Edit item takes Escape from a focused field, and its Price and By amount f
 
   await sheet.getByRole("button", { name: "Sam, you", exact: true }).click();
   await sheet.getByRole("button", { name: "Priya", exact: true }).click();
-  await sheet.getByRole("button", { name: "By amount" }).click();
+  await chooseMode(sheet, "By amount");
   const sams = sheet.getByRole("textbox", { name: "Sam's amount" });
   await expectHit(sams, { height: 44, width: 44 });
-  await sheet.getByText("You", { exact: true }).last().click({ force: true });
-  await expect(sams).toBeFocused();
-  await sheet.getByText("Priya", { exact: true }).last().click({ force: true });
-  await expect(sheet.getByRole("textbox", { name: "Priya's amount" })).toBeFocused();
   // A By amount that doesn't add up holds the sheet open, so go back to Evenly before closing.
-  await sheet.getByRole("button", { name: "Evenly", exact: true }).click();
+  await chooseMode(sheet, "Evenly");
 
   await price.focus();
   await page.keyboard.press("Escape");

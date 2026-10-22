@@ -199,7 +199,7 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
   const sheet = sam.getByRole("dialog", { name: "Edit item" });
   await expect(sheet.getByText("In Beer Bucket. Its 10% off takes $2.19 off this line.")).toBeVisible();
   await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
-  await expect(sheet.getByTestId("quantity")).toHaveText("3");
+  await expect(sheet.getByText("3×", { exact: true })).toBeVisible();
   await expect(sheet.getByText("each", { exact: true })).toHaveCount(0);
   await sheet.getByRole("button", { name: "Split into 3" }).click();
 
