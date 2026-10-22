@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { Participant, ParticipantId } from "../../core/split";
@@ -7,6 +7,7 @@ import { Icon } from "../components/icon";
 import { TextLink } from "../components/text-link";
 import { UnderlineInput } from "../components/underline-input";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { KeptRows, useEntering } from "../presence";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, tabular, type, useColors } from "../theme";
 import { LinkLine } from "./link-line";
@@ -51,6 +52,9 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
   const [problem, setProblem] = useState<string | null>(null);
   const [typing, setTyping] = useState<string | null>(null);
   const picking = asking || mode === "switch";
+  // A person who joins, from this sheet or another phone, grows into the list, and one who is removed collapses out where they stood.
+  const kept = useMemo(() => rows.map((row) => ({ id: row.person.id, row })), [rows]);
+  const [entering] = useEntering(kept.map(({ id }) => id));
 
   const add = async () => {
     const text = typing ?? "";
@@ -99,26 +103,28 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
         </>
       )}
       <View role="list" style={styles.rows}>
-        {rows.map((row) =>
-          row.person.id === held ? (
-            <View key={row.person.id} role="listitem" style={[styles.claimback, { borderTopColor: c.hairline }]}>
-              <Text style={[type.body, { color: c.ink }]}>{row.person.name}</Text>
-              <Text style={[type.caption, { color: c.muted }]}>{say.pickedElsewhere}</Text>
-              <View style={styles.two}>
-                <View style={styles.half}>
-                  <Button label={say.thatsMe} onPress={() => onPick(row.person.id, true)} outsideScroll />
-                </View>
-                <View style={styles.half}>
-                  <TextLink center label={say.cancel} onPress={() => setHeld(null)} outsideScroll />
+        <KeptRows rows={kept} entering={entering}>
+          {({ row }) =>
+            row.person.id === held ? (
+              <View role="listitem" style={[styles.claimback, { borderTopColor: c.hairline }]}>
+                <Text style={[type.body, { color: c.ink }]}>{row.person.name}</Text>
+                <Text style={[type.caption, { color: c.muted }]}>{say.pickedElsewhere}</Text>
+                <View style={styles.two}>
+                  <View style={styles.half}>
+                    <Button label={say.thatsMe} onPress={() => onPick(row.person.id, true)} outsideScroll />
+                  </View>
+                  <View style={styles.half}>
+                    <TextLink center label={say.cancel} onPress={() => setHeld(null)} outsideScroll />
+                  </View>
                 </View>
               </View>
-            </View>
-          ) : (
-            <View key={row.person.id} role="listitem">
-              <Line row={row} mode={asking ? "switch" : mode} asking={asking} host={row.person.id === rows[0].person.id} chosen={chosen} onPress={(press) => choose(row, press)} />
-            </View>
-          ),
-        )}
+            ) : (
+              <View role="listitem">
+                <Line row={row} mode={asking ? "switch" : mode} asking={asking} host={row.person.id === rows[0].person.id} chosen={chosen} onPress={(press) => choose(row, press)} />
+              </View>
+            )
+          }
+        </KeptRows>
       </View>
       {asking ? (
         typing === null ? (

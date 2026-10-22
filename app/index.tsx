@@ -20,6 +20,7 @@ import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-word
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
 import { stagePacer } from "../src/ui/home-sentence/stage-pacer";
 import { webStyle } from "../src/ui/motion";
+import { Presence } from "../src/ui/presence";
 import { RecentSheet, RecentSplits } from "../src/ui/recent-splits";
 import { BottomSheet } from "../src/ui/split-view/bottom-sheet";
 import { SplitHeader } from "../src/ui/split-view/header";
@@ -217,11 +218,11 @@ export default function Home() {
               onRefusal={setRefusal}
             />
           </Text>
-          {refusal ? (
+          <Presence present={refusal !== null} animate>
             <Text role="alert" style={[type.caption, styles.refusal, { color: c.warn }]}>
               {refusal}
             </Text>
-          ) : null}
+          </Presence>
 
           {stored.length > 0 ? <RecentSplits splits={stored} now={now} onSeeAll={(from) => setAllSplits({ from, closing: false })} /> : null}
         </View>

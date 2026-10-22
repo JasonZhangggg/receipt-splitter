@@ -100,6 +100,7 @@ export const motion = {
   rowsOut: 150,
   photoIn: 240,
   photoOut: 180,
+  footerIn: 240,
   controlIn: 200,
   dragOver: 150,
   spinnerTurn: 800,
