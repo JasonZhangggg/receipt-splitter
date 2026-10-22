@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 22, marginBottom: 12 },
   list: { borderBottomWidth: 1 },
   line: { flexDirection: "row", alignItems: "flex-start", borderTopWidth: 1 },
-  // The dot is 16 px, centred on the name's first line; its 44 px hit area bleeds past the gutter and 4 px under the row.
+  // The dot's 16 px slot is centred on the name's first line; its 44 px hit area bleeds past the gutter and 4 px under the row.
   circle: { width: dotTap, height: 50, marginLeft: -dotBleed, marginRight: -4, paddingLeft: dotBleed, paddingTop: 17 },
   body: { flex: 1, minWidth: 0, flexDirection: "row", columnGap, paddingVertical: 12 },
   held: { opacity: 0.55 },

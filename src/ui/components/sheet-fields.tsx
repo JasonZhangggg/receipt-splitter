@@ -195,8 +195,8 @@ const styles = StyleSheet.create({
   options: { flexDirection: "row", flexWrap: "wrap", columnGap: 20 },
   option: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, marginHorizontal: -12 },
   person: { minHeight: 44, justifyContent: "center", paddingRight: 18 },
-  personFace: { flexDirection: "row", alignItems: "center", gap: 8 },
-  // The same 16 px dot the list claims a line with, so a toggle here reads as the same act.
-  personDot: { width: 16, height: 16, borderRadius: 8 },
+  personFace: { flexDirection: "row", alignItems: "center", gap: 10 },
+  // The same 12 px dot the list claims a line with, so a toggle here reads as the same act. It stays inside the name's cap height.
+  personDot: { width: 12, height: 12, borderRadius: 6 },
   iconHit: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 });

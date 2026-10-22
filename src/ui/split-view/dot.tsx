@@ -28,8 +28,8 @@ export function Dot({ name, size = 24, tone = "dot", ring }: { name: string; siz
 
 const styles = StyleSheet.create({
   dot: { alignItems: "center", justifyContent: "center" },
-  claim: { width: 16, height: 16, borderRadius: 8 },
-  // The focus ring draws on this 28 px round face, centred on the dot; the negative margins keep the layout at the dot's 16 px.
+  claim: { width: 12, height: 12, borderRadius: 6 },
+  // The focus ring draws on this 28 px round face, centred on the dot; the negative margins keep the layout at 16 px, so the 12 px dot sits on the name's cap height.
   face: { width: 28, height: 28, margin: -6, borderRadius: 14, alignItems: "center", justifyContent: "center" },
 });
 
@@ -37,7 +37,7 @@ const pressFace = { dataSet: { pressFace: "" } };
 const claimMotion = webStyle({ transitionProperty: "background-color, box-shadow, transform", transitionDuration: "200ms, 200ms, 160ms", transitionTimingFunction: motion.easeOut });
 const claimFade = webStyle({ transitionProperty: "background-color, box-shadow", transitionDuration: `${motion.reducedFade}ms`, transitionTimingFunction: motion.easeOut });
 
-/** The 16 px dot that claims a line: a hollow ring, filled when the viewer has the line. It presses to 0.8 and retargets from wherever it is if tapped again. */
+/** The 12 px dot that claims a line: a hollow ring, filled when the viewer has the line. It presses to 0.8 and retargets from wherever it is if tapped again. */
 export function ClaimDot({ on, pressed }: { on: boolean; pressed: boolean }) {
   const c = useColors();
   const reduce = useReducedMotion();
