@@ -413,6 +413,7 @@ function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>, maxIt
 const participants = nonEmpty(participant, MAX_PARTICIPANTS);
 
 const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read, maybe }) => ({
+  ...maybe("place", text),
   receipt: read("receipt", receipt(receiptItem, anyAdjustment)),
   participants: read("participants", participants),
   paymentHandles: read("paymentHandles", paymentHandles),
@@ -451,6 +452,7 @@ function splitFields<R, O, C>({ read, maybe, has, fail }: Fields, rows: { readon
   return {
     id: read("id", splitId),
     currency: read("currency", literal("USD")),
+    ...maybe("place", text),
     receipt: read("receipt", rows.receipt),
     ...maybe("original", rows.original),
     participants: read("participants", participants),
