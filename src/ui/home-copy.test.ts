@@ -6,13 +6,26 @@ import { emptyDraft, readiness, reduceDraft, type Draft, type DraftAction } from
 import { blockerText, historyCopy } from "./home-copy";
 
 describe("a recent split's row", () => {
-  test("names who else was there, two at most, and counts the rest", () => {
-    expect([[], ["Sam"], ["Bin", "lei"], ["bob", "Ann", "Cy"], ["bob", "a", "b", "c", "d"]].map(historyCopy.names)).toEqual([
-      "Just you",
-      "With Sam",
-      "With Bin and lei",
-      "With bob and 2 more",
-      "With bob and 4 more",
+  test("names everyone who was there, three at most, and counts the rest", () => {
+    expect([["Jason"], ["Jason", "Sam"], ["Jason", "Bin", "lei"], ["bob", "Ann", "Cy", "Dee"], ["bob", "a", "b", "c", "d"]].map(historyCopy.names)).toEqual([
+      "Jason",
+      "Jason and Sam",
+      "Jason, Bin and lei",
+      "bob, Ann and 2 more",
+      "bob, a and 3 more",
+    ]);
+  });
+
+  test("leads with the place when the Split has one, and moves everyone beside the day", () => {
+    const who = historyCopy.names(["Jason", "Ana", "Sam"]);
+    const when = "Today";
+    expect([historyCopy.lines("Dinefine Restaurant", who, when, "3 people"), historyCopy.lines(undefined, who, when, "3 people")]).toEqual([
+      { first: "Dinefine Restaurant", second: "Today \u00b7 Jason, Ana and Sam" },
+      { first: "Jason, Ana and Sam", second: "Today \u00b7 3 people" },
+    ]);
+    expect([historyCopy.row(who, when, "3 people", "$51.30", "Dinefine Restaurant"), historyCopy.row(who, when, "3 people", "$51.30")]).toEqual([
+      "Dinefine Restaurant, Jason, Ana and Sam, Today, 3 people, $51.30",
+      "Jason, Ana and Sam, Today, 3 people, $51.30",
     ]);
   });
 

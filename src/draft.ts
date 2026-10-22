@@ -22,6 +22,7 @@ export type DraftAction =
   | { readonly type: "reading"; readonly file: ReceiptFile }
   | { readonly type: "read"; readonly file: ReceiptFile; readonly receipt: Receipt | null; readonly place?: string; readonly totalUnread?: true; readonly notReceipt?: true }
   | { readonly type: "byHand" }
+  | { readonly type: "setPlace"; readonly name: string }
   | { readonly type: "created" }
   | { readonly type: "setService"; readonly index: number; readonly service: PaymentService }
   | { readonly type: "setHandle"; readonly index: number; readonly handle: string }
@@ -34,11 +35,14 @@ export type DraftAction =
 
 const MAX_GRAPHEMES = 80;
 
+/** The longest place name home keeps, read or typed. */
+export const MAX_HOME_PLACE_LENGTH = 32;
+
 export const emptyDraft: Draft = { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], host: null, friends: [] };
 
 const graphemes = new Intl.Segmenter();
 
-function clip(text: string, max = MAX_GRAPHEMES): string {
+export function clip(text: string, max = MAX_GRAPHEMES): string {
   let kept = "";
   let count = 0;
   for (const { segment } of graphemes.segment(text)) {
@@ -62,14 +66,26 @@ export function newName(
 /** Every name in the Draft, the Host first when there is one. */
 export const draftNames = ({ host, friends }: Draft): readonly string[] => (host === null ? friends : [host, ...friends]);
 
+/** A read or typed place held to the server's name rules, or nothing when none is left: the server refuses a whole Split over a bad place. */
+export function placeOf(text: string): { readonly place: string } | null {
+  const place = clip(canonicalName(text), MAX_HOME_PLACE_LENGTH);
+  return isName(place, MAX_HOME_PLACE_LENGTH) ? { place } : null;
+}
+
 export function reduceDraft(draft: Draft, action: DraftAction): Draft {
   switch (action.type) {
     case "reading":
       return { ...draft, scan: { status: "reading", file: action.file } };
     case "read":
-      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.receipt && action.place && { place: action.place }), ...(action.totalUnread && { totalUnread: true as const }), ...(action.notReceipt && { notReceipt: true as const }) } };
+      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.receipt && action.place !== undefined && placeOf(action.place)), ...(action.totalUnread && { totalUnread: true as const }), ...(action.notReceipt && { notReceipt: true as const }) } };
     case "byHand":
       return { ...draft, scan: { status: "byHand" } };
+    case "setPlace": {
+      // A place can be edited or removed, never added: a read that found none has nothing to edit.
+      if (draft.scan.status !== "read" || draft.scan.place === undefined) return draft;
+      const { place: _, ...rest } = draft.scan;
+      return { ...draft, scan: { ...rest, ...placeOf(action.name) } };
+    }
     case "created":
       return { ...emptyDraft, handles: draft.handles };
     case "setService":
@@ -157,8 +173,8 @@ function sendable(read: Receipt): Receipt | null {
 export const filledHandles = (handles: readonly HandleRow[]): PaymentHandle[] =>
   handles.flatMap(({ service, handle }) => (handle.trim() ? [{ service, handle: handle.trim() }] : []));
 
-export function splitRequest({ receipt, paymentHandles, names: [host, ...others] }: Ready, newId: () => ParticipantId): Omit<NewSplit, "id"> {
-  return { receipt, participants: [{ id: newId(), name: host }, ...others.map((name) => ({ id: newId(), name }))], paymentHandles };
+export function splitRequest({ receipt, place, paymentHandles, names: [host, ...others] }: Ready, newId: () => ParticipantId): Omit<NewSplit, "id"> {
+  return { ...(place !== undefined && { place }), receipt, participants: [{ id: newId(), name: host }, ...others.map((name) => ({ id: newId(), name }))], paymentHandles };
 }
 
 const amountPattern = /^\d{0,6}(\.\d{0,2})?$/;
@@ -199,7 +215,7 @@ export type Blocker =
   | { readonly kind: "noName" }
   | { readonly kind: "badHandle"; readonly index: number; readonly service: PaymentService; readonly problem: HandleProblem };
 
-export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonly paymentHandles: readonly PaymentHandle[]; readonly names: NonEmpty<string> };
+export type Ready = { readonly kind: "ready"; readonly receipt: Receipt; readonly place?: string; readonly paymentHandles: readonly PaymentHandle[]; readonly names: NonEmpty<string> };
 
 const note = (text: string): Blocker => ({ kind: "note", note: text });
 
@@ -219,7 +235,7 @@ export function readiness({ scan, handles, host, friends }: Draft): Blocker | Re
     if (problem) return { kind: "badHandle", index, service, problem };
   }
   if (host === null) return { kind: "noName" };
-  return { kind: "ready", receipt, paymentHandles: filledHandles(handles), names: [host, ...friends] };
+  return { kind: "ready", receipt, ...(scan.status === "read" && scan.place !== undefined && { place: scan.place }), paymentHandles: filledHandles(handles), names: [host, ...friends] };
 }
 
 type Store = Pick<Storage, "getItem" | "setItem">;

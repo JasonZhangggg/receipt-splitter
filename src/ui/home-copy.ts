@@ -41,6 +41,8 @@ export const copy = {
   addFriendsName: "Add friends",
   yourName: "Your name",
   newName: "Name",
+  placeField: "Place",
+  placeName: (place: string) => `Place, ${place}. Edit`,
   action: "Create link",
   creating: "Creating link",
   change: "Change",
@@ -128,11 +130,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const historyCopy = {
   title: "Recent splits",
-  /** Who else was in the Split, never the person looking at the list. */
-  names: (others: readonly string[]) => {
-    if (others.length === 0) return "Just you";
-    if (others.length <= 2) return `With ${others.join(" and ")}`;
-    return `With ${others[0]} and ${others.length - 1} more`;
+  /** Everyone in the Split, the person looking at the list too: three names at most, then a count of the rest. */
+  names: (everyone: readonly string[]) => {
+    if (everyone.length <= 2) return everyone.join(" and ");
+    if (everyone.length === 3) return `${everyone[0]}, ${everyone[1]} and ${everyone[2]}`;
+    return `${everyone[0]}, ${everyone[1]} and ${everyone.length - 2} more`;
   },
   when: (added: number, now: number) => {
     const days = Math.round((dayOf(now) - dayOf(added)) / DAY_MS);
@@ -144,8 +146,9 @@ export const historyCopy = {
   },
   people: (count: number) => `${count} ${count === 1 ? "person" : "people"}`,
   seeAll: (count: number) => `See all ${count}`,
-  meta: (when: string, people: string) => `${when} \u00b7 ${people}`,
-  row: (names: string, when: string, people: string, total: string) => `${names}, ${when}, ${people}, ${total}`,
+  row: (names: string, when: string, people: string, total: string, place?: string) => `${place === undefined ? "" : `${place}, `}${names}, ${when}, ${people}, ${total}`,
+  /** A Split with a place leads with it; the names move down beside the day, in place of the head count. */
+  lines: (place: string | undefined, who: string, when: string, people: string) => (place === undefined ? { first: who, second: `${when} \u00b7 ${people}` } : { first: place, second: `${when} \u00b7 ${who}` }),
 };
 
 export const paymentApps: Record<PaymentService, { name: string; glyph: string; hint: string }> = {

@@ -304,7 +304,7 @@ test("Back from a Split page paints home settled from its first frame: Add the r
   await page.evaluate((id) => {
     const now = Date.now();
     for (const [i, split] of [id, "PriyaJo000000000000003", "AnaBenCy00000000000001"].entries())
-      localStorage.setItem(`receipt-splitter:split:${split}`, JSON.stringify({ recent: { names: ["Jason", "Sam"], total: 2000, added: now - i * 60_000, seen: now - i * 60_000 } }));
+      localStorage.setItem(`receipt-splitter:split:${split}`, JSON.stringify({ recent: { v: 2, names: ["Jason", "Sam"], total: 2000, added: now - i * 60_000, seen: now - i * 60_000 } }));
   }, id);
   await page.reload();
   await tap(page.getByRole("region", { name: "Recent splits" }).getByRole("link").first());

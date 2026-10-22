@@ -64,24 +64,25 @@ function Rows({ splits, now }: { splits: readonly RecentSplit[]; now: number }) 
   return splits.map((split) => <HistoryRow key={split.id} split={split} now={now} />);
 }
 
-function HistoryRow({ split: { id, names, you, total, added }, now }: { split: RecentSplit; now: number }) {
+function HistoryRow({ split: { id, names, place, total, added }, now }: { split: RecentSplit; now: number }) {
   const c = useColors();
   const { held, press, release } = useHeld();
-  const who = say.names(names.filter((_, place) => place !== you));
+  const who = say.names(names);
   const when = say.when(added, now);
   const people = say.people(names.length);
   const amount = money(total);
+  const lines = say.lines(place, who, when, people);
   return (
     <Link href={`/s/${id}`} asChild>
-      <Pressable {...web} onPressIn={press} onPressOut={release} aria-label={say.row(who, when, people, amount)} style={{ borderBottomWidth: 1, borderBottomColor: c.hairline }}>
+      <Pressable {...web} onPressIn={press} onPressOut={release} aria-label={say.row(who, when, people, amount, place)} style={{ borderBottomWidth: 1, borderBottomColor: c.hairline }}>
         {({ hovered }: { pressed: boolean; hovered?: boolean }) => (
           <View style={[styles.row, held || hovered ? [fillIn, { backgroundColor: c.hairline }] : fillOut]}>
             <View style={styles.text}>
               <Text numberOfLines={1} style={[type.body, { color: c.ink }]}>
-                {who}
+                {lines.first}
               </Text>
               <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
-                {say.meta(when, people)}
+                {lines.second}
               </Text>
             </View>
             <Text style={[type.body, tabular, { color: c.ink }]}>{amount}</Text>

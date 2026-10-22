@@ -161,6 +161,13 @@ describe("parseSplit", () => {
     expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
   });
 
+  test("reads a stored Split with a place back unchanged, and a stored one with an empty place is refused", () => {
+    const split: Split = { ...storedSplit(), place: "Dinefine Restaurant" };
+    expect(parseSplit(JSON.parse(JSON.stringify(split)))).toEqual({ ok: true, split });
+    expect(parseSplit(JSON.parse(JSON.stringify({ ...split, place: "" })))).toEqual(badName);
+    expect(parseSplit(JSON.parse(JSON.stringify({ ...split, place: "P".repeat(65) })))).toEqual(badName);
+  });
+
   test("reads a stored Split and its Revert back unchanged, and refuses a Split record whose line has no quantity", () => {
     const splitOp = { by: jason, type: "editReceipt", items: [{ type: "split", itemId: itemId("guinness1"), ids: [itemId("g2"), itemId("g3")] }] } as const;
     const once = applyOperation(topgolf({ guinness1: [jason, priya] }), splitOp, { creator: false });
@@ -352,6 +359,19 @@ describe("parseNewSplit", () => {
         recentChanges: [],
       },
     });
+  });
+
+  test("keeps the place read from the receipt, and a Split without one has no place key", () => {
+    const place = (extra: object) => {
+      const parsed = parseNewSplit({ ...body, ...extra }, minted);
+      return parsed.ok ? ("place" in parsed.split ? parsed.split.place : "no key") : parsed.rejection;
+    };
+    expect([place({}), place({ place: "Dinefine Restaurant" }), place({ place: "P".repeat(64) })]).toEqual(["no key", "Dinefine Restaurant", "P".repeat(64)]);
+  });
+
+  test("refuses a place that is empty, blank, 65 characters, hidden, or not text", () => {
+    const refusal = (place: unknown) => parseNewSplit({ ...body, place }, minted);
+    expect([refusal(""), refusal("   "), refusal("P".repeat(65)), refusal("Joe\u200B"), refusal(7)]).toEqual([badName, badName, badName, badName, { ok: false, rejection: { reason: "malformed", path: "place" } }]);
   });
 
   test("reads the names the Host typed after the Host, and refuses no Participants or 31", () => {

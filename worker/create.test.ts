@@ -26,6 +26,21 @@ describe("POST /api/splits", () => {
     expect(hello).not.toContain(creatorSecret);
   });
 
+  it("keeps the place on the created Split and its first state frame", async () => {
+    const response = await postSplit({ split: { ...newSplit, place: "Dinefine Restaurant" } }, { ip: "203.0.113.7" });
+    expect(response.status).toBe(201);
+    const { id, split } = await response.json<{ id: string; split: { place?: string } }>();
+    expect(split.place).toBe("Dinefine Restaurant");
+    const client = await connect(id);
+    expect(JSON.parse(await client.nextRaw())).toMatchObject({ type: "state", split: { id, place: "Dinefine Restaurant" } });
+  });
+
+  it("refuses a place of 65 characters", async () => {
+    const response = await postSplit({ split: { ...newSplit, place: "P".repeat(65) } }, { ip: "203.0.113.8" });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ refused: "rejected", rejection: { reason: "badName" } });
+  });
+
   it("creates a Split with no way to pay, and its first state frame holds no Payment handles", async () => {
     const response = await postSplit({ split: { ...newSplit, paymentHandles: [] } }, { ip: "203.0.113.6" });
     expect(response.status).toBe(201);

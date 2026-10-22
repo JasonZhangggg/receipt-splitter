@@ -583,6 +583,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           <SplitIntro
             host={host.name}
             total={money(split.receipt.total)}
+            place={split.place}
             onLinksBottom={setLinksBottom}
             onReceipt={photo ? setViewing : undefined}
             onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}

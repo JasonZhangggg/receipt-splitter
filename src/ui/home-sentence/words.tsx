@@ -1,4 +1,4 @@
-import { type ReactNode, type Ref } from "react";
+import { useEffect, useRef, type ReactNode, type Ref, type RefObject } from "react";
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 
 import { PressTarget } from "../components/button";
@@ -20,7 +20,7 @@ const breakAnywhere = webStyle({ overflowWrap: "anywhere" } as never);
  * A field or action with the punctuation that follows it, in one run that cannot break. Browsers, WebKit on iPhone among them, may wrap before a
  * comma or period that follows a field or button, which leaves it alone at the start of the next line.
  */
-function Glued({ children, then }: { children: ReactNode; then: string | undefined }) {
+export function Glued({ children, then }: { children: ReactNode; then: string | undefined }) {
   return then === undefined ? children : <Text style={nowrap}>{children}{then}</Text>;
 }
 
@@ -116,3 +116,46 @@ const styles = StyleSheet.create({
   rule: { borderBottomWidth: 1.5 },
   blank: { minWidth: 0, paddingVertical: 9, paddingHorizontal: 8, marginVertical: -9, marginHorizontal: -6 },
 });
+
+/** Whether an input method composed text in the field since its last Enter. */
+export function useComposed(input: RefObject<TextInput | null>) {
+  const composedRef = useRef(false);
+  useEffect(() => {
+    const field = input.current as unknown as HTMLElement | null;
+    if (!field?.addEventListener) return;
+    const start = () => (composedRef.current = true);
+    field.addEventListener("compositionstart", start);
+    return () => field.removeEventListener("compositionstart", start);
+  }, [input]);
+  return composedRef;
+}
+
+const pressEnds = ["pointerup", "pointercancel"] as const;
+
+/** Whether a pointer is down, so a blur caused by a press waits for the press to land before the field closes under it. */
+export function usePressing() {
+  const pressing = useRef(false);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const down = () => (pressing.current = true);
+    const up = () => (pressing.current = false);
+    document.addEventListener("pointerdown", down, true);
+    for (const end of pressEnds) document.addEventListener(end, up, true);
+    return () => {
+      document.removeEventListener("pointerdown", down, true);
+      for (const end of pressEnds) document.removeEventListener(end, up, true);
+    };
+  }, []);
+  return pressing;
+}
+
+export const focused = (field: TextInput | null) => field !== null && (field as unknown as Element) === globalThis.document?.activeElement;
+
+export function afterPress(pressing: boolean, run: () => void) {
+  if (!pressing) return run();
+  const release = () => {
+    for (const end of pressEnds) document.removeEventListener(end, release);
+    setTimeout(run);
+  };
+  for (const end of pressEnds) document.addEventListener(end, release);
+}

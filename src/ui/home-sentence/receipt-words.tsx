@@ -6,6 +6,7 @@ import { money } from "../../draft";
 import { copy } from "../home-copy";
 import { webStyle } from "../motion";
 import { tabular, useColors } from "../theme";
+import { PlaceWord } from "./place-word";
 import { Act, Words } from "./words";
 
 /** What the phone can see of a read: the reader starting, its own OCR finding the text, the wait on the server's reading, and that wait running long. */
@@ -19,8 +20,8 @@ const rollIn = { dataSet: { stepRollIn: "" } };
 // Focus lands on the clause when the button the person pressed leaves. A ring around the whole clause would only be noise.
 const landing = { tabIndex: -1, style: webStyle({ outlineStyle: "none" } as never) } as object;
 
-/** The sentence's first clause: "I paid the bill. Add the receipt.", the step word while it reads, then "I paid $X at <place>. Change." (the place only when the server read one) or, when no item was read, "I paid the bill. Try another photo." */
-export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptState; onChoose: () => void; onByHand: () => void }) {
+/** The sentence's first clause: "I paid the bill. Add the receipt.", the step word while it reads, then "I paid $X at <place>. Change." (the place only when the server read one; a tap on it edits it) or, when no item was read, "I paid the bill. Try another photo." */
+export function ReceiptWords({ state, onChoose, onByHand, onPlace }: { state: ReceiptState; onChoose: () => void; onByHand: () => void; onPlace: (name: string) => void }) {
   // Back to a home that already holds a read paints it settled; only a read that finishes in front of the person fades in.
   const [arrived] = useState(state.kind);
   const clause = useRef<Text>(null);
@@ -79,11 +80,11 @@ export function ReceiptWords({ state, onChoose, onByHand }: { state: ReceiptStat
             {state.place === null ? null : (
               <>
                 {" "}
-                <Words>{copy.sentence.at}</Words> <Words ink breaks>{state.place}</Words>
+                <Words>{copy.sentence.at}</Words> <PlaceWord place={state.place} then="." onChange={onPlace} onRemoved={() => (clause.current as unknown as HTMLElement | null)?.focus()} />
               </>
             )}
           </Text>
-          . <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." quiet />
+          {state.place === null ? "." : null} <Act label={copy.change} name={copy.changeReceipt} onPress={onChoose} then="." quiet />
         </Text>
       );
   }

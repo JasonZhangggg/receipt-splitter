@@ -9,7 +9,7 @@ import { mintedId } from "./core/test-ids";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import { parseReceipt } from "./parse";
 import { box, receiptRows } from "./parse/fixtures/boxes";
-import { receiptOfReply } from "./scan/client";
+import { placeOfReply, receiptOfReply } from "./scan/client";
 import { readLines, toReply } from "../worker/scan/format";
 import { emptyDraft, mismatchNote, newName, parseAmount, loadDraft, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
@@ -57,6 +57,42 @@ class MemoryStorage {
     this.values.set(key, value);
   }
 }
+
+describe("the place read from the receipt", () => {
+  const withPlace = (place: string) => run(withVenmo(emptyDraft), { type: "read", file, receipt: receipt1040, place });
+  const sentPlace = (draft: Draft) => requestOf(draft, counter())?.place;
+
+  test("goes in the create body as read", () => {
+    expect(sentPlace(withPlace("Dinefine Restaurant"))).toBe("Dinefine Restaurant");
+    expect(sentPlace(read1040(withVenmo(emptyDraft)))).toBeUndefined();
+  });
+
+  test("is held to the server's name rules as read, so an emoji at the cut or a hidden character never stops Create", () => {
+    const scanned = ["A".repeat(30) + "\u{1F354} Burger Palace", "Joe\u200B\u2019s Diner", "\u200B"];
+    const sent = scanned.map((place) => sentPlace(withPlace(placeOfReply({ place }) ?? "")));
+    expect(sent).toEqual(["A".repeat(30) + "\u{1F354}\u2026", "Joe\u2019s Diner", undefined]);
+    for (const place of sent) {
+      const request = requestOf({ ...withPlace(place ?? "x"), host: "Jason" }, counter());
+      expect(parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("place-name-000000000")).ok).toBe(true);
+    }
+  });
+
+  test("can be edited, tidied and cut to 32 characters", () => {
+    const edit = (name: string) => sentPlace(run(withPlace("Dinefine Restaurant"), { type: "setPlace", name }));
+    expect([edit("Joe\u2019s  Diner "), edit("Dine\u200Bfine"), edit("X".repeat(40))]).toEqual(["Joe\u2019s Diner", "Dinefine", "X".repeat(32)]);
+  });
+
+  test("is removed by an empty field, and goes back to the sentence with no place", () => {
+    const cleared = run(withPlace("Dinefine Restaurant"), { type: "setPlace", name: "  " });
+    expect(sentPlace(cleared)).toBeUndefined();
+    expect(cleared.scan).toEqual({ status: "read", file, receipt: expect.anything() });
+  });
+
+  test("is never added where the read found none, or after a by-hand start", () => {
+    expect(sentPlace(run(read1040(withVenmo(emptyDraft)), { type: "setPlace", name: "Joe" }))).toBeUndefined();
+    expect(run(emptyDraft, { type: "setPlace", name: "Joe" })).toEqual(emptyDraft);
+  });
+});
 
 describe("readiness", () => {
   test("names the one thing that keeps Create split link off", () => {

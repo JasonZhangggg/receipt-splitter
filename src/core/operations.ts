@@ -42,6 +42,7 @@ export const MAX_ADJUSTMENTS = 20;
 export const MAX_PARTICIPANTS = 30;
 export const MAX_PARTICIPANT_NAME_LENGTH = 40;
 export const MAX_ROW_NAME_LENGTH = 80;
+export const MAX_PLACE_LENGTH = 64;
 export const MAX_DETAIL_LENGTH = 120;
 export const MAX_QUANTITY = 20;
 export const MAX_SHARES = 99;
@@ -933,6 +934,8 @@ function canonicalHandles(handles: readonly PaymentHandle[]): readonly PaymentHa
 export type NewSplit = {
   readonly id: MintedSplitId;
   readonly receipt: Receipt;
+  /** The business name read from the receipt. */
+  readonly place?: string;
   readonly participants: Split["participants"];
   readonly paymentHandles: readonly PaymentHandle[];
   /** The creating browser's device id. It makes the Host's name picked on that browser from the first load. */
@@ -975,6 +978,7 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
     schemaVersion: 4,
     id: input.id,
     currency: "USD",
+    ...(input.place !== undefined && { place: input.place }),
     receipt,
     participants: input.participants,
     picks: input.hostDevice ? [{ participantId: input.participants[0].id, device: pickDevice(input.hostDevice, input.id) }] : [],
@@ -996,7 +1000,8 @@ export function checkSplit(split: Split): Rejection | null {
   const { items, adjustments } = split.receipt;
   const rowsNamed = [...items, ...adjustments].every(({ name }) => isName(name, MAX_ROW_NAME_LENGTH)) && [...items, ...(split.original?.items ?? [])].every(({ detail }) => detail === undefined || isDetail(detail));
   const participantsNamed = split.participants.every(({ name }) => isName(name, MAX_PARTICIPANT_NAME_LENGTH));
-  if (!rowsNamed || !participantsNamed) return { reason: "badName" };
+  const placeNamed = split.place === undefined || isName(split.place, MAX_PLACE_LENGTH);
+  if (!rowsNamed || !participantsNamed || !placeNamed) return { reason: "badName" };
   const revisions = split.recentChanges.map(({ revision }) => revision);
   if (!isStrictlySorted(revisions) || revisions.some((revision) => revision > split.revision)) {
     return { reason: "malformed", path: "recentChanges" };

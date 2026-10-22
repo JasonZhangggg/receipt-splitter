@@ -20,7 +20,7 @@ async function stored(page: Page, count: number) {
   await page.addInitScript((n) => {
     for (let i = 0; i < n; i++) {
       const id = `AnaBenCy${String(i).padStart(14, "0")}`;
-      localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { names: ["Ana", "Ben"], total: 990 + i, added: Date.now() - i * 3600e3, seen: Date.now() } }));
+      localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { v: 2, names: ["Ana", "Ben"], total: 990 + i, added: Date.now() - i * 3600e3, seen: Date.now() } }));
     }
   }, count);
 }

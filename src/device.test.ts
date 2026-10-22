@@ -64,6 +64,36 @@ describe("recent splits on this device", () => {
     expect(placed).toEqual({ [idOf(1)]: 0, [idOf(2)]: 1, [idOf(3)]: undefined });
   });
 
+  test("list a Split with the place it kept, and one without a place as before", () => {
+    noteSplit({ ...splitOf(1), place: "Dinefine Restaurant" }, T0 - DAY);
+    noteSplit(splitOf(2), T0);
+    expect(recentSplits(T0).map(({ id, place }) => [id, place])).toEqual([
+      [idOf(2), undefined],
+      [idOf(1), "Dinefine Restaurant"],
+    ]);
+  });
+
+  test("drop a Recent entry written before entries were versioned, keeping the creator secret, name and way to pay", () => {
+    const old = { names: ["Jason", "Sam"], you: 0, total: 1001, added: T0 - DAY, seen: T0 - DAY };
+    const key = (n: number) => `receipt-splitter:split:${idOf(n)}`;
+    storage.setItem(key(1), JSON.stringify({ creatorSecret: "secret", me: "p0", payWith: "zelle", recent: old }));
+    storage.setItem(key(2), JSON.stringify({ recent: old }));
+    expect(recentSplits(T0)).toEqual([]);
+    expect(JSON.parse(storage.getItem(key(1)) ?? "null")).toEqual({ creatorSecret: "secret", me: "p0", payWith: "zelle" });
+    expect(storage.getItem(key(2))).toBeNull();
+    expect(splitOnDevice(mintedId(idOf(1)))).toEqual({ creatorSecret: "secret", me: "p0", payWith: "zelle" });
+  });
+
+  test("clear old entries when a Split is noted too, and list that Split again with its place", () => {
+    const old = { names: ["Ann", "Bo"], total: 500, added: T0 - 2 * DAY, seen: T0 - 2 * DAY };
+    storage.setItem(`receipt-splitter:split:${idOf(1)}`, JSON.stringify({ me: "p1", recent: old }));
+    storage.setItem(`receipt-splitter:split:${idOf(2)}`, JSON.stringify({ recent: old }));
+    noteSplit({ ...splitOf(1, ["Ann", "Bo"], 500), place: "Joe\u2019s Diner" }, T0);
+    expect(storage.getItem(`receipt-splitter:split:${idOf(2)}`)).toBeNull();
+    expect(recentSplits(T0).map(({ id, names, place, added }) => ({ id, names, place, added }))).toEqual([{ id: idOf(1), names: ["Ann", "Bo"], place: "Joe\u2019s Diner", added: T0 }]);
+    expect(splitOnDevice(mintedId(idOf(1)))).toEqual({ me: "p1" });
+  });
+
   test("list every Split within 60 days, not only the five newest", () => {
     for (let n = 1; n <= 7; n++) noteSplit(splitOf(n), T0 - (10 - n) * DAY);
     expect(listed().map(({ id }) => id)).toEqual([7, 6, 5, 4, 3, 2, 1].map(idOf));
