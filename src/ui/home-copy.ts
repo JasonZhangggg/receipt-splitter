@@ -130,11 +130,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const historyCopy = {
   title: "Recent splits",
-  /** Who else was in the Split, never the person looking at the list. */
-  names: (others: readonly string[]) => {
-    if (others.length === 0) return "Just you";
-    if (others.length <= 2) return `With ${others.join(" and ")}`;
-    return `With ${others[0]} and ${others.length - 1} more`;
+  /** Everyone in the Split, the person looking at the list too: three names at most, then a count of the rest. */
+  names: (everyone: readonly string[]) => {
+    if (everyone.length <= 2) return everyone.join(" and ");
+    if (everyone.length === 3) return `${everyone[0]}, ${everyone[1]} and ${everyone[2]}`;
+    return `${everyone[0]}, ${everyone[1]} and ${everyone.length - 2} more`;
   },
   when: (added: number, now: number) => {
     const days = Math.round((dayOf(now) - dayOf(added)) / DAY_MS);

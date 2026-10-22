@@ -33,7 +33,7 @@ async function seed(page: Page, splits: Stored[]) {
   await page.clock.setFixedTime(now);
   await page.goto("/");
   await page.evaluate((splits) => {
-    for (const { id, names, you, total, added, seen } of splits) localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { names, you, total, added, seen: seen ?? added } }));
+    for (const { id, names, you, total, added, seen } of splits) localStorage.setItem(`receipt-splitter:split:${id}`, JSON.stringify({ recent: { v: 2, names, you, total, added, seen: seen ?? added } }));
   }, splits);
   await page.reload();
   await expect(page.getByRole("heading", { name: "SplitWith" })).toBeVisible();
@@ -66,7 +66,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(`With Sam, Today, 2 people, ${total}`);
+  await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, 2 people, ${total}`);
   await rows(page).first().click();
   await expect(page).toHaveURL(link);
   await expect(page.getByRole("button", { name: /^Your share \$/ })).toBeVisible({ timeout: 30_000 });
@@ -79,17 +79,17 @@ test("Recent splits sits under the sentence, with no header link, and lists the 
   expect(listed.y).toBeGreaterThan(words.y + words.height);
   await expect(list(page).getByRole("heading", { name: "Recent splits" })).toBeVisible();
   const all = [
-    "With Sam, Today, 2 people, $42.10",
-    "With Priya, Yesterday, 2 people, $128.75",
-    "With Ben and 2 more, Oct 1, 4 people, $9.90",
-    "With Lee, Sep 29, 2 people, $31.00",
-    "Just you, Sep 28, 1 person, $5.60",
-    "Just you, Sep 20, 1 person, $14.00",
-    "With Max and Ivy, Sep 10, 2 people, $77.00",
+    "Jason and Sam, Today, 2 people, $42.10",
+    "Priya and Jo, Yesterday, 2 people, $128.75",
+    "Ana, Ben and 2 more, Oct 1, 4 people, $9.90",
+    "Kim and Lee, Sep 29, 2 people, $31.00",
+    "Omar, Sep 28, 1 person, $5.60",
+    "Lin, Sep 20, 1 person, $14.00",
+    "Max and Ivy, Sep 10, 2 people, $77.00",
   ];
   expect(await labels(page)).toEqual(all.slice(0, 4));
   expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual([jason, priya, ana, kim].map(({ id }) => `/s/${id}`));
-  expect((await rows(page).nth(2).innerText()).split("\n").filter(Boolean)).toEqual(["With Ben and 2 more", "Oct 1 · 4 people", "$9.90"]);
+  expect((await rows(page).nth(2).innerText()).split("\n").filter(Boolean)).toEqual(["Ana, Ben and 2 more", "Oct 1 · 4 people", "$9.90"]);
 
   await list(page).getByRole("button", { name: "See all 7" }).click();
   const sheet = page.getByRole("dialog", { name: "Recent splits" });
@@ -114,7 +114,7 @@ test("a Split this browser last opened 61 days ago is not listed, and one opened
     { ...priya, added: now - 90 * DAY, seen: now - 59 * DAY },
   ]);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(/^With Priya, /);
+  await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 });
 
 test("an entry whose link says the split has expired is gone back on home, and the list hides with the last one", async ({ page }) => {
@@ -125,7 +125,7 @@ test("an entry whose link says the split has expired is gone back on home, and t
   await page.getByRole("button", { name: "Split a receipt" }).last().click();
   await expect(page).toHaveURL(/\/$/);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(/^With Priya, /);
+  await expect(rows(page).first()).toHaveAccessibleName(/^Priya and Jo, /);
 
   await rows(page).first().click();
   await expect(page.getByRole("heading", { name: "We can't find this split" })).toBeVisible();

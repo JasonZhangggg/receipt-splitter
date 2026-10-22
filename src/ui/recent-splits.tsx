@@ -64,10 +64,10 @@ function Rows({ splits, now }: { splits: readonly RecentSplit[]; now: number }) 
   return splits.map((split) => <HistoryRow key={split.id} split={split} now={now} />);
 }
 
-function HistoryRow({ split: { id, names, you, place, total, added }, now }: { split: RecentSplit; now: number }) {
+function HistoryRow({ split: { id, names, place, total, added }, now }: { split: RecentSplit; now: number }) {
   const c = useColors();
   const { held, press, release } = useHeld();
-  const who = say.names(names.filter((_, place) => place !== you));
+  const who = say.names(names);
   const when = say.when(added, now);
   const people = say.people(names.length);
   const amount = money(total);

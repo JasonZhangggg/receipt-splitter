@@ -114,7 +114,7 @@ test("the theme toggle stays put when Recent splits appears", async ({ page }) =
   await home(page);
   const before = await toggle(page, "Dark mode").boundingBox();
   await page.evaluate(() =>
-    localStorage.setItem("receipt-splitter:split:AnaBenCy00000000000001", JSON.stringify({ recent: { names: ["Ana", "Ben"], total: 990, added: Date.now(), seen: Date.now() } })),
+    localStorage.setItem("receipt-splitter:split:AnaBenCy00000000000001", JSON.stringify({ recent: { v: 2, names: ["Ana", "Ben"], total: 990, added: Date.now(), seen: Date.now() } })),
   );
   await page.reload();
   expect(await toggle(page, "Dark mode").boundingBox()).toEqual(before);
