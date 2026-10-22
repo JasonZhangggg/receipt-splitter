@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -21,15 +22,27 @@ type Props = {
   pill: FooterPill | null;
   onOpen: (press: Press) => void;
   onHeight: (height: number) => void;
+  /** Rise in from the bottom edge on mount, as when the pick sheet has just gone down. */
+  rise?: boolean;
 };
 
 /** Fixed to the bottom of the page. The label and the items count share a muted line; under it the amount and the pill that opens the Pay sheet. */
-export function SplitFooter({ label, amount, whose, aside, pill, onOpen, onHeight }: Props) {
+export function SplitFooter({ label, amount, whose, aside, pill, onOpen, onHeight, rise = false }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const bar = useRef<View>(null);
+  const [mount] = useState({ rise, reduced });
+  useLayoutEffect(() => {
+    const el = bar.current as unknown as HTMLElement | null;
+    if (!mount.rise || typeof el?.animate !== "function") return;
+    const frames = mount.reduced ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: "translateY(100%)" }, { transform: "none" }];
+    const rising = el.animate(frames, { duration: mount.reduced ? motion.reducedFade : motion.footerIn, easing: mount.reduced ? motion.easeOut : motion.easeDrawer });
+    return () => rising.cancel();
+  }, [mount]);
   return (
     <View
+      ref={bar}
       testID="footer"
       onLayout={(event) => onHeight(Math.ceil(event.nativeEvent.layout.height))}
       style={[styles.bar, { backgroundColor: c.field, borderTopColor: c.hairline, paddingBottom: Math.max(insets.bottom, 12) + 8, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}

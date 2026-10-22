@@ -44,6 +44,7 @@ import { PayBlock } from "../../src/ui/pay/pay-block";
 import { justPaid, shareStatus, statusWords } from "../../src/ui/pay/model";
 import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
+import { Presence } from "../../src/ui/presence";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
@@ -131,6 +132,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const nameHold = useMemo(() => holdOf(split, memory.me, device), [split, memory.me, device]);
   const lastHold = useRef(nameHold);
   const [phase, setPhase] = useState<Phase>(me ? "regular" : "pick");
+  // The footer waits under the pick sheet until the sheet is down, then rises in from the bottom edge.
+  const [rise, setRise] = useState(false);
   const [chosen, setChosen] = useState<ParticipantId | null>(null);
   const [pickProblem, setPickProblem] = useState<string | null>(null);
   /** "I already paid" (or its undo) tapped while an earlier action was still unanswered: it goes out once those settle, from the Share they leave. */
@@ -394,6 +397,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   };
   const pickLeft = () => {
     setPhase("regular");
+    setRise(true);
     setChosen(null);
   };
   useEffect(() => {
@@ -540,7 +544,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   );
   const footer = (() => {
     const ask = { text: "", ink: c.muted, paidState: false };
-    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} aside={ask} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} />;
+    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} aside={ask} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
     const mine = selectedPerson.id === me;
     const pill = !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name), ready: viewed.hasBar } as const);
     const claimed = shareBreakdown(split, selectedPerson.id).items.length;
@@ -557,6 +561,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         pill={pill}
         onOpen={(from) => open({ kind: "pay" }, from)}
         onHeight={setFooterHeight}
+        rise={rise}
       />
     );
   })();
@@ -578,11 +583,13 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
             onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
             onHistory={(from) => open({ kind: "history" }, from)}
           />
-          {me && selectedPerson && selectedPerson.id !== me ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
+          <Presence present={me !== null && selectedPerson !== null && selectedPerson.id !== me} animate>
+            {me && selectedPerson ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
+          </Presence>
           <View style={styles.doc}>{receipt}</View>
         </View>
       </ScrollView>
-      {phase === "pick" ? null : footer}
+      {phase === "regular" ? footer : null}
       <ConnectionNotice connection={connection} />
       {phase === "regular" ? null : (
         <BottomSheet tapAway label={say.question} minHeight={pageHeight - (linksBottom === null ? tallPickTop : linksBottom + pickGap)} closing={phase === "collapsing"} onDown={pickLeft} testID="split-sheet">
