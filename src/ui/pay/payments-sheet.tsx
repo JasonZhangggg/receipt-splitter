@@ -57,13 +57,16 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
       <View style={styles.sheet} onLayout={(event) => setFixed(event.nativeEvent.layout.height)}>
         <SheetHeader title={say.payments} onClose={onClose} />
         {rows.length > 0 ? (
-          <Text style={[type.body, { color: c.muted }]}>
-            {say.ring.everyonePays(firstName(rows[0].name))}
-            {summary ? " " : null}
-            <Text testID="payments-summary">{summary}</Text>
-            {summary ? <Text testID="payments-collected">{say.ring.collected(money(collected.paid), money(collected.owed))}</Text> : null}
-            {unclaimed > 0 ? say.ring.unclaimed(money(unclaimed)) : null}
-          </Text>
+          <View style={styles.intro}>
+            <Text style={[type.body, { color: c.ink }]}>{say.ring.everyonePays(firstName(rows[0].name))}</Text>
+            {summary || unclaimed > 0 ? (
+              <Text style={[type.caption, styles.tabular, { color: c.muted }]}>
+                <Text testID="payments-summary">{summary}</Text>
+                {summary ? <Text testID="payments-collected">{say.ring.collected(money(collected.paid), money(collected.owed))}</Text> : null}
+                {unclaimed > 0 ? (summary ? say.ring.unclaimed : say.ring.unclaimedOnly)(money(unclaimed)) : null}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
         {total > 0 ? (
           <View role="img" aria-label={label} style={styles.ring}>
@@ -215,6 +218,7 @@ const centerIn = webAnimation({
 
 const styles = StyleSheet.create({
   tabular: { fontVariant: ["tabular-nums"] },
+  intro: { gap: 2 },
   caption: { textAlign: "center" },
   ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 8 },
   center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },

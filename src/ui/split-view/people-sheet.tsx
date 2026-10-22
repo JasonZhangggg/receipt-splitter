@@ -223,7 +223,7 @@ function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
             {removing ? (
               <View style={styles.mark}>{host ? null : <Icon name="trash" size={16} color={c.muted} />}</View>
             ) : (
-              <View style={[styles.mark, styles.radio, dotFade, on ? { backgroundColor: c.ink, boxShadow: `inset 0 0 0 1px ${c.ink}` } : { boxShadow: `inset 0 0 0 1px ${c.dash}` }]} />
+              <View style={[styles.mark, styles.radio, dotFade, on ? { backgroundColor: c.ink, boxShadow: `inset 0 0 0 1.5px ${c.ink}` } : { boxShadow: `inset 0 0 0 1.5px ${c.dash}` }]} />
             )}
             <View style={styles.text}>
               <View style={styles.title}>
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   title: { flexDirection: "row", alignItems: "baseline", gap: 8, minWidth: 0 },
   name: { flexShrink: 1 },
   tag: { flexShrink: 0 },
-  radio: { width: 12, height: 12, borderRadius: 6, margin: 2 },
+  radio: { width: 16, height: 16, borderRadius: 8 },
   claimback: { gap: 6, paddingVertical: 12, borderTopWidth: 1 },
   two: { flexDirection: "row", gap: layout.pairGap, marginTop: 6 },
   half: { flex: 1 },

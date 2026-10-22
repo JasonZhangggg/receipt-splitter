@@ -98,6 +98,7 @@ export const splitCopy = {
       return `${shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}` : shown[0]} ${names.length > 1 ? "owe" : "owes"} nothing.`;
     },
     unclaimed: (amount: string) => ` · ${amount} unclaimed`,
+    unclaimedOnly: (amount: string) => `${amount} unclaimed`,
     label: (total: string, each: readonly string[], unclaimed: string | null) => `Receipt total ${total}. ${[...each, ...(unclaimed ? [`${unclaimed} unclaimed`] : [])].join(", ")}.`,
   },
   status: {
@@ -115,7 +116,8 @@ export const splitCopy = {
     in: (amount: string) => `${amount} in`,
   },
   showBreakdown: (whose: string | null) => (whose ? `Show ${whose}'s breakdown` : "Show what you owe"),
-  intro: (host: string, total: string) => `${host} paid ${total}. Tap the dot next to what you had. Tap a line to edit it or split it another way.`,
+  intro: (host: string, total: string) => `${host} paid ${total}.`,
+  introHint: "Tap the dot next to what you had. Tap a line to edit it or split it another way.",
   itemsLine: (claimed: number, of: number) => `${claimed} of ${of} ${of === 1 ? "item" : "items"} · incl. tax & tip`,
   payHost: (host: string) => `Pay ${host}`,
   paid: "Paid",
