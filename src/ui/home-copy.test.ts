@@ -16,6 +16,19 @@ describe("a recent split's row", () => {
     ]);
   });
 
+  test("leads with the place when the Split has one, and moves the names beside the day", () => {
+    const who = historyCopy.names(["Ana", "Sam"]);
+    const when = "Today";
+    expect([historyCopy.lines("Dinefine Restaurant", who, when, "3 people"), historyCopy.lines(undefined, who, when, "3 people")]).toEqual([
+      { first: "Dinefine Restaurant", second: "Today \u00b7 With Ana and Sam" },
+      { first: "With Ana and Sam", second: "Today \u00b7 3 people" },
+    ]);
+    expect([historyCopy.row(who, when, "3 people", "$51.30", "Dinefine Restaurant"), historyCopy.row(who, when, "3 people", "$51.30")]).toEqual([
+      "Dinefine Restaurant, With Ana and Sam, Today, 3 people, $51.30",
+      "With Ana and Sam, Today, 3 people, $51.30",
+    ]);
+  });
+
   test("says the day this device first saw it", () => {
     const now = new Date(2026, 9, 4, 9, 30).getTime();
     const days = [new Date(2026, 9, 4, 0, 5), new Date(2026, 9, 3, 23, 50), new Date(2026, 8, 28, 12), new Date(2025, 8, 28, 12)];

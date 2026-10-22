@@ -116,7 +116,7 @@ export const splitCopy = {
     in: (amount: string) => `${amount} in`,
   },
   showBreakdown: (whose: string | null) => (whose ? `Show ${whose}'s breakdown` : "Show what you owe"),
-  intro: (host: string, total: string) => `${host} paid ${total}.`,
+  intro: (host: string, total: string, place?: string) => `${host} paid ${total}${place === undefined ? "" : ` at ${place}`}.`,
   introHint: "Tap the dot next to what you had. Tap a line to edit it or split it another way.",
   itemsLine: (claimed: number, of: number) => `${claimed} of ${of} ${of === 1 ? "item" : "items"} · incl. tax & tip`,
   payHost: (host: string) => `Pay ${host}`,

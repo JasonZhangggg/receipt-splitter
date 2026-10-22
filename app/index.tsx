@@ -205,7 +205,7 @@ export default function Home() {
           <SplitHeader home onShare={() => void shareSite()} />
 
           <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
-            <ReceiptWords state={receipt} onChoose={choose} onByHand={() => dispatch({ type: "byHand" })} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
+            <ReceiptWords state={receipt} onChoose={choose} onByHand={() => dispatch({ type: "byHand" })} onPlace={(name) => dispatch({ type: "setPlace", name })} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
             <PeopleWords
               ref={nameField}
               host={draft.host}

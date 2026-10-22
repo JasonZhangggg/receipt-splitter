@@ -41,6 +41,8 @@ export const copy = {
   addFriendsName: "Add friends",
   yourName: "Your name",
   newName: "Name",
+  placeField: "Place",
+  placeName: (place: string) => `Place, ${place}. Edit`,
   action: "Create link",
   creating: "Creating link",
   change: "Change",
@@ -144,8 +146,9 @@ export const historyCopy = {
   },
   people: (count: number) => `${count} ${count === 1 ? "person" : "people"}`,
   seeAll: (count: number) => `See all ${count}`,
-  meta: (when: string, people: string) => `${when} \u00b7 ${people}`,
-  row: (names: string, when: string, people: string, total: string) => `${names}, ${when}, ${people}, ${total}`,
+  row: (names: string, when: string, people: string, total: string, place?: string) => `${place === undefined ? "" : `${place}, `}${names}, ${when}, ${people}, ${total}`,
+  /** A Split with a place leads with it; the names move down beside the day, in place of the head count. */
+  lines: (place: string | undefined, who: string, when: string, people: string) => (place === undefined ? { first: who, second: `${when} \u00b7 ${people}` } : { first: place, second: `${when} \u00b7 ${who}` }),
 };
 
 export const paymentApps: Record<PaymentService, { name: string; glyph: string; hint: string }> = {

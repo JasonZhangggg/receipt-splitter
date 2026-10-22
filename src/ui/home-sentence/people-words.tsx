@@ -6,7 +6,7 @@ import { newName } from "../../draft";
 import { copy, joinCopy } from "../home-copy";
 import { focusInPlace } from "../receipt-input/keyboard-room";
 import { webStyle } from "../motion";
-import { Act, Blank, nowrap, Remove, Words } from "./words";
+import { Act, afterPress, Blank, focused, nowrap, Remove, useComposed, usePressing, Words } from "./words";
 
 const box = webStyle({ display: "inline-block", maxWidth: "100%" } as never);
 
@@ -198,47 +198,4 @@ function NameBlank({ input, label, placeholder, onCommit, onEnter, onLeave, onRe
       }
     />
   );
-}
-
-/** Whether an input method composed text in the field since its last Enter. */
-function useComposed(input: RefObject<TextInput | null>) {
-  const composedRef = useRef(false);
-  useEffect(() => {
-    const field = input.current as unknown as HTMLElement | null;
-    if (!field?.addEventListener) return;
-    const start = () => (composedRef.current = true);
-    field.addEventListener("compositionstart", start);
-    return () => field.removeEventListener("compositionstart", start);
-  }, [input]);
-  return composedRef;
-}
-
-const pressEnds = ["pointerup", "pointercancel"] as const;
-
-/** Whether a pointer is down, so a blur caused by a press waits for the press to land before the field closes under it. */
-function usePressing() {
-  const pressing = useRef(false);
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const down = () => (pressing.current = true);
-    const up = () => (pressing.current = false);
-    document.addEventListener("pointerdown", down, true);
-    for (const end of pressEnds) document.addEventListener(end, up, true);
-    return () => {
-      document.removeEventListener("pointerdown", down, true);
-      for (const end of pressEnds) document.removeEventListener(end, up, true);
-    };
-  }, []);
-  return pressing;
-}
-
-const focused = (field: TextInput | null) => field !== null && (field as unknown as Element) === globalThis.document?.activeElement;
-
-function afterPress(pressing: boolean, run: () => void) {
-  if (!pressing) return run();
-  const release = () => {
-    for (const end of pressEnds) document.removeEventListener(end, release);
-    setTimeout(run);
-  };
-  for (const end of pressEnds) document.addEventListener(end, release);
 }
