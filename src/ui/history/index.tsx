@@ -233,12 +233,12 @@ const doneFade = webAnimation({
 const styles = StyleSheet.create({
   sheet: { gap: layout.blockGap },
   problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
-  row: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minHeight: 64, paddingVertical: 10, borderTopWidth: 1 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 64, paddingVertical: 10, borderTopWidth: 1 },
   body: { flex: 1, minWidth: 0, gap: 2 },
   what: { fontVariant: ["tabular-nums"] },
   muted: { fontWeight: "400" },
   dimmed: { opacity: 0.45 },
-  // 44 px to hit, with the glyph on the column's right edge and level with the first line.
+  // 44 px to hit, with the glyph on the column's right edge, centered on the row however many lines it wraps to.
   act: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center", marginVertical: -10 },
   done: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 28 },
   confirm: { gap: 10, marginTop: 8 },
