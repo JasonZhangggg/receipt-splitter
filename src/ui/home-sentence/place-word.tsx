@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, type TextInput } from "react-native";
 
-import { MAX_HOME_PLACE_LENGTH } from "../../draft";
+import { MAX_HOME_PLACE_LENGTH, placeOf } from "../../draft";
 import { PressTarget } from "../components/button";
 import { linkPress } from "../components/text-link";
 import { copy } from "../home-copy";
@@ -49,8 +49,8 @@ export function PlaceWord({ place, then, onChange, onRemoved }: Props) {
     refocus.current = keyboard;
     if (text !== null && text !== place) {
       onChange(text);
-      // An empty field removes the place, and the word the focus returns to goes with it.
-      if (keyboard && text.trim() === "") onRemoved();
+      // A field left with no name the server takes removes the place, and the word the focus returns to goes with it.
+      if (keyboard && placeOf(text) === null) onRemoved();
     }
     setTyped(null);
   };

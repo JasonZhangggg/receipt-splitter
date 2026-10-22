@@ -9,7 +9,7 @@ import { mintedId } from "./core/test-ids";
 import { adjustmentId, itemId, participantId, type Receipt, type SplitId } from "./core/split";
 import { parseReceipt } from "./parse";
 import { box, receiptRows } from "./parse/fixtures/boxes";
-import { receiptOfReply } from "./scan/client";
+import { placeOfReply, receiptOfReply } from "./scan/client";
 import { readLines, toReply } from "../worker/scan/format";
 import { emptyDraft, mismatchNote, newName, parseAmount, loadDraft, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction } from "./draft";
 
@@ -65,6 +65,16 @@ describe("the place read from the receipt", () => {
   test("goes in the create body as read", () => {
     expect(sentPlace(withPlace("Dinefine Restaurant"))).toBe("Dinefine Restaurant");
     expect(sentPlace(read1040(withVenmo(emptyDraft)))).toBeUndefined();
+  });
+
+  test("is held to the server's name rules as read, so an emoji at the cut or a hidden character never stops Create", () => {
+    const scanned = ["A".repeat(30) + "\u{1F354} Burger Palace", "Joe\u200B\u2019s Diner", "\u200B"];
+    const sent = scanned.map((place) => sentPlace(withPlace(placeOfReply({ place }) ?? "")));
+    expect(sent).toEqual(["A".repeat(30) + "\u{1F354}\u2026", "Joe\u2019s Diner", undefined]);
+    for (const place of sent) {
+      const request = requestOf({ ...withPlace(place ?? "x"), host: "Jason" }, counter());
+      expect(parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("place-name-000000000")).ok).toBe(true);
+    }
   });
 
   test("can be edited, tidied and cut to 32 characters", () => {

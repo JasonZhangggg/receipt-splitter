@@ -2,7 +2,7 @@ import type { ReadAdjustment, ReadBundle, ReadDiscount, ReadItem, ScanReply } fr
 import { cents, isCents, price, type Cents, type Price } from "../core/money";
 import { isDetail, MAX_DETAIL_LENGTH, MAX_QUANTITY } from "../core/operations";
 import { adjustmentId, itemId, type Adjustment, type Item, type NonEmpty, type Receipt, type ReceiptLevelKind } from "../core/split";
-import { MAX_HOME_PLACE_LENGTH, money } from "../draft";
+import { clip, MAX_HOME_PLACE_LENGTH, money } from "../draft";
 import type { TextBox } from "../ocr/types";
 import { groupRows } from "../parse/rows";
 
@@ -97,7 +97,7 @@ function subtotalOf(reply: ScanReply, items: readonly Item[], adjustments: reado
 export function placeOfReply(value: unknown): string | null {
   const place = isObject(value) && isText(value.place) ? value.place.replace(/\s+/g, " ").replace(/'/g, "\u2019").replace(/[\s.]+$/, "").trim() : "";
   if (place === "") return null;
-  return place.length > MAX_HOME_PLACE_LENGTH ? `${place.slice(0, MAX_HOME_PLACE_LENGTH - 1).trimEnd()}\u2026` : place;
+  return clip(place, MAX_HOME_PLACE_LENGTH) === place ? place : `${clip(place, MAX_HOME_PLACE_LENGTH - 1).trimEnd()}\u2026`;
 }
 
 /** Maps the route's reply to a Receipt, or null when the reply does not have the reply's shape. */

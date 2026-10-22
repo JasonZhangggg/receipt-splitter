@@ -42,7 +42,7 @@ export const emptyDraft: Draft = { scan: { status: "empty" }, handles: [{ servic
 
 const graphemes = new Intl.Segmenter();
 
-function clip(text: string, max = MAX_GRAPHEMES): string {
+export function clip(text: string, max = MAX_GRAPHEMES): string {
   let kept = "";
   let count = 0;
   for (const { segment } of graphemes.segment(text)) {
@@ -66,20 +66,25 @@ export function newName(
 /** Every name in the Draft, the Host first when there is one. */
 export const draftNames = ({ host, friends }: Draft): readonly string[] => (host === null ? friends : [host, ...friends]);
 
+/** A read or typed place held to the server's name rules, or nothing when none is left: the server refuses a whole Split over a bad place. */
+export function placeOf(text: string): { readonly place: string } | null {
+  const place = clip(canonicalName(text), MAX_HOME_PLACE_LENGTH);
+  return isName(place, MAX_HOME_PLACE_LENGTH) ? { place } : null;
+}
+
 export function reduceDraft(draft: Draft, action: DraftAction): Draft {
   switch (action.type) {
     case "reading":
       return { ...draft, scan: { status: "reading", file: action.file } };
     case "read":
-      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.receipt && action.place && { place: action.place }), ...(action.totalUnread && { totalUnread: true as const }), ...(action.notReceipt && { notReceipt: true as const }) } };
+      return { ...draft, scan: { status: "read", file: action.file, receipt: action.receipt && sendable(action.receipt), ...(action.receipt && action.place !== undefined && placeOf(action.place)), ...(action.totalUnread && { totalUnread: true as const }), ...(action.notReceipt && { notReceipt: true as const }) } };
     case "byHand":
       return { ...draft, scan: { status: "byHand" } };
     case "setPlace": {
       // A place can be edited or removed, never added: a read that found none has nothing to edit.
       if (draft.scan.status !== "read" || draft.scan.place === undefined) return draft;
       const { place: _, ...rest } = draft.scan;
-      const name = clip(canonicalName(action.name), MAX_HOME_PLACE_LENGTH);
-      return { ...draft, scan: isName(name, MAX_HOME_PLACE_LENGTH) ? { ...rest, place: name } : rest };
+      return { ...draft, scan: { ...rest, ...placeOf(action.name) } };
     }
     case "created":
       return { ...emptyDraft, handles: draft.handles };
