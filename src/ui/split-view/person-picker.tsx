@@ -4,9 +4,9 @@ import { StyleSheet, Text, View } from "react-native";
 import type { ParticipantId } from "../../core/split";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
-import { pressStyle, useReducedMotion } from "../motion";
+import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { tabular, type, useColors } from "../theme";
+import { motion, tabular, type, useColors } from "../theme";
 
 export const personPickerWidth = 264;
 
@@ -24,8 +24,8 @@ export function PersonPicker({ rows, me, viewed, onView, onEdit }: Props) {
   const reduce = useReducedMotion();
   const row = (key: string, name: string, onPress: () => void, end: ReactNode, checked?: boolean) => (
     <PressTarget key={key} name={name} toggled={checked} outsideScroll onPress={onPress} style={(pressed) => [pressStyle(pressed, reduce), styles.press]}>
-      {(pressed) => (
-        <View style={[styles.row, pressed && { backgroundColor: c.sheetIn }]}>
+      {(pressed, hovered) => (
+        <View style={[styles.row, pressed || hovered ? [fillIn, { backgroundColor: c.sheetIn }] : fillOut]}>
           <View style={styles.check}>{checked ? <Icon name="check" size={16} color={c.ink} /> : null}</View>
           <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
             {name}
@@ -45,6 +45,10 @@ export function PersonPicker({ rows, me, viewed, onView, onEdit }: Props) {
     </View>
   );
 }
+
+// The row under the mouse fills at once and lets go over 200 ms, as Recent splits' rows do, so a sweep down the menu leaves no trail of lit rows.
+const fillIn = webStyle({ transitionProperty: "background-color", transitionDuration: "0ms" });
+const fillOut = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.pressOut}ms`, transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
   press: { alignSelf: "stretch" },

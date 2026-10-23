@@ -3,9 +3,9 @@ import { StyleSheet, Text, View } from "react-native";
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { TextLink, linkPress } from "../components/text-link";
-import { pressStyle, useReducedMotion } from "../motion";
+import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { type, useColors } from "../theme";
+import { motion, type, useColors } from "../theme";
 
 type Props = {
   /** "What you had", or "What Sam had" while someone else is shown. */
@@ -29,7 +29,9 @@ export function ShareHead({ title, open, onPick, onReceipt, onPayments, onHistor
             <Text numberOfLines={1} style={[type.body, styles.title, { color: c.ink }]}>
               {title}
             </Text>
-            <Icon name="chevron" size={14} color={c.muted} />
+            <View style={[{ transform: [{ rotate: open ? "180deg" : "0deg" }] }, !reduce && turn]}>
+              <Icon name="chevron" size={14} color={c.muted} />
+            </View>
           </View>
         )}
       </PressTarget>
@@ -41,6 +43,9 @@ export function ShareHead({ title, open, onPick, onReceipt, onPayments, onHistor
     </View>
   );
 }
+
+/** The chevron turns over with the menu it opens, at the menu's own 200 ms, and turns back as the menu leaves. */
+const turn = webStyle({ transitionProperty: "transform", transitionDuration: `${motion.controlIn}ms`, transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: 1, marginBottom: 4 },

@@ -367,8 +367,13 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   // The menu hangs from the share view's head, which goes when this device loses its name.
   if (picker && !picker.closing && (!me || !selectedPerson)) setPicker({ ...picker, closing: true });
   const pickerGone = () => {
-    // After Edit people the trigger has gone with the share view, so focus goes to the People view that replaced it.
-    if (picker) (picker.from.trigger.isConnected ? picker.from.trigger : document.querySelector<HTMLElement>(`[role="region"][data-testid="people-sheet"] [data-pressable]`))?.focus({ preventScroll: true });
+    // After Edit people the trigger has gone with the share view, so focus goes to the People view that replaced it. After picking someone it has gone too, since the share view is keyed by whose share it shows, so focus goes to the new head's trigger.
+    const people = document.querySelector<HTMLElement>(`[role="region"][data-testid="people-sheet"] [data-pressable]`);
+    if (picker) {
+      if (picker.from.trigger.isConnected) picker.from.trigger.focus({ preventScroll: true });
+      else if (people) people.focus({ preventScroll: true });
+      else focusHead.current = "";
+    }
     setPicker(null);
   };
   const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
@@ -690,7 +695,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         {payBar}
       </SidePanel>
     ) : (
-      <SidePanel key="share" label={selectedPerson ? title(selectedPerson) : say.question} testID="share-panel">
+      // Keyed by whose share it shows, so picking someone else fades their share in as the column's other views do, instead of swapping the numbers in place.
+      <SidePanel key={`share-${selectedPerson?.id ?? ""}`} label={selectedPerson ? title(selectedPerson) : say.question} testID="share-panel">
         {shareView}
       </SidePanel>
     );
