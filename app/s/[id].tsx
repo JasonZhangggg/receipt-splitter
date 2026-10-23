@@ -435,15 +435,6 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     // A link in the wide column's head went away with the share view it sat in; it comes back on the next render.
     if (wide) focusHead.current = overlay.kind === "payments" ? say.payments : overlay.kind === "history" ? say.history : "";
   };
-  const focusHead = useRef<string | null>(null);
-  useEffect(() => {
-    if (focusHead.current === null) return;
-    const label = focusHead.current;
-    focusHead.current = null;
-    // The head's links are named by their text, so the one to focus is found by it; the person menu's trigger comes first.
-    const links = [...document.querySelectorAll<HTMLElement>(`[data-testid="share-head"] [data-pressable]`)];
-    (links.find((link) => label !== "" && link.textContent === label) ?? links[0])?.focus({ preventScroll: true });
-  });
   // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay and People sheets close when this phone loses its name.
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
@@ -463,6 +454,17 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     setRise(true);
     setChosen(null);
   };
+  const focusHead = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusHead.current === null) return;
+    // The panel calls `overlayGone` from its own effect, which runs before this one in the same commit, while the head is still away; wait for the render that brings it back.
+    const links = [...document.querySelectorAll<HTMLElement>(`[data-testid="share-head"] [data-pressable]`)];
+    if (links.length === 0) return;
+    const label = focusHead.current;
+    focusHead.current = null;
+    // The head's links are named by their text, so the one to focus is found by it; the person menu's trigger comes first.
+    (links.find((link) => label !== "" && link.textContent === label) ?? links[0]).focus({ preventScroll: true });
+  });
   useEffect(() => {
     if (phase !== "regular" || !asking.current) return;
     asking.current = false;

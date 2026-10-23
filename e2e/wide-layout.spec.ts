@@ -4,9 +4,6 @@ import { expect, newContext, test, type APIRequestContext, type Browser, type Pa
  * The Split page's desktop layout (docs/plans/desktop-layout.md): the receipt on the left, a 440px column on the right
  * that holds what a phone shows in bottom sheets. Every click and key path runs at 1440x900 and 1024x768, light mode,
  * then the 390px phone is smoked to show the footer and sheets are untouched.
- *
- * A test named "BUG: ..." is `test.fail()`: it asserts what should happen, fails today, and the suite is green. When
- * the app is fixed Playwright reports it as "expected to fail, but passed"; delete the `test.fail` line then.
  */
 
 test.setTimeout(90_000);
@@ -518,8 +515,7 @@ for (const size of sizes) {
       await expect(column(page, "What you had")).toBeVisible(live);
     });
 
-    test("BUG: after Escape closes Payments, focus returns to the Payments link", async ({ page, request }, { workerIndex }) => {
-      test.fail(true, "Payments, History and People open from links inside the share column, which the panel replaces; the link unmounts and focus drops to <body>");
+    test("after Escape closes Payments, focus returns to the Payments link", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
       await pick(page, "Sam");
 
@@ -531,8 +527,7 @@ for (const size of sizes) {
       await expect(shareColumn(page).getByRole("button", { name: "Payments" })).toBeFocused();
     });
 
-    test("BUG: after Escape closes History, focus returns to the History link", async ({ page, request }, { workerIndex }) => {
-      test.fail(true, "same cause: the History link unmounts when the column swaps to History");
+    test("after Escape closes History, focus returns to the History link", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
       await pick(page, "Sam");
 
@@ -544,8 +539,7 @@ for (const size of sizes) {
       await expect(shareColumn(page).getByRole("button", { name: "History" })).toBeFocused();
     });
 
-    test("BUG: after Escape closes People (opened from Edit people), focus returns to the people menu trigger", async ({ page, request }, { workerIndex }) => {
-      test.fail(true, "the trigger unmounts when the column swaps to People, so focus drops to <body>");
+    test("after Escape closes People (opened from Edit people), focus returns to the people menu trigger", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
       await pick(page, "Sam");
       await openPeople(page);
@@ -855,8 +849,7 @@ for (const size of sizes) {
       await expect(switcher(page)).toBeFocused();
     });
 
-    test("BUG: keyboard only: Close, just look on the pick column hands focus to the 'Which one are you?' link", async ({ page, request }, { workerIndex }) => {
-      test.fail(true, "app/s/[id].tsx pickLeft effect looks up [aria-label='Which one are you?'], but the wide column's TextLink has no aria-label (its name is its text), so focus drops to <body>");
+    test("keyboard only: Close, just look on the pick column hands focus to the 'Which one are you?' link", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
       await asking(page).getByRole("button", { name: "Close, just look" }).focus();
 
