@@ -98,40 +98,19 @@ export function FilterMenu({ filter, counts, viewer, whose, onPick }: Props & { 
   );
 }
 
-const inkFade = webStyle({
-  transitionProperty: "color",
-  transitionDuration: "150ms",
-  transitionTimingFunction: "ease",
-});
+const inkFade = webStyle({ transitionProperty: "color", transitionDuration: "150ms", transitionTimingFunction: "ease" });
 /** The chevron turns over with the menu it opens, at the menu's own 200 ms, as the share head's does. */
-const turn = webStyle({
-  transitionProperty: "transform",
-  transitionDuration: `${motion.controlIn}ms`,
-  transitionTimingFunction: motion.easeOut,
-});
+const turn = webStyle({ transitionProperty: "transform", transitionDuration: `${motion.controlIn}ms`, transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
-  tabs: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    columnGap: 24,
-    flexShrink: 1,
-    minWidth: 0,
-  },
+  tabs: { flexDirection: "row", flexWrap: "wrap", columnGap: 24, flexShrink: 1, minWidth: 0 },
   tab: { minHeight: 44, justifyContent: "flex-end" },
   tabFace: { paddingTop: 10 },
   rule: { height: 1.5, marginTop: 8 },
   button: { minHeight: 44, justifyContent: "center", flexShrink: 0 },
   buttonFace: { flexDirection: "row", alignItems: "center", gap: 6 },
   press: { alignSelf: "stretch" },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-  },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
   tick: { width: 14 },
   label: { flex: 1 },
 });

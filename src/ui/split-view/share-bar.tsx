@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { money } from "../../draft";
 import { useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
-import { type, useColors } from "../theme";
+import { motion, type, useColors } from "../theme";
 import type { BillParts } from "./model";
 
 type Props = BillParts & {
@@ -44,30 +44,15 @@ function Key({ color, label }: { color: string; label: string }) {
   );
 }
 
-/** A claim moves the bar's parts over the time a row takes to grow, easing out as the rows do. */
-const grow = webStyle({
-  transitionProperty: "width",
-  transitionDuration: "450ms",
-  transitionTimingFunction: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-});
+/** A claim slides the bar's parts to their new lengths. Width on a 6 px bar in a fixed footer lays out nothing else, so it costs less than it would elsewhere. */
+const grow = webStyle({ transitionProperty: "width", transitionDuration: "250ms", transitionTimingFunction: motion.easeOut });
 
 const styles = StyleSheet.create({
-  track: {
-    flexDirection: "row",
-    height: 6,
-    borderRadius: 3,
-    overflow: "hidden",
-  },
+  track: { flexDirection: "row", height: 6, borderRadius: 3, overflow: "hidden" },
   part: { height: "100%" },
   mine: { borderTopLeftRadius: 3, borderBottomLeftRadius: 3 },
   gap: { marginLeft: 3 },
-  legend: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    columnGap: 16,
-    rowGap: 4,
-    marginTop: 10,
-  },
+  legend: { flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 4, marginTop: 10 },
   key: { flexDirection: "row", alignItems: "center", gap: 6 },
   swatch: { width: 8, height: 8, borderRadius: 2 },
   keyText: { fontSize: 13, lineHeight: 18 },
