@@ -1,5 +1,5 @@
 import { claimersOf, type Optimistic } from "../../core/operations";
-import { shareBreakdown, type ShareBreakdown } from "../../core/shares";
+import { shareBreakdown, type ShareBreakdown, type Shares } from "../../core/shares";
 import type { Cents } from "../../core/money";
 import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type Participant, type ParticipantId, type Receipt, type Split, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
@@ -152,6 +152,18 @@ function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>): BundleRow {
     discount: { label: label.charAt(0).toUpperCase() + label.slice(1), amount: row.amount },
     summary: say.bundleSummary(items.length, percent ? `${percent}%` : money(Math.abs(row.amount))),
     net: items.reduce((total, { price }) => total + price, 0) + row.amount,
+  };
+}
+
+export type BillParts = { readonly mine: number; readonly others: number; readonly unclaimed: number };
+
+/** The bill in three parts for the share bar: the viewed person's share, everyone else's, and what nobody has claimed yet. */
+export function billParts(shares: Shares, viewer: ParticipantId): BillParts {
+  const share = (one: { readonly share: number }) => Math.max(0, one.share);
+  return {
+    mine: shares.shares.filter(({ participantId }) => participantId === viewer).reduce((sum, one) => sum + share(one), 0),
+    others: shares.shares.filter(({ participantId }) => participantId !== viewer).reduce((sum, one) => sum + share(one), 0),
+    unclaimed: Math.max(0, shares.unclaimed.total),
   };
 }
 

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cents, type Cents } from "../../src/core/money";
 import { claimersOf } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
-import { computeShares, shareBreakdown } from "../../src/core/shares";
+import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
@@ -29,7 +29,7 @@ import { ConnectionNotice } from "../../src/ui/split-view/connection-notice";
 import type { Connection } from "../../src/live/connection";
 import { SplitHeader, useSiteShare } from "../../src/ui/split-view/header";
 import { shareLink } from "../../src/ui/share-link";
-import { circleTap, filterCounts, linesNear, type ItemFilter } from "../../src/ui/split-view/model";
+import { billParts, circleTap, filterCounts, linesNear, type ItemFilter } from "../../src/ui/split-view/model";
 import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filters";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
@@ -643,13 +643,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     />
   );
   const footer = (() => {
-    const ask = { text: "", ink: c.muted, paidState: false };
-    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} aside={ask} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
+    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} note={null} bill={null} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
     const mine = selectedPerson.id === me;
     const pill = !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name), ready: viewed.hasBar } as const);
-    const claimed = shareBreakdown(split, selectedPerson.id).items.length;
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
-    // A settled share the pill already marks keeps the items count; every other paid state reads in words.
+    // A settled share the pill already marks says nothing more; every other paid state reads in words.
     const words = status.kind === "settled" && pill?.kind === "paid" ? null : statusWords(status);
     const ink = status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
     return (
@@ -657,7 +655,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         label={mine ? say.yourShare : say.shareOf(selectedPerson.name)}
         amount={money(viewed.share)}
         whose={mine ? null : selectedPerson.name}
-        aside={words ? { text: words, ink, paidState: true } : { text: say.itemsLine(claimed, split.receipt.items.length), ink: c.muted, paidState: false }}
+        note={words ? { text: words, ink } : null}
+        bill={billParts(shares, selectedPerson.id)}
         pill={pill}
         onOpen={(from) => open({ kind: "pay" }, from)}
         onHeight={setFooterHeight}
