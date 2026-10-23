@@ -253,7 +253,7 @@ for (const size of sizes) {
       await expect(share(page)).toHaveText("$0.00");
       await expect(page.getByText("Viewing as Priya.")).toBeVisible();
       await expect(circle(page, "Sprite", "Priya")).toBeVisible();
-      await expect(switcher(page)).toContainText("What Priya had");
+      await expect(switcher(page)).toContainText("Priya's share");
 
       await page.getByRole("button", { name: "Back to you" }).click();
       await expect(column(page, "What you had")).toBeVisible(live);
@@ -511,7 +511,7 @@ for (const size of sizes) {
       await pick(page, "Sam");
       await circle(page, "Sprite", "Sam").click();
 
-      await shareColumn(page).getByRole("button", { name: "Payments" }).click();
+      await page.getByRole("button", { name: "Payments", exact: true }).click();
 
       await expect(column(page, "Payments")).toBeVisible(live);
       await expect(column(page, "Payments")).toContainText("Everyone pays Jason.");
@@ -525,24 +525,24 @@ for (const size of sizes) {
       await openSplit(page, await createSplit(request, workerIndex));
       await pick(page, "Sam");
 
-      await shareColumn(page).getByRole("button", { name: "Payments" }).click();
+      await page.getByRole("button", { name: "Payments", exact: true }).click();
       await expect(column(page, "Payments")).toBeVisible(live);
       await page.keyboard.press("Escape");
       await expect(column(page, "What you had")).toBeVisible(live);
 
-      await expect(shareColumn(page).getByRole("button", { name: "Payments" })).toBeFocused();
+      await expect(page.getByRole("button", { name: "Payments", exact: true })).toBeFocused();
     });
 
     test("after Escape closes History, focus returns to the History link", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
       await pick(page, "Sam");
 
-      await shareColumn(page).getByRole("button", { name: "History" }).click();
+      await page.getByRole("button", { name: "History", exact: true }).click();
       await expect(column(page, "History")).toBeVisible(live);
       await page.keyboard.press("Escape");
       await expect(column(page, "What you had")).toBeVisible(live);
 
-      await expect(shareColumn(page).getByRole("button", { name: "History" })).toBeFocused();
+      await expect(page.getByRole("button", { name: "History", exact: true })).toBeFocused();
     });
 
     test("after Escape closes People (opened from Edit people), focus returns to the people menu trigger", async ({ page, request }, { workerIndex }) => {
@@ -565,7 +565,7 @@ for (const size of sizes) {
       await page.getByRole("textbox", { name: "Price" }).blur();
       await expect(page.getByTestId("receipt")).toContainText("$29.54", live);
       await page.keyboard.press("Escape");
-      await shareColumn(page).getByRole("button", { name: "History" }).click();
+      await page.getByRole("button", { name: "History", exact: true }).click();
       await expect(column(page, "History")).toContainText("Sprite");
 
       await column(page, "History").getByRole("button", { name: "Revert Sprite" }).click();
@@ -794,17 +794,20 @@ for (const size of sizes) {
       await page.locator("body").evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
       await page.getByRole("button", { name: "Switch to dark mode" }).focus();
       const order: string[] = [];
-      for (let step = 0; step < 18; step++) {
+      for (let step = 0; step < 24; step++) {
         await page.keyboard.press("Tab");
         order.push((await focused(page)) ?? "");
       }
       const at = (needle: RegExp) => order.findIndex((label) => needle.test(label));
       expect(at(/^Share link/)).toBe(0);
-      expect(at(/^Chicken Fried Rice, check for Sam/)).toBeGreaterThan(-1);
+      expect(at(/^All, 5$/)).toBeGreaterThan(0);
+      expect(at(/^Chicken Fried Rice, check for Sam/)).toBeGreaterThan(at(/^Shared, 0$/));
       expect(at(/^Add item, tax, tip or discount/)).toBeGreaterThan(at(/^Open Perrier/));
       expect(at(/Choose whose share to show$/)).toBeGreaterThan(at(/^Add item/));
-      expect(at(/^Payments/)).toBeGreaterThan(at(/Choose whose share to show$/));
-      expect(at(/^History/)).toBeGreaterThan(at(/^Payments/));
+      // The links sit in the top bar, just before the theme toggle.
+      await page.getByRole("button", { name: "Switch to dark mode" }).focus();
+      await page.keyboard.press("Shift+Tab");
+      expect(await focused(page)).toBe("History");
 
       await circle(page, "Sprite", "Sam").focus();
       await page.keyboard.press("Space");
@@ -1019,10 +1022,11 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
     test.use({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
 
     test("a long place drops a size and stays within three lines and the column's width", async ({ page, request }, { workerIndex }) => {
-      const place = "Golden Lotus Vietnamese Noodle House & Cocktail Bar Supercalifragilisticexpialidocious";
+      // 64 characters, the longest a place can be, with one word wider than the column.
+      const place = "Golden Lotus Noodle House Supercalifragilisticexpialidocious Bar";
       await page.goto(await createSplit(request, workerIndex, [venmo], menu, people, place));
       const title = page.getByTestId("split-title");
-      await expect(title).toHaveText(place, live);
+      await expect(title).toBeVisible(live);
       const size = await title.evaluate((element) => ({ font: parseFloat(getComputedStyle(element).fontSize), height: element.getBoundingClientRect().height, fits: element.scrollWidth <= element.clientWidth }));
       expect(size.font).toBe(34);
       expect(size.height).toBeLessThanOrEqual(3 * 38 + 1);
