@@ -48,6 +48,7 @@ import { PayBlock, PayButton } from "../../src/ui/pay/pay-block";
 import { justPaid, shareStatus, statusWords } from "../../src/ui/pay/model";
 import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
+import { TextLink } from "../../src/ui/components/text-link";
 import { Presence } from "../../src/ui/presence";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
@@ -115,8 +116,15 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
-// The wide layout's right column.
-const asideWidth = 440;
+/** The wide layout: the receipt and the column beside it, centered in the window as one frame. Under 1280px the column and the gap between them narrow so the receipt keeps room. */
+const frameFor = (width: number) => {
+  const roomy = width >= breakpoints.roomyFrom;
+  const column = roomy ? 420 : 380;
+  const gap = roomy ? 112 : 56;
+  const inner = Math.min(width - 2 * frameGutter, 680 + gap + column);
+  return { column, gap, inner, clearRight: (width - inner) / 2 + column + gap };
+};
+const frameGutter = 48;
 // Where the pick sheet's top edge sits before the links row has been measured, and the gap it keeps below that row once it has.
 const tallPickTop = 170;
 const pickGap = 12;
@@ -126,7 +134,9 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
-  const wide = useLayoutWidth() >= breakpoints.pairFrom;
+  const layoutWidth = useLayoutWidth();
+  const wide = layoutWidth >= breakpoints.pairFrom;
+  const frame = frameFor(layoutWidth);
   const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
   const remember = (change: SplitChange) => {
@@ -650,14 +660,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           viewer={me}
           onClose={() => {}}
           head={
-            <ShareHead
-              title={title(selectedPerson)}
-              open={picker !== null && !picker.closing}
-              onPick={(from) => setPicker({ from, closing: false })}
-              onReceipt={photo ? setViewing : undefined}
-              onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-              onHistory={(from) => open({ kind: "history" }, from)}
-            />
+            <ShareHead title={title(selectedPerson)} open={picker !== null && !picker.closing} onPick={(from) => setPicker({ from, closing: false })} />
           }
           beside={due === null ? null : <PayButton split={split.id} host={host.name} handles={split.paymentHandles} amount={due} />}
         />
@@ -668,14 +671,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         ) : null}
       </>
     ) : (
-      <ShareHead
-        title={say.question}
-        open={false}
-        onPick={() => setPhase("pick")}
-        onReceipt={photo ? setViewing : undefined}
-        onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-        onHistory={(from) => open({ kind: "history" }, from)}
-      />
+      <ShareHead title={say.question} open={false} onPick={() => setPhase("pick")} />
     );
   const aside =
     phase !== "regular" ? (
@@ -755,7 +751,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           />
         </Popover>
       ) : null}
-      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={wide ? 16 : overlay && !closing ? 12 : footerHeight + 8} clearRight={wide ? asideWidth : 0} />
+      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={wide ? 16 : overlay && !closing ? 12 : footerHeight + 8} clearRight={wide ? frame.clearRight : 0} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={photoClosed} /> : null}
     </>
   );
@@ -763,32 +759,39 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   if (wide)
     return (
       <View style={[styles.screen, { backgroundColor: c.field }]}>
-        <View style={[styles.wideBar, { paddingTop: insets.top }]}>
-          <SplitHeader onShare={() => void share()} />
-        </View>
-        <View style={styles.wideBody}>
-          <ScrollView style={styles.page} contentContainerStyle={styles.wideLeft}>
-            <View style={styles.wideColumn}>
-              <SplitIntro
-                host={host.name}
-                total={money(split.receipt.total)}
-                place={split.place}
-                links={false}
-                onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
-                onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-                onHistory={(from) => open({ kind: "history" }, from)}
-              />
-              <Presence present={me !== null && selectedPerson !== null && selectedPerson.id !== me} animate>
-                {me && selectedPerson ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
-              </Presence>
-              <View style={styles.doc}>{receipt}</View>
+        <ScrollView style={styles.page} contentContainerStyle={{ paddingTop: insets.top, paddingHorizontal: frameGutter }}>
+          <View style={[styles.frame, { width: frame.inner }]}>
+            <SplitHeader
+              onShare={() => void share()}
+              links={
+                <>
+                  {photo ? <TextLink label={say.receipt} onPress={setViewing} /> : null}
+                  <TextLink label={say.people} onPress={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))} />
+                  <TextLink label={say.payments} onPress={(from) => open({ kind: "payments", viewer: me }, from)} />
+                  <TextLink label={say.history} onPress={(from) => open({ kind: "history" }, from)} />
+                </>
+              }
+            />
+            <View style={[styles.wideBody, { columnGap: frame.gap }]}>
+              <View style={styles.wideColumn}>
+                <SplitIntro
+                  host={host.name}
+                  total={money(split.receipt.total)}
+                  place={split.place}
+                  links={false}
+                  onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
+                  onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+                  onHistory={(from) => open({ kind: "history" }, from)}
+                />
+                <Presence present={me !== null && selectedPerson !== null && selectedPerson.id !== me} animate>
+                  {me && selectedPerson ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
+                </Presence>
+                <View style={styles.doc}>{receipt}</View>
+              </View>
+              <View style={[styles.aside, { width: frame.column, height: pageHeight }]}>{aside}</View>
             </View>
-          </ScrollView>
-          <View style={styles.aside}>
-            <View style={[styles.asideRule, { backgroundColor: c.hairline }]} />
-            {aside}
           </View>
-        </View>
+        </ScrollView>
         <ConnectionNotice connection={connection} />
         {layers}
       </View>
@@ -861,13 +864,11 @@ const styles = StyleSheet.create({
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   people: { gap: layout.blockGap },
-  // The wide layout: the receipt on the left, and on the right a fixed column for what a phone shows in sheets, set off by a line that touches neither the top bar nor the bottom.
-  wideBar: { paddingHorizontal: 32 },
-  wideBody: { flex: 1, flexDirection: "row", minHeight: 0 },
-  wideLeft: { paddingHorizontal: 72, paddingTop: 12, paddingBottom: 48 },
-  wideColumn: { alignSelf: "center", width: "100%", maxWidth: 640 },
-  aside: { width: asideWidth, paddingHorizontal: 36, paddingTop: 24 },
-  asideRule: { position: "absolute", left: 0, top: 36, bottom: 36, width: 1 },
+  // The wide layout: one page that scrolls as a whole, the receipt on the left and on the right a column for what a phone shows in sheets, which stays in view while the receipt scrolls past.
+  frame: { alignSelf: "center" },
+  wideBody: { flexDirection: "row", alignItems: "flex-start", paddingTop: 12 },
+  wideColumn: { flex: 1, minWidth: 0, paddingBottom: 64 },
+  aside: { ...webStyle({ position: "sticky", top: "0px" }), paddingTop: 24 },
   payRest: { marginTop: 8 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

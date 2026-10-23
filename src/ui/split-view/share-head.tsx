@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
-import { TextLink, linkPress } from "../components/text-link";
+import { linkPress } from "../components/text-link";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { motion, type, useColors } from "../theme";
@@ -12,13 +12,10 @@ type Props = {
   title: string;
   open: boolean;
   onPick: (press: Press) => void;
-  onReceipt?: (press: Press) => void;
-  onPayments: (press: Press) => void;
-  onHistory: (press: Press) => void;
 };
 
-/** The top of the wide layout's column: whose share is shown, which opens the people menu, and the links the phone keeps under the intro. */
-export function ShareHead({ title, open, onPick, onReceipt, onPayments, onHistory }: Props) {
+/** The top of the wide layout's column: whose share is shown, which opens the people menu. The links the phone keeps under the intro sit in the top bar. */
+export function ShareHead({ title, open, onPick }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
@@ -35,11 +32,6 @@ export function ShareHead({ title, open, onPick, onReceipt, onPayments, onHistor
           </View>
         )}
       </PressTarget>
-      <View style={styles.links}>
-        {onReceipt ? <TextLink label={say.receipt} onPress={onReceipt} /> : null}
-        <TextLink label={say.payments} onPress={onPayments} />
-        <TextLink label={say.history} onPress={onHistory} />
-      </View>
     </View>
   );
 }
@@ -52,5 +44,4 @@ const styles = StyleSheet.create({
   pick: { minHeight: 44, justifyContent: "center", flexShrink: 1, minWidth: 0 },
   face: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   title: { flexShrink: 1 },
-  links: { flexDirection: "row", columnGap: 16 },
 });
