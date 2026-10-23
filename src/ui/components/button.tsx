@@ -60,7 +60,8 @@ type TargetProps = Action & {
   /** A touch held still, or a right-click. The press that follows a hold does not also fire `onPress`. */
   onLongPress?: (press: Press) => void;
   style: (pressed: boolean) => StyleProp<ViewStyle>;
-  children: (pressed: boolean) => ReactNode;
+  /** `hovered` is true only under a mouse pointer; a touch never hovers. */
+  children: (pressed: boolean, hovered: boolean) => ReactNode;
 };
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
@@ -111,7 +112,7 @@ export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fa
       {...web}
       style={() => style(held)}
     >
-      {() => children(held)}
+      {({ hovered }: { pressed: boolean; hovered?: boolean }) => children(held, hovered ?? false)}
     </Pressable>
   );
 }

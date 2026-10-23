@@ -14,6 +14,7 @@ import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { tabular, type, useColors } from "../theme";
 import { TextLink } from "../components/text-link";
+import { Presence } from "../presence";
 import { switcherWidth } from "./switcher";
 import { MethodPicker } from "./method-picker";
 import type { PayState } from "./model";
@@ -40,20 +41,30 @@ export function PayBlock({ split, host, handles, state, busy = false, notice = n
   const due = state.kind === "unpaid" ? state.owe : state.kind === "short" ? state.rest : null;
   const paid = state.kind === "settled" || state.kind === "over" ? state.paid : null;
   return (
-    <View style={styles.box}>
-      {/* First, so a bar over the sheet's foot does not hide it. */}
-      {notice === null ? null : (
-        <Text role="status" style={[type.caption, compact ? null : styles.handles, { color: c.warn }]}>
-          {notice}
-        </Text>
-      )}
-      {compact || due === null || handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={due} />}
-      {paid === null ? null : (
-        <View style={[styles.paid, compact ? styles.paidLine : { borderColor: c.hairline }]}>
-          <Icon name="check" size={16} color={c.good} />
-          <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
+    <View>
+      {/* First, so a bar over the sheet's foot does not hide it. It grows in and folds out, and so does the wide column's paid line, so what sits under them glides instead of jumping; a phone's paid pill takes the pay pill's place at the same height, so it swaps at once. Each line carries its own space below, which a gap would leave behind at zero height. */}
+      <Presence present={notice !== null} animate>
+        {notice === null ? null : (
+          <Text role="status" style={[type.caption, styles.next, compact ? null : styles.handles, { color: c.warn }]}>
+            {notice}
+          </Text>
+        )}
+      </Presence>
+      {compact || due === null || handles.length === 0 ? null : (
+        <View style={styles.next}>
+          <PayWays split={split} host={host} handles={handles} amount={due} />
         </View>
       )}
+      <Presence present={paid !== null} animate={compact}>
+        {paid === null ? null : (
+          <View style={styles.next}>
+            <View style={[styles.paid, compact ? styles.paidLine : { borderColor: c.hairline }]}>
+              <Icon name="check" size={16} color={c.good} />
+              <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
+            </View>
+          </View>
+        )}
+      </Presence>
       {compact && state.kind === "unpaid" && handles.length > 0 ? (
         <View style={styles.ask}>
           <Text style={[type.caption, { color: c.muted }]}>{say.paidAnotherWay}</Text>
@@ -146,7 +157,7 @@ function useCopy(value: string, onFail: () => void): [copied: boolean, copy: () 
 const copiedFor = 1600;
 
 const styles = StyleSheet.create({
-  box: { gap: 4 },
+  next: { paddingBottom: 4 },
   ways: { gap: 10 },
   pill: { flexDirection: "row", alignItems: "center", height: 54, borderRadius: 27, paddingHorizontal: 24 },
   picking: { paddingRight: 0 },
