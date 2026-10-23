@@ -42,6 +42,12 @@ function lineParts(split: ItemSplit, price: number): LineParts {
   return { parts: new Map<Party, bigint>([...entries, [null, whole - total]]), denominator: whole };
 }
 
+/** Whether two splits of one Item give every person, and the unclaimed part, the same cents, as switching evenly to 1 share each does. */
+export function sameMoney(price: number, a: ItemSplit, b: ItemSplit): boolean {
+  const [x, y] = [lineParts(a, price), lineParts(b, price)];
+  return [...new Set([...x.parts.keys(), ...y.parts.keys()])].every((party) => (x.parts.get(party) ?? 0n) * y.denominator === (y.parts.get(party) ?? 0n) * x.denominator);
+}
+
 type Piece = LineParts & { readonly item: number; readonly gross: bigint; readonly weight: bigint };
 
 type Scope = { readonly adjustment: number; readonly items: ReadonlySet<number>; readonly itemsPrice: bigint; readonly carried: bigint };

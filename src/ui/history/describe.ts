@@ -1,5 +1,6 @@
 import { applyOperation } from "../../core/operations";
-import type { Change, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
+import { sameMoney } from "../../core/shares";
+import type { Change, ItemId, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
 import { groupedAmount, money } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 import { nameParts } from "../split-view/model";
@@ -27,27 +28,75 @@ const isRemoval = (write: Change["writes"][number]): write is Removal => write.k
 const shown = (write: Change["writes"][number]): write is Shown =>
   write.kind === "item" || write.kind === "split" || write.kind === "adjustment" || write.kind === "totals" || write.kind === "payment" || isRemoval(write);
 
+/** A change whose only write is a new way of splitting one Item. */
+type Switch = { readonly change: Change; readonly id: ItemId; readonly split: readonly [before: ItemSplit, after: ItemSplit] };
+
+function switchOf(change: Change): Switch | null {
+  if (change.undoes !== null || change.writes.length !== 1) return null;
+  const [write] = change.writes;
+  if (write.kind !== "item" || !("edit" in write) || !write.edit.split || Object.keys(write.edit).length !== 1) return null;
+  return { change, id: write.id, split: write.edit.split };
+}
+
+type Run = { readonly change: Change } | { readonly switches: Switch[] };
+
+/**
+ * Back-to-back switches of one Item by one person read as one entry from the first one's before to the last one's after. Its Revert targets the first,
+ * whose inverse puts the Item's split back as it was before the first, so it undoes the whole run. A switch reverted on its own starts a new run.
+ */
+function runs(changes: readonly Change[]): readonly Run[] {
+  const out: Run[] = [];
+  for (const change of changes) {
+    const next = switchOf(change);
+    const last = out.at(-1);
+    const tail = last && "switches" in last ? last.switches[last.switches.length - 1] : undefined;
+    if (next && last && "switches" in last && tail && tail.id === next.id && tail.change.by === change.by && change.undoneBy === null) last.switches.push(next);
+    else out.push(next ? { switches: [next] } : { change });
+  }
+  return out;
+}
+
+const priceOf = (split: Split, id: ItemId) => split.receipt.items.find((item) => item.id === id)?.price;
+
+/** A switch that leaves everyone's cents where they were, such as evenly to 1 share each, is not worth a line. An Item since deleted keeps its line. */
+function movesMoney(split: Split, id: ItemId, before: ItemSplit, after: ItemSplit): boolean {
+  const price = priceOf(split, id);
+  return price === undefined || !sameMoney(price, before, after);
+}
+
+const idle = (split: Split, write: Shown) => write.kind === "item" && "edit" in write && write.edit.split !== undefined && Object.keys(write.edit).length === 1 && !movesMoney(split, write.id, ...write.edit.split);
+
 export function historyOf(split: Split): Entry[] {
-  return split.recentChanges
-    .filter((change) => change.undoes === null && change.writes.some(shown))
-    .map((change) => {
-      const writes = change.writes.filter(shown);
-      // A removal's own claim and payment writes are part of it, not more changes.
-      const removal = writes.find(isRemoval);
-      const lead = removal ?? writes.find((write) => write.kind !== "totals") ?? writes[0];
-      return {
-        revision: change.revision,
-        ...describe(lead, split),
-        more: removal ? 0 : writes.filter((write) => write.kind !== "totals" && write !== lead).length,
-        sentAs: change.by,
-        name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
-        byline: !(lead.kind === "payment" && lead.participantId === change.by),
-        at: change.at,
-        reverted: change.undoneBy !== null,
-        revertible: !change.writes.some((write) => (write.kind === "payment" && !removal) || write.kind === "perUnit"),
-      };
+  return runs(split.recentChanges)
+    .flatMap((run): Entry[] => {
+      if ("switches" in run) {
+        const [first, last] = [run.switches[0], run.switches[run.switches.length - 1]];
+        const [before, after] = [first.split[0], last.split[1]];
+        if (!movesMoney(split, first.id, before, after)) return [];
+        return [entry(split, first.change, [{ kind: "item", id: first.id, edit: { split: [before, after] } }], last.change.at)];
+      }
+      const { change } = run;
+      const writes = change.writes.filter(shown).filter((write) => !idle(split, write));
+      return change.undoes === null && writes.length > 0 ? [entry(split, change, writes, change.at)] : [];
     })
     .reverse();
+}
+
+function entry(split: Split, change: Change, writes: readonly Shown[], at: number | undefined): Entry {
+  // A removal's own claim and payment writes are part of it, not more changes.
+  const removal = writes.find(isRemoval);
+  const lead = removal ?? writes.find((write) => write.kind !== "totals") ?? writes[0];
+  return {
+    revision: change.revision,
+    ...describe(lead, split),
+    more: removal ? 0 : writes.filter((write) => write.kind !== "totals" && write !== lead).length,
+    sentAs: change.by,
+    name: split.participants.find(({ id }) => id === change.by)?.name ?? null,
+    byline: !(lead.kind === "payment" && lead.participantId === change.by),
+    at,
+    reverted: change.undoneBy !== null,
+    revertible: !change.writes.some((write) => (write.kind === "payment" && !removal) || write.kind === "perUnit"),
+  };
 }
 
 function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "after"> {
@@ -75,7 +124,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       if ("amount" in edit && edit.amount) return { lead: name, before: groupedAmount(edit.amount[0]), after: groupedAmount(edit.amount[1]) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
-        return { lead: `${name} split`, before: splitWord(before), after: splitWord(after) };
+        return before.by === after.by ? { lead: `Changed how ${name} is split` } : { lead: `${name} split`, before: splitWord(before), after: splitWord(after) };
       }
       return { lead: name };
     }
