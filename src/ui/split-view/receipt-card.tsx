@@ -1,4 +1,4 @@
-import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 
 import { shareBreakdown, type Shares } from "../../core/shares";
@@ -229,23 +229,36 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
 
 const lineIds = (rows: readonly ReceiptRow[]) => rows.flatMap((row) => (row.kind === "item" ? [row.item.id] : row.bundle.items.map(({ id }) => id)));
 
-/** A claim that moves the focused line out of the filter would leave focus on a collapsing, inert row, so it moves to the same control on the next line shown, else the one before, else the filter itself. */
+/** The line and control (dot or line) that hold focus, read from the page. */
+function focusedLine(): { readonly id: ItemId; readonly slot: number } | null {
+  const active = typeof document === "undefined" ? null : document.activeElement;
+  const row = active?.closest<HTMLElement>('[data-testid^="line-"]');
+  const id = row?.dataset.testid?.slice("line-".length);
+  return active && row && id ? { id: id as ItemId, slot: Math.max([...row.querySelectorAll("[data-pressable]")].indexOf(active), 0) } : null;
+}
+
+/** A claim that moves the focused line out of the filter remounts that line as a collapsing, inert copy, so focus falls to the page. It moves instead to the same control on the next line shown, else the one before, else the filter itself. The last focused line is tracked as focus moves, since the commit has replaced it by the time an effect runs. */
 function useFocusKept(rows: readonly ReceiptRow[], filter: ItemFilter) {
   const shown = useMemo(() => lineIds(rows), [rows]);
   const last = useRef({ shown, filter });
+  const held = useRef<ReturnType<typeof focusedLine>>(null);
+  useEffect(() => {
+    const track = () => {
+      held.current = focusedLine();
+    };
+    document.addEventListener("focusin", track);
+    return () => document.removeEventListener("focusin", track);
+  }, []);
   useLayoutEffect(() => {
     const was = last.current;
     last.current = { shown, filter };
-    if (filter === "all" || was.filter !== filter || was.shown === shown) return;
-    const active = document.activeElement;
-    const row = active?.closest<HTMLElement>('[data-testid^="line-"]');
-    const id = row?.dataset.testid?.slice("line-".length);
-    if (!active || !row || !id || shown.includes(id as ItemId)) return;
-    const slot = [...row.querySelectorAll("[data-pressable]")].indexOf(active);
-    const at = was.shown.indexOf(id as ItemId);
-    const near = [...was.shown.slice(at + 1), ...was.shown.slice(0, Math.max(at, 0)).reverse()].filter((one) => shown.includes(one));
+    const line = held.current;
+    if (filter === "all" || was.filter !== filter || was.shown === shown || !line || shown.includes(line.id) || !was.shown.includes(line.id)) return;
+    if (document.activeElement !== document.body && document.activeElement !== null) return;
+    const at = was.shown.indexOf(line.id);
+    const near = [...was.shown.slice(at + 1), ...was.shown.slice(0, at).reverse()].filter((one) => shown.includes(one));
     const target =
-      near.map((one) => document.querySelectorAll<HTMLElement>(`[data-testid="line-${one}"] [data-pressable]`)[Math.max(slot, 0)]).find(Boolean) ??
+      near.map((one) => document.querySelectorAll<HTMLElement>(`[data-testid="line-${one}"] [data-pressable]`)[line.slot]).find(Boolean) ??
       document.querySelector<HTMLElement>('[data-testid="filter-tabs"] [aria-pressed="true"]') ??
       document.querySelector<HTMLElement>('[data-testid="filter-button"]')?.closest<HTMLElement>("[data-pressable]");
     target?.focus({ preventScroll: true });
