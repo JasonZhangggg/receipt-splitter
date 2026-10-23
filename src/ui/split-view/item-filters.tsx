@@ -9,7 +9,7 @@ import { splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
 import { itemFilters, type ItemFilter } from "./model";
 
-export const filterMenuWidth = 236;
+export const filterMenuWidth = 264;
 
 /** Every place a filter shows reads from this, so the tabs, the button and the menu name it alike. `whose` is the viewed person's first name, or null for the viewer. */
 export function filterLabel(filter: ItemFilter, whose: string | null): string {
