@@ -20,9 +20,11 @@ type Props = {
   onHide: () => void;
   action?: { label: string; onPress: () => void };
   lift?: number;
+  /** Room kept free on the right, so the toast centers over the part of the page it reports on: the receipt, beside the wide layout's column. */
+  clearRight?: number;
 };
 
-export function Toast({ message, onHide, action, lift = 0 }: Props) {
+export function Toast({ message, onHide, action, lift = 0, clearRight = 0 }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -66,7 +68,7 @@ export function Toast({ message, onHide, action, lift = 0 }: Props) {
   }, [message]);
 
   return (
-    <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: 16 + (lift || insets.bottom) }]}>
+    <View role="status" aria-live="polite" pointerEvents="box-none" {...followsPanel} style={[styles.anchor, { bottom: 16 + (lift || insets.bottom), right: layout.gutter + clearRight }]}>
       {shown ? (
         <View ref={bar} style={[styles.toast, !showing && styles.bare, ring(c.field), { backgroundColor: c.ink }, !message && awayStyle(rise, reduce)]}>
           <Text style={[type.caption, styles.message, { color: c.field }]}>{shown}</Text>

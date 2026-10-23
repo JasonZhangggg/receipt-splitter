@@ -18,13 +18,23 @@ import { switcherWidth } from "./switcher";
 import { MethodPicker } from "./method-picker";
 import type { PayState } from "./model";
 
-type Props = { split: SplitId; host: string; handles: readonly PaymentHandle[]; state: PayState; busy?: boolean; notice?: string | null; onPaid: (paid: boolean) => void };
+type Props = {
+  split: SplitId;
+  host: string;
+  handles: readonly PaymentHandle[];
+  state: PayState;
+  busy?: boolean;
+  notice?: string | null;
+  onPaid: (paid: boolean) => void;
+  /** The wide layout's column, where `PayButton` sits beside the amount: this block keeps only the note, the paid line and the link, flush left. */
+  compact?: boolean;
+};
 
 /** Venmo notes can be public, so the note stays generic. */
 const note = "Receipt split";
 const target = Platform.OS === "web" ? "web" : "app";
 
-export function PayBlock({ split, host, handles, state, busy = false, notice = null, onPaid }: Props) {
+export function PayBlock({ split, host, handles, state, busy = false, notice = null, onPaid, compact = false }: Props) {
   const c = useColors();
   if (state.kind === "nothing") return null;
   const due = state.kind === "unpaid" ? state.owe : state.kind === "short" ? state.rest : null;
@@ -33,23 +43,35 @@ export function PayBlock({ split, host, handles, state, busy = false, notice = n
     <View style={styles.box}>
       {/* First, so a bar over the sheet's foot does not hide it. */}
       {notice === null ? null : (
-        <Text role="status" style={[type.caption, styles.handles, { color: c.warn }]}>
+        <Text role="status" style={[type.caption, compact ? null : styles.handles, { color: c.warn }]}>
           {notice}
         </Text>
       )}
-      {due === null || handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={due} />}
+      {compact || due === null || handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={due} />}
       {paid === null ? null : (
-        <View style={[styles.paid, { borderColor: c.hairline }]}>
+        <View style={[styles.paid, compact ? styles.paidLine : { borderColor: c.hairline }]}>
           <Icon name="check" size={16} color={c.good} />
           <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
         </View>
       )}
-      <TextLink center label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.markNotPaid} busy={busy} onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")} outsideScroll />
+      {compact && state.kind === "unpaid" && handles.length > 0 ? (
+        <View style={styles.ask}>
+          <Text style={[type.caption, { color: c.muted }]}>{say.paidAnotherWay}</Text>
+          <TextLink label={say.markAsPaid} busy={busy} onPress={() => onPaid(true)} outsideScroll />
+        </View>
+      ) : (
+        <TextLink center={!compact} label={state.kind === "unpaid" ? say.alreadyPaid : state.kind === "short" ? say.paidRest : say.markNotPaid} busy={busy} onPress={() => onPaid(state.kind === "unpaid" || state.kind === "short")} outsideScroll />
+      )}
     </View>
   );
 }
 
-function PayWays({ split, host, handles, amount }: { split: SplitId; host: string; handles: readonly PaymentHandle[]; amount: Cents }) {
+/** The pay pill alone, at the size of the page's other buttons, for the wide layout's column where it sits beside the amount. */
+export function PayButton({ split, host, handles, amount }: { split: SplitId; host: string; handles: readonly PaymentHandle[]; amount: Cents }) {
+  return handles.length === 0 ? null : <PayWays split={split} host={host} handles={handles} amount={amount} compact />;
+}
+
+function PayWays({ split, host, handles, amount, compact = false }: { split: SplitId; host: string; handles: readonly PaymentHandle[]; amount: Cents; compact?: boolean }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [problem, setProblem] = useState(false);
@@ -68,7 +90,7 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
     rememberSplit(split, { payWith: service });
   };
   return (
-    <View style={styles.ways}>
+    <View style={[styles.ways, compact && styles.compactWays]}>
       <View>
         <PressTarget
           {...action}
@@ -77,33 +99,33 @@ function PayWays({ split, host, handles, amount }: { split: SplitId; host: strin
           style={(pressed) => pressStyle(pressed, reduce)}
         >
           {() => (
-            <View style={[styles.pill, choices.length > 1 && styles.picking, { backgroundColor: c.action }]}>
+            <View style={[styles.pill, compact && styles.compactPill, choices.length > 1 && styles.picking, { backgroundColor: c.action }]}>
               <View style={styles.say}>
                 {href === null ? <View style={styles.icon}><Icon name={done ? "check" : "copy"} size={18} color={c.onAction} /></View> : null}
                 {done ? null : <Mark glyph={app.glyph} ink={c.onAction} fill={c.action} />}
                 <Text numberOfLines={1} style={[type.body, { color: c.onAction }]}>{done ? say.copied : app.name}</Text>
               </View>
-              {choices.length > 1 ? <Switcher tint={c.onAction} /> : null}
+              {choices.length > 1 ? <Switcher tint={c.onAction} compact={compact} /> : null}
             </View>
           )}
         </PressTarget>
         {choices.length > 1 ? (
           <MethodPicker service={handle.service} choices={choices} onPick={pick} name={say.payWith}>
-            <Switcher tint={c.onAction} />
+            <Switcher tint={c.onAction} compact={compact} />
           </MethodPicker>
         ) : null}
       </View>
       {/* The app and its handle joined by a no-break space, so the line never splits a handle. Only the chosen app's: the picker holds the others. */}
-      <Text style={[type.caption, styles.handles, { color: c.muted }]}>{`${app.name}\u00a0${handleText(handle)}`}</Text>
-      {problem ? <Text style={[type.caption, styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
+      <Text style={[type.caption, compact ? styles.handlesEnd : styles.handles, { color: c.muted }]}>{`${app.name}\u00a0${handleText(handle)}`}</Text>
+      {problem ? <Text style={[type.caption, compact ? styles.handlesEnd : styles.handles, { color: c.muted }]}>{say.copyValueFailed}</Text> : null}
     </View>
   );
 }
 
 /** The chevron end of the pill, set off by a hairline so it reads as the part that switches the app. */
-function Switcher({ tint }: { tint: string }) {
+function Switcher({ tint, compact = false }: { tint: string; compact?: boolean }) {
   return (
-    <View style={styles.switcher}>
+    <View style={[styles.switcher, compact && styles.compactSwitcher]}>
       <View style={[styles.hairline, { backgroundColor: tint }]} />
       <Icon name="chevron" size={18} color={tint} />
     </View>
@@ -134,4 +156,11 @@ const styles = StyleSheet.create({
   hairline: { position: "absolute", left: 0, width: 1, height: 24, opacity: 0.3 },
   handles: { textAlign: "center", marginHorizontal: 4 },
   paid: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 52, borderRadius: 26, borderWidth: 1 },
+  paidLine: { justifyContent: "flex-start", height: 32, borderWidth: 0 },
+  ask: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 6 },
+  compactWays: { gap: 6, alignItems: "flex-end" },
+  // The height of the page's other secondary buttons.
+  compactPill: { height: 44, paddingHorizontal: 20 },
+  compactSwitcher: { height: 44 },
+  handlesEnd: { textAlign: "right" },
 });

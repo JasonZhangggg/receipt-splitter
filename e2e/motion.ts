@@ -1081,16 +1081,18 @@ async function deskSplit(page: Page) {
 
 async function deskPicked(page: Page) {
   await deskSplit(page);
-  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
+  // On a desktop the pick shows in the right column, not in a sheet.
+  await page.getByRole("region", { name: "Which one are you?" }).getByRole("button", { name: "Jason", exact: true }).click();
   await page.getByTestId("split-sheet").waitFor({ state: "detached" });
   await page.waitForTimeout(600);
 }
 
 async function viewingSam(page: Page) {
   await deskPicked(page);
-  await page.getByRole("button", { name: "People", exact: true }).click();
-  await page.getByRole("dialog", { name: "People" }).getByRole("button", { name: "Sam", exact: true }).click();
-  await page.getByRole("dialog", { name: "People" }).waitFor({ state: "detached" });
+  // The column's "What you had" menu chooses whose side the receipt shows.
+  await page.getByRole("button", { name: /Choose whose share to show/ }).click();
+  await page.getByRole("button", { name: "Sam", exact: true }).click();
+  await page.getByTestId("share-head").getByText("What Sam had").waitFor();
   await page.waitForTimeout(600);
 }
 
@@ -1144,6 +1146,14 @@ export const scenarios: Scenario[] = [
   },
   deskBundleExpand,
   deskBundleCollapse,
+  {
+    id: "desk-panel-open",
+    name: "Desktop: Edit item fades into the right column",
+    layout: "desktop",
+    setup: deskPicked,
+    act: (page) => page.getByRole("button", { name: /^Open Rice,/ }).click(),
+    probes: [{ key: "panel", find: `document.querySelector('[role="region"][data-testid="item-sheet"]')`, kind: "opacity" }],
+  },
   { ...reduced(deskPopoverOpen), layout: "desktop" },
   { ...reduced(deskBundleExpand), layout: "desktop" },
   { ...reduced(deskBundleCollapse), layout: "desktop" },

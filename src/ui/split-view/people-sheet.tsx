@@ -10,7 +10,7 @@ import { UnderlineInput } from "../components/underline-input";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { KeptRows, useEntering } from "../presence";
 import { splitCopy as say } from "../split-copy";
-import { layout, motion, tabular, type, useColors } from "../theme";
+import { layout, motion, tabular, type, useColors, useOnPage } from "../theme";
 import { LinkLine } from "./link-line";
 import { Pinned, SheetHeader } from "./sheet-header";
 
@@ -47,6 +47,7 @@ const dotFade = webStyle({ transitionProperty: "background-color, box-shadow", t
 /** Everyone in the Split with their share. A tap shows the list from that person's side. The same sheet asks "Which one are you?" while this phone has no name. */
 export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd, onRemove, onClose, url }: Props) {
   const c = useColors();
+  const onPage = useOnPage();
   const asking = meName === null;
   const [mode, setMode] = useState<Mode>("view");
   const [held, setHeld] = useState<ParticipantId | null>(null);
@@ -100,7 +101,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
       ) : (
         <>
           <SheetHeader title={say.people} onClose={onClose} />
-          <Text style={[type.caption, styles.hint, { color: c.muted }]}>{mode === "switch" ? say.switchHint : mode === "remove" ? say.removeHint : say.peopleHint}</Text>
+          <Text style={[type.caption, styles.hint, { color: c.muted }]}>{mode === "switch" ? (onPage ? say.switchHintClick : say.switchHint) : mode === "remove" ? (onPage ? say.removeHintClick : say.removeHint) : onPage ? say.peopleHintClick : say.peopleHint}</Text>
         </>
       )}
       <View role="list" style={styles.rows}>
@@ -150,7 +151,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
         )
       ) : (
         <View style={[styles.phone, { borderTopColor: c.hairline }]}>
-          <Text style={[type.caption, styles.phoneIs, { color: c.muted }]}>{say.phoneIs(meName)}</Text>
+          <Text style={[type.caption, styles.phoneIs, { color: c.muted }]}>{onPage ? say.computerIs(meName) : say.phoneIs(meName)}</Text>
           {mode === "remove" ? null : <TextLink label={mode === "switch" ? say.cancel : say.switchAccount} onPress={() => leave(mode === "switch" ? "view" : "switch")} outsideScroll />}
         </View>
       )}
@@ -203,6 +204,7 @@ type LineProps = { row: PersonRow; mode: Mode; asking: boolean; host: boolean; c
 
 function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const c = useColors();
+  const onPage = useOnPage();
   const reduce = useReducedMotion();
   const { person } = row;
   const removing = mode === "remove";
@@ -214,7 +216,7 @@ function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const name = mode === "switch" && row.heldElsewhere ? say.pickedName(person.name) : mine ? `${person.name}, ${say.you}` : person.name;
   const tag = mine ? say.you : host && !asking ? say.paidTheBill : null;
   const note =
-    row.heldElsewhere && (mode === "switch" || !host) ? say.pickedElsewhere.replace(/\.$/, "") : asking ? null : mine ? say.thisPhone : host ? say.getsPaid : null;
+    row.heldElsewhere && (mode === "switch" || !host) ? say.pickedElsewhere.replace(/\.$/, "") : asking ? null : mine ? (onPage ? say.thisComputer : say.thisPhone) : host ? say.getsPaid : null;
   return (
     <PressTarget
       name={removing ? say.removePerson(person.name) : name}

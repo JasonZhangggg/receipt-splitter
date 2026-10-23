@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 import { Easing, Platform, StyleSheet, useColorScheme } from "react-native";
 
 import { readAppearance, resolveScheme, storeAppearance, type Appearance, type Scheme } from "./appearance";
@@ -36,8 +36,16 @@ export const useSystemScheme: () => Scheme = Platform.OS === "web" ? useWebSchem
 
 export const useScheme = (): Scheme => resolveScheme(useAppearance(), useSystemScheme());
 
+/** Which surface the content sits on. A sheet sits a step off the page in dark mode; the same content in the wide layout's side column sits on the page itself. */
+export type Surface = "sheet" | "page";
+export const SurfaceContext = createContext<Surface>("sheet");
+/** True inside the wide layout's column, where the pointer is a mouse: copy says click, and this device is a computer. */
+export const useOnPage = () => useContext(SurfaceContext) === "page";
+const onPage = { light: { ...colors.light, sheet: colors.light.field }, dark: { ...colors.dark, sheet: colors.dark.field } };
+
 export function useColors(): Colors {
-  return colors[useScheme()];
+  const scheme = useScheme();
+  return useContext(SurfaceContext) === "page" ? onPage[scheme] : colors[scheme];
 }
 
 export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24, xxl: 32, xxxl: 48, huge: 64 } as const;
