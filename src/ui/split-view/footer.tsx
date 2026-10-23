@@ -10,6 +10,8 @@ import { layout, motion, tabular, type, useColors } from "../theme";
 import type { BillParts } from "./model";
 import { ShareBar } from "./share-bar";
 
+/** Past "$999.99" the amount drops a size, so "$1,234.56" fits beside the pill on a 360 px phone. */
+const longAmount = 7;
 const fade = webStyle({ transitionProperty: "opacity", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
 export type FooterPill = { readonly kind: "pay"; readonly host: string; /** False while the payer has claimed nothing: the pill shows gray. */ readonly ready: boolean } | { readonly kind: "paid" } | { readonly kind: "ask" };
@@ -71,7 +73,7 @@ export function SplitFooter({ label, amount, whose, note, bill, pill, onOpen, on
                         <Icon name="chevron" size={13} color={c.muted} />
                       </View>
                     </View>
-                    <Text testID="owe" numberOfLines={1} style={[styles.amount, tabular, { color: c.ink }]}>
+                    <Text testID="owe" style={[styles.amount, amount.length > longAmount && styles.longAmount, tabular, { color: c.ink }]}>
                       {amount}
                     </Text>
                   </>
@@ -122,15 +124,18 @@ const styles = StyleSheet.create({
   column: { width: "100%", maxWidth: 480 },
   // The pill sits on the middle of the label and the amount together.
   main: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
-  labelLine: { flexDirection: "row", alignItems: "center", gap: 5 },
+  // Zero width with a full-width floor: a long name never widens the share past the amount, so it ellipsizes instead of pushing the pill.
+  labelLine: { flexDirection: "row", alignItems: "center", gap: 5, width: 0, minWidth: "100%" },
   label: { fontFamily: type.caption.fontFamily, fontSize: 15, lineHeight: 20, flexShrink: 1, minWidth: 0 },
   up: { transform: [{ rotate: "180deg" }] },
   ask: { flex: 1, minWidth: 0 },
-  share: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: "center" },
+  share: { flexGrow: 1, flexShrink: 0, minHeight: 44, justifyContent: "center" },
   amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 46, lineHeight: 50, letterSpacing: -2, marginTop: 2 },
+  longAmount: { fontSize: 36, lineHeight: 50, letterSpacing: -1.4 },
   bar: { marginTop: 14 },
   note: { marginTop: 8 },
-  pillHit: { flexShrink: 0, maxWidth: "58%", borderRadius: 25 },
+  // The pill gives up room before the amount does: its words ellipsize, the money never does.
+  pillHit: { flexShrink: 1, minWidth: 0, maxWidth: "58%", borderRadius: 25 },
   pill: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, paddingLeft: 24, paddingRight: 22, borderRadius: 25 },
   pillText: { flexShrink: 1, fontSize: 16, lineHeight: 22, fontWeight: "500" },
 });

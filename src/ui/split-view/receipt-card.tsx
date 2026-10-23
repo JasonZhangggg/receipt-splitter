@@ -15,7 +15,7 @@ import { motion, tabular, type, useColors } from "../theme";
 import { firstName } from "../pay/pay-sheet";
 import { ClaimDot } from "./dot";
 import { FilterButton, FilterTabs } from "./item-filters";
-import { filterCounts, filterRows, itemsHad, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoHad, whoText, type BundleRow, type ItemFilter, type Who, type Portions, type Viewing } from "./model";
+import { filterCounts, filterRows, itemsHad, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoHad, whoText, type BundleRow, type ItemFilter, type ReceiptRow, type Who, type Portions, type Viewing } from "./model";
 
 type Props = {
   split: Split;
@@ -62,6 +62,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   const viewer = selected?.id ?? null;
   const rows = useMemo(() => filterRows(allRows, filter, viewer), [allRows, filter, viewer]);
   const counts = filterCounts(items, viewer);
+  useFocusKept(rows, filter);
   const whose = selected && selected.id !== me ? firstName(selected.name) : null;
   const [entering, settle] = useEntering([...items, ...adjustments].map(({ id }) => id));
   const started = items.some(({ split: item }) => claimersOf(item).length > 0);
@@ -132,21 +133,26 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       )}
       {/* Keyed by the filter, so a new filter shows its rows at once; within one, a claim that moves a line out of it collapses the line as a delete does. */}
       <View key={filter} role="list" aria-label={say.item} style={[styles.list, { borderBottomColor: c.hairline }]}>
-        {rows.length === 0 && filter !== "all" ? (
-          <Text testID="filter-empty" style={[type.body, styles.empty, { color: c.muted, borderTopColor: c.hairline }]}>
-            {say.filterEmpty[filter]}
-          </Text>
-        ) : null}
+        {filter === "all" ? null : (
+          // It grows in as the last line collapses out, so the two never stack at full height.
+          <Presence present={rows.length === 0} animate>
+            <Text testID="filter-empty" style={[type.body, styles.empty, { color: c.muted, borderTopColor: c.hairline }]}>
+              {say.filterEmpty[filter]}
+            </Text>
+          </Presence>
+        )}
         <KeptRows rows={rows} entering={entering}>
           {(row) => {
             if (row.kind === "item") return line(row.item, false);
             const { bundle } = row;
-            const claimers = [...new Map(bundle.items.flatMap(people).map((one) => [one.id, one])).values()];
+            // The header speaks for the whole Bundle under every filter; only the lines inside it change.
+            const whole = allRows.find((one): one is typeof row => one.kind === "bundle" && one.id === row.id)?.bundle ?? bundle;
+            const claimers = [...new Map(whole.items.flatMap(people).map((one) => [one.id, one])).values()];
             return (
               <BundleGroup
                 bundle={bundle}
                 open={opened.has(bundle.id)}
-                claimed={claimedItems(bundle, shares.unclaimed.itemIds)}
+                claimed={claimedItems(whole, shares.unclaimed.itemIds)}
                 claimers={claimers}
                 who={whoHad(claimers.map(({ id }) => id), viewing)}
                 onToggle={() => toggle(bundle.id)}
@@ -219,6 +225,31 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       ) : null}
     </View>
   );
+}
+
+const lineIds = (rows: readonly ReceiptRow[]) => rows.flatMap((row) => (row.kind === "item" ? [row.item.id] : row.bundle.items.map(({ id }) => id)));
+
+/** A claim that moves the focused line out of the filter would leave focus on a collapsing, inert row, so it moves to the same control on the next line shown, else the one before, else the filter itself. */
+function useFocusKept(rows: readonly ReceiptRow[], filter: ItemFilter) {
+  const shown = useMemo(() => lineIds(rows), [rows]);
+  const last = useRef({ shown, filter });
+  useLayoutEffect(() => {
+    const was = last.current;
+    last.current = { shown, filter };
+    if (filter === "all" || was.filter !== filter || was.shown === shown) return;
+    const active = document.activeElement;
+    const row = active?.closest<HTMLElement>('[data-testid^="line-"]');
+    const id = row?.dataset.testid?.slice("line-".length);
+    if (!active || !row || !id || shown.includes(id as ItemId)) return;
+    const slot = [...row.querySelectorAll("[data-pressable]")].indexOf(active);
+    const at = was.shown.indexOf(id as ItemId);
+    const near = [...was.shown.slice(at + 1), ...was.shown.slice(0, Math.max(at, 0)).reverse()].filter((one) => shown.includes(one));
+    const target =
+      near.map((one) => document.querySelectorAll<HTMLElement>(`[data-testid="line-${one}"] [data-pressable]`)[Math.max(slot, 0)]).find(Boolean) ??
+      document.querySelector<HTMLElement>('[data-testid="filter-tabs"] [aria-pressed="true"]') ??
+      document.querySelector<HTMLElement>('[data-testid="filter-button"]')?.closest<HTMLElement>("[data-pressable]");
+    target?.focus({ preventScroll: true });
+  }, [shown, filter]);
 }
 
 type BundleProps = {
@@ -426,7 +457,7 @@ const Line = memo(function Line({ item, viewing, portions, claimers, selected, i
             </View>
             {whoColumn ? <WhoLine who={who} style={styles.whoColumn} /> : null}
             <View style={[styles.figures, whoColumn && styles.priceColumn]}>
-              <Text style={[big, tabular, inkFade, { color: quiet ? c.muted : c.ink }]}>{money(item.price)}</Text>
+              <Text style={[big, tabular, inkFade, { color: quiet && !hovered ? c.muted : c.ink }]}>{money(item.price)}</Text>
               {split ? (
                 <Text numberOfLines={1} style={[type.caption, styles.noteText, tabular, { color: c.muted }]}>
                   {split}

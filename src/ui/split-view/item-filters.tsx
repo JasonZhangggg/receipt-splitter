@@ -28,7 +28,7 @@ export function FilterTabs({ filter, counts, viewer, whose, onPick }: Props & { 
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <View style={styles.tabs}>
+    <View testID="filter-tabs" style={styles.tabs}>
       {itemFilters(viewer).map((one) => {
         const on = one === filter;
         const label = filterLabel(one, whose);
@@ -54,14 +54,16 @@ export function FilterTabs({ filter, counts, viewer, whose, onPick }: Props & { 
 export function FilterButton({ filter, counts, whose, open, onOpen }: Omit<Props, "viewer"> & { open: boolean; onOpen: (press: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const label = filter === "all" ? say.showAll(counts.all) : `${filterLabel(filter, whose)} ${counts[filter]}`;
+  const [words, count] = filter === "all" ? [say.showAll(counts.all), null] : [filterLabel(filter, whose), counts[filter]];
+  const label = count === null ? words : `${words} ${count}`;
   return (
     <PressTarget name={`${say.showItems}: ${label}`} popup="dialog" expanded={open} onPress={onOpen} style={(pressed) => [styles.button, pressStyle(pressed, reduce, linkPress)]}>
       {() => (
         <View testID="filter-button" style={styles.buttonFace}>
-          <Text numberOfLines={1} style={[type.caption, tabular, { color: c.ink }]}>
-            {label}
+          <Text numberOfLines={1} style={[type.caption, tabular, styles.words, { color: c.ink }]}>
+            {words}
           </Text>
+          {count === null ? null : <Text style={[type.caption, tabular, { color: c.ink }]}>{count}</Text>}
           <View style={[{ transform: [{ rotate: open ? "180deg" : "0deg" }] }, !reduce && turn]}>
             <Icon name="chevron" size={14} color={c.muted} />
           </View>
@@ -107,8 +109,10 @@ const styles = StyleSheet.create({
   tab: { minHeight: 44, justifyContent: "flex-end" },
   tabFace: { paddingTop: 10 },
   rule: { height: 1.5, marginTop: 8 },
-  button: { minHeight: 44, justifyContent: "center", flexShrink: 0 },
-  buttonFace: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // A long viewed name ellipsizes before it crowds the Items line; the count stays whole.
+  button: { minHeight: 44, justifyContent: "center", flexShrink: 1, minWidth: 0, maxWidth: "60%" },
+  buttonFace: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  words: { flexShrink: 1, minWidth: 0 },
   press: { alignSelf: "stretch" },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
   tick: { width: 14 },

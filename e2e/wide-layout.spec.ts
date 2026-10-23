@@ -1044,20 +1044,20 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
       await expect(page.getByTestId("footer").getByTestId("share-bar")).toBeVisible();
       await expect(page.getByTestId("footer").getByText(/incl\. tax/)).toHaveCount(0);
 
-      await expect(page.getByTestId("filter-button")).toHaveText("Show all 5");
+      await expect(page.getByRole("button", { name: "Show items: Show all 5", exact: true })).toBeVisible();
       await page.getByRole("button", { name: /^Show items/ }).click();
       const menuBox = page.getByRole("dialog", { name: "Show items" });
       await expect(menuBox).toBeVisible(live);
       await menuBox.getByRole("button", { name: "Nobody yet, 4" }).click();
       await expect(menuBox).toHaveCount(0, live);
-      await expect(page.getByTestId("filter-button")).toHaveText("Nobody yet 4");
+      await expect(page.getByRole("button", { name: "Show items: Nobody yet 4", exact: true })).toBeVisible();
       await expect(line(page, "Sprite")).toHaveCount(0);
       await expect(page.getByTestId("total")).toHaveCount(0);
 
       // Claiming a line under Nobody yet moves it out of the list.
       await circle(page, "Perrier", "Sam").click();
       await expect(line(page, "Perrier")).toHaveCount(0, live);
-      await expect(page.getByTestId("filter-button")).toHaveText("Nobody yet 3");
+      await expect(page.getByRole("button", { name: "Show items: Nobody yet 3", exact: true })).toBeVisible();
     });
   });
 });

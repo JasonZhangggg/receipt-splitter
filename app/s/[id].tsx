@@ -126,6 +126,7 @@ const frameFor = (width: number) => {
   return { column, gap, inner, clearRight: (width - inner) / 2 + column + gap };
 };
 const frameGutter = 48;
+const wideBodyTop = 12;
 // Where the pick sheet's top edge sits before the links row has been measured, and the gap it keeps below that row once it has.
 const tallPickTop = 170;
 const pickGap = 12;
@@ -163,6 +164,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
   const [linksBottom, setLinksBottom] = useState<number | null>(null);
+  // Where the wide column starts below the top bar, so the sticky column ends at the window's bottom edge rather than past it.
+  const [asideTop, setAsideTop] = useState(0);
   const [bar, setBar] = useState<Bar | null>(null);
   /** The Receipt link's press while the photo viewer is open: focus goes back there. */
   const [viewing, setViewing] = useState<Press | null>(null);
@@ -810,7 +813,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
                 </>
               }
             />
-            <View style={[styles.wideBody, { columnGap: frame.gap }]}>
+            <View style={[styles.wideBody, { columnGap: frame.gap }]} onLayout={(event) => setAsideTop(Math.ceil(insets.top + event.nativeEvent.layout.y + wideBodyTop))}>
               <View style={styles.wideColumn}>
                 <SplitIntro
                   host={host.name}
@@ -826,7 +829,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
                 </Presence>
                 <View style={styles.doc}>{receipt}</View>
               </View>
-              <View style={[styles.aside, { width: frame.column, height: pageHeight }]}>{aside}</View>
+              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>{aside}</View>
             </View>
           </View>
         </ScrollView>
@@ -904,7 +907,7 @@ const styles = StyleSheet.create({
   people: { gap: layout.blockGap },
   // The wide layout: one page that scrolls as a whole, the receipt on the left and on the right a column for what a phone shows in sheets, which stays in view while the receipt scrolls past.
   frame: { alignSelf: "center" },
-  wideBody: { flexDirection: "row", alignItems: "flex-start", paddingTop: 12 },
+  wideBody: { flexDirection: "row", alignItems: "flex-start", paddingTop: wideBodyTop },
   wideColumn: { flex: 1, minWidth: 0, paddingBottom: 64 },
   aside: { ...webStyle({ position: "sticky", top: "0px" }), paddingTop: 24 },
   payRest: { marginTop: 8 },
