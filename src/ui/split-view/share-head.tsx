@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   pick: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start", flexShrink: 1, minWidth: 0 },
   face: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   title: { fontFamily: type.body.fontFamily, fontSize: 17, lineHeight: 26, flexShrink: 1 },
-  // The title's size on the left, and level with it: the intro's top padding is the column's 24 px plus this label's 44, so the two large lines read as a pair.
+  // The title's size on the left, and level with it: the intro's 72 px top padding is the column's 24, the panel's 4 and this label's 44, so the two large lines read as a pair.
   amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 68, lineHeight: 72, letterSpacing: -3 },
   bar: { marginTop: 18 },
   had: { marginTop: 36, paddingBottom: 12, borderBottomWidth: 1, marginBottom: 4 },

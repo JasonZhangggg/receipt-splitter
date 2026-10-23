@@ -1,8 +1,8 @@
 import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 /**
- * The Split page's desktop layout (docs/plans/desktop-layout.md): the receipt on the left, a 440px column on the right
- * that holds what a phone shows in bottom sheets. Every click and key path runs at 1440x900 and 1024x768, light mode,
+ * The Split page's desktop layout (docs/plans/desktop-layout.md, docs/plans/spread-layout.md): the receipt on the left and a
+ * column on the right that holds what a phone shows in bottom sheets, centered as one frame. Every click and key path runs at 1440x900 and 1024x768, light mode,
  * then the 390px phone is smoked to show the footer and sheets are untouched.
  */
 
@@ -130,13 +130,17 @@ for (const size of sizes) {
   test.describe(`${size.width}x${size.height}`, () => {
     test.use({ viewport: size, isMobile: false, hasTouch: false, colorScheme: "light", permissions: ["clipboard-read", "clipboard-write"] });
 
-    test("the layout: receipt left, a 440px column right, no footer, the intro says Click and has no links row", async ({ page, request }, { workerIndex }) => {
+    test("the layout: receipt left, the column right, no footer, the total as the title, and the links once, in the top bar", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
       await pick(page, "Sam");
 
       await expect(page.getByTestId("footer")).toHaveCount(0);
-      await expect(page.getByText("Click the dot next to what you had. Click a line to edit it or split it another way.")).toBeVisible();
-      await expect(page.getByRole("button", { name: "People", exact: true })).toHaveCount(0);
+      await expect(page.getByTestId("split-title")).toHaveText("$28.04");
+      await expect(page.getByTestId("paid-by")).toHaveText("Paid by Jason");
+      await expect(page.getByText(/Click the dot/)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "People", exact: true })).toHaveCount(1);
+      const links = (await page.getByRole("button", { name: "People", exact: true }).boundingBox())!;
+      expect(links.y).toBeLessThan((await page.getByTestId("split-title").boundingBox())!.y);
       const box = (await shareColumn(page).boundingBox())!;
       expect(Math.round(box.width)).toBeGreaterThanOrEqual(360);
       expect(box.x + box.width).toBeLessThanOrEqual(size.width);
@@ -904,7 +908,8 @@ test.describe("phone, 390px: the footer and the bottom sheets are as before", ()
 
     await circle(page, "Sprite", "Sam").click();
     await expect(page.getByTestId("footer").getByTestId("owe")).toHaveText("$3.05", live);
-    await expect(page.getByText("Tap the dot next to what you had.")).toBeVisible();
+    await expect(page.getByText(/Tap the dot/)).toHaveCount(0);
+    await expect(page.getByTestId("paid-by")).toHaveText("Paid by Jason");
     await expect(page.getByRole("button", { name: "People", exact: true })).toBeVisible();
 
     await line(page, "Sprite").click();
@@ -931,5 +936,112 @@ test.describe("phone, 390px: the footer and the bottom sheets are as before", ()
     await expect(page.getByTestId("footer").getByTestId("owe")).toBeVisible(live);
     await page.waitForTimeout(600);
     test.info().annotations.push({ type: "phone focus after keyboard pick", description: String(await focused(page)) });
+  });
+});
+
+test.describe("spread layout: a centered frame, filters and the share bar", () => {
+  const filterTab = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(`^${name}, \\d+$`) });
+
+  test.describe("2000x900", () => {
+    test.use({ viewport: { width: 2000, height: 900 }, isMobile: false, hasTouch: false, colorScheme: "light" });
+
+    test("the frame sits in the middle of the window and the page scrolls as one, with the column held at the top", async ({ page, request }, { workerIndex }) => {
+      await openSplit(page, await createSplit(request, workerIndex, [venmo], { ...menu, items: Array.from({ length: 24 }, (_, at) => ({ id: `line${at}`, name: `Line ${at + 1}`, price: 100 })), subtotal: 2400, total: 2906 }));
+      await pick(page, "Sam");
+
+      const width = await page.evaluate(() => document.documentElement.clientWidth);
+      const receipt = (await page.getByTestId("receipt").boundingBox())!;
+      const panel = (await shareColumn(page).boundingBox())!;
+      expect(Math.abs(receipt.x - (width - (panel.x + panel.width)))).toBeLessThanOrEqual(2);
+
+      // One scroll container, the full width of the window, so its scroll bar sits at the window's edge.
+      const scrollers = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll("*")]
+            .filter((element) => /auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight)
+            .map((element) => ({ right: Math.round(element.getBoundingClientRect().right), top: element.scrollTop })),
+        );
+      const [only, ...others] = await scrollers();
+      expect(others).toEqual([]);
+      expect(only.right).toBe(2000);
+      await page.mouse.move(receipt.x + 40, 600);
+      await page.mouse.wheel(0, 500);
+      await expect.poll(async () => (await scrollers())[0].top).toBeGreaterThan(0);
+      const held = (await shareColumn(page).boundingBox())!;
+      expect(held.y).toBeGreaterThanOrEqual(0);
+      expect(held.y).toBeLessThan(panel.y);
+    });
+  });
+
+  test.describe("1440x900", () => {
+    test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, colorScheme: "light" });
+
+    test("the tabs filter the list with their counts, the Total shows only under All, and an empty filter says so", async ({ page, request }, { workerIndex }) => {
+      await openSplit(page, await createSplit(request, workerIndex));
+      await pick(page, "Sam");
+      await circle(page, "Sprite", "Sam").click();
+      await expect(share(page)).toHaveText("$3.05", live);
+
+      await expect(filterTab(page, "All")).toHaveAccessibleName("All, 5");
+      await expect(filterTab(page, "Yours")).toHaveAccessibleName("Yours, 1");
+      await filterTab(page, "Yours").click();
+      await expect(filterTab(page, "Yours")).toHaveAttribute("aria-pressed", "true");
+      await expect(line(page, "Sprite")).toBeVisible();
+      await expect(line(page, "Perrier")).toHaveCount(0);
+      await expect(page.getByTestId("total")).toHaveCount(0);
+
+      await filterTab(page, "Nobody yet").click();
+      await expect(line(page, "Sprite")).toHaveCount(0);
+      await expect(line(page, "Perrier")).toBeVisible();
+
+      await filterTab(page, "Shared").click();
+      await expect(page.getByTestId("filter-empty")).toHaveText("No item is shared yet.");
+
+      await filterTab(page, "All").click();
+      await expect(page.getByTestId("total")).toHaveText("$28.04");
+      await expect(line(page, "Perrier")).toBeVisible();
+    });
+
+    test("the column leads with the share at the title's size and the bar's legend", async ({ page, request }, { workerIndex }) => {
+      await openSplit(page, await createSplit(request, workerIndex));
+      await pick(page, "Sam");
+      await circle(page, "Sprite", "Sam").click();
+      await expect(page.getByTestId("share-amount")).toHaveText("$3.05", live);
+      await expect(shareColumn(page).getByTestId("share-bar")).toHaveAttribute("aria-label", "11% of the bill");
+      await expect(shareColumn(page).getByText("Unclaimed $24.99")).toBeVisible();
+      const amount = (await page.getByTestId("share-amount").boundingBox())!;
+      const title = (await page.getByTestId("split-title").boundingBox())!;
+      expect(Math.abs(amount.y - title.y)).toBeLessThanOrEqual(1);
+    });
+  });
+
+  test.describe("phone, 390px", () => {
+    test.use({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
+
+    test("the Show all menu filters the list and the button reads the pick; the footer has the share bar and no items count", async ({ page, request }, { workerIndex }) => {
+      await page.goto(await createSplit(request, workerIndex));
+      const asked = page.getByRole("dialog", { name: "Which one are you?" });
+      await asked.getByRole("button", { name: "Sam", exact: true }).click();
+      await expect(page.getByTestId("footer").getByTestId("owe")).toBeVisible(live);
+      await circle(page, "Sprite", "Sam").click();
+      await expect(page.getByTestId("footer").getByTestId("owe")).toHaveText("$3.05", live);
+      await expect(page.getByTestId("footer").getByTestId("share-bar")).toBeVisible();
+      await expect(page.getByTestId("footer").getByText(/incl\. tax/)).toHaveCount(0);
+
+      await expect(page.getByTestId("filter-button")).toHaveText("Show all 5");
+      await page.getByRole("button", { name: /^Show items/ }).click();
+      const menuBox = page.getByRole("dialog", { name: "Show items" });
+      await expect(menuBox).toBeVisible(live);
+      await menuBox.getByRole("button", { name: "Nobody yet, 4" }).click();
+      await expect(menuBox).toHaveCount(0, live);
+      await expect(page.getByTestId("filter-button")).toHaveText("Nobody yet 4");
+      await expect(line(page, "Sprite")).toHaveCount(0);
+      await expect(page.getByTestId("total")).toHaveCount(0);
+
+      // Claiming a line under Nobody yet moves it out of the list.
+      await circle(page, "Perrier", "Sam").click();
+      await expect(line(page, "Perrier")).toHaveCount(0, live);
+      await expect(page.getByTestId("filter-button")).toHaveText("Nobody yet 3");
+    });
   });
 });

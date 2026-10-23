@@ -52,7 +52,7 @@ export function SplitIntro({ host, total, place, onLinksBottom, onReceipt, onPeo
 
 const styles = StyleSheet.create({
   box: { paddingTop: 18, paddingBottom: 4 },
-  wideBox: { paddingTop: 68, paddingBottom: 20 },
+  wideBox: { paddingTop: 72, paddingBottom: 20 },
   title: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 46, lineHeight: 50, letterSpacing: -2 },
   wideTitle: { fontSize: 68, lineHeight: 72, letterSpacing: -3 },
   paid: { marginTop: 6 },
