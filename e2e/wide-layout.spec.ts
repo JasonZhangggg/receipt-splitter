@@ -406,6 +406,8 @@ for (const size of sizes) {
       await expect(page.getByText("Give more to whoever had more")).toHaveCount(0, live);
       await expect(column(page, "Edit item")).toBeVisible();
       await expect(modes).toBeFocused();
+      // Clicking the link scrolls it into view; its tap area hangs past the row, and the column used to scroll 8px sideways to show it.
+      expect(await page.evaluate(() => [...document.querySelectorAll("*")].filter((el) => el.scrollLeft > 0).length)).toBe(0);
 
       await modes.click();
       await page.getByText("Give more to whoever had more").click();
@@ -1088,11 +1090,17 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
       // Sam has not claimed Perrier, so its line is quiet.
       const price = line(page, "Perrier").getByText("$3.50", { exact: true });
       const color = () => price.evaluate((element) => getComputedStyle(element).color);
+      // The price eases between colors, so read it once two reads 150 ms apart agree.
+      const settled = async () => {
+        let last = "";
+        await expect.poll(async () => last === (last = await color()), { intervals: [150], timeout: 5000 }).toBe(true);
+        return last;
+      };
       await page.mouse.move(5, 5);
-      const before = await color();
+      const before = await settled();
       await line(page, "Perrier").hover();
       await expect.poll(color, live).not.toBe(before);
-      const hovered = await color();
+      const hovered = await settled();
       await page.mouse.move(5, 5);
       await expect.poll(color, live).toBe(before);
       // Ink is the dark one: it reads darker than the muted gray.
