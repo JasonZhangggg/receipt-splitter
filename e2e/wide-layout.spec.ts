@@ -75,6 +75,8 @@ const focused = (page: Page) => page.evaluate(() => document.activeElement?.getA
 async function openSplit(page: Page, link: string) {
   await page.goto(link);
   await expect(asking(page).getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+  // The boot loader keeps the page inert for a moment after it paints, and a focus() there is dropped.
+  await expect(page.locator("#root")).not.toHaveAttribute("inert", live);
 }
 
 async function pick(page: Page, name: string) {
@@ -923,6 +925,7 @@ test.describe("phone, 390px: the footer and the bottom sheets are as before", ()
     await page.goto(await createSplit(request, workerIndex));
     const asked = page.getByRole("dialog", { name: "Which one are you?" });
     await expect(asked.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
+    await expect(page.locator("#root")).not.toHaveAttribute("inert", live);
     await asked.getByRole("button", { name: "Sam", exact: true }).focus();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("footer").getByTestId("owe")).toBeVisible(live);
