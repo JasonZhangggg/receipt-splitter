@@ -10,7 +10,7 @@ One PR on `claude/project-thread-80frtv`, built in the commit order below so eac
 
 ### Everywhere
 
-1. **Title.** The top of the page is the place in large type: 46px on a phone, 68px on desktop, weight 500, tight tracking. A Split with no place shows its total instead, such as "$152.10". A place over 24 characters drops to 34px on a phone and 48px on desktop, so it reads whole in two or three lines. Three lines is the cap, ending in "…", and a word wider than the column breaks (Jason picked option B on 2026-10-23).
+1. **Title.** The top of the page is the place in large type: 46px on a phone, 68px on desktop, weight 500, tight tracking. A Split with no place shows its total instead, such as "$152.10". A place over 24 characters drops to 34px on a phone and 48px on desktop, so it reads whole in two or three lines. Three lines is the cap, ending in "…", and a word wider than the column breaks (option B of the long-name shots on 2026-10-23).
 2. **Paid-by line.** Under the title, one muted line: "Paid by Jason". The Host's name is in ink (white in dark mode), the rest muted. The mock's "on Oct 21" needs a date the Split doesn't store yet, so it waits for a storage change.
 3. **No hint sentence.** "Tap the dot next to what you had. Tap a line to edit it or split it another way." goes, on both sizes. The intro sentence "Jason paid $152.10 at Golden Lotus." goes too, since the title and paid-by line say it.
 4. **Bigger rows.** An Item's name and price are 18px on a phone and 21px on desktop, weight 500. A row the viewed person had is in ink. Every other row is muted, and turns ink on hover. The split line under the price ("$6.00 yours") stays small and muted. Rule 20 changes to match.
