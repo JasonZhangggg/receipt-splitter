@@ -31,11 +31,11 @@ const people = ["Jason", "Sam", "Priya", "Lee"].map((name) => ({ id: name.toLowe
 
 let creates = 0;
 
-async function createSplit(request: APIRequestContext, workerIndex: number, paymentHandles: readonly object[] = [venmo], receipt: object = menu, participants: readonly object[] = people): Promise<string> {
+async function createSplit(request: APIRequestContext, workerIndex: number, paymentHandles: readonly object[] = [venmo], receipt: object = menu, participants: readonly object[] = people, place?: string): Promise<string> {
   creates += 1;
   const response = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.57.${workerIndex}.${creates}` },
-    data: { split: { receipt, participants, paymentHandles } },
+    data: { split: { receipt, participants, paymentHandles, ...(place === undefined ? {} : { place }) } },
   });
   expect(response.status()).toBe(201);
   const { id } = await response.json();
@@ -1017,6 +1017,18 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
 
   test.describe("phone, 390px", () => {
     test.use({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
+
+    test("a long place drops a size and stays within three lines and the column's width", async ({ page, request }, { workerIndex }) => {
+      const place = "Golden Lotus Vietnamese Noodle House & Cocktail Bar Supercalifragilisticexpialidocious";
+      await page.goto(await createSplit(request, workerIndex, [venmo], menu, people, place));
+      const title = page.getByTestId("split-title");
+      await expect(title).toHaveText(place, live);
+      const size = await title.evaluate((element) => ({ font: parseFloat(getComputedStyle(element).fontSize), height: element.getBoundingClientRect().height, fits: element.scrollWidth <= element.clientWidth }));
+      expect(size.font).toBe(34);
+      expect(size.height).toBeLessThanOrEqual(3 * 38 + 1);
+      expect(size.fits).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    });
 
     test("the Show all menu filters the list and the button reads the pick; the footer has the share bar and no items count", async ({ page, request }, { workerIndex }) => {
       await page.goto(await createSplit(request, workerIndex));

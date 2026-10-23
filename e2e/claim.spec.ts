@@ -171,7 +171,7 @@ test("a breakdown counts a 2x line as 1 item, as a Bundle header counts it", asy
 
   await owe(priya).click();
 
-  await expect(priya.getByTestId("footer").getByText(/^2 of \d+ items/)).toBeVisible(live);
+  await expect(priya.getByText("2 items", { exact: true })).toBeVisible(live);
 });
 
 test("the payer marks themselves paid, and another browser sees Paid $2.50 under their share", async ({ browser, request }, { workerIndex }) => {
@@ -363,15 +363,17 @@ test("the dot is the viewer's own check, and each row says who had it and what t
   }
 });
 
-test("beside a long name the footer keeps its items count whole and shortens the name", async ({ browser, request }, { workerIndex }) => {
+test("beside a long name the footer keeps the amount whole and shortens the name", async ({ browser, request }, { workerIndex }) => {
   const long = "Bartholomew Featherstonehaugh-Smythe";
   const jason = await open(browser, await createSplit(request, workerIndex, [{ id: "jason", name: "Jason" }, { id: "long", name: long }]));
   await pick(jason, "Jason");
   await viewAs(jason, long);
   await expect(count(jason)).toHaveText("0 of 4 theirs", live);
-  const aside = jason.getByTestId("footer").getByText(/items · incl\. tax & tip$/);
-  await expect(aside).toHaveText("0 of 4 items · incl. tax & tip");
-  expect(await aside.evaluate((text) => text.scrollWidth <= text.clientWidth)).toBe(true);
+  const footer = jason.getByTestId("footer");
+  await expect(footer.getByTestId("share-bar")).toBeVisible();
+  await expect(footer.getByText(/items · incl\. tax & tip$/)).toHaveCount(0);
+  expect(await footer.getByTestId("owe").evaluate((text) => text.scrollWidth <= text.clientWidth)).toBe(true);
+  expect(await footer.getByText(`${long}'s share`).evaluate((text) => text.scrollWidth > text.clientWidth)).toBe(true);
 });
 
 const longName = "Samantha Okonkwo-Fitzgerald";
