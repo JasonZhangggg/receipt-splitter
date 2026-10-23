@@ -75,17 +75,18 @@ export function PayBody({ split, person, viewer, onClose, head, beside }: Props)
         </View>
       ) : null}
       {head ? (
-        <View style={[styles.total, styles.wideTotal, { borderTopColor: c.hairline }]}>
-          <View style={styles.name}>
-            <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
-              {mine ? say.yourShare : say.shareOf(person.name)}
+        // The head above carries the share in large type, so the column closes on the total at body size with the pay pill under it.
+        <>
+          <View style={[styles.total, { borderTopColor: c.hairline }]}>
+            <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
+              {mine ? say.yourTotal : say.totalOf(person.name)}
             </Text>
-            <Text testID="share" style={[styles.amount, tabular, { color: c.ink }]}>
+            <Text testID="share" style={[type.body, tabular, { color: c.ink }]}>
               {money(share)}
             </Text>
           </View>
-          {beside}
-        </View>
+          {beside ? <View style={styles.beside}>{beside}</View> : null}
+        </>
       ) : (
         <View style={[styles.total, { borderTopColor: c.hairline }]}>
           <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
@@ -149,7 +150,5 @@ const styles = StyleSheet.create({
   total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8, paddingTop: 12, borderTopWidth: 1 },
   rest: { marginTop: 4 },
   regular: { fontWeight: "400" },
-  wideTotal: { alignItems: "flex-end", marginTop: 12, paddingTop: 18 },
-  // The footer's amount on the phone, so the share reads the same size on both.
-  amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 32, lineHeight: 44, letterSpacing: -0.96 },
+  beside: { alignItems: "flex-end", marginTop: 16 },
 });

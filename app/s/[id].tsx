@@ -676,7 +676,15 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           viewer={me}
           onClose={() => {}}
           head={
-            <ShareHead title={title(selectedPerson)} open={picker !== null && !picker.closing} onPick={(from) => setPicker({ from, closing: false })} />
+            <ShareHead
+              title={selectedPerson.id === me ? say.yourShare : say.shareOf(firstName(selectedPerson.name))}
+              amount={money(viewed.share)}
+              bill={billParts(shares, selectedPerson.id)}
+              legend={selectedPerson.id === me ? say.youHad : firstName(selectedPerson.name)}
+              had={title(selectedPerson)}
+              open={picker !== null && !picker.closing}
+              onPick={(from) => setPicker({ from, closing: false })}
+            />
           }
           beside={due === null ? null : <PayButton split={split.id} host={host.name} handles={split.paymentHandles} amount={due} />}
         />
@@ -687,7 +695,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         ) : null}
       </>
     ) : (
-      <ShareHead title={say.question} open={false} onPick={() => setPhase("pick")} />
+      <ShareHead title={say.question} amount={null} bill={null} legend="" had={null} open={false} onPick={() => setPhase("pick")} />
     );
   const aside =
     phase !== "regular" ? (
