@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
+import { SectionHead } from "../components/section-head";
 import { linkPress } from "../components/text-link";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
@@ -51,7 +52,11 @@ export function ShareHead({ title, amount, bill, legend, had, open, onPick }: Pr
           <ShareBar {...bill} legend={legend} />
         </View>
       ) : null}
-      {had ? <Text style={[type.body, styles.had, { color: c.ink, borderBottomColor: c.hairline }]}>{had}</Text> : null}
+      {had ? (
+        <View style={styles.had}>
+          <SectionHead label={had} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -66,5 +71,5 @@ const styles = StyleSheet.create({
   // The title's size on the left, and level with it: the intro's 72 px top padding is the column's 24, the panel's 4 and this label's 44, so the two large lines read as a pair.
   amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 68, lineHeight: 72, letterSpacing: -3 },
   bar: { marginTop: 18 },
-  had: { marginTop: 36, paddingBottom: 12, borderBottomWidth: 1, marginBottom: 4 },
+  had: { marginTop: 36, marginBottom: 4 },
 });

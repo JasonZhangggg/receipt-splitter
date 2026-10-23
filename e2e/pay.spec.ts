@@ -109,7 +109,7 @@ test("the Pay sheet lists the viewer's Items under What you had and Adjustment p
   await expect(sheet.getByText("Pho", { exact: true })).toBeVisible(live);
   await expect(sheet.getByText("2 items", { exact: true })).toBeVisible();
   const order = await sheet.evaluate((el) =>
-    ["What you had", "Pho", "Your part of tax and tip", "Tax"].map((text) => [...el.querySelectorAll("div")].find((node) => node.textContent === text && node.children.length === 0)!.getBoundingClientRect().top),
+    ["What you had", "Pho", "Your part of tax and tip", "Tax"].map((text) => [...el.querySelectorAll("div, h3")].find((node) => node.textContent === text && node.children.length === 0)!.getBoundingClientRect().top),
   );
   expect(order.every((y, i) => i === 0 || y > order[i - 1])).toBe(true);
   await expect(sheet.getByText("Tea", { exact: true })).toBeVisible();
