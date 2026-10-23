@@ -285,7 +285,8 @@ for (const width of [390, 1440]) {
     await page.goto(`/s/${id}`);
     await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
     await page.getByRole("button", { name: "Close, just look" }).click();
-    const history = page.getByRole("dialog", { name: "History" });
+    // Past 1024 px History shows in the right column as a region, not a sheet.
+    const history = page.getByRole(width >= 1024 ? "region" : "dialog", { name: "History" });
     const shown = page.getByRole("img", { name: "Receipt photo" });
 
     await fromMore(page, "History");

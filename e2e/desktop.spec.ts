@@ -50,9 +50,10 @@ async function createSplit(request: APIRequestContext, workerIndex: number): Pro
   return new URL(`/s/${id}`, response.url()).href;
 }
 
-const pick_ = (page: Page) => page.getByRole("dialog", { name: "Which one are you?" });
-const footer = (page: Page) => page.getByTestId("footer");
-const itemPopover = (page: Page) => page.getByRole("dialog", { name: "Edit item" });
+// At this width there are no sheets or footer: the pick and Edit item show in the right column as regions, and the share is `share` in that column.
+const pick_ = (page: Page) => page.getByRole("region", { name: "Which one are you?" });
+const owe = (page: Page) => page.getByTestId("share");
+const itemPopover = (page: Page) => page.getByRole("region", { name: "Edit item" });
 const gameplay = (page: Page) => page.getByRole("button", { name: /^Open Gameplay, \$87\.75, / });
 const firstBucket = (page: Page) => page.getByRole("button", { name: /^Beer Bucket, / }).first();
 const guinness = (page: Page) => page.getByRole("button", { name: /^Open 3x Guinness Draught 14\.9oz Can, \$21\.87, / });
@@ -65,7 +66,7 @@ async function open(page: Page, link: string) {
 
 async function pick(page: Page, name: string) {
   await pick_(page).getByRole("button", { name, exact: true }).click();
-  await expect(footer(page).getByTestId("owe")).toBeVisible(live);
+  await expect(owe(page)).toBeVisible(live);
 }
 
 test("the wordmark is the page's only level-1 heading, and the pick sheet's question is level 2", async ({ page, request }, { workerIndex }) => {
@@ -89,16 +90,19 @@ test("Enter opens a line's popover, and Escape closes it with focus back on the 
   await expect(gameplay(page)).toBeFocused();
 });
 
-test("a Claim in the popover updates Your share in the right pane", async ({ page, request }, { workerIndex }) => {
+test("a Claim in the Edit item column updates the share above it", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  await expect(footer(page).getByTestId("owe")).toHaveText("$0.00");
+  await expect(owe(page)).toHaveText("$0.00");
 
   await gameplay(page).click();
   await itemPopover(page).getByRole("button", { name: "Sam, you", exact: true }).click();
 
-  await expect(footer(page).getByTestId("owe")).toHaveText("$106.94", live);
-  await expect(itemPopover(page)).toBeVisible();
+  // The column shows Edit item in place of the share, so close it to read the share.
+  await expect(gameplay(page)).toContainText("You", live);
+  await page.keyboard.press("Escape");
+  await expect(itemPopover(page)).toHaveCount(0, live);
+  await expect(owe(page)).toHaveText("$106.94", live);
   await expect(page.getByTestId("receipt")).toContainText("Gameplay");
 });
 

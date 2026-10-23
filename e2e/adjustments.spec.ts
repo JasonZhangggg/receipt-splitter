@@ -342,25 +342,24 @@ test("Revert from the other phone asks first and puts the tax and the Total back
   }
 });
 
-test("a tax turned into a discount on desktop opens in a popover, takes the name Discount and flips the line's sign", async ({ browser, request }, { workerIndex }) => {
+test("a tax turned into a discount on desktop opens in the right column, takes the name Discount and flips the line's sign", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex), { width: 1440, height: 900 });
-  const pane = page.getByTestId("footer");
-  await page.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(pane.getByTestId("owe")).toBeVisible(live);
+  await page.getByRole("region", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(page.getByTestId("share")).toBeVisible(live);
 
   await page.getByRole("button", { name: "Open Tax, $1.00" }).click();
-  await dialog(page, "Edit tax").getByRole("group", { name: "Kind" }).getByRole("button", { name: "Discount" }).click();
-  // Named for the saved kind, the popover is renamed once the switch saves.
-  const popover = page.getByRole("dialog");
+  await page.getByRole("region", { name: "Edit tax" }).getByRole("group", { name: "Kind" }).getByRole("button", { name: "Discount" }).click();
+  // Named for the saved kind, the column's panel is renamed once the switch saves.
+  const popover = page.getByRole("region", { name: "Edit discount" });
   await expect(popover.getByRole("heading", { name: "Edit discount" })).toBeVisible();
   await expect(popover.getByRole("textbox", { name: "Amount off", exact: true })).toHaveValue("1.00");
   await expect(popover.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Discount");
 
   await expect(page.getByRole("button", { name: "Open Discount, -$1.00" })).toBeVisible(live);
-  await expect(dialog(page, "Edit discount")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Edit discount" })).toBeVisible();
   await expect(page.getByTestId("total")).toHaveText("$17.00", live);
   await page.keyboard.press("Escape");
-  await expect(dialog(page, "Edit discount")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Edit discount" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Open Discount, -$1.00" })).toBeFocused();
 });
 

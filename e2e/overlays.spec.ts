@@ -26,10 +26,11 @@ async function samsPage(browser: Browser, request: APIRequestContext, workerInde
   const page = await (await newContext(browser)).newPage();
   await page.setViewportSize(viewport);
   await page.goto(new URL(`/s/${id}`, response.url()).href);
-  const pick = page.getByRole("dialog", { name: "Which one are you?" });
+  const wide = viewport.width >= 1024;
+  const pick = page.getByRole(wide ? "region" : "dialog", { name: "Which one are you?" });
   await expect(pick).toBeVisible(live);
   await pick.getByRole("button", { name: "Sam", exact: true }).click();
-  await expect(page.getByTestId("owe")).toBeVisible(live);
+  await expect(page.getByTestId(wide ? "share" : "owe")).toBeVisible(live);
   return page;
 }
 
@@ -59,16 +60,17 @@ test("a tap on the dim still closes a sheet that holds the page inert", async ({
   await expect(peopleSheet(sam)).toHaveCount(0, live);
 });
 
-test("a desktop sheet is 528 px wide and centered, with its text on the page column", async ({ browser, request }, { workerIndex }) => {
+test("on a desktop History shows in the right column beside the receipt instead of a centered sheet, and the receipt stays clickable", async ({ browser, request }, { workerIndex }) => {
   const sam = await samsPage(browser, request, workerIndex, { width: 1440, height: 900 });
-  const column = await sam.getByRole("button", { name: "People", exact: true }).evaluate((el) => el.getBoundingClientRect().left);
+  const receipt = (await sam.getByTestId("receipt").boundingBox())!;
   await fromMore(sam, "History");
-  const sheet = sam.getByRole("dialog", { name: "History" });
-  await expect(sheet).toBeVisible(live);
-  const box = (await sheet.boundingBox())!;
-  expect(box.width).toBe(528);
-  expect(box.x).toBe(456);
-  const body = await sheet.locator("[data-sheet-body]").evaluate((el) => el.getBoundingClientRect().left);
-  expect(body).toBe(480);
-  expect(column).toBeGreaterThanOrEqual(480);
+  const panel = sam.getByRole("region", { name: "History" });
+  await expect(panel).toBeVisible(live);
+  await expect(sam.getByRole("dialog")).toHaveCount(0);
+  const box = (await panel.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(receipt.x + receipt.width);
+  expect(box.x + box.width).toBeLessThanOrEqual(1440);
+  expect(await sam.evaluate(() => document.querySelectorAll("[inert]").length)).toBe(0);
+  await sam.getByRole("button", { name: /^Open Rice, / }).click();
+  await expect(sam.getByRole("region", { name: "Edit item" })).toBeVisible(live);
 });

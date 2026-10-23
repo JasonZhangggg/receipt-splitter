@@ -1,4 +1,4 @@
-import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
+import { expect, newContext, test, type APIRequestContext, type Browser, type Page } from "./without-ocr";
 
 /**
  * The Split page's desktop layout (docs/plans/desktop-layout.md): the receipt on the left, a 440px column on the right
@@ -316,7 +316,7 @@ for (const size of sizes) {
       await people.getByRole("button", { name: "Done" }).click();
 
       await people.getByRole("button", { name: "Switch account" }).click();
-      await expect(people).toContainText("Tap the name that's you on this phone.");
+      await expect(people).toContainText("Click the name that's you on this computer.");
       await people.getByRole("button", { name: /^Priya/ }).click();
       await expect(column(page, "What you had")).toBeVisible(live);
       await expect(circle(page, "Sprite", "Priya")).toBeVisible(live);
