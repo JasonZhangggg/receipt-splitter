@@ -39,6 +39,8 @@ export const useScheme = (): Scheme => resolveScheme(useAppearance(), useSystemS
 /** Which surface the content sits on. A sheet sits a step off the page in dark mode; the same content in the wide layout's side column sits on the page itself. */
 export type Surface = "sheet" | "page";
 export const SurfaceContext = createContext<Surface>("sheet");
+/** True inside the wide layout's column, where the pointer is a mouse: copy says click, and this device is a computer. */
+export const useOnPage = () => useContext(SurfaceContext) === "page";
 const onPage = { light: { ...colors.light, sheet: colors.light.field }, dark: { ...colors.dark, sheet: colors.dark.field } };
 
 export function useColors(): Colors {

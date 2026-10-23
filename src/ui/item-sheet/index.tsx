@@ -13,7 +13,7 @@ import { IconAction, LabeledField, MoneyField, PersonToggle } from "../component
 import { TextLink, linkPress, underline } from "../components/text-link";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { failedCopy, splitCopy as say } from "../split-copy";
-import { motion, tabular, type, useColors } from "../theme";
+import { motion, tabular, type, useColors, useOnPage } from "../theme";
 import { bundleNote, itemParts, lineAmounts, nameParts, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
 import { amountStatus, suggestedAmounts } from "./amount-status";
@@ -510,6 +510,7 @@ type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; 
 /** Where the split stands: a tick when it adds up, a warning with the gap when a By amount split does not. */
 function StatusLine({ item, typed, last, unsaved, attempted, nameOf, me, onFill, suggested, onAccept }: StatusProps) {
   const c = useColors();
+  const onPage = useOnPage();
   const lines = lineAmounts(item);
   const people = lines.length;
   const amounts = item.split.by === "amount" && people > 0 ? amountStatus(item.price, typed, last) : null;
@@ -520,7 +521,7 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, me, onFill,
     suggested
       ? say.suggestedEven
       : people === 0
-      ? say.nobodyHasThis
+      ? onPage ? say.nobodyHasThisClick : say.nobodyHasThis
       : amounts === null
         ? people === 1
           ? lines[0].participantId === me

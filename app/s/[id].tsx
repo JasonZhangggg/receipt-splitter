@@ -34,7 +34,6 @@ import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-shee
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
 import { ShareHead } from "../../src/ui/split-view/share-head";
 import { SidePanel } from "../../src/ui/split-view/side-panel";
-import { TextLink } from "../../src/ui/components/text-link";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
@@ -116,6 +115,8 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
+// The wide layout's right column.
+const asideWidth = 440;
 // Where the pick sheet's top edge sits before the links row has been measured, and the gap it keeps below that row once it has.
 const tallPickTop = 170;
 const pickGap = 12;
@@ -294,7 +295,15 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (!lay({ ...circleTap(item, person), by: me })) setBar({ message: say.connection.failed });
   };
   const onCircle = (item: SplitItem, from: Press) => {
-    if (!me || !selectedPerson) return setPhase("pick");
+    if (!me || !selectedPerson) {
+      // On a wide screen the pick takes the column, so whatever was open there closes first, as a close would, keeping an edit that cannot save yet.
+      if (wide && openSheet.current !== null) {
+        if (closeGuard.current?.()) return;
+        setOverlay(null);
+        setClosing(false);
+      }
+      return setPhase("pick");
+    }
     if (selectedPerson.id !== me && trusted !== selectedPerson.id) {
       return setConfirming({ itemId: item.id, name: item.name, person: selectedPerson, had: claimersOf(item.split).includes(selectedPerson.id), from, closing: false });
     }
@@ -355,8 +364,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   // The wide layout's people menu under "What you had".
   const [picker, setPicker] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
   const closePicker = () => setPicker((open) => open && { ...open, closing: true });
+  // The menu hangs from the share view's head, which goes when this device loses its name.
+  if (picker && !picker.closing && (!me || !selectedPerson)) setPicker({ ...picker, closing: true });
   const pickerGone = () => {
-    if (picker && picker.from.trigger.isConnected) picker.from.trigger.focus({ preventScroll: true });
+    // After Edit people the trigger has gone with the share view, so focus goes to the People view that replaced it.
+    if (picker) (picker.from.trigger.isConnected ? picker.from.trigger : document.querySelector<HTMLElement>(`[role="region"][data-testid="people-sheet"] [data-pressable]`))?.focus({ preventScroll: true });
     setPicker(null);
   };
   const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
@@ -382,7 +394,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const peopleNote = peopleProblem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{peopleProblem}</Text> : null;
 
   const open = (kind: OverlayKind, from: Press) => {
+    // On a wide screen the column is not modal, so a click can replace what is open, or what is still fading out. The pick holds the column until it is answered.
+    if (wide && phase !== "regular") return;
+    if (openSheet.current !== null) {
+      if (closeGuard.current?.()) return;
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) document.activeElement.blur();
+    }
     setPayNote(null);
+    setClosing(false);
     setOverlay({ ...kind, from });
   };
   const deleted = ({ name, revision }: { readonly name: string; readonly revision: number }) =>
@@ -412,8 +431,19 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         : overlay.kind === "adjustment"
           ? document.querySelector<HTMLElement>(`[data-pressable][aria-label="${say.add}"]`)
           : null;
-    trigger?.focus({ preventScroll: true });
+    if (trigger) return trigger.focus({ preventScroll: true });
+    // A link in the wide column's head went away with the share view it sat in; it comes back on the next render.
+    if (wide) focusHead.current = overlay.kind === "payments" ? say.payments : overlay.kind === "history" ? say.history : "";
   };
+  const focusHead = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusHead.current === null) return;
+    const label = focusHead.current;
+    focusHead.current = null;
+    // The head's links are named by their text, so the one to focus is found by it; the person menu's trigger comes first.
+    const links = [...document.querySelectorAll<HTMLElement>(`[data-testid="share-head"] [data-pressable]`)];
+    (links.find((link) => label !== "" && link.textContent === label) ?? links[0])?.focus({ preventScroll: true });
+  });
   // Payments opened by a named viewer closes once that viewer is gone, so it never lists the removed person's phone as its own. The Pay and People sheets close when this phone loses its name.
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
@@ -427,6 +457,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     setPhase("collapsing");
   };
   const pickLeft = () => {
+    // On a wide screen the pick's buttons leave with it; focus goes to the share view's head that takes the column.
+    if (wide) focusHead.current = "";
     setPhase("regular");
     setRise(true);
     setChosen(null);
@@ -448,7 +480,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (!me) return;
     if (paid && agreed !== myShare) {
       const note = say.shareNow(money(myShare));
-      if (overlay?.kind === "pay" && viewed?.hasBar) {
+      // The note goes under the pay button: in the Pay sheet on a phone, and in the column's share view on a wide screen.
+      if ((wide ? overlay === null : overlay?.kind === "pay") && viewed?.hasBar) {
         setPayNote(note);
         // The refusal that moved the Share already raised this line; the note says the same thing without covering the sheet.
         setBar((open) => (open?.message === say.saveFailed ? null : open));
@@ -628,7 +661,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         ) : null}
       </>
     ) : (
-      <TextLink ink body label={say.question} onPress={() => setPhase("pick")} />
+      <ShareHead
+        title={say.question}
+        open={false}
+        onPick={() => setPhase("pick")}
+        onReceipt={photo ? setViewing : undefined}
+        onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+        onHistory={(from) => open({ kind: "history" }, from)}
+      />
     );
   const aside =
     phase !== "regular" ? (
@@ -641,6 +681,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         label={overlayLabel(overlay, split, viewedTitle)}
         closing={closing}
         onDown={overlayGone}
+        focusFirst={overlay.from.keyboard || actedByKey()}
         testID={overlay.kind === "pay" ? "breakdown" : `${overlay.kind}-sheet`}
       >
         {overlayContent}
@@ -706,7 +747,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           />
         </Popover>
       ) : null}
-      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={wide ? 16 : overlay && !closing ? 12 : footerHeight + 8} />
+      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={wide ? 16 : overlay && !closing ? 12 : footerHeight + 8} clearRight={wide ? asideWidth : 0} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={photoClosed} /> : null}
     </>
   );
@@ -817,7 +858,7 @@ const styles = StyleSheet.create({
   wideBody: { flex: 1, flexDirection: "row", minHeight: 0 },
   wideLeft: { paddingHorizontal: 72, paddingTop: 12, paddingBottom: 48 },
   wideColumn: { alignSelf: "center", width: "100%", maxWidth: 640 },
-  aside: { width: 440, paddingHorizontal: 36, paddingTop: 24 },
+  aside: { width: asideWidth, paddingHorizontal: 36, paddingTop: 24 },
   asideRule: { position: "absolute", left: 0, top: 36, bottom: 36, width: 1 },
   payRest: { marginTop: 8 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },

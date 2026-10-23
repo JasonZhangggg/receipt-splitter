@@ -7,7 +7,7 @@ import { Icon } from "../components/icon";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import type { Answer } from "../../live/client";
 import { failedCopy, splitCopy as say } from "../split-copy";
-import { layout, motion, type, useColors } from "../theme";
+import { layout, motion, type, useColors, useOnPage } from "../theme";
 import { historyOf, restoreChanges, whenText, type Entry } from "./describe";
 import { SheetHeader } from "../split-view/sheet-header";
 
@@ -30,6 +30,7 @@ const swingFor = 560;
 
 export function HistorySheet({ split, me, onRevert, onRestore, onAsk, onClose }: Props) {
   const c = useColors();
+  const onPage = useOnPage();
   const [now, setNow] = useState(() => Date.now());
   const [pending, setPending] = useState<HistoryTarget | null>(null);
   const [failed, setFailed] = useState<{ readonly target: HistoryTarget; readonly words: string } | null>(null);
@@ -71,7 +72,7 @@ export function HistorySheet({ split, me, onRevert, onRestore, onAsk, onClose }:
     <View style={styles.sheet}>
       <SheetHeader title={say.history} onClose={onClose} />
       {failed !== null && !stale(failed.target) ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{failed.words}</Text> : null}
-      <Text style={[type.body, { color: c.muted }]}>{say.historyKept}</Text>
+      <Text style={[type.body, { color: c.muted }]}>{onPage ? say.historyKeptClick : say.historyKept}</Text>
       <View role="list" aria-label={say.history}>
         {entries.map((entry) => (
           <Row

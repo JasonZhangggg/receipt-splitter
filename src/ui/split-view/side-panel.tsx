@@ -1,39 +1,39 @@
-import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
-import { webStyle } from "../motion";
-import { SurfaceContext } from "../theme";
+import { tabbable } from "../components/popover";
+import { webAnimation, webStyle } from "../motion";
+import { motion, SurfaceContext } from "../theme";
 
-/** Opacity only, and short: the column swaps content every time a line is clicked, so anything longer reads as lag. */
-const fadeMs = 120;
-const fade = webStyle({ transitionProperty: "opacity", transitionDuration: `${fadeMs}ms`, transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)" });
+/** New content fades in over 120ms, opacity only, from its first painted frame. The column swaps content on nearly every click, so anything longer reads as lag, and old content leaves at once rather than fading: a fade out followed by a fade in leaves the column blank between them. */
+const fadeIn = webAnimation({ animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }], animationDuration: "120ms", animationTimingFunction: motion.easeOut, animationFillMode: "both" });
 const contain = webStyle({ overscrollBehavior: "contain" });
 
 type Props = {
   children: ReactNode;
   label: string;
-  /** Fades the content out, then calls `onDown`, as a sheet slides down before it reports. */
+  /** Calls `onDown` at once, where a sheet would first slide down. */
   closing?: boolean;
   onDown?: () => void;
+  /** Opened from the keyboard: focus moves to the first control inside, as a sheet's does, instead of staying behind the whole receipt in tab order. */
+  focusFirst?: boolean;
   testID?: string;
 };
 
 /** What a bottom sheet holds on a phone, shown in the wide layout's right column instead. It is not modal: the receipt beside it stays in reach. */
-export function SidePanel({ children, label, closing = false, onDown, testID }: Props) {
-  const [shown, setShown] = useState(false);
+export function SidePanel({ children, label, closing = false, onDown, focusFirst = false, testID }: Props) {
+  const region = useRef<View>(null);
+  const [focusOnOpen] = useState(focusFirst);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
+    if (focusOnOpen) (region.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>(tabbable)?.focus({ preventScroll: true });
+  }, [focusOnOpen]);
   const down = useEffectEvent(() => onDown?.());
   useEffect(() => {
-    if (!closing) return;
-    const timer = setTimeout(down, fadeMs);
-    return () => clearTimeout(timer);
+    if (closing) down();
   }, [closing]);
   return (
     <SurfaceContext value="page">
-      <View role="region" aria-label={label} testID={testID} style={[styles.panel, fade, { opacity: shown && !closing ? 1 : 0 }]}>
+      <View ref={region} role="region" aria-label={label} testID={testID} style={[styles.panel, fadeIn]}>
         <ScrollView style={[styles.scroll, contain]} contentContainerStyle={styles.content}>
           {children}
         </ScrollView>

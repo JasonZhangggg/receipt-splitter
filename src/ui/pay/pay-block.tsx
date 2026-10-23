@@ -54,7 +54,7 @@ export function PayBlock({ split, host, handles, state, busy = false, notice = n
           <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
         </View>
       )}
-      {compact && state.kind === "unpaid" ? (
+      {compact && state.kind === "unpaid" && handles.length > 0 ? (
         <View style={styles.ask}>
           <Text style={[type.caption, { color: c.muted }]}>{say.paidAnotherWay}</Text>
           <TextLink label={say.markAsPaid} busy={busy} onPress={() => onPaid(true)} outsideScroll />

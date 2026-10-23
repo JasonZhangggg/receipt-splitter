@@ -22,7 +22,7 @@ export function ShareHead({ title, open, onPick, onReceipt, onPayments, onHistor
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <View style={[styles.head, { borderBottomColor: c.hairline }]}>
+    <View testID="share-head" style={[styles.head, { borderBottomColor: c.hairline }]}>
       <PressTarget name={`${title}. ${say.whoseItems}`} expanded={open} onPress={onPick} style={(pressed) => [styles.pick, pressStyle(pressed, reduce, linkPress)]}>
         {() => (
           <View style={styles.face}>
