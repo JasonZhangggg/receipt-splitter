@@ -29,7 +29,8 @@ import { ConnectionNotice } from "../../src/ui/split-view/connection-notice";
 import type { Connection } from "../../src/live/connection";
 import { SplitHeader, useSiteShare } from "../../src/ui/split-view/header";
 import { shareLink } from "../../src/ui/share-link";
-import { circleTap, linesNear } from "../../src/ui/split-view/model";
+import { circleTap, filterCounts, linesNear, type ItemFilter } from "../../src/ui/split-view/model";
+import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filters";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
 import { ShareHead } from "../../src/ui/split-view/share-head";
@@ -371,6 +372,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (modes && (wide || modes.from.keyboard || actedByKey()) && modes.from.trigger.isConnected) modes.from.trigger.focus({ preventScroll: true });
     setModes(null);
   };
+  // Which lines the receipt shows, for this page view only. "Yours" falls back to All while nobody is viewed.
+  const [pickedFilter, setFilter] = useState<ItemFilter>("all");
+  const [filterMenu, setFilterMenu] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
+  const closeFilterMenu = () => setFilterMenu((open) => open && { ...open, closing: true });
+  const filterMenuGone = () => {
+    if (filterMenu && (filterMenu.from.keyboard || actedByKey()) && filterMenu.from.trigger.isConnected) filterMenu.from.trigger.focus({ preventScroll: true });
+    setFilterMenu(null);
+  };
   // The wide layout's people menu under "What you had".
   const [picker, setPicker] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
   const closePicker = () => setPicker((open) => open && { ...open, closing: true });
@@ -604,12 +613,18 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} busy={paying !== null} notice={payNote} onPaid={onPaid} /> : undefined;
 
   const showingNow = closing ? null : overlay;
+  const filterViewer = me ? (selectedPerson?.id ?? null) : null;
+  const filter = pickedFilter === "mine" && filterViewer === null ? "all" : pickedFilter;
   const receipt = (
     <ReceiptCard
       split={split}
       shares={shares}
       wide={wide}
       whoColumn={layoutWidth >= breakpoints.roomyFrom}
+      filter={filter}
+      onFilter={setFilter}
+      onFilterMenu={(from) => setFilterMenu({ from, closing: false })}
+      filterMenuOpen={filterMenu !== null && !filterMenu.closing}
       selected={me ? selectedPerson : null}
       me={me}
       onCircle={onCircle}
@@ -704,6 +719,20 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
+        </Popover>
+      ) : null}
+      {filterMenu ? (
+        <Popover anchor={filterMenu.from.trigger} label={say.showItems} instant={filterMenu.from.keyboard} closing={filterMenu.closing} onClose={closeFilterMenu} onGone={filterMenuGone} width={filterMenuWidth}>
+          <FilterMenu
+            filter={filter}
+            counts={filterCounts(split.receipt.items, filterViewer)}
+            viewer={filterViewer}
+            whose={selectedPerson && selectedPerson.id !== me ? firstName(selectedPerson.name) : null}
+            onPick={(next) => {
+              setFilter(next);
+              closeFilterMenu();
+            }}
+          />
         </Popover>
       ) : null}
       {modes ? (

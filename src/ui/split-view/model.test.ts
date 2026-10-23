@@ -4,7 +4,7 @@ import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
 import { splitCopy } from "../split-copy";
-import { breakdownCharges, breakdownLines, bundleNote, circleTap, itemParts, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems, whoText } from "./model";
+import { breakdownCharges, breakdownLines, bundleNote, circleTap, filterCounts, filterRows, itemFilters, itemParts, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems, whoText } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -352,5 +352,55 @@ describe("receiptRows at Topgolf", () => {
     const { itemIds } = computeShares({ receipt, participants, payments: [] }).unclaimed;
     const buckets = receiptRows(receipt).rows.flatMap((row) => (row.kind === "bundle" ? [claimedItems(row.bundle, itemIds)] : []));
     expect([buckets, splitCopy.unclaimedTotal(itemIds.length)]).toEqual([[3, 0], "Unclaimed · 6 items"]);
+  });
+});
+
+describe("filters", () => {
+  const line = (id: string, split: ItemSplit, quantity = 1): SplitItem => ({ id: itemId(id), name: id, price: price(10), split, ...(quantity === 1 ? {} : { quantity }) });
+  const even = (...claimers: ParticipantId[]): ItemSplit => ({ by: "even", units: [claimers] });
+  const receipt: Receipt<SplitItem> = {
+    items: [
+      line("rice", even(ann)),
+      line("bao", even(), 2),
+      // By amount with money left over: Ann and Bob are on it, so it has someone, and it is shared.
+      line("soup", { by: "amount", units: [[[ann, cents(300)], [bob, cents(200)]]] }),
+      line("ultra", even(bob)),
+      line("guinness", even(), 3),
+    ],
+    adjustments: [{ id: adjustmentId("bucket"), kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: cents(-200), bundle: { name: "Beer Bucket", items: [itemId("ultra"), itemId("guinness")] } }],
+    subtotal: cents(5000),
+    total: cents(4800),
+  };
+  const { rows } = receiptRows(receipt);
+  const read = (filter: Parameters<typeof filterRows>[1], viewer: ParticipantId | null) =>
+    filterRows(rows, filter, viewer).map((row) => (row.kind === "item" ? row.item.id : `${row.bundle.name}: ${row.bundle.items.map(({ id }) => id).join(", ")}`));
+
+  test("counts one per line, quantity and Bundle lines included", () => {
+    expect(filterCounts(receipt.items, ann)).toEqual({ all: 5, mine: 2, none: 2, shared: 1 });
+    expect(filterCounts(receipt.items, cat)).toEqual({ all: 5, mine: 0, none: 2, shared: 1 });
+    expect(filterCounts(receipt.items, null)).toEqual({ all: 5, mine: 0, none: 2, shared: 1 });
+  });
+
+  test("keeps every row under All, as the same list", () => {
+    expect(filterRows(rows, "all", ann)).toBe(rows);
+  });
+
+  test("keeps a Bundle while any of its lines shows, holding only those lines", () => {
+    expect(read("mine", ann)).toEqual(["rice", "soup"]);
+    expect(read("mine", bob)).toEqual(["soup", "Beer Bucket: ultra"]);
+    expect(read("none", ann)).toEqual(["bao", "Beer Bucket: guinness"]);
+    expect(read("shared", ann)).toEqual(["soup"]);
+    expect(read("mine", null)).toEqual([]);
+  });
+
+  test("passes untouched rows through as the same objects", () => {
+    const shown = filterRows(rows, "mine", bob);
+    expect(shown[0]).toBe(rows[2]);
+    expect(filterRows(rows, "all", bob)[3]).toBe(rows[3]);
+  });
+
+  test("offers Yours only once someone is viewed", () => {
+    expect(itemFilters(null)).toEqual(["all", "none", "shared"]);
+    expect(itemFilters(ann)).toEqual(["all", "mine", "none", "shared"]);
   });
 });

@@ -12,8 +12,10 @@ import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { KeptRows, Presence, useEntering } from "../presence";
 import { splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
+import { firstName } from "../pay/pay-sheet";
 import { ClaimDot } from "./dot";
-import { itemsHad, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoHad, whoText, type BundleRow, type Who, type Portions, type Viewing } from "./model";
+import { FilterButton, FilterTabs } from "./item-filters";
+import { filterCounts, filterRows, itemsHad, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoHad, whoText, type BundleRow, type ItemFilter, type Who, type Portions, type Viewing } from "./model";
 
 type Props = {
   split: Split;
@@ -31,6 +33,12 @@ type Props = {
   wide?: boolean;
   /** Who had each row in a column of its own between the name and the price, where the window has room. */
   whoColumn?: boolean;
+  /** Which lines the list shows; the charges and the Total show only under "all". */
+  filter: ItemFilter;
+  onFilter: (filter: ItemFilter) => void;
+  /** The phone's filter button opens its menu, which the page holds. */
+  onFilterMenu: (press: Press) => void;
+  filterMenuOpen: boolean;
 };
 
 // The dot's column is 26 px wide: the name starts where the charges and the Total start.
@@ -45,12 +53,16 @@ const nameLine = 25.6;
 const noteLine = 22.4;
 const chargeRow = 34;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false, filter, onFilter, onFilterMenu, filterMenuOpen }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
   const { items, adjustments, subtotal, total } = split.receipt;
-  const { rows, charges } = useMemo(() => receiptRows(split.receipt), [split.receipt]);
+  const { rows: allRows, charges } = useMemo(() => receiptRows(split.receipt), [split.receipt]);
+  const viewer = selected?.id ?? null;
+  const rows = useMemo(() => filterRows(allRows, filter, viewer), [allRows, filter, viewer]);
+  const counts = filterCounts(items, viewer);
+  const whose = selected && selected.id !== me ? firstName(selected.name) : null;
   const [entering, settle] = useEntering([...items, ...adjustments].map(({ id }) => id));
   const started = items.some(({ split: item }) => claimersOf(item).length > 0);
   const note = totalNote(split.receipt);
@@ -95,17 +107,36 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
 
   return (
     <View testID="receipt">
-      <View style={styles.heading}>
-        <Text role="heading" aria-level={2} style={[type.body, { color: c.ink }]}>
-          {say.itemsHeading}
-        </Text>
-        {selected ? (
-          <Text testID="items-count" style={[type.caption, tabular, { color: c.muted }]}>
-            {say.itemsOf(itemsHad(items, selected.id), items.length, selected.id === me)}
+      {wide ? (
+        <View style={styles.tabsLine}>
+          <Text role="heading" aria-level={2} style={styles.hidden}>
+            {say.itemsHeading}
+          </Text>
+          <FilterTabs filter={filter} counts={counts} viewer={viewer} whose={whose} onPick={onFilter} />
+          <Text style={[styles.caps, { color: c.muted }]}>{say.priceHeading}</Text>
+        </View>
+      ) : (
+        <View style={styles.heading}>
+          <Text style={[type.body, styles.itemsHead]}>
+            <Text role="heading" aria-level={2} style={{ color: c.ink }}>
+              {say.itemsHeading}
+            </Text>
+            {selected ? (
+              <Text testID="items-count" style={[tabular, { color: c.muted }]}>
+                {`  ${say.itemsOf(itemsHad(items, selected.id), items.length, selected.id === me)}`}
+              </Text>
+            ) : null}
+          </Text>
+          <FilterButton filter={filter} counts={counts} whose={whose} open={filterMenuOpen} onOpen={onFilterMenu} />
+        </View>
+      )}
+      {/* Keyed by the filter, so a new filter shows its rows at once; within one, a claim that moves a line out of it collapses the line as a delete does. */}
+      <View key={filter} role="list" aria-label={say.item} style={[styles.list, { borderBottomColor: c.hairline }]}>
+        {rows.length === 0 && filter !== "all" ? (
+          <Text testID="filter-empty" style={[type.body, styles.empty, { color: c.muted, borderTopColor: c.hairline }]}>
+            {say.filterEmpty[filter]}
           </Text>
         ) : null}
-      </View>
-      <View role="list" aria-label={say.item} style={[styles.list, { borderBottomColor: c.hairline }]}>
         <KeptRows rows={rows} entering={entering}>
           {(row) => {
             if (row.kind === "item") return line(row.item, false);
@@ -144,44 +175,48 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           }}
         </KeptRows>
       </View>
-      <View style={styles.charges}>
-        <Row label={say.subtotal} amount={subtotal} />
-        <KeptRows rows={charges} entering={entering}>
-          {(row) => (
-            <PressTarget
-              name={say.openAdjustment(row.name, money(row.amount))}
-              popup="dialog"
-              expanded={showing === row.id}
-              onPress={(press) => onOpenAdjustment(row, press)}
-              style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
-            >
-              {() => <RowFace label={row.name} amount={row.amount} />}
-            </PressTarget>
-          )}
-        </KeptRows>
-        <TextLink plus name={say.add} label={say.add} popup="dialog" expanded={showing === "add"} onPress={onAdd} />
-        <Presence present={note !== null} animate>
-          <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
-            {note}
-          </Text>
-        </Presence>
-      </View>
-      <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <Text style={[type.body, { color: c.ink }]}>{say.total}</Text>
-        <Text testID="total" style={[type.body, tabular, { color: c.ink }]}>
-          {money(total)}
-        </Text>
-      </View>
-      <Presence present={started && shares.unclaimed.total > 0} animate>
-        <View style={styles.unclaimed}>
-          <Text testID="unclaimed-count" numberOfLines={1} style={[styles.chargeText, tabular, styles.rowLabel, { color: c.muted }]}>
-            {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
-          </Text>
-          <Text testID="unclaimed" style={[styles.chargeText, tabular, { color: c.ink }]}>
-            {money(shares.unclaimed.total)}
-          </Text>
-        </View>
-      </Presence>
+      {filter === "all" ? (
+        <>
+          <View style={styles.charges}>
+            <Row label={say.subtotal} amount={subtotal} />
+            <KeptRows rows={charges} entering={entering}>
+              {(row) => (
+                <PressTarget
+                  name={say.openAdjustment(row.name, money(row.amount))}
+                  popup="dialog"
+                  expanded={showing === row.id}
+                  onPress={(press) => onOpenAdjustment(row, press)}
+                  style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
+                >
+                  {() => <RowFace label={row.name} amount={row.amount} />}
+                </PressTarget>
+              )}
+            </KeptRows>
+            <TextLink plus name={say.add} label={say.add} popup="dialog" expanded={showing === "add"} onPress={onAdd} />
+            <Presence present={note !== null} animate>
+              <Text role="status" style={[type.caption, styles.why, { color: c.muted }]}>
+                {note}
+              </Text>
+            </Presence>
+          </View>
+          <View style={[styles.total, { borderTopColor: c.hairline }]}>
+            <Text style={[type.body, { color: c.ink }]}>{say.total}</Text>
+            <Text testID="total" style={[type.body, tabular, { color: c.ink }]}>
+              {money(total)}
+            </Text>
+          </View>
+          <Presence present={started && shares.unclaimed.total > 0} animate>
+            <View style={styles.unclaimed}>
+              <Text testID="unclaimed-count" numberOfLines={1} style={[styles.chargeText, tabular, styles.rowLabel, { color: c.muted }]}>
+                {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
+              </Text>
+              <Text testID="unclaimed" style={[styles.chargeText, tabular, { color: c.ink }]}>
+                {money(shares.unclaimed.total)}
+              </Text>
+            </View>
+          </Presence>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -433,7 +468,12 @@ const rowFade = webStyle({ transitionProperty: "opacity", transitionDuration: "1
 const inkFade = webStyle({ transitionProperty: "color", transitionDuration: "150ms", transitionTimingFunction: "ease" });
 
 const styles = StyleSheet.create({
-  heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 22, marginBottom: 12 },
+  heading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 12, marginBottom: 2 },
+  itemsHead: { flexShrink: 1 },
+  tabsLine: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginTop: 4, marginBottom: 6 },
+  hidden: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
+  caps: { fontFamily: type.caption.fontFamily, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500", paddingBottom: 9 },
+  empty: { paddingVertical: 20, paddingLeft: nameStart, borderTopWidth: 1 },
   list: { borderBottomWidth: 1 },
   line: { flexDirection: "row", alignItems: "flex-start", borderTopWidth: 1 },
   // The dot's 16 px slot is centred on the name's first line; its 44 px hit area bleeds past the gutter and 4 px under the row.
