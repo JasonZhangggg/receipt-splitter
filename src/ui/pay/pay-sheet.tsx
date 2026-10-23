@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { shareBreakdown } from "../../core/shares";
@@ -9,7 +10,15 @@ import { breakdownCharges, breakdownLines } from "../split-view/model";
 import { tabular, type, useColors } from "../theme";
 import { payState } from "./model";
 
-type Props = { split: Split; person: Participant; viewer: ParticipantId | null; onClose: () => void };
+type Props = {
+  split: Split;
+  person: Participant;
+  viewer: ParticipantId | null;
+  onClose: () => void;
+  /** The wide layout's column: this row replaces the title and the section labels, and `beside` sits right of the amount, which then reads under its label. */
+  head?: ReactNode;
+  beside?: ReactNode;
+};
 
 /** Who the sheet is for, which decides its title and whether it carries a pay bar. */
 export function payFacts(split: Split, person: Participant, viewer: ParticipantId | null) {
@@ -23,7 +32,7 @@ export function payFacts(split: Split, person: Participant, viewer: ParticipantI
 }
 
 /** The viewed person's Items with their part of each, their part of each Adjustment and their total. It reads the live Split, so another phone's edit lands here as it happens. */
-export function PayBody({ split, person, viewer, onClose }: Props) {
+export function PayBody({ split, person, viewer, onClose, head, beside }: Props) {
   const c = useColors();
   const breakdown = shareBreakdown(split, person.id);
   const { mine, share, state } = payFacts(split, person, viewer);
@@ -32,8 +41,12 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
   const title = payTitle(split, person, viewer);
   return (
     <View style={styles.body}>
-      <SheetHeader title={title} onClose={onClose} />
-      <Label text={mine ? say.whatYouHad : say.whatTheyHad(person.name)} count={lines.length > 0 ? say.itemCount(lines.length) : null} />
+      {head ?? (
+        <>
+          <SheetHeader title={title} onClose={onClose} />
+          <Label text={mine ? say.whatYouHad : say.whatTheyHad(person.name)} count={lines.length > 0 ? say.itemCount(lines.length) : null} />
+        </>
+      )}
       <View>
         {lines.length === 0 ? (
           <Text style={[type.body, styles.empty, { color: c.muted }]}>{say.nothingChecked(mine ? null : person.name)}</Text>
@@ -54,21 +67,35 @@ export function PayBody({ split, person, viewer, onClose }: Props) {
         )}
       </View>
       {charges.length > 0 ? (
-        <View style={styles.charges}>
-          <Label text={mine ? say.yourCharges : say.chargesOf(person.name)} count={null} />
+        <View style={head ? null : styles.charges}>
+          {head ? null : <Label text={mine ? say.yourCharges : say.chargesOf(person.name)} count={null} />}
           {charges.map((row) => (
             <Row key={row.id} label={row.name} amount={money(row.portion)} ink={c.muted} />
           ))}
         </View>
       ) : null}
-      <View style={[styles.total, { borderTopColor: c.hairline }]}>
-        <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
-          {mine ? say.yourTotal : say.totalOf(person.name)}
-        </Text>
-        <Text testID="share" style={[type.hero, tabular, styles.regular, { color: c.ink }]}>
-          {money(share)}
-        </Text>
-      </View>
+      {head ? (
+        <View style={[styles.total, styles.wideTotal, { borderTopColor: c.hairline }]}>
+          <View style={styles.name}>
+            <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
+              {mine ? say.yourShare : say.shareOf(person.name)}
+            </Text>
+            <Text testID="share" style={[styles.amount, tabular, { color: c.ink }]}>
+              {money(share)}
+            </Text>
+          </View>
+          {beside}
+        </View>
+      ) : (
+        <View style={[styles.total, { borderTopColor: c.hairline }]}>
+          <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
+            {mine ? say.yourTotal : say.totalOf(person.name)}
+          </Text>
+          <Text testID="share" style={[type.hero, tabular, styles.regular, { color: c.ink }]}>
+            {money(share)}
+          </Text>
+        </View>
+      )}
       {state.kind === "short" ? (
         <View style={styles.rest}>
           <Row label={say.paid} amount={money(state.paid)} ink={c.muted} testID="paid-so-far" />
@@ -122,4 +149,7 @@ const styles = StyleSheet.create({
   total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8, paddingTop: 12, borderTopWidth: 1 },
   rest: { marginTop: 4 },
   regular: { fontWeight: "400" },
+  wideTotal: { alignItems: "flex-end", marginTop: 12, paddingTop: 18 },
+  // The footer's amount on the phone, so the share reads the same size on both.
+  amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 32, lineHeight: 44, letterSpacing: -0.96 },
 });

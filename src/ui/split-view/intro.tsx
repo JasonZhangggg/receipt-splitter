@@ -17,10 +17,12 @@ type Props = {
   onPeople: (press: Press) => void;
   onPayments: (press: Press) => void;
   onHistory: (press: Press) => void;
+  /** False in the wide layout, whose right column carries these links and whose pointer clicks rather than taps. */
+  links?: boolean;
 };
 
 /** Who paid, and at what place when the Split has one, in ink, and what to do, then the ink links to the Receipt photo, People, Payments and History. */
-export function SplitIntro({ host, total, place, onLinksBottom, onReceipt, onPeople, onPayments, onHistory }: Props) {
+export function SplitIntro({ host, total, place, onLinksBottom, onReceipt, onPeople, onPayments, onHistory, links: showLinks = true }: Props) {
   const c = useColors();
   const links = useRef<View>(null);
   const reportLinks = () => {
@@ -30,14 +32,16 @@ export function SplitIntro({ host, total, place, onLinksBottom, onReceipt, onPeo
   return (
     <View onLayout={reportLinks} style={styles.box}>
       <Text style={[type.body, { color: c.muted }]}>
-        <Text style={{ color: c.ink }}>{say.intro(host, total, place)}</Text> {say.introHint}
+        <Text style={{ color: c.ink }}>{say.intro(host, total, place)}</Text> {showLinks ? say.introHint : say.introHintWide}
       </Text>
-      <View ref={links} style={styles.links}>
-        {onReceipt ? <TextLink ink body label={say.receipt} onPress={onReceipt} /> : null}
-        <TextLink ink body label={say.people} onPress={onPeople} />
-        <TextLink ink body label={say.payments} onPress={onPayments} />
-        <TextLink ink body label={say.history} onPress={onHistory} />
-      </View>
+      {showLinks ? (
+        <View ref={links} style={styles.links}>
+          {onReceipt ? <TextLink ink body label={say.receipt} onPress={onReceipt} /> : null}
+          <TextLink ink body label={say.people} onPress={onPeople} />
+          <TextLink ink body label={say.payments} onPress={onPayments} />
+          <TextLink ink body label={say.history} onPress={onHistory} />
+        </View>
+      ) : null}
     </View>
   );
 }

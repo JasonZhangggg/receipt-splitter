@@ -31,6 +31,10 @@ import { SplitHeader, useSiteShare } from "../../src/ui/split-view/header";
 import { shareLink } from "../../src/ui/share-link";
 import { circleTap, linesNear } from "../../src/ui/split-view/model";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
+import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
+import { ShareHead } from "../../src/ui/split-view/share-head";
+import { SidePanel } from "../../src/ui/split-view/side-panel";
+import { TextLink } from "../../src/ui/components/text-link";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
@@ -41,7 +45,7 @@ import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
 import { SplitFooter } from "../../src/ui/split-view/footer";
 import { SplitIntro } from "../../src/ui/split-view/intro";
 import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-sheet";
-import { PayBlock } from "../../src/ui/pay/pay-block";
+import { PayBlock, PayButton } from "../../src/ui/pay/pay-block";
 import { justPaid, shareStatus, statusWords } from "../../src/ui/pay/model";
 import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
@@ -348,6 +352,13 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (modes && (wide || modes.from.keyboard || actedByKey()) && modes.from.trigger.isConnected) modes.from.trigger.focus({ preventScroll: true });
     setModes(null);
   };
+  // The wide layout's people menu under "What you had".
+  const [picker, setPicker] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
+  const closePicker = () => setPicker((open) => open && { ...open, closing: true });
+  const pickerGone = () => {
+    if (picker && picker.from.trigger.isConnected) picker.from.trigger.focus({ preventScroll: true });
+    setPicker(null);
+  };
   const closeMenu = () => setMenu((open) => open && { ...open, closing: true });
   const menuGone = () => {
     if (menu && (wide || menu.from.keyboard || actedByKey())) {
@@ -407,7 +418,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
   // Escape closes the person menu over the People sheet, or the split menu over Edit item, first, and the sheet on the next press.
-  useEscape(overlay !== null && !closing && !viewing && (menu === null || menu.closing) && (modes === null || modes.closing) && (question === null || question.closing), closeOverlay);
+  useEscape(overlay !== null && !closing && !viewing && (picker === null || picker.closing) && (menu === null || menu.closing) && (modes === null || modes.closing) && (question === null || question.closing), closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);
@@ -588,6 +599,152 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     );
   })();
 
+  const title = (person: Participant) => (person.id === me ? say.whatYouHad : say.whatTheyHad(person.name));
+  const due = viewed?.hasBar ? (viewed.state.kind === "unpaid" ? viewed.state.owe : viewed.state.kind === "short" ? viewed.state.rest : null) : null;
+  const shareView =
+    me && selectedPerson && viewed ? (
+      <>
+        <PayBody
+          split={split}
+          person={selectedPerson}
+          viewer={me}
+          onClose={() => {}}
+          head={
+            <ShareHead
+              title={title(selectedPerson)}
+              open={picker !== null && !picker.closing}
+              onPick={(from) => setPicker({ from, closing: false })}
+              onReceipt={photo ? setViewing : undefined}
+              onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+              onHistory={(from) => open({ kind: "history" }, from)}
+            />
+          }
+          beside={due === null ? null : <PayButton split={split.id} host={host.name} handles={split.paymentHandles} amount={due} />}
+        />
+        {viewed.hasBar ? (
+          <View style={styles.payRest}>
+            <PayBlock compact split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} busy={paying !== null} notice={payNote} onPaid={onPaid} />
+          </View>
+        ) : null}
+      </>
+    ) : (
+      <TextLink ink body label={say.question} onPress={() => setPhase("pick")} />
+    );
+  const aside =
+    phase !== "regular" ? (
+      <SidePanel key="pick" label={say.question} closing={phase === "collapsing"} onDown={pickLeft} testID="split-sheet">
+        {pickContent}
+      </SidePanel>
+    ) : overlay ? (
+      <SidePanel
+        key={overlay.kind === "item" ? `item-${overlay.itemId}` : overlay.kind === "adjustment" ? `adjustment-${overlay.adjustmentId}` : overlay.kind}
+        label={overlayLabel(overlay, split, viewedTitle)}
+        closing={closing}
+        onDown={overlayGone}
+        testID={overlay.kind === "pay" ? "breakdown" : `${overlay.kind}-sheet`}
+      >
+        {overlayContent}
+        {payBar}
+      </SidePanel>
+    ) : (
+      <SidePanel key="share" label={selectedPerson ? title(selectedPerson) : say.question} testID="share-panel">
+        {shareView}
+      </SidePanel>
+    );
+
+  const layers = (
+    <>
+      {menu ? (
+        <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
+          <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
+        </Popover>
+      ) : null}
+      {modes ? (
+        <Popover anchor={modes.from.trigger} label={say.split} instant={modes.from.keyboard} closing={modes.closing} onClose={closeModes} onGone={modesGone} width={modeMenuWidth}>
+          <ModeMenu
+            value={modes.value}
+            onPick={(by) => {
+              modes.pick(by);
+              closeModes();
+            }}
+          />
+        </Popover>
+      ) : null}
+      {question ? (
+        <Popover anchor={question.from.trigger} label={question.question} instant={question.from.keyboard} closing={question.closing} onClose={closeQuestion} onGone={questionGone} width={claimConfirmWidth}>
+          <ClaimConfirm
+            question={question.question}
+            action={question.action}
+            onYes={() => {
+              if (question.closing) return;
+              closeQuestion();
+              question.onYes();
+            }}
+            onNo={closeQuestion}
+          />
+        </Popover>
+      ) : null}
+      {confirming ? (
+        <Popover anchor={confirming.from.trigger} label={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} instant={confirming.from.keyboard} closing={confirming.closing} onClose={closeConfirming} onGone={confirmingGone} width={claimConfirmWidth} align="start">
+          <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(firstName(confirming.person.name), confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
+        </Popover>
+      ) : null}
+      {picker ? (
+        <Popover anchor={picker.from.trigger} label={say.whoseItems} instant={picker.from.keyboard} closing={picker.closing} onClose={closePicker} onGone={pickerGone} width={personPickerWidth} align="start">
+          <PersonPicker
+            rows={people.map((person) => ({ id: person.id, name: person.name, share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0)) }))}
+            me={me}
+            viewed={selectedPerson?.id ?? null}
+            onView={(participantId) => {
+              setSelected(participantId);
+              closePicker();
+            }}
+            onEdit={() => {
+              closePicker();
+              open({ kind: "people" }, picker.from);
+            }}
+          />
+        </Popover>
+      ) : null}
+      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={wide ? 16 : overlay && !closing ? 12 : footerHeight + 8} />
+      {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={photoClosed} /> : null}
+    </>
+  );
+
+  if (wide)
+    return (
+      <View style={[styles.screen, { backgroundColor: c.field }]}>
+        <View style={[styles.wideBar, { paddingTop: insets.top }]}>
+          <SplitHeader onShare={() => void share()} />
+        </View>
+        <View style={styles.wideBody}>
+          <ScrollView style={styles.page} contentContainerStyle={styles.wideLeft}>
+            <View style={styles.wideColumn}>
+              <SplitIntro
+                host={host.name}
+                total={money(split.receipt.total)}
+                place={split.place}
+                links={false}
+                onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
+                onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+                onHistory={(from) => open({ kind: "history" }, from)}
+              />
+              <Presence present={me !== null && selectedPerson !== null && selectedPerson.id !== me} animate>
+                {me && selectedPerson ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
+              </Presence>
+              <View style={styles.doc}>{receipt}</View>
+            </View>
+          </ScrollView>
+          <View style={styles.aside}>
+            <View style={[styles.asideRule, { backgroundColor: c.hairline }]} />
+            {aside}
+          </View>
+        </View>
+        <ConnectionNotice connection={connection} />
+        {layers}
+      </View>
+    );
+
   return (
     <View style={[styles.screen, { backgroundColor: c.field }]}>
       <ScrollView
@@ -624,43 +781,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           {overlayContent}
         </BottomSheet>
       ) : null}
-      {menu ? (
-        <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
-          <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
-        </Popover>
-      ) : null}
-      {modes ? (
-        <Popover anchor={modes.from.trigger} label={say.split} instant={modes.from.keyboard} closing={modes.closing} onClose={closeModes} onGone={modesGone} width={modeMenuWidth}>
-          <ModeMenu
-            value={modes.value}
-            onPick={(by) => {
-              modes.pick(by);
-              closeModes();
-            }}
-          />
-        </Popover>
-      ) : null}
-      {question ? (
-        <Popover anchor={question.from.trigger} label={question.question} instant={question.from.keyboard} closing={question.closing} onClose={closeQuestion} onGone={questionGone} width={claimConfirmWidth}>
-          <ClaimConfirm
-            question={question.question}
-            action={question.action}
-            onYes={() => {
-              if (question.closing) return;
-              closeQuestion();
-              question.onYes();
-            }}
-            onNo={closeQuestion}
-          />
-        </Popover>
-      ) : null}
-      {confirming ? (
-        <Popover anchor={confirming.from.trigger} label={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} instant={confirming.from.keyboard} closing={confirming.closing} onClose={closeConfirming} onGone={confirmingGone} width={claimConfirmWidth} align="start">
-          <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(firstName(confirming.person.name), confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
-        </Popover>
-      ) : null}
-      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={overlay && !closing ? 12 : footerHeight + 8} />
-      {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={photoClosed} /> : null}
+      {layers}
     </View>
   );
 }
@@ -691,5 +812,13 @@ const styles = StyleSheet.create({
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   people: { gap: layout.blockGap },
+  // The wide layout: the receipt on the left, and on the right a fixed column for what a phone shows in sheets, set off by a line that touches neither the top bar nor the bottom.
+  wideBar: { paddingHorizontal: 32 },
+  wideBody: { flex: 1, flexDirection: "row", minHeight: 0 },
+  wideLeft: { paddingHorizontal: 72, paddingTop: 12, paddingBottom: 48 },
+  wideColumn: { alignSelf: "center", width: "100%", maxWidth: 640 },
+  aside: { width: 440, paddingHorizontal: 36, paddingTop: 24 },
+  asideRule: { position: "absolute", left: 0, top: 36, bottom: 36, width: 1 },
+  payRest: { marginTop: 8 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });
