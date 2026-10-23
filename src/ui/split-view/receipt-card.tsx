@@ -27,6 +27,10 @@ type Props = {
   onOpenAdjustment: (row: Adjustment, press: Press) => void;
   /** The line whose detail is open, or an add form, so its trigger reads as expanded. */
   showing: ItemId | AdjustmentId | "add" | null;
+  /** The wide layout: rows a size larger. */
+  wide?: boolean;
+  /** Who had each row in a column of its own between the name and the price, where the window has room. */
+  whoColumn?: boolean;
 };
 
 // The dot's column is 26 px wide: the name starts where the charges and the Total start.
@@ -41,7 +45,7 @@ const nameLine = 25.6;
 const noteLine = 22.4;
 const chargeRow = 34;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
@@ -81,6 +85,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       claimers={people(item)}
       selected={selected}
       inBundle={inBundle}
+      wide={wide}
+      whoColumn={whoColumn}
       onCircle={circleItem}
       onOpen={openItem}
       expanded={showing === item.id}
@@ -301,6 +307,8 @@ type LineProps = {
   claimers: readonly Participant[];
   selected: Participant | null;
   inBundle: boolean;
+  wide: boolean;
+  whoColumn: boolean;
   onCircle: (item: SplitItem, press: Press) => void;
   onOpen: (item: SplitItem, press: Press) => void;
   expanded: boolean;
@@ -312,6 +320,8 @@ const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JS
 function sameLine(a: LineProps, b: LineProps): boolean {
   return (
     a.inBundle === b.inBundle &&
+    a.wide === b.wide &&
+    a.whoColumn === b.whoColumn &&
     a.expanded === b.expanded &&
     a.onCircle === b.onCircle &&
     a.onOpen === b.onOpen &&
@@ -329,7 +339,7 @@ function sameLine(a: LineProps, b: LineProps): boolean {
 function WhoLine({ who, style }: { who: Who; style?: StyleProp<TextStyle> }) {
   const c = useColors();
   return (
-    <Text numberOfLines={2} style={[type.caption, styles.noteText, style, { color: c.muted }]}>
+    <Text numberOfLines={2} style={[type.caption, styles.noteText, { color: c.muted }, style]}>
       {who.you ? (
         <>
           <Text style={{ color: c.ink }}>{say.youHad}</Text>
@@ -343,9 +353,12 @@ function WhoLine({ who, style }: { who: Who; style?: StyleProp<TextStyle> }) {
 }
 
 /** A dot that claims the line, and the rest of the row, which opens it. The left column is the name, the detail and who had it; the right is the full price and what it comes to for the viewer or each person. */
-const Line = memo(function Line({ item, viewing, portions, claimers, selected, inBundle, onCircle, onOpen, expanded }: LineProps) {
+const Line = memo(function Line({ item, viewing, portions, claimers, selected, inBundle, wide, whoColumn, onCircle, onOpen, expanded }: LineProps) {
   const c = useColors();
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
+  // Once someone is shown, the rows they didn't have step back to the muted ink, and come forward under a mouse.
+  const quiet = selected !== null && !mine;
+  const big = wide ? styles.wideFigure : styles.figure;
   const price = groupedAmount(item.price);
   const [title, detail] = nameParts(item);
   const count = quantityText(item);
@@ -362,10 +375,10 @@ const Line = memo(function Line({ item, viewing, portions, claimers, selected, i
         {(pressed) => <ClaimDot on={mine} pressed={pressed} />}
       </PressTarget>
       <PressTarget name={[say.open(label), `$${price}`, whoText(who), split].filter(Boolean).join(", ")} popup="dialog" expanded={expanded} onPress={(press) => onOpen(item, press)} style={(pressed) => [styles.body, pressed ? rowFade : fade, pressed && styles.held]}>
-        {() => (
+        {(_, hovered) => (
           <>
             <View style={styles.name}>
-              <Text numberOfLines={2} style={[type.body, styles.nameText, { color: c.ink }]}>
+              <Text numberOfLines={2} style={[big, inkFade, { color: quiet && !hovered ? c.muted : c.ink }]}>
                 {count ? <Text style={[type.caption, tabular, { color: c.muted }]}>{`${count}  `}</Text> : null}
                 {title}
               </Text>
@@ -374,10 +387,11 @@ const Line = memo(function Line({ item, viewing, portions, claimers, selected, i
                   {detail}
                 </Text>
               ) : null}
-              <WhoLine who={who} />
+              {whoColumn ? null : <WhoLine who={who} />}
             </View>
-            <View style={styles.figures}>
-              <Text style={[type.body, styles.nameText, tabular, { color: c.ink }]}>{money(item.price)}</Text>
+            {whoColumn ? <WhoLine who={who} style={styles.whoColumn} /> : null}
+            <View style={[styles.figures, whoColumn && styles.priceColumn]}>
+              <Text style={[big, tabular, inkFade, { color: quiet ? c.muted : c.ink }]}>{money(item.price)}</Text>
               {split ? (
                 <Text numberOfLines={1} style={[type.caption, styles.noteText, tabular, { color: c.muted }]}>
                   {split}
@@ -415,6 +429,8 @@ const turn = webStyle({ transitionProperty: "transform", transitionDuration: "20
 const fade = webStyle({ transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: motion.easeOut });
 /** A pressed row dims in 100 ms so a quick tap reaches it, and eases back over `fade`'s 200 ms. */
 const rowFade = webStyle({ transitionProperty: "opacity", transitionDuration: "100ms", transitionTimingFunction: motion.easeOut });
+/** A row's name and price change ink when it is claimed or hovered, quickly enough to follow the pointer down the list. */
+const inkFade = webStyle({ transitionProperty: "color", transitionDuration: "150ms", transitionTimingFunction: "ease" });
 
 const styles = StyleSheet.create({
   heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 22, marginBottom: 12 },
@@ -428,6 +444,12 @@ const styles = StyleSheet.create({
   nameText: { lineHeight: nameLine },
   noteText: { lineHeight: noteLine },
   figures: { flexShrink: 0, alignItems: "flex-end" },
+  // A fixed price column keeps the who column straight down the list, whatever each price's width.
+  priceColumn: { minWidth: 104 },
+  figure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
+  wideFigure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 21, lineHeight: 28, letterSpacing: -0.3 },
+  // Small caps in their own column, centered on the name's first line.
+  whoColumn: { width: 150, paddingTop: 3, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500" },
   header: { borderTopWidth: 1, paddingVertical: 12 },
   bundleTop: { flexDirection: "row", alignItems: "flex-start", columnGap },
   bundleWho: { flexDirection: "row", marginLeft: nameStart, columnGap },

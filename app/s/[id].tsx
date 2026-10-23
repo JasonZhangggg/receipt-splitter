@@ -608,6 +608,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     <ReceiptCard
       split={split}
       shares={shares}
+      wide={wide}
+      whoColumn={layoutWidth >= breakpoints.roomyFrom}
       selected={me ? selectedPerson : null}
       me={me}
       onCircle={onCircle}
@@ -778,7 +780,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
                   host={host.name}
                   total={money(split.receipt.total)}
                   place={split.place}
-                  links={false}
+                  wide
                   onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
                   onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
                   onHistory={(from) => open({ kind: "history" }, from)}
