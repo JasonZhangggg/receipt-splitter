@@ -41,8 +41,8 @@ type Props = {
   filterMenuOpen: boolean;
 };
 
-// The dot's column is 26 px wide: the name starts where the charges and the Total start.
-const nameStart = 26;
+// The dot's column is 30 px wide: the name starts where the charges and the Total start.
+const nameStart = 30;
 const columnGap = 14;
 const dotTap = 44;
 const dotBleed = 14;
@@ -112,7 +112,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   return (
     <View testID="receipt">
       {wide ? (
-        <View style={styles.tabsLine}>
+        <View style={[styles.tabsLine, styles.headRule, { borderBottomColor: c.ink }]}>
           <Text role="heading" aria-level={2} style={styles.hidden}>
             {say.itemsHeading}
           </Text>
@@ -120,7 +120,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
           <Text style={[styles.caps, { color: c.muted }]}>{say.priceHeading}</Text>
         </View>
       ) : (
-        <View style={styles.heading}>
+        <View style={[styles.heading, styles.headRule, { borderBottomColor: c.ink }]}>
           <Text style={[type.body, styles.itemsHead]}>
             <Text role="heading" aria-level={2} style={{ color: c.ink }}>
               {say.itemsHeading}
@@ -135,7 +135,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
         </View>
       )}
       {/* Keyed by the filter, so a new filter shows its rows at once; within one, a claim that moves a line out of it collapses the line as a delete does. */}
-      <View key={filter} role="list" aria-label={say.item} style={[styles.list, { borderBottomColor: c.hairline }]}>
+      <View key={filter} role="list" aria-label={say.item} style={[styles.list, styles.underHead, { borderBottomColor: c.hairline }]}>
         {filter === "all" ? null : (
           // It grows in as the last line collapses out, so the two never stack at full height.
           <Presence present={rows.length === 0} animate>
@@ -427,7 +427,7 @@ function WhoLine({ who, style }: { who: Who; style?: StyleProp<TextStyle> }) {
     <Text numberOfLines={2} style={[type.caption, styles.noteText, { color: c.muted }, style]}>
       {who.you ? (
         <>
-          <Text style={{ color: c.ink }}>{say.youHad}</Text>
+          <Text style={{ color: c.ink, fontWeight: "500" }}>{say.youHad}</Text>
           {who.others.map((name) => `, ${name}`).join("")}
         </>
       ) : (
@@ -518,17 +518,20 @@ const rowFade = webStyle({ transitionProperty: "opacity", transitionDuration: "1
 const inkFade = webStyle({ transitionProperty: "color", transitionDuration: "150ms", transitionTimingFunction: "ease" });
 
 const styles = StyleSheet.create({
-  heading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 12, marginBottom: 2 },
+  heading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 12, paddingBottom: 2 },
   itemsHead: { flexShrink: 1 },
-  tabsLine: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginTop: 4, marginBottom: 6 },
+  tabsLine: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginTop: 4, paddingBottom: 6 },
+  // The rule under the Items line is in ink, drawn over the first row's hairline.
+  headRule: { borderBottomWidth: 1, zIndex: 1 },
+  underHead: { marginTop: -1 },
   hidden: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   caps: { fontFamily: type.caption.fontFamily, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500", paddingBottom: 9 },
   empty: { paddingVertical: 20, paddingLeft: nameStart, borderTopWidth: 1 },
   list: { borderBottomWidth: 1 },
   // The dot, the name and the price are each centred on the row, so they stay level however many lines the name runs to.
   line: { flexDirection: "row", alignItems: "center", borderTopWidth: 1 },
-  // The dot's 16 px slot sits in the middle of its 44 px hit area, which bleeds past the gutter.
-  circle: { width: dotTap, height: dotTap, justifyContent: "center", marginLeft: -dotBleed, marginRight: -4, paddingLeft: dotBleed },
+  // The dot's 16 px slot sits in the middle of its 44 px hit area, which bleeds past the gutter; the dot itself hangs a pixel past the start of the rules, as in the mock.
+  circle: { width: dotTap, height: dotTap, justifyContent: "center", marginLeft: -dotBleed, paddingLeft: dotBleed - 3 },
   body: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", columnGap, paddingTop: 15, paddingBottom: 14 },
   held: { opacity: 0.55 },
   name: { flex: 1, minWidth: 0 },
