@@ -79,7 +79,7 @@ test("every tappable word and field in home's sentence has a hit area of at leas
   await expectHit(page.getByRole("button", { name: "Add the receipt" }), { height: 44 });
   await expectHit(page.getByRole("textbox", { name: "Your name" }), { height: 44, width: 44 });
   await expectHit(page.getByRole("textbox", { name: "Venmo handle" }), { height: 44, width: 44 });
-  await expectHit(page.locator("[data-app-word]"), { height: 44, width: 44 });
+  await expectHit(page.getByRole("button", { name: "Payment app, Venmo" }), { height: 44, width: 44 });
 
   await addNames(page, "Jason", "Sam");
   await expectHit(page.getByRole("button", { name: /^Remove Sam/ }), { height: 44, width: 44 });

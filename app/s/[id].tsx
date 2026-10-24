@@ -51,6 +51,7 @@ import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
 import { TextLink } from "../../src/ui/components/text-link";
 import { Presence } from "../../src/ui/presence";
+import { frameFor, frameGutter } from "../../src/ui/frame";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
@@ -117,15 +118,6 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
-/** The wide layout: the receipt and the column beside it, centered in the window as one frame. Under 1280px the column and the gap between them narrow so the receipt keeps room. */
-const frameFor = (width: number) => {
-  const roomy = width >= breakpoints.roomyFrom;
-  const column = roomy ? 420 : 380;
-  const gap = roomy ? 112 : 56;
-  const inner = Math.min(width - 2 * frameGutter, 680 + gap + column);
-  return { column, gap, inner, clearRight: (width - inner) / 2 + column + gap };
-};
-const frameGutter = 48;
 const wideBodyTop = 12;
 // Where the pick sheet's top edge sits before the links row has been measured, and the gap it keeps below that row once it has.
 const tallPickTop = 170;

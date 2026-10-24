@@ -66,7 +66,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await page.getByRole("button", { name: "Split a receipt" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, 2 people, ${total}`);
+  await expect(rows(page).first()).toHaveAccessibleName(`Jason and Sam, Today, 2 people, ${total}, You paid`);
   await rows(page).first().click();
   await expect(page).toHaveURL(link);
   await expect(page.getByRole("button", { name: /^Your share \$/ })).toBeVisible({ timeout: 30_000 });
@@ -79,17 +79,17 @@ test("Recent splits sits under the sentence, with no header link, and lists the 
   expect(listed.y).toBeGreaterThan(words.y + words.height);
   await expect(list(page).getByRole("heading", { name: "Recent splits" })).toBeVisible();
   const all = [
-    "Jason and Sam, Today, 2 people, $42.10",
-    "Priya and Jo, Yesterday, 2 people, $128.75",
-    "Ana, Ben and 2 more, Oct 1, 4 people, $9.90",
-    "Kim and Lee, Sep 29, 2 people, $31.00",
-    "Omar, Sep 28, 1 person, $5.60",
-    "Lin, Sep 20, 1 person, $14.00",
-    "Max and Ivy, Sep 10, 2 people, $77.00",
+    "Jason and Sam, Today, 2 people, $42.10, You paid",
+    "Priya and Jo, Yesterday, 2 people, $128.75, Priya paid",
+    "Ana, Ben and 2 more, Oct 1, 4 people, $9.90, You paid",
+    "Kim and Lee, Sep 29, 2 people, $31.00, You paid",
+    "Omar, Sep 28, 1 person, $5.60, You paid",
+    "Lin, Sep 20, 1 person, $14.00, You paid",
+    "Max and Ivy, Sep 10, 2 people, $77.00, Max paid",
   ];
-  expect(await labels(page)).toEqual(all.slice(0, 4));
-  expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual([jason, priya, ana, kim].map(({ id }) => `/s/${id}`));
-  expect((await rows(page).nth(2).innerText()).split("\n").filter(Boolean)).toEqual(["Ana, Ben and 2 more", "Oct 1 · 4 people", "$9.90"]);
+  expect(await labels(page)).toEqual(all.slice(0, 3));
+  expect(await rows(page).evaluateAll((links) => links.map((link) => new URL((link as HTMLAnchorElement).href).pathname))).toEqual([jason, priya, ana].map(({ id }) => `/s/${id}`));
+  expect((await rows(page).nth(2).innerText()).split("\n").filter(Boolean)).toEqual(["Ana, Ben and 2 more", "Oct 1 · 4 people", "$9.90", "You paid"]);
 
   await list(page).getByRole("button", { name: "See all 7" }).click();
   const sheet = page.getByRole("dialog", { name: "Recent splits" });
@@ -99,11 +99,13 @@ test("Recent splits sits under the sentence, with no header link, and lists the 
   await expect(page).toHaveURL(`/s/${max.id}`);
 });
 
-test("at 1440 px Recent splits shares the sentence's column, and a click opens the Split", async ({ page }) => {
+test("at 1440 px Recent splits sits in the right column beside the sentence, like the Split page's, and a click opens the Split", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await seed(page, [ana, jason, priya]);
   const [words, listed] = [(await page.getByTestId("sentence").boundingBox())!, (await list(page).boundingBox())!];
-  expect([Math.round(listed.x), Math.round(listed.width)]).toEqual([Math.round(words.x), Math.round(words.width)]);
+  expect([Math.round(listed.x), Math.round(listed.width)]).toEqual([906, 420]);
+  expect(listed.x).toBeGreaterThan(words.x + words.width);
+  expect(Math.round(listed.y)).toBeLessThan(Math.round(words.y + 40));
   await rows(page).nth(1).click();
   await expect(page).toHaveURL(new RegExp(`/s/${priya.id}$`));
 });
@@ -299,17 +301,17 @@ const pageScroller = (page: Page) =>
   });
 const topOf = async (locator: Locator) => Math.round((await locator.boundingBox())!.y);
 
-test("with fourteen Recent splits home does not scroll: the rows that fit end above the footer, and See all opens a sheet that scrolls through all of them", async ({ page }) => {
+test("with fourteen Recent splits home does not scroll: See all ends the heading, the rows that fit end above the footer, and See all opens a sheet that scrolls through all of them", async ({ page }) => {
   const fourteen = Array.from({ length: 14 }, (_, i): Stored => ({ ...eight[i % 8], id: `Many${String(i + 1).padStart(2, "0")}`.padEnd(22, "0"), added: now - (i + 1) * 60_000 }));
   await seed(page, fourteen);
   const heading = page.getByRole("heading", { name: "SplitWith" });
-  expect([await topOf(heading), await topOf(page.getByTestId("sentence"))]).toEqual([11, 100]);
+  expect([await topOf(heading), await topOf(page.getByTestId("sentence"))]).toEqual([11, 88]);
   expect(await pageScroller(page)).toBeNull();
-  await expect(rows(page)).toHaveCount(4);
+  await expect(rows(page)).toHaveCount(3);
   const seeAll = list(page).getByRole("button", { name: "See all 14" });
-  const [last, link, footer] = [(await rows(page).last().boundingBox())!, (await seeAll.boundingBox())!, (await action(page).boundingBox())!];
-  expect(last.y + last.height).toBeLessThanOrEqual(link.y);
-  expect(link.y + link.height).toBeLessThanOrEqual(footer.y);
+  const [first, last, link, footer] = [(await rows(page).first().boundingBox())!, (await rows(page).last().boundingBox())!, (await seeAll.boundingBox())!, (await action(page).boundingBox())!];
+  expect(link.y + link.height).toBeLessThanOrEqual(first.y + 10);
+  expect(last.y + last.height).toBeLessThanOrEqual(footer.y);
 
   await seeAll.press("Enter");
   const sheet = page.getByRole("dialog", { name: "Recent splits" });

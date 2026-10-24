@@ -21,41 +21,56 @@ type Props = {
   blocked: boolean;
   busy: boolean;
   onPress: () => void;
-  onHeight: (height: number) => void;
+  onHeight?: (height: number) => void;
   width: number;
+  /** The wide layout: Create and its reason sit under the sentence, the pill first, with no bar around them. */
+  wide?: boolean;
 };
 
-/** The reason line at the left and the Create link pill at the right, fixed below the scrolling page, as on the Split page. */
-export function HomeFooter({ reason, live, problem, blocked, busy, onPress, onHeight, width }: Props) {
+/** The reason line at the left and the Create link pill at the right, fixed below the scrolling page, as on the Split page. Wide, the pill leads and the reason follows it, under the sentence. */
+export function HomeFooter({ reason, live, problem, blocked, busy, onPress, onHeight, width, wide = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const insets = useSafeAreaInsets();
   const reasonId = useId();
+  const words = (
+    <Text id={reasonId} role="status" aria-live={live ? "polite" : "off"} {...{ dataSet: { problem: String(problem) } }} style={[type.caption, styles.reason, { color: problem ? c.warn : c.muted }]}>
+      {reason}
+    </Text>
+  );
+  const create = (
+    <PressTarget
+      name={busy ? copy.creating : copy.action}
+      describedBy={reason ? reasonId : undefined}
+      busy={busy}
+      disabled={busy}
+      outsideScroll
+      onPress={onPress}
+      style={(pressed) => pressStyle(pressed, reduce, pressFeel.pill)}
+    >
+      {() => (
+        <View style={[styles.pill, fade, { backgroundColor: c.action, opacity: blocked ? 0.28 : busy ? 0.6 : 1 }]}>
+          <Text style={[type.title, { color: c.onAction }]}>{busy ? copy.creating : copy.action}</Text>
+          {busy ? null : <Icon name="arrow" size={14} color={c.onAction} />}
+        </View>
+      )}
+    </PressTarget>
+  );
+  if (wide)
+    return (
+      <View style={styles.inline}>
+        {create}
+        {words}
+      </View>
+    );
   return (
     <View
-      onLayout={({ nativeEvent }: LayoutChangeEvent) => onHeight(nativeEvent.layout.height)}
+      onLayout={({ nativeEvent }: LayoutChangeEvent) => onHeight?.(nativeEvent.layout.height)}
       style={[styles.footer, { borderTopColor: c.hairline, paddingBottom: Math.max(24, insets.bottom + 8), paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}
     >
       <View style={[styles.column, { maxWidth: width }]}>
-        <Text id={reasonId} role="status" aria-live={live ? "polite" : "off"} {...{ dataSet: { problem: String(problem) } }} style={[type.caption, styles.reason, { color: problem ? c.warn : c.muted }]}>
-          {reason}
-        </Text>
-        <PressTarget
-          name={busy ? copy.creating : copy.action}
-          describedBy={reason ? reasonId : undefined}
-          busy={busy}
-          disabled={busy}
-          outsideScroll
-          onPress={onPress}
-          style={(pressed) => pressStyle(pressed, reduce, pressFeel.pill)}
-        >
-          {() => (
-            <View style={[styles.pill, fade, { backgroundColor: c.action, opacity: blocked ? 0.28 : busy ? 0.6 : 1 }]}>
-              <Text style={[type.title, { color: c.onAction }]}>{busy ? copy.creating : copy.action}</Text>
-              {busy ? null : <Icon name="arrow" size={16} color={c.onAction} />}
-            </View>
-          )}
-        </PressTarget>
+        {words}
+        {create}
       </View>
     </View>
   );
@@ -65,5 +80,7 @@ const styles = StyleSheet.create({
   footer: { alignItems: "center", borderTopWidth: 1, paddingTop: 14 },
   column: { width: "100%", flexDirection: "row", alignItems: "center", gap: 16 },
   reason: { flex: 1, minWidth: 0 },
-  pill: { height: 44, paddingHorizontal: 22, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  inline: { flexDirection: "row", alignItems: "center", gap: 20, marginTop: 44 },
+  // Between the Split page's 44 px buttons and its 54 px Pay pill, so it carries the headline sentence.
+  pill: { height: 50, paddingLeft: 24, paddingRight: 22, borderRadius: 25, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });

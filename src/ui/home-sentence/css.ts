@@ -17,7 +17,6 @@ export const sentenceCss = `
 @keyframes rs-roll-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-0.45em); } }
 @keyframes rs-fade { from { opacity: 0; } to { opacity: 1; } }
 @supports not (field-sizing: content) { input[data-underline] { width: calc(var(--chars) * 1ch + 4px); } }
-[data-app-word]:has(select:focus-visible) { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 2px; }
 @media (prefers-reduced-motion: reduce) {
   [data-step-in], [data-step-roll-in] { animation: rs-fade 150ms ease; }
   [data-step-roll][data-step-from]::before { content: none; }
