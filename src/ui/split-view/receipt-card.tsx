@@ -209,8 +209,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
             </Presence>
           </View>
           <View style={[styles.total, { borderTopColor: c.hairline }]}>
-            <Text style={[type.body, { color: c.ink }]}>{say.total}</Text>
-            <Text testID="total" style={[type.body, tabular, { color: c.ink }]}>
+            <Text style={[styles.figure, { color: c.ink }]}>{say.total}</Text>
+            <Text testID="total" style={[styles.figure, tabular, { color: c.ink }]}>
               {money(total)}
             </Text>
           </View>
@@ -556,7 +556,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: chargeRow, gap: 12 },
   // A 44 px tap target that still sits on the row pitch; the overlap goes to the later row.
   tapRow: { minHeight: dotTap, marginVertical: (chargeRow - dotTap) / 2 },
-  chargeText: { fontFamily: type.body.fontFamily, fontSize: 15, lineHeight: 24, letterSpacing: -0.1 },
+  // The charges and the Total share the item rows' weight and tracking, a step smaller than an item and in muted ink, so the totals read as the same list.
+  chargeText: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 16, lineHeight: 24, letterSpacing: -0.2 },
   rowLabel: { flexShrink: 1 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 12, paddingLeft: nameStart, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: nameStart, marginTop: 10 },

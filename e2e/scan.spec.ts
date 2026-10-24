@@ -137,18 +137,18 @@ test("a read with a price over the limit creates the link, and a price typed int
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
-  expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $3.50 short of the subtotal." });
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items add up to $19.48, but the receipt's subtotal is $22.98." });
 
   await action(page).click();
   await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
-  await expect(page.getByText("Items are $3.50 short of the subtotal.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Items add up to $19.48, but the receipt's subtotal is $22.98.")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /^Open Perrier Sparkling Water, \$0\.00/ }).click();
   await page.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" }).fill("3.50");
   await page.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
 
   await expect(page.getByRole("button", { name: /^Open Perrier Sparkling Water, \$3\.50/ })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("total")).toHaveText("$31.54");
-  await expect(page.getByText("Items are $3.50 short of the subtotal.")).toBeVisible();
+  await expect(page.getByText("Items add up to $22.98, but the receipt's subtotal is $26.48.")).toBeVisible();
 });
 
 test("a read with no Items keeps Create link off with its reason, and home offers no editor", async ({ page }) => {
@@ -181,7 +181,7 @@ test("a scan that fails the Total check shows the card, a quiet note, and still 
   await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("@jason-z");
   await addName(page, "Jason");
-  expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items are $2.50 short of the subtotal." });
+  expect(await blockedBy(page)).toEqual({ disabled: null, reason: "Items add up to $20.48, but the receipt's subtotal is $22.98." });
 
   await action(page).click();
   await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });

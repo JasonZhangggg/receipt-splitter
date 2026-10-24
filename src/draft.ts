@@ -194,17 +194,16 @@ export const groupedAmount = (amount: number) => plainAmount(amount).replace(/\d
 
 export const money = (amount: number) => `${amount < 0 ? "-" : ""}$${groupedAmount(Math.abs(amount))}`;
 
-const gapText = (what: string, gap: number, against: string) => `${what} ${money(Math.abs(gap))} ${gap > 0 ? "short of" : "over"} the ${against}.`;
-
-export function gapNote({ subtotalGap, totalGap }: FailedTotalCheck): string {
-  if (subtotalGap !== 0) return gapText("Items are", subtotalGap, "subtotal");
-  return gapText("Tax and charges are", totalGap, "total");
+/** Names both sides of the gap, what the rows add up to and what the receipt printed, so it's clear which number came from where. */
+export function gapNote({ subtotal, total }: Pick<Receipt, "subtotal" | "total">, { subtotalGap, totalGap }: FailedTotalCheck): string {
+  if (subtotalGap !== 0) return `Items add up to ${money(subtotal - subtotalGap)}, but the receipt's subtotal is ${money(subtotal)}.`;
+  return `With tax and charges it comes to ${money(total - totalGap)}, but the receipt's total is ${money(total)}.`;
 }
 
 export function mismatchNote({ scan }: Draft): string | null {
   if (scan.status !== "read" || !scan.receipt) return null;
   const check = runTotalCheck(scan.receipt);
-  if (!check.ok) return gapNote(check);
+  if (!check.ok) return gapNote(scan.receipt, check);
   return scan.totalUnread ? "Couldn't read the total, so check the rows." : null;
 }
 
