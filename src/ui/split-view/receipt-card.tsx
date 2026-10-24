@@ -219,7 +219,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
               <Text testID="unclaimed-count" numberOfLines={1} style={[styles.chargeText, tabular, styles.rowLabel, { color: c.muted }]}>
                 {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
               </Text>
-              <Text testID="unclaimed" style={[styles.chargeText, tabular, { color: c.ink }]}>
+              <Text testID="unclaimed" style={[styles.chargeText, styles.amount, tabular, { color: c.ink }]}>
                 {money(shares.unclaimed.total)}
               </Text>
             </View>
@@ -505,7 +505,7 @@ function RowFace({ label, amount }: { label: string; amount: number }) {
       <Text numberOfLines={1} style={[styles.chargeText, styles.rowLabel, { color: c.muted }]}>
         {label}
       </Text>
-      <Text style={[styles.chargeText, tabular, { color: c.muted }]}>{money(amount)}</Text>
+      <Text style={[styles.chargeText, styles.amount, tabular, { color: c.muted }]}>{money(amount)}</Text>
     </>
   );
 }
@@ -556,8 +556,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: chargeRow, gap: 12 },
   // A 44 px tap target that still sits on the row pitch; the overlap goes to the later row.
   tapRow: { minHeight: dotTap, marginVertical: (chargeRow - dotTap) / 2 },
-  // The charges are an item price's size in regular weight and muted ink, so they line up with the prices and step back from the medium Total.
+  // The charges are an item price's size in muted ink: the labels in regular weight, the amounts in the prices' medium so they read as one column.
   chargeText: { fontFamily: type.body.fontFamily, fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
+  amount: { fontWeight: "500" },
   rowLabel: { flexShrink: 1 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 12, paddingLeft: nameStart, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: nameStart, marginTop: 10 },
