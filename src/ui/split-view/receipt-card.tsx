@@ -222,7 +222,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
               <Text testID="unclaimed-count" numberOfLines={1} style={[styles.chargeText, tabular, styles.rowLabel, { color: c.muted }]}>
                 {say.unclaimedTotal(shares.unclaimed.itemIds.length)}
               </Text>
-              <Text testID="unclaimed" style={[styles.chargeText, styles.amount, tabular, { color: c.ink }]}>
+              <Text testID="unclaimed" style={[styles.chargeText, tabular, { color: c.ink }]}>
                 {money(shares.unclaimed.total)}
               </Text>
             </View>
@@ -513,7 +513,7 @@ function RowFace({ label, amount }: { label: string; amount: number }) {
       <Text numberOfLines={1} style={[styles.chargeText, styles.rowLabel, { color: c.muted }]}>
         {label}
       </Text>
-      <Text style={[styles.chargeText, styles.amount, tabular, { color: c.muted }]}>{money(amount)}</Text>
+      <Text style={[styles.chargeText, tabular, { color: c.muted }]}>{money(amount)}</Text>
     </>
   );
 }
@@ -545,8 +545,8 @@ const styles = StyleSheet.create({
   name: { flex: 1, minWidth: 0 },
   noteText: { lineHeight: noteLine },
   figures: { flexShrink: 0, alignItems: "flex-end" },
-  figure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
-  wideFigure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 21, lineHeight: 28, letterSpacing: -0.3 },
+  figure: { fontFamily: type.body.fontFamily, fontWeight: "400", fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
+  wideFigure: { fontFamily: type.body.fontFamily, fontWeight: "400", fontSize: 21, lineHeight: 28, letterSpacing: -0.3 },
   // Small caps in their own column, centred on the row like the name and the price.
   whoColumn: { width: 150, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500" },
   header: { borderTopWidth: 1, paddingVertical: 12 },
@@ -563,9 +563,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: chargeRow, gap: 12 },
   // A 44 px tap target that still sits on the row pitch; the overlap goes to the later row.
   tapRow: { minHeight: dotTap, marginVertical: (chargeRow - dotTap) / 2 },
-  // The charges are an item price's size in muted ink: the labels in regular weight, the amounts in the prices' medium so they read as one column.
+  // The charges are an item price's size and regular weight in muted ink, so they read as one column with the prices.
   chargeText: { fontFamily: type.body.fontFamily, fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
-  amount: { fontWeight: "500" },
   rowLabel: { flexShrink: 1 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 12, paddingLeft: nameStart, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: nameStart, marginTop: 10 },
