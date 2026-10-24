@@ -131,8 +131,8 @@ describe("readiness", () => {
     const over = perrierAt(400);
     expect({ blocker: reasonOf(short), short: mismatchNote(short), over: mismatchNote(over), ready: mismatchNote(ready), reading: mismatchNote(run(emptyDraft, { type: "reading", file })) }).toEqual({
       blocker: null,
-      short: "Items are $0.50 short of the subtotal.",
-      over: "Items are $0.50 over the subtotal.",
+      short: "Items add up to $22.48, but the receipt's subtotal is $22.98.",
+      over: "Items add up to $23.48, but the receipt's subtotal is $22.98.",
       ready: null,
       reading: null,
     });
@@ -150,8 +150,8 @@ describe("readiness", () => {
 
   test("notes tax and charges when the Items match the subtotal but the total does not", () => {
     const taxed = (amount: number) => run(emptyDraft, { type: "read", file, receipt: { ...receipt1040, adjustments: [{ id: adjustmentId("a1"), kind: "tax", name: "Tax", amount: cents(amount) }, receipt1040.adjustments[1]] } });
-    expect(mismatchNote(taxed(100))).toBe("Tax and charges are $0.61 short of the total.");
-    expect(mismatchNote(taxed(200))).toBe("Tax and charges are $0.39 over the total.");
+    expect(mismatchNote(taxed(100))).toBe("With tax and charges it comes to $27.43, but the receipt's total is $28.04.");
+    expect(mismatchNote(taxed(200))).toBe("With tax and charges it comes to $28.43, but the receipt's total is $28.04.");
   });
 
   test("creates with no way to pay, and sends no handle for an empty or blank field", () => {
@@ -440,7 +440,7 @@ describe("a read the Split would refuse as it is", () => {
     const [first, ...rest] = receipt1040.items;
     const receipt: Receipt = { ...receipt1040, items: [first, ...rest.slice(0, 3), { ...rest[3], price: price(MAX_CENTS + 350) }] };
     expect(sentOf(receipt).items.at(-1)).toEqual({ id: "i5", name: "Perrier Sparkling Water", price: 0 });
-    expect(mismatchNote(readReady(receipt))).toBe("Items are $3.50 short of the subtotal.");
+    expect(mismatchNote(readReady(receipt))).toBe("Items add up to $19.48, but the receipt's subtotal is $22.98.");
   });
 
   test("sends an Adjustment over the limit as $0.00", () => {
@@ -505,7 +505,7 @@ describe("a read the Split would refuse as it is", () => {
     const [first, ...rest] = receipt1040.items;
     const receipt: Receipt = { ...receipt1040, items: [first, ...rest.slice(0, 3), { ...rest[3], price: price(MAX_CENTS + 350) }], subtotal: cents(-1), total: cents(MAX_CENTS + 2804) };
     expect(totalsOf(receipt)).toEqual([10_000_000, 10_000_000]);
-    expect(mismatchNote(readReady(receipt))).toBe("Items are $99,980.52 short of the subtotal.");
+    expect(mismatchNote(readReady(receipt))).toBe("Items add up to $19.48, but the receipt's subtotal is $100,000.00.");
   });
 
   test("a read with more Items than a Split holds keeps Create split link off and says why", () => {

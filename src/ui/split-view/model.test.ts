@@ -124,9 +124,9 @@ test("totalNote says how far the Items or the charges are from the printed subto
   const receipt = (sprite: number, total = 250) => ({ items: [item({ by: "even", units: [[]] }, sprite)] as const, adjustments: [], subtotal: cents(250), total: cents(total) });
 
   expect([totalNote(receipt(275)), totalNote(receipt(200)), totalNote(receipt(250, 300)), totalNote(receipt(250))]).toEqual([
-    "Items are $0.25 over the subtotal.",
-    "Items are $0.50 short of the subtotal.",
-    "Tax and charges are $0.50 short of the total.",
+    "Items add up to $2.75, but the receipt's subtotal is $2.50.",
+    "Items add up to $2.00, but the receipt's subtotal is $2.50.",
+    "With tax and charges it comes to $2.50, but the receipt's total is $3.00.",
     null,
   ]);
 });

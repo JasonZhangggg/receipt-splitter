@@ -88,7 +88,7 @@ test("an Item added on one phone shows on another with nobody having it, raises 
   await expect(priya.getByRole("button", { name: "Open Fries, $6.50, Nobody yet" })).toBeVisible(live);
   for (const page of [sam, priya]) {
     await expect(page.getByTestId("total")).toHaveText("$14.50", live);
-    await expect(page.getByRole("status").filter({ hasText: /short of|over the/ })).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: /add up to|comes to/ })).toHaveCount(0);
   }
 
   await sam.getByRole("button", { name: "Fries, check for Sam" }).click();
@@ -279,12 +279,12 @@ for (const rafDelay of [0, 200]) {
 
 // The reading missed a $6.50 line: Rice is $8.00 and the printed Subtotal and Total are $14.50.
 const missedLine = (request: APIRequestContext, workerIndex: number) => createSplit(request, workerIndex, rice, [], 1450);
-const shortNote = (page: Page) => page.getByRole("status").filter({ hasText: /short of|over the/ });
+const shortNote = (page: Page) => page.getByRole("status").filter({ hasText: /add up to|comes to/ });
 
 test("on a receipt short of its Subtotal, the Add sheet offers the missing amount, a tap fills it, and adding it leaves the Total as printed", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await missedLine(request, workerIndex));
   await pick(sam, "Sam");
-  await expect(shortNote(sam)).toHaveText("Items are $6.50 short of the subtotal.");
+  await expect(shortNote(sam)).toHaveText("Items add up to $8.00, but the receipt's subtotal is $14.50.");
 
   await openAdd(sam, "Item");
   await expect(sheet(sam).getByText("The receipt is $6.50 short.")).toBeVisible();
@@ -351,7 +351,7 @@ test("a price edit moves the Total by the difference on every phone, and typed s
   await short.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Close" }).click();
   await expect(short.getByRole("button", { name: /^Open Rice, \$10\.00/ })).toBeVisible(live);
   await expect(short.getByTestId("total")).toHaveText("$16.50");
-  await expect(shortNote(short)).toHaveText("Items are $6.50 short of the subtotal.");
+  await expect(shortNote(short)).toHaveText("Items add up to $10.00, but the receipt's subtotal is $16.50.");
 });
 
 test("a price typed in Edit item reaches another phone while the field is still focused, and stays after the typer leaves", async ({ browser, request }, { workerIndex }) => {
