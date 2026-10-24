@@ -72,7 +72,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await expect(page.getByRole("button", { name: /^Your share \$/ })).toBeVisible({ timeout: 30_000 });
 });
 
-test("Recent splits sits under the sentence, with no header link, and lists the stored Splits newest first, as many as fit, then See all for every one", async ({ page }) => {
+test("Recent splits sits under the sentence, with no header link, and lists the newest three stored Splits, then See all for every one", async ({ page }) => {
   await seed(page, [ana, jason, priya, kim, omar, lin, max]);
   await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toHaveCount(0);
   const [words, listed] = [(await page.getByTestId("sentence").boundingBox())!, (await list(page).boundingBox())!];
@@ -301,7 +301,7 @@ const pageScroller = (page: Page) =>
   });
 const topOf = async (locator: Locator) => Math.round((await locator.boundingBox())!.y);
 
-test("with fourteen Recent splits home does not scroll: See all ends the heading, the rows that fit end above the footer, and See all opens a sheet that scrolls through all of them", async ({ page }) => {
+test("with fourteen Recent splits home does not scroll: See all ends the heading, the newest three end above the footer, and See all opens a sheet that scrolls through all of them", async ({ page }) => {
   const fourteen = Array.from({ length: 14 }, (_, i): Stored => ({ ...eight[i % 8], id: `Many${String(i + 1).padStart(2, "0")}`.padEnd(22, "0"), added: now - (i + 1) * 60_000 }));
   await seed(page, fourteen);
   const heading = page.getByRole("heading", { name: "SplitWith" });

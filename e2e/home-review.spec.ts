@@ -24,48 +24,26 @@ async function stored(page: Page, count: number) {
   }, count);
 }
 
-/** What the page shows of Recent splits against the footer: whether anything pokes under it, and whether the page scrolls. */
-const recentFit = (page: Page) =>
-  page.evaluate(() => {
-    const footerTop = document.querySelector("[role=status][data-problem]")!.parentElement!.parentElement!.getBoundingClientRect().top;
-    const section = document.querySelector('[role=region][aria-label="Recent splits"]')!.getBoundingClientRect();
-    const rows = [...document.querySelectorAll('[role=region][aria-label="Recent splits"] a')].map((row) => row.getBoundingClientRect());
-    const seeAll = [...document.querySelectorAll("button, a")].find((el) => /^See all/.test(el.textContent ?? ""))?.getBoundingClientRect();
-    const scroller = [...document.querySelectorAll("div")].find((div) => ["scroll", "auto"].includes(getComputedStyle(div).overflowY) && div.scrollHeight > 0)!;
-    return {
-      rows: rows.length,
-      lastRowEnd: rows.at(-1)?.bottom ?? 0,
-      seeAllEnd: seeAll?.bottom ?? null,
-      sectionEnd: section.bottom,
-      footerTop,
-      overflow: scroller.scrollHeight - scroller.clientHeight,
-    };
-  });
-
-// The sentence is at headline size, so a few more words take a row's room. At 375x667 it leaves room for the heading and See all only, so no row has to give way.
-for (const [width, height, apps, friends, fits] of [
-  [390, 844, 1, 3, true],
-  [375, 667, 0, 1, false],
+// Home always lists the newest three, whatever the screen and however long the sentence; on a short screen the page scrolls to them.
+for (const [width, height] of [
+  [390, 844],
+  [375, 667],
 ] as const) {
-  test(`at ${width}x${height} Recent splits refits when the sentence grows: no row under the footer, See all in view, and no scrolling`, async ({ page }) => {
+  test(`at ${width}x${height} Recent splits shows the newest three and See all, even with a long sentence`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await stored(page, 20);
     await page.goto("/");
     await settle(page);
-    const short = await recentFit(page);
-    if (fits) expect(short.rows).toBeGreaterThan(0);
-    expect(short.overflow).toBe(0);
-
-    for (let i = 0; i < apps; i++) await addApp(page);
-    await addNames(page, "Jason", ...Array.from({ length: friends }, (_, i) => `Guest ${i + 1}`));
-    await page.waitForTimeout(300);
-    const long = await recentFit(page);
-    if (fits) expect(long.rows).toBeLessThan(short.rows);
-    else expect(long.rows).toBe(0);
-    expect(long.lastRowEnd).toBeLessThanOrEqual(long.sectionEnd);
-    expect(long.seeAllEnd).not.toBeNull();
-    expect(long.seeAllEnd!).toBeLessThanOrEqual(long.footerTop);
-    expect(long.overflow).toBe(0);
+    const rows = page.getByRole("region", { name: "Recent splits" }).getByRole("link");
+    await expect(rows).toHaveCount(3);
+    await expect(page.getByRole("button", { name: "See all 20" })).toBeVisible();
+    await addApp(page);
+    await addNames(page, "Jason", ...Array.from({ length: 8 }, (_, i) => `Guest ${i + 1}`));
+    await page.keyboard.press("Escape");
+    await expect(rows).toHaveCount(3);
+    await rows.last().scrollIntoViewIfNeeded();
+    const [last, create] = [(await rows.last().boundingBox())!, (await page.getByRole("button", { name: "Create link" }).boundingBox())!];
+    expect(last.y + last.height).toBeLessThanOrEqual(create.y);
   });
 }
 
