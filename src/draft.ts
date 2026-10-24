@@ -201,6 +201,7 @@ export function gapNote({ subtotal, total }: Pick<Receipt, "subtotal" | "total">
 }
 
 export function mismatchNote({ scan }: Draft): string | null {
+  if (scan.status === "empty") return "No receipt? Type items in manually.";
   if (scan.status !== "read" || !scan.receipt) return null;
   const check = runTotalCheck(scan.receipt);
   if (!check.ok) return gapNote(scan.receipt, check);
@@ -221,9 +222,9 @@ const note = (text: string): Blocker => ({ kind: "note", note: text });
 const receiptByHand: Receipt = { items: [], adjustments: [{ id: adjustmentId("tip"), kind: "tip", name: "Tip", amount: cents(0) }], subtotal: cents(0), total: cents(0) };
 
 export function readiness({ scan, handles, host, friends }: Draft): Blocker | Ready {
-  if (scan.status === "empty") return note("Add a receipt first.");
   if (scan.status === "reading") return { kind: "reading" };
-  const receipt = scan.status === "byHand" ? receiptByHand : scan.receipt;
+  // No receipt is a Split the Host fills by hand, the same as choosing to.
+  const receipt = scan.status === "read" ? scan.receipt : receiptByHand;
   if (!receipt) return note(scan.status === "read" && scan.notReceipt ? "That doesn't look like a receipt. Try another photo." : "Couldn't read any items. Try another photo.");
   const { items, adjustments } = receipt;
   if (items.length > MAX_ITEMS) return note(`A split holds up to ${MAX_ITEMS} items. This receipt has ${items.length}.`);
