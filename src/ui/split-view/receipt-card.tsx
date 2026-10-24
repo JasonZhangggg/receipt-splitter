@@ -556,8 +556,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: chargeRow, gap: 12 },
   // A 44 px tap target that still sits on the row pitch; the overlap goes to the later row.
   tapRow: { minHeight: dotTap, marginVertical: (chargeRow - dotTap) / 2 },
-  // The charges and the Total are set like an item's price, in muted ink, so the totals read as the same list.
-  chargeText: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
+  // The charges are an item price's size in regular weight and muted ink, so they line up with the prices and step back from the medium Total.
+  chargeText: { fontFamily: type.body.fontFamily, fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
   rowLabel: { flexShrink: 1 },
   total: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: 10, paddingTop: 12, paddingLeft: nameStart, borderTopWidth: 1 },
   unclaimed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: nameStart, marginTop: 10 },
