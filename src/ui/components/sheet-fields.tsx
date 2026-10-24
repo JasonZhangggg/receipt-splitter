@@ -150,7 +150,9 @@ export function PersonToggle({ name, label = name, on, onPress }: { name: string
       {() => (
         <View style={styles.personFace}>
           <View style={[styles.personDot, Platform.OS === "web" && inkChange, { backgroundColor: on ? ink : "transparent", boxShadow: `inset 0 0 0 1.5px ${on ? ink : c.dash}` }]} />
-          <Text style={[type.body, Platform.OS === "web" && inkChange, { color: ink }]}>{label}</Text>
+          <Text numberOfLines={1} style={[type.body, styles.personName, Platform.OS === "web" && inkChange, { color: ink }]}>
+            {label}
+          </Text>
         </View>
       )}
     </PressTarget>
@@ -194,9 +196,11 @@ const styles = StyleSheet.create({
   prefixedInput: { flex: 1, borderBottomWidth: 0 },
   options: { flexDirection: "row", flexWrap: "wrap", columnGap: 20 },
   option: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, marginHorizontal: -12 },
-  person: { minHeight: 44, justifyContent: "center", paddingRight: 18 },
+  // A long name shrinks and ends in an ellipsis, so the part beside it keeps its line.
+  person: { minHeight: 44, justifyContent: "center", paddingRight: 18, flexShrink: 1 },
   personFace: { flexDirection: "row", alignItems: "center", gap: 10 },
+  personName: { flexShrink: 1 },
   // The same 12 px dot the list claims a line with, so a toggle here reads as the same act. It stays inside the name's cap height.
-  personDot: { width: 12, height: 12, borderRadius: 6 },
+  personDot: { width: 12, height: 12, borderRadius: 6, flexShrink: 0 },
   iconHit: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 });
