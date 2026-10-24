@@ -390,7 +390,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
           </View>
         ) : null}
         <View style={styles.section}>
-          <SectionHead label={say.whoHadIt} note={` · ${money(item.price)}`}>
+          <SectionHead label={say.whoHadIt} main>
             <PressTarget name={say.modeFor(say.modes[item.split.by])} popup="dialog" expanded={modesOpen} outsideScroll onPress={(from) => onModes({ from, value: item.split.by, pick })} style={(pressed) => [styles.mode, pressStyle(pressed, reduce, linkPress)]}>
               {() => (
                 <View style={styles.modeFace}>
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
   quantity: { marginTop: -16, marginBottom: -12 },
   note: { flexDirection: "row", alignItems: "center", gap: 8 },
   noteText: { flexShrink: 1 },
-  section: { gap: 8, marginTop: 12 },
+  section: { gap: 8, marginTop: 20 },
   rows: { gap: 0 },
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },
   splitRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 44 },

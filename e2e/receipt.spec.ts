@@ -338,7 +338,7 @@ for (const rafDelay of [0, 200]) {
     await sheet.getByRole("button", { name: "Delete item" }).click();
 
     await expect(sheet).toHaveCount(0, live);
-    expect([...new Set(await frames)]).toEqual(["Edit item | 6.29 | $0.63 $6.29"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 6.29 | $0.63"]);
   });
 
   test(`a price typed just before Split shows with the Bundle note for that price on every frame while the Split waits on the server, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -358,7 +358,7 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     await expect(sam.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, \$8\.00, / })).toHaveCount(3, live);
-    expect([...new Set(await frames)]).toEqual(["Edit item | 24.00 | $2.29 $24.00"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 24.00 | $2.29"]);
   });
 
   test(`a claim from another device while Split waits on the server leaves the sheet on the tapped state, and the rows arrive with the claim, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -381,7 +381,7 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     await expect(sam.getByRole("button", { name: "Open Guinness Draught 14.9oz Can, $7.29, Priya" })).toHaveCount(3, live);
-    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19"]);
   });
 
   test(`a Split that loses a race to another device's Split leaves the sheet on the row as it is now, with its own price, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -406,7 +406,7 @@ for (const rafDelay of [0, 200]) {
     await expect(sheet.getByText("Couldn't save that. Check it and try again.")).toBeVisible(live);
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("7.29");
     await expect(cans(sam)).toHaveCount(3, live);
-    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87", "Edit item | 7.29 | $0.73 $7.29"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19", "Edit item | 7.29 | $0.73"]);
   });
 
   test(`a Delete item that loses a race to another device's Delete item closes the sheet on the tapped state, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -430,7 +430,7 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     await expect(guinness(sam)).toHaveCount(0);
-    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19"]);
   });
 
   test(`another device's Delete item closes an open Item sheet on the Item as it was, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
@@ -451,7 +451,7 @@ for (const rafDelay of [0, 200]) {
 
     await expect(sheet).toHaveCount(0, live);
     await expect(guinness(sam)).toHaveCount(0);
-    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19 $21.87"]);
+    expect([...new Set(await frames)]).toEqual(["Edit item | 21.87 | $2.19"]);
   });
 }
 
