@@ -171,7 +171,7 @@ export const fallbackSamples = {
     copy.sentence.iAm,
     copy.sentence.hereWith,
     copy.sentence.addFriends,
-    "Add a receipt first.",
+    "Add your name first.",
   ],
   500: [copy.wordmark, copy.action],
 };

@@ -98,15 +98,23 @@ describe("readiness", () => {
   test("names the one thing that keeps Create split link off", () => {
     const ready = withVenmo(read1040());
     expect({
-      noReceipt: reasonOf(withVenmo(emptyDraft)),
       reading: reasonOf(withVenmo(run(emptyDraft, { type: "reading", file }))),
       noName: reasonOf(run(read1040(), { type: "setHandle", index: 0, handle: "@jason-z" })),
       ready: reasonOf(ready),
     }).toEqual({
-      noReceipt: "Add a receipt first.",
       reading: { kind: "reading" },
       noName: { kind: "noName" },
       ready: null,
+    });
+  });
+
+  test("with no receipt Create sends a Split with no items for the Host to fill, and the note says so", () => {
+    const found = readiness(withVenmo(emptyDraft));
+
+    expect({ items: found.kind === "ready" && found.receipt.items, total: found.kind === "ready" && found.receipt.total, note: mismatchNote(emptyDraft) }).toEqual({
+      items: [],
+      total: 0,
+      note: "No receipt? Type items in manually.",
     });
   });
 

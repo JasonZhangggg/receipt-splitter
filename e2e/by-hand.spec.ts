@@ -67,6 +67,17 @@ test("a photo that is not a receipt says so, and the Host adds every item by han
   await expect(page.getByTestId("total")).toHaveText("$12.00");
 });
 
+test("with no receipt the note offers typing the items, and Create opens a Split with no items", async ({ page }) => {
+  await page.goto("/");
+  await fillHome(page);
+  await expect(page.getByRole("status").filter({ hasText: "No receipt? Type items in manually." })).toBeVisible();
+  await page.getByRole("button", { name: "Create link" }).click();
+
+  await expect(page).toHaveURL(/\/s\/[A-Za-z0-9_-]{24}$/, live);
+  await expect(addRow(page)).toBeVisible(live);
+  await expect(page.getByRole("list", { name: "Items" }).getByRole("button")).toHaveCount(0);
+});
+
 test("the first item added by hand can be reverted in History, putting the Split back to no items", async ({ page }) => {
   await page.route("**/api/scan", (route) => route.fulfill({ status: 422, json: { refused: "notReceipt" } }));
   await page.goto("/");

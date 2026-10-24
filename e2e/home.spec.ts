@@ -49,10 +49,10 @@ test("the empty home at 390 px is one sentence with its blanks and actions, and 
   await expect(appWord(page)).toBeVisible();
   expect(await said(page)).toBe("I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at. I’m, here with add friends.");
   const words = await sentence(page).innerText();
-  expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Add a receipt first.", "Create link"]);
+  expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Add your name first.", "Create link"]);
   await expect(venmo(page)).toHaveAttribute("placeholder", "@username");
   await expect(yourName(page)).toHaveAttribute("placeholder", "your name");
-  await expect(action(page)).toHaveAccessibleDescription("Add a receipt first.");
+  await expect(action(page)).toHaveAccessibleDescription("Add your name first.");
   await expect(page.getByRole("button", { name: "Add the receipt" })).toHaveCount(1);
 });
 
@@ -170,10 +170,10 @@ test("a tap on the gray Create focuses the blocking field", async ({ page }) => 
   await page.goto("/");
   await settle(page);
   await action(page).click();
-  await expect(hero(page)).toBeFocused();
+  await expect(yourName(page)).toBeFocused();
 
   const reasonLine = page.locator("[role=status][data-problem]");
-  await expect(reasonLine).toHaveText("Add a receipt first.");
+  await expect(reasonLine).toHaveText("Add your name first.");
   await expect(reasonLine).toHaveAttribute("data-problem", "true");
 
   const chooser = page.waitForEvent("filechooser");

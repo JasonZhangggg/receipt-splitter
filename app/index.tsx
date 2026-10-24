@@ -181,7 +181,7 @@ export default function Home() {
     router.push(`/s/${created.id}`);
   };
 
-  // A tap on the gray pill takes the person to what stops it: the bad handle, the name field, or Add the receipt.
+  // A tap on the gray pill takes the person to what stops it: the bad handle, the name field, or another photo.
   const press = () => {
     if (ready.kind === "ready") return void create(ready);
     if (ready.kind === "reading") return;
@@ -192,8 +192,7 @@ export default function Home() {
       case "noName":
         return nameField.current?.open();
       case "note":
-        if (scan.status === "read") return choose();
-        return focusInPlace((sentence.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>("[data-pressable]") ?? null);
+        return choose();
     }
   };
 
