@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
   clip: { marginHorizontal: -12, paddingHorizontal: 12, overflow: "hidden" },
   inColumn: { marginTop: 0 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: type.body.lineHeight, paddingBottom: headPad, borderBottomWidth: 1 },
-  // Names and amounts are the Split page's rows: 18 px at weight 500 on the same 24 px line.
-  strong: { fontSize: 18, fontWeight: "500", letterSpacing: -0.2 },
+  // Names and amounts are the Split page's rows: 18 px at weight 400 on the same 24 px line.
+  strong: { fontSize: 18, fontWeight: "400", letterSpacing: -0.2 },
   // The link keeps its 44 px tap area without making the heading taller than its line.
   seeAll: { marginVertical: -10 },
   end: { alignItems: "flex-end", maxWidth: "45%" },
