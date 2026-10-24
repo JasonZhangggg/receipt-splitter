@@ -42,11 +42,11 @@ import { holdOf, takenName } from "../../src/ui/split-view/name-hold";
 import { ReceiptCard } from "../../src/ui/split-view/receipt-card";
 import { useLayoutHeight, useLayoutWidth } from "../../src/ui/components/viewport";
 import { BottomSheet } from "../../src/ui/split-view/bottom-sheet";
-import { SplitFooter } from "../../src/ui/split-view/footer";
+import { SplitFooter, type FooterPill } from "../../src/ui/split-view/footer";
 import { SplitIntro } from "../../src/ui/split-view/intro";
 import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-sheet";
 import { PayBlock, PayButton } from "../../src/ui/pay/pay-block";
-import { justPaid, shareStatus, statusWords } from "../../src/ui/pay/model";
+import { justPaid, paymentStatus, shareStatus, statusWords } from "../../src/ui/pay/model";
 import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
 import { TextLink } from "../../src/ui/components/text-link";
@@ -125,6 +125,8 @@ const frameFor = (width: number, room: number) => {
   const inner = Math.min(room - 2 * frameGutter, 680 + gap + column);
   return { column, gap, inner, clearRight: (width - inner) / 2 + column + gap };
 };
+/** The Host's footer pill: how many of the people who owe have paid, "All paid" once they all have, or just Payments while nobody owes yet. */
+const collectLabel = ({ paid, owing }: { paid: number; owing: number }) => (owing === 0 ? say.payments : paid === owing ? say.ring.allPaidTitle : say.status.paidOf(paid, owing));
 const frameGutter = 48;
 // Where scroll bars take room (Windows, Linux, a Mac set to always show them), a blank strip as wide as the bar sits on the left too, so the frame is centered in the window rather than beside the bar.
 const evenGutters = webStyle({ scrollbarGutter: "stable both-edges" });
@@ -651,10 +653,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const footer = (() => {
     if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} note={null} bill={null} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
     const mine = selectedPerson.id === me;
-    const pill = !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name), ready: viewed.hasBar } as const);
+    const collect = mine && viewed.isHost ? collectLabel(paymentStatus(split, shares, me)) : null;
+    const pill: FooterPill | null = collect ? { kind: "collect", label: collect } : !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? { kind: "paid" } : { kind: "pay", host: firstName(host.name), ready: viewed.hasBar };
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
-    // A settled share the pill already marks says nothing more; every other paid state reads in words.
-    const words = status.kind === "settled" && pill?.kind === "paid" ? null : statusWords(status);
+    // A settled share the pill already marks says nothing more, nor does the Host's count the pill already shows; every other paid state reads in words.
+    const words = (status.kind === "settled" && pill?.kind === "paid") || pill?.kind === "collect" ? null : statusWords(status);
     const ink = status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
     return (
       <SplitFooter
@@ -665,6 +668,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         bill={billParts(shares, selectedPerson.id)}
         pill={pill}
         onOpen={(from) => open({ kind: "pay" }, from)}
+        onPill={pill?.kind === "collect" ? (from) => open({ kind: "payments", viewer: me }, from) : undefined}
         onHeight={setFooterHeight}
         rise={rise}
       />

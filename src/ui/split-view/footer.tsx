@@ -14,7 +14,12 @@ import { ShareBar } from "./share-bar";
 const longAmount = 7;
 const fade = webStyle({ transitionProperty: "opacity", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: "ease" });
 
-export type FooterPill = { readonly kind: "pay"; readonly host: string; /** False while the payer has claimed nothing: the pill shows gray. */ readonly ready: boolean } | { readonly kind: "paid" } | { readonly kind: "ask" };
+export type FooterPill =
+  | { readonly kind: "pay"; readonly host: string; /** False while the payer has claimed nothing: the pill shows gray. */ readonly ready: boolean }
+  | { readonly kind: "paid" }
+  | { readonly kind: "ask" }
+  /** The Host's own share, where Pay would be: who has paid them so far, opening Payments. */
+  | { readonly kind: "collect"; readonly label: string };
 
 type Props = {
   label: string;
@@ -27,13 +32,15 @@ type Props = {
   bill: BillParts | null;
   pill: FooterPill | null;
   onOpen: (press: Press) => void;
+  /** What the pill opens when it is not the Pay sheet. */
+  onPill?: (press: Press) => void;
   onHeight: (height: number) => void;
   /** Rise in from the bottom edge on mount, as when the pick sheet has just gone down. */
   rise?: boolean;
 };
 
 /** Fixed to the bottom of the page. The muted label over the amount, with the pill that opens the Pay sheet centered beside them both; under them the share bar across the width. */
-export function SplitFooter({ label, amount, whose, note, bill, pill, onOpen, onHeight, rise = false }: Props) {
+export function SplitFooter({ label, amount, whose, note, bill, pill, onOpen, onPill = onOpen, onHeight, rise = false }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -79,7 +86,7 @@ export function SplitFooter({ label, amount, whose, note, bill, pill, onOpen, on
                   </>
                 )}
               </PressTarget>
-              {pill ? <Pill pill={pill} onPress={onOpen} /> : null}
+              {pill ? <Pill pill={pill} onPress={onPill} /> : null}
             </View>
             {bill ? (
               <View style={styles.bar}>
@@ -102,17 +109,19 @@ function Pill({ pill, onPress }: { pill: FooterPill; onPress: (press: Press) => 
   const c = useColors();
   const reduce = useReducedMotion();
   const paid = pill.kind === "paid";
-  const text = pill.kind === "pay" ? say.payHost(pill.host) : pill.kind === "ask" ? say.question : say.paidMark;
-  const ink = paid ? c.ink : c.onAction;
+  // The Host's count and the paid mark are outlined: neither asks for money.
+  const outlined = paid || pill.kind === "collect";
+  const text = pill.kind === "pay" ? say.payHost(pill.host) : pill.kind === "ask" ? say.question : pill.kind === "collect" ? pill.label : say.paidMark;
+  const ink = outlined ? c.ink : c.onAction;
   const idle = pill.kind === "pay" && !pill.ready;
   return (
-    <PressTarget name={paid ? say.paid : text} outsideScroll softDisabled={idle} onPress={onPress} style={(pressed) => [styles.pillHit, pressStyle(pressed, reduce, pressFeel.pill)]}>
+    <PressTarget name={paid ? say.paid : pill.kind === "collect" && text !== say.payments ? `${text}, ${say.payments}` : text} outsideScroll softDisabled={idle} onPress={onPress} style={(pressed) => [styles.pillHit, pressStyle(pressed, reduce, pressFeel.pill)]}>
       {() => (
-        <View style={[styles.pill, !paid && !reduce && fade, paid ? { boxShadow: `inset 0 0 0 1px ${c.hairline}` } : { backgroundColor: c.action, opacity: idle ? 0.28 : 1 }]}>
+        <View style={[styles.pill, !outlined && !reduce && fade, outlined ? { boxShadow: `inset 0 0 0 1px ${c.hairline}` } : { backgroundColor: c.action, opacity: idle ? 0.28 : 1 }]}>
           <Text numberOfLines={1} style={[type.body, styles.pillText, { color: ink }]}>
             {text}
           </Text>
-          {pill.kind === "pay" ? <Icon name="arrow" size={14} color={ink} /> : null}
+          {pill.kind === "pay" || pill.kind === "collect" ? <Icon name="arrow" size={14} color={ink} /> : null}
         </View>
       )}
     </PressTarget>

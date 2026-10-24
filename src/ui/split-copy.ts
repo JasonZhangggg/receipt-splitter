@@ -126,6 +126,7 @@ export const splitCopy = {
     short: (paid: string, rest: string) => `Paid ${paid} · ${rest} still owed`,
     over: (paid: string, back: string) => `Paid ${paid} · ${back} too much`,
     paidYou: (paid: number, of: number) => `${paid} of ${of} paid you`,
+    paidOf: (paid: number, of: number) => `${paid} of ${of} paid`,
     unpaid: "Not paid",
     nothing: "Nothing to pay",
   },

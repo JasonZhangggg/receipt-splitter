@@ -95,6 +95,27 @@ test("a payer's Pay Jason pill is there but disabled until something is claimed,
   await expect(jason.getByTestId("footer").getByRole("button", { name: /^Pay / })).toHaveCount(0);
 });
 
+test("the Host's footer has, in Pay's place, a count of who has paid that opens Payments and reads All paid once everyone has", async ({ browser, request }, { workerIndex }) => {
+  const link = await createSplit(request, workerIndex, [venmo]);
+  const jason = await open(browser, link);
+  await pick(jason, "Jason");
+  const footer = jason.getByTestId("footer");
+  await expect(footer.getByRole("button", { name: "Payments", exact: true })).toBeVisible(live);
+
+  const sam = await open(browser, link);
+  await pick(sam, "Sam");
+  await circle(sam, "Pho", "Sam").click();
+  await expect(footer.getByRole("button", { name: "0 of 1 paid, Payments" })).toBeVisible(live);
+  await expect(footer.getByTestId("share-note")).toHaveCount(0);
+  await footer.getByRole("button", { name: "0 of 1 paid, Payments" }).click();
+  await expect(jason.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible(live);
+  await jason.keyboard.press("Escape");
+
+  await owe(sam).click();
+  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
+  await expect(footer.getByRole("button", { name: "All paid, Payments" })).toBeVisible(live);
+});
+
 test("the Pay sheet lists the viewer's Items under What you had and Adjustment parts under Your part of tax and tip, its total equals the footer share, and You on the rows is in the strong ink", async ({ browser, request }, { workerIndex }) => {
   const taxed = { ...menu, adjustments: [{ id: "tax", kind: "tax", name: "Tax", amount: 400 }, { id: "tip", kind: "tip", name: "Tip", amount: 600 }], subtotal: 4420, total: 5420 };
   const sam = await open(browser, await createSplit(request, workerIndex, [venmo], taxed));
