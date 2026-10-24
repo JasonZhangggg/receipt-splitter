@@ -7,7 +7,7 @@ import { copy } from "../home-copy";
 import { webStyle } from "../motion";
 import { tabular, useColors } from "../theme";
 import { PlaceWord } from "./place-word";
-import { Act, Words } from "./words";
+import { Act, Glued, Words } from "./words";
 
 /** What the phone can see of a read: the reader starting, its own OCR finding the text, the wait on the server's reading, and that wait running long. */
 export type ReadingStage = "start" | "text" | "server" | "slow";
@@ -47,12 +47,13 @@ export function ReceiptWords({ state, onChoose, onByHand, onPlace }: { state: Re
         <Text ref={clause} testID="reading" role="status" aria-live="polite" {...landing}>
           <Words>{copy.sentence.paidTheBill}</Words>{" "}
           {/* A new key swaps the word in one commit, so the old step is never text beside the new one. It only rolls out as css.ts's ::before. */}
-          <Text key={state.stage} testID="reading-stage" style={{ color: c.ink }} {...{ dataSet: { stepRoll: "", ...(steps.before && { stepFrom: copy.readingStage[steps.before] }) } }}>
-            <Text {...rollIn}>
-              <Words ink>{copy.readingStage[state.stage]}</Words>
+          <Glued then=".">
+            <Text key={state.stage} testID="reading-stage" style={{ color: c.ink }} {...{ dataSet: { stepRoll: "", ...(steps.before && { stepFrom: copy.readingStage[steps.before] }) } }}>
+              <Text {...rollIn}>
+                <Words ink>{copy.readingStage[state.stage]}</Words>
+              </Text>
             </Text>
-          </Text>
-          .
+          </Glued>
         </Text>
       );
     case "byHand":
