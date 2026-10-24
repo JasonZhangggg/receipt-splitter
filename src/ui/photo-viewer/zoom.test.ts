@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clickScale, keepCovering, maxScale, rest, scaleAfterWheel, zoomAt } from "./zoom";
+import { clickScale, isNotch, keepCovering, maxScale, rest, scaleAfterWheel, zoomAt } from "./zoom";
 
 const box = { width: 400, height: 600 };
 
@@ -33,5 +33,13 @@ describe("photo zoom", () => {
     const once = scaleAfterWheel(1, -20);
     expect(scaleAfterWheel(2, -20) / 2).toBeCloseTo(once, 10);
     expect(scaleAfterWheel(once, 20)).toBeCloseTo(1, 10);
+  });
+
+  it("a mouse wheel notch reads as a notch, and a trackpad scroll does not", () => {
+    expect(isNotch({ deltaX: 0, deltaY: 100, deltaMode: 0 })).toBe(true);
+    expect(isNotch({ deltaX: 0, deltaY: -120, deltaMode: 0 })).toBe(true);
+    expect(isNotch({ deltaX: 0, deltaY: 3, deltaMode: 1 })).toBe(true);
+    expect(isNotch({ deltaX: 0, deltaY: 4.5, deltaMode: 0 })).toBe(false);
+    expect(isNotch({ deltaX: 2, deltaY: 60, deltaMode: 0 })).toBe(false);
   });
 });

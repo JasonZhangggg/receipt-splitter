@@ -9,8 +9,8 @@ const keyboard = 336;
 const bundle = (page: Page) => page.locator('[data-testid^="bundle-"]');
 const bundleHeader = (page: Page) => bundle(page).locator("[aria-controls]");
 
+/** Bundles start open; this waits for the first one to settle. */
 async function openBundle(page: Page) {
-  await tap(bundleHeader(page));
   await bundle(page).locator('[aria-controls][aria-expanded="true"]').waitFor();
   await page.waitForFunction(() => {
     const region = document.querySelector('[data-testid^="bundle-"]')!.lastElementChild as HTMLElement;

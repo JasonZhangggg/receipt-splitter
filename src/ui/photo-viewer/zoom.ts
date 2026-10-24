@@ -5,7 +5,7 @@ export type Box = { readonly width: number; readonly height: number };
 
 export const rest: View = { scale: 1, x: 0, y: 0 };
 export const maxScale = 5;
-/** A double click zooms to this much, and a double click while zoomed goes back. */
+/** A click zooms to this much, and a click while zoomed goes back. */
 export const clickScale = 2.5;
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
@@ -25,9 +25,17 @@ export function zoomAt(view: View, scale: number, px: number, py: number, box: B
 /** The scale after a wheel turn. A trackpad pinch arrives as small ctrl-wheel steps, and a mouse wheel as large ones, so both land on the same curve. */
 export const scaleAfterWheel = (scale: number, deltaY: number) => scale * Math.exp(-clamp(deltaY, -100, 100) * 0.01);
 
+/** A mouse wheel turns in whole notches of 50 px or more, straight up or down; a trackpad scrolls in small or fractional steps. */
+export const isNotch = ({ deltaX, deltaY, deltaMode }: Pick<WheelEvent, "deltaX" | "deltaY" | "deltaMode">) =>
+  deltaMode !== 0 || (deltaX === 0 && Number.isInteger(deltaY) && Math.abs(deltaY) >= 50);
+/** One wheel notch zooms by this step on the pinch curve, about 1.3 times. */
+const notchStep = 25;
+/** A press that travels further than this is a drag, not a click. */
+const dragSlop = 4;
+
 const glideMs = 240;
 
-/** Zoom for the desktop photo viewer: double click or + / - / 0 to zoom, ctrl-wheel or a trackpad pinch to zoom at the pointer, drag or scroll to pan once zoomed. A touch keeps the browser's own pinch. */
+/** Zoom for the desktop photo viewer: a click, a mouse wheel, a trackpad pinch or + / - / 0 zoom at the pointer; a drag, or a trackpad scroll, pans once zoomed. A touch keeps the browser's own pinch. */
 export function usePhotoZoom(enabled: boolean, reduce: boolean, easing: string) {
   const [host, setFrame] = useState<HTMLElement | null>(null);
   const [content, setLayer] = useState<HTMLElement | null>(null);
@@ -49,38 +57,44 @@ export function usePhotoZoom(enabled: boolean, reduce: boolean, easing: string) 
       return [event.clientX - edge.left, event.clientY - edge.top] as const;
     };
 
-    let pan: { id: number; x: number; y: number; from: View } | null = null;
+    let pan: { id: number; x: number; y: number; from: View; moved: boolean } | null = null;
+    let dragged = false;
 
     const onWheel = (event: WheelEvent) => {
       const now = view.current;
-      if (event.ctrlKey) {
+      if (event.ctrlKey || isNotch(event) || now.scale <= 1) {
         event.preventDefault();
         const [px, py] = at(event);
-        show(zoomAt(now, scaleAfterWheel(now.scale, event.deltaY), px, py, box()), false);
-      } else if (now.scale > 1) {
+        const delta = event.ctrlKey ? event.deltaY : Math.sign(event.deltaY) * notchStep;
+        show(zoomAt(now, scaleAfterWheel(now.scale, delta), px, py, box()), false);
+      } else {
         event.preventDefault();
         show(keepCovering({ ...now, x: now.x - event.deltaX, y: now.y - event.deltaY }, box()), false);
       }
     };
-    const onDoubleClick = (event: MouseEvent) => {
+    const onClick = (event: MouseEvent) => {
+      if (dragged) return void (dragged = false);
       const now = view.current;
       const [px, py] = at(event);
       show(now.scale > 1 ? rest : zoomAt(now, clickScale, px, py, box()), true);
     };
     const onPointerDown = (event: PointerEvent) => {
+      dragged = false;
       if (event.pointerType === "touch" || event.button !== 0 || view.current.scale <= 1) return;
-      pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: view.current };
+      pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: view.current, moved: false };
       host.setPointerCapture(event.pointerId);
       host.style.cursor = "grabbing";
       event.preventDefault();
     };
     const onPointerMove = (event: PointerEvent) => {
       if (!pan || pan.id !== event.pointerId) return;
+      pan.moved ||= Math.hypot(event.clientX - pan.x, event.clientY - pan.y) > dragSlop;
       show(keepCovering({ ...pan.from, x: pan.from.x + event.clientX - pan.x, y: pan.from.y + event.clientY - pan.y }, box()), false);
       host.style.cursor = "grabbing";
     };
     const onPointerEnd = (event: PointerEvent) => {
       if (pan?.id !== event.pointerId) return;
+      dragged = pan.moved;
       pan = null;
       host.style.cursor = view.current.scale > 1 ? "grab" : "";
     };
@@ -94,7 +108,7 @@ export function usePhotoZoom(enabled: boolean, reduce: boolean, easing: string) 
     };
 
     host.addEventListener("wheel", onWheel, { passive: false });
-    host.addEventListener("dblclick", onDoubleClick);
+    host.addEventListener("click", onClick);
     host.addEventListener("pointerdown", onPointerDown);
     host.addEventListener("pointermove", onPointerMove);
     host.addEventListener("pointerup", onPointerEnd);
@@ -102,7 +116,7 @@ export function usePhotoZoom(enabled: boolean, reduce: boolean, easing: string) 
     document.addEventListener("keydown", onKey);
     return () => {
       host.removeEventListener("wheel", onWheel);
-      host.removeEventListener("dblclick", onDoubleClick);
+      host.removeEventListener("click", onClick);
       host.removeEventListener("pointerdown", onPointerDown);
       host.removeEventListener("pointermove", onPointerMove);
       host.removeEventListener("pointerup", onPointerEnd);

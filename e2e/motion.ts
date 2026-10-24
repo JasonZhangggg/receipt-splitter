@@ -542,13 +542,20 @@ const itemProbes: Probe[] = [
   sheetDim,
   splitTop,
 ];
-const openBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-controls]"));
+const toggleBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-controls]"));
 const openItem = (page: Page) => tap(page.getByRole("button", { name: /^Open Rice/ }));
 
+/** Bundles start open. */
 async function bundleOpen(page: Page) {
   await picked(page);
-  await openBundle(page);
   await page.locator('[data-testid^="bundle-"]').locator('[aria-controls][aria-expanded="true"]').waitFor();
+  await page.waitForTimeout(700);
+}
+
+async function bundleClosed(page: Page) {
+  await bundleOpen(page);
+  await toggleBundle(page);
+  await page.locator('[data-testid^="bundle-"]').locator('[aria-controls][aria-expanded="false"]').waitFor();
   await page.waitForTimeout(700);
 }
 
@@ -711,15 +718,15 @@ const collapseTap: Scenario = {
 const bundleExpand: Scenario = {
   id: "bundle-expand",
   name: "Bundle expands, chevron turns",
-  setup: picked,
-  act: openBundle,
+  setup: bundleClosed,
+  act: toggleBundle,
   probes: bundleProbes,
 };
 const bundleCollapse: Scenario = {
   id: "bundle-collapse",
   name: "Bundle collapses, chevron turns back",
   setup: bundleOpen,
-  act: openBundle,
+  act: toggleBundle,
   probes: bundleProbes,
 };
 const splitType: Scenario = {
@@ -796,6 +803,10 @@ const addRowScenario: Scenario = {
 
 async function taxOpen(page: Page) {
   await picked(page, table, dinnerWithTax);
+  // Folded, the Bundle leaves the page short enough that the rows under Tax slide up instead of the page scrolling to keep its end.
+  await toggleBundle(page);
+  await page.locator('[data-testid^="bundle-"]').locator('[aria-controls][aria-expanded="false"]').waitFor();
+  await page.waitForTimeout(400);
   await tap(page.getByRole("button", { name: "Open Tax, $3.00" }));
   await still(page.getByTestId("adjustment-sheet"));
 }
@@ -1105,7 +1116,6 @@ async function deskPopover(page: Page) {
 
 async function deskBundleOpen(page: Page) {
   await deskPicked(page);
-  await openBundle(page);
   await page.locator('[data-testid^="bundle-"]').locator('[aria-controls][aria-expanded="true"]').waitFor();
   await page.waitForTimeout(700);
 }

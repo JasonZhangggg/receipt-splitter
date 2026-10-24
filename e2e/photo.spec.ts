@@ -306,7 +306,7 @@ for (const width of [390, 1440]) {
   });
 }
 
-test("on a wide screen a double click zooms the receipt photo at the pointer, a drag pans it, a ctrl-wheel pinch zooms further and a second double click puts it back", async ({ page, request, browserName }, testInfo) => {
+test("on a wide screen a click zooms the receipt photo at the pointer, a drag pans it, a ctrl-wheel pinch zooms further, a mouse wheel notch zooms back out and a second click puts it back", async ({ page, request, browserName }, testInfo) => {
   const { id, creatorSecret } = await apiSplit(request, nextIp(browserName, testInfo.workerIndex));
   expect((await putPhoto(request, id, creatorSecret, new Uint8Array(readFileSync("e2e/fixtures/srd-1040-no-sprite.jpg")))).status()).toBe(204);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -326,7 +326,7 @@ test("on a wide screen a double click zooms the receipt photo at the pointer, a 
 
   const aim = { x: frame.x + frame.width * 0.25, y: frame.y + frame.height * 0.25 };
   await page.mouse.move(aim.x, aim.y);
-  await page.mouse.dblclick(aim.x, aim.y);
+  await page.mouse.click(aim.x, aim.y);
   expect(await settledWidth()).toBe(Math.round(frame.width * 2.5));
   const zoomed = (await shown.boundingBox())!;
   expect(Math.abs(aim.x - zoomed.x - (aim.x - frame.x) * 2.5), "the point under the pointer stays under it").toBeLessThan(2);
@@ -344,9 +344,17 @@ test("on a wide screen a double click zooms the receipt photo at the pointer, a 
     const target = document.elementFromPoint(x, y)!;
     target.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, clientX: x, clientY: y, bubbles: true, cancelable: true }));
   }, { x: frame.x + 120, y: frame.y + 150 });
-  expect(await settledWidth()).toBeGreaterThan(Math.round(frame.width * 2.5) + 20);
+  const pinched = await settledWidth();
+  expect(pinched).toBeGreaterThan(Math.round(frame.width * 2.5) + 20);
 
-  await page.mouse.dblclick(frame.x + 200, frame.y + 200);
+  // A mouse wheel notch zooms too, and the drag above did not count as a click.
+  await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y)!;
+    target.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+  }, { x: frame.x + 120, y: frame.y + 150 });
+  expect(await settledWidth()).toBeLessThan(pinched - 20);
+
+  await page.mouse.click(frame.x + 200, frame.y + 200);
   expect(await settledWidth()).toBe(Math.round(frame.width));
   expect(Math.round((await shown.boundingBox())!.x)).toBe(Math.round(frame.x));
   await expect(page.getByRole("dialog")).toHaveCount(1);

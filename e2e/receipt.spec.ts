@@ -67,13 +67,17 @@ const guinness = (page: Page) => page.getByRole("button", { name: /^Open 3x Guin
 const guinnessCircle = (page: Page, name: string) => page.getByRole("button", { name: `3x Guinness Draught 14.9oz Can, check for ${name}` });
 const cans = (page: Page) => page.getByRole("button", { name: /^Open Guinness Draught 14\.9oz Can, \$7\.29, / });
 
-test("a Beer Bucket opens and closes from the keyboard in place, says so through aria-expanded, and keeps focus on its header", async ({ browser, request }, { workerIndex }) => {
+test("a Beer Bucket starts open, closes and opens from the keyboard in place, says so through aria-expanded, and keeps focus on its header", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
 
-  await expect(page.getByRole("button", { name: "Beer Bucket, 4 items, 10% off, collapsed" })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Beer Bucket, 4 items, 10% off, expanded" })).toHaveCount(2);
   await firstBucket(page).focus();
   await page.keyboard.press("Enter");
+  await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(firstBucket(page)).toBeFocused();
+  await expect(guinness(page)).toHaveCount(0);
+  await page.keyboard.press("Space");
 
   await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "true");
   await expect(firstBucket(page)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, expanded");
@@ -84,7 +88,7 @@ test("a Beer Bucket opens and closes from the keyboard in place, says so through
   await expect(page.locator(`[id="${region}"]`).getByRole("button", { name: /^Open 3x Guinness/ })).toHaveCount(1);
   await expect(page.locator(`[id="${region}"]`).getByRole("list", { name: "Beer Bucket" })).toHaveCount(1);
 
-  await page.keyboard.press("Space");
+  await page.keyboard.press("Enter");
   await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "false");
   await expect(firstBucket(page)).toBeFocused();
   await expect(guinness(page)).toHaveCount(0);
@@ -95,6 +99,9 @@ test("a Beer Bucket opens and closes from the keyboard in place, says so through
 test("a Beer Bucket grows open over several frames instead of jumping to its full height", { tag: "@frame-timing" }, async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
+  // Bundles start open, so close this one first and let it settle.
+  await firstBucket(page).click();
+  await expect(guinness(page)).toHaveCount(0);
   const region = await firstBucket(page).getAttribute("aria-controls");
   const heights = page.evaluate(
     (id) =>
@@ -121,7 +128,6 @@ test("a Beer Bucket grows open over several frames instead of jumping to its ful
 test("the Guinness line is one 3x row at 21.87, and its circle claims the whole line", async ({ browser, request }, { workerIndex }) => {
   const page = await open(browser, await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  await firstBucket(page).click();
 
   await expect(guinness(page)).toHaveCount(1);
   await expect(guinness(page).getByText("3x", { exact: true })).toBeVisible();
@@ -147,8 +153,7 @@ test("the Item sheet shows the gray line under a row's name in its Detail field,
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
 
-  await firstBucket(page).click();
-  const ultra = page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / });
+  const ultra = page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first();
   await expect(ultra.getByText("16oz Aluminum Bottle", { exact: true })).toBeVisible();
   await ultra.click();
   await expect(field("Item name")).toHaveValue("Michelob Ultra");
@@ -168,14 +173,13 @@ test("typing a sized row's name back to what it was saves nothing, so History ha
   const sheet = page.getByRole("dialog", { name: "Edit item" });
   const field = (name: string) => sheet.getByRole("textbox", { name, exact: true });
 
-  await firstBucket(page).click();
-  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).click();
+  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first().click();
   await field("Item name").fill("Michelob Ultra Lite");
   await field("Item name").fill("Michelob Ultra");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
 
-  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).click();
+  await page.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first().click();
   await field("Description").fill("16oz Can");
   await sheet.getByRole("button", { name: "Close" }).click();
   await expect(sheet).toHaveCount(0, live);
@@ -190,8 +194,6 @@ test("Split turns the 3x Guinness line into three rows at 7.29 with its claims f
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-  await firstBucket(sam).click();
-  await firstBucket(priya).click();
   await guinnessCircle(sam, "Sam").click();
   await expect(guinnessCircle(sam, "Sam")).toHaveAttribute("aria-pressed", "true", live);
 
@@ -223,7 +225,6 @@ test("no frame shows the 3x row beside the rows Split adds, or two 3x rows", asy
   const link = await createSplit(request, workerIndex);
   const sam = await open(browser, link);
   await pick(sam, "Sam");
-  await firstBucket(sam).click();
   await guinness(sam).click();
   const region = await firstBucket(sam).getAttribute("aria-controls");
   const frames = sam.evaluate(
@@ -311,7 +312,6 @@ for (const rafDelay of [0, 200]) {
   test(`the Item sheet keeps showing the 3x line at 21.87 on every frame while Split closes it, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
     const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex), rafDelay);
     await pick(sam, "Sam");
-    await firstBucket(sam).click();
     await guinnessCircle(sam, "Sam").click();
     await expect(guinnessCircle(sam, "Sam")).toHaveAttribute("aria-pressed", "true", live);
     await guinness(sam).click();
@@ -329,7 +329,6 @@ for (const rafDelay of [0, 200]) {
   test(`the Item sheet keeps showing the deleted Item on every frame while Delete item closes it, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
     const sam = await slowFramesOpen(browser, await createSplit(request, workerIndex), rafDelay);
     await pick(sam, "Sam");
-    await firstBucket(sam).click();
     await sam.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first().click();
     const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("6.29");
@@ -344,7 +343,6 @@ for (const rafDelay of [0, 200]) {
   test(`a price typed just before Split shows with the Bundle note for that price on every frame while the Split waits on the server, with frames ${rafDelay} ms late`, async ({ browser, request }, { workerIndex }) => {
     const { page: sam, release } = await slowFramesOpenHolding(browser, await createSplit(request, workerIndex), rafDelay, isSplit);
     await pick(sam, "Sam");
-    await firstBucket(sam).click();
     await guinness(sam).click();
     const sheet = sam.getByRole("dialog", { name: "Edit item" });
     const price = sheet.getByRole("textbox", { name: "Price" });
@@ -367,8 +365,6 @@ for (const rafDelay of [0, 200]) {
     const priya = await open(browser, link);
     await pick(sam, "Sam");
     await pick(priya, "Priya");
-    await firstBucket(sam).click();
-    await firstBucket(priya).click();
     await guinness(sam).click();
     const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
@@ -390,8 +386,6 @@ for (const rafDelay of [0, 200]) {
     const priya = await open(browser, link);
     await pick(sam, "Sam");
     await pick(priya, "Priya");
-    await firstBucket(sam).click();
-    await firstBucket(priya).click();
     await guinness(sam).click();
     const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
@@ -415,8 +409,6 @@ for (const rafDelay of [0, 200]) {
     const priya = await open(browser, link);
     await pick(sam, "Sam");
     await pick(priya, "Priya");
-    await firstBucket(sam).click();
-    await firstBucket(priya).click();
     await guinness(sam).click();
     const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
@@ -439,8 +431,6 @@ for (const rafDelay of [0, 200]) {
     const priya = await open(browser, link);
     await pick(sam, "Sam");
     await pick(priya, "Priya");
-    await firstBucket(sam).click();
-    await firstBucket(priya).click();
     await guinness(sam).click();
     const sheet = sam.getByRole("dialog", { name: "Edit item" });
     await expect(sheet.getByRole("textbox", { name: "Price" })).toHaveValue("21.87");
@@ -461,7 +451,6 @@ test("Delete item takes a Bundle Item off for everyone, and Revert brings it bac
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-  await firstBucket(sam).click();
   await guinnessCircle(sam, "Sam").click();
   await expect(guinnessCircle(sam, "Sam")).toHaveAttribute("aria-pressed", "true", live);
 
@@ -472,12 +461,12 @@ test("Delete item takes a Bundle Item off for everyone, and Revert brings it bac
   await sheet.getByRole("button", { name: "Delete item" }).click();
   await expect(sheet).toHaveCount(0, live);
   await expect(firstBucket(sam)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, expanded");
-  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, collapsed", live);
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 3 items, 10% off, had by Sam, 1 claimed, expanded", live);
 
   await fromMore(sam, "History");
   await sam.getByRole("button", { name: "Revert Deleted Michelob Ultra 16oz Aluminum Bottle" }).click();
   await expect(sam.getByText("Reverted")).toBeVisible(live);
-  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 1 claimed, collapsed", live);
+  await expect(firstBucket(priya)).toHaveAccessibleName("Beer Bucket, 4 items, 10% off, had by Sam, 1 claimed, expanded", live);
 });
 
 test("a name already on the Split keeps the cursor in Add yourself after Enter, so the next keys fix it", async ({ browser, request }, { workerIndex }) => {
@@ -538,7 +527,9 @@ test("a collapsed Bundle's claimed line grows in on the first claim and collapse
   const priya = await open(browser, link);
   await pick(page, "Sam");
   await pick(priya, "Priya");
-  await firstBucket(priya).click();
+  await firstBucket(page).click();
+  await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "false");
+  await page.waitForTimeout(400);
   const claim = guinnessCircle(priya, "Priya");
   await expect(claim).toBeVisible(live);
 

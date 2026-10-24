@@ -57,12 +57,11 @@ async function pick(page: Page, name: string) {
 }
 
 /** Sam had the Rice and Priya the Pitcher, each picked on their own phone. */
-async function samAndPriya(browser: Browser, link: string, inBundle = false): Promise<readonly [Page, Page]> {
+async function samAndPriya(browser: Browser, link: string): Promise<readonly [Page, Page]> {
   const sam = await open(browser, link);
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
-  if (inBundle) for (const page of [sam, priya]) await page.getByRole("button", { name: /^Beer Bucket, / }).click();
   await sam.getByRole("button", { name: "Rice, check for Sam" }).click();
   await priya.getByRole("button", { name: "Pitcher, check for Priya" }).click();
   await expect(sam.getByRole("button", { name: /^Open Pitcher, \$12\.00, Priya$/ })).toBeVisible(live);
@@ -308,7 +307,7 @@ test("a deleted charge says so in the bar, and Undo puts it and the Total back o
 });
 
 test("a Bundle discount takes a new amount off and keeps its Items", async ({ browser, request }, { workerIndex }) => {
-  const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex, bucket), true);
+  const [sam, priya] = await samAndPriya(browser, await createSplit(request, workerIndex, bucket));
   await expect(sam.getByTestId("total")).toHaveText("$18.00");
   await expect(sam.getByTestId("owe")).toHaveText("$7.20", live);
 
@@ -364,7 +363,7 @@ test("a tax turned into a discount on desktop opens in the right column, takes t
 });
 
 test("a collapsed Bundle says who had its Items and how many are claimed", async ({ browser, request }, { workerIndex }) => {
-  const [sam] = await samAndPriya(browser, await createSplit(request, workerIndex, bucket), true);
+  const [sam] = await samAndPriya(browser, await createSplit(request, workerIndex, bucket));
   const header = sam.getByRole("button", { name: /^Beer Bucket, / });
   await header.click();
   await expect(header).toContainText("You, Priya", live);

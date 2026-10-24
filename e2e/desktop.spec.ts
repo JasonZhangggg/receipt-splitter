@@ -109,7 +109,6 @@ test("a Claim in the Edit item column updates the share above it", async ({ page
 test("Split on a quantity-3 line leaves three one-unit rows, and Delete item on one leaves two", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
-  await firstBucket(page).click();
 
   await guinness(page).click();
   await itemPopover(page).getByRole("button", { name: "Split into 3" }).click();
@@ -128,6 +127,8 @@ test("Split on a quantity-3 line leaves three one-unit rows, and Delete item on 
 test("Delete item on a line whose neighbors sit inside collapsed Bundles hands focus to the next Bundle's header", async ({ page, request }, { workerIndex }) => {
   await open(page, await createSplit(request, workerIndex));
   await pick(page, "Sam");
+  for (const bucket of await page.getByRole("button", { name: /^Beer Bucket, / }).all()) await bucket.click();
+  await expect(page.getByRole("button", { name: /^Beer Bucket, .*, collapsed$/ })).toHaveCount(2);
   await gameplay(page).click();
   await itemPopover(page).getByRole("button", { name: "Delete item" }).click();
 
@@ -162,17 +163,15 @@ test("at phone width Escape closes the Item, Add menu and History sheets and han
 
 test("another device's Delete item closes the open popover and hands focus to the next line", async ({ page, browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex);
-  const ultra = (on: Page) => on.getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / }).first();
+  const ultra = (on: Page) => on.getByTestId("line-ultra1").getByRole("button", { name: /^Open Michelob Ultra 16oz Aluminum Bottle, / });
   await open(page, link);
   await pick(page, "Sam");
-  await firstBucket(page).click();
   await ultra(page).click();
   await expect(itemPopover(page)).toBeVisible();
   const priya = await (await newContext(browser)).newPage();
   await priya.setViewportSize(desktop);
   await open(priya, link);
   await pick(priya, "Priya");
-  await firstBucket(priya).click();
   await ultra(priya).click();
 
   await itemPopover(priya).getByRole("button", { name: "Delete item" }).click();
