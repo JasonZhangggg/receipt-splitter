@@ -1,5 +1,4 @@
 import { Link } from "expo-router";
-import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { RecentSplit } from "../device";
@@ -7,7 +6,6 @@ import { money } from "../draft";
 import { scrollViewTouchDelay, useHeld, type Press } from "./components/button";
 import { TextLink } from "./components/text-link";
 import { historyCopy as say } from "./home-copy";
-import { rowsThatFit } from "./recent-fit";
 import { webStyle } from "./motion";
 import { SheetHeader } from "./split-view/sheet-header";
 import { motion, tabular, type, useColors } from "./theme";
@@ -15,13 +13,10 @@ import { motion, tabular, type, useColors } from "./theme";
 /** A row in a scrolling list fills only once a touch holds, so a scroll that starts on it does not flash. */
 const web = { dataSet: { pressable: "" }, delayPressIn: scrollViewTouchDelay };
 const headPad = 12;
-// Without it the rows would size the section, and the page would grow to fit them instead of the section shrinking to fit the page.
-const noIntrinsicHeight = webStyle({ contain: "size" } as never);
+/** Home lists the newest three on every screen; See all opens the rest. */
+export const recentOnHome = 3;
 const fillIn = webStyle({ transitionProperty: "background-color", transitionDuration: "0ms" });
 const fillOut = webStyle({ transitionProperty: "background-color", transitionDuration: `${motion.pressOut}ms`, transitionTimingFunction: motion.easeOut });
-
-// Every row is a line of names over a line of when and who, so each is as tall as the next: its padding, the two lines and the rule. See all sits in the heading, so it takes no room of its own.
-const sizes = { title: headPad + type.body.lineHeight + 1, row: 14 * 2 + type.body.lineHeight + type.caption.lineHeight + 1, seeAll: 0 };
 
 type Props = {
   splits: readonly RecentSplit[];
@@ -31,27 +26,24 @@ type Props = {
   wide?: boolean;
 };
 
-/** The Splits this device stored, newest first, under the sentence: as many as fit in the height the section takes, then See all for the rest. */
+/** The Splits this device stored, newest first, under the sentence: the newest three, then See all for every one. */
 export function RecentSplits({ splits, now, onSeeAll, wide = false }: Props) {
   const c = useColors();
-  const [room, setRoom] = useState<number | null>(null);
-  const shown = room === null ? null : rowsThatFit(splits.length, room, sizes);
   return (
-    // The section takes the height the sentence leaves, so its own size says how many rows fit and changes whenever the sentence does. Hidden for the frame before it is measured, so the list never shows more rows than fit and then drops them.
-    <View role="region" aria-label={say.title} onLayout={({ nativeEvent }) => setRoom(nativeEvent.layout.height)} style={[styles.section, wide && styles.inColumn, noIntrinsicHeight, shown === null && styles.measuring]}>
+    <View role="region" aria-label={say.title} style={[styles.section, wide && styles.inColumn]}>
       <View style={styles.clip}>
         {/* The Split page's section heading: the label in ink at body size over a hairline, See all at its end in gray. */}
         <View style={[styles.head, { borderBottomColor: c.hairline }]}>
           <Text role="heading" aria-level={2} style={[type.body, { color: c.ink }]}>
             {say.title}
           </Text>
-          {shown !== null && shown < splits.length ? (
+          {splits.length > recentOnHome ? (
             <View style={styles.seeAll}>
               <TextLink body label={say.seeAll(splits.length)} onPress={onSeeAll} popup="dialog" />
             </View>
           ) : null}
         </View>
-        <Rows splits={splits.slice(0, shown ?? 0)} now={now} />
+        <Rows splits={splits.slice(0, recentOnHome)} now={now} />
       </View>
     </View>
   );
@@ -111,12 +103,10 @@ function HistoryRow({ split: { id, names, you, place, total, added }, now }: { s
 }
 
 const styles = StyleSheet.create({
-  // Its height is what the sentence leaves, but never less than the heading and See all.
-  section: { marginTop: 44, flex: 1, minHeight: sizes.title + sizes.seeAll },
+  section: { marginTop: 44 },
   // The clip pads 12 px each side and pulls back by the same, so it leaves room for the rows' fill and the link's focus ring while the text keeps the column's edge.
-  clip: { flex: 1, marginHorizontal: -12, paddingHorizontal: 12, overflow: "hidden" },
+  clip: { marginHorizontal: -12, paddingHorizontal: 12, overflow: "hidden" },
   inColumn: { marginTop: 0 },
-  measuring: { opacity: 0 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: type.body.lineHeight, paddingBottom: headPad, borderBottomWidth: 1 },
   // Names and amounts are the Split page's rows: 18 px at weight 500 on the same 24 px line.
   strong: { fontSize: 18, fontWeight: "500", letterSpacing: -0.2 },
