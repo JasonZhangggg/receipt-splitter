@@ -25,6 +25,7 @@ const PRICE_ONLY = /^[-(]?\s*\$?\s*\d{1,3}(?:,\d{3})*[.,]\s?\d{2}\s*[-)]?\s*[A-Z
 const JOIN_WITHIN = 0.5;
 const SLOPE_REACH = 4;
 const PAIR_WITHIN = 1;
+const WRAP_WITHIN = 1.5;
 
 export function groupRows(textBoxes: readonly TextBox[]): Row[] {
   const boxes = upright(textBoxes).map(measure).filter((box) => box.text.length > 0);
@@ -43,17 +44,30 @@ export function groupRows(textBoxes: readonly TextBox[]): Row[] {
   );
   const pairs = align(labels, prices, lineHeight);
   const paired = new Set(pairs.values());
-  return [
-    ...labels.map((row, i) => {
+  const rows: Line[] = [
+    ...labels.map((row, i): Line => {
       const price = pairs.get(i);
-      if (price === undefined) return row;
+      if (price === undefined) return { ...row, part: "label" };
       const [first] = prices[price].boxes;
-      return { y: row.y, boxes: [...row.boxes.filter((box) => box.left < first.left), ...prices[price].boxes] };
+      return { y: row.y, boxes: [...row.boxes.filter((box) => box.left < first.left), ...prices[price].boxes], part: "both" };
     }),
-    ...prices.filter((_, j) => !paired.has(j)),
-  ]
-    .sort((a, b) => a.y - b.y)
-    .map(({ boxes: row }) => ({ text: row.map((box) => box.text).join(" "), left: wordsStart(row), lineHeight }));
+    ...prices.filter((_, j) => !paired.has(j)).map((row): Line => ({ ...row, part: "price" })),
+  ].sort((a, b) => a.y - b.y);
+  return wrapped(rows, lineHeight).map((row) => ({ text: row.map((box) => box.text).join(" "), left: wordsStart(row), lineHeight }));
+}
+
+type Line = Cluster & { readonly part: "label" | "price" | "both" };
+
+/** The rows' boxes, with a lone price on the line below a name that has none joined to it: a long name pushes its price to the next line. */
+function wrapped(rows: readonly Line[], lineHeight: number): Placed[][] {
+  const joined: Placed[][] = [];
+  rows.forEach((row, i) => {
+    const above = rows[i - 1];
+    const wraps = row.part === "price" && above?.part === "label" && row.y - above.y < WRAP_WITHIN * lineHeight && above.boxes.some((box) => /[a-z]{3}/i.test(box.text));
+    if (wraps) joined[joined.length - 1] = [...above.boxes, ...row.boxes];
+    else joined.push(row.boxes);
+  });
+  return joined;
 }
 
 const QUARTER_TURNS: readonly ((point: Point) => Point)[] = [
@@ -124,16 +138,20 @@ function overlaps(a: Box, b: Box): boolean {
   return Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 * Math.min(a.right - a.left, b.right - b.left);
 }
 
+/**
+ * Pairs labels with prices in reading order. A pair scores more the closer its price sits to the label's line, so a run of prices
+ * each a line off (a wrapped name's price on the line below) never beats the same run on their own lines just by pairing one more.
+ */
 function align(labels: readonly Cluster[], prices: readonly Cluster[], lineHeight: number): Map<number, number> {
-  type Step = { readonly count: number; readonly cost: number; readonly move: "label" | "price" | "pair" };
-  const better = (a: Step, b: Step) => (a.count > b.count || (a.count === b.count && a.cost < b.cost) ? a : b);
+  type Step = { readonly score: number; readonly move: "label" | "price" | "pair" };
+  const better = (a: Step, b: Step) => (a.score >= b.score ? a : b);
   const table: Step[][] = labels.map(() => []);
-  const at = (i: number, j: number): Step => (i < 0 || j < 0 ? { count: 0, cost: 0, move: "label" } : table[i][j]);
+  const at = (i: number, j: number): Step => (i < 0 || j < 0 ? { score: 0, move: "label" } : table[i][j]);
   labels.forEach((label, i) => {
     prices.forEach((price, j) => {
       let best = better({ ...at(i - 1, j), move: "label" }, { ...at(i, j - 1), move: "price" });
       const miss = residual(label, price, lineHeight);
-      if (miss !== null) best = better({ count: at(i - 1, j - 1).count + 1, cost: at(i - 1, j - 1).cost + miss, move: "pair" }, best);
+      if (miss !== null) best = better({ score: at(i - 1, j - 1).score + 1 - miss / (2 * PAIR_WITHIN * lineHeight), move: "pair" }, best);
       table[i][j] = best;
     });
   });

@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { Point, TextBox } from "../ocr/types";
 import { box, receiptRows } from "./fixtures/boxes";
 import { classifyLines } from "./lines";
+import topgolfPhoto from "./fixtures/topgolf-photo.json";
 import { groupRows } from "./rows";
 
 const linesOf = (boxes: TextBox[]) => classifyLines(groupRows(boxes));
@@ -242,6 +243,32 @@ describe("classifyLines", () => {
 });
 
 describe("groupRows", () => {
+  test("keeps each price of the tilted Topgolf photo on its own line when a long name pushes one price to the line below", () => {
+    const rows = groupRows((topgolfPhoto as unknown as { boxes: TextBox[] }).boxes).map((row) => row.text);
+
+    expect(rows.slice(rows.indexOf("1 Gameplay $87.75"), rows.indexOf("Total $207.29") + 1)).toEqual([
+      "1 Gameplay $87.75",
+      "1 Beer Bucket $0.00",
+      "Michelob Ultra 16oz Aluminum Bottle $6.29",
+      "3x Guinness Draught 14.9oz Can $21.87",
+      "High Noon Pineapple 12oz Can $8.49",
+      "High Noon Watermelon 12oz Can $8.49",
+      "Beer Bucket Discount (10%) $4.51",
+      "1 Beer Bucket $0.00",
+      "Michelob Ultra 16oz Aluminum Bottle $6.29",
+      "2x Guinness Draught 14.9oz Can $14.58",
+      "High Noon Pineapple 12oz Can $8.49",
+      "2x High Noon Watermelon 12oz Can $16.98",
+      "Beer Bucket Discount (10%) - $4.63",
+      "Pre-discount Subtotal $179.23",
+      "Discount Total - $9.14",
+      "Subtotal $170.09",
+      "Tax $4.94",
+      "Tip $32.26",
+      "Total $207.29",
+    ]);
+  });
+
   test("levels a skewed price box by the slope of its neighbours", () => {
     const skewed = box("12.00", 400, 0);
     const [topLeft, topRight, bottomRight, bottomLeft] = skewed.corners;
