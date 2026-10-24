@@ -41,8 +41,10 @@ async function join(browser: Browser, link: string, name: string): Promise<Page>
 const circle = (page: Page, item: string, name: string) => page.getByRole("button", { name: `${item}, check for ${name}` });
 const note = (page: Page) => page.getByTestId("footer").getByTestId("share-note");
 const owe = (page: Page) => page.getByTestId("owe");
+// The Host's count of who has paid sits on the pill in Pay's place, so their share has no line under it.
+const collect = (page: Page, count: string) => page.getByTestId("footer").getByRole("button", { name: `${count}, Payments` });
 
-test("the line under a share reads nothing unpaid, Paid, too much, still owed, and the Host's count of who paid them", async ({ browser, request }, { workerIndex }) => {
+test("the line under a share reads nothing unpaid, Paid, too much, still owed, and the Host's pill counts who paid them", async ({ browser, request }, { workerIndex }) => {
   const people = [
     { id: "jason", name: "Jason" },
     { id: "sam", name: "Sam" },
@@ -67,17 +69,18 @@ test("the line under a share reads nothing unpaid, Paid, too much, still owed, a
   await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
   await expect(note(sam)).toHaveCount(0);
   await viewAs(jason, "Jason, you");
-  await expect(note(jason)).toHaveText("1 of 2 paid you", live);
+  await expect(collect(jason, "1 of 2 paid")).toBeVisible(live);
+  await expect(note(jason)).toHaveCount(0);
 
   await circle(priya, "Tea", "Priya").click();
   await expect(note(sam)).toHaveText("Paid $30.00 · $8.00 too much", live);
-  await expect(note(jason)).toHaveText("1 of 2 paid you");
+  await expect(collect(jason, "1 of 2 paid")).toBeVisible();
 
   await circle(priya, "Tea", "Priya").click();
   await circle(priya, "Pho", "Priya").click();
   await circle(sam, "Pho", "Sam").click();
   await expect(note(sam)).toHaveText("Paid $30.00 · $14.20 still owed", live);
-  await expect(note(jason)).toHaveText("0 of 1 paid you", live);
+  await expect(collect(jason, "0 of 1 paid")).toBeVisible(live);
   await viewAs(jason, "Sam");
   await expect(note(jason)).toHaveText("Paid $30.00 · $14.20 still owed", live);
 });
