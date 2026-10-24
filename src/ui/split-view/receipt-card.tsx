@@ -65,6 +65,8 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   useFocusKept(rows, filter);
   const whose = selected && selected.id !== me ? firstName(selected.name) : null;
   const [entering, settle] = useEntering([...items, ...adjustments].map(({ id }) => id));
+  // Five-figure prices need a wider price column, or the who column steps sideways on their rows.
+  const priceWidth = items.some(({ price }) => price >= 1_000_000) ? 124 : 104;
   const started = items.some(({ split: item }) => claimersOf(item).length > 0);
   const note = totalNote(split.receipt);
   const viewing: Viewing = { people: split.participants, me, viewer: selected?.id ?? null };
@@ -100,6 +102,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       inBundle={inBundle}
       wide={wide}
       whoColumn={whoColumn}
+      priceWidth={priceWidth}
       onCircle={circleItem}
       onOpen={openItem}
       expanded={showing === item.id}
@@ -388,6 +391,8 @@ type LineProps = {
   inBundle: boolean;
   wide: boolean;
   whoColumn: boolean;
+  /** The price column's width in the who-column layout, the same on every line so the who column stays straight. */
+  priceWidth: number;
   onCircle: (item: SplitItem, press: Press) => void;
   onOpen: (item: SplitItem, press: Press) => void;
   expanded: boolean;
@@ -401,6 +406,7 @@ function sameLine(a: LineProps, b: LineProps): boolean {
     a.inBundle === b.inBundle &&
     a.wide === b.wide &&
     a.whoColumn === b.whoColumn &&
+    a.priceWidth === b.priceWidth &&
     a.expanded === b.expanded &&
     a.onCircle === b.onCircle &&
     a.onOpen === b.onOpen &&
@@ -432,7 +438,7 @@ function WhoLine({ who, style }: { who: Who; style?: StyleProp<TextStyle> }) {
 }
 
 /** A dot that claims the line, and the rest of the row, which opens it. The left column is the name, the detail and who had it; the right is the full price and what it comes to for the viewer or each person. */
-const Line = memo(function Line({ item, viewing, portions, claimers, selected, inBundle, wide, whoColumn, onCircle, onOpen, expanded }: LineProps) {
+const Line = memo(function Line({ item, viewing, portions, claimers, selected, inBundle, wide, whoColumn, priceWidth, onCircle, onOpen, expanded }: LineProps) {
   const c = useColors();
   const mine = selected !== null && claimers.some(({ id }) => id === selected.id);
   // Once someone is shown, the rows they didn't have step back to the muted ink, and come forward under a mouse.
@@ -469,7 +475,7 @@ const Line = memo(function Line({ item, viewing, portions, claimers, selected, i
               {whoColumn ? null : <WhoLine who={who} />}
             </View>
             {whoColumn ? <WhoLine who={who} style={styles.whoColumn} /> : null}
-            <View style={[styles.figures, whoColumn && styles.priceColumn]}>
+            <View style={[styles.figures, whoColumn && { minWidth: priceWidth }]}>
               <Text style={[big, tabular, inkFade, { color: quiet && !hovered ? c.muted : c.ink }]}>{money(item.price)}</Text>
               {split ? (
                 <Text numberOfLines={1} style={[type.caption, styles.noteText, tabular, { color: c.muted }]}>
@@ -528,8 +534,6 @@ const styles = StyleSheet.create({
   nameText: { lineHeight: nameLine },
   noteText: { lineHeight: noteLine },
   figures: { flexShrink: 0, alignItems: "flex-end" },
-  // A fixed price column keeps the who column straight down the list, whatever each price's width.
-  priceColumn: { minWidth: 104 },
   figure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
   wideFigure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 21, lineHeight: 28, letterSpacing: -0.3 },
   // Small caps in their own column, centered on the name's first line.

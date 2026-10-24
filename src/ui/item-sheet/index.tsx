@@ -462,7 +462,7 @@ function SplitRows({ item, people, parts, nameOf, me, edit, toggle, typedAmount,
           <View key={participantId} style={styles.splitRow}>
             <PersonToggle name={you ? `${person.name}, ${say.you}` : person.name} label={you ? say.youHad : person.name} on={part !== undefined} onPress={() => toggle(participantId, part !== undefined)} />
             {part === undefined ? (
-              <Text style={[type.caption, { color: c.muted }]}>{say.didntHave}</Text>
+              <Text style={[type.caption, styles.didntHave, { color: c.muted }]}>{say.didntHave}</Text>
             ) : (
               <View style={styles.part}>
                 {item.split.by === "shares" ? (
@@ -614,7 +614,8 @@ const styles = StyleSheet.create({
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },
   splitRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 44 },
   whoName: { flexShrink: 1 },
-  part: { flexDirection: "row", alignItems: "center", gap: 6 },
+  part: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
+  didntHave: { flexShrink: 0 },
   amount: { minWidth: 60, textAlign: "right" },
   stepper: { flexDirection: "row", alignItems: "center" },
   count: { minWidth: 56, textAlign: "center" },
