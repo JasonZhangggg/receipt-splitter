@@ -56,7 +56,8 @@ const chargeRow = 34;
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false, filter, onFilter, onFilterMenu, filterMenuOpen }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
-  const [opened, setOpened] = useState<ReadonlySet<AdjustmentId>>(new Set());
+  // Bundles start open; this holds the ones the viewer has folded.
+  const [folded, setFolded] = useState<ReadonlySet<AdjustmentId>>(new Set());
   const { items, adjustments, subtotal, total } = split.receipt;
   const { rows: allRows, charges } = useMemo(() => receiptRows(split.receipt), [split.receipt]);
   const viewer = selected?.id ?? null;
@@ -79,7 +80,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
   };
   const toggle = (id: AdjustmentId) => {
     settle();
-    setOpened((was) => {
+    setFolded((was) => {
       const next = new Set(was);
       if (!next.delete(id)) next.add(id);
       return next;
@@ -154,9 +155,10 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
             return (
               <BundleGroup
                 bundle={bundle}
-                open={opened.has(bundle.id)}
+                open={!folded.has(bundle.id)}
                 claimed={claimedItems(whole, shares.unclaimed.itemIds)}
                 claimers={claimers}
+                quiet={selected !== null && !claimers.some(({ id }) => id === selected.id)}
                 who={whoHad(claimers.map(({ id }) => id), viewing)}
                 wide={wide}
                 onToggle={() => toggle(bundle.id)}
@@ -274,6 +276,8 @@ type BundleProps = {
   open: boolean;
   claimed: number;
   claimers: readonly Participant[];
+  /** Someone is shown and had nothing in the Bundle, so its header steps back like their other lines. */
+  quiet: boolean;
   who: Who;
   wide: boolean;
   onToggle: () => void;
@@ -285,7 +289,7 @@ function inside(claimers: readonly Participant[], claimed: number): string {
   return [had, claimed > 0 ? say.claimedItems(claimed) : ""].filter(Boolean).join(", ");
 }
 
-function BundleGroup({ bundle, open, claimed, claimers, who, wide, onToggle, children }: BundleProps) {
+function BundleGroup({ bundle, open, claimed, claimers, quiet, who, wide, onToggle, children }: BundleProps) {
   const c = useColors();
   // The header's name and price are set like an Item's, so the price column reads as one.
   const big = wide ? styles.wideFigure : styles.figure;
@@ -309,21 +313,21 @@ function BundleGroup({ bundle, open, claimed, claimers, who, wide, onToggle, chi
         onPress={onToggle}
         style={(pressed) => [styles.header, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
       >
-        {() => (
+        {(_, hovered) => (
           <>
             <View style={styles.bundleTop}>
               <View style={[styles.chevron, { height: big.lineHeight, transform: [{ translateX: open ? 0 : -chevronTip }, { rotate: open ? "0deg" : "-90deg" }] }, !reduce && turn]}>
                 <Icon name="chevron" size={chevronSize} color={c.muted} />
               </View>
               <View style={styles.name}>
-                <Text numberOfLines={1} style={[big, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[big, inkFade, { color: quiet && !hovered ? c.muted : c.ink }]}>
                   {bundle.name}
                 </Text>
                 <Text numberOfLines={1} style={[type.caption, styles.noteText, { color: c.muted }]}>
                   {bundle.summary}
                 </Text>
               </View>
-              <Text style={[big, tabular, { color: c.ink }]}>{money(bundle.net)}</Text>
+              <Text style={[big, tabular, inkFade, { color: quiet && !hovered ? c.muted : c.ink }]}>{money(bundle.net)}</Text>
             </View>
             <Presence present={showInside} animate={byClaim}>
               <View style={styles.bundleWho}>

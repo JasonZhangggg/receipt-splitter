@@ -20,6 +20,8 @@ type Phase = "entering" | "shown" | "leaving";
 const photoGround = "#0E0E0E";
 // The phone's ground is always dark, so its focus ring is white whatever the page's theme.
 const onDark = webStyle({ "--focus": "#FFFFFF" } as never);
+// At rest a click zooms in; once zoomed the photo takes the grab hand from the zoom hook.
+const zoomable = webStyle({ cursor: "zoom-in" });
 // The frame is this box with the photo's shape inside it. A photo that has not told its size in this long gets the whole box.
 const frameMax = { width: 540, height: 640 };
 const sizeWait = 300;
@@ -88,7 +90,7 @@ export function PhotoViewer({ photo, onExited }: Props) {
             <View testID="photo-scrim" onPointerUp={close} style={[styles.fill, fade, { opacity: shown ? 1 : 0, backgroundColor: c.scrim }]} />
             <View pointerEvents="box-none" style={[styles.fill, styles.center]}>
               <View pointerEvents="box-none" style={[styles.framed, surface]}>
-                <View ref={setFrame as never} style={[styles.photo, { width: frame.width, height: frame.height, backgroundColor: photoGround }]}>
+                <View ref={setFrame as never} style={[styles.photo, zoomable, { width: frame.width, height: frame.height, backgroundColor: photoGround }]}>
                   <View ref={setLayer as never} style={styles.fill}>
                     <Image source={{ uri: photo.uri }} resizeMode="contain" accessibilityLabel={photo.name} style={styles.fill} />
                   </View>
