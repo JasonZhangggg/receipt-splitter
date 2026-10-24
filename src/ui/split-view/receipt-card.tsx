@@ -158,6 +158,7 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
                 claimed={claimedItems(whole, shares.unclaimed.itemIds)}
                 claimers={claimers}
                 who={whoHad(claimers.map(({ id }) => id), viewing)}
+                wide={wide}
                 onToggle={() => toggle(bundle.id)}
               >
                 <KeptRows rows={bundle.items} entering={entering}>
@@ -274,6 +275,7 @@ type BundleProps = {
   claimed: number;
   claimers: readonly Participant[];
   who: Who;
+  wide: boolean;
   onToggle: () => void;
   children: ReactNode;
 };
@@ -283,8 +285,10 @@ function inside(claimers: readonly Participant[], claimed: number): string {
   return [had, claimed > 0 ? say.claimedItems(claimed) : ""].filter(Boolean).join(", ");
 }
 
-function BundleGroup({ bundle, open, claimed, claimers, who, onToggle, children }: BundleProps) {
+function BundleGroup({ bundle, open, claimed, claimers, who, wide, onToggle, children }: BundleProps) {
   const c = useColors();
+  // The header's name and price are set like an Item's, so the price column reads as one.
+  const big = wide ? styles.wideFigure : styles.figure;
   const reduce = useReducedMotion();
   const region = useId();
   const showInside = !open && claimers.length > 0;
@@ -297,7 +301,7 @@ function BundleGroup({ bundle, open, claimed, claimers, who, onToggle, children 
   }
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`}>
-      <View pointerEvents="none" style={[styles.rule, fade, { backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
+      <View pointerEvents="none" style={[styles.rule, fade, { top: 12 + big.lineHeight / 2 + 4, backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
       <PressTarget
         name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, claimed), open)}
         expanded={open}
@@ -308,18 +312,18 @@ function BundleGroup({ bundle, open, claimed, claimers, who, onToggle, children 
         {() => (
           <>
             <View style={styles.bundleTop}>
-              <View style={[styles.chevron, { transform: [{ translateX: open ? 0 : -chevronTip }, { rotate: open ? "0deg" : "-90deg" }] }, !reduce && turn]}>
+              <View style={[styles.chevron, { height: big.lineHeight, transform: [{ translateX: open ? 0 : -chevronTip }, { rotate: open ? "0deg" : "-90deg" }] }, !reduce && turn]}>
                 <Icon name="chevron" size={chevronSize} color={c.muted} />
               </View>
               <View style={styles.name}>
-                <Text numberOfLines={1} style={[type.body, styles.nameText, { color: c.ink }]}>
+                <Text numberOfLines={1} style={[big, { color: c.ink }]}>
                   {bundle.name}
                 </Text>
                 <Text numberOfLines={1} style={[type.caption, styles.noteText, { color: c.muted }]}>
                   {bundle.summary}
                 </Text>
               </View>
-              <Text style={[type.body, styles.nameText, tabular, { color: c.ink }]}>{money(bundle.net)}</Text>
+              <Text style={[big, tabular, { color: c.ink }]}>{money(bundle.net)}</Text>
             </View>
             <Presence present={showInside} animate={byClaim}>
               <View style={styles.bundleWho}>
@@ -535,7 +539,6 @@ const styles = StyleSheet.create({
   body: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", columnGap, paddingTop: 15, paddingBottom: 14 },
   held: { opacity: 0.55 },
   name: { flex: 1, minWidth: 0 },
-  nameText: { lineHeight: nameLine },
   noteText: { lineHeight: noteLine },
   figures: { flexShrink: 0, alignItems: "flex-end" },
   figure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
@@ -545,9 +548,9 @@ const styles = StyleSheet.create({
   header: { borderTopWidth: 1, paddingVertical: 12 },
   bundleTop: { flexDirection: "row", alignItems: "flex-start", columnGap },
   bundleWho: { flexDirection: "row", marginLeft: nameStart, columnGap },
-  chevron: { width: nameStart - columnGap, height: nameLine, alignItems: "center", justifyContent: "center" },
+  chevron: { width: nameStart - columnGap, alignItems: "center", justifyContent: "center" },
   // The vertical rule runs from the open chevron's tip down beside the children; the chevron sits at the centre of its slot.
-  rule: { position: "absolute", left: (nameStart - columnGap) / 2 - 0.5, width: 1, top: 12 + nameLine / 2 + 4, bottom: 0 },
+  rule: { position: "absolute", left: (nameStart - columnGap) / 2 - 0.5, width: 1, bottom: 0 },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   collapsed: { minHeight: 0 },
   discount: { flexDirection: "row", alignItems: "center", columnGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart, borderTopWidth: 1 },
