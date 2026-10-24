@@ -7,8 +7,9 @@ import { linkPress } from "../components/text-link";
 import { copy } from "../home-copy";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { focusInPlace } from "../receipt-input/keyboard-room";
-import { type, useColors } from "../theme";
-import { afterPress, Blank, focused, Glued, useComposed, usePressing } from "./words";
+import { useColors } from "../theme";
+import { useSaySize } from "./say-size";
+import { afterPress, Blank, focused, Glued, padded, useComposed, usePressing } from "./words";
 
 const breakAnywhere = webStyle({ overflowWrap: "anywhere" } as never);
 
@@ -35,6 +36,7 @@ export function PlaceWord({ place, then, onChange, onRemoved }: Props) {
   const composedRef = useComposed(field);
   const c = useColors();
   const reduce = useReducedMotion();
+  const size = useSaySize();
   const editing = typed !== null;
   // Only opening the field focuses it, and only closing it with the keyboard puts the focus back, so a tap elsewhere keeps the focus where it went.
   useEffect(() => {
@@ -58,9 +60,9 @@ export function PlaceWord({ place, then, onChange, onRemoved }: Props) {
   if (typed === null) {
     return (
       <Glued then={then}>
-        <PressTarget name={copy.placeName(place)} onPress={() => setTyped(place)} style={(pressed) => [styles.word, pressStyle(pressed, reduce, linkPress)]}>
+        <PressTarget name={copy.placeName(place)} onPress={() => setTyped(place)} style={(pressed) => [styles.word, padded(size), pressStyle(pressed, reduce, linkPress)]}>
           {() => (
-            <Text ref={word} style={[type.sayInput, breakAnywhere, styles.rule, { color: c.ink, borderBottomColor: c.dash }]}>
+            <Text ref={word} style={[size.input, breakAnywhere, { borderBottomWidth: size.rule, color: c.ink, borderBottomColor: c.dash }]}>
               {place}
             </Text>
           )}
@@ -100,6 +102,5 @@ export function PlaceWord({ place, then, onChange, onRemoved }: Props) {
 }
 
 const styles = StyleSheet.create({
-  word: { alignItems: "baseline", maxWidth: "100%", paddingVertical: 9, marginVertical: -9 },
-  rule: { borderBottomWidth: 1.5 },
+  word: { alignItems: "baseline", maxWidth: "100%" },
 });

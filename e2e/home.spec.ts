@@ -31,23 +31,23 @@ async function settle(page: Page) {
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
 }
 
-const appPicker = (page: Page) => page.getByRole("combobox", { name: "Payment app" });
+const appWord = (page: Page, app = "Venmo") => page.getByRole("button", { name: `Payment app, ${app}` });
+const appMenu = (page: Page) => page.getByRole("dialog", { name: "Payment app" });
 const action = (page: Page) => page.getByRole("button", { name: "Create link" });
 const sentence = (page: Page) => page.getByTestId("sentence");
 const yourName = (page: Page) => page.getByRole("textbox", { name: "Your name", exact: true });
 const venmo = (page: Page) => page.getByRole("textbox", { name: "Venmo handle" });
 const removers = (page: Page) => sentence(page).getByRole("button", { name: /^Remove / });
-/** The sentence as it reads on screen, one line, with the invisible app selects left out. */
+/** The sentence as it reads on screen, one line. */
 async function said(page: Page) {
-  await page.locator("#root select").evaluateAll((pickers) => pickers.forEach((picker) => ((picker as HTMLElement).style.display = "none")));
   return (await sentence(page).innerText()).replace(/\u2060/g, "").replace(/\s+/g, " ").replace(/ ([.,])/g, "$1").trim();
 }
 
 test("the empty home at 390 px is one sentence with its blanks and actions, and a gray Create link, and only those words", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  await expect(appPicker(page)).toHaveValue("venmo");
-  expect(await said(page)).toBe("I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at, or add an app. I’m, here with add friends.");
+  await expect(appWord(page)).toBeVisible();
+  expect(await said(page)).toBe("I paid the bill. Add the receipt. Friends tap what they had and pay me back on Venmo at. I’m, here with add friends.");
   const words = await sentence(page).innerText();
   expect((await page.locator("#root").innerText()).replace(words, "").split("\n").filter(Boolean)).toEqual(["SplitWith", "Add a receipt first.", "Create link"]);
   await expect(venmo(page)).toHaveAttribute("placeholder", "@username");
@@ -80,8 +80,8 @@ test("the header has only the wordmark, the coffee icon when it is switched on, 
   await settle(page);
   await expect(page.getByRole("button", { name: "Recent splits", exact: true })).toHaveCount(0);
   const list = page.getByRole("region", { name: "Recent splits" });
-  expect((await list.innerText()).split("\n").filter(Boolean)).toEqual(["Recent splits", "Ana and Ben", "Today · 2 people", "$9.90"]);
-  await expect(list.getByRole("link", { name: "Ana and Ben, Today, 2 people, $9.90" })).toHaveAttribute("href", "/s/AnaBenCy00000000000001");
+  expect((await list.innerText()).split("\n").filter(Boolean)).toEqual(["Recent splits", "Ana and Ben", "Today · 2 people", "$9.90", "You paid"]);
+  await expect(list.getByRole("link", { name: "Ana and Ben, Today, 2 people, $9.90, You paid" })).toHaveAttribute("href", "/s/AnaBenCy00000000000001");
 });
 
 test("Add the receipt takes keyboard focus with a visible ring at 390 px", async ({ page }) => {
@@ -319,16 +319,22 @@ const centerOf = async (target: Locator) => {
 };
 
 for (const width of [1024, 1440]) {
-  test(`at ${width} px the sentence and the footer share one centered column, with Create link at its right edge`, async ({ page }) => {
+  test(`at ${width} px home is the Split page's centered frame: the sentence at its left edge, Create link under the sentence with its reason after it, and no footer bar`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await settle(page);
+    // 680 px for the sentence and a column beside it, 112 px apart from 1280 px and 56 under it.
+    const inner = Math.min(width - 96, width >= 1280 ? 680 + 112 + 420 : 680 + 56 + 380);
+    const left = Math.round((width - inner) / 2);
     const words = await centerOf(sentence(page));
-    const reason = await centerOf(page.locator("[role=status][data-problem]"));
+    const reason = (await page.locator("[role=status][data-problem]").boundingBox())!;
     const create = (await action(page).boundingBox())!;
-    expect(words.x).toBe(width / 2);
-    expect(reason.left).toBe(words.left);
-    expect(Math.round(create.x + create.width)).toBe(words.left + words.width);
+    const wordmark = (await page.getByRole("heading", { name: "SplitWith" }).boundingBox())!;
+    expect([Math.round(wordmark.x), words.left, Math.round(create.x)]).toEqual([left, left, left]);
+    expect(create.y).toBeGreaterThan((await sentence(page).boundingBox())!.y + 100);
+    expect(reason.x).toBeGreaterThan(create.x + create.width);
+    expect(Math.abs(reason.y + reason.height / 2 - (create.y + create.height / 2))).toBeLessThan(2);
+    expect(create.y + create.height).toBeLessThan(900 - 100);
   });
 }
 
@@ -444,7 +450,7 @@ test("the handle placeholder fits its field at 320 px", async ({ page }) => {
     return { placeholder: input.placeholder, fits: ctx.measureText(input.placeholder).width <= room + 0.5 };
   });
   expect(fit).toEqual({ placeholder: "@username", fits: true });
-  await expect(appPicker(page)).toBeVisible();
+  await expect(appWord(page)).toBeVisible();
 });
 
 test("each icon draws a glyph, hidden from assistive tech, at 390 px", async ({ page }) => {
@@ -458,29 +464,40 @@ test("each icon draws a glyph, hidden from assistive tech, at 390 px", async ({ 
     })),
   );
   const icon = (name: string) => ({ icon: name, hidden: "true", drawn: true });
-  expect(icons).toEqual([...(features.coffee ? [icon("coffee")] : []), icon("sun"), icon("moon"), icon("share"), icon("arrow")]);
+  expect(icons).toEqual([...(features.coffee ? [icon("coffee")] : []), icon("sun"), icon("moon"), icon("share"), icon("chevron"), icon("arrow")]);
 });
 
-test("the payment app picker is a native select that lists the four apps with Venmo first", async ({ page }) => {
+test("the app's name opens the app menu: the four apps with Venmo first and ticked, then Add a second app, and a pick switches the app", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  const picker = appPicker(page);
-  expect(await picker.locator("option").allTextContents()).toEqual(["Venmo", "Cash App", "PayPal", "Zelle"]);
-  await picker.selectOption("zelle");
+  await appWord(page).click();
+  await expect(appWord(page)).toHaveAttribute("aria-expanded", "true");
+  await expect(appMenu(page).getByRole("button")).toHaveText(["Venmo", "Cash App", "PayPal", "Zelle", "Add a second app"]);
+  await expect(appMenu(page).getByRole("button", { name: "Venmo" })).toHaveAttribute("aria-pressed", "true");
+  await appMenu(page).getByRole("button", { name: "Zelle" }).click();
+  await expect(appMenu(page)).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Zelle handle" })).toHaveAttribute("placeholder", "email or phone");
+  await expect(appWord(page, "Zelle")).toHaveAttribute("aria-expanded", "false");
 });
 
-test("add an app adds the next free app with its field focused, an x follows each app's name, and an x takes its app away", async ({ page }) => {
+test("Add a second app in the app menu adds the next free app with its field focused, an x follows each app's name, and an x takes its app away", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await expect(page.getByRole("button", { name: "Remove Venmo" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Add another way to get paid" }).click();
+  await appWord(page).click();
+  await appMenu(page).getByRole("button", { name: "Add a second app" }).click();
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toBeFocused();
-  expect(await said(page)).toContain("pay me back on Venmo at or Cash App at, or add an app.");
+  await expect(appMenu(page)).toHaveCount(0);
+  expect(await said(page)).toContain("pay me back on Venmo at or Cash App at.");
+  // The second clause's menu lists only the apps the first doesn't use, and adds a third.
+  await appWord(page, "Cash App").click();
+  await expect(appMenu(page).getByRole("button")).toHaveText(["Cash App", "PayPal", "Zelle", "Add another app"]);
+  await page.keyboard.press("Escape");
+  await expect(appMenu(page)).toHaveCount(0);
   await page.getByRole("button", { name: "Remove Venmo" }).click();
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Remove Cash App" })).toHaveCount(0);
-  expect(await said(page)).toContain("pay me back on Cash App at, or add an app.");
+  expect(await said(page)).toContain("pay me back on Cash App at.");
 });
 
 test("the fonts load as same-origin WOFF2 files with an immutable cache header while the page stays cross-origin isolated", async ({ page }) => {
