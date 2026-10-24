@@ -49,8 +49,8 @@ const dotBleed = 14;
 const bleed = 12;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
-const nameLine = 25.6;
-const noteLine = 22.4;
+const nameLine = 24;
+const noteLine = 20;
 const chargeRow = 34;
 
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false, filter, onFilter, onFilterMenu, filterMenuOpen }: Props) {
@@ -525,10 +525,11 @@ const styles = StyleSheet.create({
   caps: { fontFamily: type.caption.fontFamily, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500", paddingBottom: 9 },
   empty: { paddingVertical: 20, paddingLeft: nameStart, borderTopWidth: 1 },
   list: { borderBottomWidth: 1 },
-  line: { flexDirection: "row", alignItems: "flex-start", borderTopWidth: 1 },
-  // The dot's 16 px slot is centred on the name's first line; its 44 px hit area bleeds past the gutter and 4 px under the row.
-  circle: { width: dotTap, height: 50, marginLeft: -dotBleed, marginRight: -4, paddingLeft: dotBleed, paddingTop: 17 },
-  body: { flex: 1, minWidth: 0, flexDirection: "row", columnGap, paddingVertical: 12 },
+  // The dot, the name and the price are each centred on the row, so they stay level however many lines the name runs to.
+  line: { flexDirection: "row", alignItems: "center", borderTopWidth: 1 },
+  // The dot's 16 px slot sits in the middle of its 44 px hit area, which bleeds past the gutter.
+  circle: { width: dotTap, height: dotTap, justifyContent: "center", marginLeft: -dotBleed, marginRight: -4, paddingLeft: dotBleed },
+  body: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", columnGap, paddingTop: 15, paddingBottom: 14 },
   held: { opacity: 0.55 },
   name: { flex: 1, minWidth: 0 },
   nameText: { lineHeight: nameLine },
@@ -536,8 +537,8 @@ const styles = StyleSheet.create({
   figures: { flexShrink: 0, alignItems: "flex-end" },
   figure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 18, lineHeight: nameLine, letterSpacing: -0.2 },
   wideFigure: { fontFamily: type.body.fontFamily, fontWeight: "500", fontSize: 21, lineHeight: 28, letterSpacing: -0.3 },
-  // Small caps in their own column, centered on the name's first line.
-  whoColumn: { width: 150, paddingTop: 3, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500" },
+  // Small caps in their own column, centred on the row like the name and the price.
+  whoColumn: { width: 150, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500" },
   header: { borderTopWidth: 1, paddingVertical: 12 },
   bundleTop: { flexDirection: "row", alignItems: "flex-start", columnGap },
   bundleWho: { flexDirection: "row", marginLeft: nameStart, columnGap },
