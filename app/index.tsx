@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { recentSplits, rememberSplit, thisDevice } from "../src/device";
@@ -11,13 +11,17 @@ import { readReceipt } from "../src/parse";
 import { readOnServer } from "../src/scan/client";
 import { chooseRoute, FALLBACK_WAIT_MS, within } from "../src/scan/route";
 import { Toast } from "../src/ui/components/toast";
-import { useEscape } from "../src/ui/components/popover";
+import { Popover, useEscape } from "../src/ui/components/popover";
+import { useLayoutWidth } from "../src/ui/components/viewport";
 import type { Press } from "../src/ui/components/button";
 import { actedByKey } from "../src/ui/components/acted-by-key";
-import { blockerText, copy, historyCopy } from "../src/ui/home-copy";
-import { PayWords } from "../src/ui/home-sentence/pay-words";
+import { frameFor, frameGutter } from "../src/ui/frame";
+import { blockerText, copy, historyCopy, paymentApps } from "../src/ui/home-copy";
+import { AppMenu, appMenuWidth } from "../src/ui/home-sentence/app-menu";
+import { appChoices, PayWords, roomForAnotherApp } from "../src/ui/home-sentence/pay-words";
 import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-words";
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
+import { SaySizeProvider, saySizes } from "../src/ui/home-sentence/say-size";
 import { stagePacer } from "../src/ui/home-sentence/stage-pacer";
 import { webStyle } from "../src/ui/motion";
 import { Presence } from "../src/ui/presence";
@@ -30,6 +34,7 @@ import { HomeFooter } from "../src/ui/receipt-input/home-footer";
 import type { ReceiptJpeg } from "../src/ui/receipt-input/jpeg";
 import { focusInPlace, useKeyboardRoom } from "../src/ui/receipt-input/keyboard-room";
 import { isPhoto, pickPhoto, receiptCopyOf, usePhotoDrop } from "../src/ui/receipt-input/photo";
+import type { PaymentService } from "../src/core/split";
 import { breakpoints, layout, type, useColors } from "../src/ui/theme";
 
 // Back remounts home without a reload, so the Draft lives as long as the page; a reload keeps only the handles.
@@ -54,7 +59,9 @@ const SLOW_SERVER_MS = 4000;
 export default function Home() {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const width = useLayoutWidth();
+  const wide = width >= breakpoints.pairFrom;
+  const say = wide ? saySizes.wide : saySizes.phone;
   const [draft, apply] = useReducer(reduceDraft, undefined, () => pageDraft ?? loadDraft());
   const [stage, setStage] = useState<ReadingStage>("start");
   const [notice, setNotice] = useState<string | null>(null);
@@ -66,6 +73,8 @@ export default function Home() {
   const [now] = useState(Date.now);
   const [stored] = useState(() => recentSplits(now));
   const [allSplits, setAllSplits] = useState<{ from: Press; closing: boolean } | null>(null);
+  /** The app menu of the clause at `index`. `picked` is the app it switched to and `added` that it added a clause, which say where the focus goes once it has gone. */
+  const [appMenu, setAppMenu] = useState<{ index: number; from: Press; closing: boolean; picked: PaymentService | null; added: boolean } | null>(null);
   const pacer = useRef({ cancel() {} });
   const scroller = useRef<ScrollView>(null);
   const sentence = useRef<Text>(null);
@@ -144,7 +153,8 @@ export default function Home() {
   const choose = () => pickPhoto(read);
 
   const sides = { paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right };
-  const columnWidth = width >= breakpoints.roomyFrom ? 480 : 440;
+  // Below the wide layout home is one column, as wide as the Split page's.
+  const columnWidth = 440;
   const { scan } = draft;
   const receipt: ReceiptState = scan.status === "empty" ? { kind: "empty" } : scan.status === "reading" ? { kind: "reading", stage } : scan.status === "byHand" ? { kind: "byHand" } : { kind: "read", total: scan.receipt?.total ?? null, place: scan.place ?? null };
   const ready = readiness(draft);
@@ -195,47 +205,101 @@ export default function Home() {
   };
   useEscape(allSplits !== null && !allSplits.closing, closeAll);
 
+  const closeAppMenu = (change: { picked?: PaymentService; added?: boolean } = {}) => setAppMenu((open) => open && { ...open, ...change, closing: true });
+  const appMenuGone = () => {
+    setAppMenu(null);
+    // An added clause's field has the focus already. Otherwise a keyboard user goes back to the app's name, which a switch remounts under its new name.
+    if (!appMenu || appMenu.added || !(appMenu.from.keyboard || actedByKey())) return;
+    const word = appMenu.from.trigger.isConnected ? appMenu.from.trigger : appMenu.picked && document.querySelector<HTMLElement>(`[aria-label="${copy.paymentApp}, ${paymentApps[appMenu.picked].name}"]`);
+    word?.focus({ preventScroll: true });
+  };
+
+  const sentenceBlock = (
+    <>
+      <Text ref={sentence} testID="sentence" style={[say.text, wide ? styles.sentenceWide : styles.sentence, { color: c.muted }]}>
+        <ReceiptWords state={receipt} onChoose={choose} onByHand={() => dispatch({ type: "byHand" })} onPlace={(name) => dispatch({ type: "setPlace", name })} />{" "}
+        <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} menu={appMenu && !appMenu.closing ? appMenu.index : null} onMenu={(index, from) => setAppMenu({ index, from, closing: false, picked: null, added: false })} />{" "}
+        <PeopleWords
+          ref={nameField}
+          host={draft.host}
+          friends={draft.friends}
+          onSetHost={(name) => dispatch({ type: "setHost", name })}
+          onRemoveHost={() => dispatch({ type: "removeHost" })}
+          onAddFriend={(name) => dispatch({ type: "addFriend", name })}
+          onRemoveFriend={(name) => dispatch({ type: "removeFriend", name })}
+          onRefusal={setRefusal}
+        />
+      </Text>
+      <Presence present={refusal !== null} animate>
+        <Text role="alert" style={[type.caption, styles.refusal, { color: c.warn }]}>
+          {refusal}
+        </Text>
+      </Presence>
+    </>
+  );
+  const recents = stored.length > 0 ? <RecentSplits splits={stored} now={now} wide={wide} onSeeAll={(from) => setAllSplits({ from, closing: false })} /> : null;
+  const footer = (
+    <HomeFooter reason={reason} live={scan.status !== "reading"} problem={problem} blocked={blocked} busy={creating} onPress={press} onHeight={setFooterHeight} width={columnWidth} wide={wide} />
+  );
+  const frame = frameFor(width);
+
   return (
-    <View style={[styles.screen, still, { backgroundColor: c.field }]}>
-      <ScrollView
-        ref={scroller}
-        style={styles.screen}
-        contentContainerStyle={[styles.page, sides, { paddingTop: insets.top, paddingBottom: bottomGap + room }]}
-      >
-        <View style={[styles.column, { maxWidth: columnWidth }]}>
-          <SplitHeader home onShare={() => void shareSite()} />
+    <SaySizeProvider value={say}>
+      <View style={[styles.screen, still, { backgroundColor: c.field }]}>
+        {wide ? (
+          // The Split page's wide frame: the sentence and Create on the left, Recent splits in the column beside it, centered in the window as one.
+          <ScrollView ref={scroller} style={styles.screen} contentContainerStyle={[styles.page, { paddingTop: insets.top, paddingHorizontal: frameGutter }]}>
+            <View style={[styles.frame, { width: frame.inner }]}>
+              <SplitHeader home onShare={() => void shareSite()} />
+              <View style={[styles.wideBody, { columnGap: frame.gap }]}>
+                <View style={styles.wideMain}>
+                  {sentenceBlock}
+                  {footer}
+                </View>
+                <View style={[styles.aside, { width: frame.column }]}>{recents}</View>
+              </View>
+            </View>
+          </ScrollView>
+        ) : (
+          <ScrollView
+            ref={scroller}
+            style={styles.screen}
+            contentContainerStyle={[styles.page, sides, { paddingTop: insets.top, paddingBottom: bottomGap + room }]}
+          >
+            <View style={[styles.column, { maxWidth: columnWidth }]}>
+              <SplitHeader home onShare={() => void shareSite()} />
+              {sentenceBlock}
+              {recents}
+            </View>
+          </ScrollView>
+        )}
 
-          <Text ref={sentence} testID="sentence" style={[type.say, styles.sentence, { color: c.muted }]}>
-            <ReceiptWords state={receipt} onChoose={choose} onByHand={() => dispatch({ type: "byHand" })} onPlace={(name) => dispatch({ type: "setPlace", name })} /> <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} />{" "}
-            <PeopleWords
-              ref={nameField}
-              host={draft.host}
-              friends={draft.friends}
-              onSetHost={(name) => dispatch({ type: "setHost", name })}
-              onRemoveHost={() => dispatch({ type: "removeHost" })}
-              onAddFriend={(name) => dispatch({ type: "addFriend", name })}
-              onRemoveFriend={(name) => dispatch({ type: "removeFriend", name })}
-              onRefusal={setRefusal}
+        {wide ? null : footer}
+        <Toast message={notice} onHide={() => setNotice(null)} lift={wide ? 16 : footerHeight} />
+        {appMenu ? (
+          <Popover anchor={appMenu.from.trigger} label={copy.paymentApp} instant={appMenu.from.keyboard} closing={appMenu.closing} onClose={() => closeAppMenu()} onGone={appMenuGone} width={appMenuWidth} align="start">
+            <AppMenu
+              service={draft.handles[appMenu.index]?.service ?? "venmo"}
+              choices={appChoices(draft.handles, appMenu.index)}
+              adding={roomForAnotherApp(draft.handles) ? draft.handles.length : null}
+              onPick={(picked) => {
+                if (picked !== draft.handles[appMenu.index]?.service) dispatch({ type: "setService", index: appMenu.index, service: picked });
+                closeAppMenu({ picked });
+              }}
+              onAdd={() => {
+                dispatch({ type: "addHandle" });
+                closeAppMenu({ added: true });
+              }}
             />
-          </Text>
-          <Presence present={refusal !== null} animate>
-            <Text role="alert" style={[type.caption, styles.refusal, { color: c.warn }]}>
-              {refusal}
-            </Text>
-          </Presence>
-
-          {stored.length > 0 ? <RecentSplits splits={stored} now={now} onSeeAll={(from) => setAllSplits({ from, closing: false })} /> : null}
-        </View>
-      </ScrollView>
-
-      <HomeFooter reason={reason} live={scan.status !== "reading"} problem={problem} blocked={blocked} busy={creating} onPress={press} onHeight={setFooterHeight} width={columnWidth} />
-      <Toast message={notice} onHide={() => setNotice(null)} lift={footerHeight} />
-      {allSplits ? (
-        <BottomSheet tapAway label={historyCopy.title} closing={allSplits.closing} onDown={allGone} testID="recent-sheet">
-          <RecentSheet splits={stored} now={now} onClose={closeAll} />
-        </BottomSheet>
-      ) : null}
-    </View>
+          </Popover>
+        ) : null}
+        {allSplits ? (
+          <BottomSheet tapAway label={historyCopy.title} closing={allSplits.closing} onDown={allGone} testID="recent-sheet">
+            <RecentSheet splits={stored} now={now} onClose={closeAll} />
+          </BottomSheet>
+        ) : null}
+      </View>
+    </SaySizeProvider>
   );
 }
 
@@ -249,6 +313,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   page: { flexGrow: 1, alignItems: "center" },
   column: { width: "100%", flex: 1 },
-  sentence: { marginTop: 40 },
+  sentence: { marginTop: 28 },
+  sentenceWide: { marginTop: 32 },
   refusal: { marginTop: 8 },
+  frame: { flex: 1 },
+  wideBody: { flex: 1, flexDirection: "row", alignItems: "stretch", paddingBottom: 48 },
+  wideMain: { flex: 1, minWidth: 0 },
+  // Recent splits' heading sits on the middle of the sentence's first line.
+  aside: { paddingTop: 32 + (type.sayWide.lineHeight - type.body.lineHeight) / 2 },
 });

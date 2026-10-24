@@ -1,11 +1,10 @@
-import { addNames, dropFile, openExample, photo } from "./files";
+import { addApp, addNames, dropFile, exampleReply, openExample, photo } from "./files";
 import { features } from "../src/features";
 import { expect, test, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
 const sentence = (page: Page) => page.getByTestId("sentence");
-const addApp = (page: Page) => page.getByRole("button", { name: "Add another way to get paid" });
 const reasonLine = (page: Page) => page.locator("[role=status][data-problem]");
 
 async function settle(page: Page) {
@@ -43,9 +42,10 @@ const recentFit = (page: Page) =>
     };
   });
 
-for (const [width, height, apps, friends] of [
-  [390, 844, 3, 13],
-  [375, 667, 1, 5],
+// The sentence is at headline size, so a few more words take a row's room. At 375x667 it leaves room for the heading and See all only, so no row has to give way.
+for (const [width, height, apps, friends, fits] of [
+  [390, 844, 1, 3, true],
+  [375, 667, 0, 1, false],
 ] as const) {
   test(`at ${width}x${height} Recent splits refits when the sentence grows: no row under the footer, See all in view, and no scrolling`, async ({ page }) => {
     await page.setViewportSize({ width, height });
@@ -53,14 +53,15 @@ for (const [width, height, apps, friends] of [
     await page.goto("/");
     await settle(page);
     const short = await recentFit(page);
-    expect(short.rows).toBeGreaterThan(0);
+    if (fits) expect(short.rows).toBeGreaterThan(0);
     expect(short.overflow).toBe(0);
 
-    for (let i = 0; i < apps; i++) await addApp(page).click();
+    for (let i = 0; i < apps; i++) await addApp(page);
     await addNames(page, "Jason", ...Array.from({ length: friends }, (_, i) => `Guest ${i + 1}`));
     await page.waitForTimeout(300);
     const long = await recentFit(page);
-    expect(long.rows).toBeLessThan(short.rows);
+    if (fits) expect(long.rows).toBeLessThan(short.rows);
+    else expect(long.rows).toBe(0);
     expect(long.lastRowEnd).toBeLessThanOrEqual(long.sectionEnd);
     expect(long.seeAllEnd).not.toBeNull();
     expect(long.seeAllEnd!).toBeLessThanOrEqual(long.footerTop);
@@ -131,7 +132,7 @@ test("a long name wraps in its head, and its last letters, x and comma stay toge
   await expect(sentence(page)).not.toContainText(/\n,/);
 });
 
-test("removing a name or an app with the keyboard moves the focus to the next x, else the previous, else the add action", async ({ page }) => {
+test("removing a name or an app with the keyboard moves the focus to the next x, else the previous, else the add action or the app left", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   await addNames(page, "Jason", "Ann", "Bo");
@@ -144,13 +145,13 @@ test("removing a name or an app with the keyboard moves the focus to the next x,
   await page.keyboard.press("Enter");
   expect(await focusedName(page)).toBe("Add friends");
 
-  await addApp(page).click();
-  await addApp(page).click();
+  await addApp(page);
+  await addApp(page);
   await page.getByRole("button", { name: "Remove Cash App" }).focus();
   await page.keyboard.press("Enter");
   expect(await focusedName(page)).toBe("Remove PayPal");
   await page.keyboard.press("Enter");
-  expect(await focusedName(page)).toBe("Add another way to get paid");
+  expect(await focusedName(page)).toBe("Payment app, Venmo");
 });
 
 test("a name that is refused stays in the field, and the field stops at 40 characters", async ({ page }) => {
@@ -198,9 +199,9 @@ test("every handle reason fits two lines beside the Create pill, and the footer 
   await openExample(page);
   await addNames(page, "Jason");
   await page.keyboard.press("Escape");
-  await addApp(page).click();
-  await addApp(page).click();
-  await addApp(page).click();
+  await addApp(page);
+  await addApp(page);
+  await addApp(page);
   const footerHeight = () => page.evaluate(() => document.querySelector("[role=status][data-problem]")!.parentElement!.parentElement!.getBoundingClientRect().height);
   const calm = await footerHeight();
   const handles: [string, string][] = [
@@ -231,7 +232,7 @@ test("every handle reason fits two lines beside the Create pill, and the footer 
 test("a long handle stops short of the line's end, so its period stays beside it and the start of the handle stays in view", async ({ page }) => {
   await page.goto("/");
   await settle(page);
-  for (let i = 0; i < 3; i++) await addApp(page).click();
+  for (let i = 0; i < 3; i++) await addApp(page);
   const zelle = page.getByRole("textbox", { name: "Zelle handle" });
   await zelle.fill("maximiliana.alexandropoulou.featherstonehaugh@example-university.edu");
   await zelle.blur();
@@ -246,11 +247,11 @@ test("a long handle stops short of the line's end, so its period stays beside it
   expect(run.room).toBeGreaterThan(0);
 });
 
-test("the Create link pill is 44 px tall, like the Split page's Pay pill", async ({ page }) => {
+test("the Create link pill is 50 px tall", async ({ page }) => {
   await page.goto("/");
   await settle(page);
   const box = await page.getByRole("button", { name: "Create link" }).boundingBox();
-  expect(box!.height).toBe(44);
+  expect(box!.height).toBe(50);
 });
 
 test("when a read finishes, only the new amount fades in, not the words around it", async ({ page }) => {
@@ -266,4 +267,21 @@ test("when a read finishes, only the new amount fades in, not the words around i
   await openExample(page);
   await expect(page.getByTestId("receipt")).toContainText("$28.04");
   expect(await page.evaluate(() => [...(window as unknown as { faded: Set<string> }).faded])).toEqual(["$28.04"]);
+});
+
+test("a long place ends in an ellipsis inside the sentence at headline size, with its period beside it", async ({ page, context }) => {
+  await page.goto("/");
+  await settle(page);
+  await openExample(page);
+  await context.unroute("**/api/scan");
+  await context.route("**/api/scan", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...exampleReply, place: "The Extraordinarily Long Named Neighborhood Gastropub & Brewery" }) }));
+  await page.reload();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Add the receipt" }).click();
+  await (await chooser).setFiles("e2e/fixtures/topgolf-synthetic.png");
+  const place = page.getByRole("button", { name: /^Place, The Extraordinarily/ });
+  await expect(place).toBeVisible();
+  const [word, column] = [(await place.boundingBox())!, (await sentence(page).boundingBox())!];
+  expect(word.x + word.width).toBeLessThanOrEqual(column.x + column.width - 8);
+  expect(word.height).toBeLessThan(80);
 });

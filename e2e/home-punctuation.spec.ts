@@ -1,4 +1,4 @@
-import { addNames } from "./files";
+import { addApp, addNames } from "./files";
 import { punctuationFreeToWrap, punctuationStartingALine } from "./line-starts";
 import { expect, test, type Page } from "./without-ocr";
 
@@ -36,7 +36,7 @@ const states: { name: string; fill: (page: Page) => Promise<void> }[] = [
       await page.getByRole("button", { name: "Add friends" }).click();
       await page.keyboard.type("Bin");
       await page.keyboard.press("Enter");
-      await page.getByRole("button", { name: "Add another way to get paid" }).click();
+      await addApp(page);
       await page.getByRole("textbox", { name: "Cash App handle" }).fill("$jason-zhang-162");
     },
   },

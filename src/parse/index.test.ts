@@ -8,10 +8,33 @@ import receipt1040 from "./fixtures/srd-1040.json";
 import receipt1046 from "./fixtures/srd-1046.json";
 import receipt1099 from "./fixtures/srd-1099.json";
 import receipt1127 from "./fixtures/srd-1127.json";
+import topgolfPhoto from "./fixtures/topgolf-photo.json";
 
 type Fixture = { boxes: Parameters<typeof parseReceipt>[0] };
 
 const boxesOf = (fixture: unknown) => (fixture as Fixture).boxes;
+
+const topgolfReceipt = {
+  items: [
+    { id: "i1", name: "Gameplay", price: 8775 },
+    { id: "i2", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
+    { id: "i3", name: "Guinness Draught 14.9oz Can", price: 2187, quantity: 3 },
+    { id: "i4", name: "High Noon Pineapple 12oz Can", price: 849 },
+    { id: "i5", name: "High Noon Watermelon 12oz Can", price: 849 },
+    { id: "i6", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
+    { id: "i7", name: "Guinness Draught 14.9oz Can", price: 1458, quantity: 2 },
+    { id: "i8", name: "High Noon Pineapple 12oz Can", price: 849 },
+    { id: "i9", name: "High Noon Watermelon 12oz Can", price: 1698, quantity: 2 },
+  ],
+  adjustments: [
+    { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] } },
+    { id: "a2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] } },
+    { id: "a3", kind: "tax", name: "Tax", amount: 494 },
+    { id: "a4", kind: "tip", name: "Tip", amount: 3226 },
+  ],
+  subtotal: 17923,
+  total: 20729,
+};
 
 describe("parseReceipt", () => {
   test("reads SRD receipt 1040 into its Items, tax, service charge, and total", () => {
@@ -64,27 +87,14 @@ describe("parseReceipt", () => {
 
     const receipt = parseReceipt(boxes);
 
-    expect(receipt).toEqual({
-      items: [
-        { id: "i1", name: "Gameplay", price: 8775 },
-        { id: "i2", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
-        { id: "i3", name: "Guinness Draught 14.9oz Can", price: 2187, quantity: 3 },
-        { id: "i4", name: "High Noon Pineapple 12oz Can", price: 849 },
-        { id: "i5", name: "High Noon Watermelon 12oz Can", price: 849 },
-        { id: "i6", name: "Michelob Ultra 16oz Aluminum Bottle", price: 629 },
-        { id: "i7", name: "Guinness Draught 14.9oz Can", price: 1458, quantity: 2 },
-        { id: "i8", name: "High Noon Pineapple 12oz Can", price: 849 },
-        { id: "i9", name: "High Noon Watermelon 12oz Can", price: 1698, quantity: 2 },
-      ],
-      adjustments: [
-        { id: "a1", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -451, bundle: { name: "Beer Bucket", items: ["i2", "i3", "i4", "i5"] } },
-        { id: "a2", kind: "bundleDiscount", name: "Beer Bucket Discount (10%)", amount: -463, bundle: { name: "Beer Bucket", items: ["i6", "i7", "i8", "i9"] } },
-        { id: "a3", kind: "tax", name: "Tax", amount: 494 },
-        { id: "a4", kind: "tip", name: "Tip", amount: 3226 },
-      ],
-      subtotal: 17923,
-      total: 20729,
-    });
+    expect(receipt).toEqual(topgolfReceipt);
+    expect(runTotalCheck(receipt!)).toEqual({ ok: true });
+  });
+
+  test("reads the photo of the Topgolf receipt, where a long name pushes its price to the line below, into the same two Bundles", () => {
+    const receipt = parseReceipt(boxesOf(topgolfPhoto));
+
+    expect(receipt).toEqual(topgolfReceipt);
     expect(runTotalCheck(receipt!)).toEqual({ ok: true });
   });
 
