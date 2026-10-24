@@ -803,6 +803,10 @@ const addRowScenario: Scenario = {
 
 async function taxOpen(page: Page) {
   await picked(page, table, dinnerWithTax);
+  // Folded, the Bundle leaves the page short enough that the rows under Tax slide up instead of the page scrolling to keep its end.
+  await toggleBundle(page);
+  await page.locator('[data-testid^="bundle-"]').locator('[aria-controls][aria-expanded="false"]').waitFor();
+  await page.waitForTimeout(400);
   await tap(page.getByRole("button", { name: "Open Tax, $3.00" }));
   await still(page.getByTestId("adjustment-sheet"));
 }

@@ -527,6 +527,9 @@ test("a collapsed Bundle's claimed line grows in on the first claim and collapse
   const priya = await open(browser, link);
   await pick(page, "Sam");
   await pick(priya, "Priya");
+  await firstBucket(page).click();
+  await expect(firstBucket(page)).toHaveAttribute("aria-expanded", "false");
+  await page.waitForTimeout(400);
   const claim = guinnessCircle(priya, "Priya");
   await expect(claim).toBeVisible(live);
 
