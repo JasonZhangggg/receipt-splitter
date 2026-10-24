@@ -1041,7 +1041,7 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
       const slack = () =>
         page.evaluate(() =>
           [...document.querySelectorAll("*")]
-            .filter((element) => /auto|scroll/.test(getComputedStyle(element).overflowY) && element.clientWidth >= document.documentElement.clientWidth - 20)
+            .filter((element) => /auto|scroll/.test(getComputedStyle(element).overflowY) && (element as HTMLElement).offsetWidth >= document.documentElement.clientWidth - 1)
             .map((element) => element.scrollHeight - element.clientHeight),
         );
       await expect.poll(async () => (await slack()).length, live).toBeGreaterThan(0);

@@ -117,15 +117,17 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
-/** The wide layout: the receipt and the column beside it, centered in the window as one frame. Under 1280px the column and the gap between them narrow so the receipt keeps room. */
-const frameFor = (width: number) => {
+/** The wide layout: the receipt and the column beside it, centered in the window as one frame. Under 1280px the column and the gap between them narrow so the receipt keeps room. `room` is the page's width inside its scroll bar and the matching strip on the left, once measured. */
+const frameFor = (width: number, room: number) => {
   const roomy = width >= breakpoints.roomyFrom;
   const column = roomy ? 420 : 380;
   const gap = roomy ? 112 : 56;
-  const inner = Math.min(width - 2 * frameGutter, 680 + gap + column);
+  const inner = Math.min(room - 2 * frameGutter, 680 + gap + column);
   return { column, gap, inner, clearRight: (width - inner) / 2 + column + gap };
 };
 const frameGutter = 48;
+// Where scroll bars take room (Windows, Linux, a Mac set to always show them), a blank strip as wide as the bar sits on the left too, so the frame is centered in the window rather than beside the bar.
+const evenGutters = webStyle({ scrollbarGutter: "stable both-edges" });
 const wideBodyTop = 12;
 // Where the pick sheet's top edge sits before the links row has been measured, and the gap it keeps below that row once it has.
 const tallPickTop = 170;
@@ -138,7 +140,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const pageHeight = useLayoutHeight();
   const layoutWidth = useLayoutWidth();
   const wide = layoutWidth >= breakpoints.pairFrom;
-  const frame = frameFor(layoutWidth);
+  const [pageRoom, setPageRoom] = useState<number | null>(null);
+  const frame = frameFor(layoutWidth, pageRoom ?? layoutWidth);
   const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
   const remember = (change: SplitChange) => {
@@ -800,7 +803,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   if (wide)
     return (
       <View style={[styles.screen, { backgroundColor: c.field }]}>
-        <ScrollView style={styles.page} contentContainerStyle={{ paddingTop: insets.top, paddingHorizontal: frameGutter }}>
+        <ScrollView style={[styles.page, evenGutters]} contentContainerStyle={{ paddingTop: insets.top, paddingHorizontal: frameGutter }} onContentSizeChange={(width) => setPageRoom(width)}>
           <View style={[styles.frame, { width: frame.inner }]}>
             <SplitHeader
               onShare={() => void share()}
