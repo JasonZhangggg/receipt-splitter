@@ -42,9 +42,13 @@ export function SidePanel({ children, label, closing = false, onDown, focusFirst
   );
 }
 
+// Past the widest overhang in a sheet: the Close button's 44pt target hangs 14px beyond the content edge.
+const bleed = 16;
+
 const styles = StyleSheet.create({
   panel: { flex: 1, minHeight: 0 },
-  scroll: { flex: 1 },
+  // The scroller reaches `bleed` past the column on each side and the content pads it back in, so the content sits where it did. Controls that hang past their row (a link's tap area, the Close button's) then stay inside the scroller, which would otherwise scroll sideways to show them and clip the column's left edge.
+  scroll: { flex: 1, marginHorizontal: -bleed },
   // Room on the sides and top for a focused field's ring, which the scroller clips.
-  content: { paddingTop: 4, paddingBottom: 32, paddingHorizontal: 4 },
+  content: { paddingTop: 4, paddingBottom: 32, paddingHorizontal: 4 + bleed },
 });

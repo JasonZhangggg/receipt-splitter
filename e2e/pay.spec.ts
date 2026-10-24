@@ -64,7 +64,7 @@ test("a guest's footer shows Your share and the Pay Jason pill, and the pay butt
   const footer = sam.getByTestId("footer");
   await expect(footer.getByRole("button", { name: "Your share $14.20, Show what you owe" })).toBeVisible(live);
   await expect(footer.getByRole("link")).toHaveCount(0);
-  await expect(footer.getByText("1 of 3 items · incl. tax & tip")).toBeVisible();
+  await expect(footer.getByTestId("share-bar")).toBeVisible();
 
   await footer.getByRole("button", { name: "Pay Jason" }).click();
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Venmo" })).toBeVisible(live);
@@ -109,7 +109,7 @@ test("the Pay sheet lists the viewer's Items under What you had and Adjustment p
   await expect(sheet.getByText("Pho", { exact: true })).toBeVisible(live);
   await expect(sheet.getByText("2 items", { exact: true })).toBeVisible();
   const order = await sheet.evaluate((el) =>
-    ["What you had", "Pho", "Your part of tax and tip", "Tax"].map((text) => [...el.querySelectorAll("div")].find((node) => node.textContent === text && node.children.length === 0)!.getBoundingClientRect().top),
+    ["What you had", "Pho", "Your part of tax and tip", "Tax"].map((text) => [...el.querySelectorAll("div, h3")].find((node) => node.textContent === text && node.children.length === 0)!.getBoundingClientRect().top),
   );
   expect(order.every((y, i) => i === 0 || y > order[i - 1])).toBe(true);
   await expect(sheet.getByText("Tea", { exact: true })).toBeVisible();

@@ -1,5 +1,5 @@
 import { claimersOf, type Optimistic } from "../../core/operations";
-import { shareBreakdown, type ShareBreakdown } from "../../core/shares";
+import { shareBreakdown, type ShareBreakdown, type Shares } from "../../core/shares";
 import type { Cents } from "../../core/money";
 import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type Participant, type ParticipantId, type Receipt, type Split, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
@@ -153,6 +153,51 @@ function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>): BundleRow {
     summary: say.bundleSummary(items.length, percent ? `${percent}%` : money(Math.abs(row.amount))),
     net: items.reduce((total, { price }) => total + price, 0) + row.amount,
   };
+}
+
+export type BillParts = { readonly mine: number; readonly others: number; readonly unclaimed: number };
+
+/** The bill in three parts for the share bar: the viewed person's share, everyone else's, and what nobody has claimed yet. */
+export function billParts(shares: Shares, viewer: ParticipantId): BillParts {
+  const share = (one: { readonly share: number }) => Math.max(0, one.share);
+  return {
+    mine: shares.shares.filter(({ participantId }) => participantId === viewer).reduce((sum, one) => sum + share(one), 0),
+    others: shares.shares.filter(({ participantId }) => participantId !== viewer).reduce((sum, one) => sum + share(one), 0),
+    unclaimed: Math.max(0, shares.unclaimed.total),
+  };
+}
+
+export type ItemFilter = "all" | "mine" | "none" | "shared";
+
+/** The list's filters in the order the tabs and the menu show them. "Yours" needs someone viewed, so it drops out until then. */
+export function itemFilters(viewer: ParticipantId | null): readonly ItemFilter[] {
+  return viewer === null ? ["all", "none", "shared"] : ["all", "mine", "none", "shared"];
+}
+
+/** Whether a line shows under `filter`: the viewed person had it, nobody has it yet, or two or more people share it. A By amount line with money left over still has someone, so it is not under Nobody yet. */
+export function itemShows(item: SplitItem, filter: ItemFilter, viewer: ParticipantId | null): boolean {
+  const claimers = claimersOf(item.split);
+  if (filter === "mine") return viewer !== null && claimers.includes(viewer);
+  if (filter === "none") return claimers.length === 0;
+  if (filter === "shared") return claimers.length > 1;
+  return true;
+}
+
+/** How many lines each filter shows, one per line whatever its quantity, Bundle lines included. */
+export function filterCounts(items: readonly SplitItem[], viewer: ParticipantId | null): Record<ItemFilter, number> {
+  const count = (filter: ItemFilter) => items.filter((item) => itemShows(item, filter, viewer)).length;
+  return { all: items.length, mine: count("mine"), none: count("none"), shared: count("shared") };
+}
+
+/** The receipt's rows under `filter`. A Bundle stays while any of its lines shows, holding only those lines; the rows that pass through are the same objects, so a kept list sees no change. */
+export function filterRows(rows: readonly ReceiptRow[], filter: ItemFilter, viewer: ParticipantId | null): readonly ReceiptRow[] {
+  if (filter === "all") return rows;
+  return rows.flatMap((row): ReceiptRow[] => {
+    if (row.kind === "item") return itemShows(row.item, filter, viewer) ? [row] : [];
+    const [first, ...rest] = row.bundle.items.filter((item) => itemShows(item, filter, viewer));
+    if (!first) return [];
+    return rest.length + 1 === row.bundle.items.length ? [row] : [{ ...row, bundle: { ...row.bundle, items: [first, ...rest] } }];
+  });
 }
 
 /** The Bundle's Items off the Unclaimed line (`unclaimed`), one per row whatever its quantity, so a By amount line with money left over is not claimed. */

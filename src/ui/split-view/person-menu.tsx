@@ -10,7 +10,7 @@ import { pressStyle, useReducedMotion } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { type, useColors } from "../theme";
 
-export const personMenuWidth = 248;
+export const personMenuWidth = 264;
 
 /** What tapping a person in the People sheet's Remove mode offers: Remove, with a gray line saying what goes with them when they had Items or paid. */
 export function PersonMenu({ split, person, onRemove }: { split: Split; person: Participant; onRemove: () => void }) {
@@ -42,6 +42,6 @@ export function PersonMenu({ split, person, onRemove }: { split: Split; person: 
 const styles = StyleSheet.create({
   note: { paddingTop: 8, paddingBottom: 4, paddingHorizontal: 12 },
   press: { alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, paddingHorizontal: 12, borderRadius: 22 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
   label: { flexShrink: 1 },
 });

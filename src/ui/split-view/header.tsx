@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button, PressTarget } from "../components/button";
@@ -14,8 +14,8 @@ import { layout, type, useColors } from "../theme";
 
 type Props = { onShare: () => void };
 
-/** The header row every page shares. On home the wordmark is the page's name and not a link, so it is plain text at the same height. */
-export function SplitHeader({ onShare, home = false }: Props & { home?: boolean }) {
+/** The header row every page shares. On home the wordmark is the page's name and not a link, so it is plain text at the same height. The wide Split page puts its links before the icons. */
+export function SplitHeader({ onShare, home = false, links }: Props & { home?: boolean; links?: ReactNode }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const wordmark = <Text style={[type.title, { color: c.ink }]}>{copy.wordmark}</Text>;
@@ -30,7 +30,14 @@ export function SplitHeader({ onShare, home = false }: Props & { home?: boolean 
           </PressTarget>
         )}
       </View>
-      <HeaderIcons onShare={onShare} />
+      {links ? (
+        <View style={styles.end}>
+          <View style={styles.links}>{links}</View>
+          <HeaderIcons onShare={onShare} />
+        </View>
+      ) : (
+        <HeaderIcons onShare={onShare} />
+      )}
     </View>
   );
 }
@@ -60,4 +67,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.header, paddingTop: 6 },
   buttons: { flexDirection: "row", alignItems: "center", marginRight: -12 },
   home: { minHeight: 44, justifyContent: "center" },
+  end: { flexDirection: "row", alignItems: "center", gap: 28 },
+  links: { flexDirection: "row", alignItems: "center", columnGap: 20 },
 });

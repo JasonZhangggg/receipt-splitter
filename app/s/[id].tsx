@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cents, type Cents } from "../../src/core/money";
 import { claimersOf } from "../../src/core/operations";
 import { pickDevice } from "../../src/core/pick-device";
-import { computeShares, shareBreakdown } from "../../src/core/shares";
+import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
 import { money, newName } from "../../src/draft";
@@ -29,7 +29,8 @@ import { ConnectionNotice } from "../../src/ui/split-view/connection-notice";
 import type { Connection } from "../../src/live/connection";
 import { SplitHeader, useSiteShare } from "../../src/ui/split-view/header";
 import { shareLink } from "../../src/ui/share-link";
-import { circleTap, linesNear } from "../../src/ui/split-view/model";
+import { billParts, circleTap, filterCounts, linesNear, type ItemFilter } from "../../src/ui/split-view/model";
+import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filters";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
 import { ShareHead } from "../../src/ui/split-view/share-head";
@@ -48,6 +49,7 @@ import { PayBlock, PayButton } from "../../src/ui/pay/pay-block";
 import { justPaid, shareStatus, statusWords } from "../../src/ui/pay/model";
 import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
+import { TextLink } from "../../src/ui/components/text-link";
 import { Presence } from "../../src/ui/presence";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
@@ -115,8 +117,16 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
-// The wide layout's right column.
-const asideWidth = 440;
+/** The wide layout: the receipt and the column beside it, centered in the window as one frame. Under 1280px the column and the gap between them narrow so the receipt keeps room. */
+const frameFor = (width: number) => {
+  const roomy = width >= breakpoints.roomyFrom;
+  const column = roomy ? 420 : 380;
+  const gap = roomy ? 112 : 56;
+  const inner = Math.min(width - 2 * frameGutter, 680 + gap + column);
+  return { column, gap, inner, clearRight: (width - inner) / 2 + column + gap };
+};
+const frameGutter = 48;
+const wideBodyTop = 12;
 // Where the pick sheet's top edge sits before the links row has been measured, and the gap it keeps below that row once it has.
 const tallPickTop = 170;
 const pickGap = 12;
@@ -126,7 +136,9 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const c = useColors();
   const insets = useSafeAreaInsets();
   const pageHeight = useLayoutHeight();
-  const wide = useLayoutWidth() >= breakpoints.pairFrom;
+  const layoutWidth = useLayoutWidth();
+  const wide = layoutWidth >= breakpoints.pairFrom;
+  const frame = frameFor(layoutWidth);
   const device = useMemo(() => pickDevice(thisDevice(), splitId), [splitId]);
   const [memory, setMemory] = useState<SplitOnDevice>(() => splitOnDevice(splitId));
   const remember = (change: SplitChange) => {
@@ -152,6 +164,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
   const [linksBottom, setLinksBottom] = useState<number | null>(null);
+  // Where the wide column starts below the top bar, so the sticky column ends at the window's bottom edge rather than past it.
+  const [asideTop, setAsideTop] = useState(0);
   const [bar, setBar] = useState<Bar | null>(null);
   /** The Receipt link's press while the photo viewer is open: focus goes back there. */
   const [viewing, setViewing] = useState<Press | null>(null);
@@ -360,6 +374,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const modesGone = () => {
     if (modes && (wide || modes.from.keyboard || actedByKey()) && modes.from.trigger.isConnected) modes.from.trigger.focus({ preventScroll: true });
     setModes(null);
+  };
+  // Which lines the receipt shows, for this page view only. "Yours" falls back to All while nobody is viewed.
+  const [pickedFilter, setFilter] = useState<ItemFilter>("all");
+  const [filterMenu, setFilterMenu] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
+  const closeFilterMenu = () => setFilterMenu((open) => open && { ...open, closing: true });
+  const filterMenuGone = () => {
+    if (filterMenu && (filterMenu.from.keyboard || actedByKey()) && filterMenu.from.trigger.isConnected) filterMenu.from.trigger.focus({ preventScroll: true });
+    setFilterMenu(null);
   };
   // The wide layout's people menu under "What you had".
   const [picker, setPicker] = useState<{ readonly from: Press; readonly closing: boolean } | null>(null);
@@ -594,10 +616,18 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const payBar = overlay?.kind === "pay" && viewed?.hasBar ? <PayBlock split={split.id} host={host.name} handles={split.paymentHandles} state={viewed.state} busy={paying !== null} notice={payNote} onPaid={onPaid} /> : undefined;
 
   const showingNow = closing ? null : overlay;
+  const filterViewer = me ? (selectedPerson?.id ?? null) : null;
+  const filter = pickedFilter === "mine" && filterViewer === null ? "all" : pickedFilter;
   const receipt = (
     <ReceiptCard
       split={split}
       shares={shares}
+      wide={wide}
+      whoColumn={layoutWidth >= breakpoints.roomyFrom}
+      filter={filter}
+      onFilter={setFilter}
+      onFilterMenu={(from) => setFilterMenu({ from, closing: false })}
+      filterMenuOpen={filterMenu !== null && !filterMenu.closing}
       selected={me ? selectedPerson : null}
       me={me}
       onCircle={onCircle}
@@ -616,13 +646,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     />
   );
   const footer = (() => {
-    const ask = { text: "", ink: c.muted, paidState: false };
-    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} aside={ask} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
+    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} note={null} bill={null} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
     const mine = selectedPerson.id === me;
     const pill = !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? ({ kind: "paid" } as const) : ({ kind: "pay", host: firstName(host.name), ready: viewed.hasBar } as const);
-    const claimed = shareBreakdown(split, selectedPerson.id).items.length;
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
-    // A settled share the pill already marks keeps the items count; every other paid state reads in words.
+    // A settled share the pill already marks says nothing more; every other paid state reads in words.
     const words = status.kind === "settled" && pill?.kind === "paid" ? null : statusWords(status);
     const ink = status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
     return (
@@ -630,7 +658,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         label={mine ? say.yourShare : say.shareOf(selectedPerson.name)}
         amount={money(viewed.share)}
         whose={mine ? null : selectedPerson.name}
-        aside={words ? { text: words, ink, paidState: true } : { text: say.itemsLine(claimed, split.receipt.items.length), ink: c.muted, paidState: false }}
+        note={words ? { text: words, ink } : null}
+        bill={billParts(shares, selectedPerson.id)}
         pill={pill}
         onOpen={(from) => open({ kind: "pay" }, from)}
         onHeight={setFooterHeight}
@@ -651,12 +680,13 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           onClose={() => {}}
           head={
             <ShareHead
-              title={title(selectedPerson)}
+              title={selectedPerson.id === me ? say.yourShare : say.shareOf(firstName(selectedPerson.name))}
+              amount={money(viewed.share)}
+              bill={billParts(shares, selectedPerson.id)}
+              legend={selectedPerson.id === me ? say.youHad : firstName(selectedPerson.name)}
+              had={title(selectedPerson)}
               open={picker !== null && !picker.closing}
               onPick={(from) => setPicker({ from, closing: false })}
-              onReceipt={photo ? setViewing : undefined}
-              onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-              onHistory={(from) => open({ kind: "history" }, from)}
             />
           }
           beside={due === null ? null : <PayButton split={split.id} host={host.name} handles={split.paymentHandles} amount={due} />}
@@ -668,14 +698,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         ) : null}
       </>
     ) : (
-      <ShareHead
-        title={say.question}
-        open={false}
-        onPick={() => setPhase("pick")}
-        onReceipt={photo ? setViewing : undefined}
-        onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-        onHistory={(from) => open({ kind: "history" }, from)}
-      />
+      <ShareHead title={say.question} amount={null} bill={null} legend="" had={null} open={false} onPick={() => setPhase("pick")} />
     );
   const aside =
     phase !== "regular" ? (
@@ -706,6 +729,20 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       {menu ? (
         <Popover anchor={menu.from.trigger} label={say.personMenu(menu.person.name)} instant={menu.from.keyboard} closing={menu.closing} onClose={closeMenu} onGone={menuGone} width={personMenuWidth} side="above" align="start">
           <PersonMenu split={split} person={menu.person} onRemove={() => void remove(menu.person)} />
+        </Popover>
+      ) : null}
+      {filterMenu ? (
+        <Popover anchor={filterMenu.from.trigger} label={say.showItems} instant={filterMenu.from.keyboard} closing={filterMenu.closing} onClose={closeFilterMenu} onGone={filterMenuGone} width={filterMenuWidth}>
+          <FilterMenu
+            filter={filter}
+            counts={filterCounts(split.receipt.items, filterViewer)}
+            viewer={filterViewer}
+            whose={selectedPerson && selectedPerson.id !== me ? firstName(selectedPerson.name) : null}
+            onPick={(next) => {
+              setFilter(next);
+              closeFilterMenu();
+            }}
+          />
         </Popover>
       ) : null}
       {modes ? (
@@ -755,7 +792,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           />
         </Popover>
       ) : null}
-      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={wide ? 16 : overlay && !closing ? 12 : footerHeight + 8} clearRight={wide ? asideWidth : 0} />
+      <Toast message={bar?.message ?? null} onHide={() => setBar(null)} action={bar?.action} lift={wide ? 16 : overlay && !closing ? 12 : footerHeight + 8} clearRight={wide ? frame.clearRight : 0} />
       {viewing && photo ? <PhotoViewer photo={{ uri: photoUrl, name: say.receiptPhoto }} onExited={photoClosed} /> : null}
     </>
   );
@@ -763,32 +800,39 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   if (wide)
     return (
       <View style={[styles.screen, { backgroundColor: c.field }]}>
-        <View style={[styles.wideBar, { paddingTop: insets.top }]}>
-          <SplitHeader onShare={() => void share()} />
-        </View>
-        <View style={styles.wideBody}>
-          <ScrollView style={styles.page} contentContainerStyle={styles.wideLeft}>
-            <View style={styles.wideColumn}>
-              <SplitIntro
-                host={host.name}
-                total={money(split.receipt.total)}
-                place={split.place}
-                links={false}
-                onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
-                onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
-                onHistory={(from) => open({ kind: "history" }, from)}
-              />
-              <Presence present={me !== null && selectedPerson !== null && selectedPerson.id !== me} animate>
-                {me && selectedPerson ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
-              </Presence>
-              <View style={styles.doc}>{receipt}</View>
+        <ScrollView style={styles.page} contentContainerStyle={{ paddingTop: insets.top, paddingHorizontal: frameGutter }}>
+          <View style={[styles.frame, { width: frame.inner }]}>
+            <SplitHeader
+              onShare={() => void share()}
+              links={
+                <>
+                  {photo ? <TextLink label={say.receipt} onPress={setViewing} /> : null}
+                  <TextLink label={say.people} onPress={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))} />
+                  <TextLink label={say.payments} onPress={(from) => open({ kind: "payments", viewer: me }, from)} />
+                  <TextLink label={say.history} onPress={(from) => open({ kind: "history" }, from)} />
+                </>
+              }
+            />
+            <View style={[styles.wideBody, { columnGap: frame.gap }]} onLayout={(event) => setAsideTop(Math.ceil(insets.top + event.nativeEvent.layout.y + wideBodyTop))}>
+              <View style={styles.wideColumn}>
+                <SplitIntro
+                  host={host.name}
+                  total={money(split.receipt.total)}
+                  place={split.place}
+                  wide
+                  onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
+                  onPayments={(from) => open({ kind: "payments", viewer: me }, from)}
+                  onHistory={(from) => open({ kind: "history" }, from)}
+                />
+                <Presence present={me !== null && selectedPerson !== null && selectedPerson.id !== me} animate>
+                  {me && selectedPerson ? <ViewingLine name={selectedPerson.name} onBack={() => setSelected(me)} /> : null}
+                </Presence>
+                <View style={styles.doc}>{receipt}</View>
+              </View>
+              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>{aside}</View>
             </View>
-          </ScrollView>
-          <View style={styles.aside}>
-            <View style={[styles.asideRule, { backgroundColor: c.hairline }]} />
-            {aside}
           </View>
-        </View>
+        </ScrollView>
         <ConnectionNotice connection={connection} />
         {layers}
       </View>
@@ -861,13 +905,11 @@ const styles = StyleSheet.create({
   gone: { gap: 8, paddingTop: 24 },
   goneAction: { marginTop: 16 },
   people: { gap: layout.blockGap },
-  // The wide layout: the receipt on the left, and on the right a fixed column for what a phone shows in sheets, set off by a line that touches neither the top bar nor the bottom.
-  wideBar: { paddingHorizontal: 32 },
-  wideBody: { flex: 1, flexDirection: "row", minHeight: 0 },
-  wideLeft: { paddingHorizontal: 72, paddingTop: 12, paddingBottom: 48 },
-  wideColumn: { alignSelf: "center", width: "100%", maxWidth: 640 },
-  aside: { width: asideWidth, paddingHorizontal: 36, paddingTop: 24 },
-  asideRule: { position: "absolute", left: 0, top: 36, bottom: 36, width: 1 },
+  // The wide layout: one page that scrolls as a whole, the receipt on the left and on the right a column for what a phone shows in sheets, which stays in view while the receipt scrolls past.
+  frame: { alignSelf: "center" },
+  wideBody: { flexDirection: "row", alignItems: "flex-start", paddingTop: wideBodyTop },
+  wideColumn: { flex: 1, minWidth: 0, paddingBottom: 64 },
+  aside: { ...webStyle({ position: "sticky", top: "0px" }), paddingTop: 24 },
   payRest: { marginTop: 8 },
   problem: { alignSelf: "flex-start", marginTop: 10, marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

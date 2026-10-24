@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { shareBreakdown } from "../../core/shares";
 import type { Participant, ParticipantId, Split } from "../../core/split";
 import { money } from "../../draft";
+import { SectionHead } from "../components/section-head";
 import { splitCopy as say } from "../split-copy";
 import { SheetHeader } from "../split-view/sheet-header";
 import { breakdownCharges, breakdownLines } from "../split-view/model";
@@ -44,7 +45,9 @@ export function PayBody({ split, person, viewer, onClose, head, beside }: Props)
       {head ?? (
         <>
           <SheetHeader title={title} onClose={onClose} />
-          <Label text={mine ? say.whatYouHad : say.whatTheyHad(person.name)} count={lines.length > 0 ? say.itemCount(lines.length) : null} />
+          <View style={styles.label}>
+            <SectionHead label={mine ? say.whatYouHad : say.whatTheyHad(person.name)} detail={lines.length > 0 ? say.itemCount(lines.length) : null} />
+          </View>
         </>
       )}
       <View>
@@ -68,24 +71,29 @@ export function PayBody({ split, person, viewer, onClose, head, beside }: Props)
       </View>
       {charges.length > 0 ? (
         <View style={head ? null : styles.charges}>
-          {head ? null : <Label text={mine ? say.yourCharges : say.chargesOf(person.name)} count={null} />}
+          {head ? null : (
+            <View style={styles.label}>
+              <SectionHead label={mine ? say.yourCharges : say.chargesOf(person.name)} />
+            </View>
+          )}
           {charges.map((row) => (
             <Row key={row.id} label={row.name} amount={money(row.portion)} ink={c.muted} />
           ))}
         </View>
       ) : null}
       {head ? (
-        <View style={[styles.total, styles.wideTotal, { borderTopColor: c.hairline }]}>
-          <View style={styles.name}>
-            <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
-              {mine ? say.yourShare : say.shareOf(person.name)}
+        // The head above carries the share in large type, so the column closes on the total at body size with the pay pill under it.
+        <>
+          <View style={[styles.total, { borderTopColor: c.hairline }]}>
+            <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
+              {mine ? say.yourTotal : say.totalOf(person.name)}
             </Text>
-            <Text testID="share" style={[styles.amount, tabular, { color: c.ink }]}>
+            <Text testID="share" style={[type.body, tabular, { color: c.ink }]}>
               {money(share)}
             </Text>
           </View>
-          {beside}
-        </View>
+          {beside ? <View style={styles.beside}>{beside}</View> : null}
+        </>
       ) : (
         <View style={[styles.total, { borderTopColor: c.hairline }]}>
           <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
@@ -121,16 +129,6 @@ function Row({ label, amount, ink, testID }: { label: string; amount: string; in
 }
 
 /** A section's name in small muted type over a hairline, so the sheet reads where its Items and its charges begin. */
-function Label({ text, count }: { text: string; count: string | null }) {
-  const c = useColors();
-  return (
-    <View style={[styles.label, { borderBottomColor: c.hairline }]}>
-      <Text style={[type.caption, styles.name, { color: c.muted }]}>{text}</Text>
-      {count ? <Text style={[type.caption, tabular, { color: c.muted }]}>{count}</Text> : null}
-    </View>
-  );
-}
-
 export function payTitle(split: Split, person: Participant, viewer: ParticipantId | null) {
   const { host, mine, isHost } = payFacts(split, person, viewer);
   return mine ? (isHost ? say.yourShare : say.payHost(firstName(host.name))) : say.shareOf(person.name);
@@ -140,7 +138,7 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 const styles = StyleSheet.create({
   body: { gap: 4 },
-  label: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 12, paddingBottom: 8, borderBottomWidth: 1 },
+  label: { marginTop: 12 },
   line: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minHeight: 48, paddingVertical: 8 },
   name: { flex: 1, minWidth: 0 },
   empty: { paddingVertical: 12 },
@@ -149,7 +147,5 @@ const styles = StyleSheet.create({
   total: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8, paddingTop: 12, borderTopWidth: 1 },
   rest: { marginTop: 4 },
   regular: { fontWeight: "400" },
-  wideTotal: { alignItems: "flex-end", marginTop: 12, paddingTop: 18 },
-  // The footer's amount on the phone, so the share reads the same size on both.
-  amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 32, lineHeight: 44, letterSpacing: -0.96 },
+  beside: { alignItems: "flex-end", marginTop: 16 },
 });

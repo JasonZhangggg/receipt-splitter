@@ -8,6 +8,7 @@ import { money, plainAmount } from "../../draft";
 import type { Answer } from "../../live/client";
 import type { Lay } from "../lay";
 import { Icon } from "../components/icon";
+import { SectionHead } from "../components/section-head";
 import { PressTarget, type Press } from "../components/button";
 import { IconAction, LabeledField, MoneyField, PersonToggle } from "../components/sheet-fields";
 import { TextLink, linkPress, underline } from "../components/text-link";
@@ -389,14 +390,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
           </View>
         ) : null}
         <View style={styles.section}>
-          <View style={styles.sectionHead}>
-            <Icon name="people" size={16} color={c.muted} />
-            <Text numberOfLines={1} style={[type.caption, styles.hintLead, { color: c.ink }]}>
-              {say.whoHadIt}
-            </Text>
-            <Text numberOfLines={1} style={[type.caption, tabular, styles.hint, { color: c.muted }]}>
-              · {money(item.price)}
-            </Text>
+          <SectionHead label={say.whoHadIt} note={` · ${money(item.price)}`}>
             <PressTarget name={say.modeFor(say.modes[item.split.by])} popup="dialog" expanded={modesOpen} outsideScroll onPress={(from) => onModes({ from, value: item.split.by, pick })} style={(pressed) => [styles.mode, pressStyle(pressed, reduce, linkPress)]}>
               {() => (
                 <View style={styles.modeFace}>
@@ -407,7 +401,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
                 </View>
               )}
             </PressTarget>
-          </View>
+          </SectionHead>
           <View testID="split-rows">
             <View ref={incomingRef} key={item.split.by} style={[styles.rows, reduce ? null : enterAfter === null ? rowsEnter : [rowsEnterAfter, webStyle({ animationDelay: `${enterAfter}ms` })]]}>
               {body(item, parts, typed, true)}
@@ -616,7 +610,6 @@ const styles = StyleSheet.create({
   note: { flexDirection: "row", alignItems: "center", gap: 8 },
   noteText: { flexShrink: 1 },
   section: { gap: 8, marginTop: 12 },
-  sectionHead: { flexDirection: "row", alignItems: "center", gap: 7 },
   rows: { gap: 0 },
   leaving: { position: "absolute", top: 0, left: 0, right: 0 },
   splitRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, minHeight: 44 },
@@ -625,8 +618,6 @@ const styles = StyleSheet.create({
   amount: { minWidth: 60, textAlign: "right" },
   stepper: { flexDirection: "row", alignItems: "center" },
   count: { minWidth: 56, textAlign: "center" },
-  hintLead: { flexShrink: 0 },
-  hint: { flexShrink: 1, flexGrow: 1 },
   mode: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, marginHorizontal: -12, marginVertical: -12 },
   modeFace: { flexDirection: "row", alignItems: "center", gap: 4 },
   status: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: 12, marginTop: 8 },

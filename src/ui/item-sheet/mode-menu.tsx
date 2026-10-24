@@ -37,7 +37,7 @@ export function ModeMenu({ value, onPick }: { value: SplitMode; onPick: (by: Spl
 
 const styles = StyleSheet.create({
   press: { alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14 },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: 10, minHeight: 44, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14 },
   // The tick sits on the first line's center: (24 - 14) / 2.
   tick: { width: 14, paddingTop: 5 },
   words: { flexShrink: 1 },

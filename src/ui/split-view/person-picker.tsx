@@ -18,7 +18,7 @@ type Props = {
   onEdit: () => void;
 };
 
-/** The wide layout's menu under "What you had": everyone with their share, the one shown checked, then Edit people for adding, removing and switching. */
+/** The wide layout's menu under "Your share": everyone with their share, the one shown checked, then Edit people for adding, removing and switching. */
 export function PersonPicker({ rows, me, viewed, onView, onEdit }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
@@ -26,7 +26,7 @@ export function PersonPicker({ rows, me, viewed, onView, onEdit }: Props) {
     <PressTarget key={key} name={name} toggled={checked} outsideScroll onPress={onPress} style={(pressed) => [pressStyle(pressed, reduce), styles.press]}>
       {(pressed, hovered) => (
         <View style={[styles.row, pressed || hovered ? [fillIn, { backgroundColor: c.sheetIn }] : fillOut]}>
-          <View style={styles.check}>{checked ? <Icon name="check" size={16} color={c.ink} /> : null}</View>
+          <View style={styles.check}>{checked ? <Icon name="chosen" size={14} color={c.ink} /> : null}</View>
           <Text numberOfLines={1} style={[type.body, styles.name, { color: c.ink }]}>
             {name}
           </Text>
@@ -52,8 +52,9 @@ const fillOut = webStyle({ transitionProperty: "background-color", transitionDur
 
 const styles = StyleSheet.create({
   press: { alignSelf: "stretch" },
-  row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingLeft: 8, paddingRight: 14, borderRadius: 14 },
-  check: { width: 20, alignItems: "center" },
+  // The rows, tick and spacing every menu on the page shares: 12 px in, a 14 px tick slot, 10 px apart.
+  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44, paddingHorizontal: 12, borderRadius: 14 },
+  check: { width: 14 },
   name: { flex: 1, minWidth: 0 },
   rule: { height: 1, marginVertical: 6, marginHorizontal: 8 },
 });

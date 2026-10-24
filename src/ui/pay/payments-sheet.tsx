@@ -7,6 +7,7 @@ import { computeShares } from "../../core/shares";
 import { money } from "../../draft";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
+import { SectionHead } from "../components/section-head";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
@@ -106,10 +107,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         {paymentSections(shown, split.payments, me).map(({ kind, rows: part, amount }) => (
           <View key={kind}>
             <View style={styles.heading}>
-              <Text role="heading" aria-level={3} style={[type.caption, styles.headingLabel, { color: c.ink }]}>
-                {say.section[kind]}
-              </Text>
-              <Text style={[type.caption, styles.tabular, { color: c.muted }]}>{(kind === "owed" ? say.section.left : say.section.in)(money(amount))}</Text>
+              <SectionHead label={say.section[kind]} detail={(kind === "owed" ? say.section.left : say.section.in)(money(amount))} rule={false} />
             </View>
             <View role="list" aria-label={say.section[kind]}>
               {part.map(({ id, name, share, state, words }) => {
@@ -230,8 +228,8 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6 },
   name: { flexShrink: 1 },
   sub: { paddingLeft: 22 },
-  heading: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, paddingTop: 22, paddingBottom: 8 },
-  headingLabel: { fontWeight: "500" },
+  // The first row's own top rule sits under the heading.
+  heading: { paddingTop: 22, paddingBottom: 12 },
   quiet: { paddingVertical: 14, borderTopWidth: 1 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });
