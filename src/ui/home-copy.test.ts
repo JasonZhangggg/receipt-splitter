@@ -23,9 +23,9 @@ describe("a recent split's row", () => {
       { first: "Dinefine Restaurant", second: "Today \u00b7 Jason, Ana and Sam" },
       { first: "Jason, Ana and Sam", second: "Today \u00b7 3 people" },
     ]);
-    expect([historyCopy.row(who, when, "3 people", "$51.30", "Dinefine Restaurant"), historyCopy.row(who, when, "3 people", "$51.30")]).toEqual([
-      "Dinefine Restaurant, Jason, Ana and Sam, Today, 3 people, $51.30",
-      "Jason, Ana and Sam, Today, 3 people, $51.30",
+    expect([historyCopy.row(who, when, "3 people", "$51.30", "Dinefine Restaurant", historyCopy.paid(null)), historyCopy.row(who, when, "3 people", "$51.30", undefined, historyCopy.paid("Jason"))]).toEqual([
+      "Dinefine Restaurant, Jason, Ana and Sam, Today, 3 people, $51.30, You paid",
+      "Jason, Ana and Sam, Today, 3 people, $51.30, Jason paid",
     ]);
   });
 

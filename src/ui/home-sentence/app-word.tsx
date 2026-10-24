@@ -1,24 +1,41 @@
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import type { PaymentService } from "../../core/split";
+import { PressTarget, type Press } from "../components/button";
+import { Icon } from "../components/icon";
+import { linkPress } from "../components/text-link";
 import { copy, paymentApps } from "../home-copy";
-import { useColors } from "../theme";
-import { PressTarget } from "../components/button";
+import { pressStyle, useReducedMotion, webStyle } from "../motion";
+import { motion, useColors } from "../theme";
+import { useSaySize } from "./say-size";
+import { padded } from "./words";
 
-export type AppWordProps = { service: PaymentService; choices: readonly PaymentService[]; onPick: (service: PaymentService) => void };
+type Props = { service: PaymentService; open: boolean; onOpen: (press: Press) => void };
 
-/** Native: the app's name as an underlined word, and a tap steps to the next app that is still free. */
-export function AppWord({ service, choices, onPick }: AppWordProps) {
+/** The app's name as an underlined word in the sentence with a small chevron after it. A tap opens the app menu, which also adds a second app. */
+export function AppWord({ service, open, onOpen }: Props) {
   const c = useColors();
-  const app = paymentApps[service];
-  const next = choices[(choices.indexOf(service) + 1) % choices.length];
+  const reduce = useReducedMotion();
+  const size = useSaySize();
   return (
-    <PressTarget name={`${copy.paymentApp}, ${app.name}`} onPress={() => onPick(next)} style={() => null}>
-      {() => <Text style={[styles.name, { color: c.ink, borderBottomColor: c.ink }]}>{app.name}</Text>}
+    <PressTarget name={`${copy.paymentApp}, ${paymentApps[service].name}`} popup="dialog" expanded={open} onPress={onOpen} style={(pressed) => [styles.word, padded(size), pressStyle(pressed, reduce, linkPress)]}>
+      {() => (
+        <View style={styles.face}>
+          <Text style={[size.input, { borderBottomWidth: size.rule, color: c.ink, borderBottomColor: c.ink }]}>{paymentApps[service].name}</Text>
+          <View style={[styles.chevron, { transform: [{ rotate: open ? "180deg" : "0deg" }] }, !reduce && turn]}>
+            <Icon name="chevron" size={size.icon} color={c.muted} />
+          </View>
+        </View>
+      )}
     </PressTarget>
   );
 }
 
+/** The chevron turns over with the menu it opens, at the menu's own 200 ms, as the Split page's filter button does. */
+const turn = webStyle({ transitionProperty: "transform", transitionDuration: `${motion.controlIn}ms`, transitionTimingFunction: motion.easeOut });
+
 const styles = StyleSheet.create({
-  name: { borderBottomWidth: 1.5, lineHeight: 25 },
+  word: { alignItems: "baseline" },
+  face: { flexDirection: "row", alignItems: "center", gap: 4 },
+  chevron: { marginRight: -2 },
 });

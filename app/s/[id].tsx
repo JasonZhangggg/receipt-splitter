@@ -51,6 +51,7 @@ import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
 import { TextLink } from "../../src/ui/components/text-link";
 import { Presence } from "../../src/ui/presence";
+import { frameFor, frameGutter } from "../../src/ui/frame";
 import { breakpoints, layout, type, useColors } from "../../src/ui/theme";
 
 export default function SplitScreen() {
@@ -117,17 +118,8 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
-/** The wide layout: the receipt and the column beside it, centered in the window as one frame. Under 1280px the column and the gap between them narrow so the receipt keeps room. `room` is the page's width inside its scroll bar and the matching strip on the left, once measured. */
-const frameFor = (width: number, room: number) => {
-  const roomy = width >= breakpoints.roomyFrom;
-  const column = roomy ? 420 : 380;
-  const gap = roomy ? 112 : 56;
-  const inner = Math.min(room - 2 * frameGutter, 680 + gap + column);
-  return { column, gap, inner, clearRight: (width - inner) / 2 + column + gap };
-};
 /** The Host's footer pill: how many of the people who owe have paid, "All paid" once they all have, or just Payments while nobody owes yet. */
 const collectLabel = ({ paid, owing }: { paid: number; owing: number }) => (owing === 0 ? say.payments : paid === owing ? say.ring.allPaidTitle : say.status.paidOf(paid, owing));
-const frameGutter = 48;
 // Where scroll bars take room (Windows, Linux, a Mac set to always show them), a blank strip as wide as the bar sits on the left too, so the frame is centered in the window rather than beside the bar.
 const evenGutters = webStyle({ scrollbarGutter: "stable both-edges" });
 const wideBodyTop = 12;

@@ -3,24 +3,32 @@ import { Text, type TextInput } from "react-native";
 
 import { PAYMENT_SERVICES } from "../../core/split";
 import type { DraftAction, HandleRow } from "../../draft";
+import type { Press } from "../components/button";
 import { copy, paymentApps } from "../home-copy";
 import { focusInPlace } from "../receipt-input/keyboard-room";
 import { AppWord } from "./app-word";
-import { Act, Blank, nowrap, Remove, Words } from "./words";
+import { Blank, nowrap, Remove, Words } from "./words";
 
-type Props = { handles: readonly HandleRow[]; dispatch: (action: DraftAction) => void; inputs: RefObject<(TextInput | null)[]> };
+type Props = {
+  handles: readonly HandleRow[];
+  dispatch: (action: DraftAction) => void;
+  inputs: RefObject<(TextInput | null)[]>;
+  /** The clause whose app menu is open, or null. */
+  menu: number | null;
+  onMenu: (index: number, press: Press) => void;
+};
 
 /**
- * "Friends tap what they had and pay me back on Venmo at @username, or add an app.", with an "or <app> at <handle>" clause for each added way
- * to pay. With more than one, each app's name has an x that takes its clause away.
+ * "Friends tap what they had and pay me back on Venmo at @username.", with an "or <app> at <handle>" clause for each added way to pay. The app's
+ * name opens the app menu, which also adds the next way. With more than one, each app's name has an x that takes its clause away.
  */
-export function PayWords({ handles, dispatch, inputs }: Props) {
-  const adding = useRef(false);
+export function PayWords({ handles, dispatch, inputs, menu, onMenu }: Props) {
+  const count = useRef(handles.length);
   // A new clause's field takes the focus, so the handle can be typed straight away.
   useEffect(() => {
-    if (!adding.current) return;
-    adding.current = false;
-    focusInPlace(inputs.current[handles.length - 1] ?? null);
+    const added = handles.length > count.current;
+    count.current = handles.length;
+    if (added) focusInPlace(inputs.current[handles.length - 1] ?? null);
   }, [handles.length, inputs]);
   const several = handles.length > 1;
   return (
@@ -29,16 +37,12 @@ export function PayWords({ handles, dispatch, inputs }: Props) {
       {handles.map(({ service, handle }, index) => {
         const app = paymentApps[service];
         const last = index === handles.length - 1;
-        // The last handle ends the clause with a period, or leads into ", or add an app."; either way it stays with the field.
-        const then = last ? (roomForAnotherApp(handles) ? "," : ".") : undefined;
-        const choices = PAYMENT_SERVICES.filter((choice) => choice === service || !handles.some((row) => row.service === choice));
-        const word = <AppWord service={service} choices={choices} onPick={(next) => dispatch({ type: "setService", index, service: next })} />;
         const field = (
           <Blank
             ref={(input) => {
               inputs.current[index] = input;
             }}
-            then={then}
+            then={last ? "." : undefined}
             aria-label={`${app.name} handle`}
             value={handle}
             placeholder={app.hint}
@@ -49,38 +53,25 @@ export function PayWords({ handles, dispatch, inputs }: Props) {
             onChangeText={(text) => dispatch({ type: "setHandle", index, handle: text })}
           />
         );
+        // Removing one of two leaves the other app's name as the place the focus goes.
+        const other = handles.length === 2 ? paymentApps[handles[1 - index].service].name : null;
         return (
           <Fragment key={service}>
             {" "}
             {/* "on" or "or" keeps to the app's name, so the line breaks before both and the sentence wraps the same in Geist and its fallback. */}
             <Text style={nowrap}>
-              <Words>{index > 0 ? copy.sentence.or : copy.sentence.on}</Words>{" "}
-              {word}
-              {several ? <Remove name={copy.removeApp(app.name)} others={handles.length > 2} fallback={copy.addAppName} onAppWord onPress={() => dispatch({ type: "removeHandle", index })} /> : null}
+              <Words>{index > 0 ? copy.sentence.or : copy.sentence.on}</Words> <AppWord service={service} open={menu === index} onOpen={(press) => onMenu(index, press)} />
+              {several ? <Remove name={copy.removeApp(app.name)} others={handles.length > 2} fallback={`${copy.paymentApp}, ${other}`} onAppWord onPress={() => dispatch({ type: "removeHandle", index })} /> : null}
             </Text>{" "}
-            <Words>{copy.sentence.at}</Words>{" "}
-            {field}
+            <Words>{copy.sentence.at}</Words> {field}
           </Fragment>
         );
       })}
-      {roomForAnotherApp(handles) ? (
-        <>
-          {" "}
-          <Words>{copy.sentence.or}</Words>{" "}
-          <Act
-            label={copy.sentence.addApp}
-            name={copy.addAppName}
-            quiet
-            then="."
-            onPress={() => {
-              adding.current = true;
-              dispatch({ type: "addHandle" });
-            }}
-          />
-        </>
-      ) : null}
     </>
   );
 }
+
+/** The apps a clause can switch to: its own, and every one no other clause uses. */
+export const appChoices = (handles: readonly HandleRow[], index: number) => PAYMENT_SERVICES.filter((choice) => choice === handles[index]?.service || !handles.some((row) => row.service === choice));
 
 export const roomForAnotherApp = (handles: readonly HandleRow[]) => handles.length < PAYMENT_SERVICES.length;

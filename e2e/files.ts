@@ -76,3 +76,21 @@ export async function addNames(page: Page, ...names: string[]) {
     await field.press("Enter");
   }
 }
+
+/** The last app's name in the sentence, which opens the app menu. */
+export const lastAppWord = (page: Page) => page.getByTestId("sentence").getByRole("button", { name: /^Payment app, / }).last();
+export const appMenu = (page: Page) => page.getByRole("dialog", { name: "Payment app" });
+
+/** Adds the next free payment app from the last app's menu, and waits for its field to take the focus. */
+export async function addApp(page: Page) {
+  await lastAppWord(page).click();
+  await appMenu(page).getByRole("button", { name: /^Add (a second|another) app$/ }).click();
+  await expect(appMenu(page)).toHaveCount(0);
+}
+
+/** Switches the payment app at `index` to `app` through its menu. */
+export async function pickApp(page: Page, app: string, index = 0) {
+  await page.getByTestId("sentence").getByRole("button", { name: /^Payment app, / }).nth(index).click();
+  await appMenu(page).getByRole("button", { name: app, exact: true }).click();
+  await expect(appMenu(page)).toHaveCount(0);
+}

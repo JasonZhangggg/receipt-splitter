@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { runs, sample } from "./motion";
-import { addNames, dropFile, dropZone, openExample, pasteFile, photo } from "./files";
+import { addApp, addNames, dropFile, dropZone, openExample, pasteFile, photo, pickApp } from "./files";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -291,9 +291,9 @@ test("a reload keeps only the handle, and once the model is cached a reload and 
 test("the payment apps and handles follow the Host's choices and survive a reload, and the names do not", async ({ page }) => {
   await page.goto("/");
   await openExample(page);
-  await page.getByRole("combobox", { name: "Payment app" }).selectOption("cashApp");
+  await pickApp(page, "Cash App");
   await expect(page.getByRole("textbox", { name: "Cash App handle" })).toHaveAttribute("placeholder", "$cashtag");
-  await page.getByRole("button", { name: "Add another way to get paid" }).click();
+  await addApp(page);
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveAttribute("placeholder", "@username");
   for (const name of ["Jason", "Sam", "Priya"]) await addName(page, name);
   await page.getByRole("button", { name: "Remove Sam" }).click();
@@ -304,10 +304,7 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
   await expect(page.getByRole("textbox", { name: "Venmo handle" })).toHaveValue("@jason-z");
   await expect(page.getByRole("textbox", { name: "Your name", exact: true })).toHaveValue("");
   await expect(page.getByRole("group")).toHaveCount(0);
-  expect(await page.getByRole("combobox", { name: "Payment app" }).evaluateAll((pickers) => pickers.map((picker) => (picker as HTMLSelectElement).value))).toEqual([
-    "cashApp",
-    "venmo",
-  ]);
+  await expect(page.getByTestId("sentence").getByRole("button", { name: /^Payment app, / })).toHaveText(["Cash App", "Venmo"]);
   await openExample(page);
   await addName(page, "Jason");
   expect(await blockedBy(page)).toEqual({ disabled: null, reason: null });
@@ -316,7 +313,7 @@ test("the payment apps and handles follow the Host's choices and survive a reloa
 test("with three more ways to get paid and seven names, Create link stays on screen", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/");
-  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Add another way to get paid" }).click();
+  for (let i = 0; i < 3; i++) await addApp(page);
   for (const name of ["Jason", "Sam", "Priya", "Lee", "Ana", "Jo", "Kai"]) await addName(page, name);
   await expect(action(page)).toBeInViewport();
 });

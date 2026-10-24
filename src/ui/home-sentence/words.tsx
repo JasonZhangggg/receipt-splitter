@@ -6,7 +6,8 @@ import { Icon } from "../components/icon";
 import { linkPress } from "../components/text-link";
 import { focusInPlace } from "../receipt-input/keyboard-room";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
-import { type, useColors } from "../theme";
+import { useColors } from "../theme";
+import { useSaySize, type SaySize } from "./say-size";
 
 /** A plain run of the sentence in its own span, so the font checks see it as a line of text. A name can break anywhere to fit. */
 export function Words({ children, ink = false, breaks = false }: { children: string; ink?: boolean; breaks?: boolean }) {
@@ -30,10 +31,11 @@ type ActProps = { label: string; name?: string; onPress: () => void; /** The pun
 export function Act({ label, name, onPress, then, quiet = false }: ActProps) {
   const c = useColors();
   const reduce = useReducedMotion();
+  const size = useSaySize();
   return (
     <Glued then={then}>
-      <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.act, pressStyle(pressed, reduce, linkPress)]}>
-        {() => <Text style={[type.sayInput, styles.underlined, quiet ? { color: c.muted, borderBottomColor: c.dash } : { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
+      <PressTarget name={name} onPress={onPress} style={(pressed) => [styles.act, padded(size), pressStyle(pressed, reduce, linkPress)]}>
+        {() => <Text style={[size.input, { borderBottomWidth: size.rule }, quiet ? { color: c.muted, borderBottomColor: c.dash } : { color: c.ink, borderBottomColor: c.ink }]}>{label}</Text>}
       </PressTarget>
     </Glued>
   );
@@ -53,6 +55,7 @@ type RemoveProps = {
 export function Remove({ name, others, fallback, onAppWord = false, onPress }: RemoveProps) {
   const c = useColors();
   const reduce = useReducedMotion();
+  const size = useSaySize();
   return (
     <PressTarget
       name={name}
@@ -67,7 +70,7 @@ export function Remove({ name, others, fallback, onAppWord = false, onPress }: R
       }}
       style={(pressed) => [styles.remove, onAppWord && styles.onAppWord, pressStyle(pressed, reduce, removePress)]}
     >
-      {() => <Icon name="x" size={12} color={c.muted} />}
+      {() => <Icon name="x" size={size.icon} color={c.muted} />}
     </PressTarget>
   );
 }
@@ -90,31 +93,27 @@ const leavesRoomForPeriod = webStyle({ maxWidth: "calc(100% - 14px)" } as never)
  */
 export function Blank({ style, ref, then, ...rest }: TextInputProps & { ref?: Ref<TextInput>; /** The punctuation right after it. */ then?: string }) {
   const c = useColors();
+  const size = useSaySize();
   // A string, because a bare number gets a "px" unit and the calc in css.ts then fails.
   const chars = webStyle({ "--chars": String(Math.max(rest.value?.length ?? 0, rest.placeholder?.length ?? 0, 1)) } as never);
   return (
     <Glued then={then}>
-      <View style={[styles.rule, leavesRoomForPeriod, { borderBottomColor: c.ink }]}>
-        <TextInput
-          ref={ref}
-          {...underlineMark}
-          placeholderTextColor={c.ink}
-          style={[type.sayInput, styles.blank, sized, chars, { color: c.ink }, style]}
-          {...rest}
-        />
+      <View style={[leavesRoomForPeriod, { borderBottomWidth: size.rule, borderBottomColor: c.ink }]}>
+        <TextInput ref={ref} {...underlineMark} placeholderTextColor={c.ink} style={[size.input, styles.blank, padded(size), sized, chars, { color: c.ink }, style]} {...rest} />
       </View>
     </Glued>
   );
 }
 
+/** Pads a pressable word out to a 44 px tap area and pulls the line back by the same, so the layout stays the word's own height. */
+export const padded = ({ pad }: SaySize) => ({ paddingVertical: pad, marginVertical: -pad });
+
 const styles = StyleSheet.create({
-  act: { alignItems: "baseline", paddingVertical: 9, marginVertical: -9 },
-  underlined: { borderBottomWidth: 1.5 },
+  act: { alignItems: "baseline" },
   remove: { width: 44, height: 44, marginLeft: -10, marginRight: -16, marginVertical: -6, alignSelf: "center", alignItems: "center", justifyContent: "center" },
   // The app word pads its box for the tap area and draws its underline inside it, so the middle of the box sits 3.5 px under the middle of the word.
   onAppWord: { top: -3.5 },
-  rule: { borderBottomWidth: 1.5 },
-  blank: { minWidth: 0, paddingVertical: 9, paddingHorizontal: 8, marginVertical: -9, marginHorizontal: -6 },
+  blank: { minWidth: 0, paddingHorizontal: 8, marginHorizontal: -6 },
 });
 
 /** Whether an input method composed text in the field since its last Enter. */
