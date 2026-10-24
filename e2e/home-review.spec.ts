@@ -1,4 +1,4 @@
-import { addApp, addNames, dropFile, openExample, photo } from "./files";
+import { addApp, addNames, dropFile, exampleReply, openExample, photo } from "./files";
 import { features } from "../src/features";
 import { expect, test, type Page } from "./without-ocr";
 
@@ -267,4 +267,21 @@ test("when a read finishes, only the new amount fades in, not the words around i
   await openExample(page);
   await expect(page.getByTestId("receipt")).toContainText("$28.04");
   expect(await page.evaluate(() => [...(window as unknown as { faded: Set<string> }).faded])).toEqual(["$28.04"]);
+});
+
+test("a long place ends in an ellipsis inside the sentence at headline size, with its period beside it", async ({ page, context }) => {
+  await page.goto("/");
+  await settle(page);
+  await openExample(page);
+  await context.unroute("**/api/scan");
+  await context.route("**/api/scan", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...exampleReply, place: "The Extraordinarily Long Named Neighborhood Gastropub & Brewery" }) }));
+  await page.reload();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Add the receipt" }).click();
+  await (await chooser).setFiles("e2e/fixtures/topgolf-synthetic.png");
+  const place = page.getByRole("button", { name: /^Place, The Extraordinarily/ });
+  await expect(place).toBeVisible();
+  const [word, column] = [(await place.boundingBox())!, (await sentence(page).boundingBox())!];
+  expect(word.x + word.width).toBeLessThanOrEqual(column.x + column.width - 8);
+  expect(word.height).toBeLessThan(80);
 });

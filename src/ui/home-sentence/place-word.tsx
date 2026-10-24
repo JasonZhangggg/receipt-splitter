@@ -11,7 +11,8 @@ import { useColors } from "../theme";
 import { useSaySize } from "./say-size";
 import { afterPress, Blank, focused, Glued, padded, useComposed, usePressing } from "./words";
 
-const breakAnywhere = webStyle({ overflowWrap: "anywhere" } as never);
+// At headline size a long place is wider than the line: it ends in an ellipsis, short of the edge by room for its period.
+const roomForPeriod = webStyle({ maxWidth: "calc(100% - 14px)" } as never);
 
 type Props = {
   place: string;
@@ -60,9 +61,9 @@ export function PlaceWord({ place, then, onChange, onRemoved }: Props) {
   if (typed === null) {
     return (
       <Glued then={then}>
-        <PressTarget name={copy.placeName(place)} onPress={() => setTyped(place)} style={(pressed) => [styles.word, padded(size), pressStyle(pressed, reduce, linkPress)]}>
+        <PressTarget name={copy.placeName(place)} onPress={() => setTyped(place)} style={(pressed) => [styles.word, roomForPeriod, padded(size), pressStyle(pressed, reduce, linkPress)]}>
           {() => (
-            <Text ref={word} style={[size.input, breakAnywhere, { borderBottomWidth: size.rule, color: c.ink, borderBottomColor: c.dash }]}>
+            <Text ref={word} numberOfLines={1} style={[size.input, { borderBottomWidth: size.rule, color: c.ink, borderBottomColor: c.dash }]}>
               {place}
             </Text>
           )}
@@ -102,5 +103,5 @@ export function PlaceWord({ place, then, onChange, onRemoved }: Props) {
 }
 
 const styles = StyleSheet.create({
-  word: { alignItems: "baseline", maxWidth: "100%" },
+  word: { alignItems: "baseline" },
 });
