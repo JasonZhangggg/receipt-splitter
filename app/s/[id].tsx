@@ -643,7 +643,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     />
   );
   const footer = (() => {
-    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} note={null} bill={null} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
+    if (!me || !selectedPerson || !viewed) return <SplitFooter label={say.question} amount="" whose={null} note={null} pill={{ kind: "ask" }} onOpen={() => setPhase("pick")} onHeight={setFooterHeight} rise={rise} />;
     const mine = selectedPerson.id === me;
     const collect = mine && viewed.isHost ? collectLabel(paymentStatus(split, shares, me)) : null;
     const pill: FooterPill | null = collect ? { kind: "collect", label: collect } : !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? { kind: "paid" } : { kind: "pay", host: firstName(host.name), ready: viewed.hasBar };
@@ -657,7 +657,6 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         amount={money(viewed.share)}
         whose={mine ? null : selectedPerson.name}
         note={words ? { text: words, ink } : null}
-        bill={billParts(shares, selectedPerson.id)}
         pill={pill}
         onOpen={(from) => open({ kind: "pay" }, from)}
         onPill={pill?.kind === "collect" ? (from) => open({ kind: "payments", viewer: me }, from) : undefined}

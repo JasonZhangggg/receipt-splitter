@@ -370,7 +370,7 @@ test("beside a long name the footer keeps the amount whole and shortens the name
   await viewAs(jason, long);
   await expect(count(jason)).toHaveText("0 of 4 theirs", live);
   const footer = jason.getByTestId("footer");
-  await expect(footer.getByTestId("share-bar")).toBeVisible();
+  await expect(footer.getByTestId("share-bar")).toHaveCount(0);
   await expect(footer.getByText(/items · incl\. tax & tip$/)).toHaveCount(0);
   expect(await footer.getByTestId("owe").evaluate((text) => text.scrollWidth <= text.clientWidth)).toBe(true);
   expect(await footer.getByText(`${long}'s share`).evaluate((text) => text.scrollWidth > text.clientWidth)).toBe(true);
