@@ -218,6 +218,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const recorded = latest.current.picks.some((pick) => pick.participantId === participantId && pick.device === device);
     if (!picked.ok && !(picked.rejection.reason === "disconnected" && recorded)) {
       setChosen(null);
+      // Another phone took the name first: say so, since trying again would only ask "That's me".
+      if (picked.rejection.reason === "namePicked") return setPickProblem(say.pickLost(people.find(({ id }) => id === participantId)?.name ?? ""));
       return setPickProblem(failedCopy(picked, say.pickFailed));
     }
     remember({ me: participantId });

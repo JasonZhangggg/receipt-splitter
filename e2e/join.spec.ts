@@ -384,6 +384,33 @@ test("a phone that loses its name to another phone is told once and can take it 
   await expect(second.getByText("Pick your name to check off what you had.")).toBeVisible();
 });
 
+test("a phone that taps a name another phone picked a moment earlier is told who took it", async ({ page, browser }) => {
+  await readyHome(page, ["Sam"]);
+  const link = await createLink(page);
+
+  // The late phone hears nothing from other phones, so its sheet still shows Sam as free when it taps him.
+  let heard = 0;
+  const late = await (await newContext(browser)).newPage();
+  await late.routeWebSocket(/\/parties\/split-server\//, (socket) => {
+    const server = socket.connectToServer();
+    server.onMessage((frame) => {
+      // Past the first state, drop what other phones send; answers to this phone's own frames carry its ref.
+      if (heard++ > 0 && JSON.parse(String(frame)).ref === null) return;
+      socket.send(frame);
+    });
+  });
+  await late.goto(link);
+  await expect(question(late)).toBeVisible();
+
+  const first = await open(browser, link);
+  await first.getByRole("button", { name: "Sam", exact: true }).click();
+  await youAre(first, "Sam");
+
+  await late.getByRole("dialog", { name: "Which one are you?" }).getByRole("button", { name: "Sam", exact: true }).click();
+  await expect(late.getByText("Sam was just picked on another phone.")).toBeVisible({ timeout: 10_000 });
+  await expect(late.getByText("Couldn't pick that name. Try again.")).toHaveCount(0);
+});
+
 test("the first sheet opened after taking a name back from the bar stays open", async ({ page, browser }) => {
   await readyHome(page, ["Sam"]);
   const link = await createLink(page);
