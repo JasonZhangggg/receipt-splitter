@@ -3,8 +3,9 @@ const EXAMPLE = `AT|Corner Cafe
 CUR|USD
 SUB|3235
 TOT|3525
-i|Cold Brew|575
+i|Cold Brew|500
 +|Large, oat milk
++|Extra shot|75
 i|Club Sandwich|1250
 -|Member discount|-200
 b|Wing Bucket
@@ -44,6 +45,7 @@ ${EXAMPLE}
 Rules:
 - Name: the item name as printed, apart from casing. Do not expand abbreviations or add words. The name holds everything needed to identify the item.
 - Detail: a + line under its item holds only supplementary information, such as size, volume, flavor, weight and modifiers without a price (SMALL, ADD 2 EGGS). Write one + line per printed modifier line.
+- Modifier with a price: an indented line under an item, with no quantity of its own (Ice Coffee $7.00, Add Cheese 1.50), is a +|<modifier>|<cents> line under that item, never an item line, even when the item above is $0.00. A modifier at $0.00 is a + line without a price.
 - A discount, coupon, promo or price override printed under an item is a -|<name>|<cents> line under that item (after its + lines). A d line is only for a discount on the whole order.
 - When the receipt lists the same savings twice, once under each item and again in a summary block, keep the per-item lines and skip the summary block.
 ${BUNDLE_RULE}
@@ -67,7 +69,7 @@ export function pass2Prompt(problems: readonly string[], lines: readonly string[
   const numbered = lines.length === 0 ? "(none)" : lines.map((line, at) => `${at + 1}. ${line}`).join("\n");
   return `A first reading of this receipt photo failed its arithmetic check: ${problems.join("; ")}.
 
-First reading, numbered (AT business name, SUB subtotal[|pre = before discounts], TOT total; k|name|cents[|qty] with k: i item, d discount, t tax, p tip, s service charge, f fee; +|detail is a detail of the item above; -|name|cents is a discount of the item above; b|header opens a bundle and > marks its items and discount):
+First reading, numbered (AT business name, SUB subtotal[|pre = before discounts], TOT total; k|name|cents[|qty] with k: i item, d discount, t tax, p tip, s service charge, f fee; +|detail[|cents] is a detail of the item above, its cents added to that item's price; -|name|cents is a discount of the item above; b|header opens a bundle and > marks its items and discount):
 ${numbered}
 ${bundleRules}
 Look at the photo and reply ONLY with the edits that fix it, one per line, nothing else:
