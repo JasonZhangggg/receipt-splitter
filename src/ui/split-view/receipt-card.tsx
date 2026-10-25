@@ -49,10 +49,12 @@ const dotBleed = 14;
 const bleed = 12;
 const chevronSize = 16;
 const chevronTip = chevronSize / 8;
-const ruleGap = 14;
 const nameLine = 24;
 const noteLine = 20;
 const chargeRow = 34;
+// The Bundle's vertical rule sits mid-slot under the chevron, and stops short of the chevron and of the rule below by the gap it keeps from its rows' hairlines.
+const ruleLeft = (nameStart - columnGap) / 2 - 0.5;
+const ruleGap = nameStart - (ruleLeft + 1);
 
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false, filter, onFilter, onFilterMenu, filterMenuOpen }: Props) {
   const c = useColors();
@@ -306,7 +308,7 @@ function BundleGroup({ bundle, open, claimed, claimers, quiet, who, wide, onTogg
   }
   return (
     <View role="listitem" testID={`bundle-${bundle.id}`} style={[styles.bundle, { borderTopColor: c.hairline }]}>
-      <View pointerEvents="none" style={[styles.rule, fade, { top: 12 + big.lineHeight / 2 + 4 + ruleGap - 1, backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
+      <View pointerEvents="none" style={[styles.rule, fade, { top: 12 + big.lineHeight / 2 + 3 + ruleGap - 1, backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
       <PressTarget
         name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, claimed), open)}
         expanded={open}
@@ -556,8 +558,7 @@ const styles = StyleSheet.create({
   bundleTop: { flexDirection: "row", alignItems: "flex-start", columnGap },
   bundleWho: { flexDirection: "row", marginLeft: nameStart, columnGap },
   chevron: { width: nameStart - columnGap, alignItems: "center", justifyContent: "center" },
-  // The vertical rule runs beside the children, a gap clear of the open chevron's tip and of the rule below; the chevron sits at the centre of its slot.
-  rule: { position: "absolute", left: (nameStart - columnGap) / 2 - 0.5, width: 1, bottom: ruleGap },
+  rule: { position: "absolute", left: ruleLeft, width: 1, bottom: ruleGap },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   collapsed: { minHeight: 0 },
   discount: { flexDirection: "row", alignItems: "center", columnGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart, borderTopWidth: 1 },
