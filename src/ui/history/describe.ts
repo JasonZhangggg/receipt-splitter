@@ -103,8 +103,8 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
   switch (write.kind) {
     case "item":
     case "adjustment": {
-      if ("added" in write) return { lead: `Added ${write.added.name}` };
-      if ("removed" in write) return { lead: say.deleted(write.removed.name) };
+      if ("added" in write) return { lead: `Added ${write.added.name}${write.kind === "adjustment" ? ` · ${money(write.added.amount, split.currency)}` : ""}` };
+      if ("removed" in write) return { lead: `${say.deleted(write.removed.name)}${write.kind === "adjustment" ? ` · ${money(write.removed.amount, split.currency)}` : ""}` };
       const rows: readonly { readonly id: string; readonly name: string }[] = write.kind === "item" ? split.receipt.items : split.receipt.adjustments;
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
