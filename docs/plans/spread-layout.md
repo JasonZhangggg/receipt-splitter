@@ -39,7 +39,7 @@ One PR on `claude/project-thread-80frtv`, built in the commit order below so eac
 ## Shape
 
 - Filters are pure functions in `src/ui/split-view/model.ts`: `filterRows(rows, filter, viewer)`, `filterCounts(items, viewer)` and `itemFilters(viewer)`, with `type ItemFilter = "all" | "mine" | "none" | "shared"`. The page keeps the current filter in state. The tabs and the menu render from one table of filters, so labels and counts can't drift.
-- The share bar is one component, `ShareBar`, taking the three amounts in cents from `billParts(shares, viewer)`. The phone footer and the desktop share head both use it.
+- The share bar is one component, `ShareBar`, taking the three amounts in cents from `billParts(shares, viewer)`. The desktop share head uses it. The phone footer dropped it on 2026-10-25, since the Payments ring shows the same split.
 - The wide branch of `app/s/[id].tsx` becomes one ScrollView whose content is the centered frame, with the right column `position: sticky` (web).
 
 ## Out of scope

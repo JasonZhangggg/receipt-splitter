@@ -64,7 +64,7 @@ test("a guest's footer shows Your share and the Pay Jason pill, and the pay butt
   const footer = sam.getByTestId("footer");
   await expect(footer.getByRole("button", { name: "Your share $14.20, Show what you owe" })).toBeVisible(live);
   await expect(footer.getByRole("link")).toHaveCount(0);
-  await expect(footer.getByTestId("share-bar")).toBeVisible();
+  await expect(footer.getByTestId("share-bar")).toHaveCount(0);
 
   await footer.getByRole("button", { name: "Pay Jason" }).click();
   await expect(breakdown(sam).getByRole("link", { name: "Pay Jason $14.20 on Venmo" })).toBeVisible(live);

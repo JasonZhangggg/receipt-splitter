@@ -1125,14 +1125,14 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     });
 
-    test("the Show all menu filters the list and the button reads the pick; the footer has the share bar and no items count", async ({ page, request }, { workerIndex }) => {
+    test("the Show all menu filters the list and the button reads the pick; the footer has no share bar and no items count", async ({ page, request }, { workerIndex }) => {
       await page.goto(await createSplit(request, workerIndex));
       const asked = page.getByRole("dialog", { name: "Which one are you?" });
       await asked.getByRole("button", { name: "Sam", exact: true }).click();
       await expect(page.getByTestId("footer").getByTestId("owe")).toBeVisible(live);
       await circle(page, "Sprite", "Sam").click();
       await expect(page.getByTestId("footer").getByTestId("owe")).toHaveText("$3.05", live);
-      await expect(page.getByTestId("footer").getByTestId("share-bar")).toBeVisible();
+      await expect(page.getByTestId("footer").getByTestId("share-bar")).toHaveCount(0);
       await expect(page.getByTestId("footer").getByText(/incl\. tax/)).toHaveCount(0);
 
       await expect(page.getByRole("button", { name: "Show items: Show all 5", exact: true })).toBeVisible();

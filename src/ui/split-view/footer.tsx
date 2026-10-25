@@ -7,8 +7,6 @@ import { Icon } from "../components/icon";
 import { pressFeel, pressStyle, useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, tabular, type, useColors } from "../theme";
-import type { BillParts } from "./model";
-import { ShareBar } from "./share-bar";
 
 /** Past "$999.99" the amount drops a size, so "$1,234.56" fits beside the pill on a 360 px phone. */
 const longAmount = 7;
@@ -26,10 +24,8 @@ type Props = {
   amount: string;
   /** The person whose share this is when it is not this phone's own, for the button's name. */
   whose: string | null;
-  /** A paid state in words with its ink, under the bar. */
+  /** A paid state in words with its ink, under the share. */
   note: { readonly text: string; readonly ink: string } | null;
-  /** The bill in three parts for the bar under the share. */
-  bill: BillParts | null;
   pill: FooterPill | null;
   onOpen: (press: Press) => void;
   /** What the pill opens when it is not the Pay sheet. */
@@ -39,8 +35,8 @@ type Props = {
   rise?: boolean;
 };
 
-/** Fixed to the bottom of the page. The muted label over the amount, with the pill that opens the Pay sheet centered beside them both; under them the share bar across the width. */
-export function SplitFooter({ label, amount, whose, note, bill, pill, onOpen, onPill = onOpen, onHeight, rise = false }: Props) {
+/** Fixed to the bottom of the page. The muted label over the amount, with the pill that opens the Pay sheet centered beside them both. */
+export function SplitFooter({ label, amount, whose, note, pill, onOpen, onPill = onOpen, onHeight, rise = false }: Props) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -88,11 +84,6 @@ export function SplitFooter({ label, amount, whose, note, bill, pill, onOpen, on
               </PressTarget>
               {pill ? <Pill pill={pill} onPress={onPill} /> : null}
             </View>
-            {bill ? (
-              <View style={styles.bar}>
-                <ShareBar {...bill} />
-              </View>
-            ) : null}
             {note ? (
               <Text testID="share-note" numberOfLines={1} style={[type.caption, tabular, styles.note, { color: note.ink }]}>
                 {note.text}
@@ -141,7 +132,6 @@ const styles = StyleSheet.create({
   share: { flexGrow: 1, flexShrink: 0, minHeight: 44, justifyContent: "center" },
   amount: { fontFamily: type.hero.fontFamily, fontWeight: "500", fontSize: 46, lineHeight: 50, letterSpacing: -2, marginTop: 2 },
   longAmount: { fontSize: 36, lineHeight: 50, letterSpacing: -1.4 },
-  bar: { marginTop: 14 },
   note: { marginTop: 8 },
   // The pill gives up room before the amount does: its words ellipsize, the money never does.
   pillHit: { flexShrink: 1, minWidth: 0, maxWidth: "58%", borderRadius: 25 },
