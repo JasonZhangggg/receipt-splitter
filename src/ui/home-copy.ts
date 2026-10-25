@@ -44,6 +44,8 @@ export const copy = {
   placeField: "Place",
   placeName: (place: string) => `Place, ${place}. Edit`,
   currency: "Currency",
+  searchCurrencies: "Search currencies",
+  noCurrency: "No currency by that name.",
   currencyOf: (total: string, name: string) => `${total}, ${name}. Change currency`,
   action: "Create link",
   creating: "Creating link",
