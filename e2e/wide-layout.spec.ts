@@ -839,7 +839,8 @@ for (const size of sizes) {
       await page.keyboard.press("Enter");
       await expect(column(page, "Edit item")).toBeVisible(live);
 
-      await addLink(page).focus();
+      // The Total row is the receipt's last stop.
+      await page.getByRole("button", { name: /^Open Total/ }).focus();
       const order: string[] = [];
       for (let step = 0; step < 5; step++) {
         await page.keyboard.press("Tab");
