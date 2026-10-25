@@ -693,6 +693,30 @@ describe("editing the Receipt", () => {
     expect(reasonFor(split, { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "Large\nfries" }] })).toBe("badName");
   });
 
+  test("a Subtotal or Total set by hand lands on that figure, and undo puts the old one back", () => {
+    const split = withBobAndCat();
+    const { subtotal, total } = split.receipt;
+    const set = apply(split, { by: ann, type: "editReceipt", subtotal: cents(subtotal + 500) });
+
+    expect(set.receipt).toMatchObject({ subtotal: subtotal + 500, total });
+    expect(set.recentChanges.at(-1)?.writes).toEqual([{ kind: "totals", subtotalDelta: 500, totalDelta: 0 }]);
+    expect(apply(set, { by: ann, type: "editReceipt", subtotal: cents(subtotal + 500) }).receipt).toEqual(set.receipt);
+    expect(apply(set, { by: ann, type: "editReceipt", total: cents(total + 100) }).receipt).toMatchObject({ subtotal: subtotal + 500, total: total + 100 });
+    expect(apply(set, { by: ann, type: "undo", revision: set.revision }).receipt).toEqual(split.receipt);
+    expect(parseOperation(JSON.parse(JSON.stringify({ by: ann, type: "editReceipt", subtotal: 1200, total: 1500 })))).toEqual({ ok: true, op: { by: ann, type: "editReceipt", subtotal: 1200, total: 1500 } });
+  });
+
+  test("a Total set by hand cannot also follow or move, and a Subtotal set by hand cannot ride along with Item edits", () => {
+    const split = withBobAndCat();
+
+    expect(reasonFor(split, { by: ann, type: "editReceipt", total: cents(100), totalFollows: true })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", total: cents(100), totalDelta: cents(1) })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", subtotal: cents(100), subtotalDelta: cents(1) })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", subtotal: cents(100), items: [{ type: "edit", itemId: fries, price: price(900) }] })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", subtotal: cents(-1) })).toBe("amountOutOfRange");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", total: cents(-1) })).toBe("negativeTotal");
+  });
+
   test("an edit that names no field is rejected, and one that changes nothing is accepted unchanged", () => {
     const split = withBobAndCat();
 

@@ -277,3 +277,10 @@ describe("restoreChanges", () => {
     expect(restoreChanges(added.split)).toBe(false);
   });
 });
+
+describe("a Subtotal or Total set by hand", () => {
+  test("names the figure that moved", () => {
+    const leads = historyOf(split({ by: ann, type: "editReceipt", subtotal: cents(200) }, { by: ann, type: "editReceipt", total: cents(325) })).map(({ lead }) => lead);
+    expect(leads).toEqual(["Total up $0.25", "Subtotal down $0.50"]);
+  });
+});

@@ -130,8 +130,11 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
     }
     case "split":
       return { lead: `Split ${split.receipt.items.find(({ id }) => id === write.id)?.name ?? "An item"} into ${write.line.quantity}` };
-    case "totals":
-      return { lead: write.totalDelta < 0 ? `Total down ${money(-write.totalDelta, split.currency)}` : `Total up ${money(write.totalDelta, split.currency)}` };
+    case "totals": {
+      // A Subtotal set by hand moves only the Subtotal, so the line names it rather than a Total that stayed put.
+      const [word, delta] = write.totalDelta === 0 ? ["Subtotal", write.subtotalDelta] : ["Total", write.totalDelta];
+      return { lead: delta < 0 ? `${word} down ${money(-delta, split.currency)}` : `${word} up ${money(delta, split.currency)}` };
+    }
     case "participant":
       return { lead: say.removedPerson(write.removed.name) };
     case "payment": {
