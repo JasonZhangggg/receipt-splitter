@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { shareBreakdown } from "../../core/shares";
 import type { Participant, ParticipantId, Split } from "../../core/split";
-import { money } from "../../draft";
+import { money } from "../../core/currency";
 import { SectionHead } from "../components/section-head";
 import { splitCopy as say } from "../split-copy";
 import { SheetHeader } from "../split-view/sheet-header";
@@ -64,7 +64,7 @@ export function PayBody({ split, person, viewer, onClose, head, beside }: Props)
                 </Text>
                 {line.part ? <Text style={[type.caption, { color: c.muted }]}>{line.part}</Text> : null}
               </View>
-              <Text style={[type.body, tabular, { color: c.ink }]}>{money(line.portion)}</Text>
+              <Text style={[type.body, tabular, { color: c.ink }]}>{money(line.portion, split.currency)}</Text>
             </View>
           ))
         )}
@@ -77,7 +77,7 @@ export function PayBody({ split, person, viewer, onClose, head, beside }: Props)
             </View>
           )}
           {charges.map((row) => (
-            <Row key={row.id} label={row.name} amount={money(row.portion)} ink={c.muted} />
+            <Row key={row.id} label={row.name} amount={money(row.portion, split.currency)} ink={c.muted} />
           ))}
         </View>
       ) : null}
@@ -89,7 +89,7 @@ export function PayBody({ split, person, viewer, onClose, head, beside }: Props)
               {mine ? say.yourTotal : say.totalOf(person.name)}
             </Text>
             <Text testID="share" style={[type.body, tabular, { color: c.ink }]}>
-              {money(share)}
+              {money(share, split.currency)}
             </Text>
           </View>
           {beside ? <View style={styles.beside}>{beside}</View> : null}
@@ -100,14 +100,14 @@ export function PayBody({ split, person, viewer, onClose, head, beside }: Props)
             {mine ? say.yourTotal : say.totalOf(person.name)}
           </Text>
           <Text testID="share" style={[type.hero, tabular, styles.regular, { color: c.ink }]}>
-            {money(share)}
+            {money(share, split.currency)}
           </Text>
         </View>
       )}
       {state.kind === "short" ? (
         <View style={styles.rest}>
-          <Row label={say.paid} amount={money(state.paid)} ink={c.muted} testID="paid-so-far" />
-          <Row label={say.leftToPay} amount={money(state.rest)} ink={c.ink} testID="left-to-pay" />
+          <Row label={say.paid} amount={money(state.paid, split.currency)} ink={c.muted} testID="paid-so-far" />
+          <Row label={say.leftToPay} amount={money(state.rest, split.currency)} ink={c.ink} testID="left-to-pay" />
         </View>
       ) : null}
     </View>

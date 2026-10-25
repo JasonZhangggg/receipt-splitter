@@ -4,7 +4,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ParticipantId, Split } from "../../core/split";
 import { computeShares } from "../../core/shares";
-import { money } from "../../draft";
+import { money } from "../../core/currency";
+import { useCurrency } from "../currency";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { SectionHead } from "../components/section-head";
@@ -49,9 +50,9 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const arcs = slices(shares, me);
   const checked = (id: ParticipantId) => rows.some((row) => row.id === id && (row.state === "settled" || row.state === "over" || row.state === "host"));
   const label = say.ring.label(
-    money(total),
-    rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share)}`),
-    unclaimed > 0 ? money(unclaimed) : null,
+    money(total, split.currency),
+    rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share, split.currency)}`),
+    unclaimed > 0 ? money(unclaimed, split.currency) : null,
   );
   return (
     <View style={styles.sheet}>
@@ -63,8 +64,8 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
             {summary || unclaimed > 0 ? (
               <Text style={[type.caption, styles.tabular, { color: c.muted }]}>
                 <Text testID="payments-summary">{summary}</Text>
-                {summary ? <Text testID="payments-collected">{say.ring.collected(money(collected.paid), money(collected.owed))}</Text> : null}
-                {unclaimed > 0 ? (summary ? say.ring.unclaimed : say.ring.unclaimedOnly)(money(unclaimed)) : null}
+                {summary ? <Text testID="payments-collected">{say.ring.collected(money(collected.paid, split.currency), money(collected.owed, split.currency))}</Text> : null}
+                {unclaimed > 0 ? (summary ? say.ring.unclaimed : say.ring.unclaimedOnly)(money(unclaimed, split.currency)) : null}
               </Text>
             ) : null}
           </View>
@@ -91,7 +92,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
                       <Part amount={picked.share} words={say.ring.yourPart} total={total} />
                     </View>
                   )}
-                  <AllPaid key="all" wait={reduce ? null : opening ? checksLandBy(arcs, checked) : allPaidAfterCheck} caption={say.ring.allPaid(money(total))} />
+                  <AllPaid key="all" wait={reduce ? null : opening ? checksLandBy(arcs, checked) : allPaidAfterCheck} caption={say.ring.allPaid(money(total, split.currency))} />
                 </>
               ) : null}
             </View>
@@ -107,14 +108,14 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
         {paymentSections(shown, split.payments, me).map(({ kind, rows: part, amount }) => (
           <View key={kind}>
             <View style={styles.heading}>
-              <SectionHead label={say.section[kind]} detail={(kind === "owed" ? say.section.left : say.section.in)(money(amount))} rule={false} />
+              <SectionHead label={say.section[kind]} detail={(kind === "owed" ? say.section.left : say.section.in)(money(amount, split.currency))} rule={false} />
             </View>
             <View role="list" aria-label={say.section[kind]}>
               {part.map(({ id, name, share, state, words }) => {
                 const on = id === picked.id;
                 return (
                   <View key={id} role="listitem" {...{ dataSet: { state } }}>
-                    <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share)}`} toggled={on} outsideScroll={!sheet} onPress={() => setTapped(id)} style={() => null}>
+                    <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share, split.currency)}`} toggled={on} outsideScroll={!sheet} onPress={() => setTapped(id)} style={() => null}>
                       {(pressed) => {
                         const ink = on || pressed ? c.ink : c.muted;
                         return (
@@ -129,7 +130,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
                               </View>
                               <Text style={[type.caption, styles.sub, { color: state === "short" || state === "over" ? c.warn : c.muted }]}>{state === "settled" ? say.paid : words}</Text>
                             </View>
-                            <Text style={[type.body, styles.amount, { color: ink }, !reduce && fade]}>{money(share)}</Text>
+                            <Text style={[type.body, styles.amount, { color: ink }, !reduce && fade]}>{money(share, split.currency)}</Text>
                           </View>
                         );
                       }}
@@ -152,15 +153,16 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
 
 /** The ring's center for one person: their part of the Total. Everyone's ring reads this way, the Host's included. */
 function Part({ amount, words, total }: { amount: number; words: string; total: number }) {
+  const currency = useCurrency();
   const c = useColors();
   return (
     <>
-      <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(amount)}</Text>
+      <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(amount, currency)}</Text>
       <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
         {words}
       </Text>
       <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
-        {say.ring.of(money(total))}
+        {say.ring.of(money(total, currency))}
       </Text>
     </>
   );

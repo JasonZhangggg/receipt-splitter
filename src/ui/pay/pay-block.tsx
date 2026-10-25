@@ -6,7 +6,8 @@ import { handleText } from "../../core/operations";
 import { payLink } from "../../core/pay-links";
 import type { PaymentHandle, PaymentService, SplitId } from "../../core/split";
 import { rememberSplit, splitOnDevice } from "../../device";
-import { money } from "../../draft";
+import { money } from "../../core/currency";
+import { useCurrency } from "../currency";
 import { Mark, PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { paymentApps } from "../home-copy";
@@ -36,6 +37,7 @@ const note = "Receipt split";
 const target = Platform.OS === "web" ? "web" : "app";
 
 export function PayBlock({ split, host, handles, state, busy = false, notice = null, onPaid, compact = false }: Props) {
+  const currency = useCurrency();
   const c = useColors();
   if (state.kind === "nothing") return null;
   const due = state.kind === "unpaid" ? state.owe : state.kind === "short" ? state.rest : null;
@@ -60,7 +62,7 @@ export function PayBlock({ split, host, handles, state, busy = false, notice = n
           <View style={styles.next}>
             <View style={[styles.paid, compact ? styles.paidLine : { borderColor: c.hairline }]}>
               <Icon name="check" size={16} color={c.good} />
-              <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid))}</Text>
+              <Text style={[type.body, tabular, { color: c.good }]}>{say.youPaid(money(paid, currency))}</Text>
             </View>
           </View>
         )}
@@ -83,6 +85,7 @@ export function PayButton({ split, host, handles, amount }: { split: SplitId; ho
 }
 
 function PayWays({ split, host, handles, amount, compact = false }: { split: SplitId; host: string; handles: readonly PaymentHandle[]; amount: Cents; compact?: boolean }) {
+  const currency = useCurrency();
   const c = useColors();
   const reduce = useReducedMotion();
   const [problem, setProblem] = useState(false);
@@ -90,9 +93,9 @@ function PayWays({ split, host, handles, amount, compact = false }: { split: Spl
   const handle = handles.find(({ service }) => service === picked) ?? handles[0];
   const [copied, copy] = useCopy(handle.handle, () => setProblem(true));
   const app = paymentApps[handle.service];
-  const due = money(amount);
-  const href = payLink(handle, amount, note, target);
-  const action = href === null ? { onPress: copy } : { href, fallbackHref: payLink(handle, amount, note, "web") ?? href };
+  const due = money(amount, currency);
+  const href = payLink(handle, amount, note, target, currency);
+  const action = href === null ? { onPress: copy } : { href, fallbackHref: payLink(handle, amount, note, "web", currency) ?? href };
   const done = href === null && copied;
   const choices = handles.map(({ service }) => service);
   const pick = (service: PaymentService) => {

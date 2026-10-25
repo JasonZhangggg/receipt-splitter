@@ -1,3 +1,4 @@
+import type { Currency } from "./currency";
 import { MAX_CENTS, cents, isCents, price as asPrice, type Cents, type Price } from "./money";
 import { pickDevice } from "./pick-device";
 import {
@@ -933,6 +934,8 @@ function canonicalHandles(handles: readonly PaymentHandle[]): readonly PaymentHa
 
 export type NewSplit = {
   readonly id: MintedSplitId;
+  /** USD when the request names none. */
+  readonly currency?: Currency;
   readonly receipt: Receipt;
   /** The business name read from the receipt. */
   readonly place?: string;
@@ -977,7 +980,7 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
   const bare: Split = {
     schemaVersion: 4,
     id: input.id,
-    currency: "USD",
+    currency: input.currency ?? "USD",
     ...(input.place !== undefined && { place: input.place }),
     receipt,
     participants: input.participants,

@@ -56,3 +56,11 @@ describe("payLink", () => {
     expect(payLink({ service: "cashApp", handle: "jasonz" }, cents(7), "")).toBe("https://cash.app/$jasonz/0.07");
   });
 });
+
+describe("a Split in another currency", () => {
+  test("PayPal asks for the Split's currency, and the apps that only send dollars give no link", () => {
+    expect(payLink({ service: "paypal", handle: "jasonz" }, cents(1250), "Pizza", "web", "EUR")).toBe("https://paypal.me/jasonz/12.50EUR");
+    expect(payLink({ service: "paypal", handle: "jasonz" }, cents(1200), "Ramen", "web", "JPY")).toBe("https://paypal.me/jasonz/1200JPY");
+    expect([payLink({ service: "venmo", handle: "jason-z" }, cents(1250), "Pizza", "web", "EUR"), payLink({ service: "cashApp", handle: "jasonz" }, cents(1250), "Pizza", "app", "GBP")]).toEqual([null, null]);
+  });
+});

@@ -1,6 +1,7 @@
 import { MAX_CENTS, cents, price as toPrice, type Cents } from "../../core/money";
 import { MAX_QUANTITY, MAX_ROW_NAME_LENGTH, applyOperation, isName, type Optimistic, type WireRejection } from "../../core/operations";
 import type { ItemId, ParticipantId, Split } from "../../core/split";
+import { decimalsOf, symbolOf, type Currency } from "../../core/currency";
 import { parseAmount } from "../../draft";
 
 /** The add sheet's fields as typed. */
@@ -15,13 +16,16 @@ export type NewItemProblem = "name" | "price" | "quantity" | "overLimit" | "tooM
 
 export type NewItemAnswer = { readonly ok: true; readonly op: Optimistic } | { readonly ok: false; readonly problem: NewItemProblem };
 
-const amountShape = /^\d+(\.\d{0,2})?$|^\.\d{1,2}$/;
+const amountShape = /^\d+([.,]\d{0,2})?$|^[.,]\d{1,2}$/;
+const wholeShape = /^\d+$|^\d{1,3}(?:[.,]\d{3})+$/;
+const signs = ["$", "€", "£", "¥"];
 
-/** Dollars and cents as typed in a sheet, a leading $ allowed, or why they do not read as an amount. */
-export function readAmount(typed: string): Cents | "price" | "overLimit" {
-  const text = typed.trim().replace(/^\$/, "");
-  if (!amountShape.test(text)) return "price";
-  const cents = parseAmount(text);
+/** An amount as typed in a sheet, in the currency's minor unit, a leading currency sign allowed and a comma for the decimal mark, or why it does not read as an amount. */
+export function readAmount(typed: string, currency: Currency): Cents | "price" | "overLimit" {
+  const sign = [symbolOf(currency), ...signs].find((mark) => typed.trim().startsWith(mark));
+  const text = sign ? typed.trim().slice(sign.length).trim() : typed.trim();
+  if (!(decimalsOf(currency) === 0 ? wholeShape : amountShape).test(text)) return "price";
+  const cents = parseAmount(text, currency);
   return cents === null || cents > MAX_CENTS ? "overLimit" : cents;
 }
 
@@ -29,7 +33,7 @@ export function readAmount(typed: string): Cents | "price" | "overLimit" {
 export function newItem(split: Split, typed: NewItem, id: ItemId, by: ParticipantId | null): NewItemAnswer {
   const name = typed.name.trim();
   if (!isName(name, MAX_ROW_NAME_LENGTH)) return { ok: false, problem: "name" };
-  const cents = readAmount(typed.price);
+  const cents = readAmount(typed.price, split.currency);
   if (typeof cents === "string") return { ok: false, problem: cents };
   const quantity = readQuantity(typed.quantity);
   if (quantity === null) return { ok: false, problem: "quantity" };

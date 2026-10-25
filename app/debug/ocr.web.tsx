@@ -2,7 +2,7 @@ import { useEffect, useState, type ChangeEvent } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import type { Receipt } from "../../src/core/split";
 import { runTotalCheck } from "../../src/core/total-check";
-import { money } from "../../src/draft";
+import { money } from "../../src/core/currency";
 import { recognize, type TextBox } from "../../src/ocr";
 import { parseReceipt } from "../../src/parse";
 
@@ -116,7 +116,7 @@ function ParsedReceipt({ receipt }: { receipt: Receipt | null }) {
       <ul aria-labelledby="parse-items" data-testid="parse-items" style={list}>
         {receipt.items.map((item) => (
           <li key={item.id}>
-            {item.name} {money(item.price)}
+            {item.name} {money(item.price, "USD")}
           </li>
         ))}
       </ul>
@@ -128,18 +128,18 @@ function ParsedReceipt({ receipt }: { receipt: Receipt | null }) {
           <ul aria-labelledby="parse-adjustments" style={list}>
             {receipt.adjustments.map((adjustment) => (
               <li key={adjustment.id}>
-                {adjustment.name} {money(adjustment.amount)}
+                {adjustment.name} {money(adjustment.amount, "USD")}
               </li>
             ))}
           </ul>
         </>
       )}
-      <p style={{ margin: "12px 0 0" }}>Subtotal {money(receipt.subtotal)}</p>
-      <p style={{ margin: 0, fontWeight: 600 }}>Total {money(receipt.total)}</p>
+      <p style={{ margin: "12px 0 0" }}>Subtotal {money(receipt.subtotal, "USD")}</p>
+      <p style={{ margin: 0, fontWeight: 600 }}>Total {money(receipt.total, "USD")}</p>
       <p data-testid="parse-check" style={{ margin: "12px 0 0" }}>
         {check.ok
           ? "Total check passed."
-          : `Total check failed. Items are off by ${money(check.subtotalGap)} and the total by ${money(check.totalGap)}.`}
+          : `Total check failed. Items are off by ${money(check.subtotalGap, "USD")} and the total by ${money(check.totalGap, "USD")}.`}
       </p>
     </section>
   );

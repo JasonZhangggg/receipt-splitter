@@ -3,7 +3,8 @@ import { shareBreakdown, type ShareBreakdown, type Shares } from "../../core/sha
 import type { Cents } from "../../core/money";
 import { itemId, type Adjustment, type AdjustmentId, type ItemId, type ItemRow, type NonEmpty, type Participant, type ParticipantId, type Receipt, type Split, type SplitItem } from "../../core/split";
 import { runTotalCheck } from "../../core/total-check";
-import { gapNote, money } from "../../draft";
+import { money, type Currency } from "../../core/currency";
+import { gapNote } from "../../draft";
 import { splitCopy as say } from "../split-copy";
 
 export function claimersOfItem(item: SplitItem): ParticipantId[] {
@@ -77,17 +78,17 @@ export function whoText({ you, others }: Who): string {
 /** What the viewer owes for each Item they have a part in, from their share breakdown, so a row reads what the Pay sheet charges. */
 export type Portions = ReadonlyMap<ItemId, Cents>;
 
-export function lineView(item: SplitItem, viewing: Viewing, portions: Portions): LineView {
+export function lineView(item: SplitItem, viewing: Viewing, portions: Portions, currency: Currency): LineView {
   const claimers = claimersOf(item.split);
-  return { who: whoHad(claimers, viewing), split: splitLine(item, claimers, viewing, portions) };
+  return { who: whoHad(claimers, viewing), split: splitLine(item, claimers, viewing, portions, currency) };
 }
 
-function splitLine(item: SplitItem, claimers: readonly ParticipantId[], { me, viewer }: Viewing, portions: Portions): string | null {
+function splitLine(item: SplitItem, claimers: readonly ParticipantId[], { me, viewer }: Viewing, portions: Portions, currency: Currency): string | null {
   const parts = lineAmounts(item);
   const mine = viewer !== null && claimers.includes(viewer) ? portions.get(item.id) : undefined;
-  if (mine !== undefined) return `${money(mine)} ${viewer === me ? say.yours : say.theirs}`;
+  if (mine !== undefined) return `${money(mine, currency)} ${viewer === me ? say.yours : say.theirs}`;
   if (claimers.length < 2) return null;
-  if (item.split.by === "even") return parts.every(({ cents }) => cents === parts[0].cents) ? `${money(parts[0].cents)} ${say.each}` : say.splitWaysLine(claimers.length);
+  if (item.split.by === "even") return parts.every(({ cents }) => cents === parts[0].cents) ? `${money(parts[0].cents, currency)} ${say.each}` : say.splitWaysLine(claimers.length);
   return item.split.by === "shares" ? say.byShares : say.byAmountLine;
 }
 
@@ -129,10 +130,10 @@ type BundleDiscount = Extract<Adjustment, { readonly kind: "bundleDiscount" }>;
 const isBundle = (row: Adjustment): row is BundleDiscount => row.kind === "bundleDiscount";
 const percentOff = (name: string) => /(\d+(?:\.\d+)?)\s*%/.exec(name)?.[1] ?? null;
 
-export function receiptRows(receipt: Receipt<SplitItem>): { readonly rows: readonly ReceiptRow[]; readonly charges: readonly Adjustment[] } {
+export function receiptRows(receipt: Receipt<SplitItem>, currency: Currency): { readonly rows: readonly ReceiptRow[]; readonly charges: readonly Adjustment[] } {
   const bundles = receipt.adjustments.filter(isBundle).flatMap((row) => {
     const [first, ...rest] = receipt.items.filter(({ id }) => row.bundle.items.includes(id));
-    return first ? [bundleRow(row, [first, ...rest])] : [];
+    return first ? [bundleRow(row, [first, ...rest], currency)] : [];
   });
   const rows = receipt.items.flatMap((item): ReceiptRow[] => {
     const bundle = bundles.find(({ items }) => items.some(({ id }) => id === item.id));
@@ -142,7 +143,7 @@ export function receiptRows(receipt: Receipt<SplitItem>): { readonly rows: reado
   return { rows, charges: receipt.adjustments.filter((row) => !isBundle(row)) };
 }
 
-function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>): BundleRow {
+function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>, currency: Currency): BundleRow {
   const percent = percentOff(row.name);
   const label = row.name.startsWith(`${row.bundle.name} `) ? row.name.slice(row.bundle.name.length + 1) : row.name;
   return {
@@ -150,7 +151,7 @@ function bundleRow(row: BundleDiscount, items: NonEmpty<SplitItem>): BundleRow {
     name: row.bundle.name,
     items,
     discount: { label: label.charAt(0).toUpperCase() + label.slice(1), amount: row.amount },
-    summary: say.bundleSummary(items.length, percent ? `${percent}%` : money(Math.abs(row.amount))),
+    summary: say.bundleSummary(items.length, percent ? `${percent}%` : money(Math.abs(row.amount), currency)),
     net: items.reduce((total, { price }) => total + price, 0) + row.amount,
   };
 }
@@ -205,12 +206,12 @@ export function claimedItems(bundle: BundleRow, unclaimed: readonly ItemId[]): n
   return bundle.items.filter(({ id }) => !unclaimed.includes(id)).length;
 }
 
-export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId, price: number): string | null {
+export function bundleNote(receipt: Receipt<SplitItem>, itemId: ItemId, price: number, currency: Currency): string | null {
   const row = receipt.adjustments.filter(isBundle).find(({ bundle }) => bundle.items.includes(itemId));
   if (!row) return null;
   const inBundle = receipt.items.filter(({ id }) => row.bundle.items.includes(id)).reduce((total, { price }) => total + price, 0);
   const off = inBundle === 0 ? 0 : Math.round((price * Math.abs(row.amount)) / inBundle);
-  return say.inBundle(row.bundle.name, percentOff(row.name), money(off));
+  return say.inBundle(row.bundle.name, percentOff(row.name), money(off, currency));
 }
 
 export function breakdownCharges(receipt: Receipt<SplitItem>, breakdown: ShareBreakdown): ShareBreakdown["adjustments"] {
@@ -221,9 +222,9 @@ export function breakdownCharges(receipt: Receipt<SplitItem>, breakdown: ShareBr
   });
 }
 
-export function totalNote(receipt: Receipt<SplitItem>): string | null {
+export function totalNote(receipt: Receipt<SplitItem>, currency: Currency): string | null {
   const check = runTotalCheck(receipt);
-  return check.ok ? null : gapNote(receipt, check);
+  return check.ok ? null : gapNote(receipt, check, currency);
 }
 
 /**

@@ -2,7 +2,8 @@ import type { ReadAdjustment, ReadBundle, ReadDiscount, ReadItem, ScanReply } fr
 import { cents, isCents, price, type Cents, type Price } from "../core/money";
 import { isDetail, MAX_DETAIL_LENGTH, MAX_QUANTITY } from "../core/operations";
 import { adjustmentId, itemId, type Adjustment, type Item, type NonEmpty, type Receipt, type ReceiptLevelKind } from "../core/split";
-import { clip, MAX_HOME_PLACE_LENGTH, money } from "../draft";
+import { isCurrency, money, type Currency } from "../core/currency";
+import { clip, MAX_HOME_PLACE_LENGTH } from "../draft";
 import type { TextBox } from "../ocr/types";
 import { groupRows } from "../parse/rows";
 
@@ -55,8 +56,8 @@ function parseReply(value: unknown): ScanReply | null {
 const sum = (amounts: readonly number[]) => amounts.reduce((total, amount) => total + amount, 0);
 
 /** The Item's detail lines and folded discounts as one line, such as "Large, oat milk, $2.00 off", or undefined when there are none or it cannot be shown. */
-function detailLine({ details, discounts }: ReadItem): string | undefined {
-  const parts = [...details, ...discounts.map(({ amount }) => `${money(Math.abs(amount))} off`)];
+function detailLine({ details, discounts }: ReadItem, currency: Currency): string | undefined {
+  const parts = [...details, ...discounts.map(({ amount }) => `${money(Math.abs(amount), currency)} off`)];
   const line = parts.map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean).join(", ");
   const characters = [...line];
   const clipped = characters.length > MAX_DETAIL_LENGTH ? `${characters.slice(0, MAX_DETAIL_LENGTH - 1).join("").trimEnd()}…` : line;
@@ -100,13 +101,16 @@ export function placeOfReply(value: unknown): string | null {
   return clip(place, MAX_HOME_PLACE_LENGTH) === place ? place : `${clip(place, MAX_HOME_PLACE_LENGTH - 1).trimEnd()}\u2026`;
 }
 
+/** The currency the route read, or null when the reply names none a Split can be in. */
+export const currencyOfReply = (value: unknown): Currency | null => (isObject(value) && isCurrency(value.currency) ? value.currency : null);
+
 /** Maps the route's reply to a Receipt, or null when the reply does not have the reply's shape. */
 export function receiptOfReply(value: unknown): Receipt | null {
   const reply = parseReply(value);
   if (reply === null) return null;
   const folds = reply.items.map(fold);
   const items = reply.items.map((read, index): Item => {
-    const detail = detailLine({ ...read, discounts: folds[index].folded });
+    const detail = detailLine({ ...read, discounts: folds[index].folded }, currencyOfReply(value) ?? "USD");
     return {
       id: itemId(`i${index + 1}`),
       name: read.name,
@@ -180,8 +184,8 @@ async function scanBody(photo: Blob, boxes: readonly TextBox[]): Promise<string 
   return null;
 }
 
-/** Reads the receipt and the place it came from through `POST /api/scan`. "notReceipt" is the reader saying the photo shows none. Any other refusal, failure, malformed reply, or no reply within the timeout is null. */
-export async function readOnServer(photo: Blob, boxes: readonly TextBox[], timeoutMs = SCAN_TIMEOUT_MS): Promise<{ readonly receipt: Receipt; readonly place: string | null } | "notReceipt" | null> {
+/** Reads the receipt, the place it came from and its currency through `POST /api/scan`. "notReceipt" is the reader saying the photo shows none. Any other refusal, failure, malformed reply, or no reply within the timeout is null. */
+export async function readOnServer(photo: Blob, boxes: readonly TextBox[], timeoutMs = SCAN_TIMEOUT_MS): Promise<{ readonly receipt: Receipt; readonly place: string | null; readonly currency: Currency | null } | "notReceipt" | null> {
   try {
     const body = await scanBody(photo, boxes);
     if (body === null) return null;
@@ -190,7 +194,7 @@ export async function readOnServer(photo: Blob, boxes: readonly TextBox[], timeo
     if (response.status !== 200) return null;
     const reply: unknown = await response.json();
     const receipt = receiptOfReply(reply);
-    return receipt && { receipt, place: placeOfReply(reply) };
+    return receipt && { receipt, place: placeOfReply(reply), currency: currencyOfReply(reply) };
   } catch {
     return null;
   }

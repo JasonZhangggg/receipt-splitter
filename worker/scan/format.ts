@@ -1,3 +1,4 @@
+import { isCurrency, type Currency } from "../../src/core/currency";
 import { MAX_CENTS, type Cents } from "../../src/core/money";
 import type { NonEmpty } from "../../src/core/split";
 import type { Check } from "./check";
@@ -32,6 +33,8 @@ export type ReadBundle<Members extends readonly number[] = readonly number[]> = 
 export type Reading = {
   /** The business name printed on the receipt, or null when none was read. */
   readonly place: string | null;
+  /** The currency the receipt is in, or null when the reading named none a Split can be in. */
+  readonly currency: Currency | null;
   readonly subtotal: Subtotal | null;
   readonly total: Cents;
   readonly items: NonEmpty<ReadItem>;
@@ -45,6 +48,7 @@ export type Reading = {
 /** The body of a 200 from `POST /api/scan`. */
 export type ScanReply = {
   readonly place: string | null;
+  readonly currency: Currency | null;
   readonly items: NonEmpty<ReadItem>;
   readonly bundles: readonly ReadBundle<NonEmpty<number>>[];
   readonly adjustments: readonly ReadAdjustment[];
@@ -87,6 +91,7 @@ type ItemDraft = { name: string; price: Cents; quantity: number | null; details:
 /** Reads pass 1's compact format. Returns null without a total or an Item. */
 export function readLines(lines: readonly string[]): Reading | null {
   let place: string | null = null;
+  let currency: Currency | null = null;
   let subtotal: Subtotal | null = null;
   let total: Cents | null = null;
   const items: ItemDraft[] = [];
@@ -100,11 +105,17 @@ export function readLines(lines: readonly string[]): Reading | null {
     const inside = line.startsWith(">");
     const fields = fieldsOf(line);
     const tag = fields[0].toLowerCase();
-    if (!inside && !["+", "-", "at", "sub", "tot"].includes(tag)) bundle = null;
+    if (!inside && !["+", "-", "at", "cur", "sub", "tot"].includes(tag)) bundle = null;
 
     if (tag === "at") {
       const name = fields.slice(1).join(" ").trim();
       place = name === "" || name === "-" ? null : name;
+      continue;
+    }
+
+    if (tag === "cur") {
+      const code = (fields[1] ?? "").toUpperCase();
+      currency = isCurrency(code) ? code : null;
       continue;
     }
 
@@ -179,7 +190,7 @@ export function readLines(lines: readonly string[]): Reading | null {
   }
 
   if (total === null || items.length === 0) return null;
-  return { place, subtotal, total, items: items as unknown as NonEmpty<ReadItem>, bundles, adjustments, skipped };
+  return { place, currency, subtotal, total, items: items as unknown as NonEmpty<ReadItem>, bundles, adjustments, skipped };
 }
 
 /** The reply for a reading. A Bundle the reading left empty gives its discounts to the whole receipt. */
@@ -188,6 +199,7 @@ export function toReply(reading: Reading, check: Check): ScanReply {
   const orphaned = reading.bundles.filter((bundle) => !isFull(bundle)).flatMap((bundle) => bundle.discounts);
   return {
     place: reading.place,
+    currency: reading.currency,
     items: reading.items,
     bundles: reading.bundles.filter(isFull),
     adjustments: [...reading.adjustments, ...orphaned.map(({ name, amount }) => ({ kind: "discount" as const, name, amount }))],

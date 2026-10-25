@@ -145,7 +145,7 @@ test("a discount that would take the Total under $0.00 keeps its sheet open on t
 
   for (let press = 0; press < 2; press += 1) {
     await closeSheet(sam, "Edit discount");
-    await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
+    await expect(sheet.getByRole("status")).toHaveText("That takes the total below zero.");
     await expect(amount).toBeFocused();
   }
   expect(await blurs.jsonValue()).toEqual([]);
@@ -155,14 +155,14 @@ test("a discount that would take the Total under $0.00 keeps its sheet open on t
   await expect(amount).toHaveValue("50.00");
   await sheet.getByRole("button", { name: "Close", exact: true }).press("Enter");
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
+  await expect(sheet.getByRole("status")).toHaveText("That takes the total below zero.");
   await sam.keyboard.press("Escape");
   await expect(sheet).toBeVisible();
   await expect(amount).not.toBeFocused();
   await swipeDown(sam, "adjustment-sheet");
   await settled(sam, "adjustment-sheet");
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole("status")).toHaveText("That takes the total under $0.00.");
+  await expect(sheet.getByRole("status")).toHaveText("That takes the total below zero.");
   await expect(amount).not.toBeFocused();
   await expect(amount).toHaveValue("50.00");
   for (const page of [sam, priya]) await expect(page.getByTestId("total")).toHaveText("$19.00");

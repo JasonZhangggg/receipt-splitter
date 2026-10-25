@@ -21,7 +21,7 @@ type Placed = Box & { readonly localSlope: number };
 
 type Cluster = { y: number; readonly boxes: Placed[] };
 
-const PRICE_ONLY = /^[-(]?\s*\$?\s*\d{1,3}(?:,\d{3})*[.,]\s?\d{2}\s*[-)]?\s*[A-Z]{0,2}$/;
+const PRICE_ONLY = /^[-(]?\s*(?:[$€£]|CHF|EUR)?\s*\d{1,3}(?:[,.']\d{3})*[.,]\s?\d{2}\s*[-)]?\s*(?:[€£]|[A-Z]{0,2})$/;
 const JOIN_WITHIN = 0.5;
 const SLOPE_REACH = 4;
 const PAIR_WITHIN = 1;

@@ -979,3 +979,50 @@ describe("parseReceipt assembling rows", () => {
     ).toEqual([{ id: "i1", name: "Burger", price: 1200 }]);
   });
 });
+
+describe("a receipt in another currency", () => {
+  test("reads decimal commas, dot-grouped thousands and euro signs, and names the currency", () => {
+    const read = readReceipt(receiptRows([["Trattoria Roma", ""], ["Champagner", "€1.234,50"], ["Pizza Margherita", "€12,50"], ["Totale", "€1.247,00"]]));
+    expect(read && { currency: read.currency, items: read.receipt.items.map(({ name, price }) => [name, price]), total: read.receipt.total }).toEqual({
+      currency: "EUR",
+      items: [
+        ["Champagner", 123450],
+        ["Pizza Margherita", 1250],
+      ],
+      total: 124700,
+    });
+  });
+
+  test("leaves out VAT that the prices already include, and reads German labels", () => {
+    const read = readReceipt(receiptRows([["Pizza", "10,00"], ["Bier", "5,00"], ["MwSt 19%", "2,39"], ["Summe", "15,00"]]));
+    expect(read && { currency: read.currency, adjustments: read.receipt.adjustments, total: read.receipt.total, ok: runTotalCheck(read.receipt).ok }).toEqual({ currency: null, adjustments: [], total: 1500, ok: true });
+  });
+
+  test("keeps VAT added on top", () => {
+    const read = readReceipt(receiptRows([["Fish and chips", "£11.95"], ["VAT", "£2.39"], ["Total", "£14.34"]]));
+    expect(read && { currency: read.currency, adjustments: read.receipt.adjustments.map(({ kind, amount }) => [kind, amount]) }).toEqual({ currency: "GBP", adjustments: [["tax", 239]] });
+  });
+});
+
+describe("signs and words the other-currency reader must not misread", () => {
+  test("a dish named after a tax word stays an Item", () => {
+    const read = readReceipt(receiptRows([["Moms Meatloaf", "12.99"], ["BTW Wings", "4.00"], ["Subtotal", "16.99"], ["Tax", "1.36"], ["Total", "18.35"]]));
+    expect(read && { items: read.receipt.items.map(({ name }) => name), ok: runTotalCheck(read.receipt).ok }).toEqual({ items: ["Moms Meatloaf", "BTW Wings"], ok: true });
+  });
+
+  test("a yen or yuan sign names no currency, since the reader takes two decimals", () => {
+    const read = readReceipt(receiptRows([["Noodles", "¥12.50"], ["Dumplings", "¥8.00"], ["Total", "¥20.50"]]));
+    expect(read && { currency: read.currency, items: read.receipt.items.map(({ name, price }) => [name, price]) }).toEqual({
+      currency: null,
+      items: [
+        ["Noodles", 1250],
+        ["Dumplings", 800],
+      ],
+    });
+  });
+
+  test("VAT a receipt says it includes reads as tax", () => {
+    const read = readReceipt(receiptRows([["Pizza", "10,00"], ["enthaltene MwSt 19%", "1,60"], ["Summe", "10,00"]]));
+    expect(read?.receipt.items.map(({ name }) => name)).toEqual(["Pizza"]);
+  });
+});
