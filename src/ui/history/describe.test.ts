@@ -89,7 +89,7 @@ describe("historyOf", () => {
       ),
     );
 
-    expect(history.map(({ lead }) => lead)).toEqual(["Deleted Tip · $0.50", "Added Promo · -$1.00", "Added Bag fee · $3.00"]);
+    expect(history.map(({ lead }) => lead)).toEqual(["Deleted Tip · $0.50", "Added Promo · $1.00", "Added Bag fee · $3.00"]);
   });
 
   test("a change of split reads in words, never as a ratio, and back-to-back switches by one person read as one entry from the first to the last", () => {
