@@ -52,6 +52,9 @@ const chevronTip = chevronSize / 8;
 const nameLine = 24;
 const noteLine = 20;
 const chargeRow = 34;
+// The Bundle's vertical rule sits mid-slot under the chevron, and stops short of the chevron and of the rule below by the gap it keeps from its rows' hairlines.
+const ruleLeft = (nameStart - columnGap) / 2 - 0.5;
+const ruleGap = nameStart - (ruleLeft + 1);
 
 export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false, filter, onFilter, onFilterMenu, filterMenuOpen }: Props) {
   const c = useColors();
@@ -304,14 +307,14 @@ function BundleGroup({ bundle, open, claimed, claimers, quiet, who, wide, onTogg
     setByClaim(was.open === open);
   }
   return (
-    <View role="listitem" testID={`bundle-${bundle.id}`}>
-      <View pointerEvents="none" style={[styles.rule, fade, { top: 12 + big.lineHeight / 2 + 4, backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
+    <View role="listitem" testID={`bundle-${bundle.id}`} style={[styles.bundle, { borderTopColor: c.hairline }]}>
+      <View pointerEvents="none" style={[styles.rule, fade, { top: 12 + big.lineHeight / 2 + 3 + ruleGap - 1, backgroundColor: c.hairline, opacity: open ? 1 : 0 }]} />
       <PressTarget
         name={say.bundleLabel(bundle.name, bundle.summary, inside(claimers, claimed), open)}
         expanded={open}
         controls={region}
         onPress={onToggle}
-        style={(pressed) => [styles.header, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
+        style={(pressed) => [styles.header, pressStyle(pressed, reduce)]}
       >
         {(_, hovered) => (
           <>
@@ -549,12 +552,13 @@ const styles = StyleSheet.create({
   wideFigure: { fontFamily: type.body.fontFamily, fontWeight: "400", fontSize: 21, lineHeight: 28, letterSpacing: -0.3 },
   // Small caps in their own column, centred on the row like the name and the price.
   whoColumn: { width: 150, fontSize: 11, lineHeight: 22, letterSpacing: 1, textTransform: "uppercase", fontWeight: "500" },
-  header: { borderTopWidth: 1, paddingVertical: 12 },
+  bundle: { borderTopWidth: 1 },
+  // The header bleeds into the gutter like the dot's hit area, so a thumb aimed at the chevron still lands on it.
+  header: { paddingVertical: 12, marginLeft: -dotBleed, paddingLeft: dotBleed },
   bundleTop: { flexDirection: "row", alignItems: "flex-start", columnGap },
   bundleWho: { flexDirection: "row", marginLeft: nameStart, columnGap },
   chevron: { width: nameStart - columnGap, alignItems: "center", justifyContent: "center" },
-  // The vertical rule runs from the open chevron's tip down beside the children; the chevron sits at the centre of its slot.
-  rule: { position: "absolute", left: (nameStart - columnGap) / 2 - 0.5, width: 1, bottom: 0 },
+  rule: { position: "absolute", left: ruleLeft, width: 1, bottom: ruleGap },
   collapse: { overflow: "hidden", marginHorizontal: -bleed, paddingHorizontal: bleed },
   collapsed: { minHeight: 0 },
   discount: { flexDirection: "row", alignItems: "center", columnGap, minHeight: 44, marginLeft: nameStart, paddingLeft: nameStart, borderTopWidth: 1 },
