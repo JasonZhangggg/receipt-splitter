@@ -19,6 +19,8 @@ import { Button, type Press } from "../../src/ui/components/button";
 import type { Lay } from "../../src/ui/lay";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
+import { TotalsSheet } from "../../src/ui/totals-sheet";
+import type { TotalLine } from "../../src/ui/totals-sheet/totals";
 import { HistorySheet, type HistoryAsk } from "../../src/ui/history";
 import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
@@ -109,6 +111,7 @@ type OverlayKind =
   | { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] }
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
+  | { readonly kind: "totals"; readonly line: TotalLine }
   | { readonly kind: "history" }
   | { readonly kind: "people" }
   | { readonly kind: "pay" }
@@ -124,7 +127,9 @@ type Bar = { readonly message: string; readonly action?: { readonly label: strin
 const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
   overlay.kind === "adjustment"
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
-    : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
+    : overlay.kind === "totals"
+      ? say.editTotals[overlay.line]
+      : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
 const checkFor = 80;
 /** The Host's footer pill: how many of the people who owe have paid, "All paid" once they all have, or just Payments while nobody owes yet. */
 const collectLabel = ({ paid, owing }: { paid: number; owing: number }) => (owing === 0 ? say.payments : paid === owing ? say.ring.allPaidTitle : say.status.paidOf(paid, owing));
@@ -604,6 +609,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       <AddSheet split={split} me={me} lay={lay} onClose={closeOverlay} />
     ) : overlay.kind === "adjustment" ? (
       <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} lay={lay} onClose={closeOverlay} onDeleted={deleted} guardRef={closeGuard} />
+    ) : overlay.kind === "totals" ? (
+      <TotalsSheet split={split} line={overlay.line} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
       <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
     ) : overlay.kind === "people" ? (
@@ -639,14 +646,17 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
       onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
+      onOpenTotals={(line, from) => open({ kind: "totals", line }, from)}
       showing={
         showingNow?.kind === "item"
           ? showingNow.itemId
           : showingNow?.kind === "adjustment"
             ? showingNow.adjustmentId
-            : showingNow?.kind === "add"
-              ? "add"
-              : null
+            : showingNow?.kind === "totals"
+              ? showingNow.line
+              : showingNow?.kind === "add"
+                ? "add"
+                : null
       }
     />
   );
@@ -713,7 +723,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       </SidePanel>
     ) : overlay ? (
       <SidePanel
-        key={overlay.kind === "item" ? `item-${overlay.itemId}` : overlay.kind === "adjustment" ? `adjustment-${overlay.adjustmentId}` : overlay.kind}
+        key={overlay.kind === "item" ? `item-${overlay.itemId}` : overlay.kind === "adjustment" ? `adjustment-${overlay.adjustmentId}` : overlay.kind === "totals" ? `totals-${overlay.line}` : overlay.kind}
         label={overlayLabel(overlay, split, viewedTitle)}
         closing={closing}
         onDown={overlayGone}

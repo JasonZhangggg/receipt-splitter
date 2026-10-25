@@ -14,6 +14,7 @@ import { KeptRows, Presence, useEntering } from "../presence";
 import { splitCopy as say } from "../split-copy";
 import { motion, tabular, type, useColors } from "../theme";
 import { firstName } from "../pay/pay-sheet";
+import type { TotalLine } from "../totals-sheet/totals";
 import { ClaimDot } from "./dot";
 import { FilterButton, FilterTabs } from "./item-filters";
 import { filterCounts, filterRows, itemsHad, lineView, nameParts, quantityText, receiptRows, totalNote, claimedItems, whoHad, whoText, type BundleRow, type ItemFilter, type ReceiptRow, type Who, type Portions, type Viewing } from "./model";
@@ -28,8 +29,9 @@ type Props = {
   onOpen: (item: SplitItem, press: Press) => void;
   onAdd: (press: Press) => void;
   onOpenAdjustment: (row: Adjustment, press: Press) => void;
+  onOpenTotals: (line: TotalLine, press: Press) => void;
   /** The line whose detail is open, or an add form, so its trigger reads as expanded. */
-  showing: ItemId | AdjustmentId | "add" | null;
+  showing: ItemId | AdjustmentId | TotalLine | "add" | null;
   /** The wide layout: rows a size larger. */
   wide?: boolean;
   /** Who had each row in a column of its own between the name and the price, where the window has room. */
@@ -54,7 +56,7 @@ const nameLine = 24;
 const noteLine = 20;
 const chargeRow = 34;
 
-export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, showing, wide = false, whoColumn = false, filter, onFilter, onFilterMenu, filterMenuOpen }: Props) {
+export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onAdd, onOpenAdjustment, onOpenTotals, showing, wide = false, whoColumn = false, filter, onFilter, onFilterMenu, filterMenuOpen }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   // Bundles start open; this holds the ones the viewer has folded.
@@ -191,7 +193,15 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
       {filter === "all" ? (
         <>
           <View style={styles.charges}>
-            <Row label={say.subtotal} amount={subtotal} />
+            <PressTarget
+              name={say.openAdjustment(say.subtotal, money(subtotal, split.currency))}
+              popup="dialog"
+              expanded={showing === "subtotal"}
+              onPress={(press) => onOpenTotals("subtotal", press)}
+              style={(pressed) => [styles.row, styles.tapRow, pressStyle(pressed, reduce)]}
+            >
+              {() => <RowFace label={say.subtotal} amount={subtotal} />}
+            </PressTarget>
             <KeptRows rows={charges} entering={entering}>
               {(row) => (
                 <PressTarget
@@ -212,12 +222,22 @@ export function ReceiptCard({ split, shares, selected, me, onCircle, onOpen, onA
               </Text>
             </Presence>
           </View>
-          <View style={[styles.total, { borderTopColor: c.hairline }]}>
-            <Text style={[styles.figure, { color: c.ink }]}>{say.total}</Text>
-            <Text testID="total" style={[styles.figure, tabular, { color: c.ink }]}>
-              {money(total, split.currency)}
-            </Text>
-          </View>
+          <PressTarget
+            name={say.openAdjustment(say.total, money(total, split.currency))}
+            popup="dialog"
+            expanded={showing === "total"}
+            onPress={(press) => onOpenTotals("total", press)}
+            style={(pressed) => [styles.total, { borderTopColor: c.hairline }, pressStyle(pressed, reduce)]}
+          >
+            {() => (
+              <>
+                <Text style={[styles.figure, { color: c.ink }]}>{say.total}</Text>
+                <Text testID="total" style={[styles.figure, tabular, { color: c.ink }]}>
+                  {money(total, split.currency)}
+                </Text>
+              </>
+            )}
+          </PressTarget>
           <Presence present={started && shares.unclaimed.total > 0} animate>
             <View style={styles.unclaimed}>
               <Text testID="unclaimed-count" numberOfLines={1} style={[styles.chargeText, tabular, styles.rowLabel, { color: c.muted }]}>
@@ -498,14 +518,6 @@ const Line = memo(function Line({ item, viewing, portions, claimers, selected, i
     </View>
   );
 }, sameLine);
-
-function Row({ label, amount }: { label: string; amount: number }) {
-  return (
-    <View style={styles.row}>
-      <RowFace label={label} amount={amount} />
-    </View>
-  );
-}
 
 function RowFace({ label, amount }: { label: string; amount: number }) {
   const currency = useCurrency();
