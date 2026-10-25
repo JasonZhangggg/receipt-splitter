@@ -56,10 +56,9 @@ const SIGNS: readonly (readonly [Currency, RegExp])[] = [
   ["EUR", /€|\bEUR\b/],
   ["GBP", /£|\bGBP\b/],
   ["CHF", /\bCHF\b/],
-  ["JPY", /¥|円|\bJPY\b/],
 ];
 
-/** The one currency the receipt's signs name, or null for none, a dollar sign, or more than one. */
+/** The one currency the receipt's signs name, or null for none, a dollar or yuan-or-yen sign, or more than one. The reader takes two decimals, so only currencies with cents are named. */
 function currencyOf(text: string): Currency | null {
   const named = SIGNS.filter(([, sign]) => sign.test(text));
   return named.length === 1 ? named[0][0] : null;

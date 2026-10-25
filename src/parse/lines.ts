@@ -25,7 +25,7 @@ type Label = "subtotal" | "tax" | "tip" | "serviceCharge" | "discount" | "total"
 const LABELS: readonly (readonly [Label, RegExp])[] = [
   ["noise", /suggest|\btel|\bvisa\b/i],
   ["subtotal", /\bsub\s*-?\s*to\s*ta\s*l?\b|zwischensumme|sub-?totale?\b|sous-?total|subtotaal/i],
-  ["tax", /\b(tax(?!able)\w*|txtl|vat|mwst|ust|iva|tva|btw|moms|gst|hst)\b|^([a-z]{2}\s+)?state$/i],
+  ["tax", /\b(tax(?!able)\w*|txtl)\b|^([a-z]{2}\s+)?state$|^((inkl|incl|enth|enthaltene|incluso|dont|including)\.?\s+)?(vat|mwst|ust|iva|tva|btw|moms|gst|hst)\b(\s*\d+([.,]\d+)?\s*%)?$/i],
   ["tip", /\b(tip|gratuity|trinkgeld|pourboire|propina|mancia|fooi)\b/i],
   ["serviceCharge", /\b(service|servizio|servicio)\b/i],
   ["discount", /\b(discount|coupon|rabatt|sconto|remise|descuento|korting)\b/i],
@@ -33,7 +33,7 @@ const LABELS: readonly (readonly [Label, RegExp])[] = [
 ];
 
 // Thousands are grouped by commas, or by a dot or an apostrophe before a decimal comma (1.234,50), or by an apostrophe before a point (1'234.50).
-const MONEY = /(-{1,2})?\s?(?:[$€£]|CHF|EUR)?\s?(\d{1,3}(?:,\d{3})+|\d{1,3}(?:[.']\d{3})+(?=,)|\d{1,3}(?:'\d{3})+(?=\.)|\d{1,6})(?:\.\s?|,)(\d{2})(?!\d)(-(?!\d))?/g;
+const MONEY = /(-{1,2})?\s?(?:[$€£¥]|CHF|EUR)?\s?(\d{1,3}(?:,\d{3})+|\d{1,3}(?:[.']\d{3})+(?=,)|\d{1,3}(?:'\d{3})+(?=\.)|\d{1,6})(?:\.\s?|,)(\d{2})(?!\d)(-(?!\d))?/g;
 const AT = /(\d{1,2})\s*@\s*[$€£]?\s?(\d{1,6}[.,]\d{2})/;
 const LEADING_COUNT = /^\s*(0\d\s+)?\d{1,2}\s+(?![x×]\s)(?=\S)/i;
 const TIMES = /^(\d{1,2})\s?[x×]\s+(?=\S)/i;
@@ -58,7 +58,7 @@ function classify(row: Row, anchor: Row | null): Line {
   const amounts = amountsIn(row.text);
   const last = amounts.at(-1);
   if (!last) return { kind: "noise", text: row.text };
-  const label = row.text.slice(0, last.start).replace(/(?:[\s:.$€£*#=-]|\b(?:EUR|CHF)\b)+$/, "").trim();
+  const label = row.text.slice(0, last.start).replace(/(?:[\s:.$€£¥*#=-]|\b(?:EUR|CHF)\b)+$/, "").trim();
   const labelled = LABELS.find(([, pattern]) => pattern.test(label))?.[0];
   if (labelled === "noise") return { kind: "noise", text: row.text };
   const amount = cents(last.cents);

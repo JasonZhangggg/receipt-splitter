@@ -110,6 +110,7 @@ describe("readAmount in another currency", () => {
 
   test("reads whole units only for a currency with no minor unit", () => {
     expect(readAmount("1200", "JPY")).toBe(1200);
+    expect([readAmount("1,200", "JPY"), readAmount("¥1.200", "JPY")]).toEqual([1200, 1200]);
     expect(readAmount("12.5", "JPY")).toBe("price");
   });
 });

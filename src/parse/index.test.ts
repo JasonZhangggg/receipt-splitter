@@ -1003,3 +1003,26 @@ describe("a receipt in another currency", () => {
     expect(read && { currency: read.currency, adjustments: read.receipt.adjustments.map(({ kind, amount }) => [kind, amount]) }).toEqual({ currency: "GBP", adjustments: [["tax", 239]] });
   });
 });
+
+describe("signs and words the other-currency reader must not misread", () => {
+  test("a dish named after a tax word stays an Item", () => {
+    const read = readReceipt(receiptRows([["Moms Meatloaf", "12.99"], ["BTW Wings", "4.00"], ["Subtotal", "16.99"], ["Tax", "1.36"], ["Total", "18.35"]]));
+    expect(read && { items: read.receipt.items.map(({ name }) => name), ok: runTotalCheck(read.receipt).ok }).toEqual({ items: ["Moms Meatloaf", "BTW Wings"], ok: true });
+  });
+
+  test("a yen or yuan sign names no currency, since the reader takes two decimals", () => {
+    const read = readReceipt(receiptRows([["Noodles", "¥12.50"], ["Dumplings", "¥8.00"], ["Total", "¥20.50"]]));
+    expect(read && { currency: read.currency, items: read.receipt.items.map(({ name, price }) => [name, price]) }).toEqual({
+      currency: null,
+      items: [
+        ["Noodles", 1250],
+        ["Dumplings", 800],
+      ],
+    });
+  });
+
+  test("VAT a receipt says it includes reads as tax", () => {
+    const read = readReceipt(receiptRows([["Pizza", "10,00"], ["enthaltene MwSt 19%", "1,60"], ["Summe", "10,00"]]));
+    expect(read?.receipt.items.map(({ name }) => name)).toEqual(["Pizza"]);
+  });
+});

@@ -17,7 +17,7 @@ export type NewItemProblem = "name" | "price" | "quantity" | "overLimit" | "tooM
 export type NewItemAnswer = { readonly ok: true; readonly op: Optimistic } | { readonly ok: false; readonly problem: NewItemProblem };
 
 const amountShape = /^\d+([.,]\d{0,2})?$|^[.,]\d{1,2}$/;
-const wholeShape = /^\d+$/;
+const wholeShape = /^\d+$|^\d{1,3}(?:[.,]\d{3})+$/;
 const signs = ["$", "€", "£", "¥"];
 
 /** An amount as typed in a sheet, in the currency's minor unit, a leading currency sign allowed and a comma for the decimal mark, or why it does not read as an amount. */
