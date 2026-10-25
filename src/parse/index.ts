@@ -1,3 +1,4 @@
+import type { Currency } from "../core/currency";
 import { cents, price, type Cents } from "../core/money";
 import { adjustmentId, itemId, type Adjustment, type AdjustmentFields, type Item, type NonEmpty, type Receipt } from "../core/split";
 import { runTotalCheck } from "../core/total-check";
@@ -33,17 +34,42 @@ const ONE_READ_AS_SEVEN = 7;
 
 export const parseReceipt = (boxes: readonly TextBox[]): Receipt | null => readReceipt(boxes)?.receipt ?? null;
 
-/** The reading, and whether its total was printed and read. When not, the Items and charges stand in for the total, so its check always passes. */
-export function readReceipt(boxes: readonly TextBox[]): { readonly receipt: Receipt; readonly totalRead: boolean } | null {
-  const lines = classifyLines(groupRows(boxes));
+/**
+ * The reading, whether its total was printed and read, and the currency its signs name. When the total was not read, the Items and charges stand in for it,
+ * so its check always passes.
+ */
+export function readReceipt(boxes: readonly TextBox[]): { readonly receipt: Receipt; readonly totalRead: boolean; readonly currency: Currency | null } | null {
+  const rows = groupRows(boxes);
+  const lines = classifyLines(rows);
+  const currency = currencyOf(rows.map((row) => row.text).join("\n"));
   const readings = [lines, lines.map(strayMinusAsItem)].flatMap(readingsOf).flatMap((draft) => {
     if (draft.items.length === 0) return [];
     // A total the OCR could not read still leaves the Items to split, so the Items and charges stand in for it.
     const total = draft.total ?? cents(sum(prices(draft.items)) + sum(amounts(draft.adjustments)));
     const receipt = toReceipt(draft.items, draft.adjustments, subtotalOf(draft, total), total);
-    return [receipt, ...repairs(receipt, draft)].map((found) => ({ receipt: found, totalRead: draft.total !== null }));
+    return [receipt, ...repairs(receipt, draft), ...taxIncluded(draft, total)].map((found) => ({ receipt: found, totalRead: draft.total !== null, currency }));
   });
   return readings.find(({ receipt }) => runTotalCheck(receipt).ok) ?? readings[0] ?? null;
+}
+
+const SIGNS: readonly (readonly [Currency, RegExp])[] = [
+  ["EUR", /€|\bEUR\b/],
+  ["GBP", /£|\bGBP\b/],
+  ["CHF", /\bCHF\b/],
+  ["JPY", /¥|円|\bJPY\b/],
+];
+
+/** The one currency the receipt's signs name, or null for none, a dollar sign, or more than one. */
+function currencyOf(text: string): Currency | null {
+  const named = SIGNS.filter(([, sign]) => sign.test(text));
+  return named.length === 1 ? named[0][0] : null;
+}
+
+/** Most of Europe prints its VAT already in the prices, so a reading without the tax lines is the one that adds up there. */
+function taxIncluded(draft: Draft, total: Cents): Receipt[] {
+  if (!draft.adjustments.some(({ kind }) => kind === "tax")) return [];
+  const adjustments = draft.adjustments.filter(({ kind }) => kind !== "tax");
+  return [toReceipt(draft.items, adjustments, subtotalOf({ ...draft, adjustments }, total), total)];
 }
 
 function readingsOf(lines: readonly Line[]): Draft[] {

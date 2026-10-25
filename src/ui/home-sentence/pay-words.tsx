@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useRef, type RefObject } from "react";
 import { Text, type TextInput } from "react-native";
 
+import type { Currency } from "../../core/currency";
+import { paysIn } from "../../core/pay-links";
 import { PAYMENT_SERVICES } from "../../core/split";
 import type { DraftAction, HandleRow } from "../../draft";
 import type { Press } from "../components/button";
@@ -71,7 +73,8 @@ export function PayWords({ handles, dispatch, inputs, menu, onMenu }: Props) {
   );
 }
 
-/** The apps a clause can switch to: its own, and every one no other clause uses. */
-export const appChoices = (handles: readonly HandleRow[], index: number) => PAYMENT_SERVICES.filter((choice) => choice === handles[index]?.service || !handles.some((row) => row.service === choice));
+/** The apps a clause can switch to: its own, and every one no other clause uses, of those that send the currency. */
+export const appChoices = (handles: readonly HandleRow[], index: number, currency: Currency) =>
+  PAYMENT_SERVICES.filter((choice) => paysIn(choice, currency) && (choice === handles[index]?.service || !handles.some((row) => row.service === choice)));
 
-export const roomForAnotherApp = (handles: readonly HandleRow[]) => handles.length < PAYMENT_SERVICES.length;
+export const roomForAnotherApp = (handles: readonly HandleRow[], currency: Currency) => handles.length < PAYMENT_SERVICES.filter((app) => paysIn(app, currency)).length;

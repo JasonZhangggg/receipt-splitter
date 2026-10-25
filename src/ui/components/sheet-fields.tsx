@@ -1,6 +1,8 @@
 import { useState, type Ref } from "react";
 import { Platform, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 
+import { symbolOf } from "../../core/currency";
+import { useCurrency } from "../currency";
 import { pressStyle, useReducedMotion, webStyle } from "../motion";
 import { motion, tabular, type, useColors } from "../theme";
 import { PressTarget } from "./button";
@@ -64,8 +66,10 @@ type MoneyProps = TextInputProps & { label: string; unit?: string; ref?: Ref<Tex
  * An amount: the unit a word-space before the digits, right-aligned on one rule. The field is at least `width` wide and grows leftward with the digits, so the unit stays beside the number at any length.
  * With `showLabel` false the label is only the field's accessible name. `reach` is how far left of the unit a tap still focuses it, for a field that ends a row.
  */
-export function MoneyField({ label, unit = "$", showLabel = true, width = 76, reach = 0, ref, onFocus, onBlur, onChangeText, value, defaultValue, placeholder, ...input }: MoneyProps) {
+export function MoneyField({ label, unit: given, showLabel = true, width = 76, reach = 0, ref, onFocus, onBlur, onChangeText, value, defaultValue, placeholder, ...input }: MoneyProps) {
   const c = useColors();
+  const sign = symbolOf(useCurrency());
+  const unit = given ?? sign;
   const [focused, setFocused] = useState(false);
   // This copy of an uncontrolled field's text only sizes it.
   const [typed, setTyped] = useState(defaultValue ?? "");

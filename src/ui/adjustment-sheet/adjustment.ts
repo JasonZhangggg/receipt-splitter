@@ -1,7 +1,7 @@
 import { cents, type Cents } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH, applyOperation, isName, type AdjustmentPatch, type Operation, type Optimistic, type WireRejection } from "../../core/operations";
 import type { Adjustment, AdjustmentId, AdjustmentKind, ParticipantId, ReceiptLevelKind, Split } from "../../core/split";
-import { plainAmount } from "../../draft";
+import { plainAmount, type Currency } from "../../core/currency";
 import { splitCopy as say } from "../split-copy";
 import { readAmount } from "../item-sheet/new-item";
 
@@ -21,15 +21,15 @@ export const takesOff = (kind: AdjustmentKind) => kind === "discount" || kind ==
 
 const signed = (kind: AdjustmentKind, amount: Cents) => cents(takesOff(kind) ? -amount : amount);
 
-export function typedFrom(row: Adjustment): TypedAdjustment {
+export function typedFrom(row: Adjustment, currency: Currency): TypedAdjustment {
   const amount = signed(row.kind, row.amount);
-  return { kind: row.kind, name: row.name, amount: plainAmount(amount) };
+  return { kind: row.kind, name: row.name, amount: plainAmount(amount, currency) };
 }
 
 /** A typed amount written the way the sheet shows a saved one, "4" as "4.00"; text that does not read as an amount stays as typed. */
-export function tidyAmount(typed: string): string {
-  const amount = readAmount(typed);
-  return typeof amount === "number" ? plainAmount(amount) : typed;
+export function tidyAmount(typed: string, currency: Currency): string {
+  const amount = readAmount(typed, currency);
+  return typeof amount === "number" ? plainAmount(amount, currency) : typed;
 }
 
 /** A kind switch renames a line still called by its old kind's word, so a Tax made a discount reads Discount; a name someone gave it stays. */
@@ -52,7 +52,7 @@ export function adjustmentEdit(split: Split, id: AdjustmentId, typed: Partial<Ty
   if (!row) return null;
   const name = typed.name?.trim();
   if (name !== undefined && !isName(name, MAX_ROW_NAME_LENGTH)) return { ok: false, problem: "name" };
-  const off = typed.amount === undefined ? signed(row.kind, row.amount) : readAmount(typed.amount);
+  const off = typed.amount === undefined ? signed(row.kind, row.amount) : readAmount(typed.amount, split.currency);
   if (typeof off === "string") return { ok: false, problem: off === "price" ? "amount" : off };
   const kind = row.kind === "bundleDiscount" || typed.kind === undefined || typed.kind === "bundleDiscount" ? row.kind : typed.kind;
   const amount = signed(kind, off);
@@ -69,7 +69,7 @@ export function adjustmentEdit(split: Split, id: AdjustmentId, typed: Partial<Ty
 
 /** The add to send for the add sheet, after the other Adjustments, or the one problem to show. An empty name takes the kind's. */
 export function newAdjustment(split: Split, typed: TypedAdjustment & { readonly kind: ReceiptLevelKind }, id: AdjustmentId, by: ParticipantId | null): AdjustmentAnswer<Optimistic> {
-  const amount = readAmount(typed.amount);
+  const amount = readAmount(typed.amount, split.currency);
   if (typeof amount === "string") return { ok: false, problem: amount === "price" ? "amount" : amount };
   const name = typed.name.trim() || say.kinds[typed.kind];
   const adjustment = { id, kind: typed.kind, name, amount: signed(typed.kind, amount) };

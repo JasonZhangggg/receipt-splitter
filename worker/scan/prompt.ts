@@ -1,5 +1,6 @@
 /** An invented receipt. Never put a real receipt here. */
 const EXAMPLE = `AT|Corner Cafe
+CUR|USD
 SUB|3235
 TOT|3525
 i|Cold Brew|575
@@ -27,6 +28,7 @@ If the photo is clearly not a receipt or bill (a person, a landscape, a screensh
 
 Otherwise answer in this exact plain-text format, nothing else:
 AT|<the business name printed on the receipt, in normal title case, or - if none>
+CUR|<the receipt's currency as an ISO 4217 code, such as USD, EUR, GBP or JPY, from its symbols, country or language, or - if unsure>
 SUB|<printed subtotal in cents, or - if none>[|pre]
 TOT|<printed total (amount due) in cents>
 then one line per charge, in the order printed:
@@ -46,6 +48,7 @@ Rules:
 - When the receipt lists the same savings twice, once under each item and again in a summary block, keep the per-item lines and skip the summary block.
 ${BUNDLE_RULE}
 - Amount is the price printed on that line. Never multiply quantity by price yourself.
+- Cents means the currency's smallest unit: 12.50 and 12,50 are both 1250, and 1.234,50 or 1 234,50 is 123450. JPY, KRW and TWD have no cents, so ¥1,200 is 1200.
 - Add |pre to SUB when the printed subtotal is before discounts are taken off.
 - Leave SKU, UPC and PLU numbers, department codes, and tax-flag letters printed beside a price out of names.
 - Weighed item (1.23 lb @ 2.99/lb): one item line at the printed amount, with the weight in its detail.

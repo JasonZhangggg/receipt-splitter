@@ -43,6 +43,8 @@ export const copy = {
   newName: "Name",
   placeField: "Place",
   placeName: (place: string) => `Place, ${place}. Edit`,
+  currency: "Currency",
+  currencyOf: (total: string, name: string) => `${total}, ${name}. Change currency`,
   action: "Create link",
   creating: "Creating link",
   change: "Change",

@@ -17,7 +17,7 @@ describe("lineView", () => {
     const [host, ...others] = people;
     return new Map(shareBreakdown({ receipt, participants: [host, ...others], payments: [] }, viewer).items.map(({ id, portion }) => [id, portion]));
   };
-  const view = (it: SplitItem, viewer: ParticipantId | null = ann, me: ParticipantId | null = ann) => lineView(it, { people, me, viewer }, portions(it, viewer));
+  const view = (it: SplitItem, viewer: ParticipantId | null = ann, me: ParticipantId | null = ann) => lineView(it, { people, me, viewer }, portions(it, viewer), "USD");
 
   test("the split line reads yours for the viewer and each for others", () => {
     expect([
@@ -123,7 +123,7 @@ describe("circleTap", () => {
 test("totalNote says how far the Items or the charges are from the printed subtotal and total", () => {
   const receipt = (sprite: number, total = 250) => ({ items: [item({ by: "even", units: [[]] }, sprite)] as const, adjustments: [], subtotal: cents(250), total: cents(total) });
 
-  expect([totalNote(receipt(275)), totalNote(receipt(200)), totalNote(receipt(250, 300)), totalNote(receipt(250))]).toEqual([
+  expect([totalNote(receipt(275), "USD"), totalNote(receipt(200), "USD"), totalNote(receipt(250, 300), "USD"), totalNote(receipt(250), "USD")]).toEqual([
     "Items add up to $2.75, but the receipt's subtotal is $2.50.",
     "Items add up to $2.00, but the receipt's subtotal is $2.50.",
     "With tax and charges it comes to $2.50, but the receipt's total is $3.00.",
@@ -239,7 +239,7 @@ describe("receiptRows at Topgolf", () => {
     total: cents(20729),
   });
   const read = (receipt: Receipt<SplitItem>) =>
-    receiptRows(receipt).rows.map((row) =>
+    receiptRows(receipt, "USD").rows.map((row) =>
       row.kind === "item"
         ? [row.item.id, row.item.price]
         : [row.bundle.name, row.bundle.summary, row.bundle.net, row.bundle.items.map(({ id, price: cost, quantity = 1 }) => `${quantity}x ${id} ${cost}`), row.bundle.discount, claimedItems(row.bundle, computeShares({ receipt, participants: [{ id: ann, name: "Ann" }, { id: bob, name: "Bob" }], payments: [] }).unclaimed.itemIds)],
@@ -251,18 +251,18 @@ describe("receiptRows at Topgolf", () => {
       ["Beer Bucket", "4 items · 10% off", 4063, ["1x ultra1 629", "3x guinness1 2187", "1x pineapple1 849", "1x watermelon1 849"], { label: "Discount (10%)", amount: -451 }, 3],
       ["Beer Bucket", "4 items · 10% off", 4171, ["1x ultra2 629", "2x guinness2 1458", "1x pineapple2 849", "2x watermelon2 1698"], { label: "Discount (10%)", amount: -463 }, 0],
     ]);
-    expect(receiptRows(topgolf()).charges.map(({ name }) => name)).toEqual(["Tax", "Tip"]);
+    expect(receiptRows(topgolf(), "USD").charges.map(({ name }) => name)).toEqual(["Tax", "Tip"]);
   });
 
   test("keeps a deleted Gameplay row in place above both Beer Buckets, and a Bucket whose last line goes leaves as one row", () => {
-    const shownRows = (receipt: Receipt<SplitItem>) => receiptRows(receipt).rows.map((row) => ({ row, gone: false }));
+    const shownRows = (receipt: Receipt<SplitItem>) => receiptRows(receipt, "USD").rows.map((row) => ({ row, gone: false }));
     const without = (receipt: Receipt<SplitItem>, ...gone: string[]): Receipt<SplitItem> => {
       const [first, ...rest] = receipt.items.filter(({ id }) => !gone.includes(id));
       if (!first) throw new Error("the test deleted every line");
       const adjustments = receipt.adjustments.filter((row) => row.kind !== "bundleDiscount" || row.bundle.items.some((id) => !gone.includes(id)));
       return { ...receipt, items: [first, ...rest], adjustments };
     };
-    const ids = (receipt: Receipt<SplitItem>, ...gone: string[]) => keepInPlace(shownRows(receipt), receiptRows(without(receipt, ...gone)).rows).map(({ row, gone }) => `${gone ? "-" : ""}${row.kind} ${row.id}`);
+    const ids = (receipt: Receipt<SplitItem>, ...gone: string[]) => keepInPlace(shownRows(receipt), receiptRows(without(receipt, ...gone), "USD").rows).map(({ row, gone }) => `${gone ? "-" : ""}${row.kind} ${row.id}`);
     expect(ids(topgolf(), "gameplay")).toEqual(["-item gameplay", "bundle bucket1", "bundle bucket2"]);
     expect(ids(topgolf(), "ultra1", "guinness1", "pineapple1", "watermelon1")).toEqual(["item gameplay", "-bundle bucket1", "bundle bucket2"]);
   });
@@ -283,10 +283,10 @@ describe("receiptRows at Topgolf", () => {
 
   test("tells a Bundle Item's sheet what its Bundle's discount takes off that line, and says nothing outside a Bundle", () => {
     expect([
-      bundleNote(topgolf(), itemId("guinness1"), 2187),
-      bundleNote(topgolf(undefined, "Bucket deal"), itemId("guinness1"), 2187),
-      bundleNote(topgolf(), itemId("ultra1"), 629),
-      bundleNote(topgolf(), itemId("gameplay"), 8775),
+      bundleNote(topgolf(), itemId("guinness1"), 2187, "USD"),
+      bundleNote(topgolf(undefined, "Bucket deal"), itemId("guinness1"), 2187, "USD"),
+      bundleNote(topgolf(), itemId("ultra1"), 629, "USD"),
+      bundleNote(topgolf(), itemId("gameplay"), 8775, "USD"),
     ]).toEqual(["In Beer Bucket. Its 10% off takes $2.19 off this line.", "In Beer Bucket. Its discount takes $2.19 off this line.", "In Beer Bucket. Its 10% off takes $0.63 off this line.", null]);
   });
 
@@ -350,7 +350,7 @@ describe("receiptRows at Topgolf", () => {
     const [first, ...rest] = shared.items;
     const receipt = { ...shared, items: [partly(first), ...rest.map(partly)] as const };
     const { itemIds } = computeShares({ receipt, participants, payments: [] }).unclaimed;
-    const buckets = receiptRows(receipt).rows.flatMap((row) => (row.kind === "bundle" ? [claimedItems(row.bundle, itemIds)] : []));
+    const buckets = receiptRows(receipt, "USD").rows.flatMap((row) => (row.kind === "bundle" ? [claimedItems(row.bundle, itemIds)] : []));
     expect([buckets, splitCopy.unclaimedTotal(itemIds.length)]).toEqual([[3, 0], "Unclaimed · 6 items"]);
   });
 });
@@ -371,7 +371,7 @@ describe("filters", () => {
     subtotal: cents(5000),
     total: cents(4800),
   };
-  const { rows } = receiptRows(receipt);
+  const { rows } = receiptRows(receipt, "USD");
   const read = (filter: Parameters<typeof filterRows>[1], viewer: ParticipantId | null) =>
     filterRows(rows, filter, viewer).map((row) => (row.kind === "item" ? row.item.id : `${row.bundle.name}: ${row.bundle.items.map(({ id }) => id).join(", ")}`));
 

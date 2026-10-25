@@ -979,3 +979,27 @@ describe("parseReceipt assembling rows", () => {
     ).toEqual([{ id: "i1", name: "Burger", price: 1200 }]);
   });
 });
+
+describe("a receipt in another currency", () => {
+  test("reads decimal commas, dot-grouped thousands and euro signs, and names the currency", () => {
+    const read = readReceipt(receiptRows([["Trattoria Roma", ""], ["Champagner", "€1.234,50"], ["Pizza Margherita", "€12,50"], ["Totale", "€1.247,00"]]));
+    expect(read && { currency: read.currency, items: read.receipt.items.map(({ name, price }) => [name, price]), total: read.receipt.total }).toEqual({
+      currency: "EUR",
+      items: [
+        ["Champagner", 123450],
+        ["Pizza Margherita", 1250],
+      ],
+      total: 124700,
+    });
+  });
+
+  test("leaves out VAT that the prices already include, and reads German labels", () => {
+    const read = readReceipt(receiptRows([["Pizza", "10,00"], ["Bier", "5,00"], ["MwSt 19%", "2,39"], ["Summe", "15,00"]]));
+    expect(read && { currency: read.currency, adjustments: read.receipt.adjustments, total: read.receipt.total, ok: runTotalCheck(read.receipt).ok }).toEqual({ currency: null, adjustments: [], total: 1500, ok: true });
+  });
+
+  test("keeps VAT added on top", () => {
+    const read = readReceipt(receiptRows([["Fish and chips", "£11.95"], ["VAT", "£2.39"], ["Total", "£14.34"]]));
+    expect(read && { currency: read.currency, adjustments: read.receipt.adjustments.map(({ kind, amount }) => [kind, amount]) }).toEqual({ currency: "GBP", adjustments: [["tax", 239]] });
+  });
+});

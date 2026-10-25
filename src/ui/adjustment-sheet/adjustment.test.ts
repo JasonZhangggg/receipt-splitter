@@ -19,14 +19,14 @@ const applied = (split: Split, answer: AdjustmentAnswer | null) => {
 describe("typedFrom", () => {
   test("shows a charge as it is and a discount as the positive amount it takes off", () => {
     const [bucketRow, , taxRow] = topgolf().receipt.adjustments;
-    expect(typedFrom(taxRow)).toEqual({ kind: "tax", name: "Tax", amount: "4.94" });
-    expect(typedFrom(bucketRow)).toMatchObject({ kind: "bundleDiscount", amount: "4.51" });
+    expect(typedFrom(taxRow, "USD")).toEqual({ kind: "tax", name: "Tax", amount: "4.94" });
+    expect(typedFrom(bucketRow, "USD")).toMatchObject({ kind: "bundleDiscount", amount: "4.51" });
   });
 });
 
 describe("tidyAmount", () => {
   test("writes a readable amount with two decimals and leaves anything else as typed", () => {
-    expect(["4", "4.5", ".5", "$12", "4.00", "", "4.", "abc"].map(tidyAmount)).toEqual(["4.00", "4.50", "0.50", "12.00", "4.00", "", "4.00", "abc"]);
+    expect(["4", "4.5", ".5", "$12", "4.00", "", "4.", "abc"].map((typed) => tidyAmount(typed, "USD"))).toEqual(["4.00", "4.50", "0.50", "12.00", "4.00", "", "4.00", "abc"]);
   });
 });
 
@@ -39,7 +39,7 @@ describe("switchKind", () => {
   });
 
   test("sends the new kind and its word together from the edit sheet", () => {
-    const switched = switchKind(typedFrom(topgolf().receipt.adjustments[2]), "discount");
+    const switched = switchKind(typedFrom(topgolf().receipt.adjustments[2], "USD"), "discount");
     expect(adjustmentEdit(topgolf(), tax, switched, jason)).toEqual({
       ok: true,
       op: { by: jason, type: "editReceipt", adjustments: [{ type: "edit", adjustmentId: tax, kind: "discount", name: "Discount", amount: -494 }], totalFollows: true },

@@ -203,7 +203,7 @@ export const splitCopy = {
     amount: "Add an amount.",
     overLimit: (max: string) => `That amount is over ${max}.`,
     tooManyAdjustments: "A split holds at most 20 charges and discounts.",
-    negativeTotal: "That takes the total under $0.00.",
+    negativeTotal: "That takes the total below zero.",
     tooLarge: "This split is full. Delete an item to add one.",
     failed: "Couldn't save that. Check it and try again.",
     offline: "Didn't save. You're offline.",

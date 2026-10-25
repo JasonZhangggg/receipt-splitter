@@ -1,3 +1,4 @@
+import type { Currency } from "./currency";
 import type { Cents, Price } from "./money";
 
 declare const idBrand: unique symbol;
@@ -205,7 +206,7 @@ export type SchemaVersion = 1 | 2 | 3 | 4;
 export type Split = {
   readonly schemaVersion: 4;
   readonly id: SplitId;
-  readonly currency: "USD";
+  readonly currency: Currency;
   /** The business the receipt came from, as the scan read it and the Host kept it. Splits made before it was kept, and Splits made by hand, have none. */
   readonly place?: string;
   readonly receipt: Receipt<SplitItem>;

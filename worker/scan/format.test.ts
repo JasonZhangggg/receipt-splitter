@@ -41,6 +41,7 @@ describe("readLines", () => {
     ].join("\n");
     expect(read(reply)).toEqual({
       place: null,
+      currency: null,
       subtotal: { amount: 3235, beforeDiscounts: false },
       total: 3525,
       items: [
@@ -157,5 +158,13 @@ describe("applyEdits", () => {
       applied: 4,
       refused: { fee: 0, total: 0 },
     });
+  });
+});
+
+describe("the currency line", () => {
+  const reading = (cur: string) => readLines(["AT|Trattoria Roma", cur, "TOT|1250", "i|Pizza Margherita|1250"]);
+
+  it("names the receipt's currency, in any case, and a code a Split can't be in or a dash reads as none", () => {
+    expect([reading("CUR|EUR"), reading("cur|gbp"), reading("CUR|XYZ"), reading("CUR|-")].map((read) => read?.currency)).toEqual(["EUR", "GBP", null, null]);
   });
 });

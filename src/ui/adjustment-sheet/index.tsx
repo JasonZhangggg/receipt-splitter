@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type RefO
 import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { MAX_CENTS } from "../../core/money";
+import { money, symbolOf, type Currency } from "../../core/currency";
 import { MAX_ROW_NAME_LENGTH, type Operation } from "../../core/operations";
 import { RECEIPT_LEVEL_KINDS, type AdjustmentId, type ParticipantId, type Split } from "../../core/split";
 import type { Answer } from "../../live/client";
@@ -18,9 +19,8 @@ type Send = (op: Operation) => Promise<Answer>;
 export type CloseGuard = () => boolean;
 
 const saveAfter = 600;
-const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
-const problemText = (problem: AdjustmentProblem) => (problem === "overLimit" ? say.adjustmentProblem.overLimit(maxAmount) : say.adjustmentProblem[problem]);
+const problemText = (problem: AdjustmentProblem, currency: Currency) => (problem === "overLimit" ? say.adjustmentProblem.overLimit(money(MAX_CENTS, currency)) : say.adjustmentProblem[problem]);
 
 type Props = {
   split: Split;
@@ -65,7 +65,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, lay, onClos
       if (!sent.ok) setProblem(adjustmentProblem(sent.rejection.reason));
     });
   };
-  // An edit the Split refuses, such as a discount that takes the Total under $0.00, keeps the sheet open on its problem instead of being dropped.
+  // An edit the Split refuses, such as a discount that takes the Total below zero, keeps the sheet open on its problem instead of being dropped.
   // Holding never moves focus. On iOS a focus() while the sheet is settling raises the keyboard over the field or leaves it half-focused.
   const holds = () => {
     if (leaving) return false;
@@ -97,7 +97,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, lay, onClos
   }, [live, leaving]);
 
   if (!row) return null;
-  const shown: TypedAdjustment = { ...typedFrom(row), ...typed };
+  const shown: TypedAdjustment = { ...typedFrom(row, split.currency), ...typed };
   // Close never takes focus, so a held sheet keeps its field and the keyboard. A closing sheet blurs the field, so the keyboard drops as the sheet leaves.
   const close = () => {
     if (!holds()) for (const field of [nameField, amountField]) field.current?.blur();
@@ -142,17 +142,17 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, lay, onClos
         <MoneyField
           ref={amountField}
           label={off ? say.amountOff : say.amount}
-          unit={off ? "-$" : "$"}
+          unit={off ? `-${symbolOf(split.currency)}` : symbolOf(split.currency)}
           placeholder={say.pricePlaceholder}
           value={shown.amount}
           onChangeText={(amount) => onChange({ amount })}
           enterKeyHint="done"
           submitBehavior="blurAndSubmit"
           onSubmitEditing={() => {
-            setTyped((was) => (was.amount === undefined || tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }));
+            setTyped((was) => (was.amount === undefined || tidyAmount(was.amount, split.currency) === was.amount ? was : { ...was, amount: tidyAmount(was.amount, split.currency) }));
             flush();
           }}
-          onBlur={() => setTyped((was) => (was.amount === undefined || tidyAmount(was.amount) === was.amount ? was : { ...was, amount: tidyAmount(was.amount) }))}
+          onBlur={() => setTyped((was) => (was.amount === undefined || tidyAmount(was.amount, split.currency) === was.amount ? was : { ...was, amount: tidyAmount(was.amount, split.currency) }))}
           selectTextOnFocus
         />
       </View>
@@ -166,7 +166,7 @@ export function AdjustmentSheet({ split, adjustmentId: id, me, send, lay, onClos
       ) : null}
       {problem ? (
         <Text role="status" style={[type.caption, { color: c.warn }]}>
-          {problemText(problem)}
+          {problemText(problem, split.currency)}
         </Text>
       ) : null}
     </View>

@@ -77,28 +77,40 @@ describe("newItem", () => {
 
 describe("readAmount", () => {
   test("reads a price with a digit typed into the middle of a shown 12.00", () => {
-    expect(readAmount("123.00")).toBe(12300);
-    expect(readAmount("12.300")).toBe("price");
+    expect(readAmount("123.00", "USD")).toBe(12300);
+    expect(readAmount("12.300", "USD")).toBe("price");
   });
 
   test("calls a shown 12.00 with 13 typed after it a price problem, not 12.00", () => {
-    expect(readAmount("12.0013")).toBe("price");
+    expect(readAmount("12.0013", "USD")).toBe("price");
   });
 
   test("calls an emptied field a price problem, not $0.00", () => {
-    expect(readAmount("")).toBe("price");
-    expect(readAmount(".")).toBe("price");
+    expect(readAmount("", "USD")).toBe("price");
+    expect(readAmount(".", "USD")).toBe("price");
   });
 
   test("reads what a person types over the field", () => {
-    expect(readAmount("13")).toBe(1300);
-    expect(readAmount("$13.5")).toBe(1350);
-    expect(readAmount("0")).toBe(0);
+    expect(readAmount("13", "USD")).toBe(1300);
+    expect(readAmount("$13.5", "USD")).toBe(1350);
+    expect(readAmount("0", "USD")).toBe(0);
   });
 
   test("calls a price over $100,000 over the limit", () => {
-    expect(readAmount("100000.01")).toBe("overLimit");
-    expect(readAmount("100000")).toBe(10_000_000);
+    expect(readAmount("100000.01", "USD")).toBe("overLimit");
+    expect(readAmount("100000", "USD")).toBe(10_000_000);
+  });
+});
+
+describe("readAmount in another currency", () => {
+  test("reads a comma as the decimal mark and a leading sign of the currency", () => {
+    expect(readAmount("12,50", "EUR")).toBe(1250);
+    expect(readAmount("€12.50", "EUR")).toBe(1250);
+  });
+
+  test("reads whole units only for a currency with no minor unit", () => {
+    expect(readAmount("1200", "JPY")).toBe(1200);
+    expect(readAmount("12.5", "JPY")).toBe("price");
   });
 });
 

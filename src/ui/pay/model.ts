@@ -1,7 +1,7 @@
 import { cents, type Cents } from "../../core/money";
 import type { Shares } from "../../core/shares";
 import type { ParticipantId, Split } from "../../core/split";
-import { money } from "../../draft";
+import { money, type Currency } from "../../core/currency";
 import { splitCopy as say } from "../split-copy";
 
 export type PayState =
@@ -37,17 +37,17 @@ export function shareStatus(shares: Shares, payments: Split["payments"], person:
 }
 
 /** The one wording for a paid state: null while quiet (nothing or unpaid), so the line under a share stays empty and a Payments row falls back to its own words. */
-export function statusWords(status: ShareStatus): string | null {
+export function statusWords(status: ShareStatus, currency: Currency): string | null {
   switch (status.kind) {
     case "nothing":
     case "unpaid":
       return null;
     case "settled":
-      return say.status.paid(money(status.paid));
+      return say.status.paid(money(status.paid, currency));
     case "short":
-      return say.status.short(money(status.paid), money(status.rest));
+      return say.status.short(money(status.paid, currency), money(status.rest, currency));
     case "over":
-      return say.status.over(money(status.paid), money(status.back));
+      return say.status.over(money(status.paid, currency), money(status.back, currency));
     case "host":
       return status.started ? say.status.paidYou(status.paid, status.of) : null;
   }
@@ -75,7 +75,7 @@ export type PaymentStatus = {
 };
 
 /** Everyone in chip order with their share and paid state in words. */
-export function paymentStatus(split: Pick<Split, "participants" | "payments">, shares: Shares, viewer: ParticipantId | null): PaymentStatus {
+export function paymentStatus(split: Pick<Split, "participants" | "payments" | "currency">, shares: Shares, viewer: ParticipantId | null): PaymentStatus {
   const host = split.participants[0];
   let paid = 0;
   let owing = 0;
@@ -85,7 +85,7 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments">, s
     const state = payState(share, split.payments.find((payment) => payment.participantId === id)?.amount ?? null);
     if (state.kind !== "nothing") owing += 1;
     if (state.kind === "settled" || state.kind === "over") paid += 1;
-    return { id, name, isHost: false, share, state: state.kind, words: statusWords(state) ?? (state.kind === "unpaid" ? say.status.unpaid : say.status.nothing) };
+    return { id, name, isHost: false, share, state: state.kind, words: statusWords(state, split.currency) ?? (state.kind === "unpaid" ? say.status.unpaid : say.status.nothing) };
   });
   const summary = owing === 0 ? null : `${paid} of ${owing} paid${viewer === host.id ? " you" : ""}`;
   return { rows, paid, owing, summary };

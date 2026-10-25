@@ -9,7 +9,9 @@ import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
-import { money, newName } from "../../src/draft";
+import { money } from "../../src/core/currency";
+import { CurrencyContext } from "../../src/ui/currency";
+import { newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type Answer, type GoneReason } from "../../src/live/client";
 import { actedByKey } from "../../src/ui/components/acted-by-key";
 import { Toast } from "../../src/ui/components/toast";
@@ -68,7 +70,13 @@ export default function SplitScreen() {
 
   useBusyLoader(live.status === "connecting", joinCopy.opening);
 
-  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} server={live.server} photo={live.photo} send={send} act={act} idle={idle} connection={connection} />;
+  if (live.status === "live" && splitId) {
+    return (
+      <CurrencyContext.Provider value={live.split.currency}>
+        <SplitPage key={splitId} splitId={splitId} split={live.split} server={live.server} photo={live.photo} send={send} act={act} idle={idle} connection={connection} />
+      </CurrencyContext.Provider>
+    );
+  }
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
@@ -505,7 +513,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     setPaying(null);
     if (!me) return;
     if (paid && agreed !== myShare) {
-      const note = say.shareNow(money(myShare));
+      const note = say.shareNow(money(myShare, split.currency));
       // The note goes under the pay button: in the Pay sheet on a phone, and in the column's share view on a wide screen.
       if ((wide ? overlay === null : overlay?.kind === "pay") && viewed?.hasBar) {
         setPayNote(note);
@@ -518,7 +526,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const shown = markPaid(me, paid ? myShare : null, () => {
       if (!paid) return;
       setBar({
-        message: say.markedPaid(money(justPaid(myShare, before))),
+        message: say.markedPaid(money(justPaid(myShare, before), split.currency)),
         action: {
           label: say.undo,
           onPress: () => {
@@ -549,7 +557,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const pick = split.picks.find(({ participantId }) => participantId === person.id);
     return {
       person,
-      share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0)),
+      share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0), split.currency),
       mine: person.id === me,
       viewed: person.id === selectedPerson?.id,
       heldElsewhere: pick !== undefined && pick.device !== device,
@@ -649,12 +657,12 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const pill: FooterPill | null = collect ? { kind: "collect", label: collect } : !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? { kind: "paid" } : { kind: "pay", host: firstName(host.name), ready: viewed.hasBar };
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
     // A settled share the pill already marks says nothing more, nor does the Host's count the pill already shows; every other paid state reads in words.
-    const words = (status.kind === "settled" && pill?.kind === "paid") || pill?.kind === "collect" ? null : statusWords(status);
+    const words = (status.kind === "settled" && pill?.kind === "paid") || pill?.kind === "collect" ? null : statusWords(status, split.currency);
     const ink = status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
     return (
       <SplitFooter
         label={mine ? say.yourShare : say.shareOf(selectedPerson.name)}
-        amount={money(viewed.share)}
+        amount={money(viewed.share, split.currency)}
         whose={mine ? null : selectedPerson.name}
         note={words ? { text: words, ink } : null}
         pill={pill}
@@ -679,7 +687,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           head={
             <ShareHead
               title={selectedPerson.id === me ? say.yourShare : say.shareOf(firstName(selectedPerson.name))}
-              amount={money(viewed.share)}
+              amount={money(viewed.share, split.currency)}
               bill={billParts(shares, selectedPerson.id)}
               legend={selectedPerson.id === me ? say.youHad : firstName(selectedPerson.name)}
               had={title(selectedPerson)}
@@ -776,7 +784,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       {picker ? (
         <Popover anchor={picker.from.trigger} label={say.whoseItems} instant={picker.from.keyboard} closing={picker.closing} onClose={closePicker} onGone={pickerGone} width={personPickerWidth} align="start">
           <PersonPicker
-            rows={people.map((person) => ({ id: person.id, name: person.name, share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0)) }))}
+            rows={people.map((person) => ({ id: person.id, name: person.name, share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0), split.currency) }))}
             me={me}
             viewed={selectedPerson?.id ?? null}
             onView={(participantId) => {
@@ -815,7 +823,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
               <View style={styles.wideColumn}>
                 <SplitIntro
                   host={host.name}
-                  total={money(split.receipt.total)}
+                  total={money(split.receipt.total, split.currency)}
                   place={split.place}
                   wide
                   onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
@@ -846,7 +854,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           <SplitHeader onShare={() => void share()} />
           <SplitIntro
             host={host.name}
-            total={money(split.receipt.total)}
+            total={money(split.receipt.total, split.currency)}
             place={split.place}
             onLinksBottom={setLinksBottom}
             onReceipt={photo ? setViewing : undefined}
@@ -878,7 +886,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
 }
 
 function intro(split: Split, creating: boolean) {
-  const total = money(split.receipt.total);
+  const total = money(split.receipt.total, split.currency);
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
 

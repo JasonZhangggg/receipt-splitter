@@ -18,6 +18,7 @@ import { actedByKey } from "../src/ui/components/acted-by-key";
 import { frameFor, frameGutter } from "../src/ui/frame";
 import { blockerText, copy, historyCopy, paymentApps } from "../src/ui/home-copy";
 import { AppMenu, appMenuWidth } from "../src/ui/home-sentence/app-menu";
+import { CurrencyMenu } from "../src/ui/home-sentence/currency-menu";
 import { appChoices, PayWords, roomForAnotherApp } from "../src/ui/home-sentence/pay-words";
 import { PeopleWords, type NameField } from "../src/ui/home-sentence/people-words";
 import { ReceiptWords, type ReadingStage, type ReceiptState } from "../src/ui/home-sentence/receipt-words";
@@ -75,6 +76,7 @@ export default function Home() {
   const [allSplits, setAllSplits] = useState<{ from: Press; closing: boolean } | null>(null);
   /** The app menu of the clause at `index`. `picked` is the app it switched to and `added` that it added a clause, which say where the focus goes once it has gone. */
   const [appMenu, setAppMenu] = useState<{ index: number; from: Press; closing: boolean; picked: PaymentService | null; added: boolean } | null>(null);
+  const [currencyMenu, setCurrencyMenu] = useState<{ from: Press; closing: boolean } | null>(null);
   const pacer = useRef({ cancel() {} });
   const scroller = useRef<ScrollView>(null);
   const sentence = useRef<Text>(null);
@@ -144,7 +146,8 @@ export default function Home() {
     const server = notReceipt ? null : onServer;
     const receipt = server?.receipt ?? onDevice?.receipt ?? null;
     if (scan === scanning.current) {
-      land({ type: "read", file, receipt, ...(server?.place && { place: server.place }), ...(notReceipt && receipt === null && { notReceipt: true as const }), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
+      const currency = server ? server.currency : onDevice?.currency;
+      land({ type: "read", file, receipt, ...(server?.place && { place: server.place }), ...(currency && { currency }), ...(notReceipt && receipt === null && { notReceipt: true as const }), ...(onDevice && !onDevice.totalRead && { totalUnread: true as const }) });
       if (receipt === null && globalThis.navigator?.onLine === false) setNotice(copy.scanOffline);
     }
   }, [dispatch]);
@@ -213,10 +216,22 @@ export default function Home() {
     word?.focus({ preventScroll: true });
   };
 
+  const currencyMenuGone = () => {
+    const from = currencyMenu?.from;
+    setCurrencyMenu(null);
+    // The amount word stays in place under its menu, so a keyboard user lands back on it.
+    if (from && (from.keyboard || actedByKey()) && from.trigger.isConnected) from.trigger.focus({ preventScroll: true });
+  };
+
   const sentenceBlock = (
     <>
       <Text ref={sentence} testID="sentence" style={[say.text, wide ? styles.sentenceWide : styles.sentence, { color: c.muted }]}>
-        <ReceiptWords state={receipt} onChoose={choose} onByHand={() => dispatch({ type: "byHand" })} onPlace={(name) => dispatch({ type: "setPlace", name })} />{" "}
+        <ReceiptWords
+          state={receipt}
+          currency={draft.currency}
+          menu={currencyMenu !== null && !currencyMenu.closing}
+          onCurrency={(from) => setCurrencyMenu({ from, closing: false })}
+          onChoose={choose} onByHand={() => dispatch({ type: "byHand" })} onPlace={(name) => dispatch({ type: "setPlace", name })} />{" "}
         <PayWords handles={draft.handles} dispatch={dispatch} inputs={handleInputs} menu={appMenu && !appMenu.closing ? appMenu.index : null} onMenu={(index, from) => setAppMenu({ index, from, closing: false, picked: null, added: false })} />{" "}
         <PeopleWords
           ref={nameField}
@@ -279,8 +294,8 @@ export default function Home() {
           <Popover anchor={appMenu.from.trigger} label={copy.paymentApp} instant={appMenu.from.keyboard} closing={appMenu.closing} onClose={() => closeAppMenu()} onGone={appMenuGone} width={appMenuWidth} align="start">
             <AppMenu
               service={draft.handles[appMenu.index]?.service ?? "venmo"}
-              choices={appChoices(draft.handles, appMenu.index)}
-              adding={roomForAnotherApp(draft.handles) ? draft.handles.length : null}
+              choices={appChoices(draft.handles, appMenu.index, draft.currency)}
+              adding={roomForAnotherApp(draft.handles, draft.currency) ? draft.handles.length : null}
               onPick={(picked) => {
                 if (picked !== draft.handles[appMenu.index]?.service) dispatch({ type: "setService", index: appMenu.index, service: picked });
                 closeAppMenu({ picked });
@@ -288,6 +303,26 @@ export default function Home() {
               onAdd={() => {
                 dispatch({ type: "addHandle" });
                 closeAppMenu({ added: true });
+              }}
+            />
+          </Popover>
+        ) : null}
+        {currencyMenu ? (
+          <Popover
+            anchor={currencyMenu.from.trigger}
+            label={copy.currency}
+            instant={currencyMenu.from.keyboard}
+            closing={currencyMenu.closing}
+            onClose={() => setCurrencyMenu((open) => open && { ...open, closing: true })}
+            onGone={currencyMenuGone}
+            width={appMenuWidth}
+            align="start"
+          >
+            <CurrencyMenu
+              currency={draft.currency}
+              onPick={(currency) => {
+                if (currency !== draft.currency) dispatch({ type: "setCurrency", currency });
+                setCurrencyMenu((open) => open && { ...open, closing: true });
               }}
             />
           </Popover>
