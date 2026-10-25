@@ -79,6 +79,19 @@ describe("historyOf", () => {
     expect(history.map(({ lead }) => lead)).toEqual(["Deleted Fries", "Added Fries"]);
   });
 
+  test("an added or deleted charge or discount says how much it was", () => {
+    const fee = adjustmentId("fee");
+    const history = historyOf(
+      split(
+        { by: sam, type: "editReceipt", adjustments: [{ type: "add", adjustment: { id: fee, kind: "serviceCharge", name: "Bag fee", amount: cents(300) }, index: 1 }], totalDelta: cents(300) },
+        { by: sam, type: "editReceipt", adjustments: [{ type: "add", adjustment: { id: adjustmentId("promo"), kind: "discount", name: "Promo", amount: cents(-100) }, index: 2 }], totalDelta: cents(-100) },
+        { by: sam, type: "editReceipt", adjustments: [{ type: "delete", adjustmentId: adjustmentId("tip") }], totalDelta: cents(-50) },
+      ),
+    );
+
+    expect(history.map(({ lead }) => lead)).toEqual(["Deleted Tip · $0.50", "Added Promo · $1.00", "Added Bag fee · $3.00"]);
+  });
+
   test("a change of split reads in words, never as a ratio, and back-to-back switches by one person read as one entry from the first to the last", () => {
     const history = historyOf(
       split(

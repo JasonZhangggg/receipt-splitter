@@ -99,12 +99,15 @@ function entry(split: Split, change: Change, writes: readonly Shown[], at: numbe
   };
 }
 
+/** A charge or discount by its size: a discount reads as the amount it takes off, without a minus sign. */
+const size = (amount: number, split: Split, format = groupedAmount) => format(Math.abs(amount), split.currency);
+
 function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "after"> {
   switch (write.kind) {
     case "item":
     case "adjustment": {
-      if ("added" in write) return { lead: `Added ${write.added.name}` };
-      if ("removed" in write) return { lead: say.deleted(write.removed.name) };
+      if ("added" in write) return { lead: `Added ${write.added.name}${write.kind === "adjustment" ? ` · ${size(write.added.amount, split, money)}` : ""}` };
+      if ("removed" in write) return { lead: `${say.deleted(write.removed.name)}${write.kind === "adjustment" ? ` · ${size(write.removed.amount, split, money)}` : ""}` };
       const rows: readonly { readonly id: string; readonly name: string }[] = write.kind === "item" ? split.receipt.items : split.receipt.adjustments;
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
@@ -121,7 +124,7 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
         if (!after) return { lead: `Removed "${before}" from ${name}` };
         return { lead: name, before, after };
       }
-      if ("amount" in edit && edit.amount) return { lead: name, before: groupedAmount(edit.amount[0], split.currency), after: groupedAmount(edit.amount[1], split.currency) };
+      if ("amount" in edit && edit.amount) return { lead: name, before: size(edit.amount[0], split), after: size(edit.amount[1], split) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
         return before.by === after.by ? { lead: `Changed how ${name} is split` } : { lead: `${name} split`, before: splitWord(before), after: splitWord(after) };
