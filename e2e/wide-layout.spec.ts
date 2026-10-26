@@ -84,6 +84,8 @@ async function pick(page: Page, name: string) {
   await asking(page).getByRole("button", { name, exact: true }).click();
   await expect(shareColumn(page)).toBeVisible(live);
   await expect(asking(page)).toHaveCount(0, live);
+  // The share view slides back in over the pick; it rests in place once the pick has slid away and nothing is inert.
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll("[inert]").length), live).toBe(0);
 }
 
 async function second(browser: Browser, link: string, name: string, size: { width: number; height: number }): Promise<Page> {
@@ -955,8 +957,6 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
     test("the frame sits in the middle of the window and the page scrolls as one, with the column held at the top", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex, [venmo], { ...menu, items: Array.from({ length: 24 }, (_, at) => ({ id: `line${at}`, name: `Line ${at + 1}`, price: 100 })), subtotal: 2400, total: 2906 }));
       await pick(page, "Sam");
-      // The share view slides back in over the pick; measure it once the pick has slid away.
-      await expect.poll(() => page.evaluate(() => document.querySelectorAll("[inert]").length), live).toBe(0);
 
       const width = await page.evaluate(() => document.documentElement.clientWidth);
       const receipt = (await page.getByTestId("receipt").boundingBox())!;
