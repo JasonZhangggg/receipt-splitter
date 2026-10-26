@@ -15,6 +15,8 @@ export const splitCopy = {
   shareLink: "Share link",
   close: "Close",
   closePick: "Close, just look",
+  back: "Back",
+  backPick: "Back, just look",
   linkReady: "Link ready.",
   invited: " invited you to split ",
   question: "Which one are you?",

@@ -3,9 +3,9 @@ import { expect, test } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
 
-const budgetBytes = 426_000;
+const budgetBytes = 427_000;
 
-test("the first load of a Split link transfers under 426 KB", async ({ page, request }) => {
+test("the first load of a Split link transfers under 427 KB", async ({ page, request }) => {
   const created = await request.post("/api/splits", {
     headers: { "cf-connecting-ip": `198.51.${randomInt(200, 256)}.${randomInt(1, 255)}` },
     data: {

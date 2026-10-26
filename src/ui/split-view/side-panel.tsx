@@ -1,9 +1,9 @@
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { cloneElement, createContext, useContext, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { tabbable } from "../components/popover";
-import { webAnimation, webStyle } from "../motion";
-import { motion, SurfaceContext } from "../theme";
+import { useReducedMotion, webAnimation, webStyle } from "../motion";
+import { motion, SurfaceContext, useColors } from "../theme";
 
 /** New content fades in over 120ms, opacity only, from its first painted frame. The column swaps content on nearly every click, so anything longer reads as lag, and old content leaves at once rather than fading: a fade out followed by a fade in leaves the column blank between them. */
 const fadeIn = webAnimation({ animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }], animationDuration: "120ms", animationTimingFunction: motion.easeOut, animationFillMode: "both" });
@@ -24,6 +24,8 @@ type Props = {
 export function SidePanel({ children, label, closing = false, onDown, focusFirst = false, testID }: Props) {
   const region = useRef<View>(null);
   const [focusOnOpen] = useState(focusFirst);
+  // Read once: a panel that slid in keeps no fade, and one that faded in does not fade again when a later push settles.
+  const [fades] = useState(useContext(FadesIn));
   useEffect(() => {
     if (focusOnOpen) (region.current as unknown as HTMLElement | null)?.querySelector<HTMLElement>(tabbable)?.focus({ preventScroll: true });
   }, [focusOnOpen]);
@@ -33,7 +35,7 @@ export function SidePanel({ children, label, closing = false, onDown, focusFirst
   }, [closing]);
   return (
     <SurfaceContext value="page">
-      <View ref={region} role="region" aria-label={label} testID={testID} style={[styles.panel, fadeIn]}>
+      <View ref={region} role="region" aria-label={label} testID={testID} style={[styles.panel, fades && fadeIn]}>
         <ScrollView style={[styles.scroll, contain]} contentContainerStyle={styles.content}>
           {children}
         </ScrollView>
@@ -42,11 +44,89 @@ export function SidePanel({ children, label, closing = false, onDown, focusFirst
   );
 }
 
+/** False while a panel slides in, which then carries it in alone. */
+const FadesIn = createContext(true);
+
+type Role = "rest" | "in" | "inBack" | "out" | "outBack";
+
+/** Where each push starts and ends. Going deeper, the new view comes in from the right and the one it covers drifts a third of the way left as it fades; going back runs the same path the other way. */
+const offscreen = { in: { transform: "translateX(100%)" }, inBack: { transform: "translateX(-30%)", opacity: 0 } } as const;
+const away = { out: { transform: "translateX(-30%)", opacity: 0 }, outBack: { transform: "translateX(100%)" } } as const;
+const here = { transform: "none", opacity: 1 };
+
+/** One view of the column on its way in, at rest, or on its way out. Every move starts from wherever a running one had got to, so a click back mid-slide turns the views around without a jump. */
+function Slide({ role, onOut, children }: { role: Role; onOut?: () => void; children: ReactNode }) {
+  const c = useColors();
+  const self = useRef<View>(null);
+  const out = useEffectEvent(() => onOut?.());
+  useLayoutEffect(() => {
+    const element = self.current as unknown as HTMLElement | null;
+    if (!element?.animate) return;
+    const leaving = role === "out" || role === "outBack";
+    element.inert = leaving;
+    if (role === "rest") return;
+    const running = element.getAnimations();
+    const { opacity, transform } = getComputedStyle(element);
+    running.forEach((animation) => animation.cancel());
+    const from = running.length ? { opacity, transform } : leaving ? here : offscreen[role];
+    const move = element.animate([from, leaving ? away[role] : here], { duration: motion.columnPush, easing: motion.easeDrawer, fill: leaving ? "forwards" : "none" });
+    move.onfinish = () => {
+      if (leaving) out();
+    };
+  }, [role]);
+  // The view that moves the most is the one on top, and the page's own ground keeps the one beneath from showing through it.
+  return (
+    <View ref={self} aria-hidden={role === "out" || role === "outBack" ? true : undefined} style={[styles.slide, { backgroundColor: c.field, zIndex: role === "in" || role === "outBack" ? 1 : 0 }]}>
+      <FadesIn value={role === "rest"}>{children}</FadesIn>
+    </View>
+  );
+}
+
+type Shown = { readonly node: ReactElement; readonly depth: number; readonly mount: number };
+type Leaving = { readonly node: ReactElement; readonly back: boolean; readonly mount: number };
+
+/**
+ * The wide column as a stack of views. Your share sits at depth 0; a view opened over it (an item, People, Payments, the pick) sits at depth 1.
+ * Opening one pushes it in from the right and closing it slides it back out, so the change of view reads at a glance. A swap between views of the same depth keeps the panel's quick fade.
+ * Each child is a keyed SidePanel. The one leaving stays mounted until its slide ends, so it keeps its state and scroll while it moves.
+ * Every view that comes in mounts fresh, as it did before the column slid, even one reopened while its last copy is still on the way out.
+ */
+export function ColumnStack({ depth, children }: { depth: number; children: ReactElement }) {
+  const reduce = useReducedMotion();
+  // The view on screen as it was last drawn, which is what slides away when another takes its place.
+  const [shown, setShown] = useState<Shown>({ node: children, depth, mount: 0 });
+  const [leaving, setLeaving] = useState<Leaving | null>(null);
+  const [entering, setEntering] = useState<Role>("rest");
+  if (shown.node.key !== children.key) {
+    const pushed = !reduce && depth !== shown.depth;
+    setShown({ node: children, depth, mount: shown.mount + 1 });
+    setEntering(pushed ? (depth > shown.depth ? "in" : "inBack") : "rest");
+    // A swap at the same depth leaves a slide that is still running to finish on its own.
+    if (pushed) setLeaving({ node: shown.node, back: depth < shown.depth, mount: shown.mount });
+  } else if (shown.node !== children) setShown({ ...shown, node: children, depth });
+  const gone = leaving?.mount;
+  return (
+    <View style={styles.stack}>
+      {leaving ? (
+        <Slide key={leaving.mount} role={leaving.back ? "outBack" : "out"} onOut={() => setLeaving((now) => (now?.mount === gone ? null : now))}>
+          {cloneElement(leaving.node as ReactElement<Props>, { testID: undefined })}
+        </Slide>
+      ) : null}
+      <Slide key={shown.mount} role={entering}>
+        {children}
+      </Slide>
+    </View>
+  );
+}
+
 // Past the widest overhang in a sheet: the Close button's 44pt target hangs 14px beyond the content edge.
 const bleed = 16;
 
 const styles = StyleSheet.create({
   panel: { flex: 1, minHeight: 0 },
+  // Reaches `bleed` past the column like the scroller does, so it clips a sliding view at the same edges the scroller already clips at.
+  stack: { flex: 1, minHeight: 0, marginHorizontal: -bleed, overflow: "hidden" },
+  slide: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, paddingHorizontal: bleed },
   // The scroller reaches `bleed` past the column on each side and the content pads it back in, so the content sits where it did. Controls that hang past their row (a link's tap area, the Close button's) then stay inside the scroller, which would otherwise scroll sideways to show them and clip the column's left edge.
   scroll: { flex: 1, marginHorizontal: -bleed },
   // Room on the sides and top for a focused field's ring, which the scroller clips.
