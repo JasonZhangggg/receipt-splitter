@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 
 import { tabbable } from "../components/popover";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
-import { motion, SurfaceContext, useColors } from "../theme";
+import { motion, SurfaceContext } from "../theme";
 
 /** New content fades in over 120ms, opacity only, from its first painted frame. The column swaps content on nearly every click, so anything longer reads as lag, and old content leaves at once rather than fading: a fade out followed by a fade in leaves the column blank between them. */
 const fadeIn = webAnimation({ animationKeyframes: [{ from: { opacity: 0 }, to: { opacity: 1 } }], animationDuration: "120ms", animationTimingFunction: motion.easeOut, animationFillMode: "both" });
@@ -49,14 +49,16 @@ const FadesIn = createContext(true);
 
 type Role = "rest" | "in" | "inBack" | "out" | "outBack";
 
-/** Where each push starts and ends. Going deeper, the new view comes in from the right and the one it covers drifts a third of the way left as it fades; going back runs the same path the other way. */
-const offscreen = { in: { transform: "translateX(100%)" }, inBack: { transform: "translateX(-30%)", opacity: 0 } } as const;
-const away = { out: { transform: "translateX(-30%)", opacity: 0 }, outBack: { transform: "translateX(100%)" } } as const;
-const here = { transform: "none", opacity: 1 };
+/** Where each push starts and ends. Going deeper, the new view comes in from the right and the one it covers drifts a third of the way left; going back runs the same path the other way. */
+const offscreen = { in: "translateX(100%)", inBack: "translateX(-30%)" } as const;
+const away = { out: "translateX(-30%)", outBack: "translateX(100%)" } as const;
 
-/** One view of the column on its way in, at rest, or on its way out. Every move starts from wherever a running one had got to, so a click back mid-slide turns the views around without a jump. */
+/**
+ * One view of the column on its way in, at rest, or on its way out. Only the content moves: the column has no ground of its own, so its color holds through the slide.
+ * The leaving view fades out in the first half of the slide, so the two never read as one jumble, and the incoming one fades in as it arrives.
+ * Every move starts from wherever a running one had got to, so a click back mid-slide turns the views around without a jump.
+ */
 function Slide({ role, onOut, children }: { role: Role; onOut?: () => void; children: ReactNode }) {
-  const c = useColors();
   const self = useRef<View>(null);
   const out = useEffectEvent(() => onOut?.());
   useLayoutEffect(() => {
@@ -68,15 +70,15 @@ function Slide({ role, onOut, children }: { role: Role; onOut?: () => void; chil
     const running = element.getAnimations();
     const { opacity, transform } = getComputedStyle(element);
     running.forEach((animation) => animation.cancel());
-    const from = running.length ? { opacity, transform } : leaving ? here : offscreen[role];
-    const move = element.animate([from, leaving ? away[role] : here], { duration: motion.columnPush, easing: motion.easeDrawer, fill: leaving ? "forwards" : "none" });
+    const fill = leaving ? "forwards" : "none";
+    const move = element.animate([{ transform: running.length ? transform : leaving ? "none" : offscreen[role] }, { transform: leaving ? away[role] : "none" }], { duration: motion.columnPush, easing: motion.easeDrawer, fill });
+    element.animate([{ opacity: running.length ? opacity : leaving ? 1 : 0 }, { opacity: leaving ? 0 : 1 }], { duration: leaving ? motion.columnPush / 2 : motion.columnPush, easing: motion.easeOut, fill });
     move.onfinish = () => {
       if (leaving) out();
     };
   }, [role]);
-  // The view that moves the most is the one on top, and the page's own ground keeps the one beneath from showing through it.
   return (
-    <View ref={self} aria-hidden={role === "out" || role === "outBack" ? true : undefined} style={[styles.slide, { backgroundColor: c.field, zIndex: role === "in" || role === "outBack" ? 1 : 0 }]}>
+    <View ref={self} aria-hidden={role === "out" || role === "outBack" ? true : undefined} style={styles.slide}>
       <FadesIn value={role === "rest"}>{children}</FadesIn>
     </View>
   );
