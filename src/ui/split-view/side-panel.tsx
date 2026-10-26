@@ -89,7 +89,7 @@ type Leaving = { readonly node: ReactElement; readonly back: boolean; readonly m
 
 /**
  * The wide column as a stack of views. Your share sits at depth 0; a view opened over it (an item, People, Payments, the pick) sits at depth 1.
- * Opening one pushes it in from the right and closing it slides it back out, so the change of view reads at a glance. A swap between views of the same depth keeps the panel's quick fade.
+ * Opening one pushes it in from the right and closing it slides it back out, so the change of view reads at a glance. One view over Your share replaced by another, such as a click from one item to the next, pushes the same way as opening it. Your share swapped for someone else's keeps the panel's quick fade.
  * Each child is a keyed SidePanel. The one leaving stays mounted until its slide ends, so it keeps its state and scroll while it moves.
  * Every view that comes in mounts fresh, as it did before the column slid, even one reopened while its last copy is still on the way out.
  */
@@ -100,10 +100,10 @@ export function ColumnStack({ depth, children }: { depth: number; children: Reac
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [entering, setEntering] = useState<Role>("rest");
   if (shown.node.key !== children.key) {
-    const pushed = !reduce && depth !== shown.depth;
+    const pushed = !reduce && (depth !== shown.depth || depth > 0);
     setShown({ node: children, depth, mount: shown.mount + 1 });
-    setEntering(pushed ? (depth > shown.depth ? "in" : "inBack") : "rest");
-    // A swap at the same depth leaves a slide that is still running to finish on its own.
+    setEntering(pushed ? (depth < shown.depth ? "inBack" : "in") : "rest");
+    // A share swapped for another's leaves a slide that is still running to finish on its own.
     if (pushed) setLeaving({ node: shown.node, back: depth < shown.depth, mount: shown.mount });
   } else if (shown.node !== children) setShown({ ...shown, node: children, depth });
   const gone = leaving?.mount;
