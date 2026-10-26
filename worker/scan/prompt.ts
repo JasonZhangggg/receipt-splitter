@@ -45,7 +45,7 @@ ${EXAMPLE}
 Rules:
 - Name: the item name as printed, apart from casing. Do not expand abbreviations or add words. The name holds everything needed to identify the item.
 - Detail: a + line under its item holds only supplementary information, such as size, volume, flavor, weight and modifiers without a price (SMALL, ADD 2 EGGS). Write one + line per printed modifier line.
-- Modifier with a price: an indented line under an item, with no quantity of its own (Ice Coffee $7.00, Add Cheese 1.50), is a +|<modifier>|<cents> line under that item, never an item line, even when the item above is $0.00. A modifier at $0.00 is a + line without a price.
+- Modifier with a price: an indented line under an item, with no quantity of its own (Large Size $2.00, Add Cheese 1.50), is a +|<modifier>|<cents> line under that item, never an item line, even when the item above is $0.00. A modifier at $0.00 is a + line without a price.
 - A discount, coupon, promo or price override printed under an item is a -|<name>|<cents> line under that item (after its + lines). A d line is only for a discount on the whole order.
 - When the receipt lists the same savings twice, once under each item and again in a summary block, keep the per-item lines and skip the summary block.
 ${BUNDLE_RULE}
