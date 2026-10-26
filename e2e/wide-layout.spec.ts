@@ -389,7 +389,7 @@ for (const size of sizes) {
 
       await expect(line(page, "Fanta")).toContainText("$4.00", live);
       await expect(page.getByTestId("receipt")).toContainText("$29.54", live);
-      await page.getByRole("button", { name: "Close", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
       await expect(share(page)).toHaveText("$4.83", live);
       await expect(shareColumn(page)).toContainText("Fanta");
     });
@@ -458,7 +458,7 @@ for (const size of sizes) {
       await expect(column(page, "What you had")).toBeVisible(live);
 
       await line(page, "Sprite").click();
-      await page.getByRole("button", { name: "Close", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
       await expect(column(page, "Edit item")).toHaveCount(0, live);
       await expect(line(page, "Sprite")).toBeFocused();
     });
@@ -772,7 +772,7 @@ for (const size of sizes) {
       await expect(page.getByTestId("footer")).toHaveCount(0);
       await line(page, "Perrier").click();
       await expect(page.getByRole("textbox", { name: "Item name" })).toHaveValue("Perrier", live);
-      await column(page, "Edit item").getByRole("button", { name: "Close", exact: true }).click();
+      await column(page, "Edit item").getByRole("button", { name: "Back", exact: true }).click();
       await expect(column(page, "Edit item")).toHaveCount(0, live);
       await switcher(page).click();
       await expect(picker(page)).toBeVisible(live);
@@ -846,7 +846,7 @@ for (const size of sizes) {
         await page.keyboard.press("Tab");
         order.push((await focused(page)) ?? "");
       }
-      expect(order.slice(0, 4)).toEqual(["Delete item", "Close", "Item name", "Price"]);
+      expect(order.slice(0, 4)).toEqual(["Back", "Delete item", "Item name", "Price"]);
 
       await page.keyboard.press("Escape");
       await switcher(page).focus();
@@ -955,6 +955,8 @@ test.describe("spread layout: a centered frame, filters and the share bar", () =
     test("the frame sits in the middle of the window and the page scrolls as one, with the column held at the top", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex, [venmo], { ...menu, items: Array.from({ length: 24 }, (_, at) => ({ id: `line${at}`, name: `Line ${at + 1}`, price: 100 })), subtotal: 2400, total: 2906 }));
       await pick(page, "Sam");
+      // The share view slides back in over the pick; measure it once the pick has slid away.
+      await expect.poll(() => page.evaluate(() => document.querySelectorAll("[inert]").length), live).toBe(0);
 
       const width = await page.evaluate(() => document.documentElement.clientWidth);
       const receipt = (await page.getByTestId("receipt").boundingBox())!;

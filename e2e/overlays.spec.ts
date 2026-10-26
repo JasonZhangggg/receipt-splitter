@@ -67,10 +67,11 @@ test("on a desktop History shows in the right column beside the receipt instead 
   const panel = sam.getByRole("region", { name: "History" });
   await expect(panel).toBeVisible(live);
   await expect(sam.getByRole("dialog")).toHaveCount(0);
+  // Share slides out under History; once it has gone, nothing on the page is inert and History rests in place.
+  await expect.poll(() => sam.evaluate(() => document.querySelectorAll("[inert]").length), live).toBe(0);
   const box = (await panel.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(receipt.x + receipt.width);
   expect(box.x + box.width).toBeLessThanOrEqual(1440);
-  expect(await sam.evaluate(() => document.querySelectorAll("[inert]").length)).toBe(0);
   await sam.getByRole("button", { name: /^Open Rice, / }).click();
   await expect(sam.getByRole("region", { name: "Edit item" })).toBeVisible(live);
 });

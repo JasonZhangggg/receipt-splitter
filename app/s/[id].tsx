@@ -38,7 +38,7 @@ import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filter
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
 import { ShareHead } from "../../src/ui/split-view/share-head";
-import { SidePanel } from "../../src/ui/split-view/side-panel";
+import { ColumnStack, SidePanel } from "../../src/ui/split-view/side-panel";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
@@ -845,7 +845,9 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
                 </Presence>
                 <View style={styles.doc}>{receipt}</View>
               </View>
-              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>{aside}</View>
+              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>
+                <ColumnStack depth={phase !== "regular" || overlay ? 1 : 0}>{aside}</ColumnStack>
+              </View>
             </View>
           </View>
         </ScrollView>
