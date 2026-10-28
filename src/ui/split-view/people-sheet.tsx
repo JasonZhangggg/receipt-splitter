@@ -24,7 +24,7 @@ export type PersonRow = {
   readonly heldElsewhere: boolean;
 };
 
-type Mode = "view" | "switch" | "remove";
+export type Mode = "view" | "switch" | "remove";
 
 type Props = {
   rows: readonly PersonRow[];
@@ -209,7 +209,8 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
 
 type LineProps = { row: PersonRow; mode: Mode; asking: boolean; host: boolean; chosen: ParticipantId | null; onPress: (press: Press) => void };
 
-function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
+/** One person's row: a radio while picking, a trash while removing, and their share while viewing. Link ready's switch list uses it too. */
+export function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const c = useColors();
   const onPage = useOnPage();
   const reduce = useReducedMotion();

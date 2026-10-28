@@ -18,6 +18,8 @@ export const splitCopy = {
   back: "Back",
   backPick: "Back, just look",
   linkReady: "Link ready.",
+  linkReadyTitle: "Link ready",
+  linkReadyHint: "Send it to the group.",
   invited: " invited you to split ",
   question: "Which one are you?",
   picked: "Picked",
