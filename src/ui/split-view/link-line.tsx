@@ -31,7 +31,7 @@ export function LinkLine({ url }: { url: string }) {
   const shown = url.replace(/^https?:\/\//, "");
   return (
     <View style={styles.box}>
-      <View style={[styles.row, { borderBottomColor: c.hairline }]}>
+      <View style={[styles.row, { borderColor: c.hairline }]}>
         <View testID="split-link" style={styles.link}>
           <Text numberOfLines={1} style={[type.caption, styles.head, { color: c.ink }]}>
             {shown.slice(0, -keptEnd)}
@@ -50,8 +50,8 @@ export function LinkLine({ url }: { url: string }) {
 
 const styles = StyleSheet.create({
   box: { gap: 8 },
-  // Underlined in the divider gray, as every text field in the app is.
-  row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingRight: 4, borderBottomWidth: 1 },
+  // Between rules in the divider gray, as a row in the app's lists is.
+  row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingRight: 4, borderTopWidth: 1, borderBottomWidth: 1 },
   link: { flex: 1, flexDirection: "row", minWidth: 0, marginRight: 4 },
   head: { flexShrink: 1 },
   tail: { flexShrink: 0 },
