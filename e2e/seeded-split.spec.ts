@@ -1,4 +1,5 @@
 import { addNames, openExample } from "./files";
+import { closeLinkReady } from "./header";
 import { expect, test, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -47,6 +48,7 @@ test("after Create the Host sees the Split at once with their name picked, befor
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await addNames(page, "Jason", "Sam", "Priya");
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
 
   await expect(page.getByTestId("owe")).toBeVisible({ timeout: 30_000 });
   await expect(question(page)).toHaveCount(0);

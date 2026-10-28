@@ -1,6 +1,6 @@
 import { addNames, openExample } from "./files";
 import { simulateKeyboard } from "./motion";
-import { fromMore } from "./header";
+import { closeLinkReady, fromMore } from "./header";
 import { expect, newContext, test, type APIRequestContext, type Browser, type Locator, type Page } from "./without-ocr";
 
 const phone = { width: 390, height: 844 };
@@ -58,6 +58,7 @@ test("a Split this browser created heads Recent splits on the fresh home, and a 
   await addNames(page, "Jason", "Sam");
   const sent = page.waitForRequest((request) => request.url().endsWith("/api/splits") && request.method() === "POST");
   await action(page).click();
+  await closeLinkReady(page);
   await expect(page.getByTestId("owe")).toBeVisible({ timeout: 30_000 });
   const link = page.url();
   const total = `$${((await sent).postDataJSON().split.receipt.total / 100).toFixed(2)}`;

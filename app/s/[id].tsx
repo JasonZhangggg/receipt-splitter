@@ -38,6 +38,8 @@ import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filter
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
 import { ShareHead } from "../../src/ui/split-view/share-head";
+import { takeJustMade } from "../../src/ui/split-view/just-made";
+import { LinkReadySheet } from "../../src/ui/split-view/link-ready-sheet";
 import { ColumnStack, SidePanel } from "../../src/ui/split-view/side-panel";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
@@ -114,6 +116,7 @@ type OverlayKind =
   | { readonly kind: "totals"; readonly line: TotalLine }
   | { readonly kind: "history" }
   | { readonly kind: "people" }
+  | { readonly kind: "made" }
   | { readonly kind: "pay" }
   | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
 /** What is open over the page and the press that opened it: focus goes back there. */
@@ -129,7 +132,7 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : overlay.kind === "totals"
       ? say.editTotals[overlay.line]
-      : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
+      : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, made: say.linkReadyTitle, pay: title }[overlay.kind];
 const checkFor = 80;
 /** The Host's footer pill: how many of the people who owe have paid, "All paid" once they all have, or just Payments while nobody owes yet. */
 const collectLabel = ({ paid, owing }: { paid: number; owing: number }) => (owing === 0 ? say.payments : paid === owing ? say.ring.allPaidTitle : say.status.paidOf(paid, owing));
@@ -170,7 +173,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const waitingToPay = useRef<{ readonly paid: boolean; readonly share: Cents } | null>(null);
   const [payNote, setPayNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<ParticipantId | null>(me);
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // The Host arrives from Create link to Link ready: the link to send and, in case this phone is not theirs, the names to switch to.
+  const [overlay, setOverlay] = useState<Overlay | null>(() => (me && takeJustMade(splitId) ? { kind: "made", from: { trigger: document.body, keyboard: false } } : null));
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
   const [linksBottom, setLinksBottom] = useState<number | null>(null);
@@ -239,7 +243,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (shownPhase.current === "pick") timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
     else {
       setChosen(null);
-      closeOverlay();
+      // Link ready stays up after a switch, so the Host can still share the link.
+      if (openSheet.current?.kind !== "made") closeOverlay();
     }
   };
 
@@ -461,6 +466,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     setOverlay(null);
     setClosing(false);
     if (!overlay || !(wide || overlay.from.keyboard || actedByKey())) return;
+    // Link ready opened by itself, so on a wide screen focus goes to the share view's head rather than back to the page.
+    if (overlay.kind === "made") {
+      if (wide) focusHead.current = "";
+      return;
+    }
     const trigger = overlay.from.trigger.isConnected
       ? overlay.from.trigger
       : overlay.kind === "item"
@@ -615,6 +625,16 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
     ) : overlay.kind === "people" ? (
       peopleSheet(false)
+    ) : overlay.kind === "made" ? (
+      <LinkReadySheet
+        url={splitUrl(splitId)}
+        rows={peopleRows}
+        chosen={chosen}
+        problem={pickProblem}
+        onShare={() => void share()}
+        onPick={(participantId) => (participantId === me ? undefined : void choose(participantId, false))}
+        onClose={closeOverlay}
+      />
     ) : overlay.kind === "pay" ? (
       selectedPerson ? (
         <>

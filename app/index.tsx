@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { recentSplits, rememberSplit, thisDevice } from "../src/device";
+import { markJustMade } from "../src/ui/split-view/just-made";
 import { loadDraft, mismatchNote, readiness, reduceDraft, saveDraft, splitRequest, type Draft, type DraftAction, type Ready, type ReceiptFile } from "../src/draft";
 import { createSplitLink, newParticipantId, sendPhoto } from "../src/live/client";
 import { prefetchModel, recognize } from "../src/ocr";
@@ -181,6 +182,7 @@ export default function Home() {
       pageCopy = null;
       apply({ type: "created" });
     }
+    markJustMade(created.id);
     router.push(`/s/${created.id}`);
   };
 

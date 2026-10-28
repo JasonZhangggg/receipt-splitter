@@ -52,3 +52,13 @@ export async function youAre(page: Page, name: string) {
   await page.keyboard.press("Escape");
   await expect(peopleSheet(page)).toHaveCount(0);
 }
+
+/** Link ready, which greets the Host once Create link lands: a dialog on a phone, the column's region on a wide screen. */
+export const linkReady = (page: Page) => (isWide(page) ? page.getByRole("region", { name: "Your link is ready" }) : page.getByRole("dialog", { name: "Your link is ready" }));
+
+/** Closes Link ready, so a test that only made the Split carries on from the page. */
+export async function closeLinkReady(page: Page) {
+  await expect(linkReady(page)).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press("Escape");
+  await expect(linkReady(page)).toHaveCount(0);
+}

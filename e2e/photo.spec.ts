@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Browser, type Page, type Request } from "@playwright/test";
 
 import { addNames } from "./files";
-import { fromMore } from "./header";
+import { closeLinkReady, fromMore } from "./header";
 import { mountHarness } from "./harness";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -69,6 +69,7 @@ async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await addNames(page, "Jason");
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
   await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 

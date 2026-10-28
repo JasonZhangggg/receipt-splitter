@@ -1,5 +1,5 @@
 import { addNames, openExample } from "./files";
-import { peopleSheet, showPeople, viewAs, youAre } from "./header";
+import { closeLinkReady, peopleSheet, showPeople, viewAs, youAre } from "./header";
 import { expect, newContext, test, type Browser, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -24,6 +24,7 @@ async function readyHome(page: Page, names: string[] = []) {
 
 async function createLink(page: Page): Promise<string> {
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
   await expect(page.getByTestId("owe")).toBeVisible(linkTimeout);
   return page.url();
 }
