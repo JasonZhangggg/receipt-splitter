@@ -31,7 +31,7 @@ export function LinkLine({ url }: { url: string }) {
   const shown = url.replace(/^https?:\/\//, "");
   return (
     <View style={styles.box}>
-      <View style={[styles.row, { backgroundColor: c.off }]}>
+      <View style={[styles.row, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
         <View testID="split-link" style={styles.link}>
           <Text numberOfLines={1} style={[type.caption, styles.head, { color: c.ink }]}>
             {shown.slice(0, -keptEnd)}
