@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { runs, sample } from "./motion";
 import { addApp, addNames, dropFile, dropZone, openExample, pasteFile, photo, pickApp } from "./files";
+import { closeLinkReady } from "./header";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -141,6 +142,7 @@ test("a read with a price over the limit creates the link, and a price typed int
 
   await action(page).click();
   await expect(page).toHaveURL(/\/s\/[\w-]+$/, { timeout: 30_000 });
+  await closeLinkReady(page);
   await expect(page.getByText("Items add up to $19.48, but the receipt's subtotal is $22.98.")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /^Open Perrier Sparkling Water, \$0\.00/ }).click();
   await page.getByRole("dialog", { name: "Edit item" }).getByRole("textbox", { name: "Price" }).fill("3.50");
