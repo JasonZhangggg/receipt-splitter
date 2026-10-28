@@ -8,8 +8,8 @@ import { layout, type, useColors } from "../theme";
 const copiedFor = 1600;
 const keptEnd = 6;
 
-/** The link on one line, cut in the middle so its host and the end of its id both show, with Copy and, where the phone can share, Share. `share={false}` leaves Share to a larger button nearby. */
-export function LinkLine({ url, share: offerShare = true }: { url: string; share?: boolean }) {
+/** The link on one line, cut in the middle so its host and the end of its id both show, with Copy and, where the phone can share, Share. */
+export function LinkLine({ url }: { url: string }) {
   const c = useColors();
   const [copied, setCopied] = useState(false);
   const [problem, setProblem] = useState(false);
@@ -41,7 +41,7 @@ export function LinkLine({ url, share: offerShare = true }: { url: string; share
           </Text>
         </View>
         <Button kind="icon" icon={copied ? "check" : "copy"} name={copied ? say.copied : say.copy} onPress={() => void copy()} outsideScroll />
-        {sharable && offerShare ? <Button kind="icon" icon="share" name={say.share} onPress={() => void share()} outsideScroll /> : null}
+        {sharable ? <Button kind="icon" icon="share" name={say.share} onPress={() => void share()} outsideScroll /> : null}
       </View>
       {problem ? <Text style={[type.caption, styles.problem, { color: c.muted }]}>{say.copyFailed}</Text> : null}
     </View>

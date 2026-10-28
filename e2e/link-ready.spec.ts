@@ -30,17 +30,21 @@ for (const width of [390, 1280]) {
   test.describe(`at ${width} px`, () => {
     test.use({ viewport: { width, height: width < 1024 ? 844 : 800 } });
 
-    test("Create link opens Link ready with the link and the names; a switch keeps it open, and a reload does not bring it back", async ({ page }) => {
+    test("Create link opens Link ready with the link and whose device this is; Switch lists the names, a pick keeps the sheet open, and a reload does not bring it back", async ({ page }) => {
       await create(page);
       const sheet = linkReady(page);
+      const device = width < 1024 ? "phone" : "computer";
       await expect(sheet.getByTestId("split-link")).toContainText("/s/");
       await expect(sheet.getByRole("button", { name: "Copy" })).toBeVisible();
+      await expect(sheet.getByText(`This ${device} is Jason.`)).toBeVisible();
+      await expect(rows(page)).toHaveCount(0);
+
+      await sheet.getByRole("button", { name: "Switch account" }).click();
       await expect(rows(page)).toHaveCount(3);
       await expect(sheet.getByRole("button", { name: "Jason, you" })).toHaveAttribute("aria-pressed", "true");
-
       await sheet.getByRole("button", { name: "Sam", exact: true }).click();
-      await expect(sheet.getByRole("button", { name: "Sam, you" })).toHaveAttribute("aria-pressed", "true");
-      await expect(sheet).toBeVisible();
+      await expect(sheet.getByText(`This ${device} is Sam.`)).toBeVisible();
+      await expect(rows(page)).toHaveCount(0);
 
       await page.keyboard.press("Escape");
       await expect(sheet).toHaveCount(0);
@@ -56,14 +60,13 @@ for (const width of [390, 1280]) {
 test.describe("with a share sheet", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("Share link opens the phone's share sheet with the Split's link, and the link line keeps only Copy", async ({ page }) => {
+  test("Share on the link line opens the phone's share sheet with the Split's link", async ({ page }) => {
     await page.addInitScript(() => {
       Object.assign(navigator, { share: (data: ShareData) => ((window as unknown as { shared: ShareData[] }).shared ??= []).push(data) && Promise.resolve() });
     });
     await create(page);
     const sheet = linkReady(page);
-    await expect(sheet.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
-    await sheet.getByRole("button", { name: "Share link" }).click();
+    await sheet.getByRole("button", { name: "Share", exact: true }).click();
     expect(await page.evaluate(() => (window as unknown as { shared: ShareData[] }).shared)).toEqual([{ url: page.url() }]);
   });
 });
@@ -82,4 +85,7 @@ if (shots)
       await create(page);
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${shots}/${width < 1024 ? "phone" : "desktop"}-${scheme}.png` });
+      await linkReady(page).getByRole("button", { name: "Switch account" }).click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${shots}/${width < 1024 ? "phone" : "desktop"}-${scheme}-switch.png` });
     });

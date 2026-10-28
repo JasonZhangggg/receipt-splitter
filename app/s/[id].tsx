@@ -631,8 +631,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
         rows={peopleRows}
         chosen={chosen}
         problem={pickProblem}
-        onShare={() => void share()}
-        onPick={(participantId) => (participantId === me ? undefined : void choose(participantId, false))}
+        onPick={(participantId) => void choose(participantId, false)}
         onClose={closeOverlay}
       />
     ) : overlay.kind === "pay" ? (
