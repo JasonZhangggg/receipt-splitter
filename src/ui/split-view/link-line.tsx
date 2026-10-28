@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { Button } from "../components/button";
 import { splitCopy as say } from "../split-copy";
-import { layout, type, useColors } from "../theme";
+import { type, useColors } from "../theme";
 
 const copiedFor = 1600;
 const keptEnd = 6;
@@ -31,7 +31,7 @@ export function LinkLine({ url }: { url: string }) {
   const shown = url.replace(/^https?:\/\//, "");
   return (
     <View style={styles.box}>
-      <View style={[styles.row, { boxShadow: `inset 0 0 0 1px ${c.hairline}` }]}>
+      <View style={[styles.row, { borderBottomColor: c.hairline }]}>
         <View testID="split-link" style={styles.link}>
           <Text numberOfLines={1} style={[type.caption, styles.head, { color: c.ink }]}>
             {shown.slice(0, -keptEnd)}
@@ -50,9 +50,10 @@ export function LinkLine({ url }: { url: string }) {
 
 const styles = StyleSheet.create({
   box: { gap: 8 },
-  row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingLeft: 16, paddingRight: 4, borderRadius: layout.fieldRadius },
+  // Underlined in the divider gray, as every text field in the app is.
+  row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingRight: 4, borderBottomWidth: 1 },
   link: { flex: 1, flexDirection: "row", minWidth: 0, marginRight: 4 },
   head: { flexShrink: 1 },
   tail: { flexShrink: 0 },
-  problem: { alignSelf: "flex-start", marginHorizontal: 4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+  problem: { alignSelf: "flex-start" },
 });
