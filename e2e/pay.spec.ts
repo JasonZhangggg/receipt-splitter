@@ -376,46 +376,36 @@ test("a name picked by a page that sent the browser's raw device id stays this p
   await expect(sam.getByRole("heading", { name: "Which one are you?" })).toHaveCount(0);
 });
 
-test("a recordPayment for Sam sent from Priya's phone is refused, and Sam stays unpaid", async ({ browser, request }, { workerIndex }) => {
+test("Priya checks herself off directly, but checking Sam off asks first, and History shows she did it", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
   await pick(sam, "Sam");
   await pick(priya, "Priya");
   await circle(sam, "Pho", "Sam").click();
+  await circle(priya, "Tea", "Priya").click();
   await expect(owe(sam)).toHaveText("$14.20", live);
 
-  const splitId = new URL(link).pathname.split("/").pop();
-  const answer = await priya.evaluate(
-    (room) =>
-      new Promise<unknown>((resolve) => {
-        const device = localStorage.getItem("receipt-splitter:device");
-        const socket = new WebSocket(`ws://${location.host}/parties/split-server/${room}`);
-        let sent = false;
-        socket.addEventListener("message", ({ data }) => {
-          const message = JSON.parse(data);
-          if (message.type === "state" && !sent) {
-            sent = true;
-            socket.send(JSON.stringify({ ref: "forged", op: { by: "sam", type: "recordPayment", participantId: "sam", device, amount: 1420 } }));
-          }
-          if (message.ref === "forged") {
-            socket.close();
-            resolve(message);
-          }
-        });
-      }),
-    splitId,
-  );
-  expect(answer).toEqual({ type: "rejected", ref: "forged", rejection: { reason: "payerOnly" } });
+  await fromMore(priya, "Payments");
+  const ask = priya.getByRole("dialog", { name: "Mark Sam paid?" });
+  await paymentsList(priya).getByRole("button", { name: "Mark Sam paid" }).click();
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  await expect(ask).toHaveCount(0, live);
+  await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
 
-  await viewAs(priya, "Sam");
-  await priya.getByRole("button", { name: /, Show Sam's breakdown$/ }).click();
-  await expect(breakdown(priya).getByTestId("share")).toHaveText("$14.20", live);
-  await expect(note(priya)).toHaveCount(0);
-  await sam.reload();
-  await expect(owe(sam)).toHaveText("$14.20", live);
-  await owe(sam).click();
-  await expect(breakdown(sam).getByRole("button", { name: "I already paid" })).toBeVisible(live);
+  await paymentsList(priya).getByRole("button", { name: "Mark Sam paid" }).click();
+  await ask.getByRole("button", { name: "Mark paid" }).click();
+  await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "settled", live);
+  await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toBeVisible(live);
+
+  await paymentsList(priya).getByRole("button", { name: "Mark Priya paid" }).click();
+  await expect(priya.getByRole("dialog", { name: "Mark Priya paid?" })).toHaveCount(0);
+  await expect(paymentRow(priya, "Priya")).toHaveAttribute("data-state", "settled", live);
+
+  await priya.keyboard.press("Escape");
+  await paymentsList(priya).waitFor({ state: "detached" });
+  await fromMore(priya, "History");
+  await expect(priya.getByRole("dialog", { name: "History" })).toContainText("Sam paid $14.20Priya", live);
 });
 
 test("the picker overlay leaves no stray app name in the accessibility tree ahead of the Pay with combobox", async ({ browser, request }, { workerIndex }) => {
@@ -470,9 +460,9 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await expect(priya.getByTestId("nobody-yet")).toHaveText("Nobody yetPho, Wings$28.20Unclaimed");
   expect([await markOf(priya, "Sam"), await markOf(priya, "Priya")]).toEqual([[], []]);
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
-  // Priya can check herself off, but only Sam's phone or the Host's can check Sam off.
+  // Anyone with a name can check anyone off; checking someone else off asks first.
   await expect(paymentsList(priya).getByRole("button", { name: "Mark Priya paid" })).toBeVisible();
-  await expect(paymentsList(priya).getByRole("button", { name: "Mark Sam paid" })).toHaveCount(0);
+  await expect(paymentsList(priya).getByRole("button", { name: "Mark Sam paid" })).toBeVisible();
 
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
@@ -662,8 +652,8 @@ test("the Host's ring shows what friends paid back, and the Host checks Priya of
 
   await paymentsList(jason).waitFor({ state: "detached" });
   await fromMore(priya, "Payments");
-  await expect(paymentsList(priya).getByRole("button", { name: "Mark Sam not paid" })).toHaveCount(0);
-  await expect(paymentsList(priya).getByRole("button", { name: "Mark Priya not paid" })).toBeVisible(live);
+  await expect(paymentsList(priya).getByRole("button", { name: "Mark Sam not paid" })).toBeVisible(live);
+  await expect(paymentsList(priya).getByRole("button", { name: "Mark Priya not paid" })).toBeVisible();
 });
 
 test("a tap on the ring's arc picks that person like their row, a tap on it again lets go, and a tap on the hole puts the ring back", async ({ browser, request }, { workerIndex }) => {

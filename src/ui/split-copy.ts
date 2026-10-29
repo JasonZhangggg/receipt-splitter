@@ -108,7 +108,6 @@ export const splitCopy = {
   payWith: "Pay with",
   copyToPayOnZelle: (handle: string, host: string, amount: string) => `Copy ${handle} to pay ${host} ${amount} on Zelle`,
   copyValueFailed: "Couldn't copy that. Select it and copy it by hand.",
-  payerOnly: "Only the phone that picked your name can mark you paid.",
   ring: {
     yourPart: "Your part",
     partOf: (name: string) => `${name}'s part`,
@@ -122,6 +121,9 @@ export const splitCopy = {
     unclaimedWord: "Unclaimed",
     markPaid: (name: string) => `Mark ${name} paid`,
     markUnpaid: (name: string) => `Mark ${name} not paid`,
+    askPaid: (name: string, paid: boolean) => (paid ? `Mark ${name} paid?` : `Mark ${name} not paid?`),
+    yesPaid: "Mark paid",
+    yesUnpaid: "Mark not paid",
     collected: (paid: string, owed: string) => ` · ${paid} of ${owed} in`,
     allPaid: (total: string) => `${total} settled`,
     owesNothing: (names: readonly string[]) => {

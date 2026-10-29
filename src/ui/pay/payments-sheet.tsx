@@ -7,7 +7,7 @@ import { computeShares, shareBreakdown } from "../../core/shares";
 import { cents } from "../../core/money";
 import { money } from "../../core/currency";
 import { useCurrency } from "../currency";
-import { PressTarget } from "../components/button";
+import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
@@ -25,10 +25,8 @@ type Props = {
   onClose: () => void;
   /** In a bottom sheet: the ring stays put and only the people scroll, out to the sheet's edge. */
   sheet?: boolean;
-  /** Whether this phone may check that person off: their own row, or anyone's on the Host's phone. */
-  canCheck?: (id: ParticipantId) => boolean;
-  /** A tap on a person's check: record their Share as paid, or clear it. */
-  onCheck?: (id: ParticipantId, paid: boolean) => void;
+  /** A tap on a person's check, from a phone with a name: record their Share as paid, or clear it. */
+  onCheck?: (id: ParticipantId, paid: boolean, from: Press) => void;
 };
 
 /**
@@ -36,7 +34,7 @@ type Props = {
  * in black, what is still owed in gray, the unclaimed rest in light gray. A tap on a name breaks their piece out of the ring and shows their part in the middle;
  * a tap anywhere else puts it back. It reads the live Split, so another phone's payment lands here as it happens.
  */
-export function PaymentsSheet({ split, me, onClose, sheet = false, canCheck = () => false, onCheck }: Props) {
+export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   const shares = computeShares(split);
@@ -142,7 +140,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, canCheck = ()
             const done = checked(id);
             return (
               <View key={id} role="listitem" style={[styles.row, { borderTopColor: c.hairline }]} {...{ dataSet: { state, keepsPick: "" } }}>
-                <Check paid={done} name={name} disabled={!canCheck(id) || !onCheck} onPress={() => onCheck?.(id, !done)} />
+                <Check paid={done} name={name} disabled={me === null || !onCheck} onPress={(from) => onCheck?.(id, !done, from)} />
                 <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share, split.currency)}`} toggled={on} outsideScroll={!sheet} onPress={() => toggle(id)} style={() => styles.press}>
                   {(pressed) => {
                     const ink = picked === null || on || pressed ? c.ink : c.muted;
@@ -216,7 +214,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, canCheck = ()
 }
 
 /** A person's paid mark: a filled circle with a tick once they have paid, an empty one before. Where this phone may check them off, it is the button that does it. */
-function Check({ paid, name, disabled, onPress }: { paid: boolean; name: string; disabled: boolean; onPress: () => void }) {
+function Check({ paid, name, disabled, onPress }: { paid: boolean; name: string; disabled: boolean; onPress: (from: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const mark = (pressed: boolean) => (
