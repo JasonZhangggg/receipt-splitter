@@ -35,6 +35,8 @@ type WebOnly = Partial<
     | "scrollPaddingInline"
     | "scrollPaddingTop"
     | "scrollbarGutter"
+    | "scrollbarWidth"
+    | "scrollbarColor"
     | "touchAction"
     | "maskImage"
     | "WebkitMaskImage"
