@@ -92,11 +92,13 @@ export const tabular = { fontVariant: ["tabular-nums" as const] };
 
 const easeOut = [0.23, 1, 0.32, 1] as const;
 const easeDrawer = [0.32, 0.72, 0, 1] as const;
+const easeInOut = [0.77, 0, 0.175, 1] as const;
 export const easing = { easeOut: Easing.bezier(...easeOut) };
 
 export const motion = {
   easeOut: `cubic-bezier(${easeOut.join(", ")})`,
   easeDrawer: `cubic-bezier(${easeDrawer.join(", ")})`,
+  easeInOut: `cubic-bezier(${easeInOut.join(", ")})`,
   themeReveal: 600,
   pressIn: 100,
   slipPressIn: 120,

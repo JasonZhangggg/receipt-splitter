@@ -43,6 +43,8 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
   const room = useLayoutHeight() - insets.top - 38 - sheetChrome - insets.bottom;
   const [fixed, setFixed] = useState(0);
   const [tapped, setTapped] = useState<ParticipantId | null>(null);
+  // How many times the Host's check has been tapped. Nobody can check the Host off, so each tap shakes their "gets paid" instead.
+  const [refused, setRefused] = useState(0);
   // Every Item is claimed and everyone who owes something has paid. The moment that happens the ring closes into All paid, even if someone was tapped before.
   const settled = owing > 0 && paid === owing && shares.unclaimed.total === 0;
   const [wasSettled, setWasSettled] = useState(settled);
@@ -143,7 +145,12 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
                   <View style={styles.body}>
                     <Text numberOfLines={1} style={[type.body, { color: ink }, !reduce && fade]}>
                       {name}
-                      {id === me ? <Text style={[type.caption, { color: c.muted }]}>{`\u2002${say.you}`}</Text> : null}
+                      {id === me ? <Text style={[type.caption, { color: c.muted }]}>{say.tags([say.you])}</Text> : null}
+                      {isHost ? (
+                        <Text key={refused} testID="gets-paid" style={[type.caption, styles.shakes, { color: c.muted }, refused > 0 && (reduce ? dimOnce : shake)]}>
+                          {say.tags([say.getsPaid])}
+                        </Text>
+                      ) : null}
                     </Text>
                     <Text testID="row-items" numberOfLines={1} style={[type.caption, { color: c.muted }]}>
                       {itemsLine(shareBreakdown(split, id).items)}
@@ -158,7 +165,11 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
             };
             return (
               <View key={id} role="listitem" style={[styles.row, { borderTopColor: c.hairline }]} {...{ dataSet: { state, keepsPick: "" } }}>
-                <Check paid={done} name={name} disabled={isHost || me === null || !onCheck} onPress={(from) => onCheck?.(id, !done, from)} />
+                {isHost ? (
+                  <Check paid name={name} fixed disabled={false} onPress={() => setRefused((count) => count + 1)} />
+                ) : (
+                  <Check paid={done} name={name} disabled={me === null || !onCheck} onPress={(from) => onCheck?.(id, !done, from)} />
+                )}
                 <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share, split.currency)}`} toggled={on} outsideScroll={!sheet} onPress={() => toggle(id)} style={() => styles.press}>
                   {line}
                 </PressTarget>
@@ -193,8 +204,11 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
   );
 }
 
-/** A person's paid mark: a filled circle with a tick once they have paid, an empty one before. Where this phone may check them off, it is the button that does it. */
-function Check({ paid, name, disabled, onPress }: { paid: boolean; name: string; disabled: boolean; onPress: (from: Press) => void }) {
+/**
+ * A person's paid mark: a filled circle with a tick once they have paid, an empty one before. Where this phone may check them off, it is the button that does it.
+ * The Host's is `fixed`: always filled, and a tap only answers that it cannot change.
+ */
+function Check({ paid, name, disabled, fixed = false, onPress }: { paid: boolean; name: string; disabled: boolean; fixed?: boolean; onPress: (from: Press) => void }) {
   const c = useColors();
   const reduce = useReducedMotion();
   const mark = (pressed: boolean) => (
@@ -204,7 +218,7 @@ function Check({ paid, name, disabled, onPress }: { paid: boolean; name: string;
   );
   if (disabled) return <View style={styles.lead} aria-hidden>{mark(false)}</View>;
   return (
-    <PressTarget name={paid ? say.ring.markUnpaid(name) : say.ring.markPaid(name)} toggled={paid} onPress={onPress} style={() => styles.lead}>
+    <PressTarget name={fixed ? say.ring.payerCheck(name) : paid ? say.ring.markUnpaid(name) : say.ring.markPaid(name)} toggled={paid} softDisabled={fixed} onPress={onPress} style={() => styles.lead}>
       {(pressed) => mark(pressed)}
     </PressTarget>
   );
@@ -290,6 +304,17 @@ const faceIn = webAnimation({
   animationTimingFunction: motion.easeOut,
   animationFillMode: "both",
 });
+/** A tap on the Host's check shakes "gets paid" side to side, the way a field refuses a wrong entry; under reduced motion it only dims for a beat. */
+const shake = webAnimation({
+  animationKeyframes: [{ "0%": { transform: "none" }, "20%": { transform: "translateX(-4px)" }, "40%": { transform: "translateX(4px)" }, "60%": { transform: "translateX(-3px)" }, "80%": { transform: "translateX(2px)" }, "100%": { transform: "none" } }],
+  animationDuration: "320ms",
+  animationTimingFunction: motion.easeInOut,
+});
+const dimOnce = webAnimation({
+  animationKeyframes: [{ "0%": { opacity: 1 }, "50%": { opacity: 0.4 }, "100%": { opacity: 1 } }],
+  animationDuration: `${motion.reducedFade * 2}ms`,
+  animationTimingFunction: motion.easeOut,
+});
 const checkFade = webStyle({ transitionProperty: "background-color, border-color, transform", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: motion.easeOut });
 const centerIn = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "translateY(4px)" }, to: { opacity: 1, transform: "none" } }],
@@ -312,6 +337,8 @@ const styles = StyleSheet.create({
   circle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   dashed: { borderStyle: "dashed" },
   pressedCheck: { transform: [{ scale: 0.88 }] },
+  // A transform needs a box, so the shaking tag is its own inline block inside the name's line.
+  shakes: webStyle({ display: "inline-block" }),
   press: { flex: 1, minWidth: 0 },
   line: { flex: 1, minWidth: 0, flexDirection: "row", justifyContent: "space-between", gap: 12 },
   body: { flex: 1, minWidth: 0, gap: 2 },

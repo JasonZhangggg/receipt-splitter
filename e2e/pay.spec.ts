@@ -456,8 +456,8 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await expect(paymentsList(priya).getByRole("heading")).toHaveCount(0);
   await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible();
   await expect(paymentRow(priya, "Sam")).toHaveText("Sam½ Tea$8.00Not paid");
-  await expect(paymentRow(priya, "Priya")).toHaveText("Priya you½ Tea$8.00Not paid");
-  await expect(paymentRow(priya, "Jason")).toHaveText("Jason$0.00Paid the bill");
+  await expect(paymentRow(priya, "Priya")).toHaveText("Priya · you½ Tea$8.00Not paid");
+  await expect(paymentRow(priya, "Jason")).toHaveText("Jason · gets paid$0.00Paid the bill");
   await expect(priya.getByTestId("nobody-yet")).toHaveText("Nobody yetPho, Wings$28.20Unclaimed");
   expect([await markOf(priya, "Sam"), await markOf(priya, "Priya")]).toEqual([[], []]);
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
@@ -524,8 +524,8 @@ test("Payments lists Sam as paid too much once Priya checks Tea too, and the mut
   await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "over");
   expect(await markOf(priya, "Sam")).toEqual(["check"]);
-  await expect(paymentRow(priya, "Priya").getByText("you", { exact: true })).toHaveCount(1);
-  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("you", { exact: true })).toHaveCount(1);
+  await expect(paymentRow(priya, "Priya").getByText("· you", { exact: true })).toHaveCount(1);
+  await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("· you", { exact: true })).toHaveCount(1);
   await expect(priya.getByRole("dialog", { name: "Payments" }).locator('[data-icon="person"]')).toHaveCount(0);
   await expect(sam.getByTestId("owe")).toBeVisible(live);
 });
@@ -640,7 +640,12 @@ test("the Host's ring counts their own share as paid with what friends paid back
   // His arc leads the paid sweep in black, then Sam's, then Priya's still owed in gray.
   const arcInks = () => dialog.locator("svg g circle").evaluateAll((all) => all.map((one) => getComputedStyle(one).stroke));
   await expect.poll(arcInks, live).toEqual(["rgb(23, 23, 23)", "rgb(23, 23, 23)", "rgb(184, 184, 184)"]);
-  await expect(paymentRow(jason, "Jason")).toHaveText("Jason youWings$14.00Paid the bill");
+  await expect(paymentRow(jason, "Jason")).toHaveText("Jason · you · gets paidWings$14.00Paid the bill");
+  // Nobody can check the Host off: a tap on his check leaves it filled and shakes his "gets paid".
+  const payerCheck = paymentsList(jason).getByRole("button", { name: "Jason paid the bill and gets paid" });
+  await expect(payerCheck).toHaveAttribute("aria-disabled", "true");
+  await payerCheck.click({ force: true });
+  await expect.poll(() => jason.getByTestId("gets-paid").evaluate((node) => getComputedStyle(node).animationName)).not.toBe("none");
   expect(await markOf(jason, "Jason")).toEqual(["check"]);
   await expect(paymentsList(jason).getByRole("button", { name: /^Mark Jason/ })).toHaveCount(0);
   await paymentsList(jason).getByRole("button", { name: /^Jason, you, / }).click();
@@ -648,6 +653,7 @@ test("the Host's ring counts their own share as paid with what friends paid back
   await expect(dialog.getByTestId("ring-amount")).toHaveText("$14.00");
   await expect(dialog.getByText("Paid the bill", { exact: true }).first()).toBeVisible();
   await paymentsList(jason).getByRole("button", { name: /^Jason, you, / }).click();
+  await expect(paymentsList(jason).getByRole("button", { name: /^Jason, you, / })).toHaveAttribute("aria-pressed", "false");
 
   await paymentsList(jason).getByRole("button", { name: "Mark Priya paid" }).click();
   await expect(paymentRow(jason, "Priya")).toHaveAttribute("data-state", "settled", live);
