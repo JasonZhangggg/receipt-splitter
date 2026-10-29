@@ -71,7 +71,9 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
     rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share, split.currency)}`),
     unclaimed > 0 ? money(unclaimed, split.currency) : null,
   );
-  const listed = viewerFirst(shown.filter(({ id }) => !checked(id)), me).concat(viewerFirst(shown.filter(({ id }) => checked(id)), me));
+  // Friends who still owe come first, then those who paid. The Host stays last whatever is checked, so their row never moves.
+  const friends = shown.filter(({ isHost }) => !isHost);
+  const listed = [...viewerFirst(friends.filter(({ id }) => !checked(id)), me), ...viewerFirst(friends.filter(({ id }) => checked(id)), me), ...shown.filter(({ isHost }) => isHost)];
   const leftOver = split.receipt.items.filter(({ id }) => shares.unclaimed.itemIds.includes(id)).map(({ name }) => name);
   // A tap anywhere but a person's row or the ring puts the picked piece back. The ring answers its own taps, gaps and hole included.
   const outer = useRef<View>(null);
@@ -333,7 +335,8 @@ const styles = StyleSheet.create({
   face: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 12, minHeight: 56, paddingVertical: 10, borderTopWidth: 1 },
-  lead: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
+  // The check sits in the middle of its row's two lines, not level with the name.
+  lead: { width: 24, height: 24, alignSelf: "center", alignItems: "center", justifyContent: "center" },
   circle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   dashed: { borderStyle: "dashed" },
   pressedCheck: { transform: [{ scale: 0.88 }] },
