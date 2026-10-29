@@ -36,6 +36,7 @@ export const splitCopy = {
   nameTaken: "That name is already here.",
   nameRefused: "Couldn't add that name. Try another.",
   pickFailed: "Couldn't pick that name. Try again.",
+  pickLost: (name: string) => `${name} was just picked on another phone.`,
   people: "People",
   you: "you",
   addPerson: "Add a person",
