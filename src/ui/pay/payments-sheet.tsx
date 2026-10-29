@@ -55,7 +55,6 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
   }
   const { shown, quiet } = foldedRows(rows, me);
   const people = shown.filter(({ isHost }) => !isHost);
-  const host = shown.find(({ isHost }) => isHost);
   // Someone removed while picked lets go of the pick.
   const picked = people.find(({ id }) => id === tapped) ?? null;
   const edge = sheet ? layout.gutter + insets.right : rowEdge;
@@ -70,8 +69,9 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
     rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share, split.currency)}`),
     unclaimed > 0 ? money(unclaimed, split.currency) : null,
   );
-  const ordered = [...people.filter(({ id }) => !checked(id)), ...people.filter(({ id }) => checked(id))];
-  const listed = viewerFirst(ordered.filter(({ id }) => !checked(id)), me).concat(viewerFirst(ordered.filter(({ id }) => checked(id)), me));
+  // The Host paid the bill, so they list with everyone who has paid, after everyone who still owes.
+  const hasPaid = (row: (typeof shown)[number]) => row.isHost || checked(row.id);
+  const listed = viewerFirst(shown.filter((row) => !hasPaid(row)), me).concat(viewerFirst(shown.filter(hasPaid), me));
   const leftOver = split.receipt.items.filter(({ id }) => shares.unclaimed.itemIds.includes(id)).map(({ name }) => name);
   // A tap anywhere but a person's row or the ring puts the picked piece back. The ring answers its own taps, gaps and hole included.
   const outer = useRef<View>(null);
@@ -135,34 +135,40 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
         contentContainerStyle={{ paddingRight: edge }}
       >
         <View role="list" aria-label={say.payments}>
-          {listed.map(({ id, name, share, state, words }) => {
+          {listed.map(({ id, name, share, state, words, isHost }) => {
             const on = id === picked?.id;
-            const done = checked(id);
+            const done = isHost || checked(id);
+            const line = (pressed: boolean) => {
+              const ink = picked === null || on || pressed ? c.ink : c.muted;
+              return (
+                <View style={styles.line}>
+                  <View style={styles.body}>
+                    <Text numberOfLines={1} style={[type.body, { color: ink }, !reduce && fade]}>
+                      {name}
+                      {id === me ? <Text style={[type.caption, { color: c.muted }]}>{`\u2002${say.you}`}</Text> : null}
+                    </Text>
+                    <Text testID="row-items" numberOfLines={1} style={[type.caption, { color: c.muted }]}>
+                      {itemsLine(shareBreakdown(split, id).items)}
+                    </Text>
+                  </View>
+                  <View style={styles.right}>
+                    <Text style={[type.body, styles.amount, { color: ink }, !reduce && fade]}>{money(share, split.currency)}</Text>
+                    <Text style={[type.caption, styles.amount, { color: state === "short" || state === "over" ? c.warn : c.muted }]}>{state === "settled" ? say.paid : words}</Text>
+                  </View>
+                </View>
+              );
+            };
             return (
               <View key={id} role="listitem" style={[styles.row, { borderTopColor: c.hairline }]} {...{ dataSet: { state, keepsPick: "" } }}>
-                <Check paid={done} name={name} disabled={me === null || !onCheck} onPress={(from) => onCheck?.(id, !done, from)} />
-                <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share, split.currency)}`} toggled={on} outsideScroll={!sheet} onPress={() => toggle(id)} style={() => styles.press}>
-                  {(pressed) => {
-                    const ink = picked === null || on || pressed ? c.ink : c.muted;
-                    return (
-                      <View style={styles.line}>
-                        <View style={styles.body}>
-                          <Text numberOfLines={1} style={[type.body, { color: ink }, !reduce && fade]}>
-                            {name}
-                            {id === me ? <Text style={[type.caption, { color: c.muted }]}>{`\u2002${say.you}`}</Text> : null}
-                          </Text>
-                          <Text testID="row-items" numberOfLines={1} style={[type.caption, { color: c.muted }]}>
-                            {itemsLine(shareBreakdown(split, id).items)}
-                          </Text>
-                        </View>
-                        <View style={styles.right}>
-                          <Text style={[type.body, styles.amount, { color: ink }, !reduce && fade]}>{money(share, split.currency)}</Text>
-                          <Text style={[type.caption, styles.amount, { color: state === "short" || state === "over" ? c.warn : c.muted }]}>{state === "settled" ? say.paid : words}</Text>
-                        </View>
-                      </View>
-                    );
-                  }}
-                </PressTarget>
+                <Check paid={done} name={name} disabled={isHost || me === null || !onCheck} onPress={(from) => onCheck?.(id, !done, from)} />
+                {isHost ? (
+                  // The Host paid the bill, so their Share is not owed back and has no arc to pick.
+                  <View style={styles.press}>{line(false)}</View>
+                ) : (
+                  <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share, split.currency)}`} toggled={on} outsideScroll={!sheet} onPress={() => toggle(id)} style={() => styles.press}>
+                    {line}
+                  </PressTarget>
+                )}
               </View>
             );
           })}
@@ -180,25 +186,6 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
               <View style={styles.right}>
                 <Text style={[type.body, styles.amount, { color: c.muted }]}>{money(unclaimed, split.currency)}</Text>
                 <Text style={[type.caption, styles.amount, { color: c.muted }]}>{say.ring.unclaimedWord}</Text>
-              </View>
-            </View>
-          </View>
-        ) : null}
-        {host ? (
-          <View testID="host-row" style={[styles.row, { borderTopColor: c.hairline }]}>
-            <View style={styles.lead} />
-            <View style={styles.line}>
-              <View style={styles.body}>
-                <Text numberOfLines={1} style={[type.body, { color: c.muted }]}>
-                  {host.name}
-                  {host.id === me ? <Text style={[type.caption, { color: c.muted }]}>{`\u2002${say.you}`}</Text> : null}
-                </Text>
-                <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>
-                  {[itemsLine(shareBreakdown(split, host.id).items), host.words].filter(Boolean).join(" · ")}
-                </Text>
-              </View>
-              <View style={styles.right}>
-                <Text style={[type.body, styles.amount, { color: c.muted }]}>{money(host.share, split.currency)}</Text>
               </View>
             </View>
           </View>

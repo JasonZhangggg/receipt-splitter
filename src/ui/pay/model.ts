@@ -58,9 +58,9 @@ export type PaymentRow = {
   readonly name: string;
   readonly isHost: boolean;
   readonly share: Cents;
-  /** The row's PayState kind, or "host" for the Host, who is paid and never pays. */
+  /** The row's PayState kind, or "host" for the Host, who paid the bill and so has paid their own Share. */
   readonly state: PayState["kind"] | "host";
-  /** The paid state in words, or what the Host does. */
+  /** The paid state in words, or "Paid the bill" for the Host. */
   readonly words: string;
 };
 
@@ -81,7 +81,7 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments" | "
   let owing = 0;
   const rows = split.participants.map(({ id, name }, index): PaymentRow => {
     const share = shares.shares[index].share;
-    if (index === 0) return { id, name, isHost: true, share, state: "host", words: viewer === host.id ? "You get paid" : "Gets paid" };
+    if (index === 0) return { id, name, isHost: true, share, state: "host", words: say.status.paidTheBill };
     const state = payState(share, split.payments.find((payment) => payment.participantId === id)?.amount ?? null);
     if (state.kind !== "nothing") owing += 1;
     if (state.kind === "settled" || state.kind === "over") paid += 1;

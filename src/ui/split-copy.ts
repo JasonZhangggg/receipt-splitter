@@ -141,6 +141,7 @@ export const splitCopy = {
     paidYou: (paid: number, of: number) => `${paid} of ${of} paid you`,
     paidOf: (paid: number, of: number) => `${paid} of ${of} paid`,
     unpaid: "Not paid",
+    paidTheBill: "Paid the bill",
     nothing: "Nothing to pay",
   },
   showBreakdown: (whose: string | null) => (whose ? `Show ${whose}'s breakdown` : "Show what you owe"),

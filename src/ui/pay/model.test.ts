@@ -84,7 +84,7 @@ describe("paymentStatus", () => {
 
   test("lists everyone in chip order with the share and the paid state in words", () => {
     expect(paymentStatus({ participants, payments, currency: "USD" }, mixed, jason).rows.map(({ name, share, state, words }) => [name, share, state, words])).toEqual([
-      ["Jason", 1000, "host", "You get paid"],
+      ["Jason", 1000, "host", "Paid the bill"],
       ["Sam", 2600, "short", "Paid $22.00 · $4.00 still owed"],
       ["Priya", 1400, "settled", "Paid $14.00"],
       ["Kim", 900, "unpaid", "Not paid"],
@@ -104,9 +104,9 @@ describe("paymentStatus", () => {
     expect([status.paid, status.owing, status.summary]).toEqual([2, 4, "2 of 4 paid you"]);
   });
 
-  test("words the summary for everyone but the Host without 'you', and the Host row as theirs", () => {
+  test("words the summary for everyone but the Host without 'you', and the Host row the same on every phone", () => {
     const status = paymentStatus({ participants, payments, currency: "USD" }, mixed, sam);
-    expect([status.summary, status.rows[0].words]).toEqual(["2 of 4 paid", "Gets paid"]);
+    expect([status.summary, status.rows[0].words]).toEqual(["2 of 4 paid", "Paid the bill"]);
   });
 
   test("has no summary while nobody owes anything", () => {

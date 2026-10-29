@@ -451,12 +451,13 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
 
   await fromMore(priya, "Payments");
   await expect(priya.getByTestId("payments-summary")).toHaveText("0 of 2 paid", live);
-  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Sam/]);
+  // Jason paid the bill, so he lists like everyone else, with the paid, after everyone who still owes.
+  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Sam/, /^Jason/]);
   await expect(paymentsList(priya).getByRole("heading")).toHaveCount(0);
   await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible();
   await expect(paymentRow(priya, "Sam")).toHaveText("Sam½ Tea$8.00Not paid");
   await expect(paymentRow(priya, "Priya")).toHaveText("Priya you½ Tea$8.00Not paid");
-  await expect(priya.getByTestId("host-row")).toHaveText(/^JasonGets paid\$/);
+  await expect(paymentRow(priya, "Jason")).toHaveText("Jason$0.00Paid the bill");
   await expect(priya.getByTestId("nobody-yet")).toHaveText("Nobody yetPho, Wings$28.20Unclaimed");
   expect([await markOf(priya, "Sam"), await markOf(priya, "Priya")]).toEqual([[], []]);
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "unpaid");
@@ -469,7 +470,7 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
   await expect(paymentRow(priya, "Sam")).toHaveText("Sam½ Tea$8.00Paid", live);
   await expect(priya.getByTestId("payments-summary")).toHaveText("1 of 2 paid");
   await expect(paymentRow(priya, "Sam")).toHaveAttribute("data-state", "settled");
-  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Sam/]);
+  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Jason/, /^Sam/]);
   expect(await markOf(priya, "Sam")).toEqual(["check"]);
 
   await circle(sam, "Pho", "Sam").click();
@@ -605,8 +606,7 @@ test("Payments folds everyone who owes $0.00 into one muted line, in light and d
   await expect(owe(sam)).toHaveText("$14.20", live);
 
   await fromMore(sam, "Payments");
-  await expect(paymentsList(sam).getByRole("listitem")).toHaveText([/^Sam/]);
-  await expect(sam.getByTestId("host-row")).toHaveText(/^Jason/);
+  await expect(paymentsList(sam).getByRole("listitem")).toHaveText([/^Sam/, /^Jason/]);
   await expect(paymentRow(sam, "Priya")).toHaveCount(0);
   const line = sam.getByTestId("owes-nothing");
   await expect(line).toHaveText("Priya owes nothing.");
@@ -636,7 +636,9 @@ test("the Host's ring shows what friends paid back, and the Host checks Priya of
   await expect(dialog.getByTestId("payments-collected")).toHaveText(" · $14.20 of $30.20 in", live);
   await expect(dialog.getByTestId("ring-amount")).toHaveText("$14.20");
   await expect(dialog.getByText("of $30.20", { exact: true })).toBeVisible();
-  await expect(jason.getByTestId("host-row")).toHaveText(/^Jason\s+youWings · You get paid\$14\.00$/);
+  await expect(paymentRow(jason, "Jason")).toHaveText("Jason youWings$14.00Paid the bill");
+  expect(await markOf(jason, "Jason")).toEqual(["check"]);
+  await expect(paymentsList(jason).getByRole("button", { name: /^Mark Jason/ })).toHaveCount(0);
   await expect(paymentsList(jason).getByRole("button", { name: /^Jason, / })).toHaveCount(0);
 
   await paymentsList(jason).getByRole("button", { name: "Mark Priya paid" }).click();
