@@ -539,7 +539,7 @@ test("Payments lists Sam as paid too much once Priya checks Tea too, and the mut
   await expect(sam.getByTestId("owe")).toBeVisible(live);
 });
 
-test("Payments opens on your own part, a tap on a person turns their arc black and shows their part, and the rest of the ring stays gray", async ({ browser, request }, { workerIndex }) => {
+test("Payments opens on your own part standing out of the ring, and a tap on a person moves their arc out instead and shows their part", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -553,25 +553,23 @@ test("Payments opens on your own part, a tap on a person turns their arc black a
   const dialog = priya.getByRole("dialog", { name: "Payments" });
   const samRow = paymentsList(priya).getByRole("button", { name: /^Sam, / });
   const priyaRow = paymentsList(priya).getByRole("button", { name: /^Priya, you, / });
-  const ink = "rgb(23, 23, 23)";
-  const arcInks = () => dialog.locator("svg g circle").evaluateAll((all) => all.map((one) => getComputedStyle(one).stroke));
-  const inkedArcs = async () => (await arcInks()).flatMap((stroke, index) => (stroke === ink ? [index] : []));
+  // The selected arc sits 10 px out from the ring's radius of 79.
+  const liftedArcs = () => dialog.locator("svg g circle").evaluateAll((all) => all.flatMap((one, index) => (one.getAttribute("r") === "89" ? [index] : [])));
   await expect(priyaRow).toHaveAttribute("aria-pressed", "true");
   await expect(samRow).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/^of \$[\d.,]+$/)).toBeVisible();
-  await expect.poll(async () => (await inkedArcs()).length).toBe(1);
-  const [own] = await inkedArcs();
+  await expect.poll(async () => (await liftedArcs()).length).toBe(1);
+  const [own] = await liftedArcs();
 
   await samRow.click();
   await expect(samRow).toHaveAttribute("aria-pressed", "true");
   await expect(priyaRow).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByText("Sam's part", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Your part", { exact: true })).toHaveCount(0);
-  // One snapshot per poll, and the black arc must be a different one than before the tap: the 200 ms recolor still shows the old black arc for its first frames.
   await expect.poll(async () => {
-    const inked = await inkedArcs();
-    return inked.length === 1 && inked[0] !== own;
+    const lifted = await liftedArcs();
+    return lifted.length === 1 && lifted[0] !== own;
   }).toBe(true);
 });
 
@@ -661,13 +659,13 @@ test("a tap on the ring's arc picks that person like their row, and a tap on the
   await priya.waitForTimeout(1200);
   const svg = dialog.locator('svg[width="168"]');
   expect(await svg.getAttribute("aria-hidden")).toBe("true");
-  // Priya's own arc runs from 12 o'clock over 16.00 of the 44.20 total, Sam's over the next 14.20; taps land on the band's middle (radius 80 of 168).
+  // Nobody has paid, so the arcs keep chip order: Sam's runs from 12 o'clock over 14.20 of the 44.20 total, Priya's over the next 16.00; taps land on the band's middle (radius 79 of 168).
   const tapAt = async (turn: number, radius: number) => {
     const box = (await svg.boundingBox())!;
     const angle = 2 * Math.PI * turn;
     await priya.mouse.click(box.x + box.width / 2 + radius * Math.sin(angle), box.y + box.height / 2 - radius * Math.cos(angle));
   };
-  await tapAt((1600 + 1420 / 2) / 4420, 80);
+  await tapAt(1420 / 2 / 4420, 79);
   await expect(samRow).toHaveAttribute("aria-pressed", "true");
   await expect(priyaRow).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByText("Sam's part", { exact: true })).toBeVisible();
@@ -676,12 +674,12 @@ test("a tap on the ring's arc picks that person like their row, and a tap on the
   await tapAt(0.1, 40);
   await tapAt(0.1, 0);
   await expect(samRow).toHaveAttribute("aria-pressed", "true");
-  await tapAt(1600 / 2 / 4420, 80);
+  await tapAt((1420 + 1600 / 2) / 4420, 79);
   await expect(priyaRow).toHaveAttribute("aria-pressed", "true");
   await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
 });
 
-test("Payments puts a check on each paid arc, and says All paid once the last person pays while it is open", async ({ browser, request }, { workerIndex }) => {
+test("Payments turns each paid arc black at the start of the ring, and says All paid once the last person pays while it is open", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -698,14 +696,16 @@ test("Payments puts a check on each paid arc, and says All paid once the last pe
 
   await fromMore(priya, "Payments");
   const dialog = priya.getByRole("dialog", { name: "Payments" });
-  const checks = dialog.locator("svg [data-check]");
-  await expect(checks).toHaveCount(1, live);
+  const ink = "rgb(23, 23, 23)";
+  const arcInks = () => dialog.locator("svg g circle").evaluateAll((all) => all.map((one) => getComputedStyle(one).stroke));
+  // Priya has paid, so her arc leads the sweep from 12 o'clock in black and Sam's follows in gray.
+  await expect.poll(arcInks, live).toEqual([ink, "rgb(208, 208, 208)"]);
   await expect(dialog.getByTestId("all-paid")).toHaveCount(0);
   await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
 
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(checks).toHaveCount(2, live);
+  await expect.poll(arcInks, live).toEqual([ink, ink]);
   await expect(dialog.getByTestId("all-paid")).toHaveText("All paid$44.20 settled");
 
   await paymentsList(priya).getByRole("button", { name: /^Sam, / }).click();
