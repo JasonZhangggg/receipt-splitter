@@ -240,7 +240,6 @@ test("I already paid closes the sheet at once and shows Paid; it waits for a cla
   // Once the payment is answered the clear goes out, and the open sheet shows it before its own answer.
   await expect(pay.getByRole("button", { name: "I already paid" })).toBeVisible(live);
   expect(wire.sent.map(({ op }) => op.type)).toEqual(["claim", "recordPayment", "clearPayment"]);
-  await expect(sam.getByText("Marked $8.00 as paid")).toBeVisible(early);
   await expect(footer.getByRole("button", { name: "Paid" })).toHaveCount(0);
 });
 
@@ -277,7 +276,7 @@ test("I already paid waits for a claim that is then refused, records nothing, an
   expect(wire.sent[2].op).toMatchObject({ type: "recordPayment", participantId: "sam", amount: 100 });
 });
 
-test("with nothing in flight, I already paid closes the sheet before the server answers, and Undo follows the answer", async ({ browser, request }, { workerIndex }) => {
+test("with nothing in flight, I already paid closes the sheet before the server answers, and no bar follows", async ({ browser, request }, { workerIndex }) => {
   const { page: sam, wire } = await openAs(browser, await createSplit(request, workerIndex), "Sam");
   const footer = sam.getByTestId("footer");
   await circle(sam, "Rice").click();
@@ -290,6 +289,7 @@ test("with nothing in flight, I already paid closes the sheet before the server 
 
   await expect(pay).toHaveCount(0, early);
   await expect(footer.getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", early);
-  await expect(sam.getByText("Marked $8.00 as paid")).toHaveCount(0);
-  await expect(sam.getByText("Marked $8.00 as paid")).toBeVisible(live);
+  wire.hold = false;
+  await sam.waitForTimeout(1000);
+  await expect(sam.getByText(/as paid/)).toHaveCount(0);
 });

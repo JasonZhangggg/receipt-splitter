@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { adjustmentId, itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { foldedRows, billPaid, justPaid, payState, paymentStatus, itemsLine, shareStatus, statusWords } from "./model";
+import { foldedRows, billPaid, payState, paymentStatus, itemsLine, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -186,11 +186,5 @@ describe("itemsLine", () => {
     const item = (name: string, fraction: readonly [number, number]) => ({ name, fraction });
     expect(itemsLine([item("Pho", [1, 1]), item("Spring rolls", [1, 2]), item("Wings", [2, 3]), item("Rice", [2, 5])])).toBe("Pho, ½ Spring rolls, ⅔ Wings, 2/5 Rice");
     expect(itemsLine([])).toBe("");
-  });
-});
-
-describe("justPaid", () => {
-  test("is the whole Share before any payment and only the rest after a short one", () => {
-    expect([justPaid(cents(3020), null), justPaid(cents(3020), cents(1420))]).toEqual([3020, 1600]);
   });
 });

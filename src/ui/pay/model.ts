@@ -109,11 +109,6 @@ export function foldedRows<Row extends Pick<PaymentRow, "id" | "state">>(rows: r
   return { shown: rows.filter((row) => !quiet.includes(row)), quiet };
 }
 
-/** What a payment just made adds: the Share less what was already paid, so "I paid the rest" names the rest and not the running total. */
-export function justPaid(share: Cents, before: Cents | null): Cents {
-  return cents(share - (before ?? 0));
-}
-
 const fractions: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾" };
 
 /** The Items a person had, by name, with their part of any they shared: "½ Spring rolls, Pho". */
