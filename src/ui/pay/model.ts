@@ -97,28 +97,6 @@ export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: re
   return [...mine, ...rows.filter(({ id }) => id !== viewer)];
 }
 
-/** A part of the Payments list: everyone who still owes something with what is left to pay, or everyone else with what came in. */
-export type PaymentSection<Row> = { readonly kind: "owed" | "paid"; readonly rows: Row[]; readonly amount: Cents };
-
-/** The Payments list in two parts: everyone not paid or paid short first, then the Host and everyone paid. Each part has the viewer's own row first, and an empty part is left out. */
-export function paymentSections<Row extends Pick<PaymentRow, "id" | "state" | "share">>(rows: readonly Row[], payments: Split["payments"], viewer: ParticipantId | null): PaymentSection<Row>[] {
-  const paidBy = (id: ParticipantId) => payments.find(({ participantId }) => participantId === id)?.amount ?? 0;
-  const owes = ({ state }: Row) => state === "unpaid" || state === "short";
-  const ordered = viewerFirst(rows, viewer);
-  const owed = ordered.filter(owes);
-  const rest = ordered.filter((row) => !owes(row));
-  const sections: PaymentSection<Row>[] = [
-    { kind: "owed", rows: owed, amount: cents(owed.reduce((sum, { id, share }) => sum + share - paidBy(id), 0)) },
-    { kind: "paid", rows: rest, amount: cents(rest.reduce((sum, { id }) => sum + paidBy(id), 0)) },
-  ];
-  return sections.filter(({ rows: part }) => part.length > 0);
-}
-
-/** The row the Payments ring shows: the person tapped, or the viewer's own row, or the first. Someone removed mid-sheet falls back the same way. */
-export function pickedRow<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], picked: ParticipantId | null, viewer: ParticipantId | null): Row {
-  return rows.find(({ id }) => id === picked) ?? rows.find(({ id }) => id === viewer) ?? rows[0];
-}
-
 /** What friends paid the Host out of what friends owe them, which the Payments summary line gives on every phone. Payments count as recorded, so an overpayment shows as more than owed. */
 export function hostCollected(rows: readonly PaymentRow[], payments: Split["payments"]): { readonly paid: Cents; readonly owed: Cents } {
   const friends = rows.filter(({ isHost }) => !isHost);

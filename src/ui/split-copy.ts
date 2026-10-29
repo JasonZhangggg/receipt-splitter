@@ -141,12 +141,6 @@ export const splitCopy = {
     unpaid: "Not paid",
     nothing: "Nothing to pay",
   },
-  section: {
-    owed: "Not paid",
-    paid: "Paid",
-    left: (amount: string) => `${amount} left`,
-    in: (amount: string) => `${amount} in`,
-  },
   showBreakdown: (whose: string | null) => (whose ? `Show ${whose}'s breakdown` : "Show what you owe"),
   paidBy: "Paid by",
   payHost: (host: string) => `Pay ${host}`,
