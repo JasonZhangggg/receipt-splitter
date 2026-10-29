@@ -58,9 +58,9 @@ export type PaymentRow = {
   readonly name: string;
   readonly isHost: boolean;
   readonly share: Cents;
-  /** The row's PayState kind, or "host" for the Host, who is paid and never pays. */
+  /** The row's PayState kind, or "host" for the Host, who paid the bill and so has paid their own Share. */
   readonly state: PayState["kind"] | "host";
-  /** The paid state in words, or what the Host does. */
+  /** The paid state in words, or "Paid the bill" for the Host. */
   readonly words: string;
 };
 
@@ -81,7 +81,7 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments" | "
   let owing = 0;
   const rows = split.participants.map(({ id, name }, index): PaymentRow => {
     const share = shares.shares[index].share;
-    if (index === 0) return { id, name, isHost: true, share, state: "host", words: viewer === host.id ? "You get paid" : "Gets paid" };
+    if (index === 0) return { id, name, isHost: true, share, state: "host", words: say.status.paidTheBill };
     const state = payState(share, split.payments.find((payment) => payment.participantId === id)?.amount ?? null);
     if (state.kind !== "nothing") owing += 1;
     if (state.kind === "settled" || state.kind === "over") paid += 1;
@@ -97,12 +97,15 @@ export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: re
   return [...mine, ...rows.filter(({ id }) => id !== viewer)];
 }
 
-/** What friends paid the Host out of what friends owe them, which the Payments summary line gives on every phone. Payments count as recorded, so an overpayment shows as more than owed. */
-export function hostCollected(rows: readonly PaymentRow[], payments: Split["payments"]): { readonly paid: Cents; readonly owed: Cents } {
-  const friends = rows.filter(({ isHost }) => !isHost);
-  const owed = friends.reduce((sum, { share }) => sum + share, 0);
-  const ids = new Set(friends.map(({ id }) => id));
-  const paid = payments.filter(({ participantId }) => ids.has(participantId)).reduce((sum, { amount }) => sum + amount, 0);
+/**
+ * What has been paid toward everyone's Shares, out of their sum, which the Payments summary line and ring give on every phone. The Host paid their own Share with
+ * the bill, so it counts as paid; friends' Payments count as recorded, so an overpayment shows as more than owed.
+ */
+export function billPaid(rows: readonly PaymentRow[], payments: Split["payments"]): { readonly paid: Cents; readonly owed: Cents } {
+  const owed = rows.reduce((sum, { share }) => sum + share, 0);
+  const host = rows.filter(({ isHost }) => isHost).reduce((sum, { share }) => sum + share, 0);
+  const friends = new Set(rows.filter(({ isHost }) => !isHost).map(({ id }) => id));
+  const paid = payments.filter(({ participantId }) => friends.has(participantId)).reduce((sum, { amount }) => sum + amount, host);
   return { paid: cents(paid), owed: cents(owed) };
 }
 

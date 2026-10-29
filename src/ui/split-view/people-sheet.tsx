@@ -222,9 +222,8 @@ export function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const picking = asking || mode === "switch";
   const ink = picking ? (row.heldElsewhere && !on ? c.muted : c.ink) : on ? c.ink : c.muted;
   const name = mode === "switch" && row.heldElsewhere ? say.pickedName(person.name) : mine ? `${person.name}, ${say.you}` : person.name;
-  const tag = mine ? say.you : host && !asking ? say.paidTheBill : null;
-  const note =
-    row.heldElsewhere && (mode === "switch" || !host) ? say.pickedElsewhere.replace(/\.$/, "") : asking ? null : mine ? (onPage ? say.thisComputer : say.thisPhone) : host ? say.getsPaid : null;
+  const tags = [...(mine ? [say.you] : []), ...(host && !asking ? [say.getsPaid] : [])];
+  const note = row.heldElsewhere && (mode === "switch" || !host) ? say.pickedElsewhere.replace(/\.$/, "") : asking ? null : mine ? (onPage ? say.thisComputer : say.thisPhone) : null;
   return (
     <PressTarget
       name={removing ? say.removePerson(person.name) : name}
@@ -247,7 +246,7 @@ export function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
                 <Text numberOfLines={1} style={[type.body, colorFade, styles.name, { color: ink }]}>
                   {person.name}
                 </Text>
-                {tag ? <Text style={[type.caption, styles.tag, { color: c.muted }]}>{tag}</Text> : null}
+                {tags.length > 0 ? <Text style={[type.caption, styles.tag, { color: c.muted }]}>{say.tags(tags)}</Text> : null}
               </View>
               {note ? <Text numberOfLines={1} style={[type.caption, { color: c.muted }]}>{note}</Text> : null}
             </View>
@@ -274,7 +273,7 @@ const styles = StyleSheet.create({
   lead: { flexDirection: "row", alignItems: "flex-start", gap: 12, flexShrink: 1, minWidth: 0 },
   text: { flexShrink: 1, minWidth: 0 },
   mark: { width: 16, height: 16, alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 4 },
-  title: { flexDirection: "row", alignItems: "baseline", gap: 8, minWidth: 0 },
+  title: { flexDirection: "row", alignItems: "baseline", minWidth: 0 },
   name: { flexShrink: 1 },
   tag: { flexShrink: 0 },
   radio: { width: 16, height: 16, borderRadius: 8 },
