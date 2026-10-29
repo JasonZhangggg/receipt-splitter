@@ -19,7 +19,7 @@ type Props = {
 const middle = ring.size / 2;
 const radius = (ring.size - ring.thickness) / 2;
 const length = 2 * Math.PI * radius;
-const { sheetArrives, drawFor, settle, close } = ringMotion;
+const { sheetArrives, settle, close } = ringMotion;
 const recolorFor = 200;
 
 // Each arc grows from nothing to the length its style gives it, so a claim landing mid-draw retargets the end of the sweep instead of restarting it.
@@ -27,7 +27,7 @@ const draw = `@keyframes ring-draw{from{stroke-dasharray:0 ${length};opacity:0}1
 const moves = (cut: number) => `stroke ${recolorFor}ms ${motion.easeOut}, r ${settle}ms ${motion.easeOut}, stroke-dasharray ${cut}ms ${motion.easeOut}, stroke-dashoffset ${cut}ms ${motion.easeOut}`;
 
 /**
- * Real SVG. As it mounts the arcs draw in one after another from 12 o'clock, each fading in as it starts. After that every change is a transition, so it retargets
+ * Real SVG. As it mounts one sweep draws the ring from 12 o'clock, each arc fading in as the sweep reaches it. After that every change is a transition, so it retargets
  * mid-flight: a payment recolors its arc and slides the arcs to their new places, and picking someone eases their arc out and the last one back in. When the last
  * person pays, the gaps close more slowly into one unbroken ring as All paid rises in the middle. Reduced motion
  * shows the ring whole and changes it at once. The unclaimed rest is one more arc, in a lighter gray, with no ring behind. The selected arc stands past the
@@ -47,7 +47,7 @@ export function DonutRing({ slices, paint, rested, lifted = null, closed = false
     >
       {reduce ? null : <style>{draw}</style>}
       <g transform={`rotate(-90 ${middle} ${middle})`}>
-        {[...arcs(slices, lifted, closed).map((arc) => ({ ...arc, key: arc.id as string, color: paint(arc.id) })), ...(left ? [{ ...left, key: "rest", color: rested }] : [])].map(({ key, color, r, dash, offset, delay }) => (
+        {[...arcs(slices, lifted, closed).map((arc) => ({ ...arc, key: arc.id as string, color: paint(arc.id) })), ...(left ? [{ ...left, key: "rest", color: rested }] : [])].map(({ key, color, r, dash, offset, draw }) => (
           <circle
             key={key}
             cx={middle}
@@ -61,7 +61,7 @@ export function DonutRing({ slices, paint, rested, lifted = null, closed = false
               stroke: color,
               strokeDasharray: dash,
               strokeDashoffset: offset,
-              ...(reduce ? {} : { transition: moves(closed ? close : settle), animation: `ring-draw ${drawFor}ms ${motion.easeOut} ${sheetArrives + delay}ms both` }),
+              ...(reduce ? {} : { transition: moves(closed ? close : settle), animation: `ring-draw ${draw.duration}ms ${draw.easing} ${sheetArrives + draw.delay}ms both` }),
             }}
           />
         ))}

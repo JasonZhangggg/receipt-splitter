@@ -91,23 +91,25 @@ describe("arcs", () => {
   });
 
   test("leave a lone arc untrimmed", () => {
-    expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toEqual([{ id: "ann", r: 79, dash: `${length} ${length}`, offset: -0, delay: 0 }]);
+    expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toMatchObject([{ id: "ann", r: 79, dash: `${length} ${length}`, offset: -0 }]);
   });
 
-  test("start each arc when the clockwise sweep reaches it", () => {
+  test("draw the arcs as one unbroken sweep: each starts just as the one before ends, with only the gap between them", () => {
     const three = [
       { id: ann, cents: 1, start: 0, fraction: 0.3 },
       { id: bob, cents: 1, start: 0.3, fraction: 0.3 },
       { id: cy, cents: 1, start: 0.6, fraction: 0.4 },
     ];
-    expect(arcs(three).map(({ delay }) => delay)).toEqual([0, 126, 252]);
+    const draws = arcs(three).map(({ draw }) => [draw.delay, draw.delay + draw.duration]);
+    expect(draws).toEqual([[53, 252], [266, 388], [401, 647]]);
+    expect(arcs(three)[0].draw.easing).toMatch(/^linear\(0, .*, 1\)$/);
   });
 
-  test("a crowd of equal arcs still starts at least 30 ms apart and the last within 420 ms", () => {
+  test("a crowd of a dozen still draws within the one sweep", () => {
     const crowd = Array.from({ length: 12 }, (_, at) => ({ id: participantId(`p${at}`), cents: 1, start: at / 12, fraction: 1 / 12 }));
-    const delays = arcs(crowd).map(({ delay }) => delay);
-    expect(delays.at(-1)).toBe(385);
-    expect(Math.min(...delays.slice(1).map((delay, at) => delay - delays[at]))).toBeGreaterThanOrEqual(30);
+    const draws = arcs(crowd).map(({ draw }) => draw);
+    expect(draws.at(-1)!.delay + draws.at(-1)!.duration).toBeLessThanOrEqual(700);
+    expect(draws.every(({ duration }) => duration > 0)).toBe(true);
   });
 
   test("shrink a sliver to a dot rather than a negative length", () => {
@@ -145,7 +147,7 @@ describe("slices with payments", () => {
 
   test("All paid on opening waits for the last arc to draw in", () => {
     const four = [ann, bob, cy, participantId("dee")].map((id, index) => ({ id, cents: 100, start: index / 4, fraction: 0.25 }));
-    expect(drawnBy(four)).toBe(200 + 315 + 620);
+    expect(drawnBy(four)).toBe(200 + 647);
   });
 });
 
@@ -164,7 +166,7 @@ describe("rest", () => {
 
   test("nothing is left when everything is claimed, and nothing claimed leaves the full ring", () => {
     expect(rest([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toBeNull();
-    expect(rest([])).toEqual({ r: 79, dash: `${length} ${length}`, offset: -0, delay: 0 });
+    expect(rest([])).toMatchObject({ r: 79, dash: `${length} ${length}`, offset: -0, draw: { delay: 0, duration: 700 } });
   });
 });
 
