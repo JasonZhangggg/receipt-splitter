@@ -1,102 +1,150 @@
 import type { Shares } from "../../core/shares";
 import type { ParticipantId } from "../../core/split";
 
-/** One person's arc of the ring. `start` and `fraction` are parts of one full turn, which is the whole Total. */
-export type Slice = { readonly id: ParticipantId; readonly cents: number; readonly start: number; readonly fraction: number };
+/** One person's arc of the ring. `start` and `fraction` are parts of one full turn; `paid` is which of the two groups it sits in. */
+export type Slice = { readonly id: ParticipantId; readonly cents: number; readonly start: number; readonly fraction: number; readonly paid: boolean };
 
 /**
- * Shares plus the unclaimed rest add up to the Total, so the full ring is the Total. Each person's Share is an arc in chip order from the top, turned so `first`'s
- * arc starts there; the unclaimed rest has no arc of its own, it is the track left showing after the last one. A $0.00 Share gets no arc.
+ * The given Shares plus the unclaimed rest make the full ring. Each person's Share is an arc from the top: everyone `paid` says has paid first, then everyone
+ * else, each group in chip order, so what has been paid reads as one sweep from 12 o'clock and what is still owed as one more. The unclaimed rest is not a Slice:
+ * `rest` draws it after the last one in a lighter gray. A $0.00 Share gets no arc.
  */
-export function slices({ shares, unclaimed }: Pick<Shares, "shares" | "unclaimed">, first: ParticipantId | null = null): Slice[] {
+export function slices({ shares, unclaimed }: { readonly shares: readonly Pick<Shares["shares"][number], "participantId" | "share">[]; readonly unclaimed: Pick<Shares["unclaimed"], "total"> }, paid: (id: ParticipantId) => boolean = () => false): Slice[] {
   const total = shares.reduce((sum, { share }) => sum + share, 0) + unclaimed.total;
-  const at = Math.max(0, shares.findIndex(({ participantId }) => participantId === first));
   let before = 0;
-  return [...shares.slice(at), ...shares.slice(0, at)]
+  return [...shares.filter(({ participantId }) => paid(participantId)), ...shares.filter(({ participantId }) => !paid(participantId))]
     .filter(({ share }) => share > 0)
     .map(({ participantId, share }) => {
-      const slice = { id: participantId, cents: share as number, start: before / total, fraction: share / total };
+      const slice = { id: participantId, cents: share as number, start: before / total, fraction: share / total, paid: paid(participantId) };
       before += share;
       return slice;
     });
 }
 
-/** `check` is the width of a paid arc's check disc, which sits on the ring and stands `bleed` px past its edge. */
-export const ring = { size: 168, thickness: 8, gap: 4, check: 19, bleed: 6 } as const;
+/** The selected arc stands `lift` px further out than the rest, so it stands that far past the square. */
+export const ring = { size: 168, thickness: 10, gap: 4, lift: 10 } as const;
 
-/** The draw-in is one clockwise sweep. An arc starts when the sweep reaches its start, so the last one begins within this many ms and equal arcs of a dozen people still begin 30 ms apart or more. */
-const sweepFor = 420;
 
 /**
  * The ring's mount timing on the web. The Payments sheet takes about 300 ms to arrive; the arcs wait `sheetArrives` for it so the ring draws on a sheet that has
- * landed. A check pops in `checkAfterDraw` after its arc starts drawing, as the 620 ms draw settles, and takes `checkIn`; one that arrives after its arc has
- * drawn, from a payment, pops in at once.
+ * landed, then one clockwise sweep draws the whole ring in `drawFor`. `settle` is how long an arc takes to move to a new place or radius, when someone pays or another person is picked.
+ * `close` is how long the gaps take to close when the last person pays, a slower beat for a moment that comes once.
  */
-export const ringMotion = { sheetArrives: 200, checkAfterDraw: 560, checkIn: 300 } as const;
-
-export type Arc = { id: ParticipantId; dash: string; offset: number; delay: number };
+export const ringMotion = { sheetArrives: 200, drawFor: 700, settle: 240, close: 520 } as const;
 
 /**
- * Each arc is a stroked circle cut to its length, so a full ring and a sliver draw the same way. Round caps stand half a stroke past each end, so the cut takes the
- * stroke off too: neighbors then leave `ring.gap` px of clear track between their caps. One arc alone has no gap to leave. `delay` is when its draw-in starts.
+ * The sweep's curve. It eases in and out over the whole turn, so it never stalls partway: each arc draws while the sweep crosses its own paint, on its own piece of
+ * this one curve, so the tip runs on from one arc to the next at the speed it had.
  */
-export function arcs(all: readonly Slice[]): Arc[] {
+const sweep = [0.37, 0, 0.63, 1] as const;
+
+const bezier = (a: number, b: number, t: number) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+/** How far round the sweep is, as a part of the turn, `t` of the way through its time. */
+function swept(t: number): number {
+  let low = 0;
+  let high = 1;
+  for (let step = 0; step < 30; step++) {
+    const middle = (low + high) / 2;
+    if (bezier(sweep[0], sweep[2], middle) < t) low = middle;
+    else high = middle;
+  }
+  return bezier(sweep[1], sweep[3], low);
+}
+/** When the sweep reaches `turn`, as a part of its time. */
+function reaches(turn: number): number {
+  let low = 0;
+  let high = 1;
+  for (let step = 0; step < 30; step++) {
+    const middle = (low + high) / 2;
+    if (swept(middle) < turn) low = middle;
+    else high = middle;
+  }
+  return high;
+}
+
+/** An arc's draw-in, for the paint from `from` to `to` (parts of the turn): it starts `delay` ms in, lasts `duration` ms, and follows `easing`, a CSS `linear()`. */
+export type Draw = { delay: number; duration: number; easing: string };
+function drawIn(from: number, to: number): Draw {
+  const begin = reaches(from);
+  const end = Math.max(reaches(to), begin + 1 / ringMotion.drawFor);
+  const steps = 10;
+  const points = Array.from({ length: steps + 1 }, (_, at) => Math.min(1, Math.max(0, to > from ? (swept(begin + ((end - begin) * at) / steps) - from) / (to - from) : at / steps)));
+  return {
+    delay: Math.round(begin * ringMotion.drawFor),
+    duration: Math.round((end - begin) * ringMotion.drawFor),
+    easing: `linear(${points.map((point) => +point.toFixed(3)).join(", ")})`,
+  };
+}
+
+export type Arc = { id: ParticipantId; r: number; dash: string; offset: number; draw: Draw };
+
+/**
+ * Each arc is a stroked circle cut to its length, so a full ring and a sliver draw the same way. Neighbors in the same group, paid or still owed, touch, so the
+ * group reads as one arc. Between groups, and around the unclaimed rest, round caps stand half a stroke past each end, so the cut takes the stroke off too and
+ * leaves `ring.gap` px of clear space between them. The `lifted` arc breaks out of its group the same way and sits `ring.lift` px further out on the same turn,
+ * its cut scaled to its radius. A `closed` ring, once everyone has paid, takes no gaps, so it is one unbroken ring. `draw` is its part of the draw-in sweep.
+ */
+export function arcs(all: readonly Slice[], lifted: ParticipantId | null = null, closed = false): Arc[] {
   const radius = (ring.size - ring.thickness) / 2;
   const length = 2 * Math.PI * radius;
-  const trim = all.length > 1 ? ring.gap + ring.thickness : 0;
-  return all.map(({ id, start, fraction }) => ({
-    id,
-    dash: `${Math.max(0, fraction * length - trim)} ${length}`,
-    offset: -(start * length + trim / 2),
-    delay: Math.round(start * sweepFor),
-  }));
+  const left = restOf(all) > 1e-9;
+  const side = (ring.gap + ring.thickness) / 2;
+  const apart = (a: Slice, b: Slice) => a.paid !== b.paid || a.id === lifted || b.id === lifted;
+  // The neighbor before the first arc and after the last is the rest when there is one, or the other end of the ring.
+  const cut = (at: number, by: -1 | 1) => {
+    if (closed || (all.length === 1 && !left)) return 0;
+    const next = at + by;
+    if (next < 0 || next >= all.length) return left ? side : apart(all[at], all[(next + all.length) % all.length]) ? side : 0;
+    return apart(all[at], all[next]) ? side : 0;
+  };
+  return all.map(({ id, start, fraction }, at) => {
+    const r = id === lifted ? radius + ring.lift : radius;
+    const scale = r / radius;
+    const before = cut(at, -1);
+    const after = cut(at, 1);
+    const from = start + before / length;
+    return {
+      id,
+      r,
+      dash: `${Math.max(0, fraction * length - before - after) * scale} ${2 * Math.PI * r}`,
+      offset: -(start * length + before) * scale,
+      draw: drawIn(from, Math.max(from, start + fraction - after / length)),
+    };
+  });
 }
 
-/** A paid arc's check: a disc centered on the middle of the arc's paint, as an offset from the ring's center. */
-export type Check = { id: ParticipantId; x: number; y: number };
+/** The part of the turn the Shares leave over: the unclaimed rest of the Total. */
+const restOf = (all: readonly Slice[]) => Math.max(0, 1 - all.reduce((sum, { fraction }) => sum + fraction, 0));
+const pieces = (all: readonly Slice[]) => all.length + (restOf(all) > 1e-9 ? 1 : 0);
 
-/** Where the checks go: one on each arc `paid` says is paid, unless its paint is shorter than the disc, so a sliver keeps its plain arc. */
-export function checks(all: readonly Slice[], paid: (id: ParticipantId) => boolean): Check[] {
+/** The unclaimed rest as one more arc after the last Share, cut like the others, or null when everything is claimed. Nothing claimed at all gives the full ring. */
+export function rest(all: readonly Slice[]): Omit<Arc, "id"> | null {
+  const fraction = restOf(all);
+  if (fraction <= 1e-9) return null;
   const radius = (ring.size - ring.thickness) / 2;
-  const trim = all.length > 1 ? ring.gap + ring.thickness : 0;
-  return all
-    .filter(({ id, fraction }) => paid(id) && fraction * 2 * Math.PI * radius - trim >= ring.check)
-    .map(({ id, start, fraction }) => {
-      const turn = 2 * Math.PI * (start + fraction / 2);
-      return { id, x: radius * Math.sin(turn), y: -radius * Math.cos(turn) };
-    });
+  const length = 2 * Math.PI * radius;
+  const start = 1 - fraction;
+  const trim = pieces(all) > 1 ? ring.gap + ring.thickness : 0;
+  return { r: radius, dash: `${Math.max(0, fraction * length - trim)} ${length}`, offset: -(start * length + trim / 2), draw: drawIn(start + trim / 2 / length, Math.max(start + trim / 2 / length, 1 - trim / 2 / length)) };
 }
 
-/** When the last check has popped in as the ring mounts, in ms: the last checked arc's draw-in start, then its pop. All paid waits for this. */
-export function checksLandBy(all: readonly Slice[], paid: (id: ParticipantId) => boolean): number {
-  const checked = new Set(checks(all, paid).map(({ id }) => id));
-  const last = Math.max(0, ...arcs(all).filter(({ id }) => checked.has(id)).map(({ delay }) => delay));
-  return ringMotion.sheetArrives + last + ringMotion.checkAfterDraw + ringMotion.checkIn;
+/** When the ring has drawn in as it mounts, in ms: the sheet's arrival, then the end of the last arc's draw. All paid waits for this. */
+export function drawnBy(all: readonly Slice[]): number {
+  return ringMotion.sheetArrives + Math.max(0, ...arcs(all).map(({ draw }) => draw.delay + draw.duration));
 }
-
-/** The tick inside a disc: the app's check glyph (icon-glyphs.ts) on its 24-unit grid, drawn 11 px across at the 1.9 px weight that reads at that size. */
-export const tickPath = "m4.5 12.75 6 6 9-13.5";
-export const tickScale = 11 / 24;
-export const tickWeight = 1.9;
 
 /**
- * The ring's shapes as SVG markup in a `ring.size` square: a faint full track, the arcs from 12 o'clock clockwise, then a check disc on each paid arc, which
- * reaches `ring.bleed` past the square. `paint` gives an arc's color; `tick` gives the color of the tick on its disc, or null for an arc without one.
+ * The ring's shapes as SVG markup in a `ring.size` square: the arcs from 12 o'clock clockwise, then the unclaimed rest in `rested`, with no ring behind them. The
+ * `lifted` arc reaches `ring.lift` past the square, and a `closed` ring has no gaps. `paint` gives an arc's color.
  */
-export function ringMarkup(all: readonly Slice[], paint: (id: ParticipantId) => string, track: string, tick: (id: ParticipantId) => string | null = () => null): string {
+export function ringMarkup(all: readonly Slice[], paint: (id: ParticipantId) => string, rested: string, lifted: ParticipantId | null = null, closed = false): string {
   const { size, thickness } = ring;
   const middle = size / 2;
-  const radius = (size - thickness) / 2;
-  const arc = arcs(all)
-    .map(({ id, dash, offset }) => `<circle cx="${middle}" cy="${middle}" r="${radius}" fill="none" stroke="${paint(id)}" stroke-width="${thickness}" stroke-linecap="round" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"/>`)
-    .join("");
-  const marks = checks(all, (id) => tick(id) !== null)
-    .map(({ id, x, y }) => {
-      const [cx, cy] = [middle + x, middle + y];
-      return `<circle cx="${cx}" cy="${cy}" r="${ring.check / 2}" fill="${paint(id)}"/><path d="${tickPath}" fill="none" stroke="${tick(id)}" stroke-width="${tickWeight / tickScale}" stroke-linecap="round" stroke-linejoin="round" transform="translate(${cx - 12 * tickScale} ${cy - 12 * tickScale}) scale(${tickScale})"/>`;
-    })
-    .join("");
-  return `<circle cx="${middle}" cy="${middle}" r="${radius}" fill="none" stroke="${track}" stroke-width="${thickness}"/><g transform="rotate(-90 ${middle} ${middle})">${arc}</g>${marks}`;
+  const left = rest(all);
+  const circle = (color: string, { r, dash, offset }: Omit<Arc, "id">) =>
+    `<circle cx="${middle}" cy="${middle}" r="${r}" fill="none" stroke="${color}" stroke-width="${thickness}" stroke-linecap="round" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"/>`;
+  const shapes = [...arcs(all, lifted, closed).map((arc) => circle(paint(arc.id), arc)), ...(left ? [circle(rested, left)] : [])].join("");
+  return `<g transform="rotate(-90 ${middle} ${middle})">${shapes}</g>`;
 }
 
 /** How far past an arc's band a tap still picks it, and the shortest stretch of ring, in px along its middle, that any arc answers to, so a 1% sliver is still tappable. */
@@ -108,7 +156,7 @@ const hitEdge = 2;
 /**
  * The arc a tap lands on, from the tap's offset from the ring's center. The band is the arc's stroke widened by `hitSlack`; around the ring an arc answers from its
  * start to its end, or over `hitMinimum` px if it is shorter. A tap inside an arc's own painted span, past `hitEdge` px from its ends, always picks that arc, so a sliver
- * cannot take a neighbor's paint. Elsewhere, where widened arcs overlap, the one whose middle is nearer wins. The track gap and the hole pick nothing.
+ * cannot take a neighbor's paint. Elsewhere, where widened arcs overlap, the one whose middle is nearer wins. A gap, the unclaimed rest and the hole pick nothing.
  */
 export function arcAt(all: readonly Slice[], dx: number, dy: number): ParticipantId | null {
   const radius = (ring.size - ring.thickness) / 2;

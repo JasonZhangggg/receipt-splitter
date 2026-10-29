@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { adjustmentId, itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { foldedRows, hostCollected, justPaid, payState, paymentStatus, paymentSections, pickedRow, shareStatus, statusWords } from "./model";
+import { foldedRows, hostCollected, justPaid, payState, paymentStatus, itemsLine, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -135,19 +135,6 @@ describe("paymentStatus", () => {
   });
 });
 
-describe("pickedRow", () => {
-  const rows = ["jason", "sam", "priya"].map((id) => ({ id: participantId(id), name: id })) as unknown as Parameters<typeof pickedRow>[0];
-  const [jason, sam, priya] = rows.map(({ id }) => id);
-
-  test("shows the person tapped, else the viewer's own row, else the first row", () => {
-    expect([pickedRow(rows, sam, priya), pickedRow(rows, null, priya), pickedRow(rows, null, null)].map((row) => row.id)).toEqual([sam, priya, jason]);
-  });
-
-  test("falls back to the viewer when the person tapped was removed from the Split", () => {
-    expect(pickedRow(rows.filter(({ id }) => id !== sam), sam, priya).id).toBe(priya);
-  });
-});
-
 describe("paymentStatus on a Split with no Items", () => {
   test("shows everyone at $0.00 and nobody owing, with a tip on the bill", () => {
     const split = {
@@ -194,37 +181,11 @@ describe("foldedRows", () => {
   });
 });
 
-describe("paymentSections", () => {
-  const rows = [
-    { id: participantId("jason"), state: "host" as const, share: cents(0) },
-    { id: participantId("sam"), state: "settled" as const, share: cents(1420) },
-    { id: participantId("priya"), state: "unpaid" as const, share: cents(1400) },
-    { id: participantId("lee"), state: "over" as const, share: cents(1000) },
-    { id: participantId("ana"), state: "short" as const, share: cents(2200) },
-    { id: participantId("kim"), state: "unpaid" as const, share: cents(600) },
-  ];
-  const payments = [
-    { participantId: participantId("sam"), amount: cents(1420) },
-    { participantId: participantId("lee"), amount: cents(1600) },
-    { participantId: participantId("ana"), amount: cents(800) },
-  ] as unknown as Split["payments"];
-  const read = (viewer: string | null) =>
-    paymentSections(rows, payments, viewer === null ? null : participantId(viewer)).map(({ kind, rows: part, amount }) => ({ kind, ids: part.map(({ id }) => id), amount }));
-
-  test("puts everyone not paid or paid short first with what is left, then the Host and everyone paid with what came in", () => {
-    expect(read(null)).toEqual([
-      { kind: "owed", ids: ["priya", "ana", "kim"], amount: 3400 },
-      { kind: "paid", ids: ["jason", "sam", "lee"], amount: 3020 },
-    ]);
-  });
-
-  test("puts the viewer first within their own part", () => {
-    expect(read("kim").map(({ ids }) => ids)).toEqual([["kim", "priya", "ana"], ["jason", "sam", "lee"]]);
-    expect(read("sam").map(({ ids }) => ids)).toEqual([["priya", "ana", "kim"], ["sam", "jason", "lee"]]);
-  });
-
-  test("leaves out a part with nobody in it", () => {
-    expect(paymentSections(rows.slice(0, 2), payments, null).map(({ kind }) => kind)).toEqual(["paid"]);
+describe("itemsLine", () => {
+  test("names each Item, with the part of any the person shared", () => {
+    const item = (name: string, fraction: readonly [number, number]) => ({ name, fraction });
+    expect(itemsLine([item("Pho", [1, 1]), item("Spring rolls", [1, 2]), item("Wings", [2, 3]), item("Rice", [2, 5])])).toBe("Pho, ½ Spring rolls, ⅔ Wings, 2/5 Rice");
+    expect(itemsLine([])).toBe("");
   });
 });
 

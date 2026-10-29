@@ -15,6 +15,14 @@ describe("readLines", () => {
     expect([reading?.adjustments, reading?.skipped]).toEqual([[{ kind: "tip", name: "Tip", amount: 150 }], 2]);
   });
 
+  it("folds a priced modifier into the $0.00 item above it, and a $0.00 modifier into its item as a detail only", () => {
+    const reading = read(["SUB|2400", "TOT|2400", "i|Pho Hanoi|1700", "+|No Meatball|0", "i|Vietnamese Coffee|0", "+|Ice Coffee|700"].join("\n"));
+    expect(reading?.items).toEqual([
+      { name: "Pho Hanoi", price: 1700, quantity: null, details: ["No Meatball"], discounts: [] },
+      { name: "Vietnamese Coffee", price: 700, quantity: null, details: ["Ice Coffee"], discounts: [] },
+    ]);
+  });
+
   it("keeps a Bundle header as printed, including a leading 1", () => {
     const reading = read(["SUB|1800", "TOT|1800", "b|1 Beer Bucket", ">i|Lager|900", "b|12 Wing Party", ">i|Wings|900"].join("\n"));
     expect(reading?.bundles.map((bundle) => bundle.name)).toEqual(["1 Beer Bucket", "12 Wing Party"]);

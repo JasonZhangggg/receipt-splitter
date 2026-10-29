@@ -24,7 +24,7 @@ export type PersonRow = {
   readonly heldElsewhere: boolean;
 };
 
-type Mode = "view" | "switch" | "remove";
+export type Mode = "view" | "switch" | "remove";
 
 type Props = {
   rows: readonly PersonRow[];
@@ -84,15 +84,22 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
     <View pointerEvents={chosen === null ? "auto" : "none"} style={styles.sheet}>
       {asking ? (
         <Pinned>
+          {onPage ? (
+            <View style={styles.back}>
+              <TextLink icon="back" label={say.back} name={say.backPick} onPress={onClose} outsideScroll />
+            </View>
+          ) : null}
           <View style={styles.topline}>
             <Text style={[type.body, styles.invite, { color: c.muted }]}>
               <Text style={[styles.strong, { color: c.ink }]}>{intro.lead}</Text>
               {intro.rest}
               {intro.strong ? <Text style={[styles.strong, { color: c.ink }]}>{intro.strong}</Text> : null}
             </Text>
-            <View style={styles.close}>
-              <Button kind="icon" icon="x" name={say.closePick} onPress={onClose} outsideScroll />
-            </View>
+            {onPage ? null : (
+              <View style={styles.close}>
+                <Button kind="icon" icon="x" name={say.closePick} onPress={onClose} outsideScroll />
+              </View>
+            )}
           </View>
           <Text role="heading" aria-level={2} style={[type.title, styles.ask, { color: c.ink }]}>
             {say.question}
@@ -202,7 +209,8 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
 
 type LineProps = { row: PersonRow; mode: Mode; asking: boolean; host: boolean; chosen: ParticipantId | null; onPress: (press: Press) => void };
 
-function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
+/** One person's row: a radio while picking, a trash while removing, and their share while viewing. Link ready's switch list uses it too. */
+export function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const c = useColors();
   const onPage = useOnPage();
   const reduce = useReducedMotion();
@@ -257,6 +265,8 @@ const styles = StyleSheet.create({
   invite: { flex: 1, marginTop: 2 },
   strong: { fontWeight: "500" },
   close: { marginTop: -10, marginRight: -12 },
+  // The link's 44 px target overhangs its text, so the arrow lines up with the invite's left edge and the gap below matches the X's row.
+  back: { marginTop: -12, marginBottom: -4 },
   ask: { marginBottom: 4 },
   hint: { marginTop: -6 },
   rows: {},

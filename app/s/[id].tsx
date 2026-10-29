@@ -38,7 +38,9 @@ import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filter
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
 import { ShareHead } from "../../src/ui/split-view/share-head";
-import { SidePanel } from "../../src/ui/split-view/side-panel";
+import { takeJustMade } from "../../src/ui/split-view/just-made";
+import { LinkReadySheet } from "../../src/ui/split-view/link-ready-sheet";
+import { ColumnStack, SidePanel } from "../../src/ui/split-view/side-panel";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
@@ -114,6 +116,7 @@ type OverlayKind =
   | { readonly kind: "totals"; readonly line: TotalLine }
   | { readonly kind: "history" }
   | { readonly kind: "people" }
+  | { readonly kind: "made" }
   | { readonly kind: "pay" }
   | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
 /** What is open over the page and the press that opened it: focus goes back there. */
@@ -129,7 +132,7 @@ const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
     : overlay.kind === "totals"
       ? say.editTotals[overlay.line]
-      : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
+      : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, made: say.linkReadyTitle, pay: title }[overlay.kind];
 const checkFor = 80;
 /** The Host's footer pill: how many of the people who owe have paid, "All paid" once they all have, or just Payments while nobody owes yet. */
 const collectLabel = ({ paid, owing }: { paid: number; owing: number }) => (owing === 0 ? say.payments : paid === owing ? say.ring.allPaidTitle : say.status.paidOf(paid, owing));
@@ -170,7 +173,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const waitingToPay = useRef<{ readonly paid: boolean; readonly share: Cents } | null>(null);
   const [payNote, setPayNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<ParticipantId | null>(me);
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // The Host arrives from Create link to Link ready: the link to send and, in case this phone is not theirs, the names to switch to.
+  const [overlay, setOverlay] = useState<Overlay | null>(() => (me && takeJustMade(splitId) ? { kind: "made", from: { trigger: document.body, keyboard: false } } : null));
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
   const [linksBottom, setLinksBottom] = useState<number | null>(null);
@@ -239,7 +243,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (shownPhase.current === "pick") timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
     else {
       setChosen(null);
-      closeOverlay();
+      // Link ready stays up after a switch, so the Host can still share the link.
+      if (openSheet.current?.kind !== "made") closeOverlay();
     }
   };
 
@@ -293,7 +298,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (!laid.sent) return false;
     void laid.answer.then((answer) => {
       if (answer.ok) return how.then?.(answer);
-      const said = how.said ? how.said(answer) : answer.rejection.reason === "payerOnly" ? say.payerOnly : failedCopy(answer, say.saveFailed);
+      const said = how.said ? how.said(answer) : failedCopy(answer, say.saveFailed);
       if (said === null) return;
       const again = how.retry && (answer.rejection.reason === "disconnected" || answer.rejection.reason === "rateLimited");
       setBar({
@@ -373,6 +378,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (overlay?.kind !== "history" || closing || (change !== null && (change === undefined || change.undoneBy !== null))) setQuestion({ ...question, closing: true });
   }
   const closeQuestion = () => setQuestion((open) => open && { ...open, closing: true });
+  // Payments' question before marking someone else paid or not paid. It leaves with the sheet, or once that person's paid state changes some other way.
+  const [paidAsk, setPaidAsk] = useState<{ readonly id: ParticipantId; readonly paid: boolean; readonly from: Press; readonly closing: boolean } | null>(null);
+  if (paidAsk && !paidAsk.closing && (overlay?.kind !== "payments" || closing || !present(paidAsk.id) || split.payments.some(({ participantId }) => participantId === paidAsk.id) === paidAsk.paid)) setPaidAsk({ ...paidAsk, closing: true });
+  const closePaidAsk = () => setPaidAsk((open) => open && { ...open, closing: true });
+  const paidAskGone = () => {
+    if (paidAsk && (wide || paidAsk.from.keyboard || actedByKey()) && paidAsk.from.trigger.isConnected) paidAsk.from.trigger.focus({ preventScroll: true });
+    setPaidAsk(null);
+  };
   const questionGone = () => {
     if (question && (wide || question.from.keyboard || actedByKey()) && question.from.trigger.isConnected) question.from.trigger.focus({ preventScroll: true });
     setQuestion(null);
@@ -461,6 +474,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     setOverlay(null);
     setClosing(false);
     if (!overlay || !(wide || overlay.from.keyboard || actedByKey())) return;
+    // Link ready opened by itself, so on a wide screen focus goes to the share view's head rather than back to the page.
+    if (overlay.kind === "made") {
+      if (wide) focusHead.current = "";
+      return;
+    }
     const trigger = overlay.from.trigger.isConnected
       ? overlay.from.trigger
       : overlay.kind === "item"
@@ -476,7 +494,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
   // Escape closes the person menu over the People sheet, or the split menu over Edit item, first, and the sheet on the next press.
-  useEscape(overlay !== null && !closing && !viewing && (picker === null || picker.closing) && (menu === null || menu.closing) && (modes === null || modes.closing) && (question === null || question.closing), closeOverlay);
+  useEscape(overlay !== null && !closing && !viewing && (picker === null || picker.closing) && (menu === null || menu.closing) && (modes === null || modes.closing) && (question === null || question.closing) && (paidAsk === null || paidAsk.closing), closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);
@@ -558,6 +576,19 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   useEffect(() => {
     if (paying !== null && idle) payWhenSettled();
   }, [paying, idle]);
+  // On Payments anyone with a name can check a friend off. Checking yourself off goes the Pay sheet's way with its Undo; the Host checks friends off directly,
+  // since the money reaches them; anyone else is asked first, so a stray tap does not mark someone else paid.
+  const record = (id: ParticipantId, paid: boolean) => {
+    if (me === null) return;
+    const owed = shares.shares.find(({ participantId }) => participantId === id)?.share ?? cents(0);
+    if (!lay(paid ? { by: me, type: "recordPayment", participantId: id, device, amount: owed } : { by: me, type: "clearPayment", participantId: id, device })) setBar({ message: say.connection.failed });
+  };
+  const check = (id: ParticipantId, paid: boolean, from: Press) => {
+    if (me === null) return;
+    if (id === me) return onPaid(paid);
+    if (me === split.participants[0].id) return record(id, paid);
+    setPaidAsk({ id, paid, from, closing: false });
+  };
   const peopleRows: readonly PersonRow[] = people.map((person) => {
     const pick = split.picks.find(({ participantId }) => participantId === person.id);
     return {
@@ -612,9 +643,18 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     ) : overlay.kind === "totals" ? (
       <TotalsSheet split={split} line={overlay.line} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
-      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
+      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet onCheck={check} />
     ) : overlay.kind === "people" ? (
       peopleSheet(false)
+    ) : overlay.kind === "made" ? (
+      <LinkReadySheet
+        url={splitUrl(splitId)}
+        rows={peopleRows}
+        chosen={chosen}
+        problem={pickProblem}
+        onPick={(participantId) => void choose(participantId, false)}
+        onClose={closeOverlay}
+      />
     ) : overlay.kind === "pay" ? (
       selectedPerson ? (
         <>
@@ -786,6 +826,20 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           />
         </Popover>
       ) : null}
+      {paidAsk ? (
+        <Popover anchor={paidAsk.from.trigger} label={say.ring.askPaid(firstName(people.find(({ id }) => id === paidAsk.id)?.name ?? ""), paidAsk.paid)} instant={paidAsk.from.keyboard} closing={paidAsk.closing} onClose={closePaidAsk} onGone={paidAskGone} width={claimConfirmWidth} align="start">
+          <ClaimConfirm
+            question={say.ring.askPaid(firstName(people.find(({ id }) => id === paidAsk.id)?.name ?? ""), paidAsk.paid)}
+            action={paidAsk.paid ? say.ring.yesPaid : say.ring.yesUnpaid}
+            onYes={() => {
+              if (paidAsk.closing) return;
+              closePaidAsk();
+              record(paidAsk.id, paidAsk.paid);
+            }}
+            onNo={closePaidAsk}
+          />
+        </Popover>
+      ) : null}
       {confirming ? (
         <Popover anchor={confirming.from.trigger} label={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} instant={confirming.from.keyboard} closing={confirming.closing} onClose={closeConfirming} onGone={confirmingGone} width={claimConfirmWidth} align="start">
           <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(firstName(confirming.person.name), confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
@@ -845,7 +899,9 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
                 </Presence>
                 <View style={styles.doc}>{receipt}</View>
               </View>
-              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>{aside}</View>
+              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>
+                <ColumnStack depth={phase !== "regular" || overlay ? 1 : 0}>{aside}</ColumnStack>
+              </View>
             </View>
           </View>
         </ScrollView>

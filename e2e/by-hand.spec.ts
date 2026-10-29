@@ -1,6 +1,6 @@
 import { addRow, openAdd, addSheet } from "./add-menu";
 import { addNames, dropZone, openExample } from "./files";
-import { fromMore, youAre } from "./header";
+import { closeLinkReady, fromMore, youAre } from "./header";
 import { expect, newContext, test, type Page } from "./without-ocr";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -27,6 +27,7 @@ test("the creating browser opens the Split already picked as the Host, and a fri
   await openExample(page);
   await fillHome(page, "Sam");
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
   await expect(page.getByTestId("owe")).toBeVisible(live);
   await expect(question(page)).toHaveCount(0);
   await youAre(page, "Jason");
@@ -53,6 +54,7 @@ test("a photo that is not a receipt says so, and the Host adds every item by han
   await fillHome(page);
   await expect(page.getByRole("button", { name: "Create link" })).not.toHaveAttribute("aria-disabled", "true");
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
 
   await expect(page).toHaveURL(/\/s\/[A-Za-z0-9_-]{24}$/, live);
   await expect(question(page)).toHaveCount(0);
@@ -72,6 +74,7 @@ test("with no receipt the note offers typing the items, and Create opens a Split
   await fillHome(page);
   await expect(page.getByRole("status").filter({ hasText: "No receipt? Type items in manually." })).toBeVisible();
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
 
   await expect(page).toHaveURL(/\/s\/[A-Za-z0-9_-]{24}$/, live);
   await expect(addRow(page)).toBeVisible(live);
@@ -87,6 +90,7 @@ test("the first item added by hand can be reverted in History, putting the Split
   await page.getByRole("button", { name: "add the items myself" }).click();
   await fillHome(page);
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
   await expect(page).toHaveURL(/\/s\/[A-Za-z0-9_-]{24}$/, live);
 
   await openAdd(page, "Item");

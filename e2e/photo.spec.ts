@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Browser, type Page, type Request } from "@playwright/test";
 
 import { addNames } from "./files";
-import { fromMore } from "./header";
+import { closeLinkReady, fromMore } from "./header";
 import { mountHarness } from "./harness";
 
 test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
@@ -69,6 +69,7 @@ async function create(page: Page) {
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await addNames(page, "Jason");
   await page.getByRole("button", { name: "Create link" }).click();
+  await closeLinkReady(page);
   await expect(page.getByTestId("owe")).toBeVisible(live);
 }
 
@@ -284,7 +285,8 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto(`/s/${id}`);
     await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible(live);
-    await page.getByRole("button", { name: "Close, just look" }).click();
+    // Past 1024 px the pick sits in the right column and leads with a Back link instead of the sheet's X.
+    await page.getByRole("button", { name: width >= 1024 ? "Back, just look" : "Close, just look" }).click();
     // Past 1024 px History shows in the right column as a region, not a sheet.
     const history = page.getByRole(width >= 1024 ? "region" : "dialog", { name: "History" });
     const shown = page.getByRole("img", { name: "Receipt photo" });
@@ -311,7 +313,7 @@ test("on a wide screen a click zooms the receipt photo at the pointer, a drag pa
   expect((await putPhoto(request, id, creatorSecret, new Uint8Array(readFileSync("e2e/fixtures/srd-1040-no-sprite.jpg")))).status()).toBe(204);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/s/${id}`);
-  await page.getByRole("button", { name: "Close, just look" }).click();
+  await page.getByRole("button", { name: "Back, just look" }).click();
   await fromMore(page, "Receipt photo");
   const shown = page.getByRole("img", { name: "Receipt photo" });
   await expect(shown).toBeVisible();
