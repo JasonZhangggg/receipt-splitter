@@ -6,8 +6,8 @@ export type Slice = { readonly id: ParticipantId; readonly cents: number; readon
 
 /**
  * Shares plus the unclaimed rest add up to the Total, so the full ring is the Total. Each person's Share is an arc from the top: everyone `paid` says has paid
- * first, then everyone else, each group in chip order, so the paid arcs read as one black sweep from 12 o'clock. The unclaimed rest has no arc of its own, it is
- * the track left showing after the last one. A $0.00 Share gets no arc.
+ * first, then everyone else, each group in chip order, so the paid arcs read as one black sweep from 12 o'clock. The unclaimed rest is not a Slice: `rest` draws it
+ * after the last one in a lighter gray. A $0.00 Share gets no arc.
  */
 export function slices({ shares, unclaimed }: Pick<Shares, "shares" | "unclaimed">, paid: (id: ParticipantId) => boolean = () => false): Slice[] {
   const total = shares.reduce((sum, { share }) => sum + share, 0) + unclaimed.total;
@@ -38,14 +38,14 @@ export type Arc = { id: ParticipantId; r: number; dash: string; offset: number; 
 
 /**
  * Each arc is a stroked circle cut to its length, so a full ring and a sliver draw the same way. Round caps stand half a stroke past each end, so the cut takes the
- * stroke off too: neighbors then leave `ring.gap` px of clear track between their caps. One arc alone has no gap to leave. The `lifted` arc sits `ring.lift` px
+ * stroke off too: neighbors, the unclaimed rest among them, leave `ring.gap` px of clear space between their caps. One arc alone has no gap to leave. The `lifted` arc sits `ring.lift` px
  * further out on the same turn, its cut scaled to its radius. A `closed` ring, once everyone has paid, takes no gaps, so its arcs meet as one unbroken ring.
  * `delay` is when its draw-in starts.
  */
 export function arcs(all: readonly Slice[], lifted: ParticipantId | null = null, closed = false): Arc[] {
   const radius = (ring.size - ring.thickness) / 2;
   const length = 2 * Math.PI * radius;
-  const trim = all.length > 1 && !closed ? ring.gap + ring.thickness : 0;
+  const trim = pieces(all) > 1 && !closed ? ring.gap + ring.thickness : 0;
   return all.map(({ id, start, fraction }) => {
     const r = id === lifted ? radius + ring.lift : radius;
     const scale = r / radius;
@@ -59,23 +59,38 @@ export function arcs(all: readonly Slice[], lifted: ParticipantId | null = null,
   });
 }
 
+/** The part of the turn the Shares leave over: the unclaimed rest of the Total. */
+const restOf = (all: readonly Slice[]) => Math.max(0, 1 - all.reduce((sum, { fraction }) => sum + fraction, 0));
+const pieces = (all: readonly Slice[]) => all.length + (restOf(all) > 1e-9 ? 1 : 0);
+
+/** The unclaimed rest as one more arc after the last Share, cut like the others, or null when everything is claimed. Nothing claimed at all gives the full ring. */
+export function rest(all: readonly Slice[]): Omit<Arc, "id"> | null {
+  const fraction = restOf(all);
+  if (fraction <= 1e-9) return null;
+  const radius = (ring.size - ring.thickness) / 2;
+  const length = 2 * Math.PI * radius;
+  const start = 1 - fraction;
+  const trim = pieces(all) > 1 ? ring.gap + ring.thickness : 0;
+  return { r: radius, dash: `${Math.max(0, fraction * length - trim)} ${length}`, offset: -(start * length + trim / 2), delay: Math.round(start * sweepFor) };
+}
+
 /** When the ring has drawn in as it mounts, in ms: the last arc's draw-in start, then its draw. All paid waits for this. */
 export function drawnBy(all: readonly Slice[]): number {
   return ringMotion.sheetArrives + Math.max(0, ...arcs(all).map(({ delay }) => delay)) + ringMotion.drawFor;
 }
 
 /**
- * The ring's shapes as SVG markup in a `ring.size` square: a faint full track, then the arcs from 12 o'clock clockwise, the `lifted` one reaching `ring.lift` past
- * the square, with no gaps once the ring is `closed`. `paint` gives an arc's color.
+ * The ring's shapes as SVG markup in a `ring.size` square: the arcs from 12 o'clock clockwise, then the unclaimed rest in `rested`, with no ring behind them. The
+ * `lifted` arc reaches `ring.lift` past the square, and a `closed` ring has no gaps. `paint` gives an arc's color.
  */
-export function ringMarkup(all: readonly Slice[], paint: (id: ParticipantId) => string, track: string, lifted: ParticipantId | null = null, closed = false): string {
+export function ringMarkup(all: readonly Slice[], paint: (id: ParticipantId) => string, rested: string, lifted: ParticipantId | null = null, closed = false): string {
   const { size, thickness } = ring;
   const middle = size / 2;
-  const radius = (size - thickness) / 2;
-  const arc = arcs(all, lifted, closed)
-    .map(({ id, r, dash, offset }) => `<circle cx="${middle}" cy="${middle}" r="${r}" fill="none" stroke="${paint(id)}" stroke-width="${thickness}" stroke-linecap="round" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"/>`)
-    .join("");
-  return `<circle cx="${middle}" cy="${middle}" r="${radius}" fill="none" stroke="${track}" stroke-width="${thickness}"/><g transform="rotate(-90 ${middle} ${middle})">${arc}</g>`;
+  const left = rest(all);
+  const circle = (color: string, { r, dash, offset }: Omit<Arc, "id">) =>
+    `<circle cx="${middle}" cy="${middle}" r="${r}" fill="none" stroke="${color}" stroke-width="${thickness}" stroke-linecap="round" stroke-dasharray="${dash}" stroke-dashoffset="${offset}"/>`;
+  const shapes = [...arcs(all, lifted, closed).map((arc) => circle(paint(arc.id), arc)), ...(left ? [circle(rested, left)] : [])].join("");
+  return `<g transform="rotate(-90 ${middle} ${middle})">${shapes}</g>`;
 }
 
 /** How far past an arc's band a tap still picks it, and the shortest stretch of ring, in px along its middle, that any arc answers to, so a 1% sliver is still tappable. */
@@ -87,7 +102,7 @@ const hitEdge = 2;
 /**
  * The arc a tap lands on, from the tap's offset from the ring's center. The band is the arc's stroke widened by `hitSlack`; around the ring an arc answers from its
  * start to its end, or over `hitMinimum` px if it is shorter. A tap inside an arc's own painted span, past `hitEdge` px from its ends, always picks that arc, so a sliver
- * cannot take a neighbor's paint. Elsewhere, where widened arcs overlap, the one whose middle is nearer wins. The track gap and the hole pick nothing.
+ * cannot take a neighbor's paint. Elsewhere, where widened arcs overlap, the one whose middle is nearer wins. A gap, the unclaimed rest and the hole pick nothing.
  */
 export function arcAt(all: readonly Slice[], dx: number, dy: number): ParticipantId | null {
   const radius = (ring.size - ring.thickness) / 2;

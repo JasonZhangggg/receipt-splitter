@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents } from "../../core/money";
 import type { Shares } from "../../core/shares";
 import { participantId, type ItemId } from "../../core/split";
-import { arcAt, arcs, drawnBy, ringMarkup, slices } from "./donut-model";
+import { arcAt, arcs, drawnBy, rest, ringMarkup, slices } from "./donut-model";
 
 const ann = participantId("ann");
 const bob = participantId("bob");
@@ -149,11 +149,30 @@ describe("slices with payments", () => {
   });
 });
 
+describe("rest", () => {
+  const length = 2 * Math.PI * 79;
+
+  test("draw the unclaimed rest as one more arc after the last Share, cut like a neighbor", () => {
+    const left = rest([{ id: ann, cents: 100, start: 0, fraction: 0.25 }])!;
+    expect(left.dash).toBe(`${0.75 * length - 14} ${length}`);
+    expect(left.offset).toBe(-(0.25 * length + 7));
+  });
+
+  test("a lone Share beside the rest is cut too, so the two leave a gap", () => {
+    expect(arcs([{ id: ann, cents: 100, start: 0, fraction: 0.25 }])[0].dash).toBe(`${0.25 * length - 14} ${length}`);
+  });
+
+  test("nothing is left when everything is claimed, and nothing claimed leaves the full ring", () => {
+    expect(rest([{ id: ann, cents: 100, start: 0, fraction: 1 }])).toBeNull();
+    expect(rest([])).toEqual({ r: 79, dash: `${length} ${length}`, offset: -0, delay: 0 });
+  });
+});
+
 describe("ringMarkup", () => {
-  test("draws the track first, then one round-capped circle per arc in the color paint gives it", () => {
-    const markup = ringMarkup([{ id: ann, cents: 100, start: 0, fraction: 1 }], () => "#123456", "#abcdef");
+  test("draws one round-capped circle per arc in the color paint gives it, then the rest in its own color, with no ring behind", () => {
+    const markup = ringMarkup([{ id: ann, cents: 100, start: 0, fraction: 0.5 }], () => "#123456", "#abcdef");
     expect(markup.match(/<circle/g)).toHaveLength(2);
-    expect(markup.indexOf('stroke="#abcdef"')).toBeLessThan(markup.indexOf('stroke="#123456"'));
+    expect(markup.indexOf('stroke="#123456"')).toBeLessThan(markup.indexOf('stroke="#abcdef"'));
     expect(markup).toContain('stroke-linecap="round"');
     expect(markup).not.toContain("opacity");
   });
@@ -168,7 +187,7 @@ describe("ringMarkup", () => {
       "#eeeeee",
       bob,
     );
-    expect(markup.match(/r="(\d+)"/g)).toEqual(['r="79"', 'r="79"', 'r="89"']);
+    expect(markup.match(/r="(\d+)"/g)).toEqual(['r="79"', 'r="89"']);
   });
 });
 

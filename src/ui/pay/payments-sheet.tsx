@@ -73,10 +73,10 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
           <View role="img" aria-label={label} style={styles.ring}>
             <DonutRing
               slices={arcs}
-              paint={(id) => (checked(id) ? c.ink : c.dot)}
+              paint={(id) => (checked(id) ? c.ink : c.ringOwed)}
               lifted={settled && tapped === null ? null : picked.id}
               closed={settled}
-              track={c.hairline}
+              rested={c.hairline}
               onPick={setTapped}
             />
             <View aria-hidden pointerEvents="none" style={[styles.center, !reduce && centerIn]}>
