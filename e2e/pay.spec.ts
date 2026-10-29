@@ -644,9 +644,9 @@ test("the Host's ring counts their own share as paid with what friends paid back
   // Nobody can check the Host off: a tap on his check leaves it filled and shakes his "gets paid".
   const payerCheck = paymentsList(jason).getByRole("button", { name: "Jason paid the bill and gets paid" });
   await expect(payerCheck).toHaveAttribute("aria-disabled", "true");
-  // A forced click skips Playwright's own scrolling, so bring the row to the middle of the sheet's list first.
-  await payerCheck.evaluate((node) => node.scrollIntoView({ block: "center" }));
-  await payerCheck.click({ force: true });
+  // The check is aria-disabled, which Playwright's click refuses, so it is pressed from the keyboard the way a screen reader would.
+  await payerCheck.focus();
+  await jason.keyboard.press("Enter");
   await expect.poll(() => jason.getByTestId("gets-paid").evaluate((node) => getComputedStyle(node).animationName)).not.toBe("none");
   expect(await markOf(jason, "Jason")).toEqual(["check"]);
   await expect(paymentsList(jason).getByRole("button", { name: /^Mark Jason/ })).toHaveCount(0);
