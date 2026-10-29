@@ -114,7 +114,7 @@ export const splitCopy = {
     everyonePays: (host: string) => `Everyone pays ${host}.`,
     of: (total: string) => `of ${total}`,
     allPaidTitle: "All paid",
-    paidBack: "paid back",
+    paidSoFar: "paid",
     paid: "Paid",
     notPaid: "Not paid yet",
     nobodyYet: "Nobody yet",

@@ -97,12 +97,15 @@ export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: re
   return [...mine, ...rows.filter(({ id }) => id !== viewer)];
 }
 
-/** What friends paid the Host out of what friends owe them, which the Payments summary line gives on every phone. Payments count as recorded, so an overpayment shows as more than owed. */
-export function hostCollected(rows: readonly PaymentRow[], payments: Split["payments"]): { readonly paid: Cents; readonly owed: Cents } {
-  const friends = rows.filter(({ isHost }) => !isHost);
-  const owed = friends.reduce((sum, { share }) => sum + share, 0);
-  const ids = new Set(friends.map(({ id }) => id));
-  const paid = payments.filter(({ participantId }) => ids.has(participantId)).reduce((sum, { amount }) => sum + amount, 0);
+/**
+ * What has been paid toward everyone's Shares, out of their sum, which the Payments summary line and ring give on every phone. The Host paid their own Share with
+ * the bill, so it counts as paid; friends' Payments count as recorded, so an overpayment shows as more than owed.
+ */
+export function billPaid(rows: readonly PaymentRow[], payments: Split["payments"]): { readonly paid: Cents; readonly owed: Cents } {
+  const owed = rows.reduce((sum, { share }) => sum + share, 0);
+  const host = rows.filter(({ isHost }) => isHost).reduce((sum, { share }) => sum + share, 0);
+  const friends = new Set(rows.filter(({ isHost }) => !isHost).map(({ id }) => id));
+  const paid = payments.filter(({ participantId }) => friends.has(participantId)).reduce((sum, { amount }) => sum + amount, host);
   return { paid: cents(paid), owed: cents(owed) };
 }
 

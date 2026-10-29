@@ -15,7 +15,7 @@ import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { drawnBy, ring, ringMotion, slices } from "./donut-model";
 import { DonutRing } from "./donut-ring";
-import { foldedRows, hostCollected, itemsLine, paymentStatus, viewerFirst } from "./model";
+import { billPaid, foldedRows, itemsLine, paymentStatus, viewerFirst } from "./model";
 import { firstName } from "./pay-sheet";
 import { SheetHeader } from "../split-view/sheet-header";
 
@@ -30,8 +30,8 @@ type Props = {
 };
 
 /**
- * Who has paid, with everyone who still owes something at the top. The ring is the money friends owe the Host plus anything unclaimed: what has been paid back
- * in black, what is still owed in gray, the unclaimed rest in light gray. A tap on a name breaks their piece out of the ring and shows their part in the middle;
+ * Who has paid, with everyone who still owes something at the top. The ring is everyone's Shares plus anything unclaimed: what has been paid, the Host's own
+ * Share first, in black, what is still owed in gray, the unclaimed rest in light gray. A tap on a name breaks their piece out of the ring and shows their part in the middle;
  * a tap anywhere else puts it back. It reads the live Split, so another phone's payment lands here as it happens.
  */
 export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Props) {
@@ -54,24 +54,22 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
     if (settled) setTapped(null);
   }
   const { shown, quiet } = foldedRows(rows, me);
-  const people = shown.filter(({ isHost }) => !isHost);
   // Someone removed while picked lets go of the pick.
-  const picked = people.find(({ id }) => id === tapped) ?? null;
+  const picked = shown.find(({ id }) => id === tapped) ?? null;
   const edge = sheet ? layout.gutter + insets.right : rowEdge;
   const total = split.receipt.total;
   const unclaimed = shares.unclaimed.total;
-  const collected = hostCollected(rows, split.payments);
-  const checked = (id: ParticipantId) => rows.some((row) => row.id === id && (row.state === "settled" || row.state === "over"));
-  const arcs = slices({ shares: shares.shares.slice(1), unclaimed: shares.unclaimed }, checked);
-  const owedRing = collected.owed + unclaimed;
+  const collected = billPaid(rows, split.payments);
+  // The Host paid their own Share with the bill, so it counts as paid like a friend's checked one.
+  const checked = (id: ParticipantId) => rows.some((row) => row.id === id && (row.isHost || row.state === "settled" || row.state === "over"));
+  const arcs = slices({ shares: shares.shares, unclaimed: shares.unclaimed }, checked);
+  const ringTotal = collected.owed + unclaimed;
   const label = say.ring.label(
     money(total, split.currency),
     rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share, split.currency)}`),
     unclaimed > 0 ? money(unclaimed, split.currency) : null,
   );
-  // The Host paid the bill, so they list with everyone who has paid, after everyone who still owes.
-  const hasPaid = (row: (typeof shown)[number]) => row.isHost || checked(row.id);
-  const listed = viewerFirst(shown.filter((row) => !hasPaid(row)), me).concat(viewerFirst(shown.filter(hasPaid), me));
+  const listed = viewerFirst(shown.filter(({ id }) => !checked(id)), me).concat(viewerFirst(shown.filter(({ id }) => checked(id)), me));
   const leftOver = split.receipt.items.filter(({ id }) => shares.unclaimed.itemIds.includes(id)).map(({ name }) => name);
   // A tap anywhere but a person's row or the ring puts the picked piece back. The ring answers its own taps, gaps and hole included.
   const outer = useRef<View>(null);
@@ -102,26 +100,26 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
             ) : null}
           </View>
         ) : null}
-        {owedRing > 0 ? (
+        {ringTotal > 0 ? (
           <View role="img" aria-label={label} style={styles.ring} {...{ dataSet: { keepsPick: "" } }}>
             <DonutRing slices={arcs} paint={(id) => (checked(id) ? c.ink : c.ringOwed)} lifted={picked?.id ?? null} closed={settled && picked === null} rested={c.hairline} onPick={(id) => (id === null ? setTapped(null) : toggle(id))} />
             <View aria-hidden pointerEvents="none" style={[styles.center, !reduce && centerIn]}>
               {picked ? (
                 <View key={`part-${picked.id}`} style={[styles.face, !reduce && faceIn]}>
-                  <Part amount={picked.share} words={picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))} status={checked(picked.id) ? say.ring.paid : say.ring.notPaid} />
+                  <Part amount={picked.share} words={picked.id === me ? say.ring.yourPart : say.ring.partOf(firstName(picked.name))} status={picked.isHost ? say.status.paidTheBill : checked(picked.id) ? say.ring.paid : say.ring.notPaid} />
                 </View>
               ) : settled ? (
                 <>
                   {opening || reduce ? null : (
                     <View key="leaving" style={[styles.face, partOut]}>
-                      <PaidBack paid={collected.paid} of={owedRing} />
+                      <PaidBack paid={collected.paid} of={ringTotal} />
                     </View>
                   )}
                   <AllPaid key="all" wait={reduce ? null : opening ? drawnBy(arcs) : allPaidAfterPay} caption={say.ring.allPaid(money(total, split.currency))} />
                 </>
               ) : (
                 <View key="back" style={[styles.face, !reduce && tapped === null && faceIn]}>
-                  <PaidBack paid={collected.paid} of={owedRing} />
+                  <PaidBack paid={collected.paid} of={ringTotal} />
                 </View>
               )}
             </View>
@@ -137,7 +135,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
         <View role="list" aria-label={say.payments}>
           {listed.map(({ id, name, share, state, words, isHost }) => {
             const on = id === picked?.id;
-            const done = isHost || checked(id);
+            const done = checked(id);
             const line = (pressed: boolean) => {
               const ink = picked === null || on || pressed ? c.ink : c.muted;
               return (
@@ -161,14 +159,9 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
             return (
               <View key={id} role="listitem" style={[styles.row, { borderTopColor: c.hairline }]} {...{ dataSet: { state, keepsPick: "" } }}>
                 <Check paid={done} name={name} disabled={isHost || me === null || !onCheck} onPress={(from) => onCheck?.(id, !done, from)} />
-                {isHost ? (
-                  // The Host paid the bill, so their Share is not owed back and has no arc to pick.
-                  <View style={styles.press}>{line(false)}</View>
-                ) : (
-                  <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share, split.currency)}`} toggled={on} outsideScroll={!sheet} onPress={() => toggle(id)} style={() => styles.press}>
-                    {line}
-                  </PressTarget>
-                )}
+                <PressTarget name={`${name}${id === me ? `, ${say.you}` : ""}, ${words}, ${money(share, split.currency)}`} toggled={on} outsideScroll={!sheet} onPress={() => toggle(id)} style={() => styles.press}>
+                  {line}
+                </PressTarget>
               </View>
             );
           })}
@@ -217,7 +210,7 @@ function Check({ paid, name, disabled, onPress }: { paid: boolean; name: string;
   );
 }
 
-/** The ring's center when nobody is picked: what friends have paid the Host, out of what they owe plus anything unclaimed. */
+/** The ring's center when nobody is picked: what has been paid, the Host's own Share included, out of everyone's Shares plus anything unclaimed. */
 function PaidBack({ paid, of }: { paid: number; of: number }) {
   const currency = useCurrency();
   const c = useColors();
@@ -225,7 +218,7 @@ function PaidBack({ paid, of }: { paid: number; of: number }) {
     <>
       <Text testID="ring-amount" style={[type.hero, styles.tabular, { color: c.ink }]}>{money(cents(paid), currency)}</Text>
       <Text numberOfLines={1} style={[type.caption, styles.caption, { color: c.muted }]}>
-        {say.ring.paidBack}
+        {say.ring.paidSoFar}
       </Text>
       <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
         {say.ring.of(money(cents(of), currency))}

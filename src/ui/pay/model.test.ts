@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { adjustmentId, itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { foldedRows, hostCollected, justPaid, payState, paymentStatus, itemsLine, shareStatus, statusWords } from "./model";
+import { foldedRows, billPaid, justPaid, payState, paymentStatus, itemsLine, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -150,19 +150,19 @@ describe("paymentStatus on a Split with no Items", () => {
   });
 });
 
-describe("hostCollected", () => {
+describe("billPaid", () => {
   const row = (id: string, share: number, isHost = false) => ({ id: participantId(id), name: id, isHost, share: cents(share), state: "unpaid" as const, words: "" });
   const rows = [row("jason", 6335, true), row("sam", 3000), row("priya", 2828), row("lee", 0)];
 
-  test("adds what friends paid the Host out of what friends owe, leaving the Host's own part out", () => {
+  test("adds the Host's own Share, paid with the bill, to what friends paid, out of everyone's Shares", () => {
     const payments = [{ participantId: participantId("sam"), amount: cents(3000) }, { participantId: participantId("priya"), amount: cents(1000) }] as unknown as Split["payments"];
-    expect(hostCollected(rows, payments)).toEqual({ paid: 4000, owed: 5828 });
+    expect(billPaid(rows, payments)).toEqual({ paid: 10335, owed: 12163 });
   });
 
-  test("counts an overpayment as paid in full and nothing paid as $0.00", () => {
+  test("counts an overpayment as recorded and, with no Payments, only the Host's Share as paid", () => {
     const over = [{ participantId: participantId("sam"), amount: cents(3500) }] as unknown as Split["payments"];
-    expect(hostCollected(rows, over)).toEqual({ paid: 3500, owed: 5828 });
-    expect(hostCollected(rows, [])).toEqual({ paid: 0, owed: 5828 });
+    expect(billPaid(rows, over)).toEqual({ paid: 9835, owed: 12163 });
+    expect(billPaid(rows, [])).toEqual({ paid: 6335, owed: 12163 });
   });
 });
 
