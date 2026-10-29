@@ -52,7 +52,7 @@
       @font-face { font-family: "Geist"; font-weight: 400; font-display: swap; src: url("/fonts/geist-400-89ade87fce.woff2") format("woff2"); }
       @font-face { font-family: "Geist"; font-weight: 500; font-display: swap; src: url("/fonts/geist-500-1e5e5e4514.woff2") format("woff2"); }
     </style>
-    <!-- The loader (decision 27 in docs/design/b2/README.md) covers the first load until the app has mounted and Geist has loaded, so the page never paints in the fallback face. data-boot is "wait", then "leave" while it fades, then gone. The Split page also uses it while its link connects (see useBusyLoader in src/ui/document.ts): the app says "splitwith:busy" and "splitwith:idle", and data-boot is "busy" while the loader stays up over a visible page. A cold load that is still connecting when the app and Geist are ready goes from "wait" to "busy" without a fade, so the same drawing carries on. Without this script nothing is hidden. If the app never says it mounted, the CSS below shows the page at 8 s and the timer below makes it usable. The 300 ms and 8 s here match the CSS delays. -->
+    <!-- The loader (decision 27 in docs/design/b2/README.md) covers the first load until the app has mounted and Geist has loaded, so the page never paints in the fallback face. data-boot is "wait", then "leave" while it fades, then gone. The Split page also uses it while its link connects (see useBusyLoader in src/ui/document.ts): the app says "splitwith:busy" and "splitwith:idle", and data-boot is "busy" while the loader stays up over a visible page. When the Split arrives the loader goes at once, with no hold or fade, so it never shows over the Split. A cold load that is still connecting when the app and Geist are ready goes from "wait" to "busy" without a fade, so the same drawing carries on. Without this script nothing is hidden. If the app never says it mounted, the CSS below shows the page at 8 s and the timer below makes it usable. The 300 ms and 8 s here match the CSS delays. -->
     <script>
       (function () {
         var t0 = performance.now();
@@ -61,7 +61,6 @@
         var fonts = false;
         var busy = false;
         var booting = true;
-        var since = t0;
         var timers = [];
         html.setAttribute("data-boot", "wait");
         function usable() {
@@ -109,11 +108,9 @@
           if (booting) return;
           timers.forEach(clearTimeout);
           timers = [];
-          if (busy) {
-            since = performance.now();
-            return html.setAttribute("data-boot", "busy");
-          }
-          if (html.getAttribute("data-boot") === "busy") lift(performance.now() - since);
+          if (busy) return html.setAttribute("data-boot", "busy");
+          // The page under it is drawn now, so the loader goes at once: holding or fading it would show it over the Split.
+          if (html.getAttribute("data-boot") === "busy") html.removeAttribute("data-boot");
         }
         document.addEventListener("splitwith:mounted", function () {
           mounted = true;
