@@ -148,7 +148,6 @@ export type RejectionReason =
   | "badIndex"
   | "emptyEdit"
   | "host"
-  | "payerOnly"
   | "paymentNotRevertible"
   | "participantInUse"
   | "tooManyItems"
@@ -273,8 +272,6 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const index = indexOf(split.participants, participantId);
       if (index === -1) return reject("unknownParticipant");
       if (index === 0) return reject("host");
-      const device = pickDevice(op.device, split.id);
-      if (!split.picks.some((pick) => pick.participantId === participantId && pick.device === device)) return reject("payerOnly");
       const before = paymentOf(split, participantId);
       const after = op.type === "recordPayment" ? op.amount : null;
       return commit(split, [() => (before === after ? [] : [{ kind: "payment", participantId, before, after }])]);
