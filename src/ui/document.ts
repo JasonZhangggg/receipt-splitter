@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import { Platform } from "react-native";
 
 import type { Appearance, Scheme } from "./appearance";
@@ -73,9 +73,9 @@ export function announceMounted() {
   if (Platform.OS === "web") document.dispatchEvent(new Event("splitwith:mounted"));
 }
 
-/** Shows the loader from public/index.html over the page while `active`, under `label`. It appears after 300 ms, so a fast connect shows nothing, and it lifts when `active` ends. */
+/** Shows the loader from public/index.html over the page while `active`, under `label`. It appears after 300 ms, so a fast connect shows nothing, and it goes at once when `active` ends. A layout effect, so it is gone before the page that replaces it paints. */
 export function useBusyLoader(active: boolean, label: string) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (Platform.OS !== "web" || !active) return;
     const loader = document.getElementById("rs-boot");
     const before = loader?.getAttribute("aria-label") ?? null;

@@ -302,6 +302,34 @@ test("opening a Split from inside the app shows nothing when it connects within 
   expect(await peak(page)).toBe(0);
 });
 
+test("the loader never shows over the Split once it arrives, even when it connects just after the loader appears", async ({ page }) => {
+  const id = await createSplit(page);
+  await delaySocket(page, 400);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Create link" })).toBeVisible();
+  await expect(page.locator("html")).not.toHaveAttribute("data-boot");
+  await page.evaluate((to) => {
+    const seen = { shown: 0, over: 0 };
+    Object.assign(window, { seen });
+    const frame = () => {
+      const loader = document.getElementById("rs-boot")!;
+      const opacity = getComputedStyle(loader).display === "none" ? 0 : Number(getComputedStyle(loader).opacity);
+      if (opacity > 0) seen.shown++;
+      if (opacity > 0 && [...document.querySelectorAll("[role=heading]")].some((h) => h.textContent?.includes("Which one are you?"))) seen.over++;
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    history.pushState({}, "", to);
+    dispatchEvent(new PopStateEvent("popstate"));
+  }, `/s/${id}`);
+  await expect(page.getByRole("heading", { name: "Which one are you?" })).toBeVisible({ timeout: 8_000 });
+  await page.waitForTimeout(500);
+  const seen = await page.evaluate(() => (window as unknown as { seen: { shown: number; over: number } }).seen);
+  expect(seen.shown).toBeGreaterThan(0);
+  expect(seen.over).toBe(0);
+  await expect(page.locator("html")).not.toHaveAttribute("data-boot");
+});
+
 test("opening a Split from inside the app shows the loader while it connects, then lifts it", async ({ page }) => {
   const id = await createSplit(page);
   await delaySocket(page, 2000);
