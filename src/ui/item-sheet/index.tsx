@@ -16,11 +16,10 @@ import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion"
 import { failedCopy, splitCopy as say } from "../split-copy";
 import { useCurrency } from "../currency";
 import { motion, tabular, type, useColors, useOnPage } from "../theme";
-import { bundleNote, itemParts, lineAmounts, nameParts, splitIds } from "../split-view/model";
+import { bundleNote, itemParts, lineAmounts, nameParts, peopleOrder, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
 import { amountStatus, suggestedAmounts } from "./amount-status";
 import { readAmount } from "./new-item";
-import { viewerFirst } from "../pay/model";
 import { SheetHeader } from "../split-view/sheet-header";
 
 type ItemEdit = Omit<Extract<ItemPatch, { type: "edit" }>, "type" | "itemId">;
@@ -319,7 +318,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
     flush();
     leave({ by: me, type: "editReceipt", items: [{ type: "split", itemId, ids: [first, ...rest] }] });
   };
-  const people = viewerFirst(split.participants, me);
+  const people = peopleOrder(split.participants, (person) => person, me, split.participants[0].id);
   const body = (shownItem: SplitItem, shownParts: Typed, as: Typed, editable: boolean) => {
     const suggested = shownItem.split.by === "amount" && !held ? suggestedAmounts(shownItem.price, as, editable ? lastTyped : null) : null;
     return (

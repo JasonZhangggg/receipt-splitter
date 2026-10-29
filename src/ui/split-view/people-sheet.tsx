@@ -19,6 +19,8 @@ export type PersonRow = {
   /** The money amount shown with the name. */
   readonly share: string;
   readonly mine: boolean;
+  /** The Host, who paid the bill. */
+  readonly host: boolean;
   readonly viewed: boolean;
   /** Another phone holds this name. */
   readonly heldElsewhere: boolean;
@@ -129,7 +131,7 @@ export function PeopleSheet({ rows, meName, intro, chosen, onView, onPick, onAdd
               </View>
             ) : (
               <View role="listitem">
-                <Line row={row} mode={asking ? "switch" : mode} asking={asking} host={row.person.id === rows[0].person.id} chosen={chosen} onPress={(press) => choose(row, press)} />
+                <Line row={row} mode={asking ? "switch" : mode} asking={asking} host={row.host} chosen={chosen} onPress={(press) => choose(row, press)} />
               </View>
             )
           }
@@ -217,7 +219,8 @@ export function Line({ row, mode, asking, host, chosen, onPress }: LineProps) {
   const { person } = row;
   const removing = mode === "remove";
   const mine = row.mine && !asking;
-  const on = chosen === person.id || (mode === "switch" ? mine : mode === "view" && row.viewed);
+  // While a switch is in flight only the tapped name is on, never it and this phone's old one together.
+  const on = chosen === person.id || (mode === "switch" ? chosen === null && mine : mode === "view" && row.viewed);
   // Picking is a choice among equals, so names read as ink; only a name another phone holds steps back. Elsewhere the viewed row alone is ink.
   const picking = asking || mode === "switch";
   const ink = picking ? (row.heldElsewhere && !on ? c.muted : c.ink) : on ? c.ink : c.muted;

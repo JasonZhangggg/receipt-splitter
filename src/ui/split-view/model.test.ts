@@ -4,7 +4,7 @@ import { cents, price } from "../../core/money";
 import { adjustmentId, itemId, participantId, type Adjustment, type ItemSplit, type NonEmpty, type ParticipantId, type Receipt, type SplitItem } from "../../core/split";
 import { computeShares, shareBreakdown } from "../../core/shares";
 import { splitCopy } from "../split-copy";
-import { breakdownCharges, breakdownLines, bundleNote, circleTap, filterCounts, filterRows, itemFilters, itemParts, keepInPlace, lineAmounts, lineView, linesNear, nameParts, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems, whoText } from "./model";
+import { breakdownCharges, breakdownLines, bundleNote, circleTap, filterCounts, filterRows, itemFilters, itemParts, keepInPlace, lineAmounts, lineView, linesNear, nameParts, peopleOrder, quantityText, payNote, receiptRows, splitIds, totalNote, claimedItems, whoText } from "./model";
 
 const [ann, bob, cat] = ["ann", "bob", "cat"].map(participantId);
 const item = (split: ItemSplit, cost = 100): SplitItem => ({ id: itemId("tostones"), name: "Tostones", price: price(cost), split });
@@ -402,5 +402,25 @@ describe("filters", () => {
   test("offers Yours only once someone is viewed", () => {
     expect(itemFilters(null)).toEqual(["all", "none", "shared"]);
     expect(itemFilters(ann)).toEqual(["all", "mine", "none", "shared"]);
+  });
+});
+
+describe("peopleOrder", () => {
+  const people = [
+    { id: participantId("jason"), name: "Jason" },
+    { id: participantId("sam"), name: "Sam" },
+    { id: participantId("priya"), name: "priya" },
+    { id: participantId("lee"), name: "Lee" },
+    { id: participantId("ana"), name: "Ana" },
+  ];
+  const names = (me: ParticipantId | null) => peopleOrder(people, (person) => person, me, participantId("jason")).map(({ name }) => name);
+
+  test("puts this phone's person first, the Host second, and everyone else A to Z whatever the case", () => {
+    expect(names(participantId("sam"))).toEqual(["Sam", "Jason", "Ana", "Lee", "priya"]);
+  });
+
+  test("leads with the Host when the phone is the Host's or has no name yet", () => {
+    expect(names(participantId("jason"))).toEqual(["Jason", "Ana", "Lee", "priya", "Sam"]);
+    expect(names(null)).toEqual(["Jason", "Ana", "Lee", "priya", "Sam"]);
   });
 });
