@@ -10,12 +10,14 @@ import { useCurrency } from "../currency";
 import { PressTarget, type Press } from "../components/button";
 import { Icon } from "../components/icon";
 import { useLayoutHeight } from "../components/viewport";
-import { useReducedMotion, webAnimation, webStyle } from "../motion";
+import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
+import { linkPress } from "../components/text-link";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
 import { drawnBy, ring, ringMotion, slices } from "./donut-model";
 import { DonutRing } from "./donut-ring";
-import { billPaid, foldedRows, itemsLine, paymentStatus, viewerFirst } from "./model";
+import { billPaid, foldedRows, itemsLine, paymentStatus } from "./model";
+import { peopleOrder } from "../split-view/model";
 import { firstName } from "./pay-sheet";
 import { SheetHeader } from "../split-view/sheet-header";
 
@@ -45,6 +47,9 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
   const [tapped, setTapped] = useState<ParticipantId | null>(null);
   // How many times the Host's check has been tapped. Nobody can check the Host off, so each tap shakes their "gets paid" instead.
   const [refused, setRefused] = useState(0);
+  const [filter, setFilter] = useState<Filter>("all");
+  // The list's height under All. A narrower filter keeps it, so the sheet does not jump shorter as the tabs change.
+  const [allHeight, setAllHeight] = useState(0);
   // Every Item is claimed and everyone who owes something has paid. The moment that happens the ring closes into All paid, even if someone was tapped before.
   const settled = owing > 0 && paid === owing && shares.unclaimed.total === 0;
   const [wasSettled, setWasSettled] = useState(settled);
@@ -71,7 +76,10 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
     rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share, split.currency)}`),
     unclaimed > 0 ? money(unclaimed, split.currency) : null,
   );
-  const listed = viewerFirst(shown.filter(({ id }) => !checked(id)), me).concat(viewerFirst(shown.filter(({ id }) => checked(id)), me));
+  // Rows keep the People order whatever is checked, so a payment never moves one; the tabs narrow them to who has or has not paid.
+  const ordered = peopleOrder(shown, (row) => row, me, rows.find(({ isHost }) => isHost)?.id ?? null);
+  const counts: Record<Filter, number> = { all: ordered.length, unpaid: ordered.filter(({ id }) => !checked(id)).length, paid: ordered.filter(({ id }) => checked(id)).length };
+  const listed = ordered.filter(({ id }) => filter === "all" || (filter === "paid") === checked(id));
   const leftOver = split.receipt.items.filter(({ id }) => shares.unclaimed.itemIds.includes(id)).map(({ name }) => name);
   // A tap anywhere but a person's row or the ring puts the picked piece back. The ring answers its own taps, gaps and hole included.
   const outer = useRef<View>(null);
@@ -127,12 +135,16 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
             </View>
           </View>
         ) : null}
+        {rows.length > 0 ? <Tabs filter={filter} counts={counts} onPick={setFilter} /> : null}
       </View>
       <ScrollView
         testID="payments"
         {...(sheet ? { dataSet: { sheetScroll: "" } } : {})}
         style={[{ marginRight: -edge }, contain, sheet && { maxHeight: Math.max(minList, room - fixed - layout.pairGap) }]}
-        contentContainerStyle={{ paddingRight: edge }}
+        contentContainerStyle={{ paddingRight: edge, minHeight: filter === "all" ? 0 : allHeight }}
+        onContentSizeChange={(_, height) => {
+          if (filter === "all") setAllHeight(height);
+        }}
       >
         <View role="list" aria-label={say.payments}>
           {listed.map(({ id, name, share, state, words, isHost }) => {
@@ -177,7 +189,8 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
             );
           })}
         </View>
-        {unclaimed > 0 ? (
+        {listed.length === 0 ? <Text style={[type.body, styles.empty, { color: c.muted, borderTopColor: c.hairline }]}>{say.ring.everyonePaid}</Text> : null}
+        {unclaimed > 0 && filter === "all" ? (
           <View testID="nobody-yet" style={[styles.row, { borderTopColor: c.hairline }]}>
             <View style={styles.lead}>
               <View style={[styles.circle, styles.dashed, { borderColor: c.ringOwed }]} />
@@ -194,12 +207,41 @@ export function PaymentsSheet({ split, me, onClose, sheet = false, onCheck }: Pr
             </View>
           </View>
         ) : null}
-        {quiet.length > 0 ? (
+        {quiet.length > 0 && filter === "all" ? (
           <Text testID="owes-nothing" style={[type.caption, styles.quiet, { color: c.muted, borderTopColor: c.hairline }]}>
             {say.ring.owesNothing(quiet.map(({ name }) => firstName(name)))}
           </Text>
         ) : null}
       </ScrollView>
+    </View>
+  );
+}
+
+type Filter = keyof typeof say.ring.filters;
+const filters = Object.keys(say.ring.filters) as Filter[];
+
+/** All, Not paid and Paid over the list, each with its count: the current one in ink over a short rule, the way the wide layout filters Items. */
+function Tabs({ filter, counts, onPick }: { filter: Filter; counts: Record<Filter, number>; onPick: (filter: Filter) => void }) {
+  const c = useColors();
+  const reduce = useReducedMotion();
+  return (
+    <View role="group" aria-label={say.ring.filtersLabel} style={styles.tabs} {...{ dataSet: { keepsPick: "" } }}>
+      {filters.map((one) => {
+        const on = one === filter;
+        return (
+          <PressTarget key={one} name={`${say.ring.filters[one]}, ${counts[one]}`} toggled={on} onPress={() => onPick(one)} style={(pressed) => [styles.tab, pressStyle(pressed, reduce, linkPress)]}>
+            {(_, hovered) => (
+              <View>
+                <Text numberOfLines={1} style={[type.body, styles.tabular, !reduce && inkFade, { color: on || hovered ? c.ink : c.muted }]}>
+                  {`${say.ring.filters[one]} `}
+                  <Text style={{ color: c.muted }}>{counts[one]}</Text>
+                </Text>
+                <View style={[styles.rule, { backgroundColor: on ? c.ink : "transparent" }]} />
+              </View>
+            )}
+          </PressTarget>
+        );
+      })}
     </View>
   );
 }
@@ -315,6 +357,7 @@ const dimOnce = webAnimation({
   animationDuration: `${motion.reducedFade * 2}ms`,
   animationTimingFunction: motion.easeOut,
 });
+const inkFade = webStyle({ transitionProperty: "color", transitionDuration: "150ms", transitionTimingFunction: "ease" });
 const checkFade = webStyle({ transitionProperty: "background-color, border-color, transform", transitionDuration: `${motion.actionColor}ms`, transitionTimingFunction: motion.easeOut });
 const centerIn = webAnimation({
   animationKeyframes: [{ from: { opacity: 0, transform: "translateY(4px)" }, to: { opacity: 1, transform: "none" } }],
@@ -333,7 +376,8 @@ const styles = StyleSheet.create({
   face: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 12, minHeight: 56, paddingVertical: 10, borderTopWidth: 1 },
-  lead: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
+  // The check sits in the middle of its row's two lines, not level with the name.
+  lead: { width: 24, height: 24, alignSelf: "center", alignItems: "center", justifyContent: "center" },
   circle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   dashed: { borderStyle: "dashed" },
   pressedCheck: { transform: [{ scale: 0.88 }] },
@@ -344,5 +388,9 @@ const styles = StyleSheet.create({
   body: { flex: 1, minWidth: 0, gap: 2 },
   right: { alignItems: "flex-end", gap: 2 },
   quiet: { paddingVertical: 14, borderTopWidth: 1 },
+  empty: { paddingVertical: 16, borderTopWidth: 1 },
+  tabs: { flexDirection: "row", columnGap: 24, marginBottom: -layout.pairGap },
+  tab: { minHeight: 44, justifyContent: "flex-end" },
+  rule: { height: 1.5, marginTop: 8 },
   amount: { fontVariant: ["tabular-nums"], textAlign: "right" },
 });

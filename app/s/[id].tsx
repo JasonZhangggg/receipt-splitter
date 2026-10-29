@@ -33,7 +33,7 @@ import { ConnectionNotice } from "../../src/ui/split-view/connection-notice";
 import type { Connection } from "../../src/live/connection";
 import { SplitHeader, useSiteShare } from "../../src/ui/split-view/header";
 import { shareLink } from "../../src/ui/share-link";
-import { billParts, circleTap, filterCounts, linesNear, type ItemFilter } from "../../src/ui/split-view/model";
+import { billParts, circleTap, filterCounts, linesNear, peopleOrder, type ItemFilter } from "../../src/ui/split-view/model";
 import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filters";
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
@@ -230,22 +230,25 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const choose = async (participantId: ParticipantId, takeOver: boolean) => {
     setPickProblem(null);
     setChosen(participantId);
+    // A switch from the People sheet closes it on the tap, as viewing someone does, and the pick lands behind it. Link ready stays up, so the Host can still share the link.
+    const switching = shownPhase.current !== "pick";
+    if (switching && openSheet.current?.kind !== "made") closeOverlay();
     const picked = await send({ by: participantId, type: "pick", participantId, device, takeOver });
     // A pick the server recorded before the answer timed out stands.
     const recorded = latest.current.picks.some((pick) => pick.participantId === participantId && pick.device === device);
     if (!picked.ok && !(picked.rejection.reason === "disconnected" && recorded)) {
       setChosen(null);
-      // Another phone took the name first: say so, since trying again would only ask "That's me".
-      if (picked.rejection.reason === "namePicked") return setPickProblem(say.pickLost(people.find(({ id }) => id === participantId)?.name ?? ""));
-      return setPickProblem(failedCopy(picked, say.pickFailed));
+      // Another phone took the name first: say so, since trying again would only ask "That's me". A switch whose sheet has closed says it in the bar.
+      const problem = picked.rejection.reason === "namePicked" ? say.pickLost(people.find(({ id }) => id === participantId)?.name ?? "") : failedCopy(picked, say.pickFailed);
+      return switching && openSheet.current?.kind !== "made" ? setBar({ message: problem }) : setPickProblem(problem);
     }
     remember({ me: participantId });
     setSelected(participantId);
     // The pick sheet collapses on its own; a switch from the People sheet closes that sheet instead.
+    // The pick sheet collapses on its own, even one People showed while the pick was in flight; a switch closes whatever sheet opened meanwhile.
     if (shownPhase.current === "pick") timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
     else {
       setChosen(null);
-      // Link ready stays up after a switch, so the Host can still share the link.
       if (openSheet.current?.kind !== "made") closeOverlay();
     }
   };
@@ -591,12 +594,13 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (me === split.participants[0].id) return record(id, paid);
     setPaidAsk({ id, paid, from, closing: false });
   };
-  const peopleRows: readonly PersonRow[] = people.map((person) => {
+  const peopleRows: readonly PersonRow[] = peopleOrder(people, (person) => person, me, split.participants[0].id).map((person) => {
     const pick = split.picks.find(({ participantId }) => participantId === person.id);
     return {
       person,
       share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0), split.currency),
       mine: person.id === me,
+      host: person.id === split.participants[0].id,
       viewed: person.id === selectedPerson?.id,
       heldElsewhere: pick !== undefined && pick.device !== device,
     };

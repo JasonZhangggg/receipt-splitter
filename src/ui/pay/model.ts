@@ -91,12 +91,6 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments" | "
   return { rows, paid, owing, summary };
 }
 
-/** The viewer's own row first and everyone else after it in chip order, as the Payments list reads. */
-export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], viewer: ParticipantId | null): Row[] {
-  const mine = rows.filter(({ id }) => id === viewer);
-  return [...mine, ...rows.filter(({ id }) => id !== viewer)];
-}
-
 /**
  * What has been paid toward everyone's Shares, out of their sum, which the Payments summary line and ring give on every phone. The Host paid their own Share with
  * the bill, so it counts as paid; friends' Payments count as recorded, so an overpayment shows as more than owed.

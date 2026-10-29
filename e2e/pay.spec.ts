@@ -451,8 +451,8 @@ test("Payments on Priya's phone follows Sam: Not paid, Paid once he marks it, th
 
   await fromMore(priya, "Payments");
   await expect(priya.getByTestId("payments-summary")).toHaveText("0 of 2 paid", live);
-  // Jason paid the bill, so he lists like everyone else, with the paid, after everyone who still owes.
-  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Sam/, /^Jason/]);
+  // The list reads you first, then Jason who paid the bill, then everyone else A to Z, and paying never moves a row.
+  await expect(paymentsList(priya).getByRole("listitem")).toHaveText([/^Priya/, /^Jason/, /^Sam/]);
   await expect(paymentsList(priya).getByRole("heading")).toHaveCount(0);
   await expect(priya.getByRole("dialog", { name: "Payments" }).getByText("Everyone pays Jason.")).toBeVisible();
   await expect(paymentRow(priya, "Sam")).toHaveText("Sam½ Tea$8.00Not paid");

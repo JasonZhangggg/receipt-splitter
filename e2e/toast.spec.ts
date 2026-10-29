@@ -39,7 +39,7 @@ async function mountToast(page: Page) {
 
 const hiddenAt = (page: Page) => page.evaluate(() => (window as unknown as ToastWindow).hiddenAt);
 
-test("the toast hides 4 s after it shows even when reduced motion changes on the way", async ({ page }) => {
+test("the toast hides 2.5 s after it shows even when reduced motion changes on the way", async ({ page }) => {
   await page.clock.install({ time: 0 });
   await page.clock.pauseAt(1000);
   const setReducedMotion = async (reducedMotion: "reduce" | "no-preference") => {
@@ -50,25 +50,25 @@ test("the toast hides 4 s after it shows even when reduced motion changes on the
     await changed;
   };
   await mountToast(page);
-  await page.clock.runFor(2000);
+  await page.clock.runFor(1000);
   await setReducedMotion("reduce");
   await page.clock.runFor(1000);
   await setReducedMotion("no-preference");
   await page.clock.runFor(5000);
-  expect(await hiddenAt(page)).toEqual([5000]);
+  expect(await hiddenAt(page)).toEqual([3500]);
 });
 
-test("a new message restarts the 4 s timer", async ({ page }) => {
+test("a new message restarts the 2.5 s timer", async ({ page }) => {
   await page.clock.install({ time: 0 });
   await page.clock.pauseAt(1000);
   await mountToast(page);
-  await page.clock.runFor(3000);
+  await page.clock.runFor(2000);
   await page.evaluate(() => (window as unknown as ToastWindow).show("Copied it again"));
   await expect(page.getByText("Copied it again")).toBeVisible();
-  await page.clock.runFor(3000);
+  await page.clock.runFor(2000);
   expect(await hiddenAt(page)).toEqual([]);
-  await page.clock.runFor(1500);
-  expect(await hiddenAt(page)).toEqual([8000]);
+  await page.clock.runFor(1000);
+  expect(await hiddenAt(page)).toEqual([5500]);
 });
 
 test("the toast speaks through a polite live region, and its action is a 44 px target", async ({ page }) => {
@@ -96,7 +96,7 @@ test("on the home page the toast sits above the footer", async ({ page }) => {
   }).toBe(true);
 });
 
-test("focus inside the toast holds its 4 s count and leaving it resumes the count", async ({ page }) => {
+test("focus inside the toast holds its 2.5 s count and leaving it resumes the count", async ({ page }) => {
   await page.clock.install({ time: 0 });
   await page.clock.pauseAt(1000);
   await mountToast(page);
@@ -106,7 +106,7 @@ test("focus inside the toast holds its 4 s count and leaving it resumes the coun
   await page.clock.runFor(20_000);
   expect(await hiddenAt(page)).toEqual([]);
   await page.keyboard.press("Shift+Tab");
-  await page.clock.runFor(3900);
+  await page.clock.runFor(2400);
   expect(await hiddenAt(page)).toEqual([]);
   await page.clock.runFor(200);
   expect(await hiddenAt(page)).toHaveLength(1);
@@ -120,7 +120,7 @@ test("a mouse resting on the toast holds its count until it moves away", async (
   await page.clock.runFor(20_000);
   expect(await hiddenAt(page)).toEqual([]);
   await page.mouse.move(5, 5);
-  await page.clock.runFor(4100);
+  await page.clock.runFor(2600);
   expect(await hiddenAt(page)).toHaveLength(1);
 });
 

@@ -78,7 +78,7 @@ test("Create link opens the Split with the Host already picked, and a second bro
 
   const sam = await open(browser, link);
   await expect(sam.getByText("Jason invited you to split $28.04")).toBeVisible();
-  await expect(rows(sam)).toHaveText(["JasonPicked on another phone", "Sam", "Priya"]);
+  await expect(rows(sam)).toHaveText(["JasonPicked on another phone", "Priya", "Sam"]);
 });
 
 test("after the Host picks on a link not yet shared, the bar shows Your share with no link row, and Sam's breakdown has none either", async ({ page }) => {
@@ -459,4 +459,31 @@ test("People tapped while a name taken back from the bar is still unanswered sho
   release();
   await expect(question(first)).toHaveCount(0);
   await youAre(first, "Sam");
+});
+
+test("Switch account closes the People sheet on the tap, before the pick lands", async ({ page, browser }) => {
+  await readyHome(page, ["Sam", "Priya"]);
+  const link = await createLink(page);
+  const sam = await (await newContext(browser)).newPage();
+  let holding = false;
+  let release = () => {};
+  await sam.routeWebSocket(/\/parties\//, (client) => {
+    const server = client.connectToServer();
+    client.onMessage((message) => {
+      if (holding && JSON.parse(String(message)).op?.type === "pick") release = () => server.send(message);
+      else server.send(message);
+    });
+    server.onMessage((message) => client.send(message));
+  });
+  await sam.goto(link);
+  await sam.getByRole("button", { name: "Sam", exact: true }).click();
+  await youAre(sam, "Sam");
+
+  holding = true;
+  await showPeople(sam, "Sam");
+  await peopleSheet(sam).getByRole("button", { name: "Switch account" }).click();
+  await peopleSheet(sam).getByRole("button", { name: "Priya", exact: true }).click();
+  await expect(peopleSheet(sam)).toHaveCount(0);
+  release();
+  await youAre(sam, "Priya");
 });

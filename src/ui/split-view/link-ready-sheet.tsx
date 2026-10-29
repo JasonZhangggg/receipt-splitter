@@ -38,13 +38,13 @@ export function LinkReadySheet({ url, rows, chosen, problem, onPick, onClose }: 
           </View>
           {switching ? (
             <View role="list">
-              {rows.map((row, at) => (
+              {rows.map((row) => (
                 <View key={row.person.id} role="listitem">
                   <Line
                     row={row}
                     mode="switch"
                     asking={false}
-                    host={at === 0}
+                    host={row.host}
                     chosen={chosen}
                     onPress={() => {
                       if (!row.mine) onPick(row.person.id);

@@ -56,6 +56,15 @@ export function linesNear(order: readonly ItemId[], gone: ItemId): ItemId[] {
   return at < 0 ? [] : [...order.slice(at + 1), ...order.slice(0, at).reverse()];
 }
 
+/**
+ * The order every list of people reads in: this phone's own person first, then the Host who paid the bill, then everyone else A to Z. Checking someone off or
+ * paying never moves a row.
+ */
+export function peopleOrder<Row>(rows: readonly Row[], person: (row: Row) => Pick<Participant, "id" | "name">, me: ParticipantId | null, host: ParticipantId | null): Row[] {
+  const rank = (row: Row) => (person(row).id === me ? 0 : person(row).id === host ? 1 : 2);
+  return [...rows].sort((a, b) => rank(a) - rank(b) || person(a).name.localeCompare(person(b).name, undefined, { sensitivity: "base" }));
+}
+
 /** Whose list this is: everyone at the table, the person this phone belongs to, and the person whose checks the dots show. */
 export type Viewing = { readonly people: readonly Participant[]; readonly me: ParticipantId | null; readonly viewer: ParticipantId | null };
 
