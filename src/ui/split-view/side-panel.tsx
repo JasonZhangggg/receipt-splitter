@@ -86,6 +86,7 @@ function Slide({ role, onOut, children }: { role: Role; onOut?: () => void; chil
 
 type Shown = { readonly node: ReactElement; readonly depth: number; readonly mount: number };
 type Leaving = { readonly node: ReactElement; readonly back: boolean; readonly mount: number };
+type Stack = { readonly shown: Shown; readonly leaving: Leaving | null; readonly entering: Role };
 
 /**
  * The wide column as a stack of views. Your share sits at depth 0; a view opened over it (an item, People, Payments, the pick) sits at depth 1.
@@ -95,22 +96,24 @@ type Leaving = { readonly node: ReactElement; readonly back: boolean; readonly m
  */
 export function ColumnStack({ depth, children }: { depth: number; children: ReactElement }) {
   const reduce = useReducedMotion();
+  // One state, so a slow render that React replays after a key press sees the view on screen and the one leaving change together. Kept apart, the replay paired the newly opened view with a stale leaving copy of it, whose `closing` then shut the new one.
+  const [stack, setStack] = useState<Stack>({ shown: { node: children, depth, mount: 0 }, leaving: null, entering: "rest" });
   // The view on screen as it was last drawn, which is what slides away when another takes its place.
-  const [shown, setShown] = useState<Shown>({ node: children, depth, mount: 0 });
-  const [leaving, setLeaving] = useState<Leaving | null>(null);
-  const [entering, setEntering] = useState<Role>("rest");
+  const { shown, leaving, entering } = stack;
   if (shown.node.key !== children.key) {
     const pushed = !reduce && (depth !== shown.depth || depth > 0);
-    setShown({ node: children, depth, mount: shown.mount + 1 });
-    setEntering(pushed ? (depth < shown.depth ? "inBack" : "in") : "rest");
-    // A share swapped for another's leaves a slide that is still running to finish on its own.
-    if (pushed) setLeaving({ node: shown.node, back: depth < shown.depth, mount: shown.mount });
-  } else if (shown.node !== children) setShown({ ...shown, node: children, depth });
+    setStack({
+      shown: { node: children, depth, mount: shown.mount + 1 },
+      entering: pushed ? (depth < shown.depth ? "inBack" : "in") : "rest",
+      // A share swapped for another's leaves a slide that is still running to finish on its own.
+      leaving: pushed ? { node: shown.node, back: depth < shown.depth, mount: shown.mount } : leaving,
+    });
+  } else if (shown.node !== children) setStack({ ...stack, shown: { ...shown, node: children, depth } });
   const gone = leaving?.mount;
   return (
     <View style={styles.stack}>
       {leaving ? (
-        <Slide key={leaving.mount} role={leaving.back ? "outBack" : "out"} onOut={() => setLeaving((now) => (now?.mount === gone ? null : now))}>
+        <Slide key={leaving.mount} role={leaving.back ? "outBack" : "out"} onOut={() => setStack((now) => (now.leaving?.mount === gone ? { ...now, leaving: null } : now))}>
           {cloneElement(leaving.node as ReactElement<Props>, { testID: undefined })}
         </Slide>
       ) : null}
