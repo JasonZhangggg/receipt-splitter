@@ -511,6 +511,16 @@ describe("Payments", () => {
     expect(reasonFor(claimedDinner(), pay(bob, 1800, catsLaptop))).toBe("payerOnly");
   });
 
+  test("the Host's device can check a friend off and clear it again, and History keeps who did it", () => {
+    const annsPhone = deviceId("phone-ann");
+    const dinner = apply(claimedDinner(), { by: ann, type: "pick", participantId: ann, device: annsPhone, takeOver: false });
+    const paid = apply(dinner, { by: ann, type: "recordPayment", participantId: bob, device: annsPhone, amount: cents(1800) });
+
+    expect(paid.payments).toEqual([{ participantId: "bob", amount: 1800 }]);
+    expect(paid.recentChanges.at(-1)).toMatchObject({ by: "ann", writes: [{ kind: "payment", participantId: "bob", before: null, after: 1800 }] });
+    expect(apply(paid, { by: ann, type: "clearPayment", participantId: bob, device: annsPhone }).payments).toEqual([]);
+  });
+
   test("a clearPayment from another device is refused and the Payment stays, and the payer's own clears it", () => {
     const paid = apply(claimedDinner(), pay(bob, 1800));
     const clear = (device: typeof bobsPhone): Operation => ({ by: bob, type: "clearPayment", participantId: bob, device });

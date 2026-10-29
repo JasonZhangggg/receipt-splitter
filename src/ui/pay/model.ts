@@ -138,3 +138,12 @@ export function foldedRows<Row extends Pick<PaymentRow, "id" | "state">>(rows: r
 export function justPaid(share: Cents, before: Cents | null): Cents {
   return cents(share - (before ?? 0));
 }
+
+const fractions: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾" };
+
+/** The Items a person had, by name, with their part of any they shared: "½ Spring rolls, Pho". */
+export function itemsLine(items: readonly { readonly name: string; readonly fraction: readonly [number, number] }[]): string {
+  return items
+    .map(({ name, fraction: [part, whole] }) => (part === whole ? name : `${fractions[`${part}/${whole}`] ?? `${part}/${whole}`} ${name}`))
+    .join(", ");
+}

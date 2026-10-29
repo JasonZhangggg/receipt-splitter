@@ -3,7 +3,7 @@ import { Image, Pressable } from "react-native";
 import type { ParticipantId } from "../../core/split";
 import { arcAt, ring, ringMarkup, type Slice } from "./donut-model";
 
-type Props = { slices: readonly Slice[]; paint: (id: ParticipantId) => string; rested: string; lifted?: ParticipantId | null; closed?: boolean; onPick?: (id: ParticipantId) => void };
+type Props = { slices: readonly Slice[]; paint: (id: ParticipantId) => string; rested: string; lifted?: ParticipantId | null; closed?: boolean; onPick?: (id: ParticipantId | null) => void };
 
 // The image takes in the selected arc's lift and still lays out at `ring.size`.
 const outer = ring.size + 2 * ring.lift;
@@ -19,7 +19,7 @@ export function DonutRing({ slices, paint, rested, lifted = null, closed = false
       style={frame}
       onPress={({ nativeEvent }) => {
         const id = arcAt(slices, nativeEvent.locationX - outer / 2, nativeEvent.locationY - outer / 2);
-        if (id !== null) onPick(id);
+        onPick(id);
       }}
     >
       {image}

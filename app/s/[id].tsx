@@ -568,6 +568,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   useEffect(() => {
     if (paying !== null && idle) payWhenSettled();
   }, [paying, idle]);
+  // On Payments the Host checks a friend off, and anyone can check themselves off, which goes the Pay sheet's way with its Undo.
+  const canCheck = (id: ParticipantId) => me !== null && (id === me || me === split.participants[0].id);
+  const check = (id: ParticipantId, paid: boolean) => {
+    if (me === null) return;
+    if (id === me) return onPaid(paid);
+    const owed = shares.shares.find(({ participantId }) => participantId === id)?.share ?? cents(0);
+    if (!lay(paid ? { by: me, type: "recordPayment", participantId: id, device, amount: owed } : { by: me, type: "clearPayment", participantId: id, device })) setBar({ message: say.connection.failed });
+  };
   const peopleRows: readonly PersonRow[] = people.map((person) => {
     const pick = split.picks.find(({ participantId }) => participantId === person.id);
     return {
@@ -622,7 +630,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     ) : overlay.kind === "totals" ? (
       <TotalsSheet split={split} line={overlay.line} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
-      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
+      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet canCheck={canCheck} onCheck={check} />
     ) : overlay.kind === "people" ? (
       peopleSheet(false)
     ) : overlay.kind === "made" ? (

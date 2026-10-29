@@ -12,8 +12,8 @@ type Props = {
   lifted?: ParticipantId | null;
   /** Everyone has paid: the gaps close into one unbroken ring. */
   closed?: boolean;
-  /** A tap on an arc. The ring stays hidden from assistive tech; the rows are the accessible control. */
-  onPick?: (id: ParticipantId) => void;
+  /** A tap on an arc, or null for a tap on a gap or the hole. The ring stays hidden from assistive tech; the rows are the accessible control. */
+  onPick?: (id: ParticipantId | null) => void;
 };
 
 const middle = ring.size / 2;
@@ -42,7 +42,7 @@ export function DonutRing({ slices, paint, rested, lifted = null, closed = false
         const box = event.currentTarget.getBoundingClientRect();
         const scale = ring.size / box.width;
         const id = arcAt(slices, (event.clientX - box.left - box.width / 2) * scale, (event.clientY - box.top - box.height / 2) * scale);
-        if (id !== null) onPick?.(id);
+        onPick?.(id);
       }}
     >
       {reduce ? null : <style>{draw}</style>}

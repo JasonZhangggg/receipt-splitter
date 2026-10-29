@@ -1,21 +1,21 @@
 import type { Shares } from "../../core/shares";
 import type { ParticipantId } from "../../core/split";
 
-/** One person's arc of the ring. `start` and `fraction` are parts of one full turn, which is the whole Total. */
-export type Slice = { readonly id: ParticipantId; readonly cents: number; readonly start: number; readonly fraction: number };
+/** One person's arc of the ring. `start` and `fraction` are parts of one full turn; `paid` is which of the two groups it sits in. */
+export type Slice = { readonly id: ParticipantId; readonly cents: number; readonly start: number; readonly fraction: number; readonly paid: boolean };
 
 /**
- * Shares plus the unclaimed rest add up to the Total, so the full ring is the Total. Each person's Share is an arc from the top: everyone `paid` says has paid
- * first, then everyone else, each group in chip order, so the paid arcs read as one black sweep from 12 o'clock. The unclaimed rest is not a Slice: `rest` draws it
- * after the last one in a lighter gray. A $0.00 Share gets no arc.
+ * The given Shares plus the unclaimed rest make the full ring. Each person's Share is an arc from the top: everyone `paid` says has paid first, then everyone
+ * else, each group in chip order, so what has been paid reads as one sweep from 12 o'clock and what is still owed as one more. The unclaimed rest is not a Slice:
+ * `rest` draws it after the last one in a lighter gray. A $0.00 Share gets no arc.
  */
-export function slices({ shares, unclaimed }: Pick<Shares, "shares" | "unclaimed">, paid: (id: ParticipantId) => boolean = () => false): Slice[] {
+export function slices({ shares, unclaimed }: { readonly shares: readonly Pick<Shares["shares"][number], "participantId" | "share">[]; readonly unclaimed: Pick<Shares["unclaimed"], "total"> }, paid: (id: ParticipantId) => boolean = () => false): Slice[] {
   const total = shares.reduce((sum, { share }) => sum + share, 0) + unclaimed.total;
   let before = 0;
   return [...shares.filter(({ participantId }) => paid(participantId)), ...shares.filter(({ participantId }) => !paid(participantId))]
     .filter(({ share }) => share > 0)
     .map(({ participantId, share }) => {
-      const slice = { id: participantId, cents: share as number, start: before / total, fraction: share / total };
+      const slice = { id: participantId, cents: share as number, start: before / total, fraction: share / total, paid: paid(participantId) };
       before += share;
       return slice;
     });
@@ -79,24 +79,36 @@ function drawIn(from: number, to: number): Draw {
 export type Arc = { id: ParticipantId; r: number; dash: string; offset: number; draw: Draw };
 
 /**
- * Each arc is a stroked circle cut to its length, so a full ring and a sliver draw the same way. Round caps stand half a stroke past each end, so the cut takes the
- * stroke off too: neighbors, the unclaimed rest among them, leave `ring.gap` px of clear space between their caps. One arc alone has no gap to leave. The `lifted` arc sits `ring.lift` px
- * further out on the same turn, its cut scaled to its radius. A `closed` ring, once everyone has paid, takes no gaps, so its arcs meet as one unbroken ring.
- * `draw` is its part of the draw-in sweep.
+ * Each arc is a stroked circle cut to its length, so a full ring and a sliver draw the same way. Neighbors in the same group, paid or still owed, touch, so the
+ * group reads as one arc. Between groups, and around the unclaimed rest, round caps stand half a stroke past each end, so the cut takes the stroke off too and
+ * leaves `ring.gap` px of clear space between them. The `lifted` arc breaks out of its group the same way and sits `ring.lift` px further out on the same turn,
+ * its cut scaled to its radius. A `closed` ring, once everyone has paid, takes no gaps, so it is one unbroken ring. `draw` is its part of the draw-in sweep.
  */
 export function arcs(all: readonly Slice[], lifted: ParticipantId | null = null, closed = false): Arc[] {
   const radius = (ring.size - ring.thickness) / 2;
   const length = 2 * Math.PI * radius;
-  const trim = pieces(all) > 1 && !closed ? ring.gap + ring.thickness : 0;
-  return all.map(({ id, start, fraction }) => {
+  const left = restOf(all) > 1e-9;
+  const side = (ring.gap + ring.thickness) / 2;
+  const apart = (a: Slice, b: Slice) => a.paid !== b.paid || a.id === lifted || b.id === lifted;
+  // The neighbor before the first arc and after the last is the rest when there is one, or the other end of the ring.
+  const cut = (at: number, by: -1 | 1) => {
+    if (closed || (all.length === 1 && !left)) return 0;
+    const next = at + by;
+    if (next < 0 || next >= all.length) return left ? side : apart(all[at], all[(next + all.length) % all.length]) ? side : 0;
+    return apart(all[at], all[next]) ? side : 0;
+  };
+  return all.map(({ id, start, fraction }, at) => {
     const r = id === lifted ? radius + ring.lift : radius;
     const scale = r / radius;
+    const before = cut(at, -1);
+    const after = cut(at, 1);
+    const from = start + before / length;
     return {
       id,
       r,
-      dash: `${Math.max(0, fraction * length - trim) * scale} ${2 * Math.PI * r}`,
-      offset: -(start * length + trim / 2) * scale,
-      draw: drawIn(start + trim / 2 / length, Math.max(start + trim / 2 / length, start + fraction - trim / 2 / length)),
+      dash: `${Math.max(0, fraction * length - before - after) * scale} ${2 * Math.PI * r}`,
+      offset: -(start * length + before) * scale,
+      draw: drawIn(from, Math.max(from, start + fraction - after / length)),
     };
   });
 }
