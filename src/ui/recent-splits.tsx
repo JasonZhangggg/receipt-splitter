@@ -2,7 +2,7 @@ import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { RecentSplit } from "../device";
-import { money } from "../draft";
+import { money } from "../core/currency";
 import { scrollViewTouchDelay, useHeld, type Press } from "./components/button";
 import { TextLink } from "./components/text-link";
 import { historyCopy as say } from "./home-copy";
@@ -66,13 +66,13 @@ function Rows({ splits, now }: { splits: readonly RecentSplit[]; now: number }) 
   return splits.map((split) => <HistoryRow key={split.id} split={split} now={now} />);
 }
 
-function HistoryRow({ split: { id, names, you, place, total, added }, now }: { split: RecentSplit; now: number }) {
+function HistoryRow({ split: { id, names, you, place, total, currency, added }, now }: { split: RecentSplit; now: number }) {
   const c = useColors();
   const { held, press, release } = useHeld();
   const who = say.names(names);
   const when = say.when(added, now);
   const people = say.people(names.length);
-  const amount = money(total);
+  const amount = money(total, currency);
   const lines = say.lines(place, who, when, people);
   // The first name is the Host's, who paid the bill.
   const payer = say.paid(you === 0 ? null : (names[0]?.trim().split(/\s+/)[0] ?? ""));

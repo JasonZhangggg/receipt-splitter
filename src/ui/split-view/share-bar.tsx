@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { money } from "../../draft";
+import { money } from "../../core/currency";
+import { useCurrency } from "../currency";
 import { useReducedMotion, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { motion, type, useColors } from "../theme";
@@ -13,6 +14,7 @@ type Props = BillParts & {
 
 /** The bill as one thin bar: the viewed share in ink, everyone else's in gray, and the unclaimed rest as the bare track. */
 export function ShareBar({ mine, others, unclaimed, legend }: Props) {
+  const currency = useCurrency();
   const c = useColors();
   const reduce = useReducedMotion();
   const total = Math.max(mine + others + unclaimed, 1);
@@ -27,7 +29,7 @@ export function ShareBar({ mine, others, unclaimed, legend }: Props) {
         <View style={styles.legend}>
           <Key color={c.ink} label={legend} />
           <Key color={c.dash} label={say.everyoneElse} />
-          {unclaimed > 0 ? <Key color={c.off} label={`${say.unclaimed} ${money(unclaimed)}`} /> : null}
+          {unclaimed > 0 ? <Key color={c.off} label={`${say.unclaimed} ${money(unclaimed, currency)}`} /> : null}
         </View>
       ) : null}
     </View>

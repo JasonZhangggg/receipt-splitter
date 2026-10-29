@@ -9,14 +9,14 @@ import { Icon, type IconName } from "./icon";
 export const underline = { textDecorationLine: "underline", textDecorationThickness: "1px", textUnderlineOffset: "3px" } as TextStyle;
 export const linkPress = { scale: 0.97, pressIn: 100 };
 
-type Props = { center?: boolean; ink?: boolean; /** Body size, for a link that leads to a page of its own. */ body?: boolean; label: string; onPress: (press: Press) => void; name?: string; plus?: boolean; /** A glyph before the words, in the link's ink. */ icon?: IconName; outsideScroll?: boolean; expanded?: boolean; popup?: "dialog"; busy?: boolean };
+type Props = { center?: boolean; ink?: boolean; /** Body size, for a link that leads to a page of its own. */ body?: boolean; label: string; onPress: (press: Press) => void; name?: string; plus?: boolean; /** A glyph before the words, in the link's ink. */ icon?: IconName; outsideScroll?: boolean; /** Takes no focus from a field being edited. */ keepsFocus?: boolean; expanded?: boolean; popup?: "dialog"; busy?: boolean };
 
 /** A quiet underlined action in the muted ink, or the strong ink with `ink`, at caption size or `body` size. With `plus` the "+" leads it and only the words are underlined. */
-export function TextLink({ center = false, ink = false, body = false, label, onPress, name, plus = false, icon, outsideScroll, expanded, popup, busy = false }: Props) {
+export function TextLink({ center = false, ink = false, body = false, label, onPress, name, plus = false, icon, outsideScroll, keepsFocus, expanded, popup, busy = false }: Props) {
   const c = useColors();
   const reduce = useReducedMotion();
   return (
-    <PressTarget name={name} onPress={onPress} outsideScroll={outsideScroll} expanded={expanded} popup={popup} busy={busy} disabled={busy} style={(pressed) => [styles.target, center && styles.centered, busy && styles.waiting, pressStyle(pressed, reduce, linkPress)]}>
+    <PressTarget name={name} onPress={onPress} outsideScroll={outsideScroll} keepsFocus={keepsFocus} expanded={expanded} popup={popup} busy={busy} disabled={busy} style={(pressed) => [styles.target, center && styles.centered, busy && styles.waiting, pressStyle(pressed, reduce, linkPress)]}>
       {() => (
         <View style={styles.face}>
           {plus ? <Icon name="plus" size={12} color={c.muted} /> : null}

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Text } from "react-native";
 
+import type { Currency } from "../../core/currency";
 import type { Cents } from "../../core/money";
-import { money } from "../../draft";
+import type { Press } from "../components/button";
 import { copy } from "../home-copy";
 import { webStyle } from "../motion";
-import { tabular, useColors } from "../theme";
+import { useColors } from "../theme";
+import { CurrencyWord } from "./currency-word";
 import { PlaceWord } from "./place-word";
 import { Act, Glued, Words } from "./words";
 
@@ -20,8 +22,25 @@ const rollIn = { dataSet: { stepRollIn: "" } };
 // Focus lands on the clause when the button the person pressed leaves. A ring around the whole clause would only be noise.
 const landing = { tabIndex: -1, style: webStyle({ outlineStyle: "none" } as never) } as object;
 
-/** The sentence's first clause: "I paid the bill. Add the receipt.", the step word while it reads, then "I paid $X at <place>. Change." (the place only when the server read one; a tap on it edits it) or, when no item was read, "I paid the bill. Try another photo." */
-export function ReceiptWords({ state, onChoose, onByHand, onPlace }: { state: ReceiptState; onChoose: () => void; onByHand: () => void; onPlace: (name: string) => void }) {
+/** The sentence's first clause: "I paid the bill. Add the receipt.", the step word while it reads, then "I paid $X at <place>. Change." (the place only when the server read one; a tap on it edits it, and a tap on the amount picks its currency) or, when no item was read, "I paid the bill. Try another photo." */
+export function ReceiptWords({
+  state,
+  currency,
+  menu,
+  onChoose,
+  onByHand,
+  onPlace,
+  onCurrency,
+}: {
+  state: ReceiptState;
+  currency: Currency;
+  /** Whether the currency menu is open. */
+  menu: boolean;
+  onChoose: () => void;
+  onByHand: () => void;
+  onPlace: (name: string) => void;
+  onCurrency: (press: Press) => void;
+}) {
   // Back to a home that already holds a read paints it settled; only a read that finishes in front of the person fades in.
   const [arrived] = useState(state.kind);
   const clause = useRef<Text>(null);
@@ -75,9 +94,7 @@ export function ReceiptWords({ state, onChoose, onByHand, onPlace }: { state: Re
           <Words>{copy.sentence.iPaid}</Words>{" "}
           {/* Only the amount and the place are new; "I paid" and "Change" were there as words already. */}
           <Text {...(arrived === "read" ? null : stepIn)}>
-            <Text style={tabular}>
-              <Words ink>{money(state.total)}</Words>
-            </Text>
+            <CurrencyWord total={state.total} currency={currency} open={menu} onOpen={onCurrency} />
             {state.place === null ? null : (
               <>
                 {" "}

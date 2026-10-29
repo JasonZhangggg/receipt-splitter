@@ -1,7 +1,7 @@
 import { applyOperation } from "../../core/operations";
 import { sameMoney } from "../../core/shares";
 import type { Change, ItemId, ItemSplit, ParticipantId, Split, Write } from "../../core/split";
-import { groupedAmount, money } from "../../draft";
+import { groupedAmount, money } from "../../core/currency";
 import { splitCopy as say } from "../split-copy";
 import { nameParts } from "../split-view/model";
 
@@ -99,12 +99,15 @@ function entry(split: Split, change: Change, writes: readonly Shown[], at: numbe
   };
 }
 
+/** A charge or discount by its size: a discount reads as the amount it takes off, without a minus sign. */
+const size = (amount: number, split: Split, format = groupedAmount) => format(Math.abs(amount), split.currency);
+
 function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "after"> {
   switch (write.kind) {
     case "item":
     case "adjustment": {
-      if ("added" in write) return { lead: `Added ${write.added.name}` };
-      if ("removed" in write) return { lead: say.deleted(write.removed.name) };
+      if ("added" in write) return { lead: `Added ${write.added.name}${write.kind === "adjustment" ? ` · ${size(write.added.amount, split, money)}` : ""}` };
+      if ("removed" in write) return { lead: `${say.deleted(write.removed.name)}${write.kind === "adjustment" ? ` · ${size(write.removed.amount, split, money)}` : ""}` };
       const rows: readonly { readonly id: string; readonly name: string }[] = write.kind === "item" ? split.receipt.items : split.receipt.adjustments;
       const name = rows.find(({ id }) => id === write.id)?.name ?? "An item";
       const edit = write.edit;
@@ -114,14 +117,14 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
       }
       if ("name" in edit && edit.name) return { lead: "", before: edit.name[0], after: edit.name[1] };
       if ("quantity" in edit && edit.quantity) return { lead: name, before: `×${edit.quantity[0]}`, after: `×${edit.quantity[1]}` };
-      if ("price" in edit && edit.price) return { lead: name, before: groupedAmount(edit.price[0]), after: groupedAmount(edit.price[1]) };
+      if ("price" in edit && edit.price) return { lead: name, before: groupedAmount(edit.price[0], split.currency), after: groupedAmount(edit.price[1], split.currency) };
       if ("detail" in edit && edit.detail) {
         const [before = "", after = ""] = edit.detail;
         if (!before) return { lead: `Added "${after}" to ${name}` };
         if (!after) return { lead: `Removed "${before}" from ${name}` };
         return { lead: name, before, after };
       }
-      if ("amount" in edit && edit.amount) return { lead: name, before: groupedAmount(edit.amount[0]), after: groupedAmount(edit.amount[1]) };
+      if ("amount" in edit && edit.amount) return { lead: name, before: size(edit.amount[0], split), after: size(edit.amount[1], split) };
       if ("split" in edit && edit.split) {
         const [before, after] = edit.split;
         return before.by === after.by ? { lead: `Changed how ${name} is split` } : { lead: `${name} split`, before: splitWord(before), after: splitWord(after) };
@@ -130,13 +133,16 @@ function describe(write: Shown, split: Split): Pick<Entry, "lead" | "before" | "
     }
     case "split":
       return { lead: `Split ${split.receipt.items.find(({ id }) => id === write.id)?.name ?? "An item"} into ${write.line.quantity}` };
-    case "totals":
-      return { lead: write.totalDelta < 0 ? `Total down ${money(-write.totalDelta)}` : `Total up ${money(write.totalDelta)}` };
+    case "totals": {
+      // A Subtotal set by hand moves only the Subtotal, so the line names it rather than a Total that stayed put.
+      const [word, delta] = write.totalDelta === 0 ? ["Subtotal", write.subtotalDelta] : ["Total", write.totalDelta];
+      return { lead: delta < 0 ? `${word} down ${money(-delta, split.currency)}` : `${word} up ${money(delta, split.currency)}` };
+    }
     case "participant":
       return { lead: say.removedPerson(write.removed.name) };
     case "payment": {
       const payer = split.participants.find(({ id }) => id === write.participantId)?.name ?? "Someone";
-      return write.after === null ? { lead: `${payer} marked unpaid` } : { lead: `${payer} paid ${money(write.after)}` };
+      return write.after === null ? { lead: `${payer} marked unpaid` } : { lead: `${payer} paid ${money(write.after, split.currency)}` };
     }
   }
 }

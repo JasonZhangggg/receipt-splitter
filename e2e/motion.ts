@@ -542,6 +542,15 @@ const itemProbes: Probe[] = [
   sheetDim,
   splitTop,
 ];
+const totalsProbes: Probe[] = [{ key: "totals", find: testId("totals-sheet"), kind: "top" }, sheetDim, splitTop];
+const openSubtotal = (page: Page) => tap(page.getByRole("button", { name: /^Open Subtotal/ }));
+
+async function subtotalOpen(page: Page) {
+  await picked(page);
+  await openSubtotal(page);
+  await still(page.getByTestId("totals-sheet"));
+}
+
 const toggleBundle = (page: Page) => tap(page.locator('[data-testid^="bundle-"]').locator("[aria-controls]"));
 const openItem = (page: Page) => tap(page.getByRole("button", { name: /^Open Rice/ }));
 
@@ -958,6 +967,14 @@ const sheetAndHome: Scenario[] = [
   bundleExpand,
   bundleCollapse,
   itemOpenScenario,
+  { id: "subtotal-open", name: "Subtotal sheet opens", setup: picked, act: openSubtotal, probes: totalsProbes },
+  {
+    id: "subtotal-close",
+    name: "Subtotal sheet closes on a tap on the page above it",
+    setup: subtotalOpen,
+    act: (page) => tapAt(page, { x: 30, y: 16 }),
+    probes: totalsProbes,
+  },
   {
     id: "item-close",
     name: "Item sheet closes on a tap on the page above it",

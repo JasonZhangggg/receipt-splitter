@@ -1,3 +1,4 @@
+import { isCurrency, type Currency } from "./core/currency";
 import { isCents, type Cents } from "./core/money";
 import { BROWSER_DEVICE_LENGTH } from "./core/pick-device";
 import { deviceId, isId, PAYMENT_SERVICES, randomId, type DeviceId, type ParticipantId, type PaymentService, type Split, type SplitId } from "./core/split";
@@ -9,10 +10,10 @@ export type SplitOnDevice = { readonly creatorSecret?: string; readonly me?: Par
 const RECENT_VERSION = 2;
 
 /** What home lists for a Split this device opened, read from the Split the page already holds. */
-type Recent = { readonly v: typeof RECENT_VERSION; readonly names: readonly string[]; readonly you?: number; readonly place?: string; readonly total: Cents; readonly added: number; readonly seen: number };
+type Recent = { readonly v: typeof RECENT_VERSION; readonly names: readonly string[]; readonly you?: number; readonly place?: string; readonly total: Cents; readonly currency?: Currency; readonly added: number; readonly seen: number };
 
 /** `names` is everyone in the Split; `you` is this device's place in it, when the device knows it. */
-export type RecentSplit = { readonly id: SplitId; readonly names: readonly string[]; readonly you?: number; readonly place?: string; readonly total: Cents; readonly added: number };
+export type RecentSplit = { readonly id: SplitId; readonly names: readonly string[]; readonly you?: number; readonly place?: string; readonly total: Cents; readonly currency: Currency; readonly added: number };
 
 type SplitRecord = SplitOnDevice & { readonly recent?: Recent };
 
@@ -29,10 +30,10 @@ const storage = () => globalThis.localStorage as Storage | undefined;
 
 function parseRecent(value: unknown): Recent | undefined {
   if (typeof value !== "object" || value === null) return undefined;
-  const { v, names, you, place, total, added, seen } = value as Record<string, unknown>;
+  const { v, names, you, place, total, currency, added, seen } = value as Record<string, unknown>;
   if (v !== RECENT_VERSION || !Array.isArray(names) || !names.every((name) => typeof name === "string") || !isCents(total)) return undefined;
   if (typeof added !== "number" || typeof seen !== "number") return undefined;
-  return { v, names, ...(typeof you === "number" && Number.isInteger(you) && you >= 0 && you < names.length ? { you } : null), ...(typeof place === "string" && place !== "" ? { place } : null), total, added, seen };
+  return { v, names, ...(typeof you === "number" && Number.isInteger(you) && you >= 0 && you < names.length ? { you } : null), ...(typeof place === "string" && place !== "" ? { place } : null), total, ...(isCurrency(currency) && currency !== "USD" ? { currency } : null), added, seen };
 }
 
 /** Whether the record holds a `recent` entry this version cannot read. */
@@ -116,7 +117,7 @@ export function noteSplit(split: Split, now = Date.now()) {
   // The Host made the Split on the device that holds its secret, so that device is the first name until it picks another.
   const you = split.participants.findIndex(({ id }) => id === record.me);
   const place = you >= 0 ? you : record.creatorSecret !== undefined ? 0 : -1;
-  const recent: Recent = { v: RECENT_VERSION, names: split.participants.map(({ name }) => name), ...(place >= 0 ? { you: place } : null), ...(split.place === undefined ? null : { place: split.place }), total: split.receipt.total, added: record.recent?.added ?? now, seen: now };
+  const recent: Recent = { v: RECENT_VERSION, names: split.participants.map(({ name }) => name), ...(place >= 0 ? { you: place } : null), ...(split.place === undefined ? null : { place: split.place }), total: split.receipt.total, ...(split.currency === "USD" ? null : { currency: split.currency }), added: record.recent?.added ?? now, seen: now };
   writeRecord(split.id, { ...record, recent });
   const listed = storedIds()
     .flatMap((id) => {
@@ -132,7 +133,7 @@ export function recentSplits(now = Date.now()): readonly RecentSplit[] {
   return storedIds()
     .flatMap((id) => {
       const { recent } = readRecord(keyOf(id));
-      return recent && now - recent.seen <= LISTED_FOR_MS ? [{ id, names: recent.names, ...(recent.you === undefined ? null : { you: recent.you }), ...(recent.place === undefined ? null : { place: recent.place }), total: recent.total, added: recent.added }] : [];
+      return recent && now - recent.seen <= LISTED_FOR_MS ? [{ id, names: recent.names, ...(recent.you === undefined ? null : { you: recent.you }), ...(recent.place === undefined ? null : { place: recent.place }), total: recent.total, currency: recent.currency ?? "USD", added: recent.added }] : [];
     })
     .sort((a, b) => b.added - a.added);
 }

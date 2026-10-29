@@ -4,7 +4,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { MAX_CENTS } from "../../core/money";
 import { MAX_ROW_NAME_LENGTH } from "../../core/operations";
 import { RECEIPT_LEVEL_KINDS, adjustmentId, itemId, randomId, type ParticipantId, type ReceiptLevelKind, type Split } from "../../core/split";
-import { money, plainAmount } from "../../draft";
+import { money, plainAmount, symbolOf, type Currency } from "../../core/currency";
 import type { Lay } from "../lay";
 import { adjustmentProblem, newAdjustment, takesOff, tidyAmount, type AdjustmentProblem } from "../adjustment-sheet/adjustment";
 import { Button } from "../components/button";
@@ -25,9 +25,8 @@ type Props = {
 type Kind = "item" | ReceiptLevelKind;
 const kinds: readonly Kind[] = ["item", ...RECEIPT_LEVEL_KINDS];
 const labels: Record<Kind, string> = { item: say.item, ...say.kinds };
-const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
-
-function problemText(problem: NewItemProblem | AdjustmentProblem, item: boolean): string {
+function problemText(problem: NewItemProblem | AdjustmentProblem, item: boolean, currency: Currency): string {
+  const maxAmount = money(MAX_CENTS, currency);
   if (problem === "overLimit") return item ? say.addProblem.overLimit(maxAmount) : say.adjustmentProblem.overLimit(maxAmount);
   return item ? say.addProblem[problem as Exclude<NewItemProblem, "overLimit">] : say.adjustmentProblem[problem as Exclude<AdjustmentProblem, "overLimit">];
 }
@@ -35,6 +34,8 @@ function problemText(problem: NewItemProblem | AdjustmentProblem, item: boolean)
 /** A new Item, tax, tip, fee or discount as one form: nothing reaches the Split until Add, so other phones never see it half typed. */
 export function AddSheet({ split, me, lay, onClose }: Props) {
   const c = useColors();
+  const { currency } = split;
+  const sign = symbolOf(currency);
   // Minted once, so a retry after a lost answer cannot add the line twice.
   const [ids] = useState(() => ({ item: itemId(randomId(12)), adjustment: adjustmentId(randomId(12)) }));
   const [kind, setKind] = useState<Kind>("item");
@@ -54,7 +55,7 @@ export function AddSheet({ split, me, lay, onClose }: Props) {
     if (has(split)) return onClose();
     const answer = isItem ? newItem(split, { name, price: amount, quantity }, ids.item, me) : newAdjustment(split, { kind, name, amount }, ids.adjustment, me);
     if (!answer.ok) {
-      setProblem(problemText(answer.problem, isItem));
+      setProblem(problemText(answer.problem, isItem, currency));
       if (answer.problem === "name") nameField.current?.focus();
       if (answer.problem === "price" || answer.problem === "amount" || answer.problem === "overLimit") amountField.current?.focus();
       if (answer.problem === "quantity") quantityField.current?.focus();
@@ -63,8 +64,8 @@ export function AddSheet({ split, me, lay, onClose }: Props) {
     // The line is on the page the moment it is sent, so the sheet closes with it. A refusal takes the line off again and the bar says why, with Try again when the cause is the connection.
     // The ids were minted once, so Try again cannot add the line twice.
     const said = ({ rejection }: { readonly rejection: { readonly reason: Parameters<typeof problemFor>[0] } }) =>
-      problemText(isItem ? problemFor(rejection.reason) : adjustmentProblem(rejection.reason), isItem);
-    if (!lay(answer.op, { said, retry: true })) return setProblem(problemText("offline", isItem));
+      problemText(isItem ? problemFor(rejection.reason) : adjustmentProblem(rejection.reason), isItem, currency);
+    if (!lay(answer.op, { said, retry: true })) return setProblem(problemText("offline", isItem, currency));
     setSending(true);
     onClose();
   };
@@ -105,14 +106,14 @@ export function AddSheet({ split, me, lay, onClose }: Props) {
         <MoneyField
           ref={amountField}
           label={isItem ? say.price : off ? say.amountOff : say.amount}
-          unit={off ? "-$" : "$"}
+          unit={off ? `-${sign}` : sign}
           placeholder={say.pricePlaceholder}
           value={amount}
           onChangeText={(next) => {
             setAmount(next);
             setProblem(null);
           }}
-          onBlur={() => setAmount(tidyAmount)}
+          onBlur={() => setAmount((was) => tidyAmount(was, currency))}
           enterKeyHint={isItem ? "next" : "done"}
           submitBehavior={isItem ? "submit" : "blurAndSubmit"}
           onSubmitEditing={() => (isItem ? quantityField.current?.focus() : add())}
@@ -139,12 +140,12 @@ export function AddSheet({ split, me, lay, onClose }: Props) {
       </View>
       {missing !== null ? (
         <View style={styles.offer}>
-          <Text style={[type.caption, { color: c.muted }]}>{say.shortfall(money(missing))}</Text>
+          <Text style={[type.caption, { color: c.muted }]}>{say.shortfall(money(missing, currency))}</Text>
           <TextLink
-            label={say.useAmount(money(missing))}
+            label={say.useAmount(money(missing, currency))}
             outsideScroll
             onPress={() => {
-              setAmount(plainAmount(missing));
+              setAmount(plainAmount(missing, currency));
               setProblem(null);
             }}
           />

@@ -1,4 +1,5 @@
 import { fromLegacy, type LegacyChange, type LegacyItemSplit, type LegacyItemWrite, type LegacySplit } from "./legacy";
+import { isCurrency } from "./currency";
 import { isCents, isPrice } from "./money";
 import { pickDevice } from "./pick-device";
 import {
@@ -193,6 +194,8 @@ const adjustmentId = check(isId<"AdjustmentId">);
 const participantId = check(isId<"ParticipantId">);
 const deviceId = check(isId<"DeviceId">);
 const receiptLevelKind = oneOf(RECEIPT_LEVEL_KINDS);
+const currency = check(isCurrency);
+
 const schemaVersion = check((input): input is SchemaVersion => input === 1 || input === 2 || input === 3 || input === 4);
 
 function pair<T>(parser: Parser<T>): Parser<readonly [T, T]> {
@@ -413,6 +416,7 @@ function receipt<I, A>(itemParser: Parser<I>, adjustmentParser: Parser<A>, maxIt
 const participants = nonEmpty(participant, MAX_PARTICIPANTS);
 
 const newSplit: Parser<Omit<NewSplit, "id">> = strict(({ read, maybe }) => ({
+  ...maybe("currency", currency),
   ...maybe("place", text),
   receipt: read("receipt", receipt(receiptItem, anyAdjustment)),
   participants: read("participants", participants),
@@ -451,7 +455,7 @@ const split: Parser<Split> = strict((fields) => {
 function splitFields<R, O, C>({ read, maybe, has, fail }: Fields, rows: { readonly receipt: Parser<R>; readonly original: Parser<O>; readonly change: Parser<C> }) {
   return {
     id: read("id", splitId),
-    currency: read("currency", literal("USD")),
+    currency: read("currency", currency),
     ...maybe("place", text),
     receipt: read("receipt", rows.receipt),
     ...maybe("original", rows.original),
@@ -540,6 +544,8 @@ const operationVariants: { readonly [Type in Operation["type"]]: Parser<Extract<
     ...maybe("subtotalDelta", cents),
     ...maybe("totalDelta", cents),
     ...maybe("totalFollows", check((input): input is true => input === true)),
+    ...maybe("subtotal", cents),
+    ...maybe("total", cents),
   })),
   addParticipant: op("addParticipant", ({ read }) => ({ participant: read("participant", participant) })),
   removeParticipant: op("removeParticipant", ({ read }) => ({ participantId: read("participantId", participantId) })),

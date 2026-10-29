@@ -79,6 +79,19 @@ describe("historyOf", () => {
     expect(history.map(({ lead }) => lead)).toEqual(["Deleted Fries", "Added Fries"]);
   });
 
+  test("an added or deleted charge or discount says how much it was", () => {
+    const fee = adjustmentId("fee");
+    const history = historyOf(
+      split(
+        { by: sam, type: "editReceipt", adjustments: [{ type: "add", adjustment: { id: fee, kind: "serviceCharge", name: "Bag fee", amount: cents(300) }, index: 1 }], totalDelta: cents(300) },
+        { by: sam, type: "editReceipt", adjustments: [{ type: "add", adjustment: { id: adjustmentId("promo"), kind: "discount", name: "Promo", amount: cents(-100) }, index: 2 }], totalDelta: cents(-100) },
+        { by: sam, type: "editReceipt", adjustments: [{ type: "delete", adjustmentId: adjustmentId("tip") }], totalDelta: cents(-50) },
+      ),
+    );
+
+    expect(history.map(({ lead }) => lead)).toEqual(["Deleted Tip · $0.50", "Added Promo · $1.00", "Added Bag fee · $3.00"]);
+  });
+
   test("a change of split reads in words, never as a ratio, and back-to-back switches by one person read as one entry from the first to the last", () => {
     const history = historyOf(
       split(
@@ -275,5 +288,12 @@ describe("restoreChanges", () => {
     if (!added.ok) throw new Error(JSON.stringify(added.rejection));
     expect(added.split.receipt.items).toHaveLength(1);
     expect(restoreChanges(added.split)).toBe(false);
+  });
+});
+
+describe("a Subtotal or Total set by hand", () => {
+  test("names the figure that moved", () => {
+    const leads = historyOf(split({ by: ann, type: "editReceipt", subtotal: cents(200) }, { by: ann, type: "editReceipt", total: cents(325) })).map(({ lead }) => lead);
+    expect(leads).toEqual(["Total up $0.25", "Subtotal down $0.50"]);
   });
 });

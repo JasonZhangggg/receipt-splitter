@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { cents, price } from "../../core/money";
 import { computeShares, type Shares } from "../../core/shares";
 import { adjustmentId, itemId, participantId, type ItemSplit, type Split } from "../../core/split";
-import { foldedRows, hostCollected, justPaid, payState, paymentStatus, paymentSections, pickedRow, shareStatus, statusWords } from "./model";
+import { foldedRows, hostCollected, justPaid, payState, paymentStatus, itemsLine, shareStatus, statusWords } from "./model";
 
 describe("payState", () => {
   test("reads nothing for a $0.00 or negative Share with no Payment, and unpaid with the Share owed otherwise", () => {
@@ -40,7 +40,7 @@ describe("shareStatus and statusWords", () => {
     { participantId: "priya", amount: cents(931) },
     { participantId: "lee", amount: cents(4000) },
   ] as unknown as Split["payments"];
-  const words = (person: string, viewer: string, paid = payments) => statusWords(shareStatus(shares, paid, participantId(person), participantId(viewer)));
+  const words = (person: string, viewer: string, paid = payments) => statusWords(shareStatus(shares, paid, participantId(person), participantId(viewer)), "USD");
 
   test("says nothing before a payment, then what was paid and how far off it is", () => {
     expect([words("kim", "jason"), words("ana", "jason"), words("priya", "jason"), words("lee", "lee"), words("sam", "priya")]).toEqual([
@@ -50,6 +50,10 @@ describe("shareStatus and statusWords", () => {
       "Paid $40.00 · $13.47 still owed",
       "Paid $106.94 · $53.47 too much",
     ]);
+  });
+
+  test("writes the amounts in the Split's currency", () => {
+    expect(statusWords(shareStatus(shares, payments, participantId("priya"), participantId("jason")), "EUR")).toBe("Paid €9.31");
   });
 
   test("counts for the Host who has paid them out of everyone who owes something, settled and overpaid as paid", () => {
@@ -79,7 +83,7 @@ describe("paymentStatus", () => {
   const payments = paying([sam, 2200], [priya, 1400], [lee, 800]);
 
   test("lists everyone in chip order with the share and the paid state in words", () => {
-    expect(paymentStatus({ participants, payments }, mixed, jason).rows.map(({ name, share, state, words }) => [name, share, state, words])).toEqual([
+    expect(paymentStatus({ participants, payments, currency: "USD" }, mixed, jason).rows.map(({ name, share, state, words }) => [name, share, state, words])).toEqual([
       ["Jason", 1000, "host", "You get paid"],
       ["Sam", 2600, "short", "Paid $22.00 · $4.00 still owed"],
       ["Priya", 1400, "settled", "Paid $14.00"],
@@ -90,27 +94,27 @@ describe("paymentStatus", () => {
   });
 
   test("words settled, short and over exactly as the line under the share does", () => {
-    const rows = paymentStatus({ participants, payments }, mixed, jason).rows;
-    const line = (person: (typeof people)[number]) => statusWords(shareStatus(mixed, payments, person, jason));
+    const rows = paymentStatus({ participants, payments, currency: "USD" }, mixed, jason).rows;
+    const line = (person: (typeof people)[number]) => statusWords(shareStatus(mixed, payments, person, jason), "USD");
     expect([sam, priya, lee].map((id) => rows.find((row) => row.id === id)?.words)).toEqual([sam, priya, lee].map(line));
   });
 
   test("counts the people paid in full (settled or over, not short) out of the people who owe or paid, never the Host, and a $0 share owes nobody", () => {
-    const status = paymentStatus({ participants, payments }, mixed, jason);
+    const status = paymentStatus({ participants, payments, currency: "USD" }, mixed, jason);
     expect([status.paid, status.owing, status.summary]).toEqual([2, 4, "2 of 4 paid you"]);
   });
 
   test("words the summary for everyone but the Host without 'you', and the Host row as theirs", () => {
-    const status = paymentStatus({ participants, payments }, mixed, sam);
+    const status = paymentStatus({ participants, payments, currency: "USD" }, mixed, sam);
     expect([status.summary, status.rows[0].words]).toEqual(["2 of 4 paid", "Gets paid"]);
   });
 
   test("has no summary while nobody owes anything", () => {
-    expect(paymentStatus({ participants, payments: paying() }, shares([1000, 0, 0, 0, 0, 0]), jason).summary).toBeNull();
+    expect(paymentStatus({ participants, payments: paying(), currency: "USD" }, shares([1000, 0, 0, 0, 0, 0]), jason).summary).toBeNull();
   });
 
   test("reads a payer whose share fell to $0 as paid too much, and counts them paid", () => {
-    const status = paymentStatus({ participants, payments: paying([zoe, 500]) }, mixed, jason);
+    const status = paymentStatus({ participants, payments: paying([zoe, 500]), currency: "USD" }, mixed, jason);
     expect([status.rows[5].words, status.paid, status.owing]).toEqual(["Paid $5.00 · $5.00 too much", 1, 5]);
   });
 
@@ -124,23 +128,10 @@ describe("paymentStatus", () => {
     });
     const recorded = paying([sam, 1200]);
     const wordsFor = (rice: ItemSplit) => {
-      const split = { receipt: receipt(rice), participants: three, payments: recorded };
+      const split = { receipt: receipt(rice), participants: three, payments: recorded, currency: "USD" as const };
       return paymentStatus(split, computeShares(split), jason).rows[1].words;
     };
     expect([wordsFor({ by: "even", units: [[sam]] }), wordsFor({ by: "even", units: [[sam, priya]] })]).toEqual(["Paid $12.00", "Paid $12.00 · $6.00 too much"]);
-  });
-});
-
-describe("pickedRow", () => {
-  const rows = ["jason", "sam", "priya"].map((id) => ({ id: participantId(id), name: id })) as unknown as Parameters<typeof pickedRow>[0];
-  const [jason, sam, priya] = rows.map(({ id }) => id);
-
-  test("shows the person tapped, else the viewer's own row, else the first row", () => {
-    expect([pickedRow(rows, sam, priya), pickedRow(rows, null, priya), pickedRow(rows, null, null)].map((row) => row.id)).toEqual([sam, priya, jason]);
-  });
-
-  test("falls back to the viewer when the person tapped was removed from the Split", () => {
-    expect(pickedRow(rows.filter(({ id }) => id !== sam), sam, priya).id).toBe(priya);
   });
 });
 
@@ -190,37 +181,11 @@ describe("foldedRows", () => {
   });
 });
 
-describe("paymentSections", () => {
-  const rows = [
-    { id: participantId("jason"), state: "host" as const, share: cents(0) },
-    { id: participantId("sam"), state: "settled" as const, share: cents(1420) },
-    { id: participantId("priya"), state: "unpaid" as const, share: cents(1400) },
-    { id: participantId("lee"), state: "over" as const, share: cents(1000) },
-    { id: participantId("ana"), state: "short" as const, share: cents(2200) },
-    { id: participantId("kim"), state: "unpaid" as const, share: cents(600) },
-  ];
-  const payments = [
-    { participantId: participantId("sam"), amount: cents(1420) },
-    { participantId: participantId("lee"), amount: cents(1600) },
-    { participantId: participantId("ana"), amount: cents(800) },
-  ] as unknown as Split["payments"];
-  const read = (viewer: string | null) =>
-    paymentSections(rows, payments, viewer === null ? null : participantId(viewer)).map(({ kind, rows: part, amount }) => ({ kind, ids: part.map(({ id }) => id), amount }));
-
-  test("puts everyone not paid or paid short first with what is left, then the Host and everyone paid with what came in", () => {
-    expect(read(null)).toEqual([
-      { kind: "owed", ids: ["priya", "ana", "kim"], amount: 3400 },
-      { kind: "paid", ids: ["jason", "sam", "lee"], amount: 3020 },
-    ]);
-  });
-
-  test("puts the viewer first within their own part", () => {
-    expect(read("kim").map(({ ids }) => ids)).toEqual([["kim", "priya", "ana"], ["jason", "sam", "lee"]]);
-    expect(read("sam").map(({ ids }) => ids)).toEqual([["priya", "ana", "kim"], ["sam", "jason", "lee"]]);
-  });
-
-  test("leaves out a part with nobody in it", () => {
-    expect(paymentSections(rows.slice(0, 2), payments, null).map(({ kind }) => kind)).toEqual(["paid"]);
+describe("itemsLine", () => {
+  test("names each Item, with the part of any the person shared", () => {
+    const item = (name: string, fraction: readonly [number, number]) => ({ name, fraction });
+    expect(itemsLine([item("Pho", [1, 1]), item("Spring rolls", [1, 2]), item("Wings", [2, 3]), item("Rice", [2, 5])])).toBe("Pho, ½ Spring rolls, ⅔ Wings, 2/5 Rice");
+    expect(itemsLine([])).toBe("");
   });
 });
 

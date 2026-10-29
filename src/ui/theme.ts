@@ -113,5 +113,6 @@ export const motion = {
   footerIn: 240,
   controlIn: 200,
   dragOver: 150,
+  columnPush: 300,
   spinnerTurn: 800,
 } as const;

@@ -84,6 +84,8 @@ async function pick(page: Page, name: string) {
   await asking(page).getByRole("button", { name, exact: true }).click();
   await expect(shareColumn(page)).toBeVisible(live);
   await expect(asking(page)).toHaveCount(0, live);
+  // The share view slides back in over the pick; it rests in place once the pick has slid away and nothing is inert.
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll("[inert]").length), live).toBe(0);
 }
 
 async function second(browser: Browser, link: string, name: string, size: { width: number; height: number }): Promise<Page> {
@@ -163,10 +165,10 @@ for (const size of sizes) {
       await expect(circle(page, "Sprite", "Sam")).toBeVisible();
     });
 
-    test("Close, just look leaves the receipt, and the 'Which one are you?' link brings the pick column back", async ({ page, request }, { workerIndex }) => {
+    test("Back, just look leaves the receipt, and the 'Which one are you?' link brings the pick column back", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
 
-      await asking(page).getByRole("button", { name: "Close, just look" }).click();
+      await asking(page).getByRole("button", { name: "Back, just look" }).click();
       await expect(asking(page).getByRole("heading", { name: "Which one are you?" })).toHaveCount(0, live);
       const again = shareColumn(page).getByRole("button", { name: "Which one are you?" });
       await expect(again).toBeVisible(live);
@@ -389,7 +391,7 @@ for (const size of sizes) {
 
       await expect(line(page, "Fanta")).toContainText("$4.00", live);
       await expect(page.getByTestId("receipt")).toContainText("$29.54", live);
-      await page.getByRole("button", { name: "Close", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
       await expect(share(page)).toHaveText("$4.83", live);
       await expect(shareColumn(page)).toContainText("Fanta");
     });
@@ -458,7 +460,7 @@ for (const size of sizes) {
       await expect(column(page, "What you had")).toBeVisible(live);
 
       await line(page, "Sprite").click();
-      await page.getByRole("button", { name: "Close", exact: true }).click();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
       await expect(column(page, "Edit item")).toHaveCount(0, live);
       await expect(line(page, "Sprite")).toBeFocused();
     });
@@ -772,7 +774,7 @@ for (const size of sizes) {
       await expect(page.getByTestId("footer")).toHaveCount(0);
       await line(page, "Perrier").click();
       await expect(page.getByRole("textbox", { name: "Item name" })).toHaveValue("Perrier", live);
-      await column(page, "Edit item").getByRole("button", { name: "Close", exact: true }).click();
+      await column(page, "Edit item").getByRole("button", { name: "Back", exact: true }).click();
       await expect(column(page, "Edit item")).toHaveCount(0, live);
       await switcher(page).click();
       await expect(picker(page)).toBeVisible(live);
@@ -839,13 +841,14 @@ for (const size of sizes) {
       await page.keyboard.press("Enter");
       await expect(column(page, "Edit item")).toBeVisible(live);
 
-      await addLink(page).focus();
+      // The Total row is the receipt's last stop.
+      await page.getByRole("button", { name: /^Open Total/ }).focus();
       const order: string[] = [];
       for (let step = 0; step < 5; step++) {
         await page.keyboard.press("Tab");
         order.push((await focused(page)) ?? "");
       }
-      expect(order.slice(0, 4)).toEqual(["Delete item", "Close", "Item name", "Price"]);
+      expect(order.slice(0, 4)).toEqual(["Back", "Delete item", "Item name", "Price"]);
 
       await page.keyboard.press("Escape");
       await switcher(page).focus();
@@ -861,9 +864,9 @@ for (const size of sizes) {
       await expect(switcher(page)).toBeFocused();
     });
 
-    test("keyboard only: Close, just look on the pick column hands focus to the 'Which one are you?' link", async ({ page, request }, { workerIndex }) => {
+    test("keyboard only: Back, just look on the pick column hands focus to the 'Which one are you?' link", async ({ page, request }, { workerIndex }) => {
       await openSplit(page, await createSplit(request, workerIndex));
-      await asking(page).getByRole("button", { name: "Close, just look" }).focus();
+      await asking(page).getByRole("button", { name: "Back, just look" }).focus();
 
       await page.keyboard.press("Enter");
 

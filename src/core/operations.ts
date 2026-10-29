@@ -1,3 +1,4 @@
+import type { Currency } from "./currency";
 import { MAX_CENTS, cents, isCents, price as asPrice, type Cents, type Price } from "./money";
 import { pickDevice } from "./pick-device";
 import {
@@ -104,6 +105,9 @@ export type Operation = (
        * Two phones fixing different Adjustments at once still leave a Total that adds up, which a delta sent from each could not.
        */
       readonly totalFollows?: true;
+      /** Sets the Subtotal or the Total to this amount on the Split as the server holds it, so a retried or crossing edit lands on the typed figure, which a delta could not. */
+      readonly subtotal?: Cents;
+      readonly total?: Cents;
     }
   | { readonly type: "addParticipant"; readonly participant: Participant }
   | { readonly type: "removeParticipant"; readonly participantId: ParticipantId }
@@ -125,11 +129,13 @@ export type Operation = (
  */
 export type Optimistic =
   | Extract<Operation, { readonly type: "claim" | "unclaim" | "recordPayment" | "clearPayment" | "undo" }>
-  | (Omit<Extract<Operation, { readonly type: "editReceipt" }>, "items" | "adjustments" | "subtotalDelta" | "totalDelta"> & {
+  | (Omit<Extract<Operation, { readonly type: "editReceipt" }>, "items" | "adjustments" | "subtotalDelta" | "totalDelta" | "subtotal" | "total"> & {
       readonly items?: readonly Extract<ItemPatch, { readonly type: "add" | "delete" }>[];
       readonly adjustments?: readonly Extract<AdjustmentPatch, { readonly type: "add" | "delete" }>[];
       readonly subtotalDelta?: undefined;
       readonly totalDelta?: undefined;
+      readonly subtotal?: undefined;
+      readonly total?: undefined;
     });
 
 export type Auth = { readonly creator: boolean };
@@ -142,7 +148,6 @@ export type RejectionReason =
   | "badIndex"
   | "emptyEdit"
   | "host"
-  | "payerOnly"
   | "paymentNotRevertible"
   | "participantInUse"
   | "tooManyItems"
@@ -200,9 +205,10 @@ export function applyOperation(split: Split, op: Operation, auth: Auth, at?: num
 function run(split: Split, op: Operation, auth: Auth): Step {
   switch (op.type) {
     case "editReceipt": {
-      const { items, adjustments, subtotalDelta, totalDelta, totalFollows } = op;
-      if (!items?.length && !adjustments?.length && subtotalDelta === undefined && totalDelta === undefined) return reject("emptyEdit");
-      if (totalFollows && totalDelta !== undefined) return reject("conflict");
+      const { items, adjustments, subtotalDelta, totalDelta, totalFollows, subtotal: setSubtotal, total: setTotal } = op;
+      if (!items?.length && !adjustments?.length && subtotalDelta === undefined && totalDelta === undefined && setSubtotal === undefined && setTotal === undefined) return reject("emptyEdit");
+      if ([totalFollows, totalDelta, setTotal].filter((one) => one !== undefined).length > 1) return reject("conflict");
+      if (setSubtotal !== undefined && (subtotalDelta !== undefined || items?.length)) return reject("conflict");
       let lines: Lines = { subtotal: 0, total: 0 };
       return commit(split, [
         ...(items ?? []).map((patch): MakeWrites => (current) => {
@@ -212,8 +218,12 @@ function run(split: Split, op: Operation, auth: Auth): Step {
         }),
         ...(adjustments ?? []).map((patch): MakeWrites => (current) => adjustmentWrites(current, patch)),
         ({ receipt }) => {
-          const subtotal = cents((subtotalDelta ?? 0) + lines.subtotal);
-          const total = totalFollows ? cents(receipt.subtotal + subtotal + adjustmentsSum(receipt) - receipt.total) : cents((totalDelta ?? 0) + lines.total);
+          const subtotal = setSubtotal === undefined ? cents((subtotalDelta ?? 0) + lines.subtotal) : cents(setSubtotal - receipt.subtotal);
+          const total = totalFollows
+            ? cents(receipt.subtotal + subtotal + adjustmentsSum(receipt) - receipt.total)
+            : setTotal === undefined
+              ? cents((totalDelta ?? 0) + lines.total)
+              : cents(setTotal - receipt.total);
           return subtotal === 0 && total === 0 ? [] : [{ kind: "totals", subtotalDelta: subtotal, totalDelta: total }];
         },
       ]);
@@ -262,8 +272,6 @@ function run(split: Split, op: Operation, auth: Auth): Step {
       const index = indexOf(split.participants, participantId);
       if (index === -1) return reject("unknownParticipant");
       if (index === 0) return reject("host");
-      const device = pickDevice(op.device, split.id);
-      if (!split.picks.some((pick) => pick.participantId === participantId && pick.device === device)) return reject("payerOnly");
       const before = paymentOf(split, participantId);
       const after = op.type === "recordPayment" ? op.amount : null;
       return commit(split, [() => (before === after ? [] : [{ kind: "payment", participantId, before, after }])]);
@@ -933,6 +941,8 @@ function canonicalHandles(handles: readonly PaymentHandle[]): readonly PaymentHa
 
 export type NewSplit = {
   readonly id: MintedSplitId;
+  /** USD when the request names none. */
+  readonly currency?: Currency;
   readonly receipt: Receipt;
   /** The business name read from the receipt. */
   readonly place?: string;
@@ -977,7 +987,7 @@ export function createSplit(input: NewSplit): { readonly ok: true; readonly spli
   const bare: Split = {
     schemaVersion: 4,
     id: input.id,
-    currency: "USD",
+    currency: input.currency ?? "USD",
     ...(input.place !== undefined && { place: input.place }),
     receipt,
     participants: input.participants,

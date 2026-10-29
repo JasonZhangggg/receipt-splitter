@@ -9,7 +9,9 @@ import { pickDevice } from "../../src/core/pick-device";
 import { computeShares } from "../../src/core/shares";
 import { isRoutableSplitId, type AdjustmentId, type Participant, type ItemId, type ParticipantId, type Split, type SplitId, type SplitItem } from "../../src/core/split";
 import { applyChange, forgetSplit, noteSplit, rememberSplit, type SplitChange, splitOnDevice, thisDevice, type SplitOnDevice } from "../../src/device";
-import { money, newName } from "../../src/draft";
+import { money } from "../../src/core/currency";
+import { CurrencyContext } from "../../src/ui/currency";
+import { newName } from "../../src/draft";
 import { newParticipantId, splitUrl, useLiveSplit, type Answer, type GoneReason } from "../../src/live/client";
 import { actedByKey } from "../../src/ui/components/acted-by-key";
 import { Toast } from "../../src/ui/components/toast";
@@ -17,6 +19,8 @@ import { Button, type Press } from "../../src/ui/components/button";
 import type { Lay } from "../../src/ui/lay";
 import { Popover, useEscape } from "../../src/ui/components/popover";
 import { AdjustmentSheet, type CloseGuard } from "../../src/ui/adjustment-sheet";
+import { TotalsSheet } from "../../src/ui/totals-sheet";
+import type { TotalLine } from "../../src/ui/totals-sheet/totals";
 import { HistorySheet, type HistoryAsk } from "../../src/ui/history";
 import { PaymentsSheet } from "../../src/ui/pay/payments-sheet";
 import { joinCopy } from "../../src/ui/home-copy";
@@ -34,7 +38,9 @@ import { FilterMenu, filterMenuWidth } from "../../src/ui/split-view/item-filter
 import { PeopleSheet, type PersonRow } from "../../src/ui/split-view/people-sheet";
 import { PersonPicker, personPickerWidth } from "../../src/ui/split-view/person-picker";
 import { ShareHead } from "../../src/ui/split-view/share-head";
-import { SidePanel } from "../../src/ui/split-view/side-panel";
+import { takeJustMade } from "../../src/ui/split-view/just-made";
+import { LinkReadySheet } from "../../src/ui/split-view/link-ready-sheet";
+import { ColumnStack, SidePanel } from "../../src/ui/split-view/side-panel";
 import { ViewingLine } from "../../src/ui/split-view/viewing-line";
 import { PersonMenu, personMenuWidth } from "../../src/ui/split-view/person-menu";
 import { ClaimConfirm, claimConfirmWidth } from "../../src/ui/split-view/claim-confirm";
@@ -68,7 +74,13 @@ export default function SplitScreen() {
 
   useBusyLoader(live.status === "connecting", joinCopy.opening);
 
-  if (live.status === "live" && splitId) return <SplitPage key={splitId} splitId={splitId} split={live.split} server={live.server} photo={live.photo} send={send} act={act} idle={idle} connection={connection} />;
+  if (live.status === "live" && splitId) {
+    return (
+      <CurrencyContext.Provider value={live.split.currency}>
+        <SplitPage key={splitId} splitId={splitId} split={live.split} server={live.server} photo={live.photo} send={send} act={act} idle={idle} connection={connection} />
+      </CurrencyContext.Provider>
+    );
+  }
   return (
     <View style={[styles.screen, { backgroundColor: c.field, paddingTop: insets.top, paddingLeft: layout.gutter + insets.left, paddingRight: layout.gutter + insets.right }]}>
       <View style={styles.column}>
@@ -101,8 +113,10 @@ type OverlayKind =
   | { readonly kind: "item"; readonly itemId: ItemId; readonly lines: readonly ItemId[] }
   | { readonly kind: "add" }
   | { readonly kind: "adjustment"; readonly adjustmentId: AdjustmentId }
+  | { readonly kind: "totals"; readonly line: TotalLine }
   | { readonly kind: "history" }
   | { readonly kind: "people" }
+  | { readonly kind: "made" }
   | { readonly kind: "pay" }
   | { readonly kind: "payments"; readonly viewer: ParticipantId | null };
 /** What is open over the page and the press that opened it: focus goes back there. */
@@ -116,7 +130,9 @@ type Bar = { readonly message: string; readonly action?: { readonly label: strin
 const overlayLabel = (overlay: OverlayKind, split: Split, title: string) =>
   overlay.kind === "adjustment"
     ? say.editKind[split.receipt.adjustments.find(({ id }) => id === overlay.adjustmentId)?.kind ?? "tax"]
-    : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, pay: title }[overlay.kind];
+    : overlay.kind === "totals"
+      ? say.editTotals[overlay.line]
+      : { item: say.editItem, add: say.addMenu, history: say.history, receipt: say.receiptPhoto, payments: say.payments, people: say.people, made: say.linkReadyTitle, pay: title }[overlay.kind];
 const checkFor = 80;
 /** The Host's footer pill: how many of the people who owe have paid, "All paid" once they all have, or just Payments while nobody owes yet. */
 const collectLabel = ({ paid, owing }: { paid: number; owing: number }) => (owing === 0 ? say.payments : paid === owing ? say.ring.allPaidTitle : say.status.paidOf(paid, owing));
@@ -157,7 +173,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const waitingToPay = useRef<{ readonly paid: boolean; readonly share: Cents } | null>(null);
   const [payNote, setPayNote] = useState<string | null>(null);
   const [selected, setSelected] = useState<ParticipantId | null>(me);
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // The Host arrives from Create link to Link ready: the link to send and, in case this phone is not theirs, the names to switch to.
+  const [overlay, setOverlay] = useState<Overlay | null>(() => (me && takeJustMade(splitId) ? { kind: "made", from: { trigger: document.body, keyboard: false } } : null));
   const [closing, setClosing] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
   const [linksBottom, setLinksBottom] = useState<number | null>(null);
@@ -228,7 +245,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (shownPhase.current === "pick") timers.current.push(setTimeout(() => setPhase("collapsing"), checkFor));
     else {
       setChosen(null);
-      closeOverlay();
+      // Link ready stays up after a switch, so the Host can still share the link.
+      if (openSheet.current?.kind !== "made") closeOverlay();
     }
   };
 
@@ -282,7 +300,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (!laid.sent) return false;
     void laid.answer.then((answer) => {
       if (answer.ok) return how.then?.(answer);
-      const said = how.said ? how.said(answer) : answer.rejection.reason === "payerOnly" ? say.payerOnly : failedCopy(answer, say.saveFailed);
+      const said = how.said ? how.said(answer) : failedCopy(answer, say.saveFailed);
       if (said === null) return;
       const again = how.retry && (answer.rejection.reason === "disconnected" || answer.rejection.reason === "rateLimited");
       setBar({
@@ -362,6 +380,14 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     if (overlay?.kind !== "history" || closing || (change !== null && (change === undefined || change.undoneBy !== null))) setQuestion({ ...question, closing: true });
   }
   const closeQuestion = () => setQuestion((open) => open && { ...open, closing: true });
+  // Payments' question before marking someone else paid or not paid. It leaves with the sheet, or once that person's paid state changes some other way.
+  const [paidAsk, setPaidAsk] = useState<{ readonly id: ParticipantId; readonly paid: boolean; readonly from: Press; readonly closing: boolean } | null>(null);
+  if (paidAsk && !paidAsk.closing && (overlay?.kind !== "payments" || closing || !present(paidAsk.id) || split.payments.some(({ participantId }) => participantId === paidAsk.id) === paidAsk.paid)) setPaidAsk({ ...paidAsk, closing: true });
+  const closePaidAsk = () => setPaidAsk((open) => open && { ...open, closing: true });
+  const paidAskGone = () => {
+    if (paidAsk && (wide || paidAsk.from.keyboard || actedByKey()) && paidAsk.from.trigger.isConnected) paidAsk.from.trigger.focus({ preventScroll: true });
+    setPaidAsk(null);
+  };
   const questionGone = () => {
     if (question && (wide || question.from.keyboard || actedByKey()) && question.from.trigger.isConnected) question.from.trigger.focus({ preventScroll: true });
     setQuestion(null);
@@ -450,6 +476,11 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     setOverlay(null);
     setClosing(false);
     if (!overlay || !(wide || overlay.from.keyboard || actedByKey())) return;
+    // Link ready opened by itself, so on a wide screen focus goes to the share view's head rather than back to the page.
+    if (overlay.kind === "made") {
+      if (wide) focusHead.current = "";
+      return;
+    }
     const trigger = overlay.from.trigger.isConnected
       ? overlay.from.trigger
       : overlay.kind === "item"
@@ -465,7 +496,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const viewerGone = (overlay?.kind === "payments" && overlay.viewer !== null && overlay.viewer !== me) || ((overlay?.kind === "pay" || overlay?.kind === "people") && (me === null || selectedPerson === null));
   if (viewerGone && !closing) setClosing(true);
   // Escape closes the person menu over the People sheet, or the split menu over Edit item, first, and the sheet on the next press.
-  useEscape(overlay !== null && !closing && !viewing && (picker === null || picker.closing) && (menu === null || menu.closing) && (modes === null || modes.closing) && (question === null || question.closing), closeOverlay);
+  useEscape(overlay !== null && !closing && !viewing && (picker === null || picker.closing) && (menu === null || menu.closing) && (modes === null || modes.closing) && (question === null || question.closing) && (paidAsk === null || paidAsk.closing), closeOverlay);
 
   // Closing the pick sheet takes its Close button away, so a key's close hands focus to the button that asks again.
   const asking = useRef(false);
@@ -507,7 +538,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     setPaying(null);
     if (!me) return;
     if (paid && agreed !== myShare) {
-      const note = say.shareNow(money(myShare));
+      const note = say.shareNow(money(myShare, split.currency));
       // The note goes under the pay button: in the Pay sheet on a phone, and in the column's share view on a wide screen.
       if ((wide ? overlay === null : overlay?.kind === "pay") && viewed?.hasBar) {
         setPayNote(note);
@@ -520,7 +551,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const shown = markPaid(me, paid ? myShare : null, () => {
       if (!paid) return;
       setBar({
-        message: say.markedPaid(money(justPaid(myShare, before))),
+        message: say.markedPaid(money(justPaid(myShare, before), split.currency)),
         action: {
           label: say.undo,
           onPress: () => {
@@ -547,11 +578,24 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   useEffect(() => {
     if (paying !== null && idle) payWhenSettled();
   }, [paying, idle]);
+  // On Payments anyone with a name can check a friend off. Checking yourself off goes the Pay sheet's way with its Undo; the Host checks friends off directly,
+  // since the money reaches them; anyone else is asked first, so a stray tap does not mark someone else paid.
+  const record = (id: ParticipantId, paid: boolean) => {
+    if (me === null) return;
+    const owed = shares.shares.find(({ participantId }) => participantId === id)?.share ?? cents(0);
+    if (!lay(paid ? { by: me, type: "recordPayment", participantId: id, device, amount: owed } : { by: me, type: "clearPayment", participantId: id, device })) setBar({ message: say.connection.failed });
+  };
+  const check = (id: ParticipantId, paid: boolean, from: Press) => {
+    if (me === null) return;
+    if (id === me) return onPaid(paid);
+    if (me === split.participants[0].id) return record(id, paid);
+    setPaidAsk({ id, paid, from, closing: false });
+  };
   const peopleRows: readonly PersonRow[] = people.map((person) => {
     const pick = split.picks.find(({ participantId }) => participantId === person.id);
     return {
       person,
-      share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0)),
+      share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0), split.currency),
       mine: person.id === me,
       viewed: person.id === selectedPerson?.id,
       heldElsewhere: pick !== undefined && pick.device !== device,
@@ -598,10 +642,21 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       <AddSheet split={split} me={me} lay={lay} onClose={closeOverlay} />
     ) : overlay.kind === "adjustment" ? (
       <AdjustmentSheet split={split} adjustmentId={overlay.adjustmentId} me={me} send={send} lay={lay} onClose={closeOverlay} onDeleted={deleted} guardRef={closeGuard} />
+    ) : overlay.kind === "totals" ? (
+      <TotalsSheet split={split} line={overlay.line} me={me} send={send} onClose={closeOverlay} guardRef={closeGuard} />
     ) : overlay.kind === "payments" ? (
-      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet />
+      <PaymentsSheet split={split} me={me} onClose={closeOverlay} sheet onCheck={check} />
     ) : overlay.kind === "people" ? (
       peopleSheet(false)
+    ) : overlay.kind === "made" ? (
+      <LinkReadySheet
+        url={splitUrl(splitId)}
+        rows={peopleRows}
+        chosen={chosen}
+        problem={pickProblem}
+        onPick={(participantId) => void choose(participantId, false)}
+        onClose={closeOverlay}
+      />
     ) : overlay.kind === "pay" ? (
       selectedPerson ? (
         <>
@@ -633,14 +688,17 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       onOpen={(item, from) => open({ kind: "item", itemId: item.id, lines: split.receipt.items.map(({ id }) => id) }, from)}
       onAdd={(from) => open({ kind: "add" }, from)}
       onOpenAdjustment={(row, from) => open({ kind: "adjustment", adjustmentId: row.id }, from)}
+      onOpenTotals={(line, from) => open({ kind: "totals", line }, from)}
       showing={
         showingNow?.kind === "item"
           ? showingNow.itemId
           : showingNow?.kind === "adjustment"
             ? showingNow.adjustmentId
-            : showingNow?.kind === "add"
-              ? "add"
-              : null
+            : showingNow?.kind === "totals"
+              ? showingNow.line
+              : showingNow?.kind === "add"
+                ? "add"
+                : null
       }
     />
   );
@@ -651,12 +709,12 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
     const pill: FooterPill | null = collect ? { kind: "collect", label: collect } : !viewed.payer ? null : viewed.state.kind === "settled" || viewed.state.kind === "over" ? { kind: "paid" } : { kind: "pay", host: firstName(host.name), ready: viewed.hasBar };
     const status = shareStatus(shares, split.payments, selectedPerson.id, me);
     // A settled share the pill already marks says nothing more, nor does the Host's count the pill already shows; every other paid state reads in words.
-    const words = (status.kind === "settled" && pill?.kind === "paid") || pill?.kind === "collect" ? null : statusWords(status);
+    const words = (status.kind === "settled" && pill?.kind === "paid") || pill?.kind === "collect" ? null : statusWords(status, split.currency);
     const ink = status.kind === "short" || status.kind === "over" ? c.warn : c.muted;
     return (
       <SplitFooter
         label={mine ? say.yourShare : say.shareOf(selectedPerson.name)}
-        amount={money(viewed.share)}
+        amount={money(viewed.share, split.currency)}
         whose={mine ? null : selectedPerson.name}
         note={words ? { text: words, ink } : null}
         pill={pill}
@@ -681,7 +739,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           head={
             <ShareHead
               title={selectedPerson.id === me ? say.yourShare : say.shareOf(firstName(selectedPerson.name))}
-              amount={money(viewed.share)}
+              amount={money(viewed.share, split.currency)}
               bill={billParts(shares, selectedPerson.id)}
               legend={selectedPerson.id === me ? say.youHad : firstName(selectedPerson.name)}
               had={title(selectedPerson)}
@@ -707,7 +765,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       </SidePanel>
     ) : overlay ? (
       <SidePanel
-        key={overlay.kind === "item" ? `item-${overlay.itemId}` : overlay.kind === "adjustment" ? `adjustment-${overlay.adjustmentId}` : overlay.kind}
+        key={overlay.kind === "item" ? `item-${overlay.itemId}` : overlay.kind === "adjustment" ? `adjustment-${overlay.adjustmentId}` : overlay.kind === "totals" ? `totals-${overlay.line}` : overlay.kind}
         label={overlayLabel(overlay, split, viewedTitle)}
         closing={closing}
         onDown={overlayGone}
@@ -770,6 +828,20 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           />
         </Popover>
       ) : null}
+      {paidAsk ? (
+        <Popover anchor={paidAsk.from.trigger} label={say.ring.askPaid(firstName(people.find(({ id }) => id === paidAsk.id)?.name ?? ""), paidAsk.paid)} instant={paidAsk.from.keyboard} closing={paidAsk.closing} onClose={closePaidAsk} onGone={paidAskGone} width={claimConfirmWidth} align="start">
+          <ClaimConfirm
+            question={say.ring.askPaid(firstName(people.find(({ id }) => id === paidAsk.id)?.name ?? ""), paidAsk.paid)}
+            action={paidAsk.paid ? say.ring.yesPaid : say.ring.yesUnpaid}
+            onYes={() => {
+              if (paidAsk.closing) return;
+              closePaidAsk();
+              record(paidAsk.id, paidAsk.paid);
+            }}
+            onNo={closePaidAsk}
+          />
+        </Popover>
+      ) : null}
       {confirming ? (
         <Popover anchor={confirming.from.trigger} label={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} instant={confirming.from.keyboard} closing={confirming.closing} onClose={closeConfirming} onGone={confirmingGone} width={claimConfirmWidth} align="start">
           <ClaimConfirm question={say.confirmFor(confirming.name, confirming.person.name, confirming.had)} action={say.confirmForAction(firstName(confirming.person.name), confirming.had)} onYes={confirmClaim} onNo={closeConfirming} />
@@ -778,7 +850,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       {picker ? (
         <Popover anchor={picker.from.trigger} label={say.whoseItems} instant={picker.from.keyboard} closing={picker.closing} onClose={closePicker} onGone={pickerGone} width={personPickerWidth} align="start">
           <PersonPicker
-            rows={people.map((person) => ({ id: person.id, name: person.name, share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0)) }))}
+            rows={people.map((person) => ({ id: person.id, name: person.name, share: money(shares.shares.find(({ participantId }) => participantId === person.id)?.share ?? cents(0), split.currency) }))}
             me={me}
             viewed={selectedPerson?.id ?? null}
             onView={(participantId) => {
@@ -817,7 +889,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
               <View style={styles.wideColumn}>
                 <SplitIntro
                   host={host.name}
-                  total={money(split.receipt.total)}
+                  total={money(split.receipt.total, split.currency)}
                   place={split.place}
                   wide
                   onPeople={(from) => (me ? open({ kind: "people" }, from) : setPhase("pick"))}
@@ -829,7 +901,9 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
                 </Presence>
                 <View style={styles.doc}>{receipt}</View>
               </View>
-              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>{aside}</View>
+              <View style={[styles.aside, { width: frame.column, height: pageHeight - asideTop }]}>
+                <ColumnStack depth={phase !== "regular" || overlay ? 1 : 0}>{aside}</ColumnStack>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -848,7 +922,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
           <SplitHeader onShare={() => void share()} />
           <SplitIntro
             host={host.name}
-            total={money(split.receipt.total)}
+            total={money(split.receipt.total, split.currency)}
             place={split.place}
             onLinksBottom={setLinksBottom}
             onReceipt={photo ? setViewing : undefined}
@@ -880,7 +954,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
 }
 
 function intro(split: Split, creating: boolean) {
-  const total = money(split.receipt.total);
+  const total = money(split.receipt.total, split.currency);
   return creating ? { lead: say.linkReady, rest: ` ${total}` } : { lead: split.participants[0].name, rest: say.invited, strong: total };
 }
 

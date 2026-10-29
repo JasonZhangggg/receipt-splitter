@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { claimersOf } from "../../core/operations";
 import type { Participant, Split } from "../../core/split";
-import { money } from "../../draft";
+import { money } from "../../core/currency";
 import { PressTarget } from "../components/button";
 import { Icon } from "../components/icon";
 import { pressStyle, useReducedMotion } from "../motion";
@@ -20,7 +20,7 @@ export function PersonMenu({ split, person, onRemove }: { split: Split; person: 
   const [note] = useState(() => {
     const items = split.receipt.items.filter((item) => claimersOf(item.split).includes(person.id)).length;
     const paid = split.payments.find(({ participantId }) => participantId === person.id)?.amount;
-    return say.removeNote(person.name, items, paid === undefined ? null : money(paid));
+    return say.removeNote(person.name, items, paid === undefined ? null : money(paid, split.currency));
   });
   return (
     <View>

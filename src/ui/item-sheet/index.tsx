@@ -4,7 +4,7 @@ import { Keyboard, Platform, StyleSheet, Text, View } from "react-native";
 import { MAX_CENTS, price as toPrice, type Cents } from "../../core/money";
 import { MAX_DETAIL_LENGTH, MAX_SHARES, applyOperation, claimersOf, type ItemPatch, type ItemValue, type Operation } from "../../core/operations";
 import { type SplitMode, type ItemId, type Participant, type ParticipantId, type Split, type SplitItem } from "../../core/split";
-import { money, plainAmount } from "../../draft";
+import { money, plainAmount, type Currency } from "../../core/currency";
 import type { Answer } from "../../live/client";
 import type { Lay } from "../lay";
 import { Icon } from "../components/icon";
@@ -14,6 +14,7 @@ import { IconAction, LabeledField, MoneyField, PersonToggle } from "../component
 import { TextLink, linkPress, underline } from "../components/text-link";
 import { pressStyle, useReducedMotion, webAnimation, webStyle } from "../motion";
 import { failedCopy, splitCopy as say } from "../split-copy";
+import { useCurrency } from "../currency";
 import { motion, tabular, type, useColors, useOnPage } from "../theme";
 import { bundleNote, itemParts, lineAmounts, nameParts, splitIds } from "../split-view/model";
 import type { CloseGuard } from "../adjustment-sheet";
@@ -48,7 +49,6 @@ export type ModesOpen = { readonly from: Press; readonly value: SplitMode; reado
 type AmountField = "price" | ParticipantId;
 
 const saveAfter = 600;
-const maxAmount = `$${(MAX_CENTS / 100).toLocaleString("en-US")}`;
 
 function merge(pending: ItemEdit, next: ItemEdit): ItemEdit {
   const values = [...(pending.values ?? []), ...(next.values ?? [])].filter(
@@ -257,7 +257,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
     setPending((was) => merge(was, next));
   };
   const typedAmount = (field: AmountField, text: string): Cents | null => {
-    const amount = readAmount(text);
+    const amount = readAmount(text, split.currency);
     if (typeof amount === "number") {
       if (unread.has(field)) forget((other) => other === field);
       return amount;
@@ -266,7 +266,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
     return null;
   };
   const unreadProblem = held ? [...unread][0] : undefined;
-  const shownProblem = unreadProblem ? amountProblem(...unreadProblem) : problem;
+  const shownProblem = unreadProblem ? amountProblem(...unreadProblem, split.currency) : problem;
   const nameOf = (id: ParticipantId) => split.participants.find((person) => person.id === id)?.name ?? "";
   const toggle = (participantId: ParticipantId, on: boolean) => {
     flush();
@@ -300,7 +300,7 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
     setLeavingFrom(seen);
     onClose();
   };
-  const note = bundleNote(seen.receipt, itemId, item.price);
+  const note = bundleNote(seen.receipt, itemId, item.price, split.currency);
   const quantity = item.quantity ?? 1;
   const typed = typedAmounts(lineAmounts(item).map(({ participantId, cents }) => [participantId, cents] as const), unconfirmed);
   const fill = (participantId: ParticipantId, cents: number) => {
@@ -357,8 +357,8 @@ export function ItemSheet({ split: current, itemId, me, send, lay, onClose, onNo
             label={say.price}
             key={`price-${fields}-${priceKey}`}
             onBlur={() => unread.has("price") || setPriceKey((was) => was + 1)}
-            placeholder={plainAmount(0)}
-            defaultValue={plainAmount(item.price)}
+            placeholder={plainAmount(0, split.currency)}
+            defaultValue={plainAmount(item.price, split.currency)}
             onChangeText={(text) => {
               const amount = typedAmount("price", text);
               if (amount !== null) edit({ price: toPrice(amount) });
@@ -449,6 +449,7 @@ type SplitRowsProps = {
 
 /** One row a person: their dot and name, which add or drop them, then their part of the price in the Item's mode. */
 function SplitRows({ item, people, parts, nameOf, me, edit, toggle, typedAmount, refills, suggested }: SplitRowsProps) {
+  const currency = useCurrency();
   const c = useColors();
   return (
     <View role="group" aria-label={say.whoHadIt}>
@@ -474,8 +475,8 @@ function SplitRows({ item, people, parts, nameOf, me, edit, toggle, typedAmount,
                     label={say.amountOf(nameOf(participantId))}
                     showLabel={false}
                     width={88}
-                    defaultValue={part.cents === 0 ? "" : plainAmount(part.cents)}
-                    placeholder={plainAmount(suggested?.find((each) => each.participantId === participantId)?.cents ?? 0)}
+                    defaultValue={part.cents === 0 ? "" : plainAmount(part.cents, currency)}
+                    placeholder={plainAmount(suggested?.find((each) => each.participantId === participantId)?.cents ?? 0, currency)}
                     onChangeText={(text) => {
                       const read = typedAmount(participantId, text.trim() === "" ? "0" : text);
                       if (read !== null) edit({ values: [value(read)] });
@@ -483,7 +484,7 @@ function SplitRows({ item, people, parts, nameOf, me, edit, toggle, typedAmount,
                     selectTextOnFocus
                   />
                 ) : (
-                  <Text style={[type.body, tabular, styles.amount, { color: c.ink }]}>{money(part.cents)}</Text>
+                  <Text style={[type.body, tabular, styles.amount, { color: c.ink }]}>{money(part.cents, currency)}</Text>
                 )}
               </View>
             )}
@@ -494,7 +495,8 @@ function SplitRows({ item, people, parts, nameOf, me, edit, toggle, typedAmount,
   );
 }
 
-function amountProblem(field: AmountField, problem: "price" | "overLimit"): string {
+function amountProblem(field: AmountField, problem: "price" | "overLimit", currency: Currency): string {
+  const maxAmount = money(MAX_CENTS, currency);
   if (field === "price") return problem === "price" ? say.addProblem.price : say.addProblem.overLimit(maxAmount);
   return problem === "price" ? say.adjustmentProblem.amount : say.adjustmentProblem.overLimit(maxAmount);
 }
@@ -503,6 +505,7 @@ type StatusProps = { item: SplitItem; typed: Typed; last: ParticipantId | null; 
 
 /** Where the split stands: a tick when it adds up, a warning with the gap when a By amount split does not. */
 function StatusLine({ item, typed, last, unsaved, attempted, nameOf, me, onFill, suggested, onAccept }: StatusProps) {
+  const currency = useCurrency();
   const c = useColors();
   const onPage = useOnPage();
   const lines = lineAmounts(item);
@@ -525,10 +528,10 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, me, onFill,
             ? say.sharesInAll(item.split.units[0].reduce((sum, [, count]) => sum + count, 0))
             : say.splitWays(people)
         : amounts.by === "exact"
-          ? say.allAssigned(money(item.price))
+          ? say.allAssigned(money(item.price, currency))
           : amounts.by === "over"
-            ? say.overThePrice(money(amounts.over))
-            : say.leftToAssign(money(amounts.left));
+            ? say.overThePrice(money(amounts.over, currency))
+            : say.leftToAssign(money(amounts.left, currency));
   const fillWith = amounts !== null && amounts.by !== "exact" && !suggested ? amounts.fill : null;
   return (
     <View style={styles.status}>
@@ -542,8 +545,8 @@ function StatusLine({ item, typed, last, unsaved, attempted, nameOf, me, onFill,
       {suggested && onAccept ? <TextLink label={say.useSuggested} name={say.useSuggestedName} outsideScroll onPress={() => onAccept(suggested)} /> : null}
       {fillWith && onFill ? (
         <TextLink
-          label={amounts?.by === "over" ? say.makeAmount(nameOf(fillWith.participantId), money(fillWith.cents)) : say.giveTheRest(nameOf(fillWith.participantId))}
-          name={amounts?.by === "over" ? undefined : say.giveTheRestName(nameOf(fillWith.participantId), money(fillWith.cents))}
+          label={amounts?.by === "over" ? say.makeAmount(nameOf(fillWith.participantId), money(fillWith.cents, currency)) : say.giveTheRest(nameOf(fillWith.participantId))}
+          name={amounts?.by === "over" ? undefined : say.giveTheRestName(nameOf(fillWith.participantId), money(fillWith.cents, currency))}
           outsideScroll
           onPress={() => onFill(fillWith.participantId, fillWith.cents)}
         />

@@ -1,7 +1,7 @@
 import { cents, type Cents } from "../../core/money";
 import type { Shares } from "../../core/shares";
 import type { ParticipantId, Split } from "../../core/split";
-import { money } from "../../draft";
+import { money, type Currency } from "../../core/currency";
 import { splitCopy as say } from "../split-copy";
 
 export type PayState =
@@ -37,17 +37,17 @@ export function shareStatus(shares: Shares, payments: Split["payments"], person:
 }
 
 /** The one wording for a paid state: null while quiet (nothing or unpaid), so the line under a share stays empty and a Payments row falls back to its own words. */
-export function statusWords(status: ShareStatus): string | null {
+export function statusWords(status: ShareStatus, currency: Currency): string | null {
   switch (status.kind) {
     case "nothing":
     case "unpaid":
       return null;
     case "settled":
-      return say.status.paid(money(status.paid));
+      return say.status.paid(money(status.paid, currency));
     case "short":
-      return say.status.short(money(status.paid), money(status.rest));
+      return say.status.short(money(status.paid, currency), money(status.rest, currency));
     case "over":
-      return say.status.over(money(status.paid), money(status.back));
+      return say.status.over(money(status.paid, currency), money(status.back, currency));
     case "host":
       return status.started ? say.status.paidYou(status.paid, status.of) : null;
   }
@@ -75,7 +75,7 @@ export type PaymentStatus = {
 };
 
 /** Everyone in chip order with their share and paid state in words. */
-export function paymentStatus(split: Pick<Split, "participants" | "payments">, shares: Shares, viewer: ParticipantId | null): PaymentStatus {
+export function paymentStatus(split: Pick<Split, "participants" | "payments" | "currency">, shares: Shares, viewer: ParticipantId | null): PaymentStatus {
   const host = split.participants[0];
   let paid = 0;
   let owing = 0;
@@ -85,7 +85,7 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments">, s
     const state = payState(share, split.payments.find((payment) => payment.participantId === id)?.amount ?? null);
     if (state.kind !== "nothing") owing += 1;
     if (state.kind === "settled" || state.kind === "over") paid += 1;
-    return { id, name, isHost: false, share, state: state.kind, words: statusWords(state) ?? (state.kind === "unpaid" ? say.status.unpaid : say.status.nothing) };
+    return { id, name, isHost: false, share, state: state.kind, words: statusWords(state, split.currency) ?? (state.kind === "unpaid" ? say.status.unpaid : say.status.nothing) };
   });
   const summary = owing === 0 ? null : `${paid} of ${owing} paid${viewer === host.id ? " you" : ""}`;
   return { rows, paid, owing, summary };
@@ -95,28 +95,6 @@ export function paymentStatus(split: Pick<Split, "participants" | "payments">, s
 export function viewerFirst<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], viewer: ParticipantId | null): Row[] {
   const mine = rows.filter(({ id }) => id === viewer);
   return [...mine, ...rows.filter(({ id }) => id !== viewer)];
-}
-
-/** A part of the Payments list: everyone who still owes something with what is left to pay, or everyone else with what came in. */
-export type PaymentSection<Row> = { readonly kind: "owed" | "paid"; readonly rows: Row[]; readonly amount: Cents };
-
-/** The Payments list in two parts: everyone not paid or paid short first, then the Host and everyone paid. Each part has the viewer's own row first, and an empty part is left out. */
-export function paymentSections<Row extends Pick<PaymentRow, "id" | "state" | "share">>(rows: readonly Row[], payments: Split["payments"], viewer: ParticipantId | null): PaymentSection<Row>[] {
-  const paidBy = (id: ParticipantId) => payments.find(({ participantId }) => participantId === id)?.amount ?? 0;
-  const owes = ({ state }: Row) => state === "unpaid" || state === "short";
-  const ordered = viewerFirst(rows, viewer);
-  const owed = ordered.filter(owes);
-  const rest = ordered.filter((row) => !owes(row));
-  const sections: PaymentSection<Row>[] = [
-    { kind: "owed", rows: owed, amount: cents(owed.reduce((sum, { id, share }) => sum + share - paidBy(id), 0)) },
-    { kind: "paid", rows: rest, amount: cents(rest.reduce((sum, { id }) => sum + paidBy(id), 0)) },
-  ];
-  return sections.filter(({ rows: part }) => part.length > 0);
-}
-
-/** The row the Payments ring shows: the person tapped, or the viewer's own row, or the first. Someone removed mid-sheet falls back the same way. */
-export function pickedRow<Row extends { readonly id: ParticipantId }>(rows: readonly Row[], picked: ParticipantId | null, viewer: ParticipantId | null): Row {
-  return rows.find(({ id }) => id === picked) ?? rows.find(({ id }) => id === viewer) ?? rows[0];
 }
 
 /** What friends paid the Host out of what friends owe them, which the Payments summary line gives on every phone. Payments count as recorded, so an overpayment shows as more than owed. */
@@ -137,4 +115,13 @@ export function foldedRows<Row extends Pick<PaymentRow, "id" | "state">>(rows: r
 /** What a payment just made adds: the Share less what was already paid, so "I paid the rest" names the rest and not the running total. */
 export function justPaid(share: Cents, before: Cents | null): Cents {
   return cents(share - (before ?? 0));
+}
+
+const fractions: Record<string, string> = { "1/2": "½", "1/3": "⅓", "2/3": "⅔", "1/4": "¼", "3/4": "¾" };
+
+/** The Items a person had, by name, with their part of any they shared: "½ Spring rolls, Pho". */
+export function itemsLine(items: readonly { readonly name: string; readonly fraction: readonly [number, number] }[]): string {
+  return items
+    .map(({ name, fraction: [part, whole] }) => (part === whole ? name : `${fractions[`${part}/${whole}`] ?? `${part}/${whole}`} ${name}`))
+    .join(", ");
 }

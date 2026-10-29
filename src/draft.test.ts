@@ -230,6 +230,7 @@ describe("a reload of home", () => {
     saveDraft(draft, storage);
     expect(loadDraft(storage)).toEqual({
       scan: { status: "empty" },
+      currency: "USD",
       handles: [
         { service: "cashApp", handle: "$jasonz" },
         { service: "venmo", handle: "@jason-z" },
@@ -250,7 +251,7 @@ describe("a reload of home", () => {
   test("keeps only the handles of a full Draft the previous build saved", () => {
     const storage = new MemoryStorage();
     storage.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: withVenmo(read1040()) }));
-    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] });
+    expect(loadDraft(storage)).toEqual({ scan: { status: "empty" }, currency: "USD", handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] });
   });
 
   test("overwrites the previous build's Receipt on the first save", () => {
@@ -268,7 +269,7 @@ describe("a reload of home", () => {
       },
     });
     try {
-      expect(loadDraft()).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "" }], host: null, friends: [] });
+      expect(loadDraft()).toEqual({ scan: { status: "empty" }, currency: "USD", handles: [{ service: "venmo", handle: "" }], host: null, friends: [] });
       expect(() => saveDraft(emptyDraft)).not.toThrow();
     } finally {
       Reflect.deleteProperty(globalThis, "localStorage");
@@ -306,10 +307,50 @@ describe("the Draft", () => {
     const draft = run(withVenmo(read1040()), { type: "addFriend", name: "Sam" }, { type: "reading", file: {} });
     expect(draft).toEqual({
       scan: { status: "reading", file: {} },
+      currency: "USD",
       handles: [{ service: "venmo", handle: "@jason-z" }],
       host: "Jason",
       friends: ["Sam"],
     });
+  });
+});
+
+describe("the currency", () => {
+  const venmo = run(emptyDraft, { type: "setHandle", index: 0, handle: "@jason-z" });
+
+  test("another currency puts away the apps that only send dollars and leaves PayPal, and dollars bring them back", () => {
+    const euros = run(venmo, { type: "setCurrency", currency: "EUR" });
+    expect(euros).toMatchObject({ currency: "EUR", handles: [{ service: "paypal", handle: "" }], stash: [{ service: "venmo", handle: "@jason-z" }] });
+    const typed = run(euros, { type: "setHandle", index: 0, handle: "jasonz" });
+    expect(run(typed, { type: "setCurrency", currency: "USD" })).toMatchObject({
+      currency: "USD",
+      handles: [
+        { service: "venmo", handle: "@jason-z" },
+        { service: "paypal", handle: "jasonz" },
+      ],
+    });
+    expect(run(typed, { type: "setCurrency", currency: "USD" }).stash).toBeUndefined();
+  });
+
+  test("a read that names a currency switches to it, and the Split is sent in it", () => {
+    const draft = run(venmo, { type: "read", file, receipt: receipt1040, currency: "GBP" }, { type: "setHost", name: "Jason" });
+    expect(draft.currency).toBe("GBP");
+    const ready = readiness(draft);
+    if (ready.kind !== "ready") throw new Error("not ready");
+    const request = splitRequest(ready, () => participantId("p1"));
+    const created = parseCreateSplitRequest(JSON.parse(JSON.stringify({ split: request })), mintedId("currency-00000000000"));
+    expect(created.ok && created.split.currency).toBe("GBP");
+    expect(parseCreateSplitRequest({ split: { ...request, currency: "XYZ" } }, mintedId("currency-00000000000")).ok).toBe(false);
+  });
+
+  test("a reload keeps a stashed handle, and loads in the browser's currency", () => {
+    const storage = new MemoryStorage();
+    saveDraft(run(venmo, { type: "setCurrency", currency: "EUR" }), storage);
+    expect(loadDraft(storage, "USD").handles).toEqual([
+      { service: "venmo", handle: "@jason-z" },
+      { service: "paypal", handle: "" },
+    ]);
+    expect(loadDraft(storage, "EUR")).toMatchObject({ currency: "EUR", handles: [{ service: "paypal", handle: "" }] });
   });
 });
 
@@ -361,9 +402,14 @@ describe("reading OCR into the draft", () => {
 
 describe("parseAmount", () => {
   test("reads what the Host types into a price, and refuses anything over MAX_CENTS", () => {
-    expect(["3", "3.5", "3.50", ".5", "", "100000.00", "100000.01", "3.505", "1e3", "-2.00"].map((text) => parseAmount(text))).toEqual([
+    expect(["3", "3.5", "3.50", ".5", "", "100000.00", "100000.01", "3.505", "1e3", "-2.00"].map((text) => parseAmount(text, "USD"))).toEqual([
       300, 350, 350, 50, 0, MAX_CENTS, null, null, null, null,
     ]);
+  });
+
+  test("takes a comma as the decimal mark, and whole units for a currency without cents", () => {
+    expect(["12,50", "12,5", "1,234", "1.234,50"].map((text) => parseAmount(text, "EUR"))).toEqual([1250, 1250, null, null]);
+    expect(["1200", "1,200", "1.200", "12.5", "10000001"].map((text) => parseAmount(text, "JPY"))).toEqual([1200, 1200, 1200, null, null]);
   });
 });
 
@@ -702,7 +748,7 @@ describe("the Split link", () => {
   test("creating the Split starts a fresh draft that keeps only the Payment handles", () => {
     const created = run(withVenmo(read1040()), { type: "addFriend", name: "Sam" }, { type: "created" });
 
-    expect(created).toEqual({ scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] });
+    expect(created).toEqual({ scan: { status: "empty" }, currency: "USD", handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] });
   });
 
   test("a reload after creating opens a fresh draft, and one saved while linked to a Split by an older build does too", () => {
@@ -714,8 +760,8 @@ describe("the Split link", () => {
     older.setItem("receipt-splitter:draft", JSON.stringify({ version: 1, draft: { ...read, names: [], scan: { ...read.scan, status: "linked", splitId } } }));
 
     expect([fresh, loadDraft(older)]).toEqual([
-      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] },
-      { scan: { status: "empty" }, handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] },
+      { scan: { status: "empty" }, currency: "USD", handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] },
+      { scan: { status: "empty" }, currency: "USD", handles: [{ service: "venmo", handle: "@jason-z" }], host: null, friends: [] },
     ]);
   });
 });

@@ -440,7 +440,7 @@ describe("picking a name", () => {
     expect(split.picks).toEqual([{ participantId: "bob", device: "nZstfGZMUIJIL7ugC8HRh8" }]);
     expect(applyOperation(split, pick(bob, perSplit), anyone)).toEqual({ ok: true, split, changed: false });
     expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, device: raw, amount: cents(100) })).toBe("accepted");
-    expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, device: deviceId("ZZZZZZZZ01234567"), amount: cents(100) })).toBe("payerOnly");
+    expect(reasonFor(split, { by: bob, type: "recordPayment", participantId: bob, device: deviceId("ZZZZZZZZ01234567"), amount: cents(100) })).toBe("accepted");
   });
 
   test("keeps a picked Participant from being taken out by undoing their add", () => {
@@ -504,25 +504,34 @@ describe("Payments", () => {
     ]);
   });
 
-  test("a Payment from the payer's device lands, and one from another device is refused", () => {
+  test("a Payment lands from the payer's device and from anyone else's, and History keeps who recorded it", () => {
     const paid = apply(claimedDinner(), pay(bob, 1800));
+    const byCat = apply(claimedDinner(), { by: cat, type: "recordPayment", participantId: bob, device: catsLaptop, amount: cents(1800) });
 
     expect(paid.payments).toEqual([{ participantId: "bob", amount: 1800 }]);
-    expect(reasonFor(claimedDinner(), pay(bob, 1800, catsLaptop))).toBe("payerOnly");
+    expect(byCat.payments).toEqual([{ participantId: "bob", amount: 1800 }]);
+    expect(byCat.recentChanges.at(-1)).toMatchObject({ by: "cat", writes: [{ kind: "payment", participantId: "bob", before: null, after: 1800 }] });
   });
 
-  test("a clearPayment from another device is refused and the Payment stays, and the payer's own clears it", () => {
+  test("the Host's device can check a friend off and clear it again, and History keeps who did it", () => {
+    const annsPhone = deviceId("phone-ann");
+    const dinner = apply(claimedDinner(), { by: ann, type: "pick", participantId: ann, device: annsPhone, takeOver: false });
+    const paid = apply(dinner, { by: ann, type: "recordPayment", participantId: bob, device: annsPhone, amount: cents(1800) });
+
+    expect(paid.payments).toEqual([{ participantId: "bob", amount: 1800 }]);
+    expect(paid.recentChanges.at(-1)).toMatchObject({ by: "ann", writes: [{ kind: "payment", participantId: "bob", before: null, after: 1800 }] });
+    expect(apply(paid, { by: ann, type: "clearPayment", participantId: bob, device: annsPhone }).payments).toEqual([]);
+  });
+
+  test("a clearPayment from any device clears the Payment", () => {
     const paid = apply(claimedDinner(), pay(bob, 1800));
     const clear = (device: typeof bobsPhone): Operation => ({ by: bob, type: "clearPayment", participantId: bob, device });
 
-    expect(reasonFor(paid, clear(catsLaptop))).toBe("payerOnly");
+    expect(apply(paid, clear(catsLaptop)).payments).toEqual([]);
     expect(apply(paid, clear(bobsPhone)).payments).toEqual([]);
   });
 
-  test("a Payment for a name nobody picked is refused, and the Host cannot record one", () => {
-    const unpicked = apply(withBobAndCat(), { by: bob, type: "pick", participantId: bob, device: bobsPhone, takeOver: false });
-
-    expect(reasonFor(unpicked, pay(cat, 2400))).toBe("payerOnly");
+  test("the Host cannot record a Payment", () => {
     expect(reasonFor(claimedDinner(), pay(ann, 1000))).toBe("host");
   });
 
@@ -691,6 +700,30 @@ describe("editing the Receipt", () => {
     expect(cleared.receipt).toEqual(split.receipt);
     expect(reasonFor(split, { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "x".repeat(121) }] })).toBe("badName");
     expect(reasonFor(split, { by: ann, type: "editReceipt", items: [{ type: "edit", itemId: fries, detail: "Large\nfries" }] })).toBe("badName");
+  });
+
+  test("a Subtotal or Total set by hand lands on that figure, and undo puts the old one back", () => {
+    const split = withBobAndCat();
+    const { subtotal, total } = split.receipt;
+    const set = apply(split, { by: ann, type: "editReceipt", subtotal: cents(subtotal + 500) });
+
+    expect(set.receipt).toMatchObject({ subtotal: subtotal + 500, total });
+    expect(set.recentChanges.at(-1)?.writes).toEqual([{ kind: "totals", subtotalDelta: 500, totalDelta: 0 }]);
+    expect(apply(set, { by: ann, type: "editReceipt", subtotal: cents(subtotal + 500) }).receipt).toEqual(set.receipt);
+    expect(apply(set, { by: ann, type: "editReceipt", total: cents(total + 100) }).receipt).toMatchObject({ subtotal: subtotal + 500, total: total + 100 });
+    expect(apply(set, { by: ann, type: "undo", revision: set.revision }).receipt).toEqual(split.receipt);
+    expect(parseOperation(JSON.parse(JSON.stringify({ by: ann, type: "editReceipt", subtotal: 1200, total: 1500 })))).toEqual({ ok: true, op: { by: ann, type: "editReceipt", subtotal: 1200, total: 1500 } });
+  });
+
+  test("a Total set by hand cannot also follow or move, and a Subtotal set by hand cannot ride along with Item edits", () => {
+    const split = withBobAndCat();
+
+    expect(reasonFor(split, { by: ann, type: "editReceipt", total: cents(100), totalFollows: true })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", total: cents(100), totalDelta: cents(1) })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", subtotal: cents(100), subtotalDelta: cents(1) })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", subtotal: cents(100), items: [{ type: "edit", itemId: fries, price: price(900) }] })).toBe("conflict");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", subtotal: cents(-1) })).toBe("amountOutOfRange");
+    expect(reasonFor(split, { by: ann, type: "editReceipt", total: cents(-1) })).toBe("negativeTotal");
   });
 
   test("an edit that names no field is rejected, and one that changes nothing is accepted unchanged", () => {
