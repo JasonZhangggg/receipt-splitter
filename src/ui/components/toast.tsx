@@ -8,7 +8,8 @@ import { PressTarget } from "./button";
 import { underline } from "./text-link";
 import { hideAfter } from "./hide-timer";
 
-const visibleFor = 4000;
+// Long enough to read a short line and reach Undo, short enough that it does not linger over the page.
+const visibleFor = 2500;
 const rise = { y: 8, scale: 0.98 };
 // The toast is ink-colored, so its focus ring is drawn in the field color.
 const ring = (color: string) => webStyle({ "--focus": color } as never);

@@ -8,7 +8,7 @@ The Split page `/s/<id>` shows the Receipt as a card and a bottom sheet. A devic
 - `claim-take` moves a name picked on another phone with **That's me**, and drops the other phone back to browsing.
 - `claim-browse` closes the tall sheet without a pick, and a tap on a circle asks again.
 - `claim-check` checks a line for the selected chip, and every browser shows the claimers and Shares.
-- `claim-item` edits the name, price, who had the line, and the split mode in the Item sheet, and the trash icon beside the X (**Delete item**) removes the line and shows the undo bar "Deleted <name> · Undo" for 4 s.
+- `claim-item` edits the name, price, who had the line, and the split mode in the Item sheet, and the trash icon beside the X (**Delete item**) removes the line and shows the undo bar "Deleted <name> · Undo" for 2.5 s.
 - `claim-breakdown` shows a person's Items (or the gray empty row when they have none), their parts of each Adjustment, their total, and one gray line under the share (see [pay.md](./pay.md)). On the phone it folds into the share bar, and on desktop it fills the right pane. In both, the Items and the Adjustment rows under them scroll as one list. The Items have no hairlines between them; one hairline sits above the Adjustments and one above the share row. Only the people, the share row and the pay pills stay still. `e2e/sheet.spec.ts` checks that with two ways to pay on a 375 by 667 phone the list is at least three rows (138 px) tall and reaches Tip by scrolling.
 - `claim-paid` marks the payer paid with **I already paid**.
 - `claim-history` lists Payments and Receipt changes, reverts one with a confirmation for another device's change, and restores the Receipt.
