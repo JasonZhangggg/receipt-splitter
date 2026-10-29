@@ -699,7 +699,7 @@ test("Payments turns each paid arc black at the start of the ring, and says All 
   const ink = "rgb(23, 23, 23)";
   const arcInks = () => dialog.locator("svg g circle").evaluateAll((all) => all.map((one) => getComputedStyle(one).stroke));
   // Priya has paid, so her arc leads the sweep from 12 o'clock in black and Sam's follows in gray.
-  await expect.poll(arcInks, live).toEqual([ink, "rgb(208, 208, 208)"]);
+  await expect.poll(arcInks, live).toEqual([ink, "rgb(184, 184, 184)"]);
   await expect(dialog.getByTestId("all-paid")).toHaveCount(0);
   await expect(dialog.getByText("Your part", { exact: true })).toBeVisible();
 
