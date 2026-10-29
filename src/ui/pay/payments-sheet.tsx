@@ -7,13 +7,12 @@ import { computeShares } from "../../core/shares";
 import { money } from "../../core/currency";
 import { useCurrency } from "../currency";
 import { PressTarget } from "../components/button";
-import { Icon } from "../components/icon";
 import { SectionHead } from "../components/section-head";
 import { useLayoutHeight } from "../components/viewport";
 import { useReducedMotion, webAnimation, webStyle } from "../motion";
 import { splitCopy as say } from "../split-copy";
 import { layout, motion, type, useColors } from "../theme";
-import { checksLandBy, ring, ringMotion, slices } from "./donut-model";
+import { drawnBy, ring, ringMotion, slices } from "./donut-model";
 import { DonutRing } from "./donut-ring";
 import { foldedRows, hostCollected, paymentSections, paymentStatus, pickedRow } from "./model";
 import { firstName } from "./pay-sheet";
@@ -47,8 +46,8 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
   const total = split.receipt.total;
   const unclaimed = shares.unclaimed.total;
   const collected = hostCollected(rows, split.payments);
-  const arcs = slices(shares, me);
   const checked = (id: ParticipantId) => rows.some((row) => row.id === id && (row.state === "settled" || row.state === "over" || row.state === "host"));
+  const arcs = slices(shares, checked);
   const label = say.ring.label(
     money(total, split.currency),
     rows.filter(({ share }) => share > 0).map(({ name, share }) => `${name} ${money(share, split.currency)}`),
@@ -74,8 +73,9 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
           <View role="img" aria-label={label} style={styles.ring}>
             <DonutRing
               slices={arcs}
-              paint={(id) => (id === picked.id ? c.ink : c.dot)}
-              tick={(id) => (checked(id) ? (id === picked.id ? c.onAction : c.ink) : null)}
+              paint={(id) => (checked(id) ? c.ink : c.dot)}
+              lifted={settled && tapped === null ? null : picked.id}
+              closed={settled}
               track={c.hairline}
               onPick={setTapped}
             />
@@ -92,7 +92,7 @@ export function PaymentsSheet({ split, me, onClose, sheet = false }: Props) {
                       <Part amount={picked.share} words={say.ring.yourPart} total={total} />
                     </View>
                   )}
-                  <AllPaid key="all" wait={reduce ? null : opening ? checksLandBy(arcs, checked) : allPaidAfterCheck} caption={say.ring.allPaid(money(total, split.currency))} />
+                  <AllPaid key="all" wait={reduce ? null : opening ? drawnBy(arcs) : allPaidAfterPay} caption={say.ring.allPaid(money(total, split.currency))} />
                 </>
               ) : null}
             </View>
@@ -168,13 +168,12 @@ function Part({ amount, words, total }: { amount: number; words: string; total: 
   );
 }
 
-/** The ring's center once everyone has paid: a green tick over "All paid". It rises in `wait` ms after it mounts, so it lands after the ring's checks; null shows it at once. */
+/** The ring's center once everyone has paid: "All paid" over the Total settled. It rises in `wait` ms after it mounts, so it lands after the ring has drawn; null shows it at once. */
 function AllPaid({ wait, caption }: { wait: number | null; caption: string }) {
   const c = useColors();
   const [delay] = useState(wait);
   return (
     <View testID="all-paid" style={[styles.face, delay !== null && webAnimation({ ...allPaidIn, animationDelay: `${delay}ms` })]}>
-      <Icon name="check" size={22} color={c.good} />
       <Text style={[type.hero, { color: c.ink }]}>{say.ring.allPaidTitle}</Text>
       <Text numberOfLines={1} style={[type.caption, styles.tabular, styles.caption, { color: c.muted }]}>
         {caption}
@@ -184,10 +183,10 @@ function AllPaid({ wait, caption }: { wait: number | null; caption: string }) {
 }
 
 /**
- * When the last payment lands live, your part lifts away as the last check pops in, and All paid eases in as the check settles, so the two overlap rather than
- * leaving the center empty.
+ * When the last payment lands live, your part lifts away as the last arc turns black and slides into the sweep, and All paid eases in as it settles, so the two
+ * overlap rather than leaving the center empty.
  */
-const allPaidAfterCheck = Math.round(ringMotion.checkIn * 0.6);
+const allPaidAfterPay = Math.round(ringMotion.settle * 0.6);
 const partOut = webAnimation({
   animationKeyframes: [{ from: { opacity: 1, transform: "none" }, to: { opacity: 0, transform: "translateY(-6px) scale(0.98)" } }],
   animationDuration: "240ms",
@@ -220,7 +219,7 @@ const styles = StyleSheet.create({
   tabular: { fontVariant: ["tabular-nums"] },
   intro: { gap: 2 },
   caption: { textAlign: "center" },
-  ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: 8 },
+  ring: { alignSelf: "center", width: ring.size, height: ring.size, marginVertical: ring.lift },
   center: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   face: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   sheet: { gap: layout.pairGap },
