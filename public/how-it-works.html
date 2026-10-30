@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#FCFCFC" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />
+    <title>How the SplitWith Receipt Splitter Works</title>
+    <!-- Plain HTML so search engines read it without running the app. The home page stays the tool; this page carries the words people search for. -->
+    <meta name="description" content="How to split a receipt from a photo or screenshot with SplitWith: share one link, friends tap what they had, and they pay you back on Venmo, Cash App, PayPal or Zelle." />
+    <link rel="canonical" href="https://splitwith.dev/how-it-works" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="SplitWith" />
+    <meta property="og:url" content="https://splitwith.dev/how-it-works" />
+    <meta property="og:title" content="How the SplitWith receipt splitter works" />
+    <meta property="og:description" content="Take a photo of the receipt, share a link, and everyone taps what they had and pays you back." />
+    <meta property="og:image" content="https://splitwith.dev/icon-512.png" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- The appearance this device picked on the home page (src/ui/appearance.ts). -->
+    <script>
+      (function () {
+        try {
+          var picked = localStorage.getItem("receipt-splitter:appearance");
+          if (picked === "light" || picked === "dark") document.documentElement.setAttribute("data-theme", picked);
+        } catch (error) {}
+      })();
+    </script>
+    <style>
+      @font-face { font-family: "Geist"; font-weight: 400; font-display: swap; src: url("/fonts/geist-400-89ade87fce.woff2") format("woff2"); }
+      @font-face { font-family: "Geist"; font-weight: 500; font-display: swap; src: url("/fonts/geist-500-1e5e5e4514.woff2") format("woff2"); }
+      :root { color-scheme: light; --bg: #FCFCFC; --ink: #171717; --muted: #737373; --line: #EBEBEB; }
+      @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg: #111111; --ink: #EDEDED; --muted: #999999; --line: #2A2A2A; } }
+      :root[data-theme="dark"] { color-scheme: dark; --bg: #111111; --ink: #EDEDED; --muted: #999999; --line: #2A2A2A; }
+      * { box-sizing: border-box; margin: 0; }
+      html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+      body { background: var(--bg); color: var(--ink); font: 400 16px/1.5 Geist, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+      .page { max-width: 640px; margin: 0 auto; padding: 0 max(24px, env(safe-area-inset-left)) calc(64px + env(safe-area-inset-bottom)); }
+      header { height: 66px; display: flex; align-items: center; padding-top: env(safe-area-inset-top); font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+      a { color: inherit; }
+      header a { text-decoration: none; }
+      h1 { margin-top: 30px; font-size: 30px; line-height: 44px; font-weight: 400; letter-spacing: -0.02em; color: var(--muted); text-wrap: pretty; }
+      h1 b { font-weight: 400; color: var(--ink); }
+      .cta { margin-top: 32px; display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 24px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 17px; font-weight: 500; text-decoration: none; transition: transform 160ms cubic-bezier(.23, 1, .32, 1); }
+      .cta:active { transform: scale(0.97); }
+      .cta svg { width: 16px; height: 16px; }
+      .note { margin-top: 12px; font-size: 14px; color: var(--muted); }
+      section { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); }
+      h2 { font-size: 14px; font-weight: 500; color: var(--muted); margin-bottom: 16px; }
+      ol { list-style: none; padding: 0; counter-reset: step; }
+      ol li { counter-increment: step; display: grid; grid-template-columns: 28px 1fr; padding: 10px 0; font-size: 17px; line-height: 26px; }
+      ol li::before { content: counter(step); color: var(--muted); font-variant-numeric: tabular-nums; }
+      dt { font-size: 17px; font-weight: 500; margin-top: 20px; }
+      dt:first-child { margin-top: 0; }
+      dd { margin-top: 4px; line-height: 24px; color: var(--muted); }
+      footer { margin-top: 56px; font-size: 14px; color: var(--muted); }
+      @media (prefers-reduced-motion: reduce) { .cta { transition: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header><a href="/">SplitWith</a></header>
+      <main>
+        <h1><b>A free receipt splitter.</b> Take a photo of the receipt. Friends tap what they had and pay you back.</h1>
+        <a class="cta" href="/">Split a receipt
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
+        </a>
+        <p class="note">No app and no sign-up.</p>
+
+        <section>
+          <h2>How it works</h2>
+          <ol>
+            <li>Take a photo of the receipt, or pick a screenshot. SplitWith reads every item and price.</li>
+            <li>Send the link to the table.</li>
+            <li>Each friend taps what they had. Tax and tip are shared in proportion to what each person had.</li>
+            <li>They pay you back on Venmo, Cash App, PayPal or Zelle with one tap.</li>
+          </ol>
+        </section>
+
+        <section>
+          <h2>Questions</h2>
+          <dl>
+            <dt>Is it free?</dt>
+            <dd>Yes. There are no ads and no accounts, for you or your friends.</dd>
+            <dt>Do my friends need an app?</dt>
+            <dd>No. The link opens in any phone browser.</dd>
+            <dt>Can I split a receipt from an image I already have?</dt>
+            <dd>Yes. A photo from your camera roll or a screenshot of an online order works the same as a new photo.</dd>
+            <dt>What if it misreads an item?</dt>
+            <dd>Tap the item to fix it. SplitWith compares the items with the receipt's subtotal and shows any difference.</dd>
+            <dt>Does it work in other currencies?</dt>
+            <dd>Yes. Tap the total to pick the receipt's currency.</dd>
+          </dl>
+        </section>
+      </main>
+      <footer><a href="/">splitwith.dev</a></footer>
+    </div>
+  </body>
+</html>

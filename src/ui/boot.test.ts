@@ -91,3 +91,9 @@ test("search results get a written description and one canonical address, not th
   expect(html).toContain('<link rel="canonical" href="https://splitwith.dev/" />');
   expect(readFileSync("public/_headers", "utf8")).toMatch(/\/s\/\*\n(?: {2}.+\n)*? {2}X-Robots-Tag: noindex\n/);
 });
+
+test("the sitemap lists exactly the pages that name themselves canonical", () => {
+  const listed = [...readFileSync("public/sitemap.xml", "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  const canonical = ["public/index.html", "public/how-it-works.html"].map((file) => /<link rel="canonical" href="([^"]+)"/.exec(readFileSync(file, "utf8"))?.[1]);
+  expect(listed).toEqual(canonical);
+});
