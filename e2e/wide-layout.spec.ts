@@ -605,14 +605,6 @@ for (const size of sizes) {
       await shareColumn(page).getByRole("button", { name: "Mark as paid" }).click();
       await expect(shareColumn(page)).toContainText("You paid $3.05", live);
       await expect(pay).toHaveCount(0);
-      await expectToastShown(page, "Marked $3.05 as paid");
-
-      await undo(page).click();
-      await expect(shareColumn(page).getByRole("button", { name: "Mark as paid" })).toBeVisible(live);
-      await expect(pay).toBeVisible();
-
-      await shareColumn(page).getByRole("button", { name: "Mark as paid" }).click();
-      await expect(shareColumn(page)).toContainText("You paid $3.05", live);
       await shareColumn(page).getByRole("button", { name: "Mark as not paid" }).click();
       await expect(shareColumn(page).getByRole("button", { name: "Mark as paid" })).toBeVisible(live);
       await expect(pay).toBeVisible();

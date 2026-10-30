@@ -52,7 +52,7 @@ import { SplitFooter, type FooterPill } from "../../src/ui/split-view/footer";
 import { SplitIntro } from "../../src/ui/split-view/intro";
 import { PayBody, firstName, payFacts, payTitle } from "../../src/ui/pay/pay-sheet";
 import { PayBlock, PayButton } from "../../src/ui/pay/pay-block";
-import { justPaid, paymentStatus, shareStatus, statusWords } from "../../src/ui/pay/model";
+import { paymentStatus, shareStatus, statusWords } from "../../src/ui/pay/model";
 import { useBusyLoader } from "../../src/ui/document";
 import { webStyle } from "../../src/ui/motion";
 import { TextLink } from "../../src/ui/components/text-link";
@@ -534,7 +534,7 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
   const [host] = people;
   const viewed = me && selectedPerson ? payFacts(split, selectedPerson, me) : null;
   const viewedTitle = me && selectedPerson && viewed ? payTitle(split, selectedPerson, me) : say.payments;
-  // The sheet closes the moment the payment is shown; the Undo bar follows the server's answer.
+  // The sheet closes the moment the payment is shown.
   // `agreed` is the Share the person saw when they tapped. If the actions that settled in between moved it, nothing is recorded: the sheet stays open and says the new amount, and a second tap records that.
   const pay = (paid: boolean, agreed: Cents = myShare) => {
     waitingToPay.current = null;
@@ -550,20 +550,8 @@ function SplitPage({ splitId, split, server, photo, send, act, idle, connection 
       } else setBar({ message: note });
       return;
     }
-    const before = split.payments.find(({ participantId }) => participantId === me)?.amount ?? null;
-    const shown = markPaid(me, paid ? myShare : null, () => {
-      if (!paid) return;
-      setBar({
-        message: say.markedPaid(money(justPaid(myShare, before), split.currency)),
-        action: {
-          label: say.undo,
-          onPress: () => {
-            setBar(null);
-            if (!markPaid(me, before)) setBar({ message: say.connection.failed });
-          },
-        },
-      });
-    });
+    // The footer's ✓ Paid and the Payments check say it, so no bar follows; Mark as not paid takes it back.
+    const shown = markPaid(me, paid ? myShare : null);
     if (!shown) return setBar({ message: say.connection.failed });
     if (paid && overlay?.kind === "pay") closeOverlay();
   };

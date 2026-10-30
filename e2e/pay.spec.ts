@@ -142,24 +142,26 @@ test("the Pay sheet lists the viewer's Items under What you had and Adjustment p
   await expect(sheet.getByText("$16.00", { exact: true })).toBeVisible();
 });
 
-test("I already paid marks the viewer paid and Undo reverts it", async ({ browser, request }, { workerIndex }) => {
+test("I already paid marks the viewer paid with no bar, and Mark as not paid takes it back", async ({ browser, request }, { workerIndex }) => {
   const sam = await open(browser, await createSplit(request, workerIndex, [venmo]));
   await pick(sam, "Sam");
   await circle(sam, "Pho", "Sam").click();
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toBeVisible(live);
   await expect(sam.getByTestId("breakdown")).toHaveCount(0, live);
   const footer = sam.getByTestId("footer");
   await expect(footer.getByRole("button", { name: "Paid" })).toHaveText("✓ Paid");
+  await sam.waitForTimeout(1000);
+  await expect(sam.getByText(/as paid/)).toHaveCount(0);
 
-  await sam.getByRole("button", { name: "Undo" }).click();
-  await expect(footer.getByRole("button", { name: "Pay Jason" })).toBeVisible(live);
-  await footer.getByRole("button", { name: "Pay Jason" }).click();
+  await footer.getByRole("button", { name: "Paid" }).click();
+  await breakdown(sam).getByRole("button", { name: "Mark as not paid" }).click();
+  // The sheet stays open on the clear, back to I already paid, and the footer is back to Pay Jason.
   await expect(breakdown(sam).getByRole("button", { name: "I already paid" })).toBeVisible(live);
+  await expect(footer.getByRole("button", { name: "Pay Jason" })).toBeVisible(live);
 });
 
-test("Undo after I paid the rest returns to the earlier payment instead of clearing it", async ({ browser, request }, { workerIndex }) => {
+test("I paid the rest records the rest on top of the earlier payment", async ({ browser, request }, { workerIndex }) => {
   const link = await createSplit(request, workerIndex, [venmo]);
   const sam = await open(browser, link);
   const priya = await open(browser, link);
@@ -170,9 +172,6 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
   await owe(sam).click();
   await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
   await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
-  // The Undo bar comes with the server's answer, after the optimistic "✓ Paid", so wait for it to show before waiting for it to go.
-  await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toBeVisible(live);
-  await expect(sam.getByRole("status").getByText("Marked $14.20 as paid")).toHaveCount(0, { timeout: 10_000 });
 
   await priya.getByRole("button", { name: /^Open Tea/ }).click();
   await priya.getByRole("group", { name: "Who had it" }).getByRole("button", { name: "Sam" }).click();
@@ -185,11 +184,8 @@ test("Undo after I paid the rest returns to the earlier payment instead of clear
   await expect(breakdown(sam).getByText("Left to pay", { exact: true })).toBeVisible();
   await expect(breakdown(sam).getByTestId("left-to-pay")).toHaveText("$16.00");
   await breakdown(sam).getByRole("button", { name: "I paid the rest" }).click();
-  await expect(sam.getByRole("status").getByText("Marked $16.00 as paid")).toBeVisible(live);
   await expect(sam.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
-
-  await sam.getByRole("button", { name: "Undo" }).click();
-  await expect(note(sam)).toHaveText("Paid $14.20 · $16.00 still owed", live);
+  await expect(sam.getByText(/as paid/)).toHaveCount(0);
 });
 
 test("with no way to pay the Host, Sam's breakdown links no pay app and still lets him mark his $14.20 paid", async ({ browser, request }, { workerIndex }) => {
@@ -586,9 +582,9 @@ test("an Undo bar over an open sheet rides the sheet's bottom lift, not the foot
   const sam = await open(browser, await createSplit(request, workerIndex, [venmo]));
   await pick(sam, "Sam");
   await circle(sam, "Pho", "Sam").click();
-  await owe(sam).click();
-  await breakdown(sam).getByRole("button", { name: "I already paid" }).click();
-  const bar = sam.getByText("Marked $14.20 as paid");
+  await sam.getByRole("button", { name: /^Open Pho/ }).click();
+  await sam.getByRole("dialog", { name: "Edit item" }).getByRole("button", { name: "Delete item" }).click();
+  const bar = sam.getByText("Deleted Pho");
   await expect(bar).toBeVisible(live);
   await sam.getByRole("button", { name: "Payments", exact: true }).click();
   await expect(sam.getByRole("dialog", { name: "Payments" })).toBeVisible(live);
@@ -727,7 +723,7 @@ test("Payments turns each paid arc black at the start of the ring, and says All 
   await expect(owe(priya)).toHaveText("$16.00", live);
   await owe(priya).click();
   await breakdown(priya).getByRole("button", { name: "I already paid" }).click();
-  await expect(priya.getByRole("status").getByText("Marked $16.00 as paid")).toBeVisible(live);
+  await expect(priya.getByTestId("footer").getByRole("button", { name: "Paid" })).toHaveText("✓ Paid", live);
 
   await fromMore(priya, "Payments");
   const dialog = priya.getByRole("dialog", { name: "Payments" });
