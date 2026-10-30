@@ -18,6 +18,8 @@ const live = { timeout: 30_000 };
 const question = (page: Page) => page.getByRole("heading", { name: "Which one are you?" });
 
 async function fillHome(page: Page, ...names: string[]) {
+  // Typing before the app has mounted is lost when React takes over the fields, so wait for the loader to lift.
+  await expect(page.locator("html")).not.toHaveAttribute("data-boot");
   await page.getByRole("textbox", { name: "Venmo handle" }).fill("jason-z");
   await addNames(page, "Jason", ...names);
 }
