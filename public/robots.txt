@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /api/
+Disallow: /parties/
+Disallow: /debug/
+
+Sitemap: https://splitwith.dev/sitemap.xml

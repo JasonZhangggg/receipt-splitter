@@ -6,7 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#FCFCFC" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)" />
-    <title>%WEB_TITLE%</title>
+    <title>Receipt Splitter: Split the Bill from a Photo | SplitWith</title>
+    <!-- What search results and link previews show. _headers keeps Split links out of search. -->
+    <meta name="description" content="Free receipt splitter. Take a photo of the receipt, share a link, and friends tap what they had and pay you back on Venmo, Cash App, PayPal or Zelle." />
+    <link rel="canonical" href="https://splitwith.dev/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SplitWith" />
+    <meta property="og:url" content="https://splitwith.dev/" />
+    <meta property="og:title" content="SplitWith: the free receipt splitter" />
+    <meta property="og:description" content="Take a photo of the receipt, share a link, and everyone taps what they had and pays you back. Free, with no app or sign-up." />
+    <meta property="og:image" content="https://splitwith.dev/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "SplitWith",
+        "url": "https://splitwith.dev/",
+        "description": "A free receipt splitter. Take a photo of the receipt, and friends tap what they had and pay you back by Venmo, Cash App, PayPal or Zelle.",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Any",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
     <!-- A Split link opens its live socket here, so the connection and the Split's first state travel while the bundle downloads. src/live/first-sight.ts takes it over once the app runs. The pattern is the one isRoutableSplitId accepts (src/ui/boot.test.ts checks). -->
     <script>
       (function () {
@@ -198,7 +220,7 @@
 
   <body>
     <noscript>
-      You need to enable JavaScript to run this app.
+      SplitWith is a free receipt splitter that splits the bill from a photo of the receipt. Friends tap what they had and pay you back by Venmo, Cash App, PayPal or Zelle. Turn on JavaScript to use it.
     </noscript>
     <div id="rs-boot" role="status" aria-label="Loading">
       <div class="paper">

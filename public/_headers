@@ -4,6 +4,10 @@
 
 /s/*
   Referrer-Policy: same-origin
+  X-Robots-Tag: noindex
+
+/debug/*
+  X-Robots-Tag: noindex
 
 /
   Cross-Origin-Opener-Policy: same-origin

@@ -83,3 +83,11 @@ test("the early socket is closed and forgotten if the app has not taken it after
   expect(closed).toEqual(["closed"]);
   expect((window as { splitwithSocket?: { events: unknown } }).splitwithSocket?.events).toBeNull();
 });
+
+test("search results get a written description and one canonical address, not the home page's sentence pieces", () => {
+  const description = /<meta name="description" content="([^"]+)"/.exec(html)?.[1];
+  expect(description?.length).toBeGreaterThan(50);
+  expect(description!.length).toBeLessThanOrEqual(160);
+  expect(html).toContain('<link rel="canonical" href="https://splitwith.dev/" />');
+  expect(readFileSync("public/_headers", "utf8")).toMatch(/\/s\/\*\n(?: {2}.+\n)*? {2}X-Robots-Tag: noindex\n/);
+});
