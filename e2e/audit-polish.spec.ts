@@ -185,7 +185,7 @@ test("Share without Web Share copies the link and says Link copied, or says it c
   await expect(page.getByText("Couldn't copy the link.")).toBeVisible(live);
 });
 
-test("home, the Split page and the not-found page set coffee (when on), the theme toggle and Share 32 px apart, and Share off a Split copies the site's link", async ({ page, request, context }, { workerIndex }) => {
+test("home, the Split page and the not-found page set How it works, coffee (when on), the theme toggle and Share 32 px apart, and Share off a Split copies the site's link", async ({ page, request, context }, { workerIndex }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => Object.defineProperty(navigator, "share", { value: undefined, configurable: true }));
   const glyphs = () =>
@@ -194,7 +194,7 @@ test("home, the Split page and the not-found page set coffee (when on), the them
         .filter((icon) => icon.getBoundingClientRect().y < 80 && getComputedStyle(icon.parentElement!).opacity !== "0")
         .map((icon) => [icon.getAttribute("data-icon"), Math.round(icon.getBoundingClientRect().x + icon.getBoundingClientRect().width / 2)]),
     );
-  const row = [...(features.coffee ? [["coffee", 292]] : []), ["sun", 324], ["share", 356]];
+  const row = [["help", features.coffee ? 260 : 292], ...(features.coffee ? [["coffee", 292]] : []), ["sun", 324], ["share", 356]];
   const link = await createSplit(request, workerIndex);
   await openAs(page, link, "Sam");
   expect(await glyphs()).toEqual(row);

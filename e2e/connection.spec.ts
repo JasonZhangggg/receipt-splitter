@@ -1,5 +1,4 @@
 import { openExample } from "./files";
-import { features } from "../src/features";
 import { expect, test, type APIRequestContext, type Page } from "./without-ocr";
 import type { WebSocketRoute } from "@playwright/test";
 
@@ -211,7 +210,7 @@ for (const width of [390, 320]) {
 
     const line = (await notice(page).boundingBox())!;
     expect(line.height).toBeLessThan(28);
-    const first = features.coffee ? page.getByRole("link", { name: "Buy me a coffee" }) : page.getByRole("button", { name: "Switch to dark mode" });
+    const first = page.getByRole("link", { name: "How it works" });
     const icon = (await first.boundingBox())!;
     expect(line.x + line.width).toBeLessThanOrEqual(icon.x + icon.width / 2 - 8);
 

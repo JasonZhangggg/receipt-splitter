@@ -83,7 +83,8 @@ export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fa
       ? {
           dataSet: { pressable: "" },
           delayPressIn: outsideScroll ? 0 : scrollViewTouchDelay,
-          ...(href === undefined ? {} : { href, hrefAttrs: newTab }),
+          // A path on this site opens in the same tab; any other address opens a new one.
+          ...(href === undefined ? {} : { href, hrefAttrs: href.startsWith("/") ? undefined : newTab }),
           // Focus moves in mousedown's default action, which iOS fires after the finger lifts. Preventing it keeps focus and still fires click.
           ...(keepsFocus ? { onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() } : {}),
         }
