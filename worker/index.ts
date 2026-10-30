@@ -11,10 +11,15 @@ export { SplitServer } from "./split-server";
 
 const SPLIT_SOCKET_PATH = /^\/parties\/split-server\/([^/]+)$/;
 const PHOTO_PATH = /^\/api\/splits\/([^/]+)\/photo$/;
+/** Google Search Console's ownership file. The Worker answers it because static assets would redirect a .html path to the bare name, and the verifier wants the file itself. */
+const SEARCH_CONSOLE_FILE = "googlea240a19fcff04246.html";
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === `/${SEARCH_CONSOLE_FILE}`) {
+      return new Response(`google-site-verification: ${SEARCH_CONSOLE_FILE}`, { headers: { "content-type": "text/html; charset=utf-8", "x-content-type-options": "nosniff" } });
+    }
     if (url.pathname === "/api/splits") {
       const response = await createSplit(request, env);
       response.headers.set("x-content-type-options", "nosniff");

@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { createSplit, leftovers } from "./testing";
 
 describe("routing", () => {
+  it("serves the Search Console ownership file itself, not a redirect", async () => {
+    const response = await exports.default.fetch("http://localhost/googlea240a19fcff04246.html");
+    expect([response.status, await response.text()]).toEqual([200, "google-site-verification: googlea240a19fcff04246.html"]);
+  });
+
   it("answers an unknown API path with 404", async () => {
     const response = await exports.default.fetch("http://localhost/api/unknown");
     expect(response.status).toBe(404);
