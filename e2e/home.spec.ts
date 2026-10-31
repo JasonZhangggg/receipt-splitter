@@ -692,3 +692,20 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect(await page.evaluate(() => (window as unknown as { presses: number }).presses)).toBe(1);
   });
 }
+
+test("How it works opens inside the app without loading a page, and a reload of it gets the plain HTML page", async ({ page }) => {
+  await page.goto("/");
+  await settle(page);
+  await page.evaluate(() => Object.assign(window, { stayed: true }));
+  await page.getByRole("link", { name: "How it works" }).click();
+  await expect(page).toHaveURL(/\/how-it-works$/);
+  await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
+  await expect(page).toHaveTitle("How the SplitWith Receipt Splitter Works");
+  expect(await page.evaluate(() => "stayed" in window)).toBe(true);
+  await page.getByText("Split a receipt").first().click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("link", { name: "How it works" })).toBeVisible();
+  expect(await page.evaluate(() => "stayed" in window)).toBe(true);
+  await page.goto("/how-it-works");
+  expect(await page.evaluate(() => document.getElementById("root"))).toBeNull();
+});
