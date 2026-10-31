@@ -5,7 +5,7 @@ import { expect, test } from "vitest";
 
 import { isRoutableSplitId } from "../core/split";
 import { colors } from "./colors";
-import { faces } from "./fonts.generated";
+import { fallbackMetrics, faces } from "./fonts.generated";
 
 const html = readFileSync("public/index.html", "utf8");
 
@@ -96,4 +96,15 @@ test("the sitemap lists exactly the pages that name themselves canonical", () =>
   const listed = [...readFileSync("public/sitemap.xml", "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   const canonical = ["public/index.html", "public/how-it-works.html"].map((file) => /<link rel="canonical" href="([^"]+)"/.exec(readFileSync(file, "utf8"))?.[1]);
   expect(listed).toEqual(canonical);
+});
+
+test("How it works loads the same Geist files and sizes its fallback like the app, so its text does not jump", () => {
+  const page = readFileSync("public/how-it-works.html", "utf8");
+  const preloads = [...page.matchAll(/<link rel="preload" href="([^"]+)" as="font"/g)].map((m) => m[1]);
+  expect(preloads).toEqual([faces[400], faces[500]]);
+  const fallback = [...page.matchAll(/font-family: "Geist Fallback"; font-weight: (\d+);[^}]*?; (size-adjust[^}]*?) \}/g)].map((m) => [Number(m[1]), m[2]]);
+  expect(fallback).toEqual([
+    [400, fallbackMetrics[400]],
+    [500, fallbackMetrics[500]],
+  ]);
 });
