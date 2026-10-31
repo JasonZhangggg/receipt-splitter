@@ -15,6 +15,8 @@
     <meta property="og:title" content="How the SplitWith receipt splitter works" />
     <meta property="og:description" content="Take a photo of the receipt, share a link, and everyone taps what they had and pays you back." />
     <meta property="og:image" content="https://splitwith.dev/icon-512.png" />
+    <link rel="preload" href="/fonts/geist-400-89ade87fce.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/geist-500-1e5e5e4514.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- The appearance this device picked on the home page (src/ui/appearance.ts). -->
@@ -29,12 +31,15 @@
     <style>
       @font-face { font-family: "Geist"; font-weight: 400; font-display: swap; src: url("/fonts/geist-400-89ade87fce.woff2") format("woff2"); }
       @font-face { font-family: "Geist"; font-weight: 500; font-display: swap; src: url("/fonts/geist-500-1e5e5e4514.woff2") format("woff2"); }
+      /* Arial sized to Geist's metrics, the same as "Geist Fallback" in src/ui/document.ts, so the text does not move when Geist arrives. */
+      @font-face { font-family: "Geist Fallback"; font-weight: 400; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"), local("Roboto"), local("Roboto-Regular"); size-adjust: 101.17%; ascent-override: 99.34%; descent-override: 29.16%; line-gap-override: 0%; }
+      @font-face { font-family: "Geist Fallback"; font-weight: 500; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans"), local("Roboto"), local("Roboto-Regular"); size-adjust: 106.52%; ascent-override: 94.35%; descent-override: 27.69%; line-gap-override: 0%; }
       :root { color-scheme: light; --bg: #FCFCFC; --ink: #171717; --muted: #737373; --line: #EBEBEB; }
       @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg: #111111; --ink: #EDEDED; --muted: #999999; --line: #2A2A2A; } }
       :root[data-theme="dark"] { color-scheme: dark; --bg: #111111; --ink: #EDEDED; --muted: #999999; --line: #2A2A2A; }
       * { box-sizing: border-box; margin: 0; }
       html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
-      body { background: var(--bg); color: var(--ink); font: 400 16px/1.5 Geist, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+      body { background: var(--bg); color: var(--ink); font: 400 16px/1.5 Geist, "Geist Fallback", system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
       a { color: inherit; touch-action: manipulation; }
       /* The same frame as the home page: a 24 px gutter, and at 1440 px the wordmark and headline start 114 px in. */
       .page { max-width: 1260px; margin: 0 auto; padding: env(safe-area-inset-top) max(24px, env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
