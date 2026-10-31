@@ -801,8 +801,10 @@ for (const size of sizes) {
       expect(at(/^Chicken Fried Rice, check for Sam/)).toBeGreaterThan(at(/^Shared, 0$/));
       expect(at(/^Add item, tax, tip or discount/)).toBeGreaterThan(at(/^Open Perrier/));
       expect(at(/Choose whose share to show$/)).toBeGreaterThan(at(/^Add item/));
-      // The links sit in the top bar, just before the theme toggle.
+      // The links sit in the top bar, just before the header's icons, which start with How it works.
       await page.getByRole("button", { name: "Switch to dark mode" }).focus();
+      await page.keyboard.press("Shift+Tab");
+      expect(await focused(page)).toBe("How it works");
       await page.keyboard.press("Shift+Tab");
       expect(await focused(page)).toBe("History");
 

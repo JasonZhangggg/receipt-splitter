@@ -7,6 +7,7 @@ import type { ReadingStage } from "./home-sentence/receipt-words";
 export const copy = {
   wordmark: "SplitWith",
   coffee: "Buy me a coffee",
+  howItWorks: "How it works",
   sentence: {
     paidTheBill: "I paid the bill.",
     byHand: "I\u2019ll add the items myself.",

@@ -42,10 +42,13 @@ export function SplitHeader({ onShare, home = false, links }: Props & { home?: b
   );
 }
 
-/** Coffee (when `features.coffee` is on), the theme toggle and Share, 32 px apart, the same on every page. */
+/** How it works, coffee (when `features.coffee` is on), the theme toggle and Share, 32 px apart, the same on every page. */
 export function HeaderIcons({ onShare }: Props) {
   return (
     <View style={styles.buttons}>
+      <View style={styles.pull}>
+        <Button kind="icon" icon="help" name={copy.howItWorks} href="/how-it-works" />
+      </View>
       {features.coffee && <CoffeeButton />}
       <ThemeToggle />
       <Button kind="icon" icon="share" name={say.shareLink} onPress={onShare} />
@@ -67,6 +70,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: layout.header, paddingTop: 6 },
   buttons: { flexDirection: "row", alignItems: "center", marginRight: -12 },
   home: { minHeight: 44, justifyContent: "center" },
+  // Overlaps the next icon's 44 px box by 12 px, as CoffeeButton does, so the glyphs sit 32 px apart.
+  pull: { marginRight: -12 },
   end: { flexDirection: "row", alignItems: "center", gap: 28 },
   links: { flexDirection: "row", alignItems: "center", columnGap: 20 },
 });

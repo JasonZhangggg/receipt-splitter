@@ -52,7 +52,7 @@ test("the header's icons and wordmark sit at the same place on home, the Split p
     await page.goto(path);
     await expect(page.getByRole("heading", { name: /SplitWith/ }).first()).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    const names = [...(features.coffee ? ["Buy me a coffee"] : []), "Switch to dark mode", "Share link"];
+    const names = ["How it works", ...(features.coffee ? ["Buy me a coffee"] : []), "Switch to dark mode", "Share link"];
     return page.evaluate((names) =>
       names.map((name) => {
         const face = document.querySelector(`[aria-label="${name}"] [data-press-face]`)!.getBoundingClientRect();
@@ -63,6 +63,7 @@ test("the header's icons and wordmark sit at the same place on home, the Split p
   };
   const home = await icons("/");
   expect(home).toEqual([
+    [features.coffee ? 260 : 292, 33, 32, 32],
     ...(features.coffee ? [[292, 33, 32, 32]] : []),
     [324, 33, 32, 32],
     [356, 33, 32, 32],
