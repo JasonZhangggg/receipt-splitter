@@ -6,6 +6,7 @@ import { expect, test } from "vitest";
 import { isRoutableSplitId } from "../core/split";
 import { colors } from "./colors";
 import { fallbackMetrics, faces } from "./fonts.generated";
+import { howCopy } from "./how-it-works-copy";
 
 const html = readFileSync("public/index.html", "utf8");
 
@@ -107,4 +108,12 @@ test("How it works loads the same Geist files and sizes its fallback like the ap
     [400, fallbackMetrics[400]],
     [500, fallbackMetrics[500]],
   ]);
+});
+
+test("the in-app How it works screen says the same words, in the same order, as the HTML page search engines read", () => {
+  const page = readFileSync("public/how-it-works.html", "utf8");
+  const words = (html: string) => html.replace(/<style>[\s\S]*?<\/style>|<script>[\s\S]*?<\/script>|<head>[\s\S]*?<\/head>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const shown = [howCopy.lead, howCopy.rest, howCopy.start, howCopy.note, howCopy.stepsHead, ...howCopy.steps.flatMap((s) => [s.head, s.text]), howCopy.questionsHead, ...howCopy.questions.flatMap((q) => [q.ask, q.answer]), howCopy.start];
+  expect(words(page)).toBe(["SplitWith", ...shown].join(" "));
+  expect(page).toContain(`<title>${howCopy.title}</title>`);
 });

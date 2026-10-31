@@ -47,7 +47,7 @@ export function HeaderIcons({ onShare }: Props) {
   return (
     <View style={styles.buttons}>
       <View style={styles.pull}>
-        <Button kind="icon" icon="help" name={copy.howItWorks} href="/how-it-works" />
+        <Button kind="icon" icon="help" name={copy.howItWorks} href="/how-it-works" onFollow={() => router.navigate("/how-it-works")} />
       </View>
       {features.coffee && <CoffeeButton />}
       <ThemeToggle />

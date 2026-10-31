@@ -41,7 +41,10 @@ export function useHeld() {
 /** The control a press came from and whether a key made it, so a popover can hang from the control and skip its entrance for a key. */
 export type Press = { readonly trigger: HTMLElement; readonly keyboard: boolean };
 
-export type Action = { onPress: (press: Press) => void; href?: undefined; fallbackHref?: undefined } | { href: string; fallbackHref?: string; onPress?: undefined };
+export type Action =
+  | { onPress: (press: Press) => void; href?: undefined; fallbackHref?: undefined; onFollow?: undefined }
+  /** `onFollow` shows a screen of the app in place of a plain click on the web; a modified click still opens the address in a new tab. */
+  | { href: string; fallbackHref?: string; onFollow?: () => void; onPress?: undefined };
 
 type TargetProps = Action & {
   name?: string;
@@ -66,7 +69,7 @@ type TargetProps = Action & {
 
 const newTab = { target: "_blank", rel: "noopener noreferrer" };
 
-export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fallbackHref, name, outsideScroll = false, disabled = false, softDisabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
+export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fallbackHref, onFollow, name, outsideScroll = false, disabled = false, softDisabled = false, busy, describedBy, toggled, expanded, popup, controls, style, children }: TargetProps) {
   const { held, press, release, stop } = useHeld();
   const self = useRef<View>(null);
   if (disabled && held) stop();
@@ -109,6 +112,10 @@ export function PressTarget({ onPress, onLongPress, keepsFocus = false, href, fa
         if (disabled) return;
         if (href === undefined) onPress({ trigger: self.current as unknown as HTMLElement, keyboard: pressedByKey(event) });
         else if (Platform.OS !== "web") void openWithFallback((url) => Linking.openURL(url), href, fallbackHref);
+        else if (onFollow && plainClick(event)) {
+          event.preventDefault();
+          onFollow();
+        }
       }}
       {...web}
       style={() => style(held)}
@@ -141,6 +148,11 @@ function useContextMenu(target: { current: View | null }, onMenu: ((press: Press
     return () => element.removeEventListener("contextmenu", onMenuEvent);
   }, [target, active]);
 }
+
+const plainClick = (event: GestureResponderEvent) => {
+  const click = event.nativeEvent as unknown as MouseEvent;
+  return !click.metaKey && !click.ctrlKey && !click.shiftKey && !click.altKey && (click.button ?? 0) === 0;
+};
 
 // A role="button" target renders as a native <button>, so Enter and Space reach onPress as a click with detail 0, since no pointer clicked.
 const pressedByKey = (event: GestureResponderEvent) => (event.nativeEvent as unknown as MouseEvent).detail === 0;
