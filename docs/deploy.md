@@ -2,7 +2,9 @@
 
 Every push to `main` that passes CI deploys to production. `.github/workflows/deploy.yml` builds `dist/` and runs `wrangler deploy` against `wrangler.jsonc`.
 
-Production is the Worker `app`, served at `https://splitwith.dev`. It also still answers at `app.splitwith.workers.dev`, the account subdomain `splitwith` plus the Worker name. Both addresses reach the same Worker and the same stored Splits, so links shared on either keep opening.
+Production is the Worker `app`, served at `https://splitwith.dev`. It also answers at `app.<subdomain>.workers.dev`, the account's workers.dev subdomain plus the Worker name. Both addresses reach the same Worker and the same stored Splits.
+
+The account subdomain was `splitwith` until 2026-11-04, when it was renamed to something general so other projects can share the account. Since then `app.splitwith.workers.dev` no longer answers, and Cloudflare can't redirect it. Splits created there still open on splitwith.dev under the same `/s/<id>` path.
 
 ## Custom domain
 
@@ -10,7 +12,7 @@ Production is the Worker `app`, served at `https://splitwith.dev`. It also still
 
 `wrangler.jsonc` has no `routes`, so `wrangler deploy` leaves the dashboard's domain in place. If you move the domain into `routes` with `custom_domain: true`, the deploy token also needs edit access to Workers Routes on the `splitwith.dev` zone.
 
-The browser keeps each device's recent Splits and creator rights per address. A device that used the workers.dev address sees its history only there.
+The browser keeps each device's recent Splits and creator rights per address. A device that used a workers.dev address saw its history only there, so the subdomain rename dropped that history on those devices.
 
 ## Set up once
 
@@ -49,7 +51,7 @@ The app used Cloudflare Turnstile until 2026-10-01. Nothing reads its settings n
 	npx wrangler secret delete TURNSTILE_SECRET_KEY --name app
 	```
 
-3. In the Cloudflare dashboard, open Turnstile and delete the widget for `app.splitwith.workers.dev`.
+3. In the Cloudflare dashboard, open Turnstile and delete the widget for the old `app.splitwith.workers.dev` address.
 
 ## Rename the Worker
 

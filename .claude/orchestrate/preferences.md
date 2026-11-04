@@ -12,7 +12,7 @@ When a ruling changes, edit its line in place and add the date. Do not append a 
 5. A line shown as one row is claimed like any one-line Item, quantity or not: Who had it, Evenly, By shares and By amount apply to the whole line. After Split, each one-unit row is claimed the same way. (2026-10-03, replaces per-unit claims on a quantity line)
 6. A receipt that does not add up, or reads oddly (e.g. a coupon worth more than its Item, a $0.00 subtotal), still produces a reading and can always be split: nothing about the receipt's numbers blocks creating the link or any operation. Home and the Split page show a quiet gray note instead. Structural validation only rejects what cannot be represented at all (no lines, unparseable amounts). (2026-10-05, operator: "even if it does not add up there should be an output"; was 2026-10-01)
 7. No Turnstile. Creates are limited to 10 a minute and 50 a UTC day per IP, plus a global cap of 1,000 a UTC day. (2026-10-02, PR 34)
-8. Production is app.splitwith.workers.dev on Cloudflare Workers Free: one Worker serves static assets, /api and /parties with Durable Objects. Every merge to main deploys. (2026-10-01)
+8. Production is https://splitwith.dev (Worker `app`) on Cloudflare Workers Free. The account's workers.dev subdomain is no longer `splitwith` (renamed 2026-11-04 for other projects), so don't use app.splitwith.workers.dev: one Worker serves static assets, /api and /parties with Durable Objects. Every merge to main deploys. (2026-10-01)
 9. Images only for receipts, no PDF. (2026-09-30)
 10. Payment handles cannot change after create. There is no handle-edit control on the Split page. (2026-10-02)
 11. "@jason-z" in mockups is a placeholder, not a real handle. Leave it. (2026-10-01)
